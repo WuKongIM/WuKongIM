@@ -534,7 +534,7 @@ func (r *Reactor) handleAck(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if rc.state.Role != ch.RoleLeader || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
+	if rc.state.Role != ch.RoleLeader || event.Ack.ChannelKey != rc.state.Key || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
 		event.Future.Complete(Result{})
 		return
 	}

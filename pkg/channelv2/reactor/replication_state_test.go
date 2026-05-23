@@ -689,6 +689,44 @@ func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
 	requireFuturePending(t, future)
 }
 
+func TestLeaderIgnoresAckFromUnknownFollower(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := ch.Meta{Key: "1:ack-unknown", ID: ch.ChannelID{ID: "ack-unknown", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-known-follower"))
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+
+	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: 1, LeaderEpoch: 1, Follower: 99, MatchOffset: 1}})
+	require.NoError(t, err)
+	_, err = ackFuture.Await(context.Background())
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+}
+
+func TestLeaderIgnoresAckWithMismatchedChannelKey(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := ch.Meta{Key: "1:ack-key", ID: ch.ChannelID{ID: "ack-key", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-matching-ack-key"))
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+
+	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: "1:other", Epoch: 1, LeaderEpoch: 1, Follower: 2, MatchOffset: 1}})
+	require.NoError(t, err)
+	_, err = ackFuture.Await(context.Background())
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+}
+
 func appendQuorumEvent(meta ch.Meta, id uint64, payload string) Event {
 	event := appendEvent(meta, id, payload)
 	event.Append.CommitMode = ch.CommitModeQuorum
