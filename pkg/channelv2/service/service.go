@@ -44,8 +44,12 @@ type Config struct {
 }
 
 type cluster struct {
-	group        *reactor.Group
+	// group owns channel reactor partitions for this service facade.
+	group *reactor.Group
+	// metaResolver loads authoritative metadata before lazy channel activation.
 	metaResolver ch.MetaResolver
+	// localNode is this service node id for validating follower-only activation.
+	localNode ch.NodeID
 }
 
 // New constructs a v0 channelv2 cluster facade.
@@ -70,7 +74,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cluster{group: group, metaResolver: cfg.MetaResolver}, nil
+	return &cluster{group: group, metaResolver: cfg.MetaResolver, localNode: cfg.LocalNode}, nil
 }
 
 func (c *cluster) Tick(ctx context.Context) error {

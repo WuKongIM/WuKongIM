@@ -241,6 +241,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleAck(event)
 	case EventNotify:
 		r.handleNotify(event)
+	case EventPullHint:
+		r.handlePullHint(event)
 	case EventWorkerResult:
 		r.handleWorkerResult(event)
 	case EventTick:
@@ -250,6 +252,39 @@ func (r *Reactor) handle(event Event) {
 	}
 	r.sweepAppendCancellations()
 	r.sweepPullCancellations()
+}
+
+func (r *Reactor) handlePullHint(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: err})
+		}
+		return
+	}
+	req := event.PullHint
+	if req.ChannelKey != "" && req.ChannelKey != rc.state.Key {
+		err = ch.ErrStaleMeta
+	} else if req.ChannelID != (ch.ChannelID{}) && req.ChannelID != rc.state.ID {
+		err = ch.ErrStaleMeta
+	} else if rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive ||
+		req.Epoch != rc.state.Epoch || req.LeaderEpoch != rc.state.LeaderEpoch ||
+		req.Leader != rc.state.Leader || req.Leader == r.cfg.LocalNode ||
+		!rc.state.IsReplica(r.cfg.LocalNode) {
+		err = ch.ErrStaleMeta
+	}
+	if err != nil {
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: err})
+		}
+		return
+	}
+	now := time.Now()
+	rc.replication.markDirty(now)
+	r.tickReplication(rc, now)
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
 }
 
 func (r *Reactor) handleWorkerResult(event Event) {

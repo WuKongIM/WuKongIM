@@ -250,7 +250,7 @@ func (g *Group) Close() error {
 
 func eventPriority(kind EventKind) Priority {
 	switch kind {
-	case EventApplyMeta, EventCancelWaiter, EventWorkerResult, EventNotify, EventClose:
+	case EventApplyMeta, EventCancelWaiter, EventWorkerResult, EventNotify, EventPullHint, EventClose:
 		return PriorityHigh
 	case EventTick:
 		return PriorityLow
