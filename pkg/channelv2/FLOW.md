@@ -28,11 +28,11 @@
 
 ## Replication
 
-Replication is owned by each channel's reactor runtime. `service.Tick` only calls `group.Tick(ctx)`, which submits low-priority tick events; the reactor decides whether an active local follower should pull, apply, or ack. Follower pull offsets are based on local `LEO + 1`, not committed HW or a service-side fetch. RPC pull, store apply, and ACK completions flow through worker result observer hooks, while three-node async benchmarks exercise the worker-pool path with local transport. Leader append completion also sends a best-effort notify RPC to non-local replicas. Notify carries no records or commit state; it only marks the follower dirty so the follower-owned reactor can submit an immediate pull. Short-poll idle retry remains the fallback when notify is dropped, backpressured, or races metadata changes.
+Replication is owned by each channel's reactor runtime. `service.Tick` only calls `group.Tick(ctx)`, which submits low-priority tick events; the reactor decides whether an active local follower should pull, apply, or ack. Follower pull offsets are based on local `LEO + 1`, not committed HW or a service-side fetch. RPC pull, store apply, and ACK completions flow through worker result observer hooks, while three-node async benchmarks exercise the worker-pool path with local transport. Leader append completion records a leader-owned activity version from the durable LEO, then sends best-effort PullHint RPCs to parked, stopped, or not-yet-started followers that are behind that version. PullHint carries leader LEO and activity version so unloaded followers can lazily activate and pull immediately. The legacy notify path remains as compatibility plumbing, and short-poll idle retry remains the fallback when hints are dropped, backpressured, or race metadata changes.
 
 ```text
-leader append stored -> TaskRPCNotify(followers)
-follower EventNotify/Tick -> TaskRPCPull(leader, LEO+1)
+leader append stored -> TaskRPCPullHint(inactive followers)
+follower EventPullHint/EventNotify/Tick -> TaskRPCPull(leader, LEO+1)
 leader EventPull -> TaskStoreReadLog -> PullResponse(records, leaderHW, leaderLEO)
 follower TaskStoreApply -> local LEO/HW
 follower TaskRPCAck(matchOffset)

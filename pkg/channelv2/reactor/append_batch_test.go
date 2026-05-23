@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -524,6 +525,92 @@ func TestAppendContextCanceledBeforeAdmissionRejectsWithoutQueueing(t *testing.T
 	require.Nil(t, rc.state.InflightAppend)
 }
 
+func TestLeaderActivityVersionTracksDurableLEO(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := testMeta("activity-version", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1})
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	require.NoError(t, awaitFutureResult(t, future).Err)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Equal(t, rc.state.LEO, rc.lifecycle.ActivityVersion)
+	require.NotZero(t, rc.lifecycle.LastAppendAt)
+}
+
+func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing.T) {
+	factory := newCountingStoreFactory()
+	transport := newTask3PullHintTransport()
+	meta := testMeta("append-pull-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3, 4, 5}
+	meta.ISR = []ch.NodeID{1}
+	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1, Transport: transport})
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	now := time.Now()
+	rc.followers[2].Parked = true
+	rc.followers[3].LastPullAt = now
+	rc.followers[4].Stopped = true
+
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	require.NoError(t, awaitFutureResult(t, future).Err)
+
+	require.Eventually(t, func() bool {
+		return transport.pullHintTargets() == "2,4,5"
+	}, time.Second, time.Millisecond)
+	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
+	require.Equal(t, uint64(0), rc.followers[3].LastHintVersion)
+	require.Equal(t, uint64(1), rc.followers[4].LastHintVersion)
+	require.Equal(t, uint64(1), rc.followers[5].LastHintVersion)
+
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Hour)}))
+	require.Equal(t, "2,4,5", transport.pullHintTargets())
+}
+
+func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
+	factory := newCountingStoreFactory()
+	transport := newTask3PullHintTransport()
+	transport.setDrop(2, true)
+	meta := testMeta("append-pull-hint-retry", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	g := newAppendBatchTestGroup(t, factory, Config{
+		AppendBatchMaxRecords: 1,
+		Transport:             transport,
+		PullHintRetryInterval: time.Millisecond,
+	})
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc.followers[2].Parked = true
+
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Eventually(t, func() bool {
+		return transport.pullHintCount(2) >= 1 && !rc.followers[2].HintRetryAt.IsZero() && !rc.followers[2].HintInflight
+	}, time.Second, time.Millisecond)
+	droppedAttempts := transport.pullHintCount(2)
+	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
+	require.False(t, rc.followers[2].HintInflight)
+	require.Less(t, rc.followers[2].Match, rc.state.LEO)
+
+	transport.setDrop(2, false)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: rc.followers[2].HintRetryAt.Add(time.Millisecond)}))
+	require.Eventually(t, func() bool {
+		return transport.pullHintCount(2) > droppedAttempts
+	}, time.Second, time.Millisecond)
+}
+
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {
 	event := appendEvent(meta, id, payload)
 	event.Future = future
@@ -595,6 +682,83 @@ func appendSizesEqual(actual []int, expected []int) bool {
 		}
 	}
 	return true
+}
+
+type task3PullHintTransport struct {
+	mu      sync.Mutex
+	calls   []task3PullHintCall
+	dropFor map[ch.NodeID]bool
+}
+
+type task3PullHintCall struct {
+	node ch.NodeID
+	req  transport.PullHintRequest
+}
+
+func newTask3PullHintTransport() *task3PullHintTransport {
+	return &task3PullHintTransport{dropFor: make(map[ch.NodeID]bool)}
+}
+
+func (t *task3PullHintTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	return transport.PullResponse{ChannelKey: req.ChannelKey, Epoch: req.Epoch, LeaderEpoch: req.LeaderEpoch, LeaderHW: req.NextOffset - 1, LeaderLEO: req.NextOffset - 1}, nil
+}
+
+func (t *task3PullHintTransport) Ack(ctx context.Context, node ch.NodeID, req transport.AckRequest) error {
+	return nil
+}
+
+func (t *task3PullHintTransport) Notify(ctx context.Context, node ch.NodeID, req transport.NotifyRequest) error {
+	return nil
+}
+
+func (t *task3PullHintTransport) PullHint(ctx context.Context, node ch.NodeID, req transport.PullHintRequest) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.calls = append(t.calls, task3PullHintCall{node: node, req: req})
+	if t.dropFor[node] {
+		return context.Canceled
+	}
+	return nil
+}
+
+func (t *task3PullHintTransport) setDrop(node ch.NodeID, drop bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if drop {
+		t.dropFor[node] = true
+		return
+	}
+	delete(t.dropFor, node)
+}
+
+func (t *task3PullHintTransport) pullHintTargets() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	nodes := make([]ch.NodeID, 0, len(t.calls))
+	for _, call := range t.calls {
+		nodes = append(nodes, call.node)
+	}
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i] < nodes[j] })
+	targets := make([]byte, 0, len(nodes)*2)
+	for i, node := range nodes {
+		if i > 0 {
+			targets = append(targets, ',')
+		}
+		targets = append(targets, byte('0'+node))
+	}
+	return string(targets)
+}
+
+func (t *task3PullHintTransport) pullHintCount(node ch.NodeID) int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	count := 0
+	for _, call := range t.calls {
+		if call.node == node {
+			count++
+		}
+	}
+	return count
 }
 
 func (f *countingStoreFactory) blockAppends() {

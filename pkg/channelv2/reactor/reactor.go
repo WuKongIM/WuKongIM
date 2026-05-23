@@ -9,6 +9,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -42,6 +43,18 @@ type ReactorConfig struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
+	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
+	IdleSlowdownAfter time.Duration
+	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
+	IdleEvictAfter time.Duration
+	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader.
+	IdlePullMinInterval time.Duration
+	// IdlePullMaxInterval is the longest parked follower pull delay returned by a leader.
+	IdlePullMaxInterval time.Duration
+	// IdleEvictCheckInterval is the retry interval for lifecycle checks while eviction is blocked.
+	IdleEvictCheckInterval time.Duration
+	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
+	PullHintRetryInterval time.Duration
 	// Observer receives lightweight reactor metrics; nil uses a no-op observer.
 	Observer Observer
 	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.
@@ -84,8 +97,20 @@ type runtimeChannel struct {
 	appendTimings map[ch.OpID]appendTiming
 	// replication owns follower pull, apply, and ack scheduling state.
 	replication replicationState
+	// lifecycle tracks leader-owned activity and idle eviction state.
+	lifecycle channelLifecycle
+	// followers stores leader-owned runtime state for remote replicas.
+	followers map[ch.NodeID]*followerLifecycle
+	// pullHintInflight maps worker op ids back to followers waiting for completion.
+	pullHintInflight map[ch.OpID]pullHintInflight
 	// pullWaiters maps leader-side async pull op ids to request futures.
 	pullWaiters map[ch.OpID]*pullWaiter
+}
+
+type pullHintInflight struct {
+	follower        ch.NodeID
+	activityVersion uint64
+	reason          transport.PullHintReason
 }
 
 type pullWaiter struct {
@@ -162,6 +187,7 @@ func (r *Reactor) loop() {
 			r.sweepPullCancellations()
 			now := time.Now()
 			r.flushDueAppends(now)
+			r.tickAllLifecycle(now)
 			resetTimer(idleTimer, r.idleWait(now))
 			event, ok := r.mailbox.WaitOne(r.stop, idleTimer.C)
 			stopTimer(idleTimer)
@@ -207,15 +233,29 @@ func stopTimer(timer *time.Timer) {
 func (r *Reactor) idleWait(now time.Time) time.Duration {
 	wait := time.Millisecond
 	for _, rc := range r.channels {
-		if rc == nil || rc.appendInflight != nil || rc.appendQ.storeBlocked || len(rc.appendQ.pending) == 0 || rc.appendQ.flushDue.IsZero() {
+		if rc == nil {
 			continue
 		}
-		dueIn := rc.appendQ.flushDue.Sub(now)
-		if dueIn <= 0 {
-			return 0
+		if rc.appendInflight == nil && !rc.appendQ.storeBlocked && len(rc.appendQ.pending) > 0 && !rc.appendQ.flushDue.IsZero() {
+			dueIn := rc.appendQ.flushDue.Sub(now)
+			if dueIn <= 0 {
+				return 0
+			}
+			if dueIn < wait {
+				wait = dueIn
+			}
 		}
-		if dueIn < wait {
-			wait = dueIn
+		for _, follower := range rc.followers {
+			if follower == nil || follower.HintRetryAt.IsZero() || follower.HintInflight {
+				continue
+			}
+			dueIn := follower.HintRetryAt.Sub(now)
+			if dueIn <= 0 {
+				return 0
+			}
+			if dueIn < wait {
+				wait = dueIn
+			}
 		}
 	}
 	return wait
@@ -301,6 +341,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleStoreApplyResult(event.Worker)
 	case worker.TaskRPCAck:
 		r.handleRPCAckResult(event.Worker)
+	case worker.TaskRPCPullHint:
+		r.handleRPCPullHintResult(event.Worker)
 	}
 }
 
@@ -313,9 +355,11 @@ func (r *Reactor) handleTick(event Event) {
 	if event.Key != "" {
 		if rc := r.channels[event.Key]; rc != nil {
 			r.tickReplication(rc, now)
+			r.tickLifecycle(rc, now)
 		}
 	} else {
 		r.tickAllReplication(now)
+		r.tickAllLifecycle(now)
 	}
 	if event.Future != nil {
 		event.Future.Complete(Result{})
@@ -373,6 +417,12 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		} else {
 			rc.replication.reset()
 		}
+		if rc.state.Role == ch.RoleLeader {
+			r.syncLeaderFollowers(rc)
+		} else {
+			rc.followers = nil
+			rc.pullHintInflight = nil
+		}
 	}
 	event.Future.Complete(Result{Err: decision.Err})
 }
@@ -410,6 +460,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		fetchWaiters:  make(map[ch.OpID]struct{}),
 		pullWaiters:   make(map[ch.OpID]*pullWaiter),
 		appendTimings: make(map[ch.OpID]appendTiming),
+		lifecycle:     channelLifecycle{ActivityVersion: initial.LEO, Phase: lifecycleHot},
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -419,6 +470,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		}),
 	}
 	r.channels[key] = rc
+	r.observeChannelRuntimeLoaded(key)
 	return rc, nil
 }
 
@@ -546,8 +598,21 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		stored.BaseOffset = result.StoreAppend.BaseOffset
 		stored.LastOffset = result.StoreAppend.LastOffset
 	}
+	oldLEO := rc.state.LEO
 	decision := rc.state.ApplyAppendStored(stored)
 	r.completeReplies(rc, decision.Replies, nil)
+	now := time.Now()
+	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
+		r.markAppendActivity(rc, now)
+		rc.lifecycle.ActivityVersion = rc.state.LEO
+		r.syncFollowerMatches(rc)
+		for _, follower := range rc.followers {
+			if follower != nil && follower.Match < rc.state.LEO {
+				follower.Stopped = false
+			}
+		}
+		r.sendPullHintsForAppend(rc, now)
+	}
 	for _, signal := range decision.Signals {
 		if signal.Kind == machine.SignalKindReplicate {
 			r.notifyFollowers(rc)
@@ -565,7 +630,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		}
 		rc.appendInflight = nil
 		rc.appendQ.storeBlocked = false
-		r.tryFlushAppend(rc, time.Now())
+		r.tryFlushAppend(rc, now)
 	}
 }
 
@@ -621,6 +686,17 @@ func (r *Reactor) handlePull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
+	now := time.Now()
+	r.syncLeaderFollowers(rc)
+	if follower := rc.followers[event.Pull.Follower]; follower != nil {
+		follower.LastPullAt = now
+		follower.Parked = false
+		follower.Stopped = false
+		follower.HintRetryAt = time.Time{}
+		if match := event.Pull.NextOffset - 1; match > follower.Match {
+			follower.Match = match
+		}
+	}
 	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx}
 	r.registerPullCancelContext(rc, ctx)
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
@@ -643,6 +719,17 @@ func (r *Reactor) handleAck(event Event) {
 		return
 	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
+	r.syncLeaderFollowers(rc)
+	if follower := rc.followers[event.Ack.Follower]; follower != nil {
+		if event.Ack.MatchOffset > follower.Match {
+			follower.Match = event.Ack.MatchOffset
+		}
+		if event.Ack.Stopped {
+			follower.Stopped = true
+			follower.Parked = false
+			follower.StopAckVersion = event.Ack.ActivityVersion
+		}
+	}
 	r.completeReplies(rc, decision.Replies, nil)
 	event.Future.Complete(Result{})
 }
