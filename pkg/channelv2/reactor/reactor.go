@@ -411,6 +411,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 	if decision.Err == nil {
 		if fencePendingState {
 			rc.replication.reset()
+			r.resetPullHintLifecycle(rc)
 		}
 		if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
 			rc.replication.markDirty(time.Time{})
