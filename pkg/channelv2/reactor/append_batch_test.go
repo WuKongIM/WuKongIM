@@ -286,6 +286,31 @@ func TestAppendContextCancelRemovesAcceptedWaiter(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestAppendContextCancelDropsQueuedRequestWithoutCancelEvent(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := testMeta("append-cancel-drops-without-event", 1, 1)
+	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 10, AppendBatchMaxWait: time.Hour})
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	event := appendEvent(meta, 1, "drop-me")
+	event.Context = ctx
+	future, err := g.Submit(ctx, meta.Key, event)
+	require.NoError(t, err)
+
+	// A non-expired tick waits behind the append event and proves the request was admitted.
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now()}))
+	requireFuturePending(t, future)
+	require.Empty(t, factory.appendSizes(meta.Key))
+
+	cancel()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(2 * time.Hour)}))
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, factory.appendSizes(meta.Key))
+}
+
 func TestAppendContextCancelRemovesPostStoreQuorumWaiter(t *testing.T) {
 	factory := newCountingStoreFactory()
 	meta := ch.Meta{

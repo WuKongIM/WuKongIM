@@ -116,6 +116,39 @@ func TestAppendQueueRemoveDeletesQueuedRequestAndRecounts(t *testing.T) {
 	require.Equal(t, req2.enqueuedAt.Add(maxWait), q.flushDue)
 }
 
+func TestAppendQueueRemoveClearsRemovedBackingSlot(t *testing.T) {
+	q := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 10, MaxPendingBytes: 1024})
+	q.pending = make([]appendRequest, 0, 3)
+	payload := []byte("release-me")
+	future := NewFuture()
+	req1 := appendRequest{opID: 1, records: []ch.Record{{SizeBytes: 1}}}
+	req2 := appendRequest{opID: 2, records: []ch.Record{{SizeBytes: 1}}}
+	req3 := appendRequest{
+		opID:   3,
+		future: future,
+		req:    ch.AppendBatchRequest{Messages: []ch.Message{{Payload: payload}}},
+		records: []ch.Record{{
+			Payload:   payload,
+			SizeBytes: len(payload),
+		}},
+	}
+	require.NoError(t, q.push(req1))
+	require.NoError(t, q.push(req2))
+	require.NoError(t, q.push(req3))
+	require.Equal(t, 3, cap(q.pending))
+
+	removed, ok := q.remove(3)
+	require.True(t, ok)
+	require.Same(t, future, removed.future)
+
+	backing := q.pending[:cap(q.pending)]
+	require.Len(t, q.pending, 2)
+	require.Zero(t, backing[2].opID)
+	require.Nil(t, backing[2].future)
+	require.Nil(t, backing[2].req.Messages)
+	require.Nil(t, backing[2].records)
+}
+
 func TestAppendQueueFailAllCompletesQueuedFuturesAndClearsState(t *testing.T) {
 	q := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 10, MaxPendingBytes: 1024})
 	now := time.Unix(3, 0)

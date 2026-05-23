@@ -302,7 +302,7 @@ func (r *Reactor) handleAppend(event Event) {
 	if mode == 0 {
 		mode = ch.CommitModeQuorum
 	}
-	req := appendRequest{opID: event.OpID, req: event.Append, future: event.Future, enqueuedAt: time.Now(), records: records, commitMode: mode}
+	req := appendRequest{opID: event.OpID, req: event.Append, future: event.Future, ctx: event.Context, enqueuedAt: time.Now(), records: records, commitMode: mode}
 	if err := rc.appendQ.push(req); err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
@@ -412,6 +412,7 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 	}
 	if req, ok := rc.appendQ.remove(event.CancelOp); ok && req.future != nil {
 		delete(rc.waiters, event.CancelOp)
+		rc.state.CancelAppendWaiter(event.CancelOp)
 		req.future.Complete(Result{Err: cancelErr})
 	} else if future := rc.waiters[event.CancelOp]; future != nil {
 		delete(rc.waiters, event.CancelOp)
