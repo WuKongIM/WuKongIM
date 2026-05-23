@@ -111,6 +111,7 @@ pkg/
     log/                 Channel 消息日志、提交与元数据适配
     node/                Channel 节点侧服务与批处理编排
     transport/           Channel 数据面 RPC transport 适配
+  channelv2/             实验性多 Reactor channel log runtime，用于 v0 append/fetch/replication 验证
   controller/            控制面元数据、规划器与控制器 Raft 服务
     meta/                控制面元数据存储
     plane/               控制面 planner / reconcile 编排
