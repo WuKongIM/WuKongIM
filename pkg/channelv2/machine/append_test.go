@@ -102,6 +102,27 @@ func TestProposeAppendBatchRejectsDuplicateWaiterOpIDWithoutMutation(t *testing.
 	require.Empty(t, state.PendingAppendOrder)
 }
 
+func TestProposeAppendBatchRejectsZeroRecordWaiterWithoutMutation(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	cmd := AppendBatchCommand{
+		BatchOpID: 100,
+		Waiters: []AppendBatchWaiter{
+			{OpID: 1},
+			{OpID: 2, Records: []ch.Record{{ID: 20, SizeBytes: 1}}},
+		},
+	}
+
+	decision := state.ProposeAppendBatch(cmd)
+
+	require.ErrorIs(t, decision.Err, ch.ErrInvalidConfig)
+	require.Empty(t, decision.Tasks)
+	require.Nil(t, state.InflightAppend)
+	require.Empty(t, state.PendingAppends)
+	require.Empty(t, state.PendingAppendOrder)
+	require.Zero(t, state.LEO)
+	require.Zero(t, state.HW)
+}
+
 func TestProposeAppendBatchRejectsAlreadyPendingWaiterOpIDWithoutMutation(t *testing.T) {
 	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
 	state.PendingAppends[1] = &AppendWaiter{OpID: 1, Target: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Index: 1, SizeBytes: 1}}}

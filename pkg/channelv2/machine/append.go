@@ -58,7 +58,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	seen := make(map[ch.OpID]struct{}, len(cmd.Waiters))
 	for _, waiter := range cmd.Waiters {
 		if len(waiter.Records) == 0 {
-			continue
+			return Decision{Err: ch.ErrInvalidConfig}
 		}
 		if _, ok := seen[waiter.OpID]; ok {
 			return Decision{Err: ch.ErrInvalidConfig}
