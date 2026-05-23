@@ -77,7 +77,9 @@ type StoreApplyTask struct {
 
 // StoreCheckpointTask asks a worker to persist a channel checkpoint before eviction.
 type StoreCheckpointTask struct {
-	ChannelID  ch.ChannelID
+	// ChannelID identifies the store that owns the checkpoint.
+	ChannelID ch.ChannelID
+	// Checkpoint is the durable committed frontier to persist.
 	Checkpoint ch.Checkpoint
 }
 
