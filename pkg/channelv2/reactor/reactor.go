@@ -47,7 +47,7 @@ type ReactorConfig struct {
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
 	IdleEvictAfter time.Duration
-	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader.
+	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader; defaults to ReplicationIdlePollInterval.
 	IdlePullMinInterval time.Duration
 	// IdlePullMaxInterval is the longest parked follower pull delay returned by a leader.
 	IdlePullMaxInterval time.Duration

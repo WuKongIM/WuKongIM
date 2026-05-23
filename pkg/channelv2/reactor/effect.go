@@ -476,7 +476,7 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 		cfg.IdleEvictAfter = 5 * time.Minute
 	}
 	if cfg.IdlePullMinInterval <= 0 {
-		cfg.IdlePullMinInterval = 10 * time.Millisecond
+		cfg.IdlePullMinInterval = cfg.ReplicationIdlePollInterval
 	}
 	if cfg.IdlePullMaxInterval <= 0 {
 		cfg.IdlePullMaxInterval = 5 * time.Second
