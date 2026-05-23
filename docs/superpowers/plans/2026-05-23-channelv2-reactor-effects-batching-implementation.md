@@ -544,7 +544,6 @@ git commit -m "feat: add channelv2 typed worker tasks"
 - Modify: `pkg/channelv2/reactor/reactor.go`
 - Create: `pkg/channelv2/reactor/test_helpers_test.go`
 - Create: `pkg/channelv2/reactor/group_test.go`
-- Modify: `pkg/channelv2/service/service.go`
 
 - [ ] **Step 1: Write failing group completion tests**
 
@@ -622,9 +621,7 @@ Create `pkg/channelv2/reactor/group_test.go`:
 package reactor
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -633,27 +630,19 @@ import (
 )
 
 func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
-	factory := store.NewMemoryFactory()
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 2, MailboxSize: 8, Store: factory})
+	router, err := NewRouter(1)
 	require.NoError(t, err)
-	defer g.Close()
+	reactor := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 8})
+	g := &Group{router: router, reactors: []*Reactor{reactor}}
+	fence := ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 99}
 
-	meta := testMeta("a", 1, 1)
-	future, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta})
-	require.NoError(t, err)
-	_, err = future.Await(context.Background())
-	require.NoError(t, err)
+	g.Complete(worker.Result{Kind: worker.TaskFunc, Fence: fence, Value: "probe"})
 
-	probe := NewFuture()
-	fence := ch.Fence{ChannelKey: meta.Key, Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 99}
-	g.Complete(worker.Result{Kind: worker.TaskFunc, Fence: fence, Value: probe})
-
-	select {
-	case <-probe.ch:
-		// The temporary test hook in handleWorkerResult completed the probe.
-	case <-time.After(time.Second):
-		t.Fatal("worker result was not routed")
-	}
+	events := reactor.mailbox.Drain(1)
+	require.Len(t, events, 1)
+	require.Equal(t, EventWorkerResult, events[0].Kind)
+	require.Equal(t, ch.ChannelKey("1:a"), events[0].Key)
+	require.Equal(t, fence, events[0].Worker.Fence)
 }
 
 func TestEventWorkerResultPriorityBeatsNormalAppendPressure(t *testing.T) {
@@ -665,7 +654,7 @@ func TestEventWorkerResultPriorityBeatsNormalAppendPressure(t *testing.T) {
 }
 ```
 
-If the `probe.ch` field is not accessible from the package test style, keep the test in package `reactor` as shown. Remove any temporary production hook before the task is done; final routing should be tested through a real async fetch in Task 3.
+This test constructs an unstarted reactor intentionally so the mailbox can be inspected without a production-only test hook.
 
 - [ ] **Step 2: Run tests and verify failure**
 
@@ -741,34 +730,22 @@ Update `Close` to stop reactors first, then close pools, or to set `closed` befo
 
 In `reactor.handle`, add cases for `EventWorkerResult`, `EventTick`, and `EventClose`. For this task, `handleWorkerResult` may ignore unknown results and `handleTick` may be empty; later tasks fill them in.
 
-- [ ] **Step 6: Change service Tick to group Tick only**
-
-Modify `pkg/channelv2/service/service.go` so:
-
-```go
-func (c *cluster) Tick(ctx context.Context) error {
-	return c.group.Tick(ctx)
-}
-```
-
-Keep the metadata cache for `ApplyMeta` if still used by tests, but do not perform replication in service `Tick` anymore.
-
-- [ ] **Step 7: Run targeted tests**
+- [ ] **Step 6: Run targeted tests**
 
 Run:
 
 ```bash
-GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/service -run 'TestGroupComplete|TestEventWorkerResultPriority|TestSingleNodeAppendFetchCommitted' -count=1
+GOWORK=off go test ./pkg/channelv2/reactor -run 'TestGroupComplete|TestEventWorkerResultPriority' -count=1
 ```
 
-Expected: PASS. `TestSingleNodeAppendFetchCommitted` should still pass through the old synchronous append/fetch path until Tasks 3 and 4 replace it.
+Expected: PASS. Service-owned replication is intentionally left unchanged until Task 6 so existing testkit replication tests remain green between commits.
 
-- [ ] **Step 8: Commit completion routing**
+- [ ] **Step 7: Commit completion routing**
 
 Run:
 
 ```bash
-git add pkg/channelv2/reactor pkg/channelv2/service/service.go
+git add pkg/channelv2/reactor
 git commit -m "feat: route channelv2 worker completions"
 ```
 
@@ -825,7 +802,6 @@ func TestFetchSubmitsStoreReadWithoutBlockingReactor(t *testing.T) {
 	require.Eventually(t, factory.ReadStarted, time.Second, time.Millisecond)
 
 	// If fetch blocks the reactor, this high-priority apply-meta cannot complete.
-	meta.LeaderEpoch = 2
 	metaFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta})
 	require.NoError(t, err)
 	_, err = metaFuture.Await(context.Background())
@@ -875,6 +851,31 @@ func TestFetchStoreReadPoolFullFailsFuture(t *testing.T) {
 	require.NoError(t, err)
 	_, err = second.Await(context.Background())
 	require.NoError(t, err)
+}
+
+func TestFetchMetadataChangeFailsPendingWaiter(t *testing.T) {
+	factory := newBlockingReadFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("a", 1, 1)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "seed"))
+	require.NoError(t, err)
+	_, err = appendFuture.Await(context.Background())
+	require.NoError(t, err)
+
+	fetchFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventFetch, Key: meta.Key, Fetch: ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 10, MaxBytes: 1024}, OpID: 201})
+	require.NoError(t, err)
+	require.Eventually(t, factory.ReadStarted, time.Second, time.Millisecond)
+
+	meta.LeaderEpoch = 2
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	_, err = fetchFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	factory.UnblockReads()
 }
 
 type blockingReadFactory struct {
@@ -950,6 +951,7 @@ In `handleFetch`:
 4. Store `event.Future` in `rc.waiters[event.OpID]` before submitting the worker task.
 5. Convert `machine.ReadCommittedTask` to `worker.TaskStoreReadCommitted` and submit to `r.cfg.Pools` or a reactor `submitTask` helper.
 6. If pool submission returns `ErrBackpressured`, remove the waiter and complete the future with `ErrBackpressured`.
+7. On `ApplyMeta`, when generation, epoch, leader epoch, role, or status changes, fail all pending fetch waiters for that runtime channel with `ErrStaleMeta` before applying new metadata. This prevents stale read completions from leaking futures.
 
 `effect.go` should hold helpers like:
 
@@ -975,7 +977,7 @@ func (r *Reactor) handleStoreReadCommittedResult(rc *runtimeChannel, result work
 }
 ```
 
-If `result.StoreReadCommitted` is nil with nil error, treat it as `ErrInvalidConfig`. If the fence is stale, `machine.ApplyReadCommitted` should return no replies; then remove no waiters unless the machine returns an explicit failure.
+If `result.StoreReadCommitted` is nil with nil error, treat it as `ErrInvalidConfig`. If the fence is stale and a fetch waiter still exists for `result.Fence.OpID`, remove that waiter and complete it with `ErrStaleMeta`; this is a safety net for stale completions not already failed by `ApplyMeta`.
 
 Add this regression test to `pkg/channelv2/machine/fetch_test.go`:
 
@@ -1231,10 +1233,14 @@ git commit -m "feat: add channelv2 append batch state"
 ## Task 5: Async Append Flush, Backpressure, And Cancellation
 
 **Files:**
+- Modify: `pkg/channelv2/channel.go`
+- Modify: `pkg/channelv2/reactor/event.go`
+- Modify: `pkg/channelv2/reactor/group.go`
 - Modify: `pkg/channelv2/reactor/reactor.go`
 - Modify: `pkg/channelv2/reactor/effect.go`
 - Create: `pkg/channelv2/reactor/append_batch_test.go`
 - Modify: `pkg/channelv2/service/append.go`
+- Modify: `pkg/channelv2/service/service.go`
 - Modify: `pkg/channelv2/service/service_test.go`
 
 - [ ] **Step 1: Write failing async append batching tests**
@@ -1297,7 +1303,7 @@ func TestAppendEventsBatchByMaxWaitTick(t *testing.T) {
 		Store: factory,
 		AppendBatchMaxRecords: 10,
 		AppendBatchMaxBytes: 1024,
-		AppendBatchMaxWait: time.Millisecond,
+		AppendBatchMaxWait: time.Nanosecond,
 	})
 	require.NoError(t, err)
 	defer g.Close()
@@ -1308,7 +1314,6 @@ func TestAppendEventsBatchByMaxWaitTick(t *testing.T) {
 	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
 	require.NoError(t, err)
 	requireFuturePending(t, future)
-	time.Sleep(2 * time.Millisecond)
 	require.NoError(t, g.Tick(context.Background()))
 
 	result, err := future.Await(context.Background())
@@ -1317,7 +1322,7 @@ func TestAppendEventsBatchByMaxWaitTick(t *testing.T) {
 	require.Equal(t, 1, factory.AppendCalls(meta.Key))
 }
 
-func TestStaleStoreAppendResultIsIgnored(t *testing.T) {
+func TestMetadataChangeFailsInflightAppendWaiter(t *testing.T) {
 	factory := newCountingStoreFactory()
 	factory.BlockAppends()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 32, Store: factory, AppendBatchMaxRecords: 1})
@@ -1332,9 +1337,10 @@ func TestStaleStoreAppendResultIsIgnored(t *testing.T) {
 
 	meta.LeaderEpoch = 2
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
 	factory.UnblockAppends()
-	time.Sleep(10 * time.Millisecond)
-	requireFuturePending(t, future)
 }
 ```
 
@@ -1504,7 +1510,7 @@ func (s *countingStore) AppendLeader(ctx context.Context, req store.AppendLeader
 Run:
 
 ```bash
-GOWORK=off go test ./pkg/channelv2/reactor -run 'TestAppendEvents|TestStaleStoreAppendResult|TestAppendPoolFull|TestAppendContextCancel' -count=1
+GOWORK=off go test ./pkg/channelv2/reactor -run 'TestAppendEvents|TestMetadataChangeFailsInflightAppendWaiter|TestAppendPoolFull|TestAppendContextCancel' -count=1
 ```
 
 Expected: FAIL because reactor append still performs one synchronous store append per request and has no queue/cancellation path.
@@ -1535,6 +1541,23 @@ AppendStoreRetryBackoff: 1 ms
 
 Propagate the Phase 2 service config fields from `service.Config` into `reactor.Config`.
 
+Also add matching fields with English comments to the public root `channelv2.Config` in `pkg/channelv2/channel.go` and to `service.Config` in `pkg/channelv2/service/service.go`:
+
+```go
+// AppendBatchMaxRecords is the maximum records flushed in one store append batch.
+AppendBatchMaxRecords int
+// AppendBatchMaxBytes is the maximum payload budget flushed in one store append batch.
+AppendBatchMaxBytes int
+// AppendBatchMaxWait is the maximum age of the oldest queued append before a tick flushes it.
+AppendBatchMaxWait time.Duration
+// AppendQueueMaxRequests bounds queued append requests per channel.
+AppendQueueMaxRequests int
+// AppendQueueMaxBytes bounds queued append payload bytes per channel.
+AppendQueueMaxBytes int
+// AppendStoreRetryBackoff delays retry after store append pool backpressure.
+AppendStoreRetryBackoff time.Duration
+```
+
 - [ ] **Step 5: Add append queue to runtime channel**
 
 Update `runtimeChannel`:
@@ -1563,7 +1586,7 @@ Initialize `appendQ` in `ensureChannel` with config defaults.
 3. Normalize commit mode to quorum when zero.
 4. Push `appendRequest` into `rc.appendQ`; if full, complete future with `ErrBackpressured`.
 5. Store the future in `rc.waiters[event.OpID]` after queue admission.
-6. Register context cancellation if the service supplied one through event data, or have `Future.Await(ctx)` submit a cleanup event on cancellation from service code.
+6. Register context cancellation if the service supplied one through event data; `service.AppendBatch` submits the cleanup event when `ctx.Done()` wins.
 7. Call `tryFlushAppend(rc, now)`.
 
 If validation can fail before queueing (`not leader`, `not ready`, deleted), complete future with that error and do not enqueue.
@@ -1594,7 +1617,7 @@ decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{BatchOpID: ba
 8. On `ErrBackpressured`, restore the batch to the front, set blocked/retry fields, and leave accepted futures pending.
 9. On other error, fail the batch futures and remove waiters.
 
-The reactor needs a way to allocate batch op ids. Add `NextOpID func() ch.OpID` to `ReactorConfig` or let group assign event op ids for flush. Keep batch op ids distinct from client op ids.
+The reactor needs a way to allocate batch op ids. Add `NextOpID func() ch.OpID` to `ReactorConfig`, wire it from `Group.NextOpID`, and keep batch op ids distinct from client op ids.
 
 - [ ] **Step 8: Apply store append worker results**
 
@@ -1622,6 +1645,8 @@ func (r *Reactor) handleStoreAppendResult(rc *runtimeChannel, result worker.Resu
 
 If result fence is stale, do not clear a newer `appendInflight`. If result has an error for the current batch, fail all request waiters in that batch and clear inflight.
 
+When `handleApplyMeta` observes a generation, epoch, leader epoch, role, or status change, fail queued append requests, the current append batch waiters, and matching waiter-map entries with `ErrStaleMeta` before applying the new metadata. Late store append completions from the old fence must be ignored after their client futures have been failed deterministically.
+
 - [ ] **Step 9: Implement accepted append cancellation cleanup**
 
 Choose the simplest robust pattern:
@@ -1648,13 +1673,16 @@ Expected: PASS.
 Run:
 
 ```bash
-git add pkg/channelv2/reactor pkg/channelv2/service pkg/channelv2/machine
+git add pkg/channelv2/channel.go pkg/channelv2/reactor pkg/channelv2/service pkg/channelv2/machine
 git commit -m "feat: batch channelv2 append effects"
 ```
 
 ## Task 6: Reactor-Owned Follower Replication
 
 **Files:**
+- Modify: `pkg/channelv2/channel.go`
+- Modify: `pkg/channelv2/reactor/event.go`
+- Modify: `pkg/channelv2/reactor/group.go`
 - Create: `pkg/channelv2/reactor/replication_state.go`
 - Create: `pkg/channelv2/reactor/replication_state_test.go`
 - Modify: `pkg/channelv2/reactor/reactor.go`
@@ -1694,7 +1722,7 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
 	require.Eventually(t, func() bool { return net.LastPull().NextOffset == 1 }, time.Second, time.Millisecond)
 }
 
@@ -1709,10 +1737,10 @@ func TestFollowerPullInflightSuppressesDuplicatePull(t *testing.T) {
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
-	require.NoError(t, g.Tick(context.Background()))
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(time.Millisecond)}))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(2 * time.Millisecond)}))
 	require.Equal(t, 1, net.PullCalls())
 	net.UnblockPulls()
 }
@@ -1736,10 +1764,10 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 
-	require.NoError(t, g.Tick(context.Background()))
+	base := time.Unix(1, 0)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: base}))
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
-	require.NoError(t, g.Tick(context.Background()))
-	time.Sleep(2 * time.Millisecond)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: base.Add(time.Millisecond)}))
 	require.Equal(t, 1, net.PullCalls())
 }
 ```
@@ -1766,7 +1794,7 @@ func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
 
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
 	require.Eventually(t, func() bool { return net.LastAck().MatchOffset == 1 }, time.Second, time.Millisecond)
 
 	fetch, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventFetch, Key: meta.Key, OpID: 99, Fetch: ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 10, MaxBytes: 1024}})
@@ -1795,13 +1823,13 @@ func TestFollowerAckResultResetsBackoff(t *testing.T) {
 
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	require.NoError(t, g.Tick(context.Background()))
+	base := time.Unix(1, 0)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: base}))
 	require.Eventually(t, func() bool { return net.AckCalls() == 1 }, time.Second, time.Millisecond)
 	net.SetAckError(nil)
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: base.Add(time.Millisecond)}))
 	require.Equal(t, 1, net.AckCalls())
-	time.Sleep(3 * time.Millisecond)
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: base.Add(3 * time.Millisecond)}))
 	require.Eventually(t, func() bool { return net.AckCalls() == 2 }, time.Second, time.Millisecond)
 }
 
@@ -1832,14 +1860,45 @@ func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
 
 	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
 	require.Eventually(t, factory.ApplyStarted, time.Second, time.Millisecond)
-	require.NoError(t, g.Tick(context.Background()))
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(time.Millisecond)}))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(2 * time.Millisecond)}))
 	require.Equal(t, 1, net.PullCalls())
 
 	factory.UnblockApplies()
 	require.Eventually(t, func() bool { return net.LastAck().MatchOffset == 1 }, time.Second, time.Millisecond)
+}
+
+func TestLeaderPullUsesStoreReadLogWorkerWithoutBlockingReactor(t *testing.T) {
+	factory := newBlockingReadLogFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := ch.Meta{Key: "1:a", ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	requireFuturePending(t, appendFuture)
+
+	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 77,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	require.Eventually(t, factory.ReadLogStarted, time.Second, time.Millisecond)
+
+	metaFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta})
+	require.NoError(t, err)
+	_, err = metaFuture.Await(context.Background())
+	require.NoError(t, err)
+
+	factory.UnblockReadLogs()
+	_, err = pullFuture.Await(context.Background())
+	require.NoError(t, err)
 }
 
 type capturingTransport struct {
@@ -1999,6 +2058,54 @@ func (s *blockingApplyStore) ApplyFollower(ctx context.Context, req store.ApplyF
 	}
 	return s.ChannelStore.ApplyFollower(ctx, req)
 }
+
+type blockingReadLogFactory struct {
+	base    *store.MemoryFactory
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func newBlockingReadLogFactory() *blockingReadLogFactory {
+	return &blockingReadLogFactory{base: store.NewMemoryFactory(), started: make(chan struct{}, 8), unblock: make(chan struct{})}
+}
+
+func (f *blockingReadLogFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	base, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &blockingReadLogStore{ChannelStore: base, parent: f}, nil
+}
+
+func (f *blockingReadLogFactory) ReadLogStarted() bool {
+	return len(f.started) > 0
+}
+
+func (f *blockingReadLogFactory) UnblockReadLogs() {
+	select {
+	case <-f.unblock:
+	default:
+		close(f.unblock)
+	}
+}
+
+type blockingReadLogStore struct {
+	store.ChannelStore
+	parent *blockingReadLogFactory
+}
+
+func (s *blockingReadLogStore) ReadLog(ctx context.Context, req store.ReadLogRequest) (store.ReadLogResult, error) {
+	select {
+	case s.parent.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-s.parent.unblock:
+	case <-ctx.Done():
+		return store.ReadLogResult{}, ctx.Err()
+	}
+	return s.ChannelStore.ReadLog(ctx, req)
+}
 ```
 
 - [ ] **Step 3: Run tests and verify failure**
@@ -2041,11 +2148,17 @@ func nextReplicationBackoff(current, minBackoff, maxBackoff time.Duration) time.
 Add config defaults:
 
 ```go
+// ReplicationIdlePollInterval delays the next follower poll when the leader has no records.
 ReplicationIdlePollInterval time.Duration // default 10 ms for tests/experimental runtime
+// ReplicationMinBackoff is the first retry delay after pull/apply/ack errors.
 ReplicationMinBackoff time.Duration       // default 1 ms
+// ReplicationMaxBackoff caps replication retry delay after repeated errors.
 ReplicationMaxBackoff time.Duration       // default 100 ms
+// PullMaxBytes bounds one leader pull response.
 PullMaxBytes int                          // default 64 KiB
 ```
+
+Add matching fields with English comments to `service.Config` and root `channelv2.Config` when they are exposed through the public facade.
 
 - [ ] **Step 5: Mark followers dirty on ApplyMeta**
 
@@ -2083,6 +2196,8 @@ pullInflight = true on success
 ```
 
 Use a new operation id for each RPC pull fence.
+
+When a direct test submits `EventTick` through `Group.Submit`, `handleTick` must complete `event.Future` after one scheduling pass. `Group.Tick(ctx)` still submits low-priority `EventTick` events to every reactor and ignores `ErrBackpressured` tick drops.
 
 - [ ] **Step 7: Handle RPC pull worker results**
 
@@ -2141,7 +2256,7 @@ error:
   nextPullAt=now+backoff
 ```
 
-Leader-side ACK still enters through `service.HandleAck -> EventAck` and calls `machine.ApplyFollowerAck` on the leader reactor. Add a stale ACK test:
+Leader-side ACK still enters through `service.HandleAck -> EventAck` and calls `machine.ApplyFollowerAck` on the leader reactor. Before calling `ApplyFollowerAck`, `handleAck` must validate `event.Ack.Epoch == rc.state.Epoch`, `event.Ack.LeaderEpoch == rc.state.LeaderEpoch`, local role is leader, and `event.Ack.Follower` is a replica. Stale ACKs complete their request future with no progress change and no client append completions. Add a stale ACK test:
 
 ```go
 func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
@@ -2163,31 +2278,54 @@ func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
 
 	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "requires-current-ack"))
 	require.NoError(t, err)
-	time.Sleep(10 * time.Millisecond)
 	requireFuturePending(t, future)
 }
 ```
 
-- [ ] **Step 10: Update testkit and service tests**
+- [ ] **Step 10: Make leader pull asynchronous and remove obsolete follower apply handler**
+
+`service.HandlePull` continues to submit `EventPull` to the leader reactor. `handlePull` must:
+
+1. Validate local role, request epoch, leader epoch, and follower membership.
+2. Build a fenced `worker.TaskStoreReadLog` with `FromOffset: event.Pull.NextOffset`, `MaxOffset: rc.state.LEO`, and `MaxBytes: event.Pull.MaxBytes`.
+3. Store the pull request future in a pull-waiter map keyed by `event.OpID`.
+4. Complete the pull future from the `TaskStoreReadLog` worker result as `transport.PullResponse{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, LeaderHW: rc.state.HW, LeaderLEO: rc.state.LEO, Records: result.StoreReadLog.Records}` after fence validation.
+5. Fail the pull future with `ErrBackpressured` if the store-read pool rejects the task.
+
+After reactor-owned follower replication is implemented, delete or disable the direct `EventApplyRecords` path and `handleApplyRecords` so no reactor handler calls `store.ApplyFollower` synchronously.
+
+- [ ] **Step 11: Change service Tick to group Tick only**
+
+Modify `pkg/channelv2/service/service.go` so:
+
+```go
+func (c *cluster) Tick(ctx context.Context) error {
+	return c.group.Tick(ctx)
+}
+```
+
+Keep the metadata cache for `ApplyMeta` if still used by tests, but do not perform pull/apply/ack directly in service `Tick` anymore.
+
+- [ ] **Step 12: Update testkit and service tests**
 
 Update `pkg/channelv2/testkit/cluster.go` so the harness drives `Tick` on each node and waits for replication convergence through the reactor-owned scheduler. Remove assumptions that `service.Tick` performs direct pull/apply/ack.
 
-- [ ] **Step 11: Run replication tests**
+- [ ] **Step 13: Run replication tests**
 
 Run:
 
 ```bash
-GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/testkit ./pkg/channelv2/service -run 'TestFollower|TestStoreApplyPoolFull|TestThreeNode|TestSingleNodeAppendFetchCommitted' -count=1
+GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/testkit ./pkg/channelv2/service -run 'TestFollower|TestStoreApplyPoolFull|TestLeaderPullUsesStoreReadLogWorker|TestLeaderIgnoresAck|TestThreeNode|TestSingleNodeAppendFetchCommitted' -count=1
 ```
 
 Expected: PASS.
 
-- [ ] **Step 12: Commit reactor-owned replication**
+- [ ] **Step 14: Commit reactor-owned replication**
 
 Run:
 
 ```bash
-git add pkg/channelv2/reactor pkg/channelv2/service pkg/channelv2/testkit
+git add pkg/channelv2/channel.go pkg/channelv2/reactor pkg/channelv2/service pkg/channelv2/testkit
 git commit -m "feat: move channelv2 replication into reactors"
 ```
 
@@ -2202,6 +2340,7 @@ git commit -m "feat: move channelv2 replication into reactors"
 - Modify: `pkg/channelv2/service/service.go`
 - Modify: `pkg/channelv2/bench_test.go`
 - Modify: `pkg/channelv2/FLOW.md`
+- Create: `docs/superpowers/reports/2026-05-23-channelv2-reactor-effects-batching-report.md`
 
 - [ ] **Step 1: Write failing observer tests**
 
@@ -2361,12 +2500,21 @@ Modify `pkg/channelv2/FLOW.md` sections:
 - Backpressure: describe mailbox, append queue, worker pool, fetch fail-fast, replication pending-pull behavior.
 - Import boundary: keep only `store/channel_adapter.go` importing old channel packages.
 
-- [ ] **Step 8: Commit metrics and benchmarks**
+- [ ] **Step 8: Write benchmark report**
+
+Create `docs/superpowers/reports/2026-05-23-channelv2-reactor-effects-batching-report.md` after the benchmark smoke command runs. The report must be short and factual:
+
+- Title: `# Channelv2 Reactor Effects And Batching Report`
+- Commands: list the exact benchmark command from Step 6 and any verification command run in this task.
+- Results: paste the benchmark rows printed by `go test` for `BenchmarkAppendSingleNodeHotChannelBatched`, `BenchmarkAppendSingleNodeManyChannelsAsync`, and `BenchmarkAppendThreeNodeManyChannelsAsync`.
+- Observations: write two to four bullets describing batch sizes, allocations, and whether worker queue/backpressure metrics were emitted. Do not write placeholder rows or invented numbers.
+
+- [ ] **Step 9: Commit metrics, benchmarks, and report**
 
 Run:
 
 ```bash
-git add pkg/channelv2
+git add pkg/channelv2 docs/superpowers/reports/2026-05-23-channelv2-reactor-effects-batching-report.md
 git commit -m "test: add channelv2 async batching benchmarks"
 ```
 
