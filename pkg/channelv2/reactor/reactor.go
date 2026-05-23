@@ -118,6 +118,8 @@ type pullWaiter struct {
 	future *Future
 	// ctx is the caller context used to cancel the waiter before a blocked store read returns.
 	ctx context.Context
+	// follower is the replica waiting for this pull response.
+	follower ch.NodeID
 }
 
 // NewReactor constructs a reactor.
@@ -319,7 +321,18 @@ func (r *Reactor) handlePullHint(event Event) {
 		}
 		return
 	}
+	if req.ActivityVersion < rc.replication.lastActivityVersion {
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
 	now := time.Now()
+	if req.ActivityVersion > rc.replication.lastActivityVersion {
+		rc.replication.lastActivityVersion = req.ActivityVersion
+	}
+	rc.replication.parked = false
+	rc.replication.nextPullAfter = 0
 	rc.replication.markDirty(now)
 	r.tickReplication(rc, now)
 	if event.Future != nil {
@@ -696,12 +709,13 @@ func (r *Reactor) handlePull(event Event) {
 		follower.LastPullAt = now
 		follower.Parked = false
 		follower.Stopped = false
+		follower.NextExpectedPullAt = time.Time{}
 		follower.HintRetryAt = time.Time{}
 		if match := event.Pull.NextOffset - 1; match > follower.Match {
 			follower.Match = match
 		}
 	}
-	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx}
+	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower}
 	r.registerPullCancelContext(rc, ctx)
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
 	err = r.submitStoreReadLog(ctx, event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)

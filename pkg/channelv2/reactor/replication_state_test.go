@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
@@ -251,11 +252,14 @@ func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testi
 		Kind:  worker.TaskRPCPull,
 		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
 		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
-			ChannelKey:  meta.Key,
-			Epoch:       meta.Epoch,
-			LeaderEpoch: meta.LeaderEpoch,
-			LeaderHW:    99,
-			LeaderLEO:   99,
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        99,
+			LeaderLEO:       99,
+			ActivityVersion: 99,
+			NextPullAfter:   time.Hour,
+			Control:         transport.PullControlContinue,
 		}},
 	}
 	before := time.Now()
@@ -268,6 +272,66 @@ func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testi
 	require.False(t, rc.replication.nextPullAt.IsZero())
 	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
 	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
+}
+
+func TestFollowerPullHintInterruptsParked(t *testing.T) {
+	net := newCapturingTransport()
+	meta := followerTestMeta("parked-hint")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:      meta.Key,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		LeaderHW:        0,
+		LeaderLEO:       0,
+		ActivityVersion: 7,
+		NextPullAfter:   time.Hour,
+		Control:         transport.PullControlContinue,
+	})
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        0,
+			LeaderLEO:       0,
+			ActivityVersion: 7,
+			NextPullAfter:   time.Hour,
+			Control:         transport.PullControlContinue,
+		}},
+	})
+	r.tickReplication(rc, time.Now().Add(time.Minute))
+	require.Equal(t, 0, net.PullCalls())
+
+	future := NewFuture()
+	r.handlePullHint(Event{
+		Kind:   EventPullHint,
+		Key:    meta.Key,
+		Future: future,
+		PullHint: transport.PullHintRequest{
+			ChannelKey:      meta.Key,
+			ChannelID:       meta.ID,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			Leader:          meta.Leader,
+			LeaderLEO:       1,
+			ActivityVersion: 8,
+			Reason:          transport.PullHintReasonAppend,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 }
 
 func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
@@ -737,6 +801,99 @@ func TestLeaderPullReadLogPoolFullFailsFuture(t *testing.T) {
 	require.NoError(t, err)
 	_, err = second.Await(ctx)
 	require.NoError(t, err)
+}
+
+func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pace-idle", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleSlowdownAfter: time.Millisecond, IdlePullMinInterval: 10 * time.Millisecond, IdlePullMaxInterval: time.Second,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 10,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
+	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
+	require.GreaterOrEqual(t, result.Pull.NextPullAfter, 10*time.Millisecond)
+	require.NotNil(t, rc.followers[2])
+	require.True(t, rc.followers[2].Parked)
+}
+
+func TestLeaderPullResponsePacesLaggingFollowerWithRecordsImmediately(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := testMeta("pace-lagging", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
+		{ID: 3, Payload: []byte("c"), SizeBytes: 1},
+	}})
+	require.NoError(t, err)
+
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleSlowdownAfter: time.Millisecond, IdlePullMinInterval: 10 * time.Millisecond, IdlePullMaxInterval: time.Second,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1,
+			Follower: 2, NextOffset: 2, MaxBytes: 1024,
+		},
+		OpID: 11,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
+	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
+	require.Len(t, result.Pull.Records, 2)
+	require.Zero(t, result.Pull.NextPullAfter)
+	require.False(t, rc.followers[2].Parked)
 }
 
 func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *testing.T) {

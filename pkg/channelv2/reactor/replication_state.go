@@ -31,8 +31,14 @@ type replicationState struct {
 
 	// dirty marks the follower as needing immediate replication work.
 	dirty bool
+	// parked records whether the follower is intentionally waiting for the leader-provided pull delay.
+	parked bool
 	// nextPullAt is the earliest time a new pull may be submitted.
 	nextPullAt time.Time
+	// nextPullAfter is the leader-provided delay from the latest empty pull response.
+	nextPullAfter time.Duration
+	// lastActivityVersion is the latest accepted leader activity version.
+	lastActivityVersion uint64
 	// backoff is the current exponential retry delay.
 	backoff time.Duration
 	// lastLeaderHW is the leader commit frontier from the latest accepted pull.
@@ -56,7 +62,9 @@ func (s *replicationState) markDirty(now time.Time) {
 		now = time.Now()
 	}
 	s.dirty = true
+	s.parked = false
 	s.nextPullAt = time.Time{}
+	s.nextPullAfter = 0
 }
 
 // reset clears follower-only replication state when metadata moves away from an active follower role.

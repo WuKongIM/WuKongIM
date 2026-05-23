@@ -200,11 +200,18 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	rc.replication.lastLeaderHW = resp.LeaderHW
 	rc.replication.backoff = 0
+	if resp.ActivityVersion > rc.replication.lastActivityVersion {
+		rc.replication.lastActivityVersion = resp.ActivityVersion
+	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
-		rc.replication.nextPullAt = now.Add(r.cfg.ReplicationIdlePollInterval)
+		rc.replication.parked = resp.NextPullAfter > 0
+		rc.replication.nextPullAfter = resp.NextPullAfter
+		rc.replication.nextPullAt = now.Add(resp.NextPullAfter)
 		return
 	}
+	rc.replication.parked = false
+	rc.replication.nextPullAfter = 0
 	rc.replication.pendingPull = &resp
 	rc.replication.applyBlocked = false
 	rc.replication.applyRetryAt = time.Time{}
@@ -300,7 +307,37 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	future.Complete(Result{Pull: transport.PullResponse{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, LeaderHW: rc.state.HW, LeaderLEO: rc.state.LEO, Records: result.StoreReadLog.Records}})
+	records := result.StoreReadLog.Records
+	now := time.Now()
+	version := rc.lifecycle.ActivityVersion
+	if version == 0 {
+		version = rc.state.LEO
+	}
+	delay := time.Duration(0)
+	if len(records) == 0 {
+		delay = r.leaderPullDelay(rc, now)
+	}
+	r.syncLeaderFollowers(rc)
+	if follower := rc.followers[waiter.follower]; follower != nil {
+		if len(records) == 0 {
+			follower.Parked = delay > 0
+			follower.NextExpectedPullAt = now.Add(delay)
+		} else {
+			follower.Parked = false
+			follower.NextExpectedPullAt = time.Time{}
+		}
+	}
+	future.Complete(Result{Pull: transport.PullResponse{
+		ChannelKey:      rc.state.Key,
+		Epoch:           rc.state.Epoch,
+		LeaderEpoch:     rc.state.LeaderEpoch,
+		LeaderHW:        rc.state.HW,
+		LeaderLEO:       rc.state.LEO,
+		ActivityVersion: version,
+		NextPullAfter:   delay,
+		Control:         transport.PullControlContinue,
+		Records:         records,
+	}})
 }
 
 func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {
@@ -309,6 +346,35 @@ func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {
 	rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 	rc.replication.nextPullAt = now.Add(rc.replication.backoff)
 	rc.replication.lastError = err
+}
+
+func (r *Reactor) leaderPullDelay(rc *runtimeChannel, now time.Time) time.Duration {
+	minDelay := r.cfg.IdlePullMinInterval
+	maxDelay := r.cfg.IdlePullMaxInterval
+	if minDelay <= 0 {
+		minDelay = r.cfg.ReplicationIdlePollInterval
+	}
+	if minDelay <= 0 {
+		minDelay = time.Millisecond
+	}
+	if maxDelay <= 0 || maxDelay < minDelay {
+		maxDelay = minDelay
+	}
+	if rc == nil || rc.lifecycle.LastAppendAt.IsZero() {
+		return minDelay
+	}
+	idleAge := now.Sub(rc.lifecycle.LastAppendAt)
+	if idleAge < r.cfg.IdleSlowdownAfter {
+		return minDelay
+	}
+	delay := minDelay
+	for remaining := idleAge - r.cfg.IdleSlowdownAfter; remaining >= delay && delay < maxDelay; remaining -= delay {
+		delay *= 2
+		if delay > maxDelay {
+			return maxDelay
+		}
+	}
+	return delay
 }
 
 func (r *Reactor) nextOpID() ch.OpID {
