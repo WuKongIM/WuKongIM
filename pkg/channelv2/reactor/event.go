@@ -14,6 +14,8 @@ type EventKind uint8
 
 const (
 	EventApplyMeta EventKind = iota + 1
+	// EventCheckState asks the owning reactor whether it has channel state loaded.
+	EventCheckState
 	EventAppend
 	EventFetch
 	// EventWorkerResult carries a blocking worker completion back to its reactor.
