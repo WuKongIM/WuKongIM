@@ -4,11 +4,8 @@ import ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 
 // ApplyMeta applies the authoritative control-plane view to local state.
 func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
-	if meta.Key != "" && meta.Key != s.Key {
-		return Decision{Err: ch.ErrStaleMeta}
-	}
-	if meta.MinISR <= 0 || meta.MinISR > len(meta.ISR) {
-		return Decision{Err: ch.ErrInvalidConfig}
+	if err := s.ValidateMeta(meta); err != nil {
+		return Decision{Err: err}
 	}
 	s.ID = meta.ID
 	s.Epoch = meta.Epoch
@@ -30,6 +27,17 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	}
 	s.CommitReady = meta.Status == ch.StatusActive || meta.Status == ch.StatusCreating
 	return Decision{}
+}
+
+// ValidateMeta checks whether metadata can be applied without mutating state.
+func (s *ChannelState) ValidateMeta(meta ch.Meta) error {
+	if meta.Key != "" && meta.Key != s.Key {
+		return ch.ErrStaleMeta
+	}
+	if meta.MinISR <= 0 || meta.MinISR > len(meta.ISR) {
+		return ch.ErrInvalidConfig
+	}
+	return nil
 }
 
 // IsReplica reports whether node is part of the authoritative replica set.

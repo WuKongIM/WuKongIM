@@ -161,10 +161,14 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		return
 	}
 	fencePendingFetches := existing != nil && metadataWouldFenceFetch(rc.state, event.Meta)
-	decision := rc.state.ApplyMeta(event.Meta)
-	if decision.Err == nil && fencePendingFetches {
+	if fencePendingFetches {
+		if err := rc.state.ValidateMeta(event.Meta); err != nil {
+			event.Future.Complete(Result{Err: err})
+			return
+		}
 		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
 	}
+	decision := rc.state.ApplyMeta(event.Meta)
 	event.Future.Complete(Result{Err: decision.Err})
 }
 
