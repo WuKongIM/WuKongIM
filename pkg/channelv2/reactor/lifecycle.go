@@ -135,6 +135,22 @@ func (r *Reactor) tickAllLifecycle(now time.Time) {
 	}
 }
 
+func (r *Reactor) resetPullHintLifecycle(rc *runtimeChannel) {
+	if rc == nil {
+		return
+	}
+	rc.pullHintInflight = nil
+	for _, follower := range rc.followers {
+		if follower == nil {
+			continue
+		}
+		follower.LastHintVersion = 0
+		follower.PendingHintVersion = 0
+		follower.HintInflight = false
+		follower.HintRetryAt = time.Time{}
+	}
+}
+
 func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *followerLifecycle) bool {
 	if rc == nil || rc.state == nil || follower == nil || follower.Match >= rc.state.LEO {
 		return false
@@ -194,6 +210,12 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 	rc, err := r.lookup(result.Fence.ChannelKey)
 	if err != nil {
+		return
+	}
+	if result.Fence.ChannelKey != rc.state.Key ||
+		result.Fence.Generation != rc.state.Generation ||
+		result.Fence.Epoch != rc.state.Epoch ||
+		result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
 		return
 	}
 	inflight, ok := rc.pullHintInflight[result.Fence.OpID]
