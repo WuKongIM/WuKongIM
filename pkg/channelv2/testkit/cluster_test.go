@@ -88,7 +88,7 @@ func TestPullHintLazyActivatesUnloadedFollowerAndReplicatesWithoutTicks(t *testi
 	network.Register(2, followerServer)
 
 	require.NoError(t, leader.ApplyMeta(meta))
-	network.SetDropNotify(2, true)
+	network.SetDropPullHint(2, true)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	done := make(chan appendOutcome, 1)
@@ -106,7 +106,7 @@ func TestPullHintLazyActivatesUnloadedFollowerAndReplicatesWithoutTicks(t *testi
 		}
 		return network.DroppedPullHints(2) > 0
 	}, time.Second, time.Millisecond)
-	network.SetDropNotify(2, false)
+	network.SetDropPullHint(2, false)
 
 	require.NoError(t, network.PullHint(context.Background(), 2, transport.PullHintRequest{
 		ChannelKey:      meta.Key,

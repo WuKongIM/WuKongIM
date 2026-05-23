@@ -116,6 +116,21 @@ func (r *Reactor) submitRPCNotify(ctx context.Context, node ch.NodeID, fence ch.
 	})
 }
 
+func (r *Reactor) submitPullHint(ctx context.Context, node ch.NodeID, fence ch.Fence, req transport.PullHintRequest) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskRPCPullHint,
+		Fence:   fence,
+		Context: ctx,
+		RPCPullHint: &worker.RPCPullHintTask{
+			Node:    node,
+			Request: req,
+		},
+	})
+}
+
 func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, immediate *Future) bool {
 	completed := false
 	for _, reply := range replies {
@@ -453,6 +468,24 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	}
 	if cfg.PullMaxBytes <= 0 {
 		cfg.PullMaxBytes = 64 * 1024
+	}
+	if cfg.IdleSlowdownAfter <= 0 {
+		cfg.IdleSlowdownAfter = 30 * time.Second
+	}
+	if cfg.IdleEvictAfter <= 0 {
+		cfg.IdleEvictAfter = 5 * time.Minute
+	}
+	if cfg.IdlePullMinInterval <= 0 {
+		cfg.IdlePullMinInterval = 10 * time.Millisecond
+	}
+	if cfg.IdlePullMaxInterval <= 0 {
+		cfg.IdlePullMaxInterval = 5 * time.Second
+	}
+	if cfg.IdleEvictCheckInterval <= 0 {
+		cfg.IdleEvictCheckInterval = time.Second
+	}
+	if cfg.PullHintRetryInterval <= 0 {
+		cfg.PullHintRetryInterval = time.Second
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
