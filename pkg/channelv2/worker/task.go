@@ -35,11 +35,13 @@ type Task struct {
 	StoreReadCommitted *StoreReadCommittedTask
 	StoreReadLog       *StoreReadLogTask
 	StoreApply         *StoreApplyTask
-	StoreCheckpoint    *StoreCheckpointTask
-	RPCPull            *RPCPullTask
-	RPCAck             *RPCAckTask
-	RPCNotify          *RPCNotifyTask
-	RPCPullHint        *RPCPullHintTask
+	// StoreCheckpoint persists a checkpoint before runtime eviction.
+	StoreCheckpoint *StoreCheckpointTask
+	RPCPull         *RPCPullTask
+	RPCAck          *RPCAckTask
+	RPCNotify       *RPCNotifyTask
+	// RPCPullHint sends a prompt pull nudge to a follower.
+	RPCPullHint *RPCPullHintTask
 
 	RunFunc func(context.Context) Result
 }
@@ -103,7 +105,9 @@ type RPCNotifyTask struct {
 
 // RPCPullHintTask asks a remote follower to pull leader progress promptly.
 type RPCPullHintTask struct {
-	Node    ch.NodeID
+	// Node is the target follower node.
+	Node ch.NodeID
+	// Request is the pull hint payload sent to the follower.
 	Request transport.PullHintRequest
 }
 
