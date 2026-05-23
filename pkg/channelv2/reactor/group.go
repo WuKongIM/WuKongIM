@@ -66,7 +66,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	}
 	g.pools = pools
 	for i := range g.reactors {
-		r := NewReactor(ReactorConfig{ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, MailboxSize: cfg.MailboxSize})
+		r := NewReactor(ReactorConfig{ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize})
 		g.reactors[i] = r
 		r.start()
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
 const defaultReactorDrain = 128
@@ -18,6 +19,7 @@ type ReactorConfig struct {
 	ID          int
 	LocalNode   ch.NodeID
 	Store       store.Factory
+	Pools       *worker.Pools
 	MailboxSize int
 }
 
@@ -35,6 +37,8 @@ type runtimeChannel struct {
 	state   *machine.ChannelState
 	store   store.ChannelStore
 	waiters map[ch.OpID]*Future
+	// fetchWaiters marks waiter entries that must be fenced by metadata changes.
+	fetchWaiters map[ch.OpID]struct{}
 }
 
 // NewReactor constructs a reactor.
@@ -126,7 +130,10 @@ func (r *Reactor) handle(event Event) {
 }
 
 func (r *Reactor) handleWorkerResult(event Event) {
-	// Task 2 only establishes completion routing; concrete result handling follows.
+	switch event.Worker.Kind {
+	case worker.TaskStoreReadCommitted:
+		r.handleStoreReadCommittedResult(event.Worker)
+	}
 }
 
 func (r *Reactor) handleTick(event Event) {
@@ -143,12 +150,21 @@ func (r *Reactor) handleClose(event Event) {
 }
 
 func (r *Reactor) handleApplyMeta(event Event) {
+	key := event.Meta.Key
+	if key == "" {
+		key = ch.ChannelKeyForID(event.Meta.ID)
+	}
+	existing := r.channels[key]
 	rc, err := r.ensureChannel(event.Meta)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	fencePendingFetches := existing != nil && metadataWouldFenceFetch(rc.state, event.Meta)
 	decision := rc.state.ApplyMeta(event.Meta)
+	if decision.Err == nil && fencePendingFetches {
+		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
+	}
 	event.Future.Complete(Result{Err: decision.Err})
 }
 
@@ -173,7 +189,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.LEO = initial.LEO
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
-	rc := &runtimeChannel{state: state, store: cs, waiters: make(map[ch.OpID]*Future)}
+	rc := &runtimeChannel{state: state, store: cs, waiters: make(map[ch.OpID]*Future), fetchWaiters: make(map[ch.OpID]struct{})}
 	r.channels[key] = rc
 	return rc, nil
 }
@@ -225,23 +241,45 @@ func (r *Reactor) handleFetch(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	decision := rc.state.BuildFetch(machine.FetchCommand{OpID: 1, FromSeq: event.Fetch.FromSeq, Limit: event.Fetch.Limit, MaxBytes: event.Fetch.MaxBytes})
+	decision := rc.state.BuildFetch(machine.FetchCommand{OpID: event.OpID, FromSeq: event.Fetch.FromSeq, Limit: event.Fetch.Limit, MaxBytes: event.Fetch.MaxBytes})
 	if decision.Err != nil {
 		event.Future.Complete(Result{Err: decision.Err})
 		return
 	}
-	if len(decision.Replies) > 0 {
-		event.Future.Complete(Result{Fetch: decision.Replies[0].Fetch})
+	if completeReplies(rc, decision.Replies, event.Future) {
 		return
 	}
-	readTask := decision.Tasks[0].ReadCommitted
-	read, err := rc.store.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: readTask.FromSeq, MaxSeq: readTask.MaxSeq, Limit: readTask.Limit, MaxBytes: readTask.MaxBytes})
-	result := rc.state.ApplyReadCommitted(machine.ReadCommittedResult{Fence: decision.Tasks[0].Fence, Messages: read.Messages, NextSeq: read.NextSeq, Err: err})
-	if len(result.Replies) == 0 {
-		rc.waiters[event.OpID] = event.Future
+	if len(decision.Tasks) == 0 {
+		event.Future.Complete(Result{})
 		return
 	}
-	event.Future.Complete(Result{Fetch: result.Replies[0].Fetch})
+	rc.addFetchWaiter(event.OpID, event.Future)
+	if err := r.submitStoreReadCommitted(context.Background(), event.Fetch.ChannelID, decision.Tasks[0]); err != nil {
+		rc.removeFetchWaiter(event.OpID)
+		event.Future.Complete(Result{Err: err})
+	}
+}
+
+func (r *Reactor) handleStoreReadCommittedResult(result worker.Result) {
+	rc, err := r.lookup(result.Fence.ChannelKey)
+	if err != nil {
+		return
+	}
+	readErr := result.Err
+	readResult := machine.ReadCommittedResult{Fence: result.Fence, Err: readErr}
+	if result.StoreReadCommitted == nil {
+		if readErr == nil {
+			readResult.Err = ch.ErrInvalidConfig
+		}
+	} else {
+		readResult.Messages = result.StoreReadCommitted.Messages
+		readResult.NextSeq = result.StoreReadCommitted.NextSeq
+	}
+	decision := rc.state.ApplyReadCommitted(readResult)
+	if completeReplies(rc, decision.Replies, nil) {
+		return
+	}
+	rc.completeStaleFetchIfWaiting(result.Fence.OpID)
 }
 
 func (r *Reactor) handlePull(event Event) {
