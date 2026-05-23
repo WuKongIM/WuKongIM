@@ -7,6 +7,8 @@
 - `GOWORK=off go test ./pkg/channelv2/... -count=1`
 - `GOWORK=off go test -race ./pkg/channelv2/... -count=1`
 - `rg 'pkg/channel"|pkg/channel/store' pkg/channelv2 -g'*.go'`
+- `GOWORK=off go test ./pkg/channel/... ./pkg/channelv2/... -count=1`
+- `gofmt -w pkg/channelv2`
 - `git diff --check`
 
 ## Results

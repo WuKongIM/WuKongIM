@@ -509,6 +509,88 @@ func TestLeaderPullWaiterFailsOnMetadataFence(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
+func TestLeaderPullMismatchedChannelKeyFailsWithStaleMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-key-mismatch")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 201,
+		Pull: transport.PullRequest{ChannelKey: "1:other", ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Empty(t, rc.pullWaiters)
+}
+
+func TestLeaderPullMismatchedChannelIDFailsWithStaleMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-id-mismatch")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 202,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: ch.ChannelID{ID: "other", Type: meta.ID.Type}, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Empty(t, rc.pullWaiters)
+}
+
+func TestLeaderPullInvalidRangeFailsWithInvalidConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		nextOffset uint64
+		maxBytes   int
+	}{
+		{name: "zero next offset", nextOffset: 0, maxBytes: 1024},
+		{name: "non positive max bytes", nextOffset: 1, maxBytes: 0},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := store.NewMemoryFactory()
+			g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+			require.NoError(t, err)
+			defer g.Close()
+
+			meta := followerTestMeta("pull-invalid-range-" + tt.name)
+			require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+			future, err := g.Submit(context.Background(), meta.Key, Event{
+				Kind: EventPull,
+				Key:  meta.Key,
+				OpID: ch.OpID(210 + i),
+				Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: tt.nextOffset, MaxBytes: tt.maxBytes},
+			})
+			require.NoError(t, err)
+			_, err = future.Await(context.Background())
+			require.ErrorIs(t, err, ch.ErrInvalidConfig)
+
+			rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+			require.Empty(t, rc.pullWaiters)
+		})
+	}
+}
+
 func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 	factory := newNonCancelingBlockingReadLogFactory()
 	g, err := NewGroup(Config{
