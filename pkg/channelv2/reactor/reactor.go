@@ -600,7 +600,6 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	}
 	oldLEO := rc.state.LEO
 	decision := rc.state.ApplyAppendStored(stored)
-	r.completeReplies(rc, decision.Replies, nil)
 	now := time.Now()
 	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
 		r.markAppendActivity(rc, now)
@@ -616,6 +615,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		}
 		r.sendPullHintsForAppend(rc, now)
 	}
+	r.completeReplies(rc, decision.Replies, nil)
 	for _, signal := range decision.Signals {
 		if signal.Kind == machine.SignalKindReplicate {
 			r.notifyFollowers(rc)
@@ -726,11 +726,6 @@ func (r *Reactor) handleAck(event Event) {
 	if follower := rc.followers[event.Ack.Follower]; follower != nil {
 		if event.Ack.MatchOffset > follower.Match {
 			follower.Match = event.Ack.MatchOffset
-		}
-		if event.Ack.Stopped {
-			follower.Stopped = true
-			follower.Parked = false
-			follower.StopAckVersion = event.Ack.ActivityVersion
 		}
 	}
 	r.completeReplies(rc, decision.Replies, nil)
