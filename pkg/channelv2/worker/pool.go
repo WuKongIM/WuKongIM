@@ -3,9 +3,19 @@ package worker
 import (
 	"context"
 	"sync"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 )
+
+// QueueObserver receives bounded worker queue depth samples.
+type QueueObserver interface {
+	SetWorkerQueueDepth(pool string, depth int)
+}
+
+type noopQueueObserver struct{}
+
+func (noopQueueObserver) SetWorkerQueueDepth(pool string, depth int) {}
 
 // PoolConfig defines worker and queue limits for one bounded pool.
 type PoolConfig struct {
@@ -23,6 +33,7 @@ type Pool struct {
 	stop   chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
+	obs    QueueObserver
 	once   sync.Once
 	wg     sync.WaitGroup
 }
@@ -33,7 +44,7 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 		return nil, ch.ErrInvalidConfig
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel}
+	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel, obs: noopQueueObserver{}}
 	p.wg.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
 		go p.run()
@@ -41,11 +52,23 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	return p, nil
 }
 
+// SetQueueObserver replaces the queue depth observer; nil restores the no-op observer.
+func (p *Pool) SetQueueObserver(observer QueueObserver) {
+	if p == nil {
+		return
+	}
+	if observer == nil {
+		observer = noopQueueObserver{}
+	}
+	p.obs = observer
+}
+
 // Submit enqueues task or returns a typed backpressure/closed error.
 func (p *Pool) Submit(ctx context.Context, task Task) error {
 	if p == nil {
 		return ch.ErrClosed
 	}
+	defer p.observeQueueDepth()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -95,12 +118,19 @@ func (p *Pool) QueueDepth() int {
 	return len(p.queue)
 }
 
+func (p *Pool) observeQueueDepth() {
+	p.obs.SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
+}
+
 func (p *Pool) run() {
 	defer p.wg.Done()
 	for {
 		select {
 		case task := <-p.queue:
-			p.sink.Complete(task.Run(p.ctx, p.deps))
+			started := time.Now()
+			result := task.Run(p.ctx, p.deps)
+			result.Duration = time.Since(started)
+			p.sink.Complete(result)
 		case <-p.stop:
 			return
 		}

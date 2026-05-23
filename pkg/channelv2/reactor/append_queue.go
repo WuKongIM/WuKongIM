@@ -51,6 +51,11 @@ type appendRequest struct {
 	commitMode ch.CommitMode
 }
 
+type appendTiming struct {
+	mode       ch.CommitMode
+	enqueuedAt time.Time
+}
+
 // appendBatch is one durable store append assembled from queued requests.
 type appendBatch struct {
 	batchOpID ch.OpID
@@ -159,6 +164,17 @@ func (q *appendQueue) failAll(err error) {
 		if req.future != nil {
 			req.future.Complete(Result{Err: err})
 		}
+	}
+	q.pending = nil
+	q.records = 0
+	q.bytes = 0
+	q.flushDue = time.Time{}
+	q.storeBlocked = false
+}
+
+func (q *appendQueue) clear() {
+	if q == nil {
+		return
 	}
 	q.pending = nil
 	q.records = 0

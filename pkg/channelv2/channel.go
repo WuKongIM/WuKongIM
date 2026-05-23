@@ -22,6 +22,8 @@ type Config struct {
 	MailboxSize  int
 	Store        any
 	Transport    any
+	// Observer carries a reactor metrics observer for adapters that construct the service facade.
+	Observer any
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
 	AppendBatchMaxRecords int
 	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.

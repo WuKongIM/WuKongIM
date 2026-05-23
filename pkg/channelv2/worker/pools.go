@@ -47,6 +47,16 @@ func NewPools(cfg PoolsConfig, deps Deps, sink CompletionSink) (*Pools, error) {
 	return pools, nil
 }
 
+// SetQueueObserver installs a queue depth observer on every pool.
+func (p *Pools) SetQueueObserver(observer QueueObserver) {
+	if p == nil {
+		return
+	}
+	for _, pool := range []*Pool{p.StoreAppend, p.StoreRead, p.StoreApply, p.RPC} {
+		pool.SetQueueObserver(observer)
+	}
+}
+
 // Submit routes a task to the pool assigned to its blocking category.
 func (p *Pools) Submit(ctx context.Context, task Task) error {
 	pool := p.poolFor(task.Kind)
