@@ -49,15 +49,29 @@ func completeReplies(rc *runtimeChannel, replies []machine.Reply, immediate *Fut
 	return completed
 }
 
-func (rc *runtimeChannel) addFetchWaiter(opID ch.OpID, future *Future) {
+func (rc *runtimeChannel) addWaiter(opID ch.OpID, future *Future) error {
 	if rc == nil || future == nil {
-		return
+		return nil
+	}
+	if _, ok := rc.waiters[opID]; ok {
+		return ch.ErrInvalidConfig
 	}
 	rc.waiters[opID] = future
+	return nil
+}
+
+func (rc *runtimeChannel) addFetchWaiter(opID ch.OpID, future *Future) error {
+	if err := rc.addWaiter(opID, future); err != nil {
+		return err
+	}
+	if rc == nil || future == nil {
+		return nil
+	}
 	if rc.fetchWaiters == nil {
 		rc.fetchWaiters = make(map[ch.OpID]struct{})
 	}
 	rc.fetchWaiters[opID] = struct{}{}
+	return nil
 }
 
 func (rc *runtimeChannel) removeFetchWaiter(opID ch.OpID) *Future {

@@ -224,6 +224,10 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	if _, ok := rc.waiters[event.OpID]; ok {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
 	records := make([]ch.Record, len(event.Append.Messages))
 	for i, msg := range event.Append.Messages {
 		records[i] = ch.Record{ID: msg.MessageID, Payload: append([]byte(nil), msg.Payload...), SizeBytes: len(msg.Payload)}
@@ -241,7 +245,9 @@ func (r *Reactor) handleAppend(event Event) {
 	stored, err := rc.store.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: appendTask.Records, Sync: appendTask.Sync})
 	result := rc.state.ApplyAppendStored(machine.AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset, Err: err})
 	if len(result.Replies) == 0 {
-		rc.waiters[event.OpID] = event.Future
+		if err := rc.addWaiter(event.OpID, event.Future); err != nil {
+			event.Future.Complete(Result{Err: err})
+		}
 		return
 	}
 	reply := result.Replies[0]
@@ -249,7 +255,7 @@ func (r *Reactor) handleAppend(event Event) {
 	if len(batch.Items) == 0 && reply.Append.MessageSeq > 0 {
 		batch.Items = []ch.AppendBatchItemResult{reply.Append}
 	}
-	event.Future.Complete(Result{AppendBatch: batch})
+	event.Future.Complete(Result{AppendBatch: batch, Err: reply.Err})
 }
 
 func (r *Reactor) handleFetch(event Event) {
@@ -270,7 +276,10 @@ func (r *Reactor) handleFetch(event Event) {
 		event.Future.Complete(Result{})
 		return
 	}
-	rc.addFetchWaiter(event.OpID, event.Future)
+	if err := rc.addFetchWaiter(event.OpID, event.Future); err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
 	if err := r.submitStoreReadCommitted(context.Background(), event.Fetch.ChannelID, decision.Tasks[0]); err != nil {
 		rc.removeFetchWaiter(event.OpID)
 		event.Future.Complete(Result{Err: err})

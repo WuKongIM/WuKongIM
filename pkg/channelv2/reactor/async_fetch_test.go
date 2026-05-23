@@ -288,6 +288,90 @@ func TestAppendMetadataRejectedChangeKeepsPendingQuorumWaiter(t *testing.T) {
 	requireFuturePending(t, appendFuture)
 }
 
+func TestAppendStoreErrorCompletesFuture(t *testing.T) {
+	factory := newAppendErrorFactory(ch.ErrNotReady)
+	meta := testMeta("append-store-error", 1, 1)
+	g := newAsyncFetchTestGroup(t, factory, worker.PoolConfig{})
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 9, "fail"))
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := future.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.Empty(t, result.AppendBatch.Items)
+}
+
+func TestAppendDuplicateOpIDDoesNotOverwritePendingFetchWaiter(t *testing.T) {
+	factory := newBlockingReadFactory()
+	meta := testMeta("append-duplicate-fetch-waiter", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	seedCommittedMessage(t, factory, meta, 1, "hello")
+	g := newAsyncFetchTestGroup(t, factory, worker.PoolConfig{})
+	defer g.Close()
+	defer factory.unblockAll()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	fetchFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventFetch, Key: meta.Key, OpID: 66, Fetch: fetchRequest(meta)})
+	require.NoError(t, err)
+	factory.waitStarted(t)
+
+	appendEvent := appendEvent(meta, 66, "duplicate")
+	appendEvent.Append.CommitMode = ch.CommitModeQuorum
+	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err = appendFuture.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+
+	factory.unblockAll()
+	fetchResult := awaitFutureResult(t, fetchFuture)
+	require.NoError(t, fetchResult.Err)
+	require.Len(t, fetchResult.Fetch.Messages, 1)
+	require.Equal(t, uint64(1), fetchResult.Fetch.Messages[0].MessageSeq)
+}
+
+func TestFetchDuplicateOpIDDoesNotOverwritePendingAppendWaiter(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := testMeta("fetch-duplicate-append-waiter", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	seedCommittedMessage(t, factory, meta, 1, "hello")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	appendFuture := NewFuture()
+	append := appendEvent(meta, 88, "pending")
+	append.Future = appendFuture
+	append.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(append)
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Contains(t, rc.waiters, ch.OpID(88))
+	require.NotContains(t, rc.fetchWaiters, ch.OpID(88))
+
+	fetchFuture := NewFuture()
+	r.handleFetch(Event{Kind: EventFetch, Key: meta.Key, OpID: 88, Future: fetchFuture, Fetch: fetchRequest(meta)})
+	_, err := fetchFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Same(t, appendFuture, rc.waiters[ch.OpID(88)])
+	require.NotContains(t, rc.fetchWaiters, ch.OpID(88))
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, updated))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = appendFuture.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+}
+
 func TestFetchStoreReadErrorCompletesFuture(t *testing.T) {
 	factory := newReadErrorFactory(ch.ErrNotReady)
 	meta := testMeta("async-read-error", 1, 1)
@@ -420,4 +504,30 @@ type readErrorStore struct {
 
 func (s *readErrorStore) ReadCommitted(ctx context.Context, req store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
 	return store.ReadCommittedResult{}, s.err
+}
+
+type appendErrorFactory struct {
+	inner *store.MemoryFactory
+	err   error
+}
+
+func newAppendErrorFactory(err error) *appendErrorFactory {
+	return &appendErrorFactory{inner: store.NewMemoryFactory(), err: err}
+}
+
+func (f *appendErrorFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	cs, err := f.inner.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &appendErrorStore{ChannelStore: cs, err: f.err}, nil
+}
+
+type appendErrorStore struct {
+	store.ChannelStore
+	err error
+}
+
+func (s *appendErrorStore) AppendLeader(ctx context.Context, req store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	return store.AppendLeaderResult{}, s.err
 }
