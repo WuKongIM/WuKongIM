@@ -22,6 +22,8 @@ type appendQueueConfig struct {
 }
 
 // appendQueue owns pending append requests before the reactor proposes a durable batch.
+// It is the per-channel queue primitive for the Task 5 async append flush path;
+// Task 4 keeps append execution on the current synchronous reactor path.
 type appendQueue struct {
 	cfg appendQueueConfig
 	// pending preserves client request order for deterministic batching.
