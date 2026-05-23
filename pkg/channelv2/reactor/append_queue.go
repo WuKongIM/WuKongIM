@@ -1,6 +1,7 @@
 package reactor
 
 import (
+	"context"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -40,9 +41,11 @@ type appendQueue struct {
 
 // appendRequest is one queued client append request.
 type appendRequest struct {
-	opID       ch.OpID
-	req        ch.AppendBatchRequest
-	future     *Future
+	opID   ch.OpID
+	req    ch.AppendBatchRequest
+	future *Future
+	// ctx lets the owning reactor drop not-yet-started appends after caller cancellation.
+	ctx        context.Context
 	enqueuedAt time.Time
 	records    []ch.Record
 	commitMode ch.CommitMode
@@ -138,7 +141,10 @@ func (q *appendQueue) remove(opID ch.OpID) (*appendRequest, bool) {
 			continue
 		}
 		removed := q.pending[i]
-		q.pending = append(q.pending[:i], q.pending[i+1:]...)
+		copy(q.pending[i:], q.pending[i+1:])
+		last := len(q.pending) - 1
+		q.pending[last] = appendRequest{}
+		q.pending = q.pending[:last]
 		q.recount()
 		return &removed, true
 	}

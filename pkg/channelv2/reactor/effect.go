@@ -236,7 +236,11 @@ func (r *Reactor) flushDueAppends(now time.Time) {
 }
 
 func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
-	if r == nil || rc == nil || rc.appendInflight != nil {
+	if r == nil || rc == nil {
+		return
+	}
+	r.dropCanceledQueuedAppends(rc)
+	if rc.appendInflight != nil {
 		return
 	}
 	if rc.appendStoreBlocked && now.Before(rc.appendRetryAt) {
@@ -282,6 +286,46 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	rc.appendInflight = &batch
 	rc.appendStoreBlocked = false
 	rc.appendRetryAt = time.Time{}
+}
+
+func (r *Reactor) dropCanceledQueuedAppends(rc *runtimeChannel) {
+	if rc == nil {
+		return
+	}
+	for {
+		var canceled appendRequest
+		found := false
+		for _, req := range rc.appendQ.pending {
+			if req.ctx == nil || req.ctx.Err() == nil {
+				continue
+			}
+			canceled = req
+			found = true
+			break
+		}
+		if !found {
+			break
+		}
+		removed, ok := rc.appendQ.remove(canceled.opID)
+		if !ok {
+			continue
+		}
+		cancelErr := removed.ctx.Err()
+		if cancelErr == nil {
+			cancelErr = context.Canceled
+		}
+		delete(rc.waiters, removed.opID)
+		if rc.state != nil {
+			rc.state.CancelAppendWaiter(removed.opID)
+		}
+		if removed.future != nil {
+			removed.future.Complete(Result{Err: cancelErr})
+		}
+	}
+	if len(rc.appendQ.pending) == 0 {
+		rc.appendStoreBlocked = false
+		rc.appendRetryAt = time.Time{}
+	}
 }
 
 func (r *Reactor) failAppendBatch(rc *runtimeChannel, batch appendBatch, err error) {
