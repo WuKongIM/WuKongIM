@@ -317,6 +317,32 @@ func TestTaskRunMissingDepsReturnsInvalidConfig(t *testing.T) {
 	res := Task{Kind: TaskStoreReadCommitted}.Run(context.Background(), Deps{})
 	require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
 }
+
+func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := transport.NewLocalNetwork()
+	deps := Deps{Stores: factory, Transport: net.Client()}
+	fence := ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 20}
+	cases := []struct {
+		name string
+		task Task
+	}{
+		{name: "store append", task: Task{Kind: TaskStoreAppend, Fence: fence}},
+		{name: "store read committed", task: Task{Kind: TaskStoreReadCommitted, Fence: fence}},
+		{name: "store read log", task: Task{Kind: TaskStoreReadLog, Fence: fence}},
+		{name: "store apply", task: Task{Kind: TaskStoreApply, Fence: fence}},
+		{name: "rpc pull", task: Task{Kind: TaskRPCPull, Fence: fence}},
+		{name: "rpc ack", task: Task{Kind: TaskRPCAck, Fence: fence}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := tc.task.Run(context.Background(), deps)
+			require.Equal(t, tc.task.Kind, res.Kind)
+			require.Equal(t, fence, res.Fence)
+			require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
+		})
+	}
+}
 ```
 
 - [ ] **Step 2: Run tests and verify they fail**
@@ -472,6 +498,7 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 ```
 
 For store tasks, call `deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)` inside the worker. This keeps store opening out of reactor hot paths for new async effects, while `ApplyMeta` may still load initial state synchronously for this phase.
+Every typed `run*` helper must check its matching payload pointer before dereference. A nil payload returns `Result{Kind: t.Kind, Fence: t.Fence, Err: ch.ErrInvalidConfig}` even when dependencies are valid. Missing dependencies and unknown task kinds also return `ErrInvalidConfig` without panicking.
 
 - [ ] **Step 5: Add pool group and depth helpers**
 
@@ -2065,6 +2092,35 @@ func TestAckPoolFullKeepsPendingAckAndRetriesOnTick(t *testing.T) {
 	require.Eventually(t, func() bool { return net.LastAck().MatchOffset == 1 }, time.Second, time.Millisecond)
 }
 
+func TestStaleRPCPullCompletionDoesNotClearNewerPullInflight(t *testing.T) {
+	state := replicationState{pullInflight: true, pullOpID: 2}
+	stale := worker.Result{Kind: worker.TaskRPCPull, Fence: ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}, RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{ChannelKey: "1:a", Epoch: 1, LeaderEpoch: 1}}}
+	applied := state.applyPullResult(stale, ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: state.pullOpID}, time.Unix(1, 0))
+	require.False(t, applied)
+	require.True(t, state.pullInflight)
+	require.Equal(t, ch.OpID(2), state.pullOpID)
+}
+
+func TestStaleRPCAckCompletionDoesNotClearNewerAckInflight(t *testing.T) {
+	state := replicationState{ackInflight: true, ackOpID: 4, ackMatch: 9}
+	stale := worker.Result{Kind: worker.TaskRPCAck, Fence: ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 3}}
+	applied := state.applyAckResult(stale, ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: state.ackOpID}, time.Unix(1, 0))
+	require.False(t, applied)
+	require.True(t, state.ackInflight)
+	require.Equal(t, ch.OpID(4), state.ackOpID)
+	require.Equal(t, uint64(9), state.ackMatch)
+}
+
+func TestAckErrorRetryKeepsSameMatchOffset(t *testing.T) {
+	state := replicationState{ackInflight: true, ackOpID: 5, ackMatch: 9}
+	result := worker.Result{Kind: worker.TaskRPCAck, Fence: ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 5}, Err: ch.ErrNotReady}
+	applied := state.applyAckResult(result, result.Fence, time.Unix(1, 0))
+	require.True(t, applied)
+	require.False(t, state.ackInflight)
+	require.True(t, state.pendingAck)
+	require.Equal(t, uint64(9), state.pendingAckMatch)
+}
+
 func TestLeaderPullUsesStoreReadLogWorkerWithoutBlockingReactor(t *testing.T) {
 	factory := newBlockingReadLogFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
@@ -2308,7 +2364,7 @@ func (s *blockingReadLogStore) ReadLog(ctx context.Context, req store.ReadLogReq
 Run:
 
 ```bash
-GOWORK=off go test ./pkg/channelv2/reactor -run 'TestFollower|TestStoreApplyPoolFull' -count=1
+GOWORK=off go test ./pkg/channelv2/reactor -run 'TestFollower|TestStoreApplyPoolFull|TestStaleRPC|TestAckErrorRetry' -count=1
 ```
 
 Expected: FAIL because service still owned replication until Task 2 removed it, and reactor tick has no replication scheduler.
@@ -2320,7 +2376,10 @@ Create `replication_state.go`:
 ```go
 type replicationState struct {
 	pullInflight bool
+	pullOpID ch.OpID
 	ackInflight bool
+	ackOpID ch.OpID
+	ackMatch uint64
 	pendingAck bool
 	pendingAckMatch uint64
 	nextAckAt time.Time
@@ -2340,6 +2399,8 @@ func (s *replicationState) markDirty(now time.Time) {
 	}
 }
 
+func (s *replicationState) applyPullResult(result worker.Result, current ch.Fence, now time.Time) bool
+func (s *replicationState) applyAckResult(result worker.Result, current ch.Fence, now time.Time) bool
 func nextReplicationBackoff(current, minBackoff, maxBackoff time.Duration) time.Duration
 ```
 
@@ -2391,8 +2452,9 @@ if pendingPull != nil: try apply, do not pull more
 if now < nextPullAt: skip pull
 if transport/pool missing: skip or back off
 nextOffset = state.LEO + 1
-submit TaskRPCPull to leader
-pullInflight = true on success
+allocate pullOpID before submit
+submit TaskRPCPull to leader with Fence.OpID=pullOpID
+pullInflight = true and replication.pullOpID = pullOpID on success
 ```
 
 Use a new operation id for each RPC pull fence.
@@ -2401,19 +2463,22 @@ When a direct test submits `EventTick` through `Group.Submit`, `handleTick` must
 
 - [ ] **Step 7: Handle RPC pull worker results**
 
-For `worker.TaskRPCPull`:
+For `worker.TaskRPCPull`, first validate `result.Fence` against channel generation, epoch, leader epoch, and `rc.replication.pullOpID`. If it is stale, do not clear `pullInflight` or `pullOpID` because a newer pull may already be in flight. For the matching pull op:
 
 ```text
 error:
   pullInflight=false
+  pullOpID=0
   backoff=nextBackoff
   nextPullAt=now+backoff
 records empty:
   pullInflight=false
+  pullOpID=0
   HW=min(LEO, LeaderHW)
   nextPullAt=now+idlePollInterval
 records non-empty:
   pullInflight=false
+  pullOpID=0
   lastLeaderHW=LeaderHW
   pendingPull=response
   try submit StoreApply
@@ -2433,20 +2498,23 @@ success:
   state.HW=min(state.LEO, lastLeaderHW)
   pendingPull=nil
   applyBlocked=false
-  submit TaskRPCAck with MatchOffset=state.LEO
-  ackInflight=true on submit success
+  allocate ackOpID before submit
+  submit TaskRPCAck with Fence.OpID=ackOpID and MatchOffset=state.LEO
+  ackInflight=true, ackOpID=ackOpID, ackMatch=state.LEO on submit success
   dirty=true
 ```
 
-If RPC pool is full for ACK, set `pendingAck=true`, `pendingAckMatch=state.LEO`, `ackInflight=false`, set `nextAckAt` using replication backoff, and retry on tick before issuing another pull. Do not lose the fact that follower should ack current LEO.
+If RPC pool is full for ACK, set `pendingAck=true`, `pendingAckMatch=state.LEO`, `ackInflight=false`, `ackOpID=0`, `ackMatch=0`, set `nextAckAt` using replication backoff, and retry the same match offset on tick before issuing another pull. Do not lose the fact that follower should ack current LEO.
 
 - [ ] **Step 9: Handle RPC ACK worker results**
 
-For `worker.TaskRPCAck`:
+For `worker.TaskRPCAck`, first validate `result.Fence` against channel generation, epoch, leader epoch, and `rc.replication.ackOpID`. If it is stale, do not clear `ackInflight`, `ackOpID`, or `ackMatch` because a newer ACK may already be in flight. For the matching ACK op:
 
 ```text
 success:
   ackInflight=false
+  ackOpID=0
+  ackMatch=0
   pendingAck=false
   pendingAckMatch=0
   backoff=0
@@ -2455,10 +2523,14 @@ success:
 error:
   ackInflight=false
   pendingAck=true
-  pendingAckMatch=request.MatchOffset
+  pendingAckMatch=ackMatch
+  ackOpID=0
+  ackMatch=0
   backoff=nextBackoff
   nextAckAt=now+backoff
 ```
+
+ACK retry must reuse `pendingAckMatch`; it must not recompute from current `LEO` after the failed ACK.
 
 Leader-side ACK still enters through `service.HandleAck -> EventAck` and calls `machine.ApplyFollowerAck` on the leader reactor. Before calling `ApplyFollowerAck`, `handleAck` must validate `event.Ack.Epoch == rc.state.Epoch`, `event.Ack.LeaderEpoch == rc.state.LeaderEpoch`, local role is leader, and `event.Ack.Follower` is a replica. Stale ACKs complete their request future with no progress change and no client append completions. Add a stale ACK test:
 
@@ -2542,7 +2614,7 @@ Update `pkg/channelv2/testkit/cluster.go` so the harness drives `Tick` on each n
 Run:
 
 ```bash
-GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/testkit ./pkg/channelv2/service -run 'TestFollower|TestStoreApplyPoolFull|TestAckPoolFullKeepsPendingAck|TestLeaderPullUsesStoreReadLogWorker|TestLeaderIgnoresAck|TestHandlePullUsesAllocatedOpID|TestThreeNode|TestSingleNodeAppendFetchCommitted' -count=1
+GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/testkit ./pkg/channelv2/service -run 'TestFollower|TestStoreApplyPoolFull|TestAckPoolFullKeepsPendingAck|TestStaleRPC|TestAckErrorRetry|TestLeaderPullUsesStoreReadLogWorker|TestLeaderIgnoresAck|TestHandlePullUsesAllocatedOpID|TestThreeNode|TestSingleNodeAppendFetchCommitted' -count=1
 ```
 
 Expected: PASS.
