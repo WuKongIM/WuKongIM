@@ -1,6 +1,7 @@
 package reactor
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -82,6 +83,23 @@ func TestEventCancelWaiterPriorityBeatsNormalAppendPressure(t *testing.T) {
 	require.Len(t, events, 2)
 	require.Equal(t, EventCancelWaiter, events[0].Kind)
 	require.Equal(t, EventAppend, events[1].Kind)
+}
+
+func TestDirectEventTickFutureCompletesWhenLowMailboxDrops(t *testing.T) {
+	meta := testMeta("tick-drop-future", 1, 1)
+	g := newUnstartedTestGroup(t, 1, 1)
+	reactor := g.reactors[g.router.PickIndex(meta.Key)]
+	require.NoError(t, reactor.Submit(PriorityLow, Event{Kind: EventTick, Key: meta.Key}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventTick, Key: meta.Key})
+	if err != nil {
+		require.ErrorIs(t, err, ch.ErrBackpressured)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	_, err = future.Await(ctx)
+	require.NoError(t, err)
 }
 
 func newUnstartedTestGroup(t *testing.T, reactorCount int, mailboxSize int) *Group {

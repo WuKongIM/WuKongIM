@@ -17,8 +17,9 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 	}
 	appendTask := task.StoreAppend
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:  worker.TaskStoreAppend,
-		Fence: task.Fence,
+		Kind:    worker.TaskStoreAppend,
+		Fence:   task.Fence,
+		Context: ctx,
 		StoreAppend: &worker.StoreAppendTask{
 			ChannelID: channelID,
 			Records:   appendTask.Records,
@@ -33,8 +34,9 @@ func (r *Reactor) submitStoreReadCommitted(ctx context.Context, channelID ch.Cha
 	}
 	read := task.ReadCommitted
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:  worker.TaskStoreReadCommitted,
-		Fence: task.Fence,
+		Kind:    worker.TaskStoreReadCommitted,
+		Fence:   task.Fence,
+		Context: ctx,
 		StoreReadCommitted: &worker.StoreReadCommittedTask{
 			ChannelID: channelID,
 			FromSeq:   read.FromSeq,
@@ -50,8 +52,9 @@ func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID
 		return ch.ErrInvalidConfig
 	}
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:  worker.TaskStoreReadLog,
-		Fence: fence,
+		Kind:    worker.TaskStoreReadLog,
+		Fence:   fence,
+		Context: ctx,
 		StoreReadLog: &worker.StoreReadLogTask{
 			ChannelID:  channelID,
 			FromOffset: fromOffset,
@@ -66,8 +69,9 @@ func (r *Reactor) submitStoreApply(ctx context.Context, channelID ch.ChannelID, 
 		return ch.ErrInvalidConfig
 	}
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:  worker.TaskStoreApply,
-		Fence: fence,
+		Kind:    worker.TaskStoreApply,
+		Fence:   fence,
+		Context: ctx,
 		StoreApply: &worker.StoreApplyTask{
 			ChannelID: channelID,
 			Records:   records,
@@ -83,6 +87,7 @@ func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.
 	return r.cfg.Pools.Submit(ctx, worker.Task{
 		Kind:    worker.TaskRPCPull,
 		Fence:   fence,
+		Context: ctx,
 		RPCPull: &worker.RPCPullTask{Node: leader, Request: req},
 	})
 }
@@ -92,9 +97,10 @@ func (r *Reactor) submitRPCAck(ctx context.Context, leader ch.NodeID, fence ch.F
 		return ch.ErrInvalidConfig
 	}
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:   worker.TaskRPCAck,
-		Fence:  fence,
-		RPCAck: &worker.RPCAckTask{Node: leader, Request: req},
+		Kind:    worker.TaskRPCAck,
+		Fence:   fence,
+		Context: ctx,
+		RPCAck:  &worker.RPCAckTask{Node: leader, Request: req},
 	})
 }
 
@@ -202,6 +208,34 @@ func (r *Reactor) clearAppendCancelContexts(rc *runtimeChannel) {
 	}
 }
 
+func (r *Reactor) registerPullCancelContext(rc *runtimeChannel, ctx context.Context) {
+	if r == nil || rc == nil || ctx == nil || ctx.Done() == nil {
+		return
+	}
+	if r.pullCancelChannels == nil {
+		r.pullCancelChannels = make(map[ch.ChannelKey]*runtimeChannel)
+	}
+	if rc.state != nil {
+		r.pullCancelChannels[rc.state.Key] = rc
+	}
+}
+
+func (r *Reactor) unregisterPullCancelContext(rc *runtimeChannel) {
+	if r == nil || rc == nil || r.pullCancelChannels == nil || rc.state == nil {
+		return
+	}
+	if !rc.hasCancelablePullWaiters() {
+		delete(r.pullCancelChannels, rc.state.Key)
+	}
+}
+
+func (r *Reactor) clearPullCancelChannel(rc *runtimeChannel) {
+	if r == nil || rc == nil || r.pullCancelChannels == nil || rc.state == nil {
+		return
+	}
+	delete(r.pullCancelChannels, rc.state.Key)
+}
+
 func (rc *runtimeChannel) removeFetchWaiter(opID ch.OpID) *Future {
 	if rc == nil {
 		return nil
@@ -280,12 +314,67 @@ func (rc *runtimeChannel) failPendingPullWaiters(err error) {
 	if rc == nil || len(rc.pullWaiters) == 0 {
 		return
 	}
-	for opID, future := range rc.pullWaiters {
+	for opID, waiter := range rc.pullWaiters {
 		delete(rc.pullWaiters, opID)
-		if future != nil {
-			future.Complete(Result{Err: err})
+		if waiter != nil && waiter.future != nil {
+			waiter.future.Complete(Result{Err: err})
 		}
 	}
+}
+
+func (rc *runtimeChannel) hasCancelablePullWaiters() bool {
+	if rc == nil {
+		return false
+	}
+	for _, waiter := range rc.pullWaiters {
+		if waiter != nil && waiter.ctx != nil && waiter.ctx.Done() != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Reactor) sweepPullCancellations() {
+	if r == nil || len(r.pullCancelChannels) == 0 {
+		return
+	}
+	for key, rc := range r.pullCancelChannels {
+		if rc == nil || len(rc.pullWaiters) == 0 {
+			delete(r.pullCancelChannels, key)
+			continue
+		}
+		for opID, waiter := range rc.pullWaiters {
+			if waiter == nil || waiter.ctx == nil {
+				continue
+			}
+			if err := waiter.ctx.Err(); err != nil {
+				r.cancelPullWaiter(rc, opID, err)
+			}
+		}
+		if !rc.hasCancelablePullWaiters() {
+			delete(r.pullCancelChannels, key)
+		}
+	}
+}
+
+func (r *Reactor) cancelPullWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr error) bool {
+	if r == nil || rc == nil {
+		return false
+	}
+	if cancelErr == nil {
+		cancelErr = context.Canceled
+	}
+	waiter := rc.pullWaiters[opID]
+	if waiter == nil {
+		r.unregisterPullCancelContext(rc)
+		return false
+	}
+	delete(rc.pullWaiters, opID)
+	r.unregisterPullCancelContext(rc)
+	if waiter.future != nil {
+		waiter.future.Complete(Result{Err: cancelErr})
+	}
+	return true
 }
 
 // metadataWouldFenceState reports whether accepted metadata invalidates pending state.

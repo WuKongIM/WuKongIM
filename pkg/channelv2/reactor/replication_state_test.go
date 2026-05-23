@@ -49,7 +49,14 @@ func TestFollowerPullInflightSuppressesDuplicatePull(t *testing.T) {
 	net := newCapturingTransport()
 	net.BlockPulls()
 	factory := store.NewMemoryFactory()
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	g, err := NewGroup(Config{
+		LocalNode:    2,
+		ReactorCount: 1,
+		MailboxSize:  16,
+		Store:        factory,
+		Transport:    net,
+		WorkerPools:  worker.PoolsConfig{RPC: worker.PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2}},
+	})
 	require.NoError(t, err)
 	defer g.Close()
 
@@ -62,6 +69,117 @@ func TestFollowerPullInflightSuppressesDuplicatePull(t *testing.T) {
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(2 * time.Millisecond)}))
 	require.Equal(t, 1, net.PullCalls())
 	net.UnblockPulls()
+}
+
+func TestFollowerMetaFenceResetsPullInflightAndStaleCompletionDoesNotClearNewPull(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{
+		LocalNode:    2,
+		ReactorCount: 1,
+		MailboxSize:  16,
+		Store:        factory,
+		Transport:    net,
+		WorkerPools:  worker.PoolsConfig{RPC: worker.PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2}},
+	})
+	require.NoError(t, err)
+	defer g.Close()
+	defer net.UnblockPulls()
+
+	meta := followerTestMeta("pull-fence-reset")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	oldOpID := rc.replication.pullOpID
+	require.True(t, rc.replication.pullInflight)
+	require.NotZero(t, oldOpID)
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventApplyMeta, Key: updated.Key, Meta: updated}))
+	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0).Add(time.Millisecond)}))
+	require.True(t, rc.replication.pullInflight)
+	require.NotZero(t, rc.replication.pullOpID)
+	require.NotEqual(t, oldOpID, rc.replication.pullOpID)
+	require.Eventually(t, func() bool { return net.PullCalls() == 2 && net.LastPull().LeaderEpoch == updated.LeaderEpoch }, time.Second, time.Millisecond)
+	newOpID := rc.replication.pullOpID
+
+	stale := worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: oldOpID},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+		}},
+	}
+	g.reactors[g.router.PickIndex(meta.Key)].handleRPCPullResult(stale)
+	require.True(t, rc.replication.pullInflight)
+	require.Equal(t, newOpID, rc.replication.pullOpID)
+}
+
+func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	factory := newBlockingApplyFactory()
+	factory.BlockApplies()
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	require.NoError(t, err)
+	defer g.Close()
+	defer net.UnblockPulls()
+	defer factory.UnblockApplies()
+
+	meta := followerTestMeta("pending-pull-fence-reset")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc.replication.pendingPull = &transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+		Records:     []ch.Record{{ID: 11, Index: 1, Payload: []byte("old"), SizeBytes: 3}},
+	}
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventApplyMeta, Key: updated.Key, Meta: updated}))
+	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0)}))
+
+	require.False(t, factory.ApplyStarted())
+	require.Nil(t, rc.replication.pendingPull)
+	require.Zero(t, rc.replication.applyOpID)
+	require.True(t, rc.replication.pullInflight)
+	require.Eventually(t, func() bool { return net.LastPull().LeaderEpoch == updated.LeaderEpoch }, time.Second, time.Millisecond)
+}
+
+func TestFollowerMetaFenceClearsAckState(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("ack-fence-reset")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication = replicationState{
+		ackInflight:     true,
+		ackOpID:         3,
+		ackMatch:        7,
+		pendingAck:      true,
+		pendingAckMatch: 8,
+		nextAckAt:       time.Unix(1, 0).Add(time.Hour),
+	}
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, updated))
+
+	require.False(t, rc.replication.ackInflight)
+	require.Zero(t, rc.replication.ackOpID)
+	require.Zero(t, rc.replication.ackMatch)
+	require.False(t, rc.replication.pendingAck)
+	require.Zero(t, rc.replication.pendingAckMatch)
+	require.True(t, rc.replication.dirty)
 }
 
 func TestFollowerPullErrorBacksOff(t *testing.T) {
@@ -325,6 +443,40 @@ func TestLeaderPullWaiterFailsOnMetadataFence(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
+func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *testing.T) {
+	factory := newNonCancelingBlockingReadLogFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+	defer factory.UnblockReadLogs()
+
+	meta := ch.Meta{Key: "1:pull-cancel", ID: ch.ChannelID{ID: "pull-cancel", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	ctx, cancel := context.WithCancel(context.Background())
+	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		OpID:    99,
+		Context: ctx,
+		Pull:    transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	factory.waitReadLogStarted(t)
+
+	cancel()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)}))
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	_, err = pullFuture.Await(waitCtx)
+	require.ErrorIs(t, err, context.Canceled)
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Empty(t, rc.pullWaiters)
+
+	factory.UnblockReadLogs()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0).Add(time.Millisecond)}))
+	require.Empty(t, rc.pullWaiters)
+}
+
 func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
@@ -561,5 +713,54 @@ func (s *blockingReadLogStore) ReadLog(ctx context.Context, req store.ReadLogReq
 	case <-ctx.Done():
 		return store.ReadLogResult{}, ctx.Err()
 	}
+	return s.ChannelStore.ReadLog(ctx, req)
+}
+
+type nonCancelingBlockingReadLogFactory struct {
+	base    *store.MemoryFactory
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func newNonCancelingBlockingReadLogFactory() *nonCancelingBlockingReadLogFactory {
+	return &nonCancelingBlockingReadLogFactory{base: store.NewMemoryFactory(), started: make(chan struct{}, 8), unblock: make(chan struct{})}
+}
+
+func (f *nonCancelingBlockingReadLogFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	base, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &nonCancelingBlockingReadLogStore{ChannelStore: base, parent: f}, nil
+}
+
+func (f *nonCancelingBlockingReadLogFactory) waitReadLogStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ReadLog to start")
+	}
+}
+
+func (f *nonCancelingBlockingReadLogFactory) UnblockReadLogs() {
+	select {
+	case <-f.unblock:
+	default:
+		close(f.unblock)
+	}
+}
+
+type nonCancelingBlockingReadLogStore struct {
+	store.ChannelStore
+	parent *nonCancelingBlockingReadLogFactory
+}
+
+func (s *nonCancelingBlockingReadLogStore) ReadLog(ctx context.Context, req store.ReadLogRequest) (store.ReadLogResult, error) {
+	select {
+	case s.parent.started <- struct{}{}:
+	default:
+	}
+	<-s.parent.unblock
 	return s.ChannelStore.ReadLog(ctx, req)
 }
