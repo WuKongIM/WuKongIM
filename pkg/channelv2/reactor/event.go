@@ -27,6 +27,7 @@ const (
 	EventPull
 	EventAck
 	EventNotify
+	EventPullHint
 	EventClose
 )
 
@@ -43,6 +44,7 @@ type Event struct {
 	Pull      transport.PullRequest
 	Ack       transport.AckRequest
 	Notify    transport.NotifyRequest
+	PullHint  transport.PullHintRequest
 	OpID      ch.OpID
 	CancelOp  ch.OpID
 	CancelErr error
