@@ -31,6 +31,7 @@ type followerLifecycle struct {
 	LastPullAt         time.Time
 	NextExpectedPullAt time.Time
 	LastHintVersion    uint64
+	PendingHintVersion uint64
 	HintInflight       bool
 	HintRetryAt        time.Time
 	Parked             bool
@@ -142,12 +143,18 @@ func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *f
 }
 
 func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower *followerLifecycle, reason transport.PullHintReason, now time.Time) {
-	if rc == nil || rc.state == nil || follower == nil || follower.HintInflight {
+	if rc == nil || rc.state == nil || follower == nil {
 		return
 	}
 	version := rc.lifecycle.ActivityVersion
 	if version == 0 {
 		version = rc.state.LEO
+	}
+	if follower.HintInflight {
+		if follower.LastHintVersion < version {
+			follower.PendingHintVersion = version
+		}
+		return
 	}
 	if follower.LastHintVersion == version && !follower.HintRetryAt.IsZero() && now.Before(follower.HintRetryAt) {
 		return
@@ -176,6 +183,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 	follower.HintInflight = true
 	follower.HintRetryAt = time.Time{}
 	follower.LastHintVersion = version
+	follower.PendingHintVersion = 0
 	if rc.pullHintInflight == nil {
 		rc.pullHintInflight = make(map[ch.OpID]pullHintInflight)
 	}
@@ -198,12 +206,26 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 		return
 	}
 	follower.HintInflight = false
+	now := time.Now()
 	if result.Err == nil {
+		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
 		return
 	}
-	now := time.Now()
 	r.observePullHintDropped(rc.state.Key, inflight.follower, result.Err)
-	if inflight.activityVersion == rc.lifecycle.ActivityVersion && r.followerNeedsImmediateProgress(rc, follower) {
+	if r.followerNeedsImmediateProgress(rc, follower) {
+		follower.PendingHintVersion = rc.lifecycle.ActivityVersion
 		follower.HintRetryAt = now.Add(r.cfg.PullHintRetryInterval)
 	}
+}
+
+func (r *Reactor) sendCurrentPullHintIfNeeded(rc *runtimeChannel, node ch.NodeID, follower *followerLifecycle, now time.Time) {
+	if rc == nil || rc.state == nil || follower == nil || follower.LastHintVersion >= rc.lifecycle.ActivityVersion {
+		return
+	}
+	if !r.followerNeedsImmediateProgress(rc, follower) {
+		follower.PendingHintVersion = 0
+		return
+	}
+	follower.PendingHintVersion = rc.lifecycle.ActivityVersion
+	r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonAppend, now)
 }
