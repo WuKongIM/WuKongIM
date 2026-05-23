@@ -280,9 +280,11 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 		{name: "store read committed", task: Task{Kind: TaskStoreReadCommitted, Fence: fence}},
 		{name: "store read log", task: Task{Kind: TaskStoreReadLog, Fence: fence}},
 		{name: "store apply", task: Task{Kind: TaskStoreApply, Fence: fence}},
+		{name: "store checkpoint", task: Task{Kind: TaskStoreCheckpoint, Fence: fence}},
 		{name: "rpc pull", task: Task{Kind: TaskRPCPull, Fence: fence}},
 		{name: "rpc ack", task: Task{Kind: TaskRPCAck, Fence: fence}},
 		{name: "rpc notify", task: Task{Kind: TaskRPCNotify, Fence: fence}},
+		{name: "rpc pull hint", task: Task{Kind: TaskRPCPullHint, Fence: fence}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
