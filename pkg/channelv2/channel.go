@@ -1,6 +1,9 @@
 package channelv2
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Cluster is the experimental channelv2 facade.
 type Cluster interface {
@@ -19,4 +22,16 @@ type Config struct {
 	MailboxSize  int
 	Store        any
 	Transport    any
+	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
+	AppendBatchMaxBytes int
+	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
+	AppendBatchMaxWait time.Duration
+	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
+	AppendQueueMaxRequests int
+	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
+	AppendQueueMaxBytes int
+	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
+	AppendStoreRetryBackoff time.Duration
 }

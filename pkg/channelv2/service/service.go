@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"sync"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -18,6 +19,18 @@ type Config struct {
 	Store        store.Factory
 	Transport    transport.Client
 	PullMaxBytes int
+	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
+	AppendBatchMaxBytes int
+	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
+	AppendBatchMaxWait time.Duration
+	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
+	AppendQueueMaxRequests int
+	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
+	AppendQueueMaxBytes int
+	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
+	AppendStoreRetryBackoff time.Duration
 }
 
 type cluster struct {
@@ -34,7 +47,15 @@ func New(cfg Config) (ch.Cluster, error) {
 	if cfg.LocalNode == 0 || cfg.Store == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	group, err := reactor.NewGroup(reactor.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store})
+	group, err := reactor.NewGroup(reactor.Config{
+		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport,
+		AppendBatchMaxRecords:   cfg.AppendBatchMaxRecords,
+		AppendBatchMaxBytes:     cfg.AppendBatchMaxBytes,
+		AppendBatchMaxWait:      cfg.AppendBatchMaxWait,
+		AppendQueueMaxRequests:  cfg.AppendQueueMaxRequests,
+		AppendQueueMaxBytes:     cfg.AppendQueueMaxBytes,
+		AppendStoreRetryBackoff: cfg.AppendStoreRetryBackoff,
+	})
 	if err != nil {
 		return nil, err
 	}

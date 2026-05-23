@@ -20,7 +20,7 @@
 
 ## Append
 
-`Append` and `AppendBatch` route to the owning reactor. The machine validates leader state and emits a store append task. V0 executes the store task synchronously inside the reactor implementation for simplicity, then applies the fenced result and completes waiters when HW covers the appended range.
+`Append` and `AppendBatch` route to the owning reactor. The reactor admits leader-ready requests into a bounded per-channel append queue, batches them by record count, bytes, or max wait, and proposes one machine append batch with a reactor-owned fence op id. Store appends run on the bounded store-append worker pool; fenced completions are applied back in the reactor and may complete multiple client waiters when local or quorum commit criteria are met. Worker-pool backpressure rolls the proposed batch back to the queue and retries on a later tick after the append retry backoff, leaving accepted client futures pending. Caller cancellation after admission is cooperative: the reactor removes queued waiters and completes their futures, but already-started durable store writes are allowed to finish and stale replies are ignored.
 
 ## Fetch
 
@@ -42,7 +42,7 @@ The test harness drives ticks in the background. Future production work should r
 
 ## Backpressure
 
-Mailboxes and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Fetch store reads already use the store-read worker pool; append, follower apply, and leader pull store paths remain synchronous inside reactors until their batching/effect phases move them out.
+Mailboxes, append queues, and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch store reads use the store-read worker pool. Follower apply and leader pull store paths remain synchronous inside reactors until their batching/effect phases move them out.
 
 ## Import Boundary
 

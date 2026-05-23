@@ -27,13 +27,31 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
-	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, OpID: c.group.NextOpID()})
+	opID := c.group.NextOpID()
+	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
-	result, err := future.Await(ctx)
-	if err != nil {
-		return ch.AppendBatchResult{}, err
+	resultCh := make(chan reactor.Result, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := future.Await(context.Background())
+		resultCh <- result
+		errCh <- err
+	}()
+	select {
+	case result := <-resultCh:
+		err := <-errCh
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		return result.AppendBatch, nil
+	case <-ctx.Done():
+		// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
+		cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
+		if err == nil {
+			_, _ = cleanup.Await(context.Background())
+		}
+		return ch.AppendBatchResult{}, ctx.Err()
 	}
-	return result.AppendBatch, nil
 }
