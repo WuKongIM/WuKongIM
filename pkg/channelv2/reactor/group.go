@@ -51,7 +51,7 @@ type Config struct {
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
 	IdleEvictAfter time.Duration
-	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader.
+	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader; defaults to ReplicationIdlePollInterval.
 	IdlePullMinInterval time.Duration
 	// IdlePullMaxInterval is the longest parked follower pull delay returned by a leader.
 	IdlePullMaxInterval time.Duration
@@ -165,7 +165,7 @@ func defaultConfig(cfg Config) Config {
 		cfg.IdleEvictAfter = 5 * time.Minute
 	}
 	if cfg.IdlePullMinInterval <= 0 {
-		cfg.IdlePullMinInterval = 10 * time.Millisecond
+		cfg.IdlePullMinInterval = cfg.ReplicationIdlePollInterval
 	}
 	if cfg.IdlePullMaxInterval <= 0 {
 		cfg.IdlePullMaxInterval = 5 * time.Second

@@ -274,6 +274,41 @@ func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testi
 	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
 }
 
+func TestFollowerEmptyPullWithZeroNextPullAfterFallsBackToIdlePollInterval(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("empty-pull-zero-delay")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 1
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	result := worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    99,
+			LeaderLEO:   99,
+		}},
+	}
+	before := time.Now()
+	r.handleRPCPullResult(result)
+	after := time.Now()
+
+	require.Equal(t, uint64(3), rc.state.HW)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
+	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
+}
+
 func TestFollowerPullHintInterruptsParked(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("parked-hint")
@@ -844,6 +879,85 @@ func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	require.GreaterOrEqual(t, result.Pull.NextPullAfter, 10*time.Millisecond)
 	require.NotNil(t, rc.followers[2])
 	require.True(t, rc.followers[2].Parked)
+}
+
+func TestLeaderPullResponsePacesFromReplicationIdlePollIntervalByDefault(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pace-default-idle-poll", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		ReplicationIdlePollInterval: 250 * time.Millisecond,
+		IdleSlowdownAfter:           time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now()
+	rc.lifecycle.ActivityVersion = 3
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 12,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, 250*time.Millisecond, result.Pull.NextPullAfter)
+}
+
+func TestLeaderPullResponsePacesFromExplicitIdlePullMinInterval(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pace-explicit-min", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		ReplicationIdlePollInterval: time.Second,
+		IdleSlowdownAfter:           time.Hour,
+		IdlePullMinInterval:         25 * time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now()
+	rc.lifecycle.ActivityVersion = 3
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 13,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, 25*time.Millisecond, result.Pull.NextPullAfter)
 }
 
 func TestLeaderPullResponsePacesLaggingFollowerWithRecordsImmediately(t *testing.T) {

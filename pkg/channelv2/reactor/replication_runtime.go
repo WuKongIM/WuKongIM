@@ -205,9 +205,13 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
-		rc.replication.parked = resp.NextPullAfter > 0
-		rc.replication.nextPullAfter = resp.NextPullAfter
-		rc.replication.nextPullAt = now.Add(resp.NextPullAfter)
+		delay := resp.NextPullAfter
+		if delay <= 0 {
+			delay = r.cfg.ReplicationIdlePollInterval
+		}
+		rc.replication.parked = delay > 0
+		rc.replication.nextPullAfter = delay
+		rc.replication.nextPullAt = now.Add(delay)
 		return
 	}
 	rc.replication.parked = false
