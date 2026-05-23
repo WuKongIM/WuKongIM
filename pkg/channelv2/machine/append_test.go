@@ -32,6 +32,35 @@ func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	decision = state.ApplyFollowerAck(FollowerAck{Follower: 2, MatchOffset: 1})
 	require.Equal(t, uint64(1), state.HW)
 	require.Len(t, decision.Replies, 1)
+	require.Empty(t, state.PendingAppendOrder)
+}
+
+func TestFollowerAckCompletesBatchedWaitersInProposalOrder(t *testing.T) {
+	for iteration := 0; iteration < 200; iteration++ {
+		state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+		cmd := AppendBatchCommand{
+			BatchOpID: ch.OpID(1000 + iteration),
+			Waiters: []AppendBatchWaiter{
+				{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}},
+				{OpID: 2, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 20, Payload: []byte("b"), SizeBytes: 1}}},
+				{OpID: 3, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 30, Payload: []byte("c"), SizeBytes: 1}}},
+			},
+		}
+
+		decision := state.ProposeAppendBatch(cmd)
+		require.Len(t, decision.Tasks, 1)
+		decision = state.ApplyAppendStored(AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: 1, LastOffset: 3})
+		require.Empty(t, decision.Replies)
+
+		decision = state.ApplyFollowerAck(FollowerAck{Follower: 2, MatchOffset: 3})
+		require.Equal(t, uint64(3), state.HW)
+		require.Len(t, decision.Replies, 3)
+		require.Equal(t, []ch.OpID{1, 2, 3}, []ch.OpID{decision.Replies[0].OpID, decision.Replies[1].OpID, decision.Replies[2].OpID}, "iteration %d", iteration)
+		require.Equal(t, uint64(1), decision.Replies[0].AppendItems[0].MessageSeq)
+		require.Equal(t, uint64(2), decision.Replies[1].AppendItems[0].MessageSeq)
+		require.Equal(t, uint64(3), decision.Replies[2].AppendItems[0].MessageSeq)
+		require.Empty(t, state.PendingAppendOrder)
+	}
 }
 
 func TestAppendStoredCompletesMultipleWaitersFromOneBatch(t *testing.T) {
@@ -51,6 +80,7 @@ func TestAppendStoredCompletesMultipleWaitersFromOneBatch(t *testing.T) {
 	require.Equal(t, ch.OpID(2), decision.Replies[1].OpID)
 	require.Equal(t, uint64(1), decision.Replies[0].AppendItems[0].MessageSeq)
 	require.Equal(t, uint64(2), decision.Replies[1].AppendItems[0].MessageSeq)
+	require.Empty(t, state.PendingAppendOrder)
 }
 
 func TestAppendStoredIgnoresStaleBatchFence(t *testing.T) {
@@ -69,11 +99,13 @@ func TestAbortAppendBatchProposalClearsInflightWithoutCompletingWaiters(t *testi
 	require.Len(t, decision.Tasks, 1)
 	require.NotNil(t, state.InflightAppend)
 	require.Contains(t, state.PendingAppends, ch.OpID(1))
+	require.Equal(t, []ch.OpID{1}, state.PendingAppendOrder)
 
 	state.AbortAppendBatchProposal(100)
 
 	require.Nil(t, state.InflightAppend)
 	require.NotContains(t, state.PendingAppends, ch.OpID(1))
+	require.Empty(t, state.PendingAppendOrder)
 	require.Equal(t, uint64(0), state.LEO)
 	require.Equal(t, uint64(0), state.HW)
 }

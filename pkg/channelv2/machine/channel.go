@@ -158,7 +158,9 @@ type ChannelState struct {
 	Progress     map[ch.NodeID]ReplicaProgress
 
 	PendingAppends map[ch.OpID]*AppendWaiter
-	InflightAppend *AppendOp
+	// PendingAppendOrder preserves proposal order for append waiters that may complete after later quorum ACKs.
+	PendingAppendOrder []ch.OpID
+	InflightAppend     *AppendOp
 }
 
 // NewChannelState creates an empty local state owned by one reactor.
