@@ -233,13 +233,16 @@ func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testi
 			LeaderLEO:   99,
 		}},
 	}
+	before := time.Now()
 	r.handleRPCPullResult(result)
+	after := time.Now()
 
 	require.Equal(t, uint64(3), rc.state.HW)
 	require.False(t, rc.replication.ackInflight)
 	require.False(t, rc.replication.pendingAck)
 	require.False(t, rc.replication.nextPullAt.IsZero())
-	require.True(t, rc.replication.nextPullAt.After(time.Now().Add(59*time.Minute)))
+	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
+	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
 }
 
 func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
