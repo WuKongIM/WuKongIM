@@ -237,6 +237,37 @@ func TestAppendContextCancelRemovesAcceptedWaiter(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestAppendContextCanceledBeforeAdmissionRejectsWithoutQueueing(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := testMeta("append-cancel-before-admission", 1, 1)
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16,
+		AppendBatchMaxRecords: 10, AppendBatchMaxWait: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Context = ctx
+
+	r.handleAppend(event)
+
+	awaitCtx, awaitCancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer awaitCancel()
+	_, err := future.Await(awaitCtx)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, factory.appendSizes(meta.Key))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Empty(t, rc.appendQ.pending)
+	require.Empty(t, rc.waiters)
+	require.Empty(t, rc.state.PendingAppends)
+	require.Nil(t, rc.state.InflightAppend)
+}
+
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {
 	event := appendEvent(meta, id, payload)
 	event.Future = future

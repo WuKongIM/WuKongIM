@@ -272,6 +272,12 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	if event.Context != nil {
+		if err := event.Context.Err(); err != nil {
+			event.Future.Complete(Result{Err: err})
+			return
+		}
+	}
 	if _, ok := rc.waiters[event.OpID]; ok {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
