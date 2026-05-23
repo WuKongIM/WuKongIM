@@ -44,10 +44,12 @@ type Reactor struct {
 	cfg      ReactorConfig
 	mailbox  *Mailbox
 	channels map[ch.ChannelKey]*runtimeChannel
-	stop     chan struct{}
-	done     chan struct{}
-	once     sync.Once
-	nextOp   atomic.Uint64
+	// appendCancelChannels indexes channels that have admitted append contexts to sweep.
+	appendCancelChannels map[ch.ChannelKey]*runtimeChannel
+	stop                 chan struct{}
+	done                 chan struct{}
+	once                 sync.Once
+	nextOp               atomic.Uint64
 }
 
 type runtimeChannel struct {
@@ -64,6 +66,8 @@ type runtimeChannel struct {
 	appendStoreBlocked bool
 	// appendRetryAt is the earliest time to retry after store worker-pool backpressure.
 	appendRetryAt time.Time
+	// appendCancelContexts tracks admitted append caller contexts across queued, inflight, and post-store states.
+	appendCancelContexts map[ch.OpID]context.Context
 }
 
 // NewReactor constructs a reactor.
@@ -137,6 +141,7 @@ func (r *Reactor) loop() {
 }
 
 func (r *Reactor) handle(event Event) {
+	r.sweepAppendCancellations()
 	switch event.Kind {
 	case EventApplyMeta:
 		r.handleApplyMeta(event)
@@ -159,6 +164,7 @@ func (r *Reactor) handle(event Event) {
 	case EventClose:
 		r.handleClose(event)
 	}
+	r.sweepAppendCancellations()
 }
 
 func (r *Reactor) handleWorkerResult(event Event) {
@@ -194,6 +200,7 @@ func (r *Reactor) failPendingWaiters(err error) {
 	}
 	for _, rc := range r.channels {
 		rc.failWaiters(err)
+		r.clearAppendCancelContexts(rc)
 	}
 }
 
@@ -216,6 +223,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		}
 		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
 		rc.failPendingAppendWaiters(ch.ErrStaleMeta)
+		r.clearAppendCancelContexts(rc)
 	}
 	decision := rc.state.ApplyMeta(event.Meta)
 	event.Future.Complete(Result{Err: decision.Err})
@@ -312,6 +320,7 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	r.registerAppendCancelContext(rc, event.OpID, event.Context)
 	r.tryFlushAppend(rc, time.Now())
 }
 
@@ -326,7 +335,7 @@ func (r *Reactor) handleFetch(event Event) {
 		event.Future.Complete(Result{Err: decision.Err})
 		return
 	}
-	if completeReplies(rc, decision.Replies, event.Future) {
+	if r.completeReplies(rc, decision.Replies, event.Future) {
 		return
 	}
 	if len(decision.Tasks) == 0 {
@@ -359,7 +368,7 @@ func (r *Reactor) handleStoreReadCommittedResult(result worker.Result) {
 		readResult.NextSeq = result.StoreReadCommitted.NextSeq
 	}
 	decision := rc.state.ApplyReadCommitted(readResult)
-	if completeReplies(rc, decision.Replies, nil) {
+	if r.completeReplies(rc, decision.Replies, nil) {
 		return
 	}
 	rc.completeStaleFetchIfWaiting(result.Fence.OpID)
@@ -382,12 +391,13 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		stored.LastOffset = result.StoreAppend.LastOffset
 	}
 	decision := rc.state.ApplyAppendStored(stored)
-	completeReplies(rc, decision.Replies, nil)
+	r.completeReplies(rc, decision.Replies, nil)
 	if current {
 		if stored.Err != nil {
 			for _, req := range rc.appendInflight.requests {
 				if future := rc.waiters[req.opID]; future != nil {
 					delete(rc.waiters, req.opID)
+					r.unregisterAppendCancelContext(rc, req.opID)
 					future.Complete(Result{Err: stored.Err})
 				}
 			}
@@ -410,17 +420,7 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 	if cancelErr == nil {
 		cancelErr = context.Canceled
 	}
-	if req, ok := rc.appendQ.remove(event.CancelOp); ok && req.future != nil {
-		delete(rc.waiters, event.CancelOp)
-		rc.state.CancelAppendWaiter(event.CancelOp)
-		req.future.Complete(Result{Err: cancelErr})
-	} else if future := rc.waiters[event.CancelOp]; future != nil {
-		delete(rc.waiters, event.CancelOp)
-		future.Complete(Result{Err: cancelErr})
-		if _, isFetch := rc.fetchWaiters[event.CancelOp]; !isFetch {
-			rc.state.CancelAppendWaiter(event.CancelOp)
-		}
-	}
+	r.cancelAppendWaiter(rc, event.CancelOp, cancelErr)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -455,14 +455,7 @@ func (r *Reactor) handleAck(event Event) {
 		return
 	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
-	for _, reply := range decision.Replies {
-		future := rc.waiters[reply.OpID]
-		if future == nil {
-			continue
-		}
-		delete(rc.waiters, reply.OpID)
-		future.Complete(Result{AppendBatch: ch.AppendBatchResult{Items: reply.AppendItems}, Err: reply.Err})
-	}
+	r.completeReplies(rc, decision.Replies, nil)
 	event.Future.Complete(Result{})
 }
 

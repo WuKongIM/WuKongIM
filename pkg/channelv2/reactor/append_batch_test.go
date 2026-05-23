@@ -9,6 +9,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
 )
@@ -366,6 +367,104 @@ func TestAppendContextCancelRemovesPostStoreQuorumWaiter(t *testing.T) {
 	require.Len(t, logResult.Records, 1)
 }
 
+func TestAppendContextCancelSweepsPostStoreQuorumWaiterWithoutCancelEvent(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:append-cancel-post-store-sweep"),
+		ID:          ch.ChannelID{ID: "append-cancel-post-store-sweep", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	sink := captureCompletionSink{results: make(chan worker.Result, 4)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	future := NewFuture()
+	completions := 0
+	future.beforeComplete = func(result Result) {
+		completions++
+		require.ErrorIs(t, result.Err, context.Canceled)
+	}
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Context = ctx
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handle(event)
+	r.handleStoreAppendResult(sink.awaitResult(t))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Contains(t, rc.waiters, ch.OpID(1))
+	require.Contains(t, rc.state.PendingAppends, ch.OpID(1))
+	require.Equal(t, []ch.OpID{1}, rc.state.PendingAppendOrder)
+	requireFuturePending(t, future)
+
+	cancel()
+	otherMeta := testMeta("append-cancel-post-store-sweep-other", 1, 1)
+	otherFuture := NewFuture()
+	r.handle(Event{Kind: EventApplyMeta, Key: otherMeta.Key, Meta: otherMeta, Future: otherFuture})
+	_, err := otherFuture.Await(context.Background())
+	require.NoError(t, err)
+	err = awaitFutureError(t, future)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, 1, completions)
+	require.NotContains(t, rc.waiters, ch.OpID(1))
+	require.NotContains(t, rc.state.PendingAppends, ch.OpID(1))
+	require.NotContains(t, rc.state.PendingAppendOrder, ch.OpID(1))
+
+	ackFuture := NewFuture()
+	r.handle(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Ack:    transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 1},
+		Future: ackFuture,
+	})
+	_, err = ackFuture.Await(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, completions)
+}
+
+func TestAppendContextCancelSweptByUnrelatedEventWithoutCancelEvent(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := testMeta("append-cancel-busy-queued", 1, 1)
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16,
+		AppendBatchMaxRecords: 10, AppendBatchMaxWait: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "queued", future)
+	event.Context = ctx
+	r.handle(event)
+	requireFuturePending(t, future)
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Len(t, rc.appendQ.pending, 1)
+	require.Contains(t, rc.waiters, ch.OpID(1))
+
+	cancel()
+	otherMeta := testMeta("append-cancel-busy-other", 1, 1)
+	otherFuture := NewFuture()
+	r.handle(Event{Kind: EventApplyMeta, Key: otherMeta.Key, Meta: otherMeta, Future: otherFuture})
+	_, err := otherFuture.Await(context.Background())
+	require.NoError(t, err)
+	err = awaitFutureError(t, future)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, rc.appendQ.pending)
+	require.NotContains(t, rc.waiters, ch.OpID(1))
+	require.Empty(t, rc.state.PendingAppends)
+	require.Nil(t, rc.state.InflightAppend)
+}
+
 func TestAppendContextCanceledBeforeAdmissionRejectsWithoutQueueing(t *testing.T) {
 	factory := newCountingStoreFactory()
 	meta := testMeta("append-cancel-before-admission", 1, 1)
@@ -548,3 +647,42 @@ func (s *countingStore) AppendLeader(ctx context.Context, req store.AppendLeader
 type nopCompletionSink struct{}
 
 func (nopCompletionSink) Complete(worker.Result) {}
+
+type captureCompletionSink struct {
+	results chan worker.Result
+}
+
+func (s captureCompletionSink) Complete(result worker.Result) {
+	s.results <- result
+}
+
+func (s captureCompletionSink) awaitResult(t *testing.T) worker.Result {
+	t.Helper()
+	select {
+	case result := <-s.results:
+		return result
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for worker result")
+		return worker.Result{}
+	}
+}
+
+func newDirectTestPools(t *testing.T, factory store.Factory, sink worker.CompletionSink) *worker.Pools {
+	t.Helper()
+	pools, err := worker.NewPools(worker.PoolsConfig{
+		StoreAppend: worker.PoolConfig{Name: "append", Workers: 1, QueueSize: 8},
+		StoreRead:   worker.PoolConfig{Name: "read", Workers: 1, QueueSize: 8},
+		StoreApply:  worker.PoolConfig{Name: "apply", Workers: 1, QueueSize: 8},
+		RPC:         worker.PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
+	}, worker.Deps{LocalNode: 1, Stores: factory}, sink)
+	require.NoError(t, err)
+	return pools
+}
+
+func awaitFutureError(t *testing.T, future *Future) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := future.Await(ctx)
+	return err
+}
