@@ -75,6 +75,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	}
 	records := make([]ch.Record, 0, recordCount)
 	waiterOpIDs := make([]ch.OpID, 0, len(waiters))
+	waiterRecordCounts := make([]int, 0, len(waiters))
 	for _, waiter := range waiters {
 		mode := waiter.CommitMode
 		if mode == 0 {
@@ -83,12 +84,26 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 		cloned := cloneRecords(waiter.Records)
 		records = append(records, cloned...)
 		waiterOpIDs = append(waiterOpIDs, waiter.OpID)
+		waiterRecordCounts = append(waiterRecordCounts, len(cloned))
 		s.PendingAppends[waiter.OpID] = &AppendWaiter{OpID: waiter.OpID, CommitMode: mode, Records: cloned}
 		s.appendPendingAppendOrder(waiter.OpID)
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
-	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs}
+	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs, WaiterRecordCounts: waiterRecordCounts}
 	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true}}}}
+}
+
+// CancelAppendWaiter removes an append waiter that the client no longer observes.
+func (s *ChannelState) CancelAppendWaiter(opID ch.OpID) bool {
+	if s == nil {
+		return false
+	}
+	if _, ok := s.PendingAppends[opID]; !ok {
+		return false
+	}
+	delete(s.PendingAppends, opID)
+	s.removePendingAppendOrder([]ch.OpID{opID})
+	return true
 }
 
 // AbortAppendBatchProposal clears a still-inflight batch without completing its waiters.
@@ -177,12 +192,23 @@ func (s *ChannelState) assignInflightRecordsToWaiters(inflight *AppendOp) {
 		return
 	}
 	next := 0
-	for _, opID := range inflight.WaiterOpIDs {
+	for i, opID := range inflight.WaiterOpIDs {
+		count := 0
+		if i < len(inflight.WaiterRecordCounts) {
+			count = inflight.WaiterRecordCounts[i]
+		}
 		waiter := s.PendingAppends[opID]
 		if waiter == nil {
+			next += count
 			continue
 		}
+		if count == 0 {
+			count = len(waiter.Records)
+		}
 		end := next + len(waiter.Records)
+		if count > 0 {
+			end = next + count
+		}
 		if end > len(inflight.Records) {
 			end = len(inflight.Records)
 		}

@@ -166,3 +166,32 @@ func TestAbortAppendBatchProposalClearsInflightWithoutCompletingWaiters(t *testi
 	require.Equal(t, uint64(0), state.LEO)
 	require.Equal(t, uint64(0), state.HW)
 }
+
+func TestCancelAppendWaiterRemovesPendingStateWithoutMutatingInflightBatch(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	decision := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 100,
+		Waiters: []AppendBatchWaiter{
+			{OpID: 1, Records: []ch.Record{{ID: 10, SizeBytes: 1}}},
+			{OpID: 2, Records: []ch.Record{{ID: 20, SizeBytes: 1}}},
+		},
+	})
+	require.NoError(t, decision.Err)
+
+	require.True(t, state.CancelAppendWaiter(1))
+	require.NotContains(t, state.PendingAppends, ch.OpID(1))
+	require.Equal(t, []ch.OpID{2}, state.PendingAppendOrder)
+	require.NotNil(t, state.InflightAppend)
+	require.Equal(t, []ch.OpID{1, 2}, state.InflightAppend.WaiterOpIDs)
+
+	stored := state.ApplyAppendStored(AppendStoredResult{
+		Fence:      ch.Fence{ChannelKey: state.Key, Generation: state.Generation, Epoch: state.Epoch, LeaderEpoch: state.LeaderEpoch, OpID: 100},
+		BaseOffset: 1,
+		LastOffset: 2,
+	})
+	require.Len(t, stored.Replies, 1)
+	require.Equal(t, ch.OpID(2), stored.Replies[0].OpID)
+	require.Equal(t, uint64(2), stored.Replies[0].AppendItems[0].MessageSeq)
+	require.Empty(t, state.PendingAppends)
+	require.Empty(t, state.PendingAppendOrder)
+}

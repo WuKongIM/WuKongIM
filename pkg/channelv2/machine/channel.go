@@ -135,6 +135,8 @@ type AppendOp struct {
 	Records []ch.Record
 	// WaiterOpIDs preserves deterministic reply order for the batch.
 	WaiterOpIDs []ch.OpID
+	// WaiterRecordCounts preserves flattened record segment sizes even if a waiter is canceled while storage is in flight.
+	WaiterRecordCounts []int
 }
 
 // ChannelState is the single-writer aggregate for one channel.

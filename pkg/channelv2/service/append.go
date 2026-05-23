@@ -2,10 +2,14 @@ package service
 
 import (
 	"context"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 )
+
+// appendCancelCleanupTimeout bounds best-effort waiter cleanup after caller cancellation.
+const appendCancelCleanupTimeout = time.Second
 
 func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
 	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch})
@@ -49,11 +53,13 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	case <-ctx.Done():
 		// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
 		cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
-		if err != nil {
-			return ch.AppendBatchResult{}, err
+		if err == nil {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
+			_, err = cleanup.Await(cleanupCtx)
+			cleanupCancel()
 		}
-		if _, err := cleanup.Await(context.Background()); err != nil {
-			return ch.AppendBatchResult{}, err
+		if err != nil {
+			future.Complete(reactor.Result{Err: ctx.Err()})
 		}
 		return ch.AppendBatchResult{}, ctx.Err()
 	}
