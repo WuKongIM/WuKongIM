@@ -309,6 +309,209 @@ func TestFollowerEmptyPullWithZeroNextPullAfterFallsBackToIdlePollInterval(t *te
 	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
 }
 
+func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-checkpoint-ack")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        3,
+			LeaderLEO:       3,
+			ActivityVersion: 3,
+			Control:         transport.PullControlStop,
+		}},
+	})
+
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Contains(t, r.channels, meta.Key)
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, transport.AckRequest{
+		ChannelKey:      meta.Key,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Follower:        2,
+		MatchOffset:     3,
+		ActivityVersion: 3,
+		Stopped:         true,
+	}, net.LastAck())
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
+	net := newCapturingTransport()
+	net.SetAckError(ch.ErrNotReady)
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stopped-ack-retry")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		ReplicationMinBackoff: time.Nanosecond, ReplicationMaxBackoff: time.Nanosecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 3, LeaderLEO: 3, ActivityVersion: 3, Control: transport.PullControlStop,
+		}},
+	})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreCheckpoint)})
+	firstAck := sink.awaitResultKind(t, worker.TaskRPCAck)
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: firstAck})
+	require.Contains(t, r.channels, meta.Key)
+	require.True(t, rc.replication.pendingAck)
+
+	net.SetAckError(nil)
+	r.tickReplication(rc, time.Now().Add(time.Second))
+	retryAck := sink.awaitResultKind(t, worker.TaskRPCAck)
+	require.Equal(t, transport.AckRequest{
+		ChannelKey:      meta.Key,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Follower:        2,
+		MatchOffset:     3,
+		ActivityVersion: 3,
+		Stopped:         true,
+	}, net.LastAck())
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: retryAck})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestFollowerStopRejectedWhenLocalLEOBelowLeaderLEO(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-reject-leo")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 3, LeaderLEO: 4, ActivityVersion: 3, Control: transport.PullControlStop,
+		}},
+	})
+
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, 0, net.AckCalls())
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint, worker.TaskRPCAck)
+	require.False(t, rc.replication.parked)
+	require.True(t, rc.replication.nextPullAt.IsZero() || !rc.replication.nextPullAt.After(time.Now()))
+}
+
+func TestFollowerStopRejectedWhenLocalHWBelowLeaderHW(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-reject-hw")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 2
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 3, LeaderLEO: 3, ActivityVersion: 3, Control: transport.PullControlStop,
+		}},
+	})
+
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, 0, net.AckCalls())
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint, worker.TaskRPCAck)
+	require.False(t, rc.replication.parked)
+}
+
+func TestStaleStopCompletionDoesNotDeleteAfterNewerPullHint(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	defer net.UnblockPulls()
+
+	meta := followerTestMeta("stale-stop-newer-hint")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 3, LeaderLEO: 3, ActivityVersion: 3, Control: transport.PullControlStop,
+		}},
+	})
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+
+	r.handlePullHint(Event{Kind: EventPullHint, Key: meta.Key, PullHint: transport.PullHintRequest{
+		ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		Leader: meta.Leader, LeaderLEO: 4, ActivityVersion: 4, Reason: transport.PullHintReasonAppend,
+	}})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, 0, net.AckCalls())
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+}
+
 func TestFollowerPullHintInterruptsParked(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("parked-hint")
@@ -1226,6 +1429,21 @@ func (t *capturingTransport) UnblockPulls() {
 	t.mu.Unlock()
 	if block != nil {
 		close(block)
+	}
+}
+
+func requireNoWorkerResultKind(t *testing.T, results <-chan worker.Result, kinds ...worker.TaskKind) {
+	t.Helper()
+	blocked := make(map[worker.TaskKind]struct{}, len(kinds))
+	for _, kind := range kinds {
+		blocked[kind] = struct{}{}
+	}
+	select {
+	case result := <-results:
+		if _, ok := blocked[result.Kind]; ok {
+			t.Fatalf("unexpected worker result kind %v", result.Kind)
+		}
+	case <-time.After(20 * time.Millisecond):
 	}
 }
 

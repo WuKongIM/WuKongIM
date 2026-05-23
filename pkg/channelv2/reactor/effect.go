@@ -80,6 +80,21 @@ func (r *Reactor) submitStoreApply(ctx context.Context, channelID ch.ChannelID, 
 	})
 }
 
+func (r *Reactor) submitStoreCheckpoint(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, checkpoint ch.Checkpoint) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreCheckpoint,
+		Fence:   fence,
+		Context: ctx,
+		StoreCheckpoint: &worker.StoreCheckpointTask{
+			ChannelID:  channelID,
+			Checkpoint: checkpoint,
+		},
+	})
+}
+
 func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.PullRequest) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
@@ -347,6 +362,51 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	rc.appendQ.clear()
 	rc.appendInflight = nil
 	rc.failPendingPullWaiters(err)
+}
+
+func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason string) bool {
+	_ = reason
+	if r == nil || rc == nil || rc.state == nil || r.channels[key] != rc {
+		return false
+	}
+	if !rc.safeToEvictRuntime() {
+		return false
+	}
+	role := rc.state.Role
+	r.clearAppendCancelContexts(rc)
+	r.clearPullCancelChannel(rc)
+	if err := rc.store.Close(); err != nil {
+		return false
+	}
+	delete(r.channels, key)
+	r.observeChannelRuntimeEvicted(key, role)
+	return true
+}
+
+func (rc *runtimeChannel) safeToEvictRuntime() bool {
+	if rc == nil {
+		return false
+	}
+	if len(rc.waiters) != 0 || len(rc.fetchWaiters) != 0 || len(rc.pullWaiters) != 0 {
+		return false
+	}
+	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
+		return false
+	}
+	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 || len(rc.pullHintInflight) != 0 {
+		return false
+	}
+	replication := rc.replication
+	if replication.pullInflight || replication.ackInflight || replication.pendingAck || replication.pendingPull != nil {
+		return false
+	}
+	if replication.applyBlocked || replication.applyOpID != 0 || replication.checkpointInflight || replication.checkpointOpID != 0 {
+		return false
+	}
+	if !replication.nextCheckpointAt.IsZero() || !replication.nextAckAt.IsZero() {
+		return false
+	}
+	return true
 }
 
 func (rc *runtimeChannel) failPendingPullWaiters(err error) {
