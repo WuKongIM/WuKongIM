@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -24,6 +25,7 @@ type cluster struct {
 	group        *reactor.Group
 	transport    transport.Client
 	pullMaxBytes int
+	metaMu       sync.RWMutex
 	metas        map[ch.ChannelKey]ch.Meta
 }
 
@@ -46,7 +48,13 @@ func (c *cluster) Tick(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	c.metaMu.RLock()
+	metas := make(map[ch.ChannelKey]ch.Meta, len(c.metas))
 	for key, meta := range c.metas {
+		metas[key] = meta
+	}
+	c.metaMu.RUnlock()
+	for key, meta := range metas {
 		if meta.Leader == c.localNode || c.transport == nil || meta.Status != ch.StatusActive {
 			continue
 		}
