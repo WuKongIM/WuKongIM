@@ -25,6 +25,18 @@ type FollowerAck struct {
 
 // ProposeAppend validates leader state and emits one durable append task.
 func (s *ChannelState) ProposeAppend(cmd AppendCommand) Decision {
+	return s.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: cmd.OpID,
+		Waiters: []AppendBatchWaiter{{
+			OpID:       cmd.OpID,
+			CommitMode: cmd.CommitMode,
+			Records:    cmd.Records,
+		}},
+	})
+}
+
+// ProposeAppendBatch validates leader state and emits one durable batch append task.
+func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	if s.Status == ch.StatusDeleted || s.Status == ch.StatusDeleting {
 		return Decision{Err: ch.ErrChannelNotFound}
 	}
@@ -34,45 +46,68 @@ func (s *ChannelState) ProposeAppend(cmd AppendCommand) Decision {
 	if !s.CommitReady {
 		return Decision{Err: ch.ErrNotReady}
 	}
-	if len(cmd.Records) == 0 {
-		return Decision{}
-	}
 	if s.InflightAppend != nil {
 		return Decision{Err: ch.ErrNotReady}
 	}
-	mode := cmd.CommitMode
-	if mode == 0 {
-		mode = ch.CommitModeQuorum
+	waiters := make([]AppendBatchWaiter, 0, len(cmd.Waiters))
+	recordCount := 0
+	for _, waiter := range cmd.Waiters {
+		if len(waiter.Records) == 0 {
+			continue
+		}
+		waiters = append(waiters, waiter)
+		recordCount += len(waiter.Records)
 	}
-	records := cloneRecords(cmd.Records)
-	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.OpID}
-	s.InflightAppend = &AppendOp{OpID: cmd.OpID, Records: records}
-	s.PendingAppends[cmd.OpID] = &AppendWaiter{OpID: cmd.OpID, CommitMode: mode, Records: records}
+	if recordCount == 0 {
+		return Decision{}
+	}
+	records := make([]ch.Record, 0, recordCount)
+	waiterOpIDs := make([]ch.OpID, 0, len(waiters))
+	for _, waiter := range waiters {
+		mode := waiter.CommitMode
+		if mode == 0 {
+			mode = ch.CommitModeQuorum
+		}
+		cloned := cloneRecords(waiter.Records)
+		records = append(records, cloned...)
+		waiterOpIDs = append(waiterOpIDs, waiter.OpID)
+		s.PendingAppends[waiter.OpID] = &AppendWaiter{OpID: waiter.OpID, CommitMode: mode, Records: cloned}
+	}
+	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
+	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs}
 	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true}}}}
+}
+
+// AbortAppendBatchProposal clears a still-inflight batch without completing its waiters.
+func (s *ChannelState) AbortAppendBatchProposal(batchOpID ch.OpID) {
+	if s.InflightAppend == nil || s.InflightAppend.OpID != batchOpID {
+		return
+	}
+	for _, opID := range s.InflightAppend.WaiterOpIDs {
+		delete(s.PendingAppends, opID)
+	}
+	s.InflightAppend = nil
 }
 
 // ApplyAppendStored publishes a fenced durable append result.
 func (s *ChannelState) ApplyAppendStored(res AppendStoredResult) Decision {
-	if res.Err != nil {
-		return s.failAppend(res.Fence.OpID, res.Err)
-	}
 	if !s.matchesInflightFence(res.Fence) {
 		return Decision{}
 	}
-	waiter := s.PendingAppends[res.Fence.OpID]
-	if waiter == nil {
-		s.InflightAppend = nil
-		return Decision{}
+	if res.Err != nil {
+		return s.failInflightAppend(res.Err)
 	}
-	s.assignStoredOffsets(waiter, res.BaseOffset)
-	waiter.Target = res.LastOffset
+	inflight := s.InflightAppend
+	s.assignStoredOffsets(inflight.Records, res.BaseOffset)
+	s.assignInflightRecordsToWaiters(inflight)
 	s.LEO = maxUint64(s.LEO, res.LastOffset)
 	if s.Role == ch.RoleLeader {
 		s.Progress[s.LocalNode] = ReplicaProgress{Match: s.LEO}
 		s.AdvanceHW()
 	}
+	replyOrder := append([]ch.OpID(nil), inflight.WaiterOpIDs...)
 	s.InflightAppend = nil
-	decision := s.completeAppendWaiters()
+	decision := s.completeAppendWaiters(replyOrder)
 	decision.Signals = append(decision.Signals, Signal{Kind: SignalKindReplicate})
 	return decision
 }
@@ -88,37 +123,74 @@ func (s *ChannelState) ApplyFollowerAck(ack FollowerAck) Decision {
 		s.Progress[ack.Follower] = progress
 	}
 	s.AdvanceHW()
-	return s.completeAppendWaiters()
+	return s.completeAppendWaiters(nil)
 }
 
 func (s *ChannelState) matchesInflightFence(fence ch.Fence) bool {
 	return fence.ChannelKey == s.Key && fence.Generation == s.Generation && fence.Epoch == s.Epoch && fence.LeaderEpoch == s.LeaderEpoch && s.InflightAppend != nil && s.InflightAppend.OpID == fence.OpID
 }
 
-func (s *ChannelState) failAppend(opID ch.OpID, err error) Decision {
-	delete(s.PendingAppends, opID)
-	if s.InflightAppend != nil && s.InflightAppend.OpID == opID {
-		s.InflightAppend = nil
+func (s *ChannelState) failInflightAppend(err error) Decision {
+	if s.InflightAppend == nil {
+		return Decision{}
 	}
-	return Decision{Replies: []Reply{{Kind: ReplyKindAppend, OpID: opID, Err: err}}}
+	replies := make([]Reply, 0, len(s.InflightAppend.WaiterOpIDs))
+	for _, opID := range s.InflightAppend.WaiterOpIDs {
+		if _, ok := s.PendingAppends[opID]; !ok {
+			continue
+		}
+		delete(s.PendingAppends, opID)
+		replies = append(replies, Reply{Kind: ReplyKindAppend, OpID: opID, Err: err})
+	}
+	s.InflightAppend = nil
+	return Decision{Replies: replies}
 }
 
-func (s *ChannelState) assignStoredOffsets(waiter *AppendWaiter, base uint64) {
-	for i := range waiter.Records {
-		waiter.Records[i].Index = base + uint64(i)
-		if waiter.Records[i].Epoch == 0 {
-			waiter.Records[i].Epoch = s.Epoch
+func (s *ChannelState) assignStoredOffsets(records []ch.Record, base uint64) {
+	for i := range records {
+		records[i].Index = base + uint64(i)
+		if records[i].Epoch == 0 {
+			records[i].Epoch = s.Epoch
 		}
 	}
 }
 
-func (s *ChannelState) completeAppendWaiters() Decision {
+func (s *ChannelState) assignInflightRecordsToWaiters(inflight *AppendOp) {
+	if inflight == nil {
+		return
+	}
+	next := 0
+	for _, opID := range inflight.WaiterOpIDs {
+		waiter := s.PendingAppends[opID]
+		if waiter == nil {
+			continue
+		}
+		end := next + len(waiter.Records)
+		if end > len(inflight.Records) {
+			end = len(inflight.Records)
+		}
+		waiter.Records = cloneRecords(inflight.Records[next:end])
+		if len(waiter.Records) > 0 {
+			waiter.Target = waiter.Records[len(waiter.Records)-1].Index
+		}
+		next = end
+	}
+}
+
+func (s *ChannelState) completeAppendWaiters(order []ch.OpID) Decision {
 	if len(s.PendingAppends) == 0 {
 		return Decision{}
 	}
-	replies := make([]Reply, 0, len(s.PendingAppends))
-	for opID, waiter := range s.PendingAppends {
-		if waiter.Target == 0 {
+	if len(order) == 0 {
+		order = make([]ch.OpID, 0, len(s.PendingAppends))
+		for opID := range s.PendingAppends {
+			order = append(order, opID)
+		}
+	}
+	replies := make([]Reply, 0, len(order))
+	for _, opID := range order {
+		waiter := s.PendingAppends[opID]
+		if waiter == nil || waiter.Target == 0 {
 			continue
 		}
 		if waiter.CommitMode == ch.CommitModeQuorum && s.HW < waiter.Target {
