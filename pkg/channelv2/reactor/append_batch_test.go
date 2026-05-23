@@ -155,6 +155,68 @@ func TestAppendStorePoolBackpressureRollsBackBatchProposalForRetry(t *testing.T)
 	requireFuturePending(t, future)
 }
 
+func TestAppendStorePoolBackpressureRollsBackMultiChannelGroupForRetry(t *testing.T) {
+	factory := newCountingStoreFactory()
+	factory.blockAppends()
+	metas := []ch.Meta{
+		testMeta("append-pool-backpressure-group-a", 1, 1),
+		testMeta("append-pool-backpressure-group-b", 1, 1),
+		testMeta("append-pool-backpressure-group-c", 1, 1),
+	}
+	fillMeta := testMeta("append-pool-backpressure-group-fill", 1, 1)
+	g := newAppendBatchTestGroup(t, factory, Config{
+		AppendBatchMaxRecords:   1,
+		AppendStoreRetryBackoff: time.Millisecond,
+		WorkerPools:             worker.PoolsConfig{StoreAppend: worker.PoolConfig{Name: "test-store-append", Workers: 1, QueueSize: 1}},
+	})
+	defer g.Close()
+	for _, meta := range metas {
+		require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	}
+	fillTask := worker.Task{
+		Kind:  worker.TaskStoreAppend,
+		Fence: ch.Fence{ChannelKey: fillMeta.Key, Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 900},
+		StoreAppend: &worker.StoreAppendTask{
+			ChannelID: fillMeta.ID,
+			Records:   []ch.Record{{ID: 900, Payload: []byte("fill"), SizeBytes: 4}},
+			Sync:      true,
+		},
+	}
+	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
+	factory.waitAppendStarted(t)
+	fillTask.Fence.OpID = 901
+	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
+
+	futures := make([]*Future, 0, len(metas))
+	for i, meta := range metas {
+		future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, uint64(i+1), string(rune('a'+i))))
+		require.NoError(t, err)
+		futures = append(futures, future)
+	}
+	for i, meta := range metas {
+		tickFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(2 * time.Hour)})
+		require.NoError(t, err)
+		_, err = tickFuture.Await(context.Background())
+		require.NoError(t, err)
+		requireFuturePending(t, futures[i])
+	}
+
+	factory.unblockAppends()
+	factory.waitAppendStarted(t)
+	for _, meta := range metas {
+		tickFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(2 * time.Hour)})
+		require.NoError(t, err)
+		_, err = tickFuture.Await(context.Background())
+		require.NoError(t, err)
+	}
+	for i, meta := range metas {
+		result := awaitFutureResult(t, futures[i])
+		require.NoError(t, result.Err)
+		require.Equal(t, uint64(1), result.AppendBatch.Items[0].MessageSeq)
+		require.Equal(t, []int{1}, factory.appendSizes(meta.Key))
+	}
+}
+
 func TestAppendContextCancelRemovesAcceptedWaiter(t *testing.T) {
 	factory := newCountingStoreFactory()
 	meta := testMeta("append-cancel-removes", 1, 1)
