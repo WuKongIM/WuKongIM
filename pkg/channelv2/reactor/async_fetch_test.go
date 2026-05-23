@@ -1,9 +1,7 @@
 package reactor
 
 import (
-	"bytes"
 	"context"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -97,6 +95,39 @@ func TestFetchMetadataChangeFailsPendingWaiter(t *testing.T) {
 	factory.unblockAll()
 }
 
+func TestFetchGroupCloseCancelsBlockedReadAndFailsFuture(t *testing.T) {
+	factory := newBlockingReadFactory()
+	meta := testMeta("async-close-blocked-fetch", 1, 1)
+	seedCommittedMessage(t, factory, meta, 1, "hello")
+	g := newAsyncFetchTestGroup(t, factory, worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1})
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	fetchFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventFetch, Key: meta.Key, OpID: 6, Fetch: fetchRequest(meta)})
+	require.NoError(t, err)
+	factory.waitStarted(t)
+
+	closed := make(chan error, 1)
+	go func() { closed <- g.Close() }()
+	select {
+	case err := <-closed:
+		require.NoError(t, err)
+	case <-time.After(200 * time.Millisecond):
+		factory.unblockAll()
+		select {
+		case err := <-closed:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("group Close stayed blocked after releasing ReadCommitted")
+		}
+		t.Fatal("group Close did not cancel blocked async fetch")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_, err = fetchFuture.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrClosed)
+}
+
 func TestFetchApplyMetaFailsPendingWaiterBeforeStateMutation(t *testing.T) {
 	meta := testMeta("async-stale-meta-order", 1, 1)
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
@@ -104,7 +135,13 @@ func TestFetchApplyMetaFailsPendingWaiterBeforeStateMutation(t *testing.T) {
 	rc := r.channels[meta.Key]
 	require.NotNil(t, rc)
 
-	fetchFuture := &Future{ch: make(chan Result)}
+	hookEntered := make(chan Result, 1)
+	releaseHook := make(chan struct{})
+	fetchFuture := NewFuture()
+	fetchFuture.beforeComplete = func(result Result) {
+		hookEntered <- result
+		<-releaseHook
+	}
 	rc.addFetchWaiter(44, fetchFuture)
 	updated := meta
 	updated.LeaderEpoch++
@@ -116,17 +153,20 @@ func TestFetchApplyMetaFailsPendingWaiterBeforeStateMutation(t *testing.T) {
 		close(done)
 	}()
 
-	waitForApplyMetaBlockedInFutureComplete(t)
+	var staleResult Result
+	select {
+	case staleResult = <-hookEntered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pending fetch completion hook")
+	}
+	require.ErrorIs(t, staleResult.Err, ch.ErrStaleMeta)
 	require.Equal(t, meta.LeaderEpoch, rc.state.LeaderEpoch)
 	require.Equal(t, meta.Epoch, rc.state.Epoch)
 	require.Equal(t, meta.Status, rc.state.Status)
+	close(releaseHook)
 
-	select {
-	case result := <-fetchFuture.ch:
-		require.ErrorIs(t, result.Err, ch.ErrStaleMeta)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for stale fetch completion")
-	}
+	_, err := fetchFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.Eventually(t, func() bool {
 		select {
 		case <-done:
@@ -201,24 +241,6 @@ func applyMetaDirect(t *testing.T, reactor *Reactor, meta ch.Meta) error {
 	defer cancel()
 	_, err := future.Await(ctx)
 	return err
-}
-
-func waitForApplyMetaBlockedInFutureComplete(t *testing.T) {
-	t.Helper()
-	require.Eventually(t, func() bool {
-		return applyMetaBlockedInFutureComplete("TestFetchApplyMetaFailsPendingWaiterBeforeStateMutation.func1")
-	}, time.Second, time.Millisecond)
-}
-
-func applyMetaBlockedInFutureComplete(marker string) bool {
-	buf := make([]byte, 1<<20)
-	n := runtime.Stack(buf, true)
-	for _, stack := range bytes.Split(buf[:n], []byte("\n\n")) {
-		if bytes.Contains(stack, []byte(marker)) && bytes.Contains(stack, []byte("(*Future).Complete")) && bytes.Contains(stack, []byte("chan send")) {
-			return true
-		}
-	}
-	return false
 }
 
 func seedCommittedMessage(t *testing.T, factory store.Factory, meta ch.Meta, id uint64, payload string) {

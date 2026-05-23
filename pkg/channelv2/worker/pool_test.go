@@ -50,6 +50,47 @@ func TestPoolReturnsBackpressureWhenQueueFull(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrBackpressured)
 }
 
+func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 1}, Deps{}, sink)
+	require.NoError(t, err)
+
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	fence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
+	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence, RunFunc: func(ctx context.Context) Result {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return Result{Fence: fence, Err: ctx.Err()}
+	}}))
+	require.Eventually(t, func() bool {
+		select {
+		case <-started:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
+
+	closed := make(chan struct{})
+	go func() {
+		_ = pool.Close()
+		close(closed)
+	}()
+
+	select {
+	case <-closed:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("pool Close did not cancel a dequeued task context")
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("task did not observe pool cancellation")
+	}
+}
+
 func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	sink := &captureSink{}
 	pools, err := NewPools(PoolsConfig{

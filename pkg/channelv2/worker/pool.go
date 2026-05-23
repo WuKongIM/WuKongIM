@@ -16,13 +16,15 @@ type PoolConfig struct {
 
 // Pool runs blocking tasks with bounded concurrency and admission.
 type Pool struct {
-	cfg   PoolConfig
-	deps  Deps
-	sink  CompletionSink
-	queue chan Task
-	stop  chan struct{}
-	once  sync.Once
-	wg    sync.WaitGroup
+	cfg    PoolConfig
+	deps   Deps
+	sink   CompletionSink
+	queue  chan Task
+	stop   chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	once   sync.Once
+	wg     sync.WaitGroup
 }
 
 // NewPool starts a bounded worker pool.
@@ -30,7 +32,8 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel}
 	p.wg.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
 		go p.run()
@@ -63,12 +66,15 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	}
 }
 
-// Close stops workers after already dequeued tasks finish.
+// Close cancels running tasks and stops workers after they observe shutdown.
 func (p *Pool) Close() error {
 	if p == nil {
 		return nil
 	}
-	p.once.Do(func() { close(p.stop) })
+	p.once.Do(func() {
+		p.cancel()
+		close(p.stop)
+	})
 	p.wg.Wait()
 	return nil
 }
@@ -94,7 +100,7 @@ func (p *Pool) run() {
 	for {
 		select {
 		case task := <-p.queue:
-			p.sink.Complete(task.Run(context.Background(), p.deps))
+			p.sink.Complete(task.Run(p.ctx, p.deps))
 		case <-p.stop:
 			return
 		}

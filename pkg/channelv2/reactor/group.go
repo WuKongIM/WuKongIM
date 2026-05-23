@@ -98,7 +98,7 @@ func (g *Group) Submit(ctx context.Context, key ch.ChannelKey, event Event) (*Fu
 
 // Complete routes a blocking worker result back to the owning reactor.
 func (g *Group) Complete(result worker.Result) {
-	if g == nil || g.closed.Load() {
+	if g == nil {
 		return
 	}
 	key := result.Fence.ChannelKey
