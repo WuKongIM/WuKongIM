@@ -30,6 +30,18 @@ func (c *cluster) HandleAck(ctx context.Context, req transport.AckRequest) error
 	return err
 }
 
+// HandlePullHint serves a leader pull hint through the current notify event path.
+func (c *cluster) HandlePullHint(ctx context.Context, req transport.PullHintRequest) error {
+	return c.HandleNotify(ctx, transport.NotifyRequest{
+		ChannelKey:  req.ChannelKey,
+		ChannelID:   req.ChannelID,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Leader:      req.Leader,
+		LeaderLEO:   req.LeaderLEO,
+	})
+}
+
 // HandleNotify serves a leader nudge that asks this follower to pull promptly.
 func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
 	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventNotify, Key: req.ChannelKey, Notify: req})
