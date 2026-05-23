@@ -82,7 +82,7 @@ func (c *cluster) ensurePullHintChannelState(ctx context.Context, req transport.
 		meta.Key = ch.ChannelKeyForID(meta.ID)
 	}
 	local := c.localNode
-	if meta.Key != req.ChannelKey || meta.Epoch != req.Epoch || meta.LeaderEpoch != req.LeaderEpoch ||
+	if meta.Key != req.ChannelKey || meta.ID != req.ChannelID || meta.Epoch != req.Epoch || meta.LeaderEpoch != req.LeaderEpoch ||
 		meta.Leader != req.Leader || meta.Leader == local || meta.Status != ch.StatusActive ||
 		!metaContainsReplica(meta.Replicas, local) {
 		return ch.ErrStaleMeta
