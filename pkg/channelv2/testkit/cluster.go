@@ -43,6 +43,19 @@ func (h *ClusterHarness) ApplyMetaToAll(meta ch.Meta) {
 	}
 }
 
+// TickAll asks every harness node to run one replication/maintenance tick.
+func (h *ClusterHarness) TickAll(ctx context.Context) error {
+	for _, node := range h.Nodes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := node.Tick(ctx); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
+}
+
 // WaitCommitted polls a node until Fetch exposes seq as committed.
 func (h *ClusterHarness) WaitCommitted(t testing.TB, nodeID ch.NodeID, id ch.ChannelID, seq uint64, timeout time.Duration) {
 	t.Helper()
