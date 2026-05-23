@@ -85,32 +85,34 @@ type RPCAckTask struct {
 func (t Task) Run(ctx context.Context, deps Deps) Result {
 	ctx, cancel := taskContext(ctx, t.Context)
 	defer cancel()
+	var res Result
 	switch t.Kind {
 	case TaskFunc:
 		if t.RunFunc == nil {
-			return invalidResult(t)
+			res = invalidResult(t)
+			break
 		}
-		res := t.RunFunc(ctx)
+		res = t.RunFunc(ctx)
 		res.Kind = t.Kind
 		if res.Fence == (ch.Fence{}) {
 			res.Fence = t.Fence
 		}
-		return res
 	case TaskStoreAppend:
-		return runStoreAppend(ctx, deps, t)
+		res = runStoreAppend(ctx, deps, t)
 	case TaskStoreReadCommitted:
-		return runStoreReadCommitted(ctx, deps, t)
+		res = runStoreReadCommitted(ctx, deps, t)
 	case TaskStoreReadLog:
-		return runStoreReadLog(ctx, deps, t)
+		res = runStoreReadLog(ctx, deps, t)
 	case TaskStoreApply:
-		return runStoreApply(ctx, deps, t)
+		res = runStoreApply(ctx, deps, t)
 	case TaskRPCPull:
-		return runRPCPull(ctx, deps, t)
+		res = runRPCPull(ctx, deps, t)
 	case TaskRPCAck:
-		return runRPCAck(ctx, deps, t)
+		res = runRPCAck(ctx, deps, t)
 	default:
-		return invalidResult(t)
+		res = invalidResult(t)
 	}
+	return normalizeContextErr(ctx, res)
 }
 
 func taskContext(parent context.Context, task context.Context) (context.Context, context.CancelFunc) {
@@ -120,19 +122,42 @@ func taskContext(parent context.Context, task context.Context) (context.Context,
 	if task == nil || task.Done() == nil {
 		return parent, func() {}
 	}
-	ctx, cancel := context.WithCancel(parent)
+	ctx, cancel := context.WithCancelCause(parent)
+	cancelTask := func() {
+		cancel(contextFromTaskCause(task))
+	}
 	if task.Err() != nil {
-		cancel()
-		return ctx, cancel
+		cancelTask()
+		return ctx, func() { cancel(context.Canceled) }
 	}
 	go func() {
 		select {
 		case <-task.Done():
-			cancel()
+			cancelTask()
 		case <-ctx.Done():
 		}
 	}()
-	return ctx, cancel
+	return ctx, func() { cancel(context.Canceled) }
+}
+
+func contextFromTaskCause(task context.Context) error {
+	if cause := context.Cause(task); cause != nil {
+		return cause
+	}
+	if err := task.Err(); err != nil {
+		return err
+	}
+	return context.Canceled
+}
+
+func normalizeContextErr(ctx context.Context, res Result) Result {
+	// WithCancelCause preserves why the bridge canceled; Err still reports Canceled.
+	if res.Err == context.Canceled {
+		if cause := context.Cause(ctx); cause != nil && cause != context.Canceled {
+			res.Err = cause
+		}
+	}
+	return res
 }
 
 func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
