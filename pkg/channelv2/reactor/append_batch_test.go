@@ -99,7 +99,7 @@ func TestAppendPoolFullKeepsAcceptedRequestPendingAndRetriesOnTick(t *testing.T)
 		},
 	}
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
-	factory.waitAppendStarted(t)
+	factory.waitAppendSizes(t, meta.Key, []int{1})
 	fillTask.Fence.OpID = 901
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
 
@@ -184,7 +184,7 @@ func TestAppendStorePoolBackpressureRollsBackMultiChannelGroupForRetry(t *testin
 		},
 	}
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
-	factory.waitAppendStarted(t)
+	factory.waitAppendSizes(t, fillMeta.Key, []int{1})
 	fillTask.Fence.OpID = 901
 	require.NoError(t, g.pools.Submit(context.Background(), fillTask))
 
@@ -203,19 +203,67 @@ func TestAppendStorePoolBackpressureRollsBackMultiChannelGroupForRetry(t *testin
 	}
 
 	factory.unblockAppends()
-	factory.waitAppendStarted(t)
-	for _, meta := range metas {
-		tickFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(2 * time.Hour)})
-		require.NoError(t, err)
-		_, err = tickFuture.Await(context.Background())
-		require.NoError(t, err)
-	}
+	results := waitAppendFuturesWithRetryTicks(t, g, factory, metas, futures)
 	for i, meta := range metas {
-		result := awaitFutureResult(t, futures[i])
+		result := results[i]
 		require.NoError(t, result.Err)
 		require.Equal(t, uint64(1), result.AppendBatch.Items[0].MessageSeq)
 		require.Equal(t, []int{1}, factory.appendSizes(meta.Key))
 	}
+}
+
+func waitAppendFuturesWithRetryTicks(t *testing.T, g *Group, factory *countingStoreFactory, metas []ch.Meta, futures []*Future) []Result {
+	t.Helper()
+	results := make([]Result, len(futures))
+	completed := make([]bool, len(futures))
+	require.Eventually(t, func() bool {
+		for _, meta := range metas {
+			if !submitAppendRetryTick(g, meta.Key) {
+				return false
+			}
+		}
+		for i, future := range futures {
+			if completed[i] {
+				continue
+			}
+			select {
+			case result := <-future.ch:
+				results[i] = result
+				completed[i] = true
+			default:
+			}
+		}
+		if !allFuturesCompleted(completed) {
+			return false
+		}
+		for _, meta := range metas {
+			if !appendSizesEqual(factory.appendSizes(meta.Key), []int{1}) {
+				return false
+			}
+		}
+		return true
+	}, time.Second, time.Millisecond)
+	return results
+}
+
+func submitAppendRetryTick(g *Group, key ch.ChannelKey) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	tickFuture, err := g.Submit(ctx, key, Event{Kind: EventTick, Key: key, TickNow: time.Now().Add(2 * time.Hour)})
+	if err != nil {
+		return false
+	}
+	_, err = tickFuture.Await(ctx)
+	return err == nil
+}
+
+func allFuturesCompleted(completed []bool) bool {
+	for _, ok := range completed {
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func TestAppendContextCancelRemovesAcceptedWaiter(t *testing.T) {
@@ -375,6 +423,26 @@ func (f *countingStoreFactory) appendSizes(key ch.ChannelKey) []int {
 		return nil
 	}
 	return append([]int(nil), f.stores[key].appendSizes...)
+}
+
+func (f *countingStoreFactory) waitAppendSizes(t *testing.T, key ch.ChannelKey, expected []int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		return appendSizesEqual(f.appendSizes(key), expected)
+	}, time.Second, time.Millisecond)
+	require.Equal(t, expected, f.appendSizes(key))
+}
+
+func appendSizesEqual(actual []int, expected []int) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range actual {
+		if actual[i] != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *countingStoreFactory) blockAppends() {
