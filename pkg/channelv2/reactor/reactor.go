@@ -416,6 +416,9 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 	} else if future := rc.waiters[event.CancelOp]; future != nil {
 		delete(rc.waiters, event.CancelOp)
 		future.Complete(Result{Err: cancelErr})
+		if _, isFetch := rc.fetchWaiters[event.CancelOp]; !isFetch {
+			rc.state.CancelAppendWaiter(event.CancelOp)
+		}
 	}
 	if event.Future != nil {
 		event.Future.Complete(Result{})

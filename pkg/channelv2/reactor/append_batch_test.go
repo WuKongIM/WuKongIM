@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
@@ -235,6 +236,61 @@ func TestAppendContextCancelRemovesAcceptedWaiter(t *testing.T) {
 	require.NoError(t, err)
 	_, err = future.Await(context.Background())
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestAppendContextCancelRemovesPostStoreQuorumWaiter(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:append-cancel-post-store"),
+		ID:          ch.ChannelID{ID: "append-cancel-post-store", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	future := NewFuture()
+	require.NoError(t, rc.addWaiter(1, future))
+	decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{
+		BatchOpID: 100,
+		Waiters: []machine.AppendBatchWaiter{{
+			OpID:       1,
+			CommitMode: ch.CommitModeQuorum,
+			Records:    []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1}},
+		}},
+	})
+	require.NoError(t, decision.Err)
+	require.Len(t, decision.Tasks, 1)
+	task := decision.Tasks[0]
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	appendResult, err := cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: task.StoreAppend.Records, Sync: true})
+	require.NoError(t, err)
+	r.handleStoreAppendResult(worker.Result{
+		Kind:        worker.TaskStoreAppend,
+		Fence:       task.Fence,
+		StoreAppend: &worker.StoreAppendResult{BaseOffset: appendResult.BaseOffset, LastOffset: appendResult.LastOffset},
+	})
+	require.Contains(t, rc.state.PendingAppends, ch.OpID(1))
+	require.Equal(t, []ch.OpID{1}, rc.state.PendingAppendOrder)
+	requireFuturePending(t, future)
+
+	r.handleCancelWaiter(Event{Kind: EventCancelWaiter, Key: meta.Key, CancelOp: 1, CancelErr: context.Canceled, Future: NewFuture()})
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, context.Canceled)
+
+	require.NotContains(t, rc.state.PendingAppends, ch.OpID(1))
+	require.NotContains(t, rc.state.PendingAppendOrder, ch.OpID(1))
+	logResult, err := cs.ReadLog(context.Background(), store.ReadLogRequest{FromOffset: 1, MaxOffset: 1, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, logResult.Records, 1)
 }
 
 func TestAppendContextCanceledBeforeAdmissionRejectsWithoutQueueing(t *testing.T) {
