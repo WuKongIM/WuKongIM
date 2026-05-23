@@ -68,11 +68,12 @@ const (
 
 // Reply completes a waiting caller future.
 type Reply struct {
-	Kind   ReplyKind
-	OpID   ch.OpID
-	Err    error
-	Append ch.AppendBatchItemResult
-	Fetch  ch.FetchResult
+	Kind        ReplyKind
+	OpID        ch.OpID
+	Err         error
+	Append      ch.AppendBatchItemResult
+	AppendItems []ch.AppendBatchItemResult
+	Fetch       ch.FetchResult
 }
 
 // SignalKind identifies non-blocking notifications requested by the machine.
