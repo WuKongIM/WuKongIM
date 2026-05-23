@@ -9,7 +9,6 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -35,6 +34,14 @@ type ReactorConfig struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	ReplicationIdlePollInterval time.Duration
+	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
+	ReplicationMinBackoff time.Duration
+	// ReplicationMaxBackoff caps follower replication retry delays after repeated failures; defaults to 100ms.
+	ReplicationMaxBackoff time.Duration
+	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
+	PullMaxBytes int
 	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.
 	NextOpID func() ch.OpID
 }
@@ -68,6 +75,10 @@ type runtimeChannel struct {
 	appendRetryAt time.Time
 	// appendCancelContexts tracks admitted append caller contexts across queued, inflight, and post-store states.
 	appendCancelContexts map[ch.OpID]context.Context
+	// replication owns follower pull, apply, and ack scheduling state.
+	replication replicationState
+	// pullWaiters maps leader-side async pull op ids to request futures.
+	pullWaiters map[ch.OpID]*Future
 }
 
 // NewReactor constructs a reactor.
@@ -155,8 +166,6 @@ func (r *Reactor) handle(event Event) {
 		r.handlePull(event)
 	case EventAck:
 		r.handleAck(event)
-	case EventApplyRecords:
-		r.handleApplyRecords(event)
 	case EventWorkerResult:
 		r.handleWorkerResult(event)
 	case EventTick:
@@ -173,6 +182,14 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleStoreAppendResult(event.Worker)
 	case worker.TaskStoreReadCommitted:
 		r.handleStoreReadCommittedResult(event.Worker)
+	case worker.TaskStoreReadLog:
+		r.handleStoreReadLogResult(event.Worker)
+	case worker.TaskRPCPull:
+		r.handleRPCPullResult(event.Worker)
+	case worker.TaskStoreApply:
+		r.handleStoreApplyResult(event.Worker)
+	case worker.TaskRPCAck:
+		r.handleRPCAckResult(event.Worker)
 	}
 }
 
@@ -182,6 +199,9 @@ func (r *Reactor) handleTick(event Event) {
 		now = time.Now()
 	}
 	r.flushDueAppends(now)
+	for _, rc := range r.channels {
+		r.tickReplication(rc, now)
+	}
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -223,9 +243,17 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		}
 		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
 		rc.failPendingAppendWaiters(ch.ErrStaleMeta)
+		rc.failPendingPullWaiters(ch.ErrStaleMeta)
 		r.clearAppendCancelContexts(rc)
 	}
 	decision := rc.state.ApplyMeta(event.Meta)
+	if decision.Err == nil {
+		if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
+			rc.replication.markDirty(time.Now())
+		} else {
+			rc.replication.reset()
+		}
+	}
 	event.Future.Complete(Result{Err: decision.Err})
 }
 
@@ -255,6 +283,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		store:        cs,
 		waiters:      make(map[ch.OpID]*Future),
 		fetchWaiters: make(map[ch.OpID]struct{}),
+		pullWaiters:  make(map[ch.OpID]*Future),
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -440,12 +469,24 @@ func (r *Reactor) handlePull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
-	read, err := rc.store.ReadLog(context.Background(), store.ReadLogRequest{FromOffset: event.Pull.NextOffset, MaxOffset: rc.state.LEO, MaxBytes: event.Pull.MaxBytes})
-	if err != nil {
-		event.Future.Complete(Result{Err: err})
+	if event.OpID == 0 {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	event.Future.Complete(Result{Pull: transport.PullResponse{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, LeaderHW: rc.state.HW, LeaderLEO: rc.state.LEO, Records: read.Records}})
+	if rc.pullWaiters == nil {
+		rc.pullWaiters = make(map[ch.OpID]*Future)
+	}
+	if _, ok := rc.pullWaiters[event.OpID]; ok {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
+	rc.pullWaiters[event.OpID] = event.Future
+	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
+	err = r.submitStoreReadLog(context.Background(), event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)
+	if err != nil {
+		delete(rc.pullWaiters, event.OpID)
+		event.Future.Complete(Result{Err: err})
+	}
 }
 
 func (r *Reactor) handleAck(event Event) {
@@ -454,31 +495,11 @@ func (r *Reactor) handleAck(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	if rc.state.Role != ch.RoleLeader || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
+		event.Future.Complete(Result{})
+		return
+	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
 	r.completeReplies(rc, decision.Replies, nil)
 	event.Future.Complete(Result{})
-}
-
-func (r *Reactor) handleApplyRecords(event Event) {
-	rc, err := r.lookup(event.Key)
-	if err != nil {
-		event.Future.Complete(Result{Err: err})
-		return
-	}
-	if rc.state.Role != ch.RoleFollower {
-		event.Future.Complete(Result{Err: ch.ErrNotReady})
-		return
-	}
-	apply, err := rc.store.ApplyFollower(context.Background(), store.ApplyFollowerRequest{Records: event.PullResponse.Records, LeaderHW: event.PullResponse.LeaderHW})
-	if err != nil {
-		event.Future.Complete(Result{Err: err})
-		return
-	}
-	rc.state.LEO = apply.LEO
-	if event.PullResponse.LeaderHW < rc.state.LEO {
-		rc.state.HW = event.PullResponse.LeaderHW
-	} else {
-		rc.state.HW = rc.state.LEO
-	}
-	event.Future.Complete(Result{ApplyLEO: apply.LEO})
 }

@@ -34,4 +34,12 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	ReplicationIdlePollInterval time.Duration
+	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
+	ReplicationMinBackoff time.Duration
+	// ReplicationMaxBackoff caps follower replication retry delays after repeated failures; defaults to 100ms.
+	ReplicationMaxBackoff time.Duration
+	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
+	PullMaxBytes int
 }

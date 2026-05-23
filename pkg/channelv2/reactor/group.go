@@ -42,6 +42,14 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	ReplicationIdlePollInterval time.Duration
+	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
+	ReplicationMinBackoff time.Duration
+	// ReplicationMaxBackoff caps follower replication retry delays after repeated failures; defaults to 100ms.
+	ReplicationMaxBackoff time.Duration
+	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
+	PullMaxBytes int
 	// Observer is reserved for channelv2 reactor metrics.
 	Observer Observer
 }
@@ -67,7 +75,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	if cfg.MailboxSize <= 0 {
 		cfg.MailboxSize = 1024
 	}
-	cfg = defaultAppendConfig(cfg)
+	cfg = defaultConfig(cfg)
 	router, err := NewRouter(cfg.ReactorCount)
 	if err != nil {
 		return nil, err
@@ -81,13 +89,17 @@ func NewGroup(cfg Config) (*Group, error) {
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
 			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
-			AppendBatchMaxRecords:   cfg.AppendBatchMaxRecords,
-			AppendBatchMaxBytes:     cfg.AppendBatchMaxBytes,
-			AppendBatchMaxWait:      cfg.AppendBatchMaxWait,
-			AppendQueueMaxRequests:  cfg.AppendQueueMaxRequests,
-			AppendQueueMaxBytes:     cfg.AppendQueueMaxBytes,
-			AppendStoreRetryBackoff: cfg.AppendStoreRetryBackoff,
-			NextOpID:                g.NextOpID,
+			AppendBatchMaxRecords:       cfg.AppendBatchMaxRecords,
+			AppendBatchMaxBytes:         cfg.AppendBatchMaxBytes,
+			AppendBatchMaxWait:          cfg.AppendBatchMaxWait,
+			AppendQueueMaxRequests:      cfg.AppendQueueMaxRequests,
+			AppendQueueMaxBytes:         cfg.AppendQueueMaxBytes,
+			AppendStoreRetryBackoff:     cfg.AppendStoreRetryBackoff,
+			ReplicationIdlePollInterval: cfg.ReplicationIdlePollInterval,
+			ReplicationMinBackoff:       cfg.ReplicationMinBackoff,
+			ReplicationMaxBackoff:       cfg.ReplicationMaxBackoff,
+			PullMaxBytes:                cfg.PullMaxBytes,
+			NextOpID:                    g.NextOpID,
 		})
 		g.reactors[i] = r
 		r.start()
@@ -95,7 +107,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	return g, nil
 }
 
-func defaultAppendConfig(cfg Config) Config {
+func defaultConfig(cfg Config) Config {
 	if cfg.AppendBatchMaxRecords <= 0 {
 		cfg.AppendBatchMaxRecords = 128
 	}
@@ -113,6 +125,21 @@ func defaultAppendConfig(cfg Config) Config {
 	}
 	if cfg.AppendStoreRetryBackoff <= 0 {
 		cfg.AppendStoreRetryBackoff = time.Millisecond
+	}
+	if cfg.ReplicationIdlePollInterval <= 0 {
+		cfg.ReplicationIdlePollInterval = 10 * time.Millisecond
+	}
+	if cfg.ReplicationMinBackoff <= 0 {
+		cfg.ReplicationMinBackoff = time.Millisecond
+	}
+	if cfg.ReplicationMaxBackoff <= 0 {
+		cfg.ReplicationMaxBackoff = 100 * time.Millisecond
+	}
+	if cfg.ReplicationMaxBackoff < cfg.ReplicationMinBackoff {
+		cfg.ReplicationMaxBackoff = cfg.ReplicationMinBackoff
+	}
+	if cfg.PullMaxBytes <= 0 {
+		cfg.PullMaxBytes = 64 * 1024
 	}
 	return cfg
 }

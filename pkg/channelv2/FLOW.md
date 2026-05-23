@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`pkg/channelv2` is an experimental multiple-reactor channel log runtime. V0 validates append, fetch, follower apply, ACK, and HW commit behavior without replacing `pkg/channel`.
+`pkg/channelv2` is an experimental multiple-reactor channel log runtime. Phase 2 validates append, fetch, follower replication, ACK, and HW commit behavior through reactor-owned state and typed bounded worker pools without replacing `pkg/channel`.
 
 ## Package Boundaries
 
@@ -28,21 +28,21 @@
 
 ## Replication
 
-V0 uses follower pull and explicit ACK:
+Replication is owned by each channel's reactor runtime. `service.Tick` only calls `group.Tick(ctx)`, which submits low-priority tick events; the reactor decides whether an active local follower should pull, apply, or ack. Follower pull offsets are based on local `LEO + 1`, not committed HW or a service-side fetch.
 
 ```text
-follower Tick -> Pull(leader, nextOffset)
-leader -> records + leaderHW
-follower ApplyFollower -> local LEO/HW
-follower -> Ack(leader, matchOffset)
-leader -> AdvanceHW -> complete waiters
+follower reactor Tick -> TaskRPCPull(leader, LEO+1)
+leader EventPull -> TaskStoreReadLog -> PullResponse(records, leaderHW, leaderLEO)
+follower TaskStoreApply -> local LEO/HW
+follower TaskRPCAck(matchOffset)
+leader EventAck -> AdvanceHW -> complete quorum waiters
 ```
 
-The test harness drives ticks in the background. Future production work should replace this with a reactor-owned scheduler and bounded RPC workers.
+A follower keeps at most one pull RPC in flight, one pending pull response waiting for store apply, and one ACK RPC in flight. Pending ACKs are retried before new pulls, and ACK retries reuse the stored match offset. Leader pull handling is asynchronous through the store-read worker pool so blocked log reads do not block high-priority metadata events.
 
 ## Backpressure
 
-Mailboxes, append queues, and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch store reads use the store-read worker pool. Follower apply and leader pull store paths remain synchronous inside reactors until their batching/effect phases move them out.
+Mailboxes, append queues, and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch and leader pull log reads use the store-read worker pool. Follower pull, apply, and ACK use typed bounded worker tasks; store-apply backpressure keeps a single pending pull response and retries on later ticks rather than issuing duplicate pulls.
 
 ## Import Boundary
 

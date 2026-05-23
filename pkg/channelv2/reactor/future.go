@@ -14,7 +14,6 @@ type Result struct {
 	AppendBatch ch.AppendBatchResult
 	Fetch       ch.FetchResult
 	Pull        transport.PullResponse
-	ApplyLEO    uint64
 	Err         error
 }
 

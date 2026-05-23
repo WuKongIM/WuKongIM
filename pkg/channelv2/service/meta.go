@@ -16,10 +16,5 @@ func (c *cluster) ApplyMeta(meta ch.Meta) error {
 		return err
 	}
 	_, err = future.Await(context.Background())
-	if err == nil {
-		c.metaMu.Lock()
-		c.metas[meta.Key] = meta
-		c.metaMu.Unlock()
-	}
 	return err
 }
