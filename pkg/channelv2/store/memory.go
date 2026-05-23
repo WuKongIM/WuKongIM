@@ -190,7 +190,7 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 	return ReadLogResult{Records: out}, nil
 }
 
-// StoreCheckpoint stores the committed frontier for future loads.
+// StoreCheckpoint stores the committed frontier for future loads, ignoring regressive HW.
 func (s *MemoryChannelStore) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
 	if err := ctx.Err(); err != nil {
 		return err

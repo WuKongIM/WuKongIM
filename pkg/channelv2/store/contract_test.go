@@ -32,8 +32,31 @@ func testStoreContract(t *testing.T, factory Factory) {
 	require.Equal(t, uint64(2), committed.NextSeq)
 }
 
+func testStoreCheckpointHWMonotonic(t *testing.T, factory Factory) {
+	t.Helper()
+	ctx := context.Background()
+	cs, err := factory.ChannelStore(ch.ChannelKey("1:checkpoint"), ch.ChannelID{ID: "checkpoint", Type: 1})
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
+		{ID: 3, Payload: []byte("c"), SizeBytes: 1},
+		{ID: 4, Payload: []byte("d"), SizeBytes: 1},
+		{ID: 5, Payload: []byte("e"), SizeBytes: 1},
+	}, Sync: true})
+	require.NoError(t, err)
+
+	require.NoError(t, cs.StoreCheckpoint(ctx, ch.Checkpoint{HW: 5}))
+	require.NoError(t, cs.StoreCheckpoint(ctx, ch.Checkpoint{HW: 3}))
+	loaded, err := cs.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), loaded.CheckpointHW)
+}
+
 func TestMemoryStoreContract(t *testing.T) {
-	testStoreContract(t, NewMemoryFactory())
+	factory := NewMemoryFactory()
+	testStoreContract(t, factory)
+	testStoreCheckpointHWMonotonic(t, factory)
 }
 
 func TestMemoryStoreApplyFollowerSkipsDuplicatePrefix(t *testing.T) {

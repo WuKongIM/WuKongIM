@@ -115,7 +115,7 @@ func (r *Reactor) submitAck(rc *runtimeChannel, match uint64, now time.Time) boo
 }
 
 func (r *Reactor) submitAckPayload(rc *runtimeChannel, match uint64, stopped bool, activityVersion uint64, now time.Time) bool {
-	if match == 0 {
+	if match == 0 && !stopped {
 		return false
 	}
 	opID := r.nextOpID()
