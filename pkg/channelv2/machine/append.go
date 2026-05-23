@@ -1,6 +1,10 @@
 package machine
 
-import ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+import (
+	"sort"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+)
 
 // AppendCommand asks the leader state machine to append records.
 type AppendCommand struct {
@@ -72,6 +76,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 		records = append(records, cloned...)
 		waiterOpIDs = append(waiterOpIDs, waiter.OpID)
 		s.PendingAppends[waiter.OpID] = &AppendWaiter{OpID: waiter.OpID, CommitMode: mode, Records: cloned}
+		s.appendPendingAppendOrder(waiter.OpID)
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
 	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs}
@@ -86,6 +91,7 @@ func (s *ChannelState) AbortAppendBatchProposal(batchOpID ch.OpID) {
 	for _, opID := range s.InflightAppend.WaiterOpIDs {
 		delete(s.PendingAppends, opID)
 	}
+	s.removePendingAppendOrder(s.InflightAppend.WaiterOpIDs)
 	s.InflightAppend = nil
 }
 
@@ -123,7 +129,7 @@ func (s *ChannelState) ApplyFollowerAck(ack FollowerAck) Decision {
 		s.Progress[ack.Follower] = progress
 	}
 	s.AdvanceHW()
-	return s.completeAppendWaiters(nil)
+	return s.completeAppendWaiters(s.pendingAppendOrder())
 }
 
 func (s *ChannelState) matchesInflightFence(fence ch.Fence) bool {
@@ -135,13 +141,16 @@ func (s *ChannelState) failInflightAppend(err error) Decision {
 		return Decision{}
 	}
 	replies := make([]Reply, 0, len(s.InflightAppend.WaiterOpIDs))
+	completed := make([]ch.OpID, 0, len(s.InflightAppend.WaiterOpIDs))
 	for _, opID := range s.InflightAppend.WaiterOpIDs {
 		if _, ok := s.PendingAppends[opID]; !ok {
 			continue
 		}
 		delete(s.PendingAppends, opID)
+		completed = append(completed, opID)
 		replies = append(replies, Reply{Kind: ReplyKindAppend, OpID: opID, Err: err})
 	}
+	s.removePendingAppendOrder(completed)
 	s.InflightAppend = nil
 	return Decision{Replies: replies}
 }
@@ -182,12 +191,13 @@ func (s *ChannelState) completeAppendWaiters(order []ch.OpID) Decision {
 		return Decision{}
 	}
 	if len(order) == 0 {
-		order = make([]ch.OpID, 0, len(s.PendingAppends))
-		for opID := range s.PendingAppends {
-			order = append(order, opID)
+		order = s.pendingAppendOrder()
+		if len(order) == 0 {
+			order = s.sortedPendingAppendOpIDs()
 		}
 	}
 	replies := make([]Reply, 0, len(order))
+	completed := make([]ch.OpID, 0, len(order))
 	for _, opID := range order {
 		waiter := s.PendingAppends[opID]
 		if waiter == nil || waiter.Target == 0 {
@@ -203,8 +213,55 @@ func (s *ChannelState) completeAppendWaiters(order []ch.OpID) Decision {
 		}
 		replies = append(replies, reply)
 		delete(s.PendingAppends, opID)
+		completed = append(completed, opID)
 	}
+	s.removePendingAppendOrder(completed)
 	return Decision{Replies: replies}
+}
+
+func (s *ChannelState) pendingAppendOrder() []ch.OpID {
+	if len(s.PendingAppendOrder) == 0 {
+		return nil
+	}
+	order := make([]ch.OpID, len(s.PendingAppendOrder))
+	copy(order, s.PendingAppendOrder)
+	return order
+}
+
+func (s *ChannelState) sortedPendingAppendOpIDs() []ch.OpID {
+	order := make([]ch.OpID, 0, len(s.PendingAppends))
+	for opID := range s.PendingAppends {
+		order = append(order, opID)
+	}
+	sort.Slice(order, func(i, j int) bool { return order[i] < order[j] })
+	return order
+}
+
+func (s *ChannelState) appendPendingAppendOrder(opID ch.OpID) {
+	for _, pending := range s.PendingAppendOrder {
+		if pending == opID {
+			return
+		}
+	}
+	s.PendingAppendOrder = append(s.PendingAppendOrder, opID)
+}
+
+func (s *ChannelState) removePendingAppendOrder(opIDs []ch.OpID) {
+	if len(opIDs) == 0 || len(s.PendingAppendOrder) == 0 {
+		return
+	}
+	remove := make(map[ch.OpID]struct{}, len(opIDs))
+	for _, opID := range opIDs {
+		remove[opID] = struct{}{}
+	}
+	kept := s.PendingAppendOrder[:0]
+	for _, opID := range s.PendingAppendOrder {
+		if _, ok := remove[opID]; ok {
+			continue
+		}
+		kept = append(kept, opID)
+	}
+	s.PendingAppendOrder = kept
 }
 
 func appendItemsForRecords(id ch.ChannelID, records []ch.Record) []ch.AppendBatchItemResult {
