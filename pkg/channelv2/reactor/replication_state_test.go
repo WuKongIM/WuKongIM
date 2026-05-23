@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -509,7 +510,7 @@ func TestLeaderPullWaiterFailsOnMetadataFence(t *testing.T) {
 }
 
 func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
-	factory := newBlockingReadLogFactory()
+	factory := newNonCancelingBlockingReadLogFactory()
 	g, err := NewGroup(Config{
 		LocalNode:    1,
 		ReactorCount: 1,
@@ -518,6 +519,14 @@ func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 		WorkerPools:  worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
 	})
 	require.NoError(t, err)
+	closeStarted := false
+	closeCompleted := false
+	defer func() {
+		factory.UnblockReadLogs()
+		if !closeStarted && !closeCompleted {
+			_ = g.Close()
+		}
+	}()
 
 	meta := ch.Meta{Key: "1:pull-close", ID: ch.ChannelID{ID: "pull-close", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
@@ -529,13 +538,43 @@ func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, factory.ReadLogStarted, time.Second, time.Millisecond)
+	factory.waitReadLogStarted(t)
 
-	require.NoError(t, g.Close())
+	closeDone := make(chan error, 1)
+	closeStarted = true
+	go func() {
+		closeDone <- g.Close()
+	}()
+
+	waitForCloseAfterFailure := func() {
+		factory.UnblockReadLogs()
+		select {
+		case <-closeDone:
+			closeCompleted = true
+		case <-time.After(time.Second):
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 	_, err = pullFuture.Await(ctx)
+	cancel()
+	if errors.Is(err, context.DeadlineExceeded) {
+		waitForCloseAfterFailure()
+		t.Fatal("timed out waiting for pull future to fail with ErrClosed")
+	}
+	if !errors.Is(err, ch.ErrClosed) {
+		waitForCloseAfterFailure()
+		t.Fatalf("pull future failed with %v, want %v", err, ch.ErrClosed)
+	}
+
+	factory.UnblockReadLogs()
+	select {
+	case err := <-closeDone:
+		closeCompleted = true
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for group close after unblocking ReadLog")
+	}
 	require.ErrorIs(t, err, ch.ErrClosed)
 }
 
@@ -571,6 +610,7 @@ func TestLeaderPullReadLogPoolFullFailsFuture(t *testing.T) {
 		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
 	})
 	require.NoError(t, err)
+	requireFuturePending(t, second)
 	third, err := g.Submit(context.Background(), meta.Key, Event{
 		Kind: EventPull,
 		Key:  meta.Key,
