@@ -1,0 +1,85 @@
+package worker
+
+import (
+	"context"
+	"sync"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+)
+
+// PoolConfig defines worker and queue limits for one bounded pool.
+type PoolConfig struct {
+	Name      string
+	Workers   int
+	QueueSize int
+}
+
+// Pool runs blocking tasks with bounded concurrency and admission.
+type Pool struct {
+	cfg   PoolConfig
+	sink  CompletionSink
+	queue chan Task
+	stop  chan struct{}
+	once  sync.Once
+	wg    sync.WaitGroup
+}
+
+// NewPool starts a bounded worker pool.
+func NewPool(cfg PoolConfig, sink CompletionSink) (*Pool, error) {
+	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
+		return nil, ch.ErrInvalidConfig
+	}
+	p := &Pool{cfg: cfg, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{})}
+	p.wg.Add(cfg.Workers)
+	for i := 0; i < cfg.Workers; i++ {
+		go p.run()
+	}
+	return p, nil
+}
+
+// Submit enqueues task or returns a typed backpressure/closed error.
+func (p *Pool) Submit(ctx context.Context, task Task) error {
+	if p == nil {
+		return ch.ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-p.stop:
+		return ch.ErrClosed
+	default:
+	}
+	select {
+	case p.queue <- task:
+		return nil
+	case <-p.stop:
+		return ch.ErrClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return ch.ErrBackpressured
+	}
+}
+
+// Close stops workers after already dequeued tasks finish.
+func (p *Pool) Close() error {
+	if p == nil {
+		return nil
+	}
+	p.once.Do(func() { close(p.stop) })
+	p.wg.Wait()
+	return nil
+}
+
+func (p *Pool) run() {
+	defer p.wg.Done()
+	for {
+		select {
+		case task := <-p.queue:
+			p.sink.Complete(task.Run(context.Background()))
+		case <-p.stop:
+			return
+		}
+	}
+}
