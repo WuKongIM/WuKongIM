@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
 // Result is the synchronous facade completion payload.
@@ -12,6 +13,8 @@ type Result struct {
 	Append      ch.AppendResult
 	AppendBatch ch.AppendBatchResult
 	Fetch       ch.FetchResult
+	Pull        transport.PullResponse
+	ApplyLEO    uint64
 	Err         error
 }
 

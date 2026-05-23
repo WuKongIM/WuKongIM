@@ -27,7 +27,7 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
-	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req})
+	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, OpID: c.group.NextOpID()})
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
