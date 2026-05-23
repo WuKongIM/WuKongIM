@@ -17,6 +17,7 @@ type PoolConfig struct {
 // Pool runs blocking tasks with bounded concurrency and admission.
 type Pool struct {
 	cfg   PoolConfig
+	deps  Deps
 	sink  CompletionSink
 	queue chan Task
 	stop  chan struct{}
@@ -25,11 +26,11 @@ type Pool struct {
 }
 
 // NewPool starts a bounded worker pool.
-func NewPool(cfg PoolConfig, sink CompletionSink) (*Pool, error) {
+func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	p := &Pool{cfg: cfg, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{})}
+	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{})}
 	p.wg.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
 		go p.run()
@@ -72,12 +73,28 @@ func (p *Pool) Close() error {
 	return nil
 }
 
+// Name returns the configured pool name.
+func (p *Pool) Name() string {
+	if p == nil {
+		return ""
+	}
+	return p.cfg.Name
+}
+
+// QueueDepth returns the number of tasks waiting in the pool queue.
+func (p *Pool) QueueDepth() int {
+	if p == nil {
+		return 0
+	}
+	return len(p.queue)
+}
+
 func (p *Pool) run() {
 	defer p.wg.Done()
 	for {
 		select {
 		case task := <-p.queue:
-			p.sink.Complete(task.Run(context.Background()))
+			p.sink.Complete(task.Run(context.Background(), p.deps))
 		case <-p.stop:
 			return
 		}
