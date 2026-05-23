@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -158,6 +159,38 @@ func TestTaskRunRPCPullAndAckUseTransportDeps(t *testing.T) {
 func TestTaskRunMissingDepsReturnsInvalidConfig(t *testing.T) {
 	res := Task{Kind: TaskStoreReadCommitted}.Run(context.Background(), Deps{})
 	require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
+}
+
+func TestTaskRunTaskContextDeadlineReportsDeadlineExceeded(t *testing.T) {
+	deadlineCtx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancel()
+
+	res := Task{
+		Kind:    TaskFunc,
+		Context: deadlineCtx,
+		RunFunc: func(ctx context.Context) Result {
+			<-ctx.Done()
+			return Result{Err: ctx.Err()}
+		},
+	}.Run(context.Background(), Deps{})
+
+	require.ErrorIs(t, res.Err, context.DeadlineExceeded)
+}
+
+func TestTaskRunTaskContextExplicitCancelReportsCanceled(t *testing.T) {
+	taskCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res := Task{
+		Kind:    TaskFunc,
+		Context: taskCtx,
+		RunFunc: func(ctx context.Context) Result {
+			<-ctx.Done()
+			return Result{Err: ctx.Err()}
+		},
+	}.Run(context.Background(), Deps{})
+
+	require.ErrorIs(t, res.Err, context.Canceled)
 }
 
 func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
