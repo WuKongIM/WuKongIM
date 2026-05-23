@@ -608,6 +608,9 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		r.syncFollowerMatches(rc)
 		for _, follower := range rc.followers {
 			if follower != nil && follower.Match < rc.state.LEO {
+				if follower.Stopped {
+					follower.LastPullAt = time.Time{}
+				}
 				follower.Stopped = false
 			}
 		}

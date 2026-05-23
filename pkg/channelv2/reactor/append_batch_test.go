@@ -558,6 +558,7 @@ func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing
 	rc.followers[2].Parked = true
 	rc.followers[3].LastPullAt = now
 	rc.followers[4].Stopped = true
+	rc.followers[4].LastPullAt = now
 
 	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
 	require.NoError(t, err)
