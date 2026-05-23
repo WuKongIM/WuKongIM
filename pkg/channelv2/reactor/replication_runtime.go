@@ -22,6 +22,13 @@ func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
 	if rc.replication.ackInflight {
 		return
 	}
+	if rc.replication.stopping {
+		if rc.replication.checkpointInflight {
+			return
+		}
+		r.trySubmitStopCheckpoint(rc, now)
+		return
+	}
 	if rc.replication.pendingPull != nil {
 		r.trySubmitPendingApply(rc, now)
 		return
@@ -100,22 +107,30 @@ func (r *Reactor) trySubmitPendingAck(rc *runtimeChannel, now time.Time) {
 	if !rc.replication.nextAckAt.IsZero() && now.Before(rc.replication.nextAckAt) {
 		return
 	}
-	r.submitAck(rc, rc.replication.pendingAckMatch, now)
+	r.submitAckPayload(rc, rc.replication.pendingAckMatch, rc.replication.pendingAckStopped, rc.replication.pendingAckActivityVersion, now)
 }
 
 func (r *Reactor) submitAck(rc *runtimeChannel, match uint64, now time.Time) bool {
+	return r.submitAckPayload(rc, match, false, 0, now)
+}
+
+func (r *Reactor) submitAckPayload(rc *runtimeChannel, match uint64, stopped bool, activityVersion uint64, now time.Time) bool {
 	if match == 0 {
 		return false
 	}
 	opID := r.nextOpID()
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
-	req := transport.AckRequest{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, Follower: r.cfg.LocalNode, MatchOffset: match}
+	req := transport.AckRequest{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, Follower: r.cfg.LocalNode, MatchOffset: match, ActivityVersion: activityVersion, Stopped: stopped}
 	if err := r.submitRPCAck(context.Background(), rc.state.Leader, fence, req); err != nil {
 		rc.replication.pendingAck = true
 		rc.replication.pendingAckMatch = match
+		rc.replication.pendingAckStopped = stopped
+		rc.replication.pendingAckActivityVersion = activityVersion
 		rc.replication.ackInflight = false
 		rc.replication.ackOpID = 0
 		rc.replication.ackMatch = 0
+		rc.replication.ackStopped = false
+		rc.replication.ackActivityVersion = 0
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.nextAckAt = now.Add(rc.replication.backoff)
 		rc.replication.lastError = err
@@ -123,10 +138,35 @@ func (r *Reactor) submitAck(rc *runtimeChannel, match uint64, now time.Time) boo
 	}
 	rc.replication.pendingAck = false
 	rc.replication.pendingAckMatch = 0
+	rc.replication.pendingAckStopped = false
+	rc.replication.pendingAckActivityVersion = 0
+	rc.replication.nextAckAt = time.Time{}
 	rc.replication.ackInflight = true
 	rc.replication.ackOpID = opID
 	rc.replication.ackMatch = match
+	rc.replication.ackStopped = stopped
+	rc.replication.ackActivityVersion = activityVersion
 	return true
+}
+
+func (r *Reactor) trySubmitStopCheckpoint(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || !rc.replication.stopping || rc.replication.checkpointInflight {
+		return
+	}
+	if !rc.replication.nextCheckpointAt.IsZero() && now.Before(rc.replication.nextCheckpointAt) {
+		return
+	}
+	opID := r.nextOpID()
+	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
+	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.HW}); err != nil {
+		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
+		rc.replication.nextCheckpointAt = now.Add(rc.replication.backoff)
+		rc.replication.lastError = err
+		return
+	}
+	rc.replication.checkpointInflight = true
+	rc.replication.checkpointOpID = opID
+	rc.replication.nextCheckpointAt = time.Time{}
 }
 
 func (r *Reactor) notifyFollowers(rc *runtimeChannel) {
@@ -200,8 +240,17 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	rc.replication.lastLeaderHW = resp.LeaderHW
 	rc.replication.backoff = 0
+	if resp.Control == transport.PullControlStop && resp.ActivityVersion < rc.replication.lastActivityVersion {
+		rc.replication.markDirty(now)
+		r.tickReplication(rc, now)
+		return
+	}
 	if resp.ActivityVersion > rc.replication.lastActivityVersion {
 		rc.replication.lastActivityVersion = resp.ActivityVersion
+	}
+	if resp.Control == transport.PullControlStop {
+		r.handleFollowerStopControl(rc, resp, now)
+		return
 	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
@@ -221,6 +270,30 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	rc.replication.applyRetryAt = time.Time{}
 	rc.replication.applyOpID = 0
 	r.trySubmitPendingApply(rc, now)
+}
+
+func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.PullResponse, now time.Time) {
+	if rc == nil || rc.state == nil {
+		return
+	}
+	if rc.state.LEO < resp.LeaderLEO || rc.state.HW < resp.LeaderHW {
+		rc.replication.markDirty(now)
+		r.tickReplication(rc, now)
+		return
+	}
+	if !rc.canAcceptFollowerStop() {
+		rc.replication.markDirty(now)
+		return
+	}
+	rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
+	rc.replication.stopping = true
+	rc.replication.stopActivityVersion = resp.ActivityVersion
+	rc.replication.deleteAfterStoppedAck = true
+	rc.replication.parked = false
+	rc.replication.dirty = false
+	rc.replication.nextPullAt = time.Time{}
+	rc.replication.nextPullAfter = 0
+	r.trySubmitStopCheckpoint(rc, now)
 }
 
 func (r *Reactor) handleStoreApplyResult(result worker.Result) {
@@ -266,6 +339,8 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 		return
 	}
 	current := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: rc.replication.ackOpID}
+	ackStopped := rc.replication.ackStopped
+	ackActivityVersion := rc.replication.ackActivityVersion
 	if !rc.replication.applyAckResult(result, current, time.Now()) {
 		return
 	}
@@ -276,12 +351,46 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 		return
 	}
 	rc.replication.backoff = 0
+	if ackStopped && rc.replication.deleteAfterStoppedAck && ackActivityVersion == rc.replication.stopActivityVersion {
+		r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack")
+		return
+	}
 	rc.replication.dirty = false
 	if rc.replication.pendingPull != nil {
 		r.trySubmitPendingApply(rc, now)
 		return
 	}
 	rc.replication.nextPullAt = now
+}
+
+func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
+	rc, err := r.lookup(result.Fence.ChannelKey)
+	if err != nil {
+		return
+	}
+	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
+		return
+	}
+	if !rc.replication.stopping || !rc.replication.checkpointInflight || result.Fence.OpID != rc.replication.checkpointOpID {
+		return
+	}
+	rc.replication.checkpointInflight = false
+	rc.replication.checkpointOpID = 0
+	now := time.Now()
+	err = result.Err
+	if err == nil && result.StoreCheckpoint == nil {
+		err = ch.ErrInvalidConfig
+	}
+	if err != nil {
+		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
+		rc.replication.nextCheckpointAt = now.Add(rc.replication.backoff)
+		rc.replication.lastError = err
+		return
+	}
+	rc.replication.backoff = 0
+	rc.replication.nextCheckpointAt = time.Time{}
+	rc.replication.lastError = nil
+	r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
@@ -393,4 +502,19 @@ func minUint64(left, right uint64) uint64 {
 		return left
 	}
 	return right
+}
+
+func (rc *runtimeChannel) canAcceptFollowerStop() bool {
+	if rc == nil {
+		return false
+	}
+	replication := rc.replication
+	return !replication.pullInflight &&
+		!replication.ackInflight &&
+		!replication.pendingAck &&
+		replication.pendingPull == nil &&
+		!replication.applyBlocked &&
+		replication.applyOpID == 0 &&
+		!replication.stopping &&
+		!replication.checkpointInflight
 }

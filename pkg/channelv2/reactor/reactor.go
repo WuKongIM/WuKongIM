@@ -329,6 +329,7 @@ func (r *Reactor) handlePullHint(event Event) {
 	}
 	now := time.Now()
 	if req.ActivityVersion > rc.replication.lastActivityVersion {
+		rc.replication.cancelStopping()
 		rc.replication.lastActivityVersion = req.ActivityVersion
 	}
 	rc.replication.parked = false
@@ -348,6 +349,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleStoreReadCommittedResult(event.Worker)
 	case worker.TaskStoreReadLog:
 		r.handleStoreReadLogResult(event.Worker)
+	case worker.TaskStoreCheckpoint:
+		r.handleStoreCheckpointResult(event.Worker)
 	case worker.TaskRPCPull:
 		r.handleRPCPullResult(event.Worker)
 	case worker.TaskStoreApply:
