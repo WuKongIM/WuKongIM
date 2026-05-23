@@ -686,56 +686,79 @@ func TestPullHintInflightAppendSchedulesCurrentVersionRetryAfterOldError(t *test
 }
 
 func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
-	factory := newCountingStoreFactory()
-	tr := newTask3PullHintTransport()
-	tr.blockPullHints()
-	meta := testMeta("metadata-stale-pull-hint", 1, 1)
-	meta.Replicas = []ch.NodeID{1, 2}
-	meta.ISR = []ch.NodeID{1}
-	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
-	defer pools.Close()
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-
-	rc := r.channels[meta.Key]
-	rc.followers[2].Parked = true
-	result := appendDirect(t, r, sink, meta, 1, "a")
-	require.NoError(t, result.Err)
-	require.Eventually(t, func() bool {
-		return tr.pullHintCount(2) == 1
-	}, time.Second, time.Millisecond)
-	require.True(t, rc.followers[2].HintInflight)
-	require.Len(t, rc.pullHintInflight, 1)
-	var staleOpID ch.OpID
-	for opID := range rc.pullHintInflight {
-		staleOpID = opID
+	tests := []struct {
+		name    string
+		refresh func(ch.Meta) ch.Meta
+	}{
+		{
+			name: "epoch",
+			refresh: func(meta ch.Meta) ch.Meta {
+				meta.Epoch++
+				return meta
+			},
+		},
+		{
+			name: "leader-epoch",
+			refresh: func(meta ch.Meta) ch.Meta {
+				meta.LeaderEpoch++
+				return meta
+			},
+		},
 	}
-	require.NotZero(t, staleOpID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := newCountingStoreFactory()
+			tr := newTask3PullHintTransport()
+			tr.blockPullHints()
+			meta := testMeta("metadata-stale-pull-hint-"+tt.name, 1, 1)
+			meta.Replicas = []ch.NodeID{1, 2}
+			meta.ISR = []ch.NodeID{1}
+			sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+			pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+			defer pools.Close()
+			r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+			require.NoError(t, applyMetaDirect(t, r, meta))
 
-	refreshed := meta
-	refreshed.Epoch++
-	require.NoError(t, applyMetaDirect(t, r, refreshed))
-	rc = r.channels[meta.Key]
-	require.Empty(t, rc.pullHintInflight)
-	require.NotNil(t, rc.followers[2])
-	rc.followers[2].Parked = true
-	rc.followers[2].HintInflight = true
-	rc.followers[2].LastHintVersion = 99
-	rc.followers[2].PendingHintVersion = 99
-	rc.pullHintInflight = map[ch.OpID]pullHintInflight{
-		staleOpID: {follower: 2, activityVersion: 99, reason: transport.PullHintReasonAppend},
+			rc := r.channels[meta.Key]
+			rc.followers[2].Parked = true
+			result := appendDirect(t, r, sink, meta, 1, "a")
+			require.NoError(t, result.Err)
+			require.Eventually(t, func() bool {
+				return tr.pullHintCount(2) == 1
+			}, time.Second, time.Millisecond)
+			require.True(t, rc.followers[2].HintInflight)
+			require.Len(t, rc.pullHintInflight, 1)
+			var staleOpID ch.OpID
+			for opID := range rc.pullHintInflight {
+				staleOpID = opID
+			}
+			require.NotZero(t, staleOpID)
+
+			refreshed := tt.refresh(meta)
+			require.NoError(t, applyMetaDirect(t, r, refreshed))
+			rc = r.channels[meta.Key]
+			require.Empty(t, rc.pullHintInflight)
+			require.NotNil(t, rc.followers[2])
+			rc.followers[2].Parked = true
+			rc.followers[2].HintInflight = true
+			rc.followers[2].LastHintVersion = 99
+			rc.followers[2].PendingHintVersion = 99
+			rc.pullHintInflight = map[ch.OpID]pullHintInflight{
+				staleOpID: {follower: 2, activityVersion: 99, reason: transport.PullHintReasonAppend},
+			}
+
+			tr.unblockPullHints()
+			stale := sink.awaitResultKind(t, worker.TaskRPCPullHint)
+			require.Equal(t, meta.Epoch, stale.Fence.Epoch)
+			require.Equal(t, meta.LeaderEpoch, stale.Fence.LeaderEpoch)
+			r.handleRPCPullHintResult(stale)
+
+			require.True(t, rc.followers[2].HintInflight)
+			require.Equal(t, uint64(99), rc.followers[2].LastHintVersion)
+			require.Equal(t, uint64(99), rc.followers[2].PendingHintVersion)
+			require.Contains(t, rc.pullHintInflight, staleOpID)
+		})
 	}
-
-	tr.unblockPullHints()
-	stale := sink.awaitResultKind(t, worker.TaskRPCPullHint)
-	require.Equal(t, uint64(1), stale.Fence.Epoch)
-	r.handleRPCPullHintResult(stale)
-
-	require.True(t, rc.followers[2].HintInflight)
-	require.Equal(t, uint64(99), rc.followers[2].LastHintVersion)
-	require.Equal(t, uint64(99), rc.followers[2].PendingHintVersion)
-	require.Contains(t, rc.pullHintInflight, staleOpID)
 }
 
 func TestStoppedAckDoesNotUpdateFollowerLifecycleDuringTask3(t *testing.T) {
