@@ -134,6 +134,52 @@ func TestHandlePullHintRejectsLocalLeaderLazyActivation(t *testing.T) {
 	require.False(t, loaded)
 }
 
+func TestHandleNotifyKeepsLegacyNoOpForInvalidHints(t *testing.T) {
+	tests := []struct {
+		name      string
+		localNode ch.NodeID
+		resolver  ch.MetaResolver
+		req       transport.NotifyRequest
+		loadedKey ch.ChannelKey
+	}{
+		{
+			name:      "unloaded without resolver",
+			localNode: 2,
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-missing"), ChannelID: ch.ChannelID{ID: "notify-missing", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:notify-missing"),
+		},
+		{
+			name:      "stale resolved metadata",
+			localNode: 2,
+			resolver:  &staticMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:notify-stale"), ID: ch.ChannelID{ID: "different", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-stale"), ChannelID: ch.ChannelID{ID: "notify-stale", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:notify-stale"),
+		},
+		{
+			name:      "local leader validation",
+			localNode: 1,
+			resolver:  &countingMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:notify-local-leader"), ID: ch.ChannelID{ID: "notify-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-local-leader"), ChannelID: ch.ChannelID{ID: "notify-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:notify-local-leader"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := store.NewMemoryFactory()
+			clusterAPI, err := New(Config{LocalNode: tt.localNode, Store: factory, ReactorCount: 1, MetaResolver: tt.resolver})
+			require.NoError(t, err)
+			defer clusterAPI.Close()
+			svc := clusterAPI.(*cluster)
+
+			require.NoError(t, svc.HandleNotify(context.Background(), tt.req))
+
+			loaded, err := svc.group.HasChannelState(context.Background(), tt.loadedKey)
+			require.NoError(t, err)
+			require.False(t, loaded)
+		})
+	}
+}
+
 func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	factory := newServiceBlockingReadLogFactory()
 	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
