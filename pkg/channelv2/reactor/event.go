@@ -15,7 +15,9 @@ const (
 	EventApplyMeta EventKind = iota + 1
 	EventAppend
 	EventFetch
+	// EventWorkerResult carries a blocking worker completion back to its reactor.
 	EventWorkerResult
+	// EventTick asks a reactor to perform low-priority maintenance work.
 	EventTick
 	EventPull
 	EventAck
