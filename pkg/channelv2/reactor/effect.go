@@ -87,7 +87,24 @@ func (rc *runtimeChannel) failPendingFetchWaiters(err error) {
 	}
 	for opID := range rc.fetchWaiters {
 		future := rc.removeFetchWaiter(opID)
-		future.Complete(Result{Err: err})
+		if future != nil {
+			future.Complete(Result{Err: err})
+		}
+	}
+}
+
+func (rc *runtimeChannel) failWaiters(err error) {
+	if rc == nil {
+		return
+	}
+	for opID, future := range rc.waiters {
+		delete(rc.waiters, opID)
+		if future != nil {
+			future.Complete(Result{Err: err})
+		}
+	}
+	for opID := range rc.fetchWaiters {
+		delete(rc.fetchWaiters, opID)
 	}
 }
 

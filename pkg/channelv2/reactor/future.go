@@ -22,6 +22,8 @@ type Result struct {
 type Future struct {
 	once sync.Once
 	ch   chan Result
+	// beforeComplete is an unexported test hook used to observe ordering before publish.
+	beforeComplete func(Result)
 }
 
 // NewFuture creates an incomplete future.
@@ -34,7 +36,12 @@ func (f *Future) Complete(result Result) {
 	if f == nil {
 		return
 	}
-	f.once.Do(func() { f.ch <- result })
+	f.once.Do(func() {
+		if f.beforeComplete != nil {
+			f.beforeComplete(result)
+		}
+		f.ch <- result
+	})
 }
 
 // Await waits for completion or context cancellation.

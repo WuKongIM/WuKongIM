@@ -84,7 +84,10 @@ func (r *Reactor) Close() error {
 }
 
 func (r *Reactor) loop() {
-	defer close(r.done)
+	defer func() {
+		r.failPendingWaiters(ch.ErrClosed)
+		close(r.done)
+	}()
 	for {
 		select {
 		case <-r.stop:
@@ -147,6 +150,15 @@ func (r *Reactor) handleClose(event Event) {
 		event.Future.Complete(Result{})
 	}
 	r.once.Do(func() { close(r.stop) })
+}
+
+func (r *Reactor) failPendingWaiters(err error) {
+	if r == nil {
+		return
+	}
+	for _, rc := range r.channels {
+		rc.failWaiters(err)
+	}
 }
 
 func (r *Reactor) handleApplyMeta(event Event) {
