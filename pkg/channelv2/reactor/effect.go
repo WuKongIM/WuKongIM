@@ -7,6 +7,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -41,6 +42,59 @@ func (r *Reactor) submitStoreReadCommitted(ctx context.Context, channelID ch.Cha
 			Limit:     read.Limit,
 			MaxBytes:  read.MaxBytes,
 		},
+	})
+}
+
+func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, fromOffset uint64, maxOffset uint64, maxBytes int) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:  worker.TaskStoreReadLog,
+		Fence: fence,
+		StoreReadLog: &worker.StoreReadLogTask{
+			ChannelID:  channelID,
+			FromOffset: fromOffset,
+			MaxOffset:  maxOffset,
+			MaxBytes:   maxBytes,
+		},
+	})
+}
+
+func (r *Reactor) submitStoreApply(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, records []ch.Record, leaderHW uint64) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:  worker.TaskStoreApply,
+		Fence: fence,
+		StoreApply: &worker.StoreApplyTask{
+			ChannelID: channelID,
+			Records:   records,
+			LeaderHW:  leaderHW,
+		},
+	})
+}
+
+func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.PullRequest) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskRPCPull,
+		Fence:   fence,
+		RPCPull: &worker.RPCPullTask{Node: leader, Request: req},
+	})
+}
+
+func (r *Reactor) submitRPCAck(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.AckRequest) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:   worker.TaskRPCAck,
+		Fence:  fence,
+		RPCAck: &worker.RPCAckTask{Node: leader, Request: req},
 	})
 }
 
@@ -219,6 +273,19 @@ func (rc *runtimeChannel) failWaiters(err error) {
 	}
 	rc.appendQ.failAll(err)
 	rc.appendInflight = nil
+	rc.failPendingPullWaiters(err)
+}
+
+func (rc *runtimeChannel) failPendingPullWaiters(err error) {
+	if rc == nil || len(rc.pullWaiters) == 0 {
+		return
+	}
+	for opID, future := range rc.pullWaiters {
+		delete(rc.pullWaiters, opID)
+		if future != nil {
+			future.Complete(Result{Err: err})
+		}
+	}
 }
 
 // metadataWouldFenceState reports whether accepted metadata invalidates pending state.
@@ -258,6 +325,21 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	}
 	if cfg.AppendStoreRetryBackoff <= 0 {
 		cfg.AppendStoreRetryBackoff = time.Millisecond
+	}
+	if cfg.ReplicationIdlePollInterval <= 0 {
+		cfg.ReplicationIdlePollInterval = 10 * time.Millisecond
+	}
+	if cfg.ReplicationMinBackoff <= 0 {
+		cfg.ReplicationMinBackoff = time.Millisecond
+	}
+	if cfg.ReplicationMaxBackoff <= 0 {
+		cfg.ReplicationMaxBackoff = 100 * time.Millisecond
+	}
+	if cfg.ReplicationMaxBackoff < cfg.ReplicationMinBackoff {
+		cfg.ReplicationMaxBackoff = cfg.ReplicationMinBackoff
+	}
+	if cfg.PullMaxBytes <= 0 {
+		cfg.PullMaxBytes = 64 * 1024
 	}
 	return cfg
 }

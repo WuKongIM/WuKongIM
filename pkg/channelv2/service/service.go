@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -18,6 +17,13 @@ type Config struct {
 	MailboxSize  int
 	Store        store.Factory
 	Transport    transport.Client
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	ReplicationIdlePollInterval time.Duration
+	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
+	ReplicationMinBackoff time.Duration
+	// ReplicationMaxBackoff caps follower replication retry delays after repeated failures; defaults to 100ms.
+	ReplicationMaxBackoff time.Duration
+	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
 	AppendBatchMaxRecords int
@@ -34,12 +40,7 @@ type Config struct {
 }
 
 type cluster struct {
-	localNode    ch.NodeID
-	group        *reactor.Group
-	transport    transport.Client
-	pullMaxBytes int
-	metaMu       sync.RWMutex
-	metas        map[ch.ChannelKey]ch.Meta
+	group *reactor.Group
 }
 
 // New constructs a v0 channelv2 cluster facade.
@@ -49,53 +50,25 @@ func New(cfg Config) (ch.Cluster, error) {
 	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport,
-		AppendBatchMaxRecords:   cfg.AppendBatchMaxRecords,
-		AppendBatchMaxBytes:     cfg.AppendBatchMaxBytes,
-		AppendBatchMaxWait:      cfg.AppendBatchMaxWait,
-		AppendQueueMaxRequests:  cfg.AppendQueueMaxRequests,
-		AppendQueueMaxBytes:     cfg.AppendQueueMaxBytes,
-		AppendStoreRetryBackoff: cfg.AppendStoreRetryBackoff,
+		AppendBatchMaxRecords:       cfg.AppendBatchMaxRecords,
+		AppendBatchMaxBytes:         cfg.AppendBatchMaxBytes,
+		AppendBatchMaxWait:          cfg.AppendBatchMaxWait,
+		AppendQueueMaxRequests:      cfg.AppendQueueMaxRequests,
+		AppendQueueMaxBytes:         cfg.AppendQueueMaxBytes,
+		AppendStoreRetryBackoff:     cfg.AppendStoreRetryBackoff,
+		ReplicationIdlePollInterval: cfg.ReplicationIdlePollInterval,
+		ReplicationMinBackoff:       cfg.ReplicationMinBackoff,
+		ReplicationMaxBackoff:       cfg.ReplicationMaxBackoff,
+		PullMaxBytes:                cfg.PullMaxBytes,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if cfg.PullMaxBytes <= 0 {
-		cfg.PullMaxBytes = 64 * 1024
-	}
-	return &cluster{localNode: cfg.LocalNode, group: group, transport: cfg.Transport, pullMaxBytes: cfg.PullMaxBytes, metas: make(map[ch.ChannelKey]ch.Meta)}, nil
+	return &cluster{group: group}, nil
 }
 
 func (c *cluster) Tick(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	c.metaMu.RLock()
-	metas := make(map[ch.ChannelKey]ch.Meta, len(c.metas))
-	for key, meta := range c.metas {
-		metas[key] = meta
-	}
-	c.metaMu.RUnlock()
-	for key, meta := range metas {
-		if meta.Leader == c.localNode || c.transport == nil || meta.Status != ch.StatusActive {
-			continue
-		}
-		fetch, _ := c.Fetch(ctx, ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 1, MaxBytes: 1})
-		next := fetch.CommittedSeq + 1
-		pull, err := c.transport.Pull(ctx, meta.Leader, transport.PullRequest{ChannelKey: key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: c.localNode, NextOffset: next, MaxBytes: c.pullMaxBytes})
-		if err != nil || len(pull.Records) == 0 {
-			continue
-		}
-		future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventApplyRecords, Key: key, PullResponse: pull})
-		if err != nil {
-			continue
-		}
-		result, err := future.Await(ctx)
-		if err != nil {
-			continue
-		}
-		_ = c.transport.Ack(ctx, meta.Leader, transport.AckRequest{ChannelKey: key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: c.localNode, MatchOffset: result.ApplyLEO})
-	}
-	return ctx.Err()
+	return c.group.Tick(ctx)
 }
 
 func (c *cluster) Close() error {

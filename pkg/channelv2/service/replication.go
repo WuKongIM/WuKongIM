@@ -9,7 +9,7 @@ import (
 
 // HandlePull serves a follower pull request on the local leader.
 func (c *cluster) HandlePull(ctx context.Context, req transport.PullRequest) (transport.PullResponse, error) {
-	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventPull, Key: req.ChannelKey, Pull: req})
+	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventPull, Key: req.ChannelKey, Pull: req, OpID: c.group.NextOpID()})
 	if err != nil {
 		return transport.PullResponse{}, err
 	}

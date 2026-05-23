@@ -9,6 +9,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +30,46 @@ func TestSingleNodeAppendFetchCommitted(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, fetchRes.Messages, 1)
 	require.Equal(t, uint64(1), fetchRes.CommittedSeq)
+}
+
+func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
+	factory := newServiceBlockingReadLogFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	meta := ch.Meta{Key: ch.ChannelKey("1:a"), ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{MessageID: 10, Payload: []byte("a")}})
+	require.NoError(t, err)
+
+	pullCh := make(chan transport.PullResponse, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		pull, err := svc.HandlePull(context.Background(), transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024})
+		pullCh <- pull
+		errCh <- err
+	}()
+	factory.waitReadLogStarted(t)
+
+	metaFuture, err := svc.group.Submit(context.Background(), meta.Key, reactor.Event{Kind: reactor.EventApplyMeta, Key: meta.Key, Meta: meta})
+	require.NoError(t, err)
+	metaCtx, metaCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer metaCancel()
+	_, err = metaFuture.Await(metaCtx)
+	require.NoError(t, err)
+
+	factory.UnblockReadLogs()
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+		pull := <-pullCh
+		require.Len(t, pull.Records, 1)
+		require.Equal(t, uint64(1), pull.Records[0].Index)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pull response")
+	}
 }
 
 func TestAppendBatchContextCancelAfterAdmissionCleansQueuedWaiter(t *testing.T) {
@@ -279,4 +320,57 @@ func (s *serviceCountingStore) StoreCheckpoint(ctx context.Context, checkpoint c
 
 func (s *serviceCountingStore) Close() error {
 	return s.base.Close()
+}
+
+type serviceBlockingReadLogFactory struct {
+	base    *store.MemoryFactory
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func newServiceBlockingReadLogFactory() *serviceBlockingReadLogFactory {
+	return &serviceBlockingReadLogFactory{base: store.NewMemoryFactory(), started: make(chan struct{}, 8), unblock: make(chan struct{})}
+}
+
+func (f *serviceBlockingReadLogFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	base, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &serviceBlockingReadLogStore{ChannelStore: base, parent: f}, nil
+}
+
+func (f *serviceBlockingReadLogFactory) waitReadLogStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ReadLog to start")
+	}
+}
+
+func (f *serviceBlockingReadLogFactory) UnblockReadLogs() {
+	select {
+	case <-f.unblock:
+	default:
+		close(f.unblock)
+	}
+}
+
+type serviceBlockingReadLogStore struct {
+	store.ChannelStore
+	parent *serviceBlockingReadLogFactory
+}
+
+func (s *serviceBlockingReadLogStore) ReadLog(ctx context.Context, req store.ReadLogRequest) (store.ReadLogResult, error) {
+	select {
+	case s.parent.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-s.parent.unblock:
+	case <-ctx.Done():
+		return store.ReadLogResult{}, ctx.Err()
+	}
+	return s.ChannelStore.ReadLog(ctx, req)
 }
