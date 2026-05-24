@@ -412,6 +412,48 @@ func TestClientConcurrentSnapshotAccessIsRaceFree(t *testing.T) {
 	wg.Wait()
 }
 
+func TestClientConcurrentSyncDoesNotPersistRevisionRegression(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(1, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+
+	ep := newOrderedConcurrentEndpoint(t, testSyncState(2, "wk-sync"), testSyncState(3, "wk-sync"))
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers:     fakePeerPicker{endpoints: map[uint64]Endpoint{1: ep}, ids: []uint64{1}},
+		LeaderID:  1,
+	})
+
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- client.SyncOnce(ctx)
+	}()
+	<-ep.firstStarted
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- client.SyncOnce(ctx)
+	}()
+
+	select {
+	case err := <-secondDone:
+		require.NoError(t, err)
+		// Without operation serialization, rev3 can install before the first call resumes.
+		close(ep.releaseFirst)
+	case <-time.After(50 * time.Millisecond):
+		// With operation serialization, release the first call so the second can run after it.
+		close(ep.releaseFirst)
+		require.NoError(t, <-secondDone)
+	}
+	require.NoError(t, <-firstDone)
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), got.Revision)
+}
+
 func TestClientKeepsMemorySnapshotWhenLocalCorruptAndLeaderUnavailable(t *testing.T) {
 	ctx := context.Background()
 	store := newSyncStore(t)
@@ -533,6 +575,52 @@ func endpointWithPayload(t *testing.T, st state.ClusterState) Endpoint {
 	t.Helper()
 	payload, checksum := encodeSyncState(t, st)
 	return &fakeEndpoint{resp: GetStateResponse{Revision: st.Revision, Checksum: checksum, Payload: payload}}
+}
+
+type orderedConcurrentEndpoint struct {
+	t            *testing.T
+	mu           sync.Mutex
+	calls        int
+	first        GetStateResponse
+	second       GetStateResponse
+	firstStarted chan struct{}
+	releaseFirst chan struct{}
+}
+
+func newOrderedConcurrentEndpoint(t *testing.T, first, second state.ClusterState) *orderedConcurrentEndpoint {
+	t.Helper()
+	firstPayload, firstChecksum := encodeSyncState(t, first)
+	secondPayload, secondChecksum := encodeSyncState(t, second)
+	return &orderedConcurrentEndpoint{
+		t:            t,
+		first:        GetStateResponse{Revision: first.Revision, Checksum: firstChecksum, Payload: firstPayload},
+		second:       GetStateResponse{Revision: second.Revision, Checksum: secondChecksum, Payload: secondPayload},
+		firstStarted: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+}
+
+func (e *orderedConcurrentEndpoint) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
+	e.mu.Lock()
+	e.calls++
+	call := e.calls
+	e.mu.Unlock()
+
+	switch call {
+	case 1:
+		close(e.firstStarted)
+		select {
+		case <-e.releaseFirst:
+			return e.first, nil
+		case <-ctx.Done():
+			return GetStateResponse{}, ctx.Err()
+		}
+	case 2:
+		return e.second, nil
+	default:
+		e.t.Fatalf("unexpected GetState call %d with request %+v", call, req)
+		return GetStateResponse{}, nil
+	}
 }
 
 func newSyncStore(t *testing.T) *statefile.Store {
