@@ -31,6 +31,11 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
+	releaseAppend, err := c.group.ReserveAppend(key)
+	if err != nil {
+		return ch.AppendBatchResult{}, err
+	}
+	defer releaseAppend()
 	if err := c.ensureAppendChannelState(ctx, key, req.ChannelID); err != nil {
 		return ch.AppendBatchResult{}, err
 	}

@@ -203,6 +203,15 @@ func (g *Group) Submit(ctx context.Context, key ch.ChannelKey, event Event) (*Fu
 	return future, nil
 }
 
+// ReserveAppend fences final leader eviction while a caller verifies loaded state before submitting Append.
+func (g *Group) ReserveAppend(key ch.ChannelKey) (func(), error) {
+	if g == nil || g.closed.Load() {
+		return nil, ch.ErrClosed
+	}
+	reactor := g.reactors[g.router.PickIndex(key)]
+	return reactor.reserveAppend(key), nil
+}
+
 // HasChannelState reports whether the owning reactor already has runtime state for key.
 func (g *Group) HasChannelState(ctx context.Context, key ch.ChannelKey) (bool, error) {
 	future, err := g.Submit(ctx, key, Event{Kind: EventCheckState, Key: key})
