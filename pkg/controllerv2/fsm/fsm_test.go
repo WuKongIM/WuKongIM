@@ -175,6 +175,23 @@ func TestApplyInvalidCommandBeforeInitReportsRaftIndexWithoutPersisting(t *testi
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestResetClearsWarmStateForReplay(t *testing.T) {
+	ctx := context.Background()
+	sm, store := initializedStateMachine(t, 3)
+	require.Equal(t, uint64(1), sm.Snapshot(ctx).Revision)
+
+	sm.Reset()
+	require.Zero(t, sm.Snapshot(ctx))
+
+	result, err := sm.Apply(ctx, 3, initCommand())
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 1, AppliedRaftIndex: 3}, result)
+	persisted, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), persisted.Revision)
+	require.Equal(t, uint64(3), persisted.AppliedRaftIndex)
+}
+
 func TestApplyUsesIssuedAtForDeterministicSnapshots(t *testing.T) {
 	ctx := context.Background()
 	issuedAt := time.Date(2026, 5, 24, 20, 30, 0, 123, time.FixedZone("plus-eight", 8*60*60))
