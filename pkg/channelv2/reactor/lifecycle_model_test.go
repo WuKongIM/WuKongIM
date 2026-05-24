@@ -91,3 +91,38 @@ func TestLeaderLifecycleAppendCancelsFinalRecheck(t *testing.T) {
 	require.Equal(t, LeaderLifecycleServing, decision.LeaderPhase)
 	require.Contains(t, decision.ActionKinds(), LifecycleActionResetEviction)
 }
+
+func TestFollowerLifecycleStopControlStartsCheckpointWhenCaughtUp(t *testing.T) {
+	lc := runtimeLifecycle{FollowerPhase: FollowerLifecycleReplicating}
+	view := RuntimeView{
+		Role:   ch.RoleFollower,
+		Status: ch.StatusActive,
+		LEO:    3,
+		HW:     3,
+	}
+
+	decision := lc.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
+		Kind:            FollowerLifecycleStopOffered,
+		ActivityVersion: 7,
+		LeaderLEO:       3,
+		LeaderHW:        3,
+	}, view, LifecycleConfig{})
+
+	require.Equal(t, FollowerLifecycleStopCheckpointing, decision.FollowerPhase)
+	require.Contains(t, decision.ActionKinds(), LifecycleActionStartFollowerStopCheckpoint)
+}
+
+func TestFollowerLifecycleRejectsStopWhenBehindLeader(t *testing.T) {
+	lc := runtimeLifecycle{FollowerPhase: FollowerLifecycleReplicating}
+	view := RuntimeView{Role: ch.RoleFollower, Status: ch.StatusActive, LEO: 2, HW: 2}
+
+	decision := lc.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
+		Kind:      FollowerLifecycleStopOffered,
+		LeaderLEO: 3,
+		LeaderHW:  3,
+	}, view, LifecycleConfig{})
+
+	require.Equal(t, FollowerLifecycleReplicating, decision.FollowerPhase)
+	require.NotContains(t, decision.ActionKinds(), LifecycleActionStartFollowerStopCheckpoint)
+	require.Contains(t, decision.ActionKinds(), LifecycleActionScheduleReplication)
+}
