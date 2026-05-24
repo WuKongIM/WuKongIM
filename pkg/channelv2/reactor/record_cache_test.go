@@ -120,6 +120,20 @@ func TestRecentRecordCacheTrailingUnindexedAppendResets(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestRecentRecordCacheEmptyAppendIsNoop(t *testing.T) {
+	cache := newRecentRecordCache(10, 1024)
+	cache.append([]ch.Record{cacheRecord(1, "a"), cacheRecord(2, "b")})
+
+	cache.append(nil)
+	cache.append([]ch.Record{})
+
+	require.Equal(t, uint64(1), cache.base())
+	require.Equal(t, uint64(2), cache.lastOffset())
+	records, ok := cache.slice(1, 2, 1024)
+	require.True(t, ok)
+	require.Equal(t, []uint64{1, 2}, recordIndexes(records))
+}
+
 func TestRecentRecordCacheDisabled(t *testing.T) {
 	cache := newRecentRecordCache(0, 1024)
 
