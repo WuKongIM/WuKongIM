@@ -90,6 +90,19 @@ func TestApplyAssignmentAndTaskRejectsSlotMismatchBeforeMutation(t *testing.T) {
 	require.Equal(t, uint32(2), snap.Slots[0].SlotID)
 }
 
+func TestApplyStaleAssignmentAndTaskRejectsSlotMismatchBeforeNoop(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+	stale := bootstrapCommand(1, 1, []uint64{1, 2, 3})
+	stale.Task.SlotID = 2
+	stale.Task.TaskID = "slot-2-bootstrap-1"
+
+	result, err := sm.Apply(ctx, 3, stale)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+}
+
 func TestApplyStaleBootstrapForAssignedSlotNoops(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)

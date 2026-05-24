@@ -21,6 +21,12 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 	case command.KindInitClusterState:
 		return sm.applyInit(next, raftIndex, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
+		if cmd.Assignment == nil || cmd.Task == nil {
+			return reject(ReasonInvalidCommand)
+		}
+		if cmd.Task.SlotID != cmd.Assignment.SlotID {
+			return reject(ReasonTaskSlotMismatch)
+		}
 		if stale, handled := handleBootstrapRevisionMismatch(next, cmd); handled {
 			return stale
 		}
