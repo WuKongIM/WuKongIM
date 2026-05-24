@@ -41,6 +41,7 @@ func (c *recentRecordCache) append(records []ch.Record) {
 	}
 	suffix := continuousIndexedSuffix(records)
 	if len(suffix) == 0 {
+		c.reset()
 		return
 	}
 	cloned := cloneCacheRecords(suffix)
@@ -123,13 +124,10 @@ func (c *recentRecordCache) trim() {
 }
 
 func continuousIndexedSuffix(records []ch.Record) []ch.Record {
-	end := len(records)
-	for end > 0 && records[end-1].Index == 0 {
-		end--
-	}
-	if end == 0 {
+	if len(records) == 0 || records[len(records)-1].Index == 0 {
 		return nil
 	}
+	end := len(records)
 	start := end - 1
 	for start > 0 {
 		prev := records[start-1].Index
