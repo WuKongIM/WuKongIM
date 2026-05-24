@@ -29,6 +29,8 @@ const (
 	// EventNotify accepts legacy transport compatibility nudges.
 	EventNotify
 	EventPullHint
+	// EventLeaderEvictReady performs the final normal-priority leader eviction recheck.
+	EventLeaderEvictReady
 	EventClose
 )
 
@@ -51,4 +53,6 @@ type Event struct {
 	CancelOp  ch.OpID
 	CancelErr error
 	TickNow   time.Time
+	// LeaderEvictAppendSeq fences final leader eviction behind Append submissions.
+	LeaderEvictAppendSeq uint64
 }

@@ -431,6 +431,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	rc.lifecycle.CheckpointActivityVersion = 0
 	rc.lifecycle.CheckpointReady = false
 	rc.lifecycle.CheckpointReadyActivityVersion = 0
+	rc.lifecycle.CheckpointReadyQueued = false
 	err := result.Err
 	if err == nil && result.StoreCheckpoint == nil {
 		err = ch.ErrInvalidConfig
@@ -451,7 +452,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	}
 	rc.lifecycle.CheckpointReady = true
 	rc.lifecycle.CheckpointReadyActivityVersion = activityVersion
-	r.scheduleLifecycleFromState(rc, now)
+	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {

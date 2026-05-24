@@ -2058,6 +2058,56 @@ func TestLeaderCheckpointCompletionDefersEvictionBehindQueuedAppend(t *testing.T
 	require.False(t, rc.lifecycle.CheckpointInflight)
 }
 
+func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-ready-evict-defers-to-late-append", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = rc.state.LEO
+	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.lifecycle.CheckpointInflight = true
+	rc.lifecycle.CheckpointOpID = 99
+	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: worker.Result{
+		Kind: worker.TaskStoreCheckpoint,
+		Fence: ch.Fence{
+			ChannelKey: meta.Key, Generation: rc.state.Generation,
+			Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 99,
+		},
+		StoreCheckpoint: &worker.StoreCheckpointResult{},
+	}})
+	require.True(t, rc.lifecycle.CheckpointReadyQueued)
+
+	appendFuture := NewFuture()
+	require.NoError(t, r.Submit(PriorityNormal, appendEventWithFuture(meta, 1, "late append", appendFuture)))
+	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 2)
+	require.Equal(t, EventLeaderEvictReady, events[0].Kind)
+	require.Equal(t, EventAppend, events[1].Kind)
+	for _, event := range events {
+		r.handle(event)
+	}
+	for _, event := range r.mailbox.DrainInto(nil, defaultReactorDrain) {
+		r.handle(event)
+	}
+
+	require.Contains(t, r.channels, meta.Key)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
+	require.Contains(t, r.channels, meta.Key)
+	require.False(t, rc.lifecycle.CheckpointReady)
+}
+
 func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
@@ -2151,7 +2201,16 @@ func followerTestMeta(id string) ch.Meta {
 func completeLeaderCheckpointAndDue(t *testing.T, r *Reactor, checkpoint worker.Result) {
 	t.Helper()
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
-	r.processDue(time.Now().Add(time.Millisecond))
+	for i := 0; i < 4; i++ {
+		r.processDue(time.Now().Add(time.Millisecond))
+		events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+		if len(events) == 0 {
+			return
+		}
+		for _, event := range events {
+			r.handle(event)
+		}
+	}
 }
 
 type capturingTransport struct {
