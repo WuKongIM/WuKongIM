@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/planner"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +38,69 @@ func TestServerTickPlannerProposesBootstrapCommand(t *testing.T) {
 	require.NotNil(t, proposed.Task)
 	require.Equal(t, "slot-1-bootstrap-1", proposed.Task.TaskID)
 	require.Equal(t, proposed.Assignment.DesiredPeers, proposed.Task.TargetPeers)
+}
+
+func TestServerTickPlannerRefreshesAuthoritativeStateAfterSuccessfulPropose(t *testing.T) {
+	initial := testServerState()
+	initial.Config.SlotCount = 1
+	source := &fakeStateSource{state: initial}
+	proposer := &fakeProposer{
+		leaderID: 1,
+		onPropose: func(cmd command.Command) {
+			applied := initial.Clone()
+			applied.Revision++
+			applied.Slots = []state.SlotAssignment{*cmd.Assignment}
+			applied.Tasks = []state.ReconcileTask{*cmd.Task}
+			source.set(applied)
+		},
+	}
+	srv, err := New(Config{
+		InitialState: initial,
+		StateSource:  source,
+		Proposer:     proposer,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, srv.TickPlanner(context.Background()))
+	require.NoError(t, srv.TickPlanner(context.Background()))
+
+	require.Len(t, proposer.commands, 1)
+	require.Equal(t, uint64(4), srv.LocalState().Revision)
+	require.Len(t, srv.LocalState().Slots, 1)
+}
+
+func TestServerTickPlannerSerializesConcurrentTicks(t *testing.T) {
+	pl := newBlockingPlanner()
+	srv, err := New(Config{
+		InitialState: testServerState(),
+		Planner:      pl,
+		Proposer:     &fakeProposer{},
+	})
+	require.NoError(t, err)
+
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- srv.TickPlanner(context.Background())
+	}()
+	require.Equal(t, 1, pl.waitEnter(t))
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- srv.TickPlanner(context.Background())
+	}()
+	select {
+	case seq := <-pl.entered:
+		pl.releaseOne()
+		pl.releaseOne()
+		t.Fatalf("planner entered concurrently on call %d", seq)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	pl.releaseOne()
+	require.NoError(t, <-firstDone)
+	require.Equal(t, 2, pl.waitEnter(t))
+	pl.releaseOne()
+	require.NoError(t, <-secondDone)
 }
 
 func TestServerLocalStateReturnsSnapshotCopy(t *testing.T) {
@@ -100,9 +165,10 @@ func TestServerSyncOnceDelegatesToSyncClient(t *testing.T) {
 }
 
 type fakeProposer struct {
-	leaderID uint64
-	commands []command.Command
-	err      error
+	leaderID  uint64
+	commands  []command.Command
+	err       error
+	onPropose func(command.Command)
 }
 
 func (p *fakeProposer) Propose(ctx context.Context, cmd command.Command) error {
@@ -110,6 +176,9 @@ func (p *fakeProposer) Propose(ctx context.Context, cmd command.Command) error {
 		return err
 	}
 	p.commands = append(p.commands, cmd)
+	if p.onPropose != nil {
+		p.onPropose(cmd)
+	}
 	return p.err
 }
 
@@ -128,6 +197,59 @@ func (c *fakeSyncClient) SyncOnce(ctx context.Context) (state.ClusterState, erro
 	c.calls++
 	c.contextValue = ctx.Value(fakeContextKey{})
 	return c.state, c.err
+}
+
+type blockingPlanner struct {
+	calls   atomic.Int32
+	entered chan int
+	release chan struct{}
+}
+
+func newBlockingPlanner() *blockingPlanner {
+	return &blockingPlanner{
+		entered: make(chan int, 2),
+		release: make(chan struct{}),
+	}
+}
+
+func (p *blockingPlanner) Next(ctx context.Context, view planner.View) (planner.Decision, error) {
+	_ = view
+	call := int(p.calls.Add(1))
+	p.entered <- call
+	select {
+	case <-p.release:
+		return planner.Decision{Kind: planner.DecisionKindNone}, nil
+	case <-ctx.Done():
+		return planner.Decision{}, ctx.Err()
+	}
+}
+
+func (p *blockingPlanner) waitEnter(t *testing.T) int {
+	t.Helper()
+	select {
+	case call := <-p.entered:
+		return call
+	case <-time.After(time.Second):
+		t.Fatal("planner did not enter")
+		return 0
+	}
+}
+
+func (p *blockingPlanner) releaseOne() {
+	p.release <- struct{}{}
+}
+
+type fakeStateSource struct {
+	state state.ClusterState
+}
+
+func (s *fakeStateSource) Snapshot(ctx context.Context) state.ClusterState {
+	_ = ctx
+	return s.state.Clone()
+}
+
+func (s *fakeStateSource) set(st state.ClusterState) {
+	s.state = st.Clone()
 }
 
 type fakeContextKey struct{}
