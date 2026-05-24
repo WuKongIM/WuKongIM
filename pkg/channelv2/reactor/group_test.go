@@ -7,7 +7,9 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +31,86 @@ func TestObserverSeesAppendBatchAndWorkerResult(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return obs.AppendBatches() > 0 && obs.WorkerResults() > 0
 	}, time.Second, time.Millisecond)
+}
+
+func TestObserverSeesPullHintSentAndDropped(t *testing.T) {
+	obs := &captureObserver{}
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	tr.setDrop(2, true)
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("observer-pull-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.followers[2].Parked = true
+
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, obs.PullHintsSent())
+
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	require.Equal(t, 1, obs.PullHintsDropped())
+}
+
+func TestObserverSeesFollowerStopped(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("observer-follower-stopped", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.lifecycle.ActivityVersion = 3
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: future,
+		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
+	})
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Equal(t, 1, obs.FollowersStopped())
+}
+
+func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("observer-runtime-evicted", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond, AppendBatchMaxRecords: 1,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
+	rc := r.channels[meta.Key]
+
+	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
+
+	require.Equal(t, 1, obs.RuntimeEvicted())
 }
 
 func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
@@ -141,6 +223,10 @@ type captureObserver struct {
 	mu            sync.Mutex
 	appendBatches int
 	workerResults int
+	pullHintSent  int
+	pullHintDrop  int
+	followerStop  int
+	runtimeEvict  int
 }
 
 func (o *captureObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
@@ -161,6 +247,32 @@ func (o *captureObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d
 	o.workerResults++
 }
 
+func (o *captureObserver) ObserveChannelRuntimeLoaded(key ch.ChannelKey) {}
+
+func (o *captureObserver) ObserveChannelRuntimeEvicted(key ch.ChannelKey, role ch.Role) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.runtimeEvict++
+}
+
+func (o *captureObserver) ObservePullHintSent(key ch.ChannelKey, follower ch.NodeID, reason transport.PullHintReason) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.pullHintSent++
+}
+
+func (o *captureObserver) ObservePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.pullHintDrop++
+}
+
+func (o *captureObserver) ObserveFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.followerStop++
+}
+
 func (o *captureObserver) AppendBatches() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -171,4 +283,28 @@ func (o *captureObserver) WorkerResults() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.workerResults
+}
+
+func (o *captureObserver) PullHintsSent() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.pullHintSent
+}
+
+func (o *captureObserver) PullHintsDropped() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.pullHintDrop
+}
+
+func (o *captureObserver) FollowersStopped() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.followerStop
+}
+
+func (o *captureObserver) RuntimeEvicted() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.runtimeEvict
 }

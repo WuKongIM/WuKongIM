@@ -14,7 +14,7 @@ The goal is to evict idle channel runtime state safely while preserving replicat
 ## Non-Goals
 
 - No control-plane metadata deletion.
-- No bypass of cluster semantics; a single node is still a single-node cluster.
+- No bypass of cluster semantics; single-node cluster semantics always apply.
 - No capacity-based LRU in the first version.
 - No fetch-driven lazy activation. Fetch for an evicted channel may keep the existing unloaded-channel behavior.
 
@@ -39,7 +39,7 @@ This path is the reactivation mechanism after eviction.
 
 ## Protocol Changes
 
-Rename the current generic notify path to PullHint semantics.
+PullHint replaces the former generic follower nudge semantics.
 
 ```go
 type PullHintRequest struct {
@@ -337,7 +337,7 @@ Integration tests should use the existing channelv2 testkit with a three-node cl
 ## Rollout Plan
 
 1. Add protocol fields while preserving current behavior.
-2. Rename Notify internals to PullHint, keeping compatibility inside tests as needed.
+2. Keep legacy transport Notify compatibility while using PullHint internals and terminology for active replication.
 3. Wire `MetaResolver` into service-side PullHint lazy activation.
 4. Add leader-side durable activity version and follower pacing state.
 5. Add follower parking, PullHint interruption, and PullHint retry.

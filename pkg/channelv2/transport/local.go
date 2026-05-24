@@ -16,23 +16,31 @@ type LocalNetwork struct {
 	DropPull map[ch.NodeID]bool
 	// DropAck marks target nodes whose ACK RPCs should fail; use SetDropAck during concurrent tests.
 	DropAck map[ch.NodeID]bool
-	// DropNotify marks target nodes whose notify RPCs should fail; use SetDropNotify during concurrent tests.
+	// DropPullHint marks target nodes whose pull hint RPCs should fail; use SetDropPullHint during concurrent tests.
+	DropPullHint map[ch.NodeID]bool
+	// DropNotify marks target nodes whose legacy notify RPCs should fail.
+	//
+	// Deprecated: use DropPullHint or SetDropPullHint for new pull hint tests.
 	DropNotify map[ch.NodeID]bool
 	// droppedPulls counts pull RPCs dropped by target node.
 	droppedPulls map[ch.NodeID]int
 	// droppedAcks counts ACK RPCs dropped by target node.
 	droppedAcks map[ch.NodeID]int
+	// droppedPullHints counts pull hint RPCs dropped by target node.
+	droppedPullHints map[ch.NodeID]int
 }
 
 // NewLocalNetwork creates an empty in-memory network.
 func NewLocalNetwork() *LocalNetwork {
 	return &LocalNetwork{
-		servers:      make(map[ch.NodeID]Server),
-		DropPull:     make(map[ch.NodeID]bool),
-		DropAck:      make(map[ch.NodeID]bool),
-		DropNotify:   make(map[ch.NodeID]bool),
-		droppedPulls: make(map[ch.NodeID]int),
-		droppedAcks:  make(map[ch.NodeID]int),
+		servers:          make(map[ch.NodeID]Server),
+		DropPull:         make(map[ch.NodeID]bool),
+		DropAck:          make(map[ch.NodeID]bool),
+		DropPullHint:     make(map[ch.NodeID]bool),
+		DropNotify:       make(map[ch.NodeID]bool),
+		droppedPulls:     make(map[ch.NodeID]int),
+		droppedAcks:      make(map[ch.NodeID]int),
+		droppedPullHints: make(map[ch.NodeID]int),
 	}
 }
 
@@ -65,7 +73,18 @@ func (n *LocalNetwork) SetDropAck(node ch.NodeID, drop bool) {
 	delete(n.DropAck, node)
 }
 
-// SetDropNotify toggles notify RPC drops for calls targeting node.
+// SetDropPullHint toggles pull hint RPC drops for calls targeting node.
+func (n *LocalNetwork) SetDropPullHint(node ch.NodeID, drop bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if drop {
+		n.DropPullHint[node] = true
+		return
+	}
+	delete(n.DropPullHint, node)
+}
+
+// SetDropNotify toggles legacy notify RPC drops for calls targeting node.
 func (n *LocalNetwork) SetDropNotify(node ch.NodeID, drop bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -88,6 +107,13 @@ func (n *LocalNetwork) DroppedAcks(node ch.NodeID) int {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.droppedAcks[node]
+}
+
+// DroppedPullHints returns how many pull hint RPCs were dropped for calls targeting node.
+func (n *LocalNetwork) DroppedPullHints(node ch.NodeID) int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.droppedPullHints[node]
 }
 
 // Client returns the network as a client.
@@ -129,12 +155,33 @@ func (n *LocalNetwork) Ack(ctx context.Context, node ch.NodeID, req AckRequest) 
 	return server.HandleAck(ctx, req)
 }
 
-// Notify calls a target node server with a best-effort replication nudge.
-func (n *LocalNetwork) Notify(ctx context.Context, node ch.NodeID, req NotifyRequest) error {
-	n.mu.RLock()
+// PullHint calls a target node server with a best-effort replication nudge.
+func (n *LocalNetwork) PullHint(ctx context.Context, node ch.NodeID, req PullHintRequest) error {
+	n.mu.Lock()
 	server := n.servers[node]
-	drop := n.DropNotify[node]
-	n.mu.RUnlock()
+	drop := n.DropPullHint[node]
+	if drop {
+		n.droppedPullHints[node]++
+	}
+	n.mu.Unlock()
+	if drop {
+		return ch.ErrNotReady
+	}
+	if server == nil {
+		return ch.ErrChannelNotFound
+	}
+	return server.HandlePullHint(ctx, req)
+}
+
+// Notify calls a target node server through the legacy notification path.
+func (n *LocalNetwork) Notify(ctx context.Context, node ch.NodeID, req NotifyRequest) error {
+	n.mu.Lock()
+	server := n.servers[node]
+	drop := n.DropPullHint[node] || n.DropNotify[node]
+	if drop {
+		n.droppedPullHints[node]++
+	}
+	n.mu.Unlock()
 	if drop {
 		return ch.ErrNotReady
 	}

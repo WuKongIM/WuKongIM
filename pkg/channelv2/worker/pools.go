@@ -98,9 +98,9 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.StoreAppend
 	case TaskStoreReadCommitted, TaskStoreReadLog:
 		return p.StoreRead
-	case TaskStoreApply:
+	case TaskStoreApply, TaskStoreCheckpoint:
 		return p.StoreApply
-	case TaskRPCPull, TaskRPCAck, TaskRPCNotify:
+	case TaskRPCPull, TaskRPCAck, TaskRPCNotify, TaskRPCPullHint:
 		return p.RPC
 	default:
 		return nil

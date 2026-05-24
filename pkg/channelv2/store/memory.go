@@ -39,7 +39,6 @@ type MemoryChannelStore struct {
 	id         ch.ChannelID
 	records    []ch.Record
 	checkpoint ch.Checkpoint
-	closed     bool
 }
 
 // Load returns the current in-memory offsets.
@@ -49,9 +48,6 @@ func (s *MemoryChannelStore) Load(ctx context.Context) (InitialState, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return InitialState{}, ch.ErrClosed
-	}
 	leo := uint64(len(s.records))
 	return InitialState{LEO: leo, HW: minUint64(s.checkpoint.HW, leo), CheckpointHW: minUint64(s.checkpoint.HW, leo)}, nil
 }
@@ -63,9 +59,6 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return AppendLeaderResult{}, ch.ErrClosed
-	}
 	if len(req.Records) == 0 {
 		leo := uint64(len(s.records))
 		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo}, nil
@@ -89,9 +82,6 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ApplyFollowerResult{}, ch.ErrClosed
-	}
 	leo := uint64(len(s.records))
 	for _, record := range req.Records {
 		if record.Index == 0 {
@@ -125,9 +115,6 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ReadCommittedResult{}, ch.ErrClosed
-	}
 	from := req.FromSeq
 	if from == 0 {
 		from = 1
@@ -162,9 +149,6 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ReadLogResult{}, ch.ErrClosed
-	}
 	from := req.FromOffset
 	if from == 0 {
 		from = 1
@@ -190,27 +174,21 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 	return ReadLogResult{Records: out}, nil
 }
 
-// StoreCheckpoint stores the committed frontier for future loads.
+// StoreCheckpoint stores the committed frontier for future loads, ignoring regressive HW.
 func (s *MemoryChannelStore) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ch.ErrClosed
-	}
 	if checkpoint.HW > s.checkpoint.HW {
 		s.checkpoint = checkpoint
 	}
 	return nil
 }
 
-// Close marks the in-memory store closed.
+// Close releases the reactor's in-memory store handle while keeping channel data reloadable.
 func (s *MemoryChannelStore) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closed = true
 	return nil
 }
 

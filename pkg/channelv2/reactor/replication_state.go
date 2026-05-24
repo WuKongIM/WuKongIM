@@ -21,18 +21,49 @@ type replicationState struct {
 	ackOpID ch.OpID
 	// ackMatch is the exact match offset carried by the inflight ACK.
 	ackMatch uint64
+	// ackStopped records whether the inflight ACK is a stopped-follower acknowledgement.
+	ackStopped bool
+	// ackActivityVersion fences a stopped ACK to the accepted leader activity version.
+	ackActivityVersion uint64
 
 	// pendingAck means an ACK should be retried before issuing another pull.
 	pendingAck bool
 	// pendingAckMatch is the stable match offset reused by ACK retries.
 	pendingAckMatch uint64
+	// pendingAckStopped records whether the pending ACK retry must keep Stopped=true.
+	pendingAckStopped bool
+	// pendingAckActivityVersion is the activity fence reused by stopped ACK retries.
+	pendingAckActivityVersion uint64
 	// nextAckAt is the earliest retry time after ACK backpressure or errors.
 	nextAckAt time.Time
 
+	// stopping records a follower that accepted leader stop control but has not unloaded yet.
+	stopping bool
+	// stopActivityVersion fences the checkpoint and stopped ACK for an accepted stop.
+	stopActivityVersion uint64
+	// checkpointInflight records a pending checkpoint before the stopped ACK.
+	checkpointInflight bool
+	// checkpointOpID fences the checkpoint worker result.
+	checkpointOpID ch.OpID
+	// nextCheckpointAt is the earliest checkpoint retry after backpressure or errors.
+	nextCheckpointAt time.Time
+	// deleteAfterStoppedAck allows runtime deletion after the stopped ACK succeeds.
+	deleteAfterStoppedAck bool
+	// stopAcked records that the stopped ACK succeeded and only runtime deletion remains.
+	stopAcked bool
+	// nextStopEvictAt is the earliest retry time when transient work blocks stopped runtime deletion.
+	nextStopEvictAt time.Time
+
 	// dirty marks the follower as needing immediate replication work.
 	dirty bool
+	// parked records whether the follower is intentionally waiting for the leader-provided pull delay.
+	parked bool
 	// nextPullAt is the earliest time a new pull may be submitted.
 	nextPullAt time.Time
+	// nextPullAfter is the leader-provided delay from the latest empty pull response.
+	nextPullAfter time.Duration
+	// lastActivityVersion is the latest accepted leader activity version.
+	lastActivityVersion uint64
 	// backoff is the current exponential retry delay.
 	backoff time.Duration
 	// lastLeaderHW is the leader commit frontier from the latest accepted pull.
@@ -56,7 +87,9 @@ func (s *replicationState) markDirty(now time.Time) {
 		now = time.Now()
 	}
 	s.dirty = true
+	s.parked = false
 	s.nextPullAt = time.Time{}
+	s.nextPullAfter = 0
 }
 
 // reset clears follower-only replication state when metadata moves away from an active follower role.
@@ -91,19 +124,53 @@ func (s *replicationState) applyAckResult(result worker.Result, current ch.Fence
 		return false
 	}
 	match := s.ackMatch
+	stopped := s.ackStopped
+	activityVersion := s.ackActivityVersion
 	s.ackInflight = false
 	s.ackOpID = 0
 	s.ackMatch = 0
+	s.ackStopped = false
+	s.ackActivityVersion = 0
 	if result.Err != nil {
 		s.pendingAck = true
 		s.pendingAckMatch = match
+		s.pendingAckStopped = stopped
+		s.pendingAckActivityVersion = activityVersion
 		s.lastError = result.Err
 		return true
 	}
 	s.pendingAck = false
 	s.pendingAckMatch = 0
+	s.pendingAckStopped = false
+	s.pendingAckActivityVersion = 0
 	s.lastError = nil
 	return true
+}
+
+// cancelStopping clears a stale follower stop sequence when newer leader activity arrives.
+func (s *replicationState) cancelStopping() {
+	s.stopping = false
+	s.stopActivityVersion = 0
+	s.checkpointInflight = false
+	s.checkpointOpID = 0
+	s.nextCheckpointAt = time.Time{}
+	s.deleteAfterStoppedAck = false
+	s.stopAcked = false
+	s.nextStopEvictAt = time.Time{}
+	if s.pendingAckStopped {
+		s.pendingAck = false
+		s.pendingAckMatch = 0
+		s.pendingAckStopped = false
+		s.pendingAckActivityVersion = 0
+		s.nextAckAt = time.Time{}
+	}
+	if s.ackStopped {
+		s.ackInflight = false
+		s.ackOpID = 0
+		s.ackMatch = 0
+		s.ackStopped = false
+		s.ackActivityVersion = 0
+	}
 }
 
 // nextReplicationBackoff doubles the current delay while respecting configured bounds.

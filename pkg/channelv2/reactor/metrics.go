@@ -4,6 +4,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -14,6 +15,20 @@ type Observer interface {
 	ObserveAppendBatch(records int, bytes int, wait time.Duration)
 	ObserveAppendLatency(mode ch.CommitMode, d time.Duration)
 	ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration)
+}
+
+// LifecycleObserver receives optional leader runtime lifecycle events.
+type LifecycleObserver interface {
+	ObserveChannelRuntimeLoaded(key ch.ChannelKey)
+	ObserveChannelRuntimeEvicted(key ch.ChannelKey, role ch.Role)
+	ObservePullHintSent(key ch.ChannelKey, follower ch.NodeID, reason transport.PullHintReason)
+	ObservePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error)
+}
+
+// FollowerLifecycleObserver receives optional follower lifecycle events without
+// requiring existing lifecycle observers to grow new methods.
+type FollowerLifecycleObserver interface {
+	ObserveFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64)
 }
 
 type noopObserver struct{}
@@ -58,6 +73,36 @@ func (r *Reactor) observeAppendBatch(batch appendBatch, now time.Time) {
 
 func (r *Reactor) observeMailboxDepth(priority Priority) {
 	r.cfg.Observer.SetReactorMailboxDepth(r.cfg.ID, priorityName(priority), r.mailbox.Depth(priority))
+}
+
+func (r *Reactor) observeChannelRuntimeLoaded(key ch.ChannelKey) {
+	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
+		observer.ObserveChannelRuntimeLoaded(key)
+	}
+}
+
+func (r *Reactor) observeChannelRuntimeEvicted(key ch.ChannelKey, role ch.Role) {
+	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
+		observer.ObserveChannelRuntimeEvicted(key, role)
+	}
+}
+
+func (r *Reactor) observePullHintSent(key ch.ChannelKey, follower ch.NodeID, reason transport.PullHintReason) {
+	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
+		observer.ObservePullHintSent(key, follower, reason)
+	}
+}
+
+func (r *Reactor) observePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error) {
+	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
+		observer.ObservePullHintDropped(key, follower, err)
+	}
+}
+
+func (r *Reactor) observeFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64) {
+	if observer, ok := r.cfg.Observer.(FollowerLifecycleObserver); ok {
+		observer.ObserveFollowerStopped(key, follower, activityVersion)
+	}
 }
 
 func (r *Reactor) observeAllMailboxDepths() {

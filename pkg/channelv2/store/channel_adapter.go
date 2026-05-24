@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"io"
+	"sync"
 
 	oldchannel "github.com/WuKongIM/WuKongIM/pkg/channel"
 	oldstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -14,7 +15,9 @@ import (
 
 // OldStoreFactory adapts the existing pkg/channel/store engine to channelv2.
 type OldStoreFactory struct {
-	engine *oldstore.Engine
+	engine          *oldstore.Engine
+	mu              sync.Mutex
+	checkpointLocks map[ch.ChannelKey]*sync.Mutex
 }
 
 // NewOldStoreFactory opens an existing channel store engine behind the v2 adapter.
@@ -23,7 +26,7 @@ func NewOldStoreFactory(path string) *OldStoreFactory {
 	if err != nil {
 		return &OldStoreFactory{}
 	}
-	return &OldStoreFactory{engine: engine}
+	return &OldStoreFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
 }
 
 // ChannelStore returns an adapter for one old channel store.
@@ -32,7 +35,7 @@ func (f *OldStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Chan
 		return nil, ch.ErrInvalidConfig
 	}
 	old := f.engine.ForChannel(oldchannel.ChannelKey(key), oldchannel.ChannelID{ID: id.ID, Type: id.Type})
-	return &oldChannelStoreAdapter{store: old, id: id}, nil
+	return &oldChannelStoreAdapter{store: old, id: id, checkpointMu: f.checkpointLock(key)}, nil
 }
 
 // Close closes the wrapped old engine.
@@ -43,9 +46,24 @@ func (f *OldStoreFactory) Close() error {
 	return f.engine.Close()
 }
 
+func (f *OldStoreFactory) checkpointLock(key ch.ChannelKey) *sync.Mutex {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.checkpointLocks == nil {
+		f.checkpointLocks = make(map[ch.ChannelKey]*sync.Mutex)
+	}
+	lock := f.checkpointLocks[key]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		f.checkpointLocks[key] = lock
+	}
+	return lock
+}
+
 type oldChannelStoreAdapter struct {
-	store *oldstore.ChannelStore
-	id    ch.ChannelID
+	store        *oldstore.ChannelStore
+	id           ch.ChannelID
+	checkpointMu *sync.Mutex
 }
 
 func (a *oldChannelStoreAdapter) Load(ctx context.Context) (InitialState, error) {
@@ -136,7 +154,22 @@ func (a *oldChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return a.store.StoreCheckpoint(oldchannel.Checkpoint{HW: checkpoint.HW})
+	if a.checkpointMu != nil {
+		a.checkpointMu.Lock()
+		defer a.checkpointMu.Unlock()
+	}
+	current, err := a.store.LoadCheckpoint()
+	if err != nil {
+		if errors.Is(err, oldchannel.ErrEmptyState) {
+			return a.store.StoreCheckpoint(oldchannel.Checkpoint{HW: checkpoint.HW})
+		}
+		return err
+	}
+	if checkpoint.HW <= current.HW {
+		return nil
+	}
+	current.HW = checkpoint.HW
+	return a.store.StoreCheckpoint(current)
 }
 
 func (a *oldChannelStoreAdapter) Close() error { return nil }

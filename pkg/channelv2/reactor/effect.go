@@ -80,6 +80,21 @@ func (r *Reactor) submitStoreApply(ctx context.Context, channelID ch.ChannelID, 
 	})
 }
 
+func (r *Reactor) submitStoreCheckpoint(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, checkpoint ch.Checkpoint) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreCheckpoint,
+		Fence:   fence,
+		Context: ctx,
+		StoreCheckpoint: &worker.StoreCheckpointTask{
+			ChannelID:  channelID,
+			Checkpoint: checkpoint,
+		},
+	})
+}
+
 func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.PullRequest) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
@@ -104,15 +119,18 @@ func (r *Reactor) submitRPCAck(ctx context.Context, leader ch.NodeID, fence ch.F
 	})
 }
 
-func (r *Reactor) submitRPCNotify(ctx context.Context, node ch.NodeID, fence ch.Fence, req transport.NotifyRequest) error {
+func (r *Reactor) submitPullHint(ctx context.Context, node ch.NodeID, fence ch.Fence, req transport.PullHintRequest) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
 	}
 	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:      worker.TaskRPCNotify,
-		Fence:     fence,
-		Context:   ctx,
-		RPCNotify: &worker.RPCNotifyTask{Node: node, Request: req},
+		Kind:    worker.TaskRPCPullHint,
+		Fence:   fence,
+		Context: ctx,
+		RPCPullHint: &worker.RPCPullHintTask{
+			Node:    node,
+			Request: req,
+		},
 	})
 }
 
@@ -334,6 +352,54 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	rc.failPendingPullWaiters(err)
 }
 
+func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason string) bool {
+	_ = reason
+	if r == nil || rc == nil || rc.state == nil || r.channels[key] != rc {
+		return false
+	}
+	if !rc.safeToEvictRuntime() {
+		return false
+	}
+	role := rc.state.Role
+	r.clearAppendCancelContexts(rc)
+	r.clearPullCancelChannel(rc)
+	if err := rc.store.Close(); err != nil {
+		return false
+	}
+	delete(r.channels, key)
+	r.observeChannelRuntimeEvicted(key, role)
+	return true
+}
+
+func (rc *runtimeChannel) safeToEvictRuntime() bool {
+	if rc == nil {
+		return false
+	}
+	if len(rc.waiters) != 0 || len(rc.fetchWaiters) != 0 || len(rc.pullWaiters) != 0 {
+		return false
+	}
+	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
+		return false
+	}
+	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 {
+		return false
+	}
+	if rc.lifecycle.CheckpointInflight || rc.lifecycle.CheckpointOpID != 0 || !rc.lifecycle.CheckpointRetryAt.IsZero() {
+		return false
+	}
+	replication := rc.replication
+	if replication.pullInflight || replication.ackInflight || replication.pendingAck || replication.pendingPull != nil {
+		return false
+	}
+	if replication.applyBlocked || replication.applyOpID != 0 || replication.checkpointInflight || replication.checkpointOpID != 0 {
+		return false
+	}
+	if !replication.nextCheckpointAt.IsZero() || !replication.nextAckAt.IsZero() {
+		return false
+	}
+	return true
+}
+
 func (rc *runtimeChannel) failPendingPullWaiters(err error) {
 	if rc == nil || len(rc.pullWaiters) == 0 {
 		return
@@ -454,6 +520,24 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	if cfg.PullMaxBytes <= 0 {
 		cfg.PullMaxBytes = 64 * 1024
 	}
+	if cfg.IdleSlowdownAfter <= 0 {
+		cfg.IdleSlowdownAfter = 30 * time.Second
+	}
+	if cfg.IdleEvictAfter <= 0 {
+		cfg.IdleEvictAfter = 5 * time.Minute
+	}
+	if cfg.IdlePullMinInterval <= 0 {
+		cfg.IdlePullMinInterval = cfg.ReplicationIdlePollInterval
+	}
+	if cfg.IdlePullMaxInterval <= 0 {
+		cfg.IdlePullMaxInterval = 5 * time.Second
+	}
+	if cfg.IdleEvictCheckInterval <= 0 {
+		cfg.IdleEvictCheckInterval = time.Second
+	}
+	if cfg.PullHintRetryInterval <= 0 {
+		cfg.PullHintRetryInterval = time.Second
+	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
 }
@@ -465,16 +549,11 @@ func (r *Reactor) nextBatchOpID() ch.OpID {
 	return ch.OpID(1<<63 + r.nextOp.Add(1))
 }
 
-func (r *Reactor) flushDueAppends(now time.Time) {
-	for _, rc := range r.channels {
-		r.tryFlushAppend(rc, now)
-	}
-}
-
 func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	if r == nil || rc == nil {
 		return
 	}
+	defer r.scheduleAppendFlushFromState(rc)
 	r.sweepAppendCancellationsForChannel(rc)
 	if rc.appendInflight != nil {
 		return
