@@ -410,6 +410,41 @@ func TestStartupRebuildsMissingStateFromCompleteLog(t *testing.T) {
 	require.Equal(t, snap, persisted)
 }
 
+func TestStartupAllowsMissingStateWithOnlyPreInitCommittedEntries(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	rejected := testUpsertNodeCommand(1, 1, "pre-init-rejected")
+	seedControllerLog(t, storage, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		{Type: raftpb.EntryNormal, Term: 1, Index: 2},
+		testCommandEntry(t, 3, rejected),
+	}, 3, 0)
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	require.NoFileExists(t, statePath)
+	service := startSingleService(t, 1, peers, storage, statePath, true)
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+	require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
+	boot, err := storage.InitialState(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), boot.AppliedIndex)
+
+	require.Eventually(t, func() bool {
+		return service.Status().Role == RoleLeader
+	}, time.Second, 10*time.Millisecond)
+	require.NoError(t, service.Propose(ctx, testInitCommand("wk-pre-init-history", peers)))
+
+	snap := service.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(1), snap.Revision)
+	require.Equal(t, "wk-pre-init-history", snap.ClusterID)
+	require.Greater(t, snap.AppliedRaftIndex, uint64(3))
+	persisted, err := statefile.New(statePath).Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, snap, persisted)
+}
+
 func TestStartupRebuildAfterPartialPrefixMarkAppliedUsesCommitTarget(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -442,6 +477,46 @@ func TestStartupRebuildAfterPartialPrefixMarkAppliedUsesCommitTarget(t *testing.
 	boot, err = base.InitialState(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), boot.AppliedIndex)
+}
+
+func TestStartupRebuildsCorruptStateWithWarmMemoryDurably(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	initCmd := testInitCommand("wk-warm-corrupt-rebuild", peers)
+	seedControllerLog(t, storage, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		testCommandEntry(t, 2, initCmd),
+	}, 2, 0)
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	sm := newTestStateMachine(t, statePath)
+	_, err := sm.Apply(ctx, 2, initCmd)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), sm.Snapshot(ctx).Revision)
+	require.NoError(t, os.WriteFile(statePath, []byte(`{"corrupt":true}`), 0o600))
+
+	transport := newMemoryRaftTransport()
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          peers,
+		AllowBootstrap: true,
+		Storage:        storage,
+		StateMachine:   sm,
+		Transport:      transport,
+		TickInterval:   5 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	transport.register(1, service)
+	require.NoError(t, service.Start(ctx))
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+
+	persisted, err := statefile.New(statePath).Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), persisted.Revision)
+	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
+	require.Equal(t, persisted, sm.Snapshot(ctx))
 }
 
 func TestStartupFailsDegradedWhenStateMissingAndLogCompacted(t *testing.T) {

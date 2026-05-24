@@ -92,6 +92,14 @@ func (sm *StateMachine) Load(ctx context.Context) error {
 	return nil
 }
 
+// Reset clears the in-memory state so a caller can replay durable Raft history from an empty state.
+func (sm *StateMachine) Reset() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.state = state.ClusterState{}
+	sm.degraded = false
+}
+
 // Snapshot returns a deep copy of the latest published state.
 func (sm *StateMachine) Snapshot(ctx context.Context) state.ClusterState {
 	_ = ctx

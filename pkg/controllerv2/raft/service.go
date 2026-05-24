@@ -511,7 +511,8 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 		if target == 0 {
 			return fmt.Errorf("controllerv2/raft: corrupt state file without committed log history: %w", err)
 		}
-		if err := s.rebuildStateFromCompleteHistory(ctx, target, boot.AppliedIndex); err != nil {
+		s.cfg.StateMachine.Reset()
+		if err := s.recoverEmptyStateFromCompleteHistory(ctx, target, boot.AppliedIndex); err != nil {
 			return fmt.Errorf("controllerv2/raft: rebuild corrupt state: %w", err)
 		}
 		return nil
@@ -529,11 +530,12 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 		if target == 0 {
 			return fmt.Errorf("controllerv2/raft: missing state file without committed log history")
 		}
-		return s.rebuildStateFromCompleteHistory(ctx, target, boot.AppliedIndex)
+		return s.recoverEmptyStateFromCompleteHistory(ctx, target, boot.AppliedIndex)
 	}
 
 	if snap.AppliedRaftIndex < boot.AppliedIndex {
-		return s.replayRange(ctx, snap.AppliedRaftIndex+1, boot.AppliedIndex, false, false)
+		_, err := s.replayRange(ctx, snap.AppliedRaftIndex+1, boot.AppliedIndex, false)
+		return err
 	}
 	return nil
 }
@@ -545,9 +547,13 @@ func rebuildRecoveryTarget(boot multiraft.BootstrapState) uint64 {
 	return boot.AppliedIndex
 }
 
-func (s *Service) rebuildStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
-	if err := s.replayCompleteHistory(ctx, target); err != nil {
+func (s *Service) recoverEmptyStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
+	seenInit, err := s.replayCompleteHistory(ctx, target)
+	if err != nil {
 		return err
+	}
+	if seenInit && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
+		return fmt.Errorf("controllerv2/raft: replay did not rebuild cluster state")
 	}
 	if target > currentApplied {
 		return s.cfg.Storage.MarkApplied(ctx, target)
@@ -555,68 +561,54 @@ func (s *Service) rebuildStateFromCompleteHistory(ctx context.Context, target ui
 	return nil
 }
 
-func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) error {
+func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) (bool, error) {
 	first, err := s.cfg.Storage.FirstIndex(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if first > target {
-		return fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
+		return false, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
 	}
-	return s.replayRange(ctx, first, target, true, false)
+	return s.replayRange(ctx, first, target, true)
 }
 
-func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireInit bool, markApplied bool) error {
+func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireComplete bool) (bool, error) {
 	if hi == 0 || lo > hi {
-		if requireInit {
-			return fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
+		if requireComplete {
+			return false, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
 		}
-		return nil
+		return false, nil
 	}
 	entries, err := s.cfg.Storage.Entries(ctx, lo, hi+1, 0)
 	if err != nil {
-		return err
+		return false, err
 	}
 	expected := lo
 	seenInit := false
 	for _, entry := range entries {
 		if entry.Index != expected {
-			return fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
+			return false, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
 		}
 		expected++
 		if entry.Type == raftpb.EntryNormal && len(entry.Data) > 0 {
 			cmd, err := command.Decode(entry.Data)
 			if err != nil {
-				return err
+				return false, err
 			}
-			if requireInit && !seenInit {
-				if cmd.Kind != command.KindInitClusterState {
-					return fmt.Errorf("controllerv2/raft: missing init command before entry %d", entry.Index)
-				}
+			if cmd.Kind == command.KindInitClusterState {
 				seenInit = true
 			}
 			if _, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd); err != nil {
-				return err
+				return false, err
 			}
 		} else if err := s.advanceStateApplied(ctx, entry.Index); err != nil {
-			return err
-		}
-		if markApplied {
-			if err := s.cfg.Storage.MarkApplied(ctx, entry.Index); err != nil {
-				return err
-			}
+			return false, err
 		}
 	}
 	if expected != hi+1 {
-		return fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
+		return false, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
 	}
-	if requireInit && !seenInit {
-		return fmt.Errorf("controllerv2/raft: complete history does not contain init command")
-	}
-	if requireInit && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
-		return fmt.Errorf("controllerv2/raft: replay did not rebuild cluster state")
-	}
-	return nil
+	return seenInit, nil
 }
 
 func newStorageAdapter(storage multiraft.Storage) *storageAdapter {
