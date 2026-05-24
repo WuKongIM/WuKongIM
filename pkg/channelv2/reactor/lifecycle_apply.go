@@ -41,9 +41,20 @@ func (r *Reactor) applyLifecycleAction(rc *runtimeChannel, action LifecycleActio
 		if rc != nil && rc.state != nil {
 			r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
 		}
+	case LifecycleActionStartFollowerStopCheckpoint:
+		r.trySubmitStopCheckpoint(rc, now)
+	case LifecycleActionSendStoppedAck:
+		if rc != nil && rc.state != nil {
+			r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
+		}
+	case LifecycleActionScheduleReplication:
+		r.scheduleReplicationFromState(rc, now)
 	case LifecycleActionEvictRuntime:
 		if rc != nil && rc.state != nil {
-			r.evictRuntimeChannel(rc.state.Key, rc, "lifecycle decision")
+			key := rc.state.Key
+			if r.evictRuntimeChannel(key, rc, "lifecycle decision") {
+				r.clearAppendSubmitState(key)
+			}
 		}
 	case LifecycleActionResetEviction:
 		resetLeaderCheckpointLifecycle(rc)

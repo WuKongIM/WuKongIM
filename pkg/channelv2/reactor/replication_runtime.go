@@ -277,13 +277,17 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 	if rc == nil || rc.state == nil {
 		return
 	}
-	if rc.state.LEO < resp.LeaderLEO || rc.state.HW < resp.LeaderHW {
+	view := runtimeViewFromChannel(rc, now, AppendFenceView{})
+	decision := rc.runtimeLifecycle.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
+		Kind:            FollowerLifecycleStopOffered,
+		Now:             now,
+		LeaderLEO:       resp.LeaderLEO,
+		LeaderHW:        resp.LeaderHW,
+		ActivityVersion: resp.ActivityVersion,
+	}, view, r.lifecycleConfig())
+	if !decisionHasAction(decision, LifecycleActionStartFollowerStopCheckpoint) {
 		rc.replication.markDirty(now)
 		r.tickReplication(rc, now)
-		return
-	}
-	if !rc.canAcceptFollowerStop() {
-		rc.replication.markDirty(now)
 		return
 	}
 	rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
@@ -294,7 +298,7 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 	rc.replication.dirty = false
 	rc.replication.nextPullAt = time.Time{}
 	rc.replication.nextPullAfter = 0
-	r.trySubmitStopCheckpoint(rc, now)
+	r.applyLifecycleDecision(rc, decision, now)
 }
 
 func (r *Reactor) handleStoreApplyResult(result worker.Result) {
@@ -364,6 +368,7 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	}
 	rc.replication.backoff = 0
 	if ackStopped && rc.replication.deleteAfterStoppedAck && ackActivityVersion == rc.replication.stopActivityVersion {
+		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleStopAcking
 		rc.replication.stopAcked = true
 		rc.replication.nextStopEvictAt = time.Time{}
 		if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
@@ -419,6 +424,7 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	rc.replication.backoff = 0
 	rc.replication.nextCheckpointAt = time.Time{}
 	rc.replication.lastError = nil
+	rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleStopAcking
 	r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
 	r.scheduleReplicationFromState(rc, now)
 }

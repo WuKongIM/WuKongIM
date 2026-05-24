@@ -332,6 +332,7 @@ func (r *Reactor) handlePullHint(event Event) {
 	now := time.Now()
 	if req.ActivityVersion > rc.replication.lastActivityVersion {
 		rc.replication.cancelStopping()
+		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleReplicating
 		rc.replication.lastActivityVersion = req.ActivityVersion
 	}
 	rc.replication.parked = false

@@ -349,6 +349,7 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 		}},
 	})
 
+	require.Equal(t, FollowerLifecycleStopCheckpointing, rc.runtimeLifecycle.FollowerPhase)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
