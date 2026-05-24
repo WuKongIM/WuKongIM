@@ -148,25 +148,23 @@ func TestFollowerMetaFenceResetsPullInflightAndStaleCompletionDoesNotClearNewPul
 
 func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T) {
 	net := newCapturingTransport()
-	net.BlockPulls()
 	factory := newBlockingApplyFactory()
 	factory.BlockApplies()
-	g, err := NewGroup(Config{
-		LocalNode:    2,
-		ReactorCount: 1,
-		MailboxSize:  16,
-		Store:        factory,
-		Transport:    net,
-		WorkerPools:  worker.PoolsConfig{RPC: worker.PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2}},
-	})
-	require.NoError(t, err)
-	defer g.Close()
-	defer net.UnblockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
 	defer factory.UnblockApplies()
+	r := NewReactor(ReactorConfig{
+		ID:           0,
+		LocalNode:    2,
+		Store:        factory,
+		Pools:        pools,
+		MailboxSize:  16,
+	})
 
 	meta := followerTestMeta("pending-pull-fence-reset")
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
 	rc.replication.pendingPull = &transport.PullResponse{
 		ChannelKey:  meta.Key,
 		Epoch:       meta.Epoch,
@@ -178,14 +176,19 @@ func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T)
 
 	updated := meta
 	updated.LeaderEpoch++
-	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventApplyMeta, Key: updated.Key, Meta: updated}))
-	require.NoError(t, awaitSubmit(g, updated.Key, Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0)}))
+	require.NoError(t, applyMetaDirect(t, r, updated))
+	require.False(t, factory.ApplyStarted())
+	require.Nil(t, rc.replication.pendingPull)
+	require.Zero(t, rc.replication.applyOpID)
 
+	r.handleTick(Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0)})
+	pullResult := sink.awaitResultKind(t, worker.TaskRPCPull)
+	require.Equal(t, updated.LeaderEpoch, pullResult.Fence.LeaderEpoch)
 	require.False(t, factory.ApplyStarted())
 	require.Nil(t, rc.replication.pendingPull)
 	require.Zero(t, rc.replication.applyOpID)
 	require.True(t, rc.replication.pullInflight)
-	require.Eventually(t, func() bool { return net.LastPull().LeaderEpoch == updated.LeaderEpoch }, time.Second, time.Millisecond)
+	require.Equal(t, updated.LeaderEpoch, net.LastPull().LeaderEpoch)
 }
 
 func TestFollowerMetaFenceClearsAckState(t *testing.T) {
