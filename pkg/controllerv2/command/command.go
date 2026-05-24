@@ -30,6 +30,8 @@ const (
 type Command struct {
 	// Kind selects which mutation handler applies this command.
 	Kind Kind `json:"kind"`
+	// IssuedAt records when the proposer created the command.
+	IssuedAt time.Time `json:"issued_at"`
 	// ExpectedRevision is an optional compare-and-set guard for planner commands.
 	ExpectedRevision *uint64 `json:"expected_revision,omitempty"`
 	// Init contains the initial cluster-state payload for bootstrap.
