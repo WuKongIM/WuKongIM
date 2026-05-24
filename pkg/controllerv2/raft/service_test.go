@@ -20,6 +20,12 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+func TestNewServiceValidatesConfig(t *testing.T) {
+	service, err := NewService(Config{})
+	require.Nil(t, service)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
 func TestThreeControllerVotersCommitStateFile(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
 	cluster.start(t)
@@ -95,7 +101,7 @@ func TestMarkAppliedFailureDegradesServiceAndStopsApplyingLaterEntries(t *testin
 	boom := errors.New("mark applied boom")
 	storage := &markAppliedFailStorage{Storage: base, failIndex: 2, err: boom}
 	transport := newMemoryRaftTransport()
-	service := NewService(Config{
+	service, err := NewService(Config{
 		NodeID:       1,
 		Peers:        peers,
 		Storage:      storage,
@@ -103,6 +109,7 @@ func TestMarkAppliedFailureDegradesServiceAndStopsApplyingLaterEntries(t *testin
 		Transport:    transport,
 		TickInterval: 5 * time.Millisecond,
 	})
+	require.NoError(t, err)
 	transport.register(1, service)
 	require.NoError(t, service.Start(ctx))
 	t.Cleanup(func() { require.NoError(t, service.Stop()) })
@@ -124,7 +131,7 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 	boom := errors.New("mark applied once")
 	failStorage := &markAppliedFailStorage{Storage: cluster.nodes[0].storage, failIndex: ^uint64(0), err: boom}
 	cluster.nodes[0].storage = failStorage
-	cluster.nodes[0].service = NewService(Config{
+	service, err := NewService(Config{
 		NodeID:         1,
 		Peers:          cluster.peers,
 		AllowBootstrap: true,
@@ -133,6 +140,8 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 		Transport:      cluster.transport,
 		TickInterval:   5 * time.Millisecond,
 	})
+	require.NoError(t, err)
+	cluster.nodes[0].service = service
 	cluster.transport.register(1, cluster.nodes[0].service)
 	require.NoError(t, cluster.nodes[0].service.Start(context.Background()))
 	t.Cleanup(cluster.stop)
@@ -153,7 +162,7 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 
 	failStorage.failIndex = nextIndex
 	cmd := testInitCommand("wk-replay-after-mark-fail", cluster.peers)
-	err := cluster.nodes[0].service.Propose(context.Background(), cmd)
+	err = cluster.nodes[0].service.Propose(context.Background(), cmd)
 	require.ErrorIs(t, err, boom)
 	require.True(t, failStorage.failed())
 	before := cluster.nodes[0].stateMachine.Snapshot(context.Background())
@@ -164,7 +173,7 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 	healthyStorage := failStorage.Storage
 	cluster.nodes[0].storage = healthyStorage
 	cluster.nodes[0].stateMachine = newTestStateMachine(t, cluster.nodes[0].statePath)
-	cluster.nodes[0].service = NewService(Config{
+	service, err = NewService(Config{
 		NodeID:         1,
 		Peers:          cluster.peers,
 		AllowBootstrap: true,
@@ -173,6 +182,8 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 		Transport:      cluster.transport,
 		TickInterval:   5 * time.Millisecond,
 	})
+	require.NoError(t, err)
+	cluster.nodes[0].service = service
 	cluster.transport.register(1, cluster.nodes[0].service)
 	require.NoError(t, cluster.nodes[0].service.Start(context.Background()))
 	cluster.waitForLeader(t)
@@ -213,6 +224,33 @@ func TestStartupReplaysWhenStateBehindRaftlog(t *testing.T) {
 	require.Equal(t, uint64(2), snap.Revision)
 	require.Equal(t, uint64(3), snap.AppliedRaftIndex)
 	require.Equal(t, "node-1-replayed", findTestNode(t, snap, 1).Name)
+}
+
+func TestStartupReplaysStateBehindNonCommandEntriesToRaftApplied(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}}
+	initCmd := testInitCommand("wk-state-behind-non-command", peers)
+	seedControllerLog(t, storage, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		testCommandEntry(t, 2, initCmd),
+		{Type: raftpb.EntryNormal, Term: 1, Index: 3},
+		testConfChangeEntry(t, 4, 2),
+	}, 4, 4)
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	sm := newTestStateMachine(t, statePath)
+	_, err := sm.Apply(ctx, 2, initCmd)
+	require.NoError(t, err)
+
+	service := startSingleService(t, 1, peers, storage, statePath, false)
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+
+	snap := service.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(1), snap.Revision)
+	require.Equal(t, uint64(4), snap.AppliedRaftIndex)
+	require.Equal(t, "n1", findTestNode(t, snap, 1).Name)
 }
 
 func TestStartupRebuildsMissingStateFromCompleteLog(t *testing.T) {
@@ -322,7 +360,7 @@ func newRaftTestCluster(t *testing.T, ids []uint64) *testRaftCluster {
 		statePath := filepath.Join(dir, "cluster-state.json")
 		sm := newTestStateMachine(t, statePath)
 		storage := db.ForController()
-		service := NewService(Config{
+		service, err := NewService(Config{
 			NodeID:         id,
 			Peers:          peers,
 			AllowBootstrap: true,
@@ -331,6 +369,7 @@ func newRaftTestCluster(t *testing.T, ids []uint64) *testRaftCluster {
 			Transport:      transport,
 			TickInterval:   5 * time.Millisecond,
 		})
+		require.NoError(t, err)
 		node := &testRaftNode{
 			id:           id,
 			dir:          dir,
@@ -523,7 +562,7 @@ func newSingleService(id uint64, peers []Peer, storage multiraft.Storage, stateP
 		return nil, err
 	}
 	transport := newMemoryRaftTransport()
-	service := NewService(Config{
+	service, err := NewService(Config{
 		NodeID:         id,
 		Peers:          peers,
 		AllowBootstrap: allowBootstrap,
@@ -532,6 +571,9 @@ func newSingleService(id uint64, peers []Peer, storage multiraft.Storage, stateP
 		Transport:      transport,
 		TickInterval:   5 * time.Millisecond,
 	})
+	if err != nil {
+		return nil, err
+	}
 	transport.register(id, service)
 	return service, nil
 }
