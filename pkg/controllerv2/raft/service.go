@@ -523,6 +523,12 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 	}
 
 	snap := s.cfg.StateMachine.Snapshot(ctx)
+	if snap.Revision != 0 {
+		if err := validateStateFileRaftBoundary(snap.AppliedRaftIndex, boot, last); err != nil {
+			s.cfg.StateMachine.Reset()
+			return err
+		}
+	}
 	if snap.Revision == 0 {
 		if isEmptyRaftLog(boot, last) {
 			if s.cfg.AllowBootstrap {
@@ -540,6 +546,16 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 	if snap.AppliedRaftIndex < boot.AppliedIndex {
 		_, err := s.replayRange(ctx, snap.AppliedRaftIndex+1, boot.AppliedIndex, false)
 		return err
+	}
+	return nil
+}
+
+func validateStateFileRaftBoundary(applied uint64, boot multiraft.BootstrapState, last uint64) error {
+	if applied > boot.HardState.Commit {
+		return fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", applied, boot.HardState.Commit)
+	}
+	if applied > last {
+		return fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of local last raft index %d", applied, last)
 	}
 	return nil
 }

@@ -94,11 +94,14 @@ func eligibleDataNodes(nodes []state.Node) []candidateNode {
 	for _, node := range nodes {
 		if !node.HasRole(state.NodeRoleData) ||
 			node.JoinState != state.NodeJoinStateActive ||
-			node.Status != state.NodeStatusAlive ||
-			node.CapacityWeight == 0 {
+			node.Status != state.NodeStatusAlive {
 			continue
 		}
-		candidates = append(candidates, candidateNode{nodeID: node.NodeID, weight: uint64(node.CapacityWeight)})
+		weight := node.CapacityWeight
+		if weight == 0 {
+			weight = 1
+		}
+		candidates = append(candidates, candidateNode{nodeID: node.NodeID, weight: uint64(weight)})
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].nodeID < candidates[j].nodeID })
 	return candidates

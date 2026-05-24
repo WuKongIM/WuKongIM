@@ -45,6 +45,12 @@ func TestValidateRejectsControllerWithoutRole(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestValidateRequiresControllerVoterSet(t *testing.T) {
+	st := testState()
+	st.Controllers = []ControllerVoter{}
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
 func TestValidateRejectsSlotPeerWithoutDataRole(t *testing.T) {
 	st := testState()
 	st.Nodes[1].Roles = []NodeRole{NodeRoleControllerVoter}
@@ -127,8 +133,8 @@ func TestEncodeEmptyRepeatedFieldsAsArrays(t *testing.T) {
 		AppliedRaftIndex: 1,
 		UpdatedAt:        time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC),
 		Config:           ClusterConfig{SlotCount: 1, HashSlotCount: 1, ReplicaCount: 1},
-		Controllers:      []ControllerVoter{},
-		Nodes:            []Node{},
+		Controllers:      []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}},
+		Nodes:            []Node{{NodeID: 1, Addr: "n1", Roles: []NodeRole{NodeRoleControllerVoter, NodeRoleData}, JoinState: NodeJoinStateActive, Status: NodeStatusAlive}},
 		Slots:            []SlotAssignment{},
 		HashSlots:        table,
 		Tasks:            []ReconcileTask{},
@@ -136,8 +142,6 @@ func TestEncodeEmptyRepeatedFieldsAsArrays(t *testing.T) {
 
 	data, err := Encode(st)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"controllers":[]`)
-	require.Contains(t, string(data), `"nodes":[]`)
 	require.Contains(t, string(data), `"slots":[]`)
 	require.Contains(t, string(data), `"tasks":[]`)
 }

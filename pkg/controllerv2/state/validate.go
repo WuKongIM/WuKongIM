@@ -88,6 +88,9 @@ func validateNodes(nodes []Node) (map[uint64]Node, error) {
 }
 
 func validateControllers(controllers []ControllerVoter, nodes map[uint64]Node) error {
+	if len(controllers) == 0 {
+		return invalid("controller voters are required")
+	}
 	seen := make(map[uint64]struct{}, len(controllers))
 	for _, controller := range controllers {
 		if controller.NodeID == 0 {
