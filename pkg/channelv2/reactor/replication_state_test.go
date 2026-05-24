@@ -1619,6 +1619,44 @@ func TestLeaderCheckpointCompletionStaleAfterNewAppendDoesNotEvict(t *testing.T)
 	require.Contains(t, r.channels, meta.Key)
 }
 
+func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-checkpoint-fence-reset", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond, AppendBatchMaxRecords: 1,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before fence").Err)
+	rc := r.channels[meta.Key]
+
+	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.True(t, rc.lifecycle.CheckpointInflight)
+
+	fenced := meta
+	fenced.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, fenced))
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: staleCheckpoint})
+	require.Contains(t, r.channels, meta.Key)
+	require.False(t, rc.lifecycle.CheckpointInflight)
+	require.Zero(t, rc.lifecycle.CheckpointOpID)
+	require.Zero(t, rc.lifecycle.CheckpointActivityVersion)
+
+	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(2*time.Hour))
+	nextCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Equal(t, fenced.LeaderEpoch, nextCheckpoint.Fence.LeaderEpoch)
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: nextCheckpoint})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
 func TestNewAppendCancelsLeaderEvictionAndClearsStoppedFollowersNeedingData(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
