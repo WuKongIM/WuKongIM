@@ -24,6 +24,25 @@ func TestBootstrapPlannerBlocksWhenInsufficientDataNodes(t *testing.T) {
 	require.Empty(t, decision.Command.Kind)
 }
 
+func TestBootstrapPlannerReturnsNoneWhenAllSlotsAssignedAndInsufficientDataNodes(t *testing.T) {
+	st := testPlannerState()
+	st.Config.ReplicaCount = 3
+	st.Nodes[2].Status = state.NodeStatusDown
+	st.Slots = []state.SlotAssignment{
+		testAssignment(1, []uint64{1, 2, 3}, 1, 1),
+		testAssignment(2, []uint64{1, 2, 3}, 1, 2),
+		testAssignment(3, []uint64{1, 2, 3}, 1, 3),
+		testAssignment(4, []uint64{1, 2, 3}, 1, 1),
+	}
+
+	decision, err := NewBootstrapPlanner().Next(context.Background(), testPlannerView(st))
+
+	require.NoError(t, err)
+	require.Equal(t, DecisionKindNone, decision.Kind)
+	require.Equal(t, reasonNoMissingSlot, decision.Reason)
+	require.Empty(t, decision.Command.Kind)
+}
+
 func TestBootstrapPlannerPicksLowestMissingSlot(t *testing.T) {
 	st := testPlannerState()
 	st.Slots = []state.SlotAssignment{
