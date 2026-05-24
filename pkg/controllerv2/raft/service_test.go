@@ -582,6 +582,44 @@ func TestStartupFailsWhenMissingStateHasCompactedPostInitTail(t *testing.T) {
 	require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
 }
 
+func TestStartupFailsWhenCompactedTailContainsValidInitWithoutStateFile(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name         string
+		corruptState bool
+	}{
+		{name: "missing_state"},
+		{name: "corrupt_state", corruptState: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			storage := openControllerStorage(t, dir)
+			peers := []Peer{{NodeID: 1, Addr: "n1"}}
+			seedControllerSnapshot(t, storage, 5, []uint64{1})
+			hs := raftpb.HardState{Term: 1, Vote: 1, Commit: 6}
+			require.NoError(t, storage.Save(ctx, multiraft.PersistentState{
+				HardState: &hs,
+				Entries:   []raftpb.Entry{testCommandEntry(t, 6, testInitCommand("wk-compacted-tail-init", peers))},
+			}))
+
+			statePath := filepath.Join(dir, "cluster-state.json")
+			if tc.corruptState {
+				require.NoError(t, os.WriteFile(statePath, []byte(`{"corrupt":true}`), 0o600))
+			} else {
+				require.NoFileExists(t, statePath)
+			}
+
+			service, err := newSingleService(1, peers, storage, statePath, false)
+			require.NoError(t, err)
+			require.Error(t, service.Start(ctx))
+			status := service.Status()
+			require.True(t, status.Degraded)
+			require.NotEmpty(t, status.ErrorReason)
+			require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
+		})
+	}
+}
+
 func TestStartupAllowsRejectedInitBeforeAnyValidState(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

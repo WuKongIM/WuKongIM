@@ -552,12 +552,9 @@ func rebuildRecoveryTarget(boot multiraft.BootstrapState) uint64 {
 }
 
 func (s *Service) recoverEmptyStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
-	first, summary, err := s.replayCompleteHistory(ctx, target)
+	_, summary, err := s.replayCompleteHistory(ctx, target)
 	if err != nil {
 		return err
-	}
-	if !summary.rebuiltState && first > 1 {
-		return fmt.Errorf("controllerv2/raft: complete history unavailable before init entry at first index %d", first)
 	}
 	if summary.rebuiltState && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
 		return fmt.Errorf("controllerv2/raft: replay did not rebuild cluster state")
@@ -572,6 +569,9 @@ func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) (uin
 	first, err := s.cfg.Storage.FirstIndex(ctx)
 	if err != nil {
 		return 0, replaySummary{}, err
+	}
+	if first > 1 {
+		return first, replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before first index %d", first)
 	}
 	if first > target {
 		return first, replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
