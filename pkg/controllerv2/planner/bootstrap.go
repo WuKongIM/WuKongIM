@@ -35,14 +35,14 @@ func (p *BootstrapPlanner) Next(ctx context.Context, view View) (Decision, error
 		return Decision{Kind: DecisionKindBlocked, Reason: reasonInvalidReplicaCount}, nil
 	}
 
-	candidates := eligibleDataNodes(st.Nodes)
-	if len(candidates) < replicaCount {
-		return Decision{Kind: DecisionKindBlocked, Reason: reasonInsufficientDataNodes}, nil
-	}
-
 	slotID, ok := lowestMissingSlot(st)
 	if !ok {
 		return Decision{Kind: DecisionKindNone, Reason: reasonNoMissingSlot}, nil
+	}
+
+	candidates := eligibleDataNodes(st.Nodes)
+	if len(candidates) < replicaCount {
+		return Decision{Kind: DecisionKindBlocked, Reason: reasonInsufficientDataNodes}, nil
 	}
 
 	peerLoad := desiredPeerLoad(st.Slots)
