@@ -1292,6 +1292,59 @@ func TestLeaderPullReadLogPoolFullFailsFuture(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLeaderPullDuplicateOpIDRejectsBeforeFollowerStateUpdates(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("duplicate-pull-state", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 0}
+
+	lastPullAt := time.Unix(10, 0)
+	nextExpectedPullAt := time.Unix(20, 0)
+	rc.followers[2] = &followerLifecycle{
+		Match:              0,
+		LastPullAt:         lastPullAt,
+		Parked:             true,
+		Stopped:            true,
+		NextExpectedPullAt: nextExpectedPullAt,
+	}
+	rc.pullWaiters = map[ch.OpID]*pullWaiter{
+		99: {future: NewFuture(), follower: 2, nextOffset: 1},
+	}
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		OpID:    99,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := future.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Equal(t, lastPullAt, rc.followers[2].LastPullAt)
+	require.True(t, rc.followers[2].Parked)
+	require.True(t, rc.followers[2].Stopped)
+	require.Equal(t, nextExpectedPullAt, rc.followers[2].NextExpectedPullAt)
+	require.Equal(t, uint64(0), rc.followers[2].Match)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
+}
+
 func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}

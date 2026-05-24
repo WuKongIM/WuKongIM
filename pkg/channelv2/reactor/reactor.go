@@ -747,6 +747,13 @@ func (r *Reactor) handlePull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
+	if rc.pullWaiters == nil {
+		rc.pullWaiters = make(map[ch.OpID]*pullWaiter)
+	}
+	if _, ok := rc.pullWaiters[event.OpID]; ok {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
 	now := time.Now()
 	r.syncLeaderFollowers(rc)
 	if follower := rc.followers[event.Pull.Follower]; follower != nil {
@@ -760,21 +767,8 @@ func (r *Reactor) handlePull(event Event) {
 			follower.Match = match
 		}
 	}
-	if rc.pullWaiters != nil {
-		if _, ok := rc.pullWaiters[event.OpID]; ok {
-			event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
-			return
-		}
-	}
 	waiter := &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset, maxBytes: event.Pull.MaxBytes}
 	if r.tryCompletePullFromLeaderCache(rc, event, waiter, now) {
-		return
-	}
-	if rc.pullWaiters == nil {
-		rc.pullWaiters = make(map[ch.OpID]*pullWaiter)
-	}
-	if _, ok := rc.pullWaiters[event.OpID]; ok {
-		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
 	maxOffset, mergeCacheSuffix := leaderPullReadRange(rc, event.Pull.NextOffset)
