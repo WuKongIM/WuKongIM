@@ -1979,6 +1979,60 @@ func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestLeaderAppendPopulatesRecentRecordCacheAfterDurableStore(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("recent-cache-populate")
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2, LeaderRecentRecordCacheBytes: 1024,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "b").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	rc := r.channels[meta.Key]
+	require.Equal(t, uint64(2), rc.recentRecords.base())
+	require.Equal(t, uint64(3), rc.recentRecords.lastOffset())
+	records, ok := rc.recentRecords.slice(2, 3, 1024)
+	require.True(t, ok)
+	require.Equal(t, []uint64{2, 3}, recordIndexes(records))
+}
+
+func TestLeaderRecentRecordCacheClearsOnMetadataFenceAndFollowerRole(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("recent-cache-clear")
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 10, LeaderRecentRecordCacheBytes: 1024,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.False(t, r.channels[meta.Key].recentRecords.empty())
+
+	updated := meta
+	updated.LeaderEpoch = 2
+	require.NoError(t, applyMetaDirect(t, r, updated))
+	require.True(t, r.channels[meta.Key].recentRecords.empty())
+
+	updated.Leader = 2
+	require.NoError(t, applyMetaDirect(t, r, updated))
+	require.True(t, r.channels[meta.Key].recentRecords.empty())
+}
+
 func TestApplyMetaColdSingleNodeClusterLeaderCanEvictWithoutAppend(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}

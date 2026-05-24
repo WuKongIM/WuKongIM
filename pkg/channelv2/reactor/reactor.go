@@ -99,6 +99,8 @@ type runtimeChannel struct {
 	appendQ appendQueue
 	// appendInflight is the currently submitted durable append batch.
 	appendInflight *appendBatch
+	// recentRecords keeps a leader-owned suffix of durable log records for follower pulls.
+	recentRecords recentRecordCache
 	// appendStoreBlocked records store worker-pool backpressure that delays retry.
 	appendStoreBlocked bool
 	// appendRetryAt is the earliest time to retry after store worker-pool backpressure.
@@ -433,6 +435,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		if fencePendingState {
 			resetLeaderCheckpointLifecycle(rc)
 			rc.replication.reset()
+			rc.recentRecords.reset()
 			r.resetPullHintLifecycle(rc)
 		}
 		if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
@@ -450,6 +453,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			}
 			r.scheduleLifecycleFromState(rc, time.Now())
 		} else {
+			rc.recentRecords.reset()
 			rc.followers = nil
 			rc.pullHintInflight = nil
 			r.scheduleReplicationFromState(rc, time.Now())
@@ -507,6 +511,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		fetchWaiters:     make(map[ch.OpID]struct{}),
 		pullWaiters:      make(map[ch.OpID]*pullWaiter),
 		appendTimings:    make(map[ch.OpID]appendTiming),
+		recentRecords:    newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes),
 		lifecycle:        channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO},
 		runtimeLifecycle: runtimeLifecycle{LeaderPhase: LeaderLifecycleServing, FollowerPhase: FollowerLifecycleReplicating},
 		appendQ: newAppendQueue(appendQueueConfig{
@@ -652,6 +657,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	decision := rc.state.ApplyAppendStored(stored)
 	now := time.Now()
 	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
+		rc.recentRecords.append(rc.appendInflightRecords(result.Fence.OpID))
 		r.markAppendActivity(rc, now)
 		rc.lifecycle.ActivityVersion = rc.state.LEO
 		r.syncFollowerMatches(rc)
@@ -683,6 +689,13 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		rc.appendQ.storeBlocked = false
 		r.tryFlushAppend(rc, now)
 	}
+}
+
+func (rc *runtimeChannel) appendInflightRecords(batchOpID ch.OpID) []ch.Record {
+	if rc == nil || rc.appendInflight == nil || rc.appendInflight.batchOpID != batchOpID {
+		return nil
+	}
+	return rc.appendInflight.records
 }
 
 func (r *Reactor) handleCancelWaiter(event Event) {
