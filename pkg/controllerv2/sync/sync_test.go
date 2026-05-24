@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -232,6 +233,53 @@ func TestClientRejectsMissingChecksumHeader(t *testing.T) {
 	require.Equal(t, local.Revision, got.Revision)
 }
 
+func TestClientContinuesAfterStalePayloadAndInstallsNextPeer(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(2, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	stale := testSyncState(1, "wk-sync")
+	fresh := testSyncState(3, "wk-sync")
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{
+			1: endpointWithPayload(t, stale),
+			2: endpointWithPayload(t, fresh),
+		}, ids: []uint64{1, 2}},
+		LeaderID: 1,
+	})
+
+	require.NoError(t, client.SyncOnce(ctx))
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, fresh.Revision, got.Revision)
+}
+
+func TestClientRejectsLocalClusterIDMismatchBeforePeerProbe(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(2, "other-cluster")
+	require.NoError(t, store.Save(ctx, local))
+	peerState := testSyncState(3, "wk-sync")
+	peer := endpointWithPayload(t, peerState).(*fakeEndpoint)
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers:     fakePeerPicker{endpoints: map[uint64]Endpoint{1: peer}, ids: []uint64{1}},
+		LeaderID:  1,
+	})
+
+	require.ErrorIs(t, client.SyncOnce(ctx), ErrClusterIDMismatch)
+	require.Empty(t, peer.requests)
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "other-cluster", got.ClusterID)
+	require.Equal(t, local.Revision, got.Revision)
+}
+
 func TestClientRejectsLowerRevisionBeforeSave(t *testing.T) {
 	ctx := context.Background()
 	store := newSyncStore(t)
@@ -280,6 +328,88 @@ func TestClientTreatsSameRevisionSameChecksumPayloadAsNotModified(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, local.Revision, got.Revision)
 	require.Equal(t, checksum, got.Checksum)
+}
+
+func TestClientRejectsNotModifiedMissingHeaders(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(2, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{1: &fakeEndpoint{resp: GetStateResponse{
+			NotModified: true,
+		}}}, ids: []uint64{1}},
+		LeaderID: 1,
+	})
+
+	require.ErrorIs(t, client.SyncOnce(ctx), ErrHeaderMismatch)
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, local.Revision, got.Revision)
+}
+
+func TestClientContinuesAfterNotModifiedMismatchedHeaders(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(2, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	fresh := testSyncState(3, "wk-sync")
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{
+			1: &fakeEndpoint{resp: GetStateResponse{
+				NotModified: true,
+				Revision:    local.Revision,
+				Checksum:    "crc32c:00000000",
+			}},
+			2: endpointWithPayload(t, fresh),
+		}, ids: []uint64{1, 2}},
+		LeaderID: 1,
+	})
+
+	require.NoError(t, client.SyncOnce(ctx))
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, fresh.Revision, got.Revision)
+}
+
+func TestClientConcurrentSnapshotAccessIsRaceFree(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(1, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	fresh := testSyncState(2, "wk-sync")
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers:     fakePeerPicker{endpoints: map[uint64]Endpoint{1: endpointWithPayload(t, fresh)}, ids: []uint64{1}},
+		LeaderID:  1,
+	})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				_, _ = client.LocalState()
+				_ = client.LeaderID()
+			}
+		}()
+	}
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = client.SyncOnce(ctx)
+		}()
+	}
+	wg.Wait()
 }
 
 func TestClientKeepsMemorySnapshotWhenLocalCorruptAndLeaderUnavailable(t *testing.T) {
@@ -386,12 +516,15 @@ func (p fakePeerPicker) PeerIDs() []uint64 {
 }
 
 type fakeEndpoint struct {
+	mu       sync.Mutex
 	resp     GetStateResponse
 	err      error
 	requests []GetStateRequest
 }
 
 func (e *fakeEndpoint) GetState(_ context.Context, req GetStateRequest) (GetStateResponse, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.requests = append(e.requests, req)
 	return e.resp, e.err
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	stdsync "sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
@@ -162,6 +163,7 @@ type ClientConfig struct {
 
 // Client installs validated leader cluster-state files into a local statefile.Store.
 type Client struct {
+	mu          stdsync.RWMutex
 	clusterID   string
 	store       *statefile.Store
 	peers       PeerPicker
@@ -187,11 +189,15 @@ func NewClient(cfg ClientConfig) *Client {
 
 // LeaderID returns the best known Controller leader ID.
 func (c *Client) LeaderID() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.leaderID
 }
 
 // LocalState returns the last validated state snapshot published by this client.
 func (c *Client) LocalState() (state.ClusterState, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if !c.hasSnapshot {
 		return state.ClusterState{}, false
 	}
@@ -211,6 +217,9 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 	}
 
 	local, localValid, loadErr := c.loadLocal(ctx)
+	if errors.Is(loadErr, ErrClusterIDMismatch) {
+		return loadErr
+	}
 	reqRevision, reqChecksum := uint64(0), ""
 	compareRevision, compareChecksum := uint64(0), ""
 	if localValid {
@@ -218,8 +227,8 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 		reqChecksum = local.Checksum
 		compareRevision = local.Revision
 		compareChecksum = local.Checksum
-	} else if c.hasSnapshot {
-		compareRevision = c.snapshot.Revision
+	} else if snapshot, ok := c.LocalState(); ok {
+		compareRevision = snapshot.Revision
 	}
 
 	var lastErr error
@@ -247,7 +256,7 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 		}
 		if resp.NotLeader {
 			if resp.LeaderID != 0 {
-				c.leaderID = resp.LeaderID
+				c.setLeaderID(resp.LeaderID)
 				if !tried[resp.LeaderID] {
 					queue = append([]uint64{resp.LeaderID}, queue...)
 				}
@@ -256,14 +265,15 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 		}
 		if resp.NotReady || resp.StaleLeader {
 			if resp.LeaderID != 0 {
-				c.leaderID = resp.LeaderID
+				c.setLeaderID(resp.LeaderID)
 			}
 			continue
 		}
 		if resp.NotModified {
-			if localValid {
+			if localValid && resp.Revision == local.Revision && resp.Checksum == local.Checksum {
 				return nil
 			}
+			lastErr = fmt.Errorf("%w: invalid not-modified header", ErrHeaderMismatch)
 			continue
 		}
 		if len(resp.Payload) == 0 {
@@ -271,12 +281,16 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 			continue
 		}
 		if err := c.installPayload(ctx, resp, compareRevision, compareChecksum); err != nil {
+			if errors.Is(err, ErrStalePayload) {
+				lastErr = err
+				continue
+			}
 			return err
 		}
 		if resp.LeaderID != 0 {
-			c.leaderID = resp.LeaderID
+			c.setLeaderID(resp.LeaderID)
 		} else {
-			c.leaderID = nodeID
+			c.setLeaderID(nodeID)
 		}
 		return nil
 	}
@@ -287,11 +301,14 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 		}
 		return loadErr
 	}
-	if !localValid && !c.hasSnapshot {
+	if !localValid && !c.hasLocalSnapshot() {
 		if lastErr != nil {
 			return lastErr
 		}
 		return ErrNoReachablePeer
+	}
+	if lastErr != nil {
+		return lastErr
 	}
 	return nil
 }
@@ -304,15 +321,14 @@ func (c *Client) loadLocal(ctx context.Context) (state.ClusterState, bool, error
 	if c.clusterID != "" && st.ClusterID != c.clusterID {
 		return state.ClusterState{}, false, fmt.Errorf("%w: local %q client %q", ErrClusterIDMismatch, st.ClusterID, c.clusterID)
 	}
-	c.snapshot = st.Clone()
-	c.hasSnapshot = true
+	c.publishSnapshot(st)
 	return st, true, nil
 }
 
 func (c *Client) candidateIDs() []uint64 {
 	ids := make([]uint64, 0, 1+len(c.peers.PeerIDs()))
-	if c.leaderID != 0 {
-		ids = append(ids, c.leaderID)
+	if leaderID := c.LeaderID(); leaderID != 0 {
+		ids = append(ids, leaderID)
 	}
 	ids = append(ids, c.peers.PeerIDs()...)
 	return ids
@@ -341,7 +357,25 @@ func (c *Client) installPayload(ctx context.Context, resp GetStateResponse, comp
 	if err := c.store.Save(ctx, decoded); err != nil {
 		return err
 	}
-	c.snapshot = decoded.Clone()
-	c.hasSnapshot = true
+	c.publishSnapshot(decoded)
 	return nil
+}
+
+func (c *Client) publishSnapshot(st state.ClusterState) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.snapshot = st.Clone()
+	c.hasSnapshot = true
+}
+
+func (c *Client) setLeaderID(leaderID uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.leaderID = leaderID
+}
+
+func (c *Client) hasLocalSnapshot() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.hasSnapshot
 }
