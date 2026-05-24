@@ -153,11 +153,15 @@ func TestValidateRejectsDesiredPeersLengthPastUint16Boundary(t *testing.T) {
 	nodes := make([]Node, 0, peerCount)
 	peers := make([]uint64, 0, peerCount)
 	for nodeID := uint64(1); nodeID <= peerCount; nodeID++ {
+		roles := []NodeRole{NodeRoleData}
+		if nodeID == 1 {
+			roles = []NodeRole{NodeRoleControllerVoter, NodeRoleData}
+		}
 		nodes = append(nodes, Node{
 			NodeID:         nodeID,
 			Name:           fmt.Sprintf("n%d", nodeID),
 			Addr:           fmt.Sprintf("n%d", nodeID),
-			Roles:          []NodeRole{NodeRoleData},
+			Roles:          roles,
 			JoinState:      NodeJoinStateActive,
 			Status:         NodeStatusAlive,
 			CapacityWeight: 1,
@@ -171,6 +175,7 @@ func TestValidateRejectsDesiredPeersLengthPastUint16Boundary(t *testing.T) {
 		AppliedRaftIndex: 1,
 		UpdatedAt:        time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC),
 		Config:           ClusterConfig{SlotCount: 1, HashSlotCount: 1, ReplicaCount: 3},
+		Controllers:      []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}},
 		Nodes:            nodes,
 		Slots:            []SlotAssignment{{SlotID: 1, DesiredPeers: peers, ConfigEpoch: 1}},
 		HashSlots:        table,
