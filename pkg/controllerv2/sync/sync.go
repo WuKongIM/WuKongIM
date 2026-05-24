@@ -163,6 +163,7 @@ type ClientConfig struct {
 
 // Client installs validated leader cluster-state files into a local statefile.Store.
 type Client struct {
+	opMu        stdsync.Mutex
 	mu          stdsync.RWMutex
 	clusterID   string
 	store       *statefile.Store
@@ -206,6 +207,9 @@ func (c *Client) LocalState() (state.ClusterState, bool) {
 
 // SyncOnce probes the known leader and peers, installing the first valid usable payload.
 func (c *Client) SyncOnce(ctx context.Context) error {
+	c.opMu.Lock()
+	defer c.opMu.Unlock()
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
