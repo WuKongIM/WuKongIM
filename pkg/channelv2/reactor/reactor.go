@@ -635,7 +635,6 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 				follower.Stopped = false
 				follower.StopAckVersion = 0
 				follower.StopOfferedVersion = 0
-				follower.Parked = false
 			}
 		}
 		r.sendPullHintsForAppend(rc, now)

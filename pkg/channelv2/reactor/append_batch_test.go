@@ -559,6 +559,7 @@ func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing
 	rc := r.channels[meta.Key]
 	now := time.Now()
 	rc.followers[2].Parked = true
+	rc.followers[2].LastPullAt = now
 	rc.followers[3].LastPullAt = now
 	rc.followers[4].Stopped = true
 	rc.followers[4].LastPullAt = now
