@@ -78,6 +78,10 @@ type runStartupState struct {
 	LastIndex uint64
 }
 
+type replaySummary struct {
+	rebuiltState bool
+}
+
 type storageAdapter struct {
 	storage multiraft.Storage
 	memory  *loadedMemoryStorage
@@ -106,11 +110,11 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.started {
-		return nil
-	}
 	if s.stopping {
 		return ErrStopped
+	}
+	if s.started {
+		return nil
 	}
 	s.err = nil
 	s.statusMu.Lock()
@@ -548,11 +552,14 @@ func rebuildRecoveryTarget(boot multiraft.BootstrapState) uint64 {
 }
 
 func (s *Service) recoverEmptyStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
-	seenInit, err := s.replayCompleteHistory(ctx, target)
+	first, summary, err := s.replayCompleteHistory(ctx, target)
 	if err != nil {
 		return err
 	}
-	if seenInit && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
+	if !summary.rebuiltState && first > 1 {
+		return fmt.Errorf("controllerv2/raft: complete history unavailable before init entry at first index %d", first)
+	}
+	if summary.rebuiltState && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
 		return fmt.Errorf("controllerv2/raft: replay did not rebuild cluster state")
 	}
 	if target > currentApplied {
@@ -561,54 +568,56 @@ func (s *Service) recoverEmptyStateFromCompleteHistory(ctx context.Context, targ
 	return nil
 }
 
-func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) (bool, error) {
+func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) (uint64, replaySummary, error) {
 	first, err := s.cfg.Storage.FirstIndex(ctx)
 	if err != nil {
-		return false, err
+		return 0, replaySummary{}, err
 	}
 	if first > target {
-		return false, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
+		return first, replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
 	}
-	return s.replayRange(ctx, first, target, true)
+	summary, err := s.replayRange(ctx, first, target, true)
+	return first, summary, err
 }
 
-func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireComplete bool) (bool, error) {
+func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireComplete bool) (replaySummary, error) {
 	if hi == 0 || lo > hi {
 		if requireComplete {
-			return false, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
+			return replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
 		}
-		return false, nil
+		return replaySummary{}, nil
 	}
 	entries, err := s.cfg.Storage.Entries(ctx, lo, hi+1, 0)
 	if err != nil {
-		return false, err
+		return replaySummary{}, err
 	}
 	expected := lo
-	seenInit := false
+	summary := replaySummary{}
 	for _, entry := range entries {
 		if entry.Index != expected {
-			return false, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
+			return replaySummary{}, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
 		}
 		expected++
 		if entry.Type == raftpb.EntryNormal && len(entry.Data) > 0 {
 			cmd, err := command.Decode(entry.Data)
 			if err != nil {
-				return false, err
+				return replaySummary{}, err
 			}
-			if cmd.Kind == command.KindInitClusterState {
-				seenInit = true
+			result, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd)
+			if err != nil {
+				return replaySummary{}, err
 			}
-			if _, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd); err != nil {
-				return false, err
+			if result.Revision > 0 {
+				summary.rebuiltState = true
 			}
 		} else if err := s.advanceStateApplied(ctx, entry.Index); err != nil {
-			return false, err
+			return replaySummary{}, err
 		}
 	}
 	if expected != hi+1 {
-		return false, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
+		return replaySummary{}, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
 	}
-	return seenInit, nil
+	return summary, nil
 }
 
 func newStorageAdapter(storage multiraft.Storage) *storageAdapter {
