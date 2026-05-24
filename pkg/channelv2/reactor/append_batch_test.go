@@ -761,26 +761,69 @@ func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
 	}
 }
 
-func TestStoppedAckDoesNotUpdateFollowerLifecycleDuringTask3(t *testing.T) {
+func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.T) {
 	factory := newCountingStoreFactory()
-	meta := testMeta("stopped-ack-deferred", 1, 1)
+	meta := testMeta("stopped-ack-fenced", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
-	meta.ISR = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 1
+	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
+	rc.lifecycle.ActivityVersion = 3
 	require.NotNil(t, rc.followers[2])
-	future := NewFuture()
+	staleFuture := NewFuture()
 	r.handleAck(Event{
 		Kind:   EventAck,
 		Key:    meta.Key,
-		Future: future,
-		Ack:    transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, Stopped: true},
+		Future: staleFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, MatchOffset: 3, ActivityVersion: 2, Stopped: true,
+		},
 	})
-	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.NoError(t, awaitFutureResult(t, staleFuture).Err)
+	require.Equal(t, uint64(1), rc.state.HW)
+	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
 	require.False(t, rc.followers[2].Stopped)
 	require.Zero(t, rc.followers[2].StopAckVersion)
+
+	laggingFuture := NewFuture()
+	r.handleAck(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Future: laggingFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, MatchOffset: 2, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, laggingFuture).Err)
+	require.Equal(t, uint64(1), rc.state.HW)
+	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
+	require.False(t, rc.followers[2].Stopped)
+	require.Zero(t, rc.followers[2].StopAckVersion)
+
+	currentFuture := NewFuture()
+	r.handleAck(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Future: currentFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, currentFuture).Err)
+	require.True(t, rc.followers[2].Stopped)
+	require.Equal(t, uint64(3), rc.followers[2].StopAckVersion)
+	require.Equal(t, uint64(3), rc.followers[2].Match)
+	require.Equal(t, uint64(3), rc.state.Progress[2].Match)
 }
 
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {

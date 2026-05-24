@@ -120,6 +120,8 @@ type pullWaiter struct {
 	ctx context.Context
 	// follower is the replica waiting for this pull response.
 	follower ch.NodeID
+	// nextOffset is the requested offset used to prove caught-up stop eligibility.
+	nextOffset uint64
 }
 
 // NewReactor constructs a reactor.
@@ -240,6 +242,15 @@ func (r *Reactor) idleWait(now time.Time) time.Duration {
 		}
 		if rc.appendInflight == nil && !rc.appendQ.storeBlocked && len(rc.appendQ.pending) > 0 && !rc.appendQ.flushDue.IsZero() {
 			dueIn := rc.appendQ.flushDue.Sub(now)
+			if dueIn <= 0 {
+				return 0
+			}
+			if dueIn < wait {
+				wait = dueIn
+			}
+		}
+		if !rc.lifecycle.CheckpointRetryAt.IsZero() && !rc.lifecycle.CheckpointInflight {
+			dueIn := rc.lifecycle.CheckpointRetryAt.Sub(now)
 			if dueIn <= 0 {
 				return 0
 			}
@@ -526,6 +537,7 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrNotReady})
 		return
 	}
+	admittedAt := time.Now()
 	records := make([]ch.Record, len(event.Append.Messages))
 	for i, msg := range event.Append.Messages {
 		records[i] = ch.Record{ID: msg.MessageID, Payload: append([]byte(nil), msg.Payload...), SizeBytes: len(msg.Payload)}
@@ -534,7 +546,7 @@ func (r *Reactor) handleAppend(event Event) {
 	if mode == 0 {
 		mode = ch.CommitModeQuorum
 	}
-	req := appendRequest{opID: event.OpID, req: event.Append, future: event.Future, ctx: event.Context, enqueuedAt: time.Now(), records: records, commitMode: mode}
+	req := appendRequest{opID: event.OpID, req: event.Append, future: event.Future, ctx: event.Context, enqueuedAt: admittedAt, records: records, commitMode: mode}
 	if err := rc.appendQ.push(req); err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
@@ -544,9 +556,10 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	r.cancelLeaderEvictionForAppend(rc, admittedAt)
 	rc.appendTimings[event.OpID] = appendTiming{mode: mode, enqueuedAt: req.enqueuedAt}
 	r.registerAppendCancelContext(rc, event.OpID, event.Context)
-	r.tryFlushAppend(rc, time.Now())
+	r.tryFlushAppend(rc, admittedAt)
 }
 
 func (r *Reactor) handleFetch(event Event) {
@@ -628,6 +641,9 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 					follower.LastPullAt = time.Time{}
 				}
 				follower.Stopped = false
+				follower.StopAckVersion = 0
+				follower.StopOfferedVersion = 0
+				follower.Parked = false
 			}
 		}
 		r.sendPullHintsForAppend(rc, now)
@@ -714,11 +730,12 @@ func (r *Reactor) handlePull(event Event) {
 		follower.Stopped = false
 		follower.NextExpectedPullAt = time.Time{}
 		follower.HintRetryAt = time.Time{}
-		if match := event.Pull.NextOffset - 1; match > follower.Match {
+		match := event.Pull.NextOffset - 1
+		if event.Pull.NextOffset <= rc.state.LEO+1 && match > follower.Match {
 			follower.Match = match
 		}
 	}
-	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower}
+	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset}
 	r.registerPullCancelContext(rc, ctx)
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
 	err = r.submitStoreReadLog(ctx, event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)
@@ -739,12 +756,30 @@ func (r *Reactor) handleAck(event Event) {
 		event.Future.Complete(Result{})
 		return
 	}
-	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
 	r.syncLeaderFollowers(rc)
-	if follower := rc.followers[event.Ack.Follower]; follower != nil {
-		if event.Ack.MatchOffset > follower.Match {
-			follower.Match = event.Ack.MatchOffset
+	if event.Ack.Stopped {
+		if event.Ack.ActivityVersion != rc.lifecycle.ActivityVersion || event.Ack.MatchOffset < rc.state.LEO {
+			event.Future.Complete(Result{})
+			return
 		}
+		if follower := rc.followers[event.Ack.Follower]; follower != nil {
+			follower.Stopped = true
+			follower.StopAckVersion = event.Ack.ActivityVersion
+			follower.Parked = false
+			follower.HintInflight = false
+			if event.Ack.MatchOffset > follower.Match {
+				follower.Match = event.Ack.MatchOffset
+			}
+		}
+		decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
+		r.completeReplies(rc, decision.Replies, nil)
+		r.tryEvictLeader(rc, time.Now())
+		event.Future.Complete(Result{})
+		return
+	}
+	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
+	if follower := rc.followers[event.Ack.Follower]; follower != nil && event.Ack.MatchOffset > follower.Match {
+		follower.Match = event.Ack.MatchOffset
 	}
 	r.completeReplies(rc, decision.Replies, nil)
 	event.Future.Complete(Result{})

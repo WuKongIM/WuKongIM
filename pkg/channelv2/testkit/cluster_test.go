@@ -129,6 +129,61 @@ func TestPullHintLazyActivatesUnloadedFollowerAndReplicatesWithoutTicks(t *testi
 	require.Equal(t, int32(1), resolver.calls.Load())
 }
 
+func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *testing.T) {
+	network := transport.NewLocalNetwork()
+	meta := ch.Meta{Key: ch.ChannelKey("1:reactivate-stopped-follower"), ID: ch.ChannelID{ID: "reactivate-stopped-follower", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive}
+	nodes := make(map[ch.NodeID]ch.Cluster)
+	resolvers := make(map[ch.NodeID]*testkitCountingMetaResolver)
+	for _, nodeID := range []ch.NodeID{1, 2, 3} {
+		resolver := &testkitCountingMetaResolver{meta: meta}
+		cluster, err := service.New(service.Config{
+			LocalNode:                   nodeID,
+			Store:                       store.NewMemoryFactory(),
+			ReactorCount:                1,
+			Transport:                   network.Client(),
+			MetaResolver:                resolver,
+			ReplicationIdlePollInterval: time.Millisecond,
+			IdleSlowdownAfter:           time.Millisecond,
+			IdleEvictAfter:              5 * time.Millisecond,
+			IdlePullMinInterval:         time.Millisecond,
+			IdlePullMaxInterval:         time.Millisecond,
+			IdleEvictCheckInterval:      time.Millisecond,
+			PullHintRetryInterval:       time.Millisecond,
+			AppendBatchMaxRecords:       1,
+		})
+		require.NoError(t, err)
+		defer cluster.Close()
+		nodes[nodeID] = cluster
+		resolvers[nodeID] = resolver
+		server, ok := cluster.(transport.Server)
+		require.True(t, ok)
+		network.Register(nodeID, server)
+	}
+	for _, node := range nodes {
+		require.NoError(t, node.ApplyMeta(meta))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	first, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("before stop")}})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), first.MessageSeq)
+	waitTestkitCommitted(t, nodes, meta.ID, 2, 1, time.Second)
+	waitTestkitCommitted(t, nodes, meta.ID, 3, 1, time.Second)
+
+	waitTestkitUnloaded(t, nodes, meta.ID, []ch.NodeID{2, 3}, 2*time.Second)
+	beforeFollower2 := resolvers[2].calls.Load()
+	beforeFollower3 := resolvers[3].calls.Load()
+
+	second, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("after stop")}})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), second.MessageSeq)
+	waitTestkitCommitted(t, nodes, meta.ID, 2, 2, time.Second)
+	waitTestkitCommitted(t, nodes, meta.ID, 3, 2, time.Second)
+	require.Greater(t, resolvers[2].calls.Load(), beforeFollower2)
+	require.Greater(t, resolvers[3].calls.Load(), beforeFollower3)
+}
+
 func TestThreeNodeClusterCatchesUpAfterTemporaryPullDrop(t *testing.T) {
 	h := NewClusterHarness(t, []ch.NodeID{1, 2, 3})
 	defer h.Close()
@@ -227,4 +282,47 @@ func waitAppendResult(t testing.TB, h *ClusterHarness, done <-chan appendOutcome
 	}
 	t.Fatalf("append did not complete within %s", timeout)
 	return ch.AppendResult{}
+}
+
+func waitTestkitCommitted(t testing.TB, nodes map[ch.NodeID]ch.Cluster, id ch.ChannelID, nodeID ch.NodeID, seq uint64, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		tickTestkitNodes(context.Background(), nodes)
+		res, err := nodes[nodeID].Fetch(context.Background(), ch.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
+		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("node %d did not commit seq %d", nodeID, seq)
+}
+
+func waitTestkitUnloaded(t testing.TB, nodes map[ch.NodeID]ch.Cluster, id ch.ChannelID, nodeIDs []ch.NodeID, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		tickTestkitNodes(context.Background(), nodes)
+		allUnloaded := true
+		for _, nodeID := range nodeIDs {
+			_, err := nodes[nodeID].Fetch(context.Background(), ch.FetchRequest{ChannelID: id, FromSeq: 1, Limit: 1, MaxBytes: 1024})
+			if err == nil {
+				allUnloaded = false
+				break
+			}
+		}
+		if allUnloaded {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("nodes %v did not unload channel %s", nodeIDs, id.ID)
+}
+
+func tickTestkitNodes(ctx context.Context, nodes map[ch.NodeID]ch.Cluster) {
+	for _, nodeID := range []ch.NodeID{1, 2, 3} {
+		if node := nodes[nodeID]; node != nil {
+			_ = node.Tick(ctx)
+		}
+	}
 }
