@@ -1037,7 +1037,7 @@ func TestAckErrorRetryKeepsSameMatchOffset(t *testing.T) {
 
 func TestLeaderPullUsesStoreReadLogWorkerWithoutBlockingReactor(t *testing.T) {
 	factory := newBlockingReadLogFactory()
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: -1})
 	require.NoError(t, err)
 	defer g.Close()
 
@@ -1068,7 +1068,7 @@ func TestLeaderPullUsesStoreReadLogWorkerWithoutBlockingReactor(t *testing.T) {
 
 func TestLeaderPullWaiterFailsOnMetadataFence(t *testing.T) {
 	factory := newBlockingReadLogFactory()
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: -1})
 	require.NoError(t, err)
 	defer g.Close()
 	defer factory.UnblockReadLogs()
@@ -1171,11 +1171,12 @@ func TestLeaderPullInvalidRangeFailsWithInvalidConfig(t *testing.T) {
 func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 	factory := newNonCancelingBlockingReadLogFactory()
 	g, err := NewGroup(Config{
-		LocalNode:    1,
-		ReactorCount: 1,
-		MailboxSize:  16,
-		Store:        factory,
-		WorkerPools:  worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+		LocalNode:                   1,
+		ReactorCount:                1,
+		MailboxSize:                 16,
+		Store:                       factory,
+		WorkerPools:                 worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+		LeaderRecentRecordCacheSize: -1,
 	})
 	require.NoError(t, err)
 	closeStarted := false
@@ -1240,11 +1241,12 @@ func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 func TestLeaderPullReadLogPoolFullFailsFuture(t *testing.T) {
 	factory := newBlockingReadLogFactory()
 	g, err := NewGroup(Config{
-		LocalNode:    1,
-		ReactorCount: 1,
-		MailboxSize:  16,
-		Store:        factory,
-		WorkerPools:  worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+		LocalNode:                   1,
+		ReactorCount:                1,
+		MailboxSize:                 16,
+		Store:                       factory,
+		WorkerPools:                 worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+		LeaderRecentRecordCacheSize: -1,
 	})
 	require.NoError(t, err)
 	defer g.Close()
@@ -1647,7 +1649,7 @@ func TestLeaderPullResponsePacesLaggingFollowerWithRecordsImmediately(t *testing
 
 func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *testing.T) {
 	factory := newNonCancelingBlockingReadLogFactory()
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, LeaderRecentRecordCacheSize: -1})
 	require.NoError(t, err)
 	defer g.Close()
 	defer factory.UnblockReadLogs()
@@ -2509,6 +2511,50 @@ func TestLeaderPullCaughtUpCompletesEmptyWithoutStoreRead(t *testing.T) {
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
+func TestLeaderPullBeforeRecentCacheBaseReadsStorePrefixOnly(t *testing.T) {
+	factory := newCaptureReadLogRequestFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-before-cache-base", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2, LeaderRecentRecordCacheBytes: 1024,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "b").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+		OpID: 333,
+	})
+
+	req := factory.awaitRequest(t)
+	require.Equal(t, uint64(1), req.FromOffset)
+	require.Equal(t, uint64(1), req.MaxOffset)
+	require.Equal(t, 1024, req.MaxBytes)
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	waiter := rc.pullWaiters[333]
+	require.NotNil(t, waiter)
+	require.True(t, waiter.mergeCacheSuffix)
+	require.Equal(t, 1024, waiter.maxBytes)
+	requireFuturePending(t, future)
+}
+
 func TestLeaderPullCacheDisabledUsesStoreRead(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
@@ -2839,6 +2885,47 @@ func (s *blockingApplyStore) ApplyFollower(ctx context.Context, req store.ApplyF
 		return store.ApplyFollowerResult{}, ctx.Err()
 	}
 	return s.ChannelStore.ApplyFollower(ctx, req)
+}
+
+type captureReadLogRequestFactory struct {
+	base     *store.MemoryFactory
+	requests chan store.ReadLogRequest
+}
+
+func newCaptureReadLogRequestFactory() *captureReadLogRequestFactory {
+	return &captureReadLogRequestFactory{base: store.NewMemoryFactory(), requests: make(chan store.ReadLogRequest, 8)}
+}
+
+func (f *captureReadLogRequestFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	base, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &captureReadLogRequestStore{ChannelStore: base, parent: f}, nil
+}
+
+func (f *captureReadLogRequestFactory) awaitRequest(t *testing.T) store.ReadLogRequest {
+	t.Helper()
+	select {
+	case req := <-f.requests:
+		return req
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ReadLog request")
+		return store.ReadLogRequest{}
+	}
+}
+
+type captureReadLogRequestStore struct {
+	store.ChannelStore
+	parent *captureReadLogRequestFactory
+}
+
+func (s *captureReadLogRequestStore) ReadLog(ctx context.Context, req store.ReadLogRequest) (store.ReadLogResult, error) {
+	select {
+	case s.parent.requests <- req:
+	default:
+	}
+	return s.ChannelStore.ReadLog(ctx, req)
 }
 
 type blockingReadLogFactory struct {
