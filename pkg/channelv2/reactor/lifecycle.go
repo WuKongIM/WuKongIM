@@ -47,10 +47,12 @@ type followerLifecycle struct {
 	LastHintVersion    uint64
 	PendingHintVersion uint64
 	HintInflight       bool
-	HintRetryAt        time.Time
-	Parked             bool
-	Stopped            bool
-	StopAckVersion     uint64
+	// HintInflightOpID fences the PullHint RPC currently allowed to clear HintInflight.
+	HintInflightOpID ch.OpID
+	HintRetryAt      time.Time
+	Parked           bool
+	Stopped          bool
+	StopAckVersion   uint64
 	// StopOfferedVersion records the activity version last returned with PullControlStop.
 	StopOfferedVersion uint64
 }
@@ -85,6 +87,23 @@ func resetLeaderCheckpointLifecycle(rc *runtimeChannel) {
 	rc.lifecycle.CheckpointReady = false
 	rc.lifecycle.CheckpointReadyActivityVersion = 0
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
+}
+
+func retireFollowerPullHints(rc *runtimeChannel, node ch.NodeID) {
+	if rc == nil {
+		return
+	}
+	for opID, inflight := range rc.pullHintInflight {
+		if inflight.follower == node {
+			delete(rc.pullHintInflight, opID)
+		}
+	}
+	if follower := rc.followers[node]; follower != nil {
+		follower.HintInflight = false
+		follower.HintInflightOpID = 0
+		follower.PendingHintVersion = 0
+		follower.HintRetryAt = time.Time{}
+	}
 }
 
 func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
@@ -180,6 +199,7 @@ func (r *Reactor) resetPullHintLifecycle(rc *runtimeChannel) {
 		follower.LastHintVersion = 0
 		follower.PendingHintVersion = 0
 		follower.HintInflight = false
+		follower.HintInflightOpID = 0
 		follower.HintRetryAt = time.Time{}
 	}
 }
@@ -263,7 +283,7 @@ func (r *Reactor) hasPendingRuntimeWork(rc *runtimeChannel) bool {
 	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
 		return true
 	}
-	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 || len(rc.pullHintInflight) != 0 {
+	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 {
 		return true
 	}
 	if rc.state.InflightAppend != nil || len(rc.state.PendingAppends) != 0 {
@@ -368,6 +388,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 		return
 	}
 	follower.HintInflight = true
+	follower.HintInflightOpID = opID
 	follower.HintRetryAt = time.Time{}
 	follower.LastHintVersion = version
 	follower.PendingHintVersion = 0
@@ -398,7 +419,12 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 	if follower == nil {
 		return
 	}
+	current := follower.HintInflight && follower.HintInflightOpID == result.Fence.OpID
+	if !current {
+		return
+	}
 	follower.HintInflight = false
+	follower.HintInflightOpID = 0
 	now := time.Now()
 	if result.Err == nil {
 		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
