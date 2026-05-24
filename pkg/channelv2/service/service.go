@@ -29,7 +29,7 @@ type Config struct {
 	PullMaxBytes int
 	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 10.
 	LeaderRecentRecordCacheSize int
-	// LeaderRecentRecordCacheBytes bounds per-channel memory used by the recent leader log cache.
+	// LeaderRecentRecordCacheBytes is a retained payload-byte soft cap for the per-channel leader log cache; the newest oversized record may exceed it.
 	LeaderRecentRecordCacheBytes int
 	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
 	IdleSlowdownAfter time.Duration
