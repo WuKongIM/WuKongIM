@@ -87,6 +87,61 @@ func TestDueSchedulerKeepsDifferentKindOrKeyDistinct(t *testing.T) {
 	require.Len(t, s.items, 3)
 }
 
+func TestDueSchedulerDirtyFollowerWithFutureNextPullAtWaitsForBackoff(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	now := time.Unix(30, 0)
+	nextPullAt := now.Add(time.Hour)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	meta := followerTestMeta("dirty-follower-backoff")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	r.due = dueScheduler{}
+	rc.replication.dirty = true
+	rc.replication.nextPullAt = nextPullAt
+	rc.replicationDueVersion++
+	r.due.push(dueItem{key: meta.Key, kind: dueReplication, due: now, version: rc.replicationDueVersion})
+
+	done := make(chan struct{})
+	go func() {
+		r.processDue(now)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("processDue spun on dirty follower before nextPullAt")
+	}
+	require.Equal(t, 0, net.PullCalls())
+	require.Len(t, r.due.items, 1)
+	require.Equal(t, nextPullAt, r.due.items[0].due)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskRPCPull)
+}
+
+func TestDueSchedulerActiveFollowerWithoutExplicitWorkIsNotScheduled(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	now := time.Unix(40, 0)
+	meta := followerTestMeta("idle-active-follower")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	r.due = dueScheduler{}
+	rc.replication = replicationState{}
+
+	due, ok := r.nextReplicationDue(rc, now)
+	require.False(t, ok)
+	require.True(t, due.IsZero())
+	r.scheduleReplicationFromState(rc, now)
+	require.Empty(t, r.due.items)
+}
+
 func TestDueSchedulerReplacementUpdatesOrdering(t *testing.T) {
 	var s dueScheduler
 	now := time.Unix(20, 0)

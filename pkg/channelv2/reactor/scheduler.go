@@ -234,12 +234,15 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		return now, true
 	}
 	if replication.dirty {
+		if !replication.nextPullAt.IsZero() && now.Before(replication.nextPullAt) {
+			return replication.nextPullAt, true
+		}
 		return now, true
 	}
 	if !replication.nextPullAt.IsZero() {
 		return replication.nextPullAt, true
 	}
-	return now, true
+	return time.Time{}, false
 }
 
 func (r *Reactor) scheduleLifecycleFromState(rc *runtimeChannel, now time.Time) {
