@@ -381,7 +381,7 @@ func (rc *runtimeChannel) safeToEvictRuntime() bool {
 	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
 		return false
 	}
-	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 || len(rc.pullHintInflight) != 0 {
+	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 {
 		return false
 	}
 	if rc.lifecycle.CheckpointInflight || rc.lifecycle.CheckpointOpID != 0 || !rc.lifecycle.CheckpointRetryAt.IsZero() {

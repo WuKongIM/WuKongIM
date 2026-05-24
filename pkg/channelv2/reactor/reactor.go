@@ -715,7 +715,7 @@ func (r *Reactor) handlePull(event Event) {
 		follower.Parked = false
 		follower.Stopped = false
 		follower.NextExpectedPullAt = time.Time{}
-		follower.HintRetryAt = time.Time{}
+		retireFollowerPullHints(rc, event.Pull.Follower)
 		match := event.Pull.NextOffset - 1
 		if event.Pull.NextOffset <= rc.state.LEO+1 && match > follower.Match {
 			follower.Match = match
@@ -761,7 +761,7 @@ func (r *Reactor) handleAck(event Event) {
 			follower.Stopped = true
 			follower.StopAckVersion = event.Ack.ActivityVersion
 			follower.Parked = false
-			follower.HintInflight = false
+			retireFollowerPullHints(rc, event.Ack.Follower)
 			if event.Ack.MatchOffset > follower.Match {
 				follower.Match = event.Ack.MatchOffset
 			}
@@ -780,6 +780,9 @@ func (r *Reactor) handleAck(event Event) {
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
 	if follower := rc.followers[event.Ack.Follower]; follower != nil && event.Ack.MatchOffset > follower.Match {
 		follower.Match = event.Ack.MatchOffset
+	}
+	if follower := rc.followers[event.Ack.Follower]; follower != nil && follower.Match >= rc.state.LEO {
+		retireFollowerPullHints(rc, event.Ack.Follower)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
 	r.scheduleLifecycleFromState(rc, time.Now())

@@ -1784,6 +1784,80 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestStoppedAckRetiresObsoletePullHintInflightAndAllowsLeaderEviction(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("stopped-ack-retires-pull-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	r.syncLeaderFollowers(rc)
+	rc.followers[2].HintInflight = true
+	rc.followers[2].HintInflightOpID = 99
+	rc.followers[2].LastHintVersion = 3
+	rc.pullHintInflight = map[ch.OpID]pullHintInflight{
+		99: {follower: 2, activityVersion: 3, reason: transport.PullHintReasonAppend},
+	}
+
+	future := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: future,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Empty(t, rc.pullHintInflight)
+	require.False(t, rc.followers[2].HintInflight)
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestOldPullHintCompletionDoesNotClearNewerHintInflight(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := testMeta("old-pull-hint-completion", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 4
+	rc.lifecycle.ActivityVersion = 4
+	rc.followers[2].HintInflight = true
+	rc.followers[2].HintInflightOpID = 12
+	rc.followers[2].LastHintVersion = 4
+	rc.pullHintInflight = map[ch.OpID]pullHintInflight{
+		11: {follower: 2, activityVersion: 3, reason: transport.PullHintReasonAppend},
+		12: {follower: 2, activityVersion: 4, reason: transport.PullHintReasonAppend},
+	}
+
+	r.handleRPCPullHintResult(worker.Result{
+		Kind:        worker.TaskRPCPullHint,
+		Fence:       ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 11},
+		RPCPullHint: &worker.RPCPullHintResult{},
+	})
+
+	require.True(t, rc.followers[2].HintInflight)
+	require.Contains(t, rc.pullHintInflight, ch.OpID(12))
+}
+
 func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
