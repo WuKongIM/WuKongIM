@@ -60,3 +60,52 @@ func TestDueSchedulerLifecycleTickDoesNotScanLoadedIdleLeaders(t *testing.T) {
 	require.Equal(t, dueKey, checkpoint.Fence.ChannelKey)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
 }
+
+func TestDueSchedulerCoalescesSameKindAndKey(t *testing.T) {
+	var s dueScheduler
+	now := time.Unix(20, 0)
+	key := ch.ChannelKey("a")
+	s.push(dueItem{key: key, kind: dueReplication, due: now.Add(2 * time.Second), version: 1})
+	s.push(dueItem{key: key, kind: dueReplication, due: now.Add(time.Second), version: 2})
+
+	require.Len(t, s.items, 1)
+	item, ok := s.popDue(now.Add(time.Second))
+	require.True(t, ok)
+	require.Equal(t, dueReplication, item.kind)
+	require.Equal(t, key, item.key)
+	require.Equal(t, uint64(2), item.version)
+	require.Equal(t, now.Add(time.Second), item.due)
+}
+
+func TestDueSchedulerKeepsDifferentKindOrKeyDistinct(t *testing.T) {
+	var s dueScheduler
+	now := time.Unix(20, 0)
+	s.push(dueItem{key: ch.ChannelKey("a"), kind: dueReplication, due: now.Add(time.Second), version: 1})
+	s.push(dueItem{key: ch.ChannelKey("a"), kind: dueLifecycle, due: now.Add(time.Second), version: 2})
+	s.push(dueItem{key: ch.ChannelKey("b"), kind: dueReplication, due: now.Add(time.Second), version: 3})
+
+	require.Len(t, s.items, 3)
+}
+
+func TestDueSchedulerReplacementUpdatesOrdering(t *testing.T) {
+	var s dueScheduler
+	now := time.Unix(20, 0)
+	s.push(dueItem{key: ch.ChannelKey("a"), kind: dueReplication, due: now.Add(3 * time.Second), version: 1})
+	s.push(dueItem{key: ch.ChannelKey("b"), kind: dueReplication, due: now.Add(2 * time.Second), version: 1})
+	s.push(dueItem{key: ch.ChannelKey("a"), kind: dueReplication, due: now.Add(time.Second), version: 2})
+
+	item, ok := s.popDue(now.Add(time.Second))
+	require.True(t, ok)
+	require.Equal(t, ch.ChannelKey("a"), item.key)
+	require.Equal(t, uint64(2), item.version)
+
+	s.push(dueItem{key: ch.ChannelKey("a"), kind: dueReplication, due: now.Add(4 * time.Second), version: 3})
+	s.push(dueItem{key: ch.ChannelKey("b"), kind: dueReplication, due: now.Add(5 * time.Second), version: 2})
+
+	item, ok = s.popDue(now.Add(4 * time.Second))
+	require.True(t, ok)
+	require.Equal(t, ch.ChannelKey("a"), item.key)
+	require.Equal(t, uint64(3), item.version)
+	_, ok = s.popDue(now.Add(4 * time.Second))
+	require.False(t, ok)
+}

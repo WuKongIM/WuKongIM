@@ -24,14 +24,30 @@ type dueItem struct {
 	index   int
 }
 
+type dueSlot struct {
+	kind dueKind
+	key  ch.ChannelKey
+}
+
 // dueScheduler is a min-heap of channel maintenance work ordered by due time.
 type dueScheduler struct {
 	items []dueItem
+	slots map[dueSlot]int
 }
 
 func (s *dueScheduler) push(item dueItem) {
 	if item.due.IsZero() {
 		item.due = time.Now()
+	}
+	if s.slots == nil {
+		s.slots = make(map[dueSlot]int)
+	}
+	slot := dueSlot{kind: item.kind, key: item.key}
+	if index, ok := s.slots[slot]; ok && index >= 0 && index < len(s.items) {
+		item.index = index
+		s.items[index] = item
+		heap.Fix(s, index)
+		return
 	}
 	heap.Push(s, item)
 }
@@ -76,12 +92,20 @@ func (s dueScheduler) Swap(i, j int) {
 	s.items[i], s.items[j] = s.items[j], s.items[i]
 	s.items[i].index = i
 	s.items[j].index = j
+	if s.slots != nil {
+		s.slots[dueSlot{kind: s.items[i].kind, key: s.items[i].key}] = i
+		s.slots[dueSlot{kind: s.items[j].kind, key: s.items[j].key}] = j
+	}
 }
 
 func (s *dueScheduler) Push(x any) {
 	item := x.(dueItem)
 	item.index = len(s.items)
 	s.items = append(s.items, item)
+	if s.slots == nil {
+		s.slots = make(map[dueSlot]int)
+	}
+	s.slots[dueSlot{kind: item.kind, key: item.key}] = item.index
 }
 
 func (s *dueScheduler) Pop() any {
@@ -91,6 +115,9 @@ func (s *dueScheduler) Pop() any {
 	item.index = -1
 	old[n-1] = dueItem{}
 	s.items = old[:n-1]
+	if s.slots != nil {
+		delete(s.slots, dueSlot{kind: item.kind, key: item.key})
+	}
 	return item
 }
 

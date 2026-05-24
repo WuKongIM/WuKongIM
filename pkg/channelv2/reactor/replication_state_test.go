@@ -703,18 +703,25 @@ func TestFollowerAckResultResetsBackoff(t *testing.T) {
 	})
 	net.SetAckError(ch.ErrNotReady)
 	factory := store.NewMemoryFactory()
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net, ReplicationMinBackoff: time.Hour, ReplicationMaxBackoff: time.Hour})
-	require.NoError(t, err)
-	defer g.Close()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		ReplicationMinBackoff: time.Hour, ReplicationMaxBackoff: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
 
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now()}))
-	require.Eventually(t, func() bool { return net.AckCalls() == 1 }, time.Second, time.Millisecond)
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
-	require.Eventually(t, func() bool {
-		return rc.replication.pendingAck && !rc.replication.nextAckAt.IsZero()
-	}, time.Second, time.Millisecond)
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCPull)})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreApply)})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCAck)})
+	require.Equal(t, 1, net.AckCalls())
+	require.True(t, rc.replication.pendingAck)
+	require.False(t, rc.replication.nextAckAt.IsZero())
 	nextAckAt := rc.replication.nextAckAt
+
 	net.SetAckError(nil)
 	net.SetPullResponse(transport.PullResponse{
 		ChannelKey:  meta.Key,
@@ -723,10 +730,14 @@ func TestFollowerAckResultResetsBackoff(t *testing.T) {
 		LeaderHW:    1,
 		LeaderLEO:   1,
 	})
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(-time.Millisecond)}))
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(-time.Millisecond)})
 	require.Equal(t, 1, net.AckCalls())
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(time.Millisecond)}))
-	require.Eventually(t, func() bool { return net.AckCalls() >= 2 }, time.Second, time.Millisecond)
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(time.Millisecond)})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCAck)})
+	require.Equal(t, 2, net.AckCalls())
+	require.False(t, rc.replication.pendingAck)
+	require.Zero(t, rc.replication.backoff)
+	require.True(t, rc.replication.nextAckAt.IsZero())
 }
 
 func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
