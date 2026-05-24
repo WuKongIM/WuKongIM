@@ -561,16 +561,11 @@ func (r *Reactor) nextBatchOpID() ch.OpID {
 	return ch.OpID(1<<63 + r.nextOp.Add(1))
 }
 
-func (r *Reactor) flushDueAppends(now time.Time) {
-	for _, rc := range r.channels {
-		r.tryFlushAppend(rc, now)
-	}
-}
-
 func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	if r == nil || rc == nil {
 		return
 	}
+	defer r.scheduleAppendFlushFromState(rc)
 	r.sweepAppendCancellationsForChannel(rc)
 	if rc.appendInflight != nil {
 		return

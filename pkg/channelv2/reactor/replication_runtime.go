@@ -13,6 +13,7 @@ func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return
 	}
+	defer r.scheduleReplicationFromState(rc, now)
 	if rc.replication.pendingAck {
 		r.trySubmitPendingAck(rc, now)
 		if rc.replication.pendingAck || rc.replication.ackInflight {
@@ -39,15 +40,6 @@ func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
 	r.trySubmitPull(rc, now)
 }
 
-func (r *Reactor) tickAllReplication(now time.Time) {
-	if r == nil {
-		return
-	}
-	for _, rc := range r.channels {
-		r.tickReplication(rc, now)
-	}
-}
-
 func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	if r.cfg.Pools == nil {
 		r.backoffPull(rc, ch.ErrInvalidConfig, now)
@@ -70,6 +62,7 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	}
 	rc.replication.pullInflight = true
 	rc.replication.pullOpID = opID
+	rc.replication.dirty = false
 }
 
 func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
@@ -225,6 +218,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		return
 	}
 	now := time.Now()
+	defer r.scheduleReplicationFromState(rc, now)
 	if result.Err != nil {
 		r.backoffPull(rc, result.Err, now)
 		return
@@ -306,6 +300,7 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	}
 	rc.replication.applyOpID = 0
 	now := time.Now()
+	defer r.scheduleReplicationFromState(rc, now)
 	if result.Err != nil {
 		rc.replication.applyBlocked = true
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
@@ -348,6 +343,7 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	if result.Err != nil {
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.nextAckAt = now.Add(rc.replication.backoff)
+		r.scheduleReplicationFromState(rc, now)
 		return
 	}
 	rc.replication.backoff = 0
@@ -358,9 +354,11 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	rc.replication.dirty = false
 	if rc.replication.pendingPull != nil {
 		r.trySubmitPendingApply(rc, now)
+		r.scheduleReplicationFromState(rc, now)
 		return
 	}
 	rc.replication.nextPullAt = now
+	r.scheduleReplicationFromState(rc, now)
 }
 
 func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
@@ -392,12 +390,14 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.nextCheckpointAt = now.Add(rc.replication.backoff)
 		rc.replication.lastError = err
+		r.scheduleReplicationFromState(rc, now)
 		return
 	}
 	rc.replication.backoff = 0
 	rc.replication.nextCheckpointAt = time.Time{}
 	rc.replication.lastError = nil
 	r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
+	r.scheduleReplicationFromState(rc, now)
 }
 
 func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker.Result) {
@@ -415,6 +415,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	}
 	if err != nil {
 		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
@@ -423,6 +424,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 		rc.state.HW < rc.state.LEO ||
 		!r.allFollowersStopped(rc) ||
 		r.hasPendingRuntimeWork(rc) {
+		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
@@ -499,6 +501,7 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		Control:         control,
 		Records:         records,
 	}})
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {

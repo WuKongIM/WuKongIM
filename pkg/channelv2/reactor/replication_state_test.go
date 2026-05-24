@@ -47,7 +47,7 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
-func TestGroupTickScansActiveFollowersWithoutSeparateSchedule(t *testing.T) {
+func TestKeyedTickHandlesManuallyDirtyFollowerWithoutSeparateSchedule(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
@@ -67,7 +67,7 @@ func TestGroupTickScansActiveFollowersWithoutSeparateSchedule(t *testing.T) {
 	require.NoError(t, rc.state.ApplyMeta(followerMeta).Err)
 	rc.replication.markDirty(time.Time{})
 
-	require.NoError(t, g.Tick(context.Background()))
+	require.NoError(t, awaitSubmit(g, leaderMeta.Key, Event{Kind: EventTick, Key: leaderMeta.Key, TickNow: time.Now()}))
 	require.Eventually(t, func() bool { return net.LastPull().NextOffset == 1 }, time.Second, time.Millisecond)
 }
 
@@ -151,7 +151,14 @@ func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T)
 	net.BlockPulls()
 	factory := newBlockingApplyFactory()
 	factory.BlockApplies()
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	g, err := NewGroup(Config{
+		LocalNode:    2,
+		ReactorCount: 1,
+		MailboxSize:  16,
+		Store:        factory,
+		Transport:    net,
+		WorkerPools:  worker.PoolsConfig{RPC: worker.PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2}},
+	})
 	require.NoError(t, err)
 	defer g.Close()
 	defer net.UnblockPulls()
