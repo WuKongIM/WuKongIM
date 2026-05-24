@@ -19,9 +19,11 @@ type Result struct {
 	StoreReadCommitted *StoreReadCommittedResult
 	StoreReadLog       *StoreReadLogResult
 	StoreApply         *StoreApplyResult
+	StoreCheckpoint    *StoreCheckpointResult
 	RPCPull            *RPCPullResult
 	RPCAck             *RPCAckResult
 	RPCNotify          *RPCNotifyResult
+	RPCPullHint        *RPCPullHintResult
 	Value              any
 }
 
@@ -53,6 +55,9 @@ type StoreApplyResult struct {
 	LEO uint64
 }
 
+// StoreCheckpointResult marks a completed checkpoint persistence task.
+type StoreCheckpointResult struct{}
+
 // RPCPullResult contains the response returned by a remote pull RPC.
 type RPCPullResult struct {
 	// Response is the leader pull response returned by transport.
@@ -62,8 +67,11 @@ type RPCPullResult struct {
 // RPCAckResult marks a completed remote acknowledgement RPC.
 type RPCAckResult struct{}
 
-// RPCNotifyResult marks a completed remote replication notification RPC.
+// RPCNotifyResult marks a completed legacy compatibility nudge RPC.
 type RPCNotifyResult struct{}
+
+// RPCPullHintResult marks a completed remote pull hint RPC.
+type RPCPullHintResult struct{}
 
 // CompletionSink receives worker completions for routing back to reactors.
 type CompletionSink interface {

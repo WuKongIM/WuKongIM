@@ -15,7 +15,7 @@ type Cluster interface {
 	Close() error
 }
 
-// MetaResolver loads authoritative metadata for channels that are not yet active in a reactor.
+// MetaResolver loads authoritative metadata for unloaded append targets and PullHint follower activation.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
 }
@@ -27,7 +27,7 @@ type Config struct {
 	MailboxSize  int
 	Store        any
 	Transport    any
-	// MetaResolver lazily loads metadata when Append reaches an unloaded channel.
+	// MetaResolver lazily loads metadata for unloaded Append targets and PullHint follower activation.
 	MetaResolver any
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.
 	Observer any
@@ -43,6 +43,18 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
+	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
+	IdleSlowdownAfter time.Duration
+	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
+	IdleEvictAfter time.Duration
+	// IdlePullMinInterval is the shortest no-record follower pull delay returned by a leader.
+	IdlePullMinInterval time.Duration
+	// IdlePullMaxInterval is the longest parked follower pull delay returned by a leader.
+	IdlePullMaxInterval time.Duration
+	// IdleEvictCheckInterval is the retry interval for lifecycle checks while eviction is blocked.
+	IdleEvictCheckInterval time.Duration
+	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
+	PullHintRetryInterval time.Duration
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.

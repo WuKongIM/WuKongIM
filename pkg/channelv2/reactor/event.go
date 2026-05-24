@@ -26,25 +26,33 @@ const (
 	EventCancelWaiter
 	EventPull
 	EventAck
+	// EventNotify accepts legacy transport compatibility nudges.
 	EventNotify
+	EventPullHint
+	// EventLeaderEvictReady performs the final normal-priority leader eviction recheck.
+	EventLeaderEvictReady
 	EventClose
 )
 
 // Event is the mailbox envelope consumed by reactors.
 type Event struct {
-	Kind      EventKind
-	Key       ch.ChannelKey
-	Meta      ch.Meta
-	Append    ch.AppendBatchRequest
-	Context   context.Context
-	Fetch     ch.FetchRequest
-	Future    *Future
-	Worker    worker.Result
-	Pull      transport.PullRequest
-	Ack       transport.AckRequest
+	Kind    EventKind
+	Key     ch.ChannelKey
+	Meta    ch.Meta
+	Append  ch.AppendBatchRequest
+	Context context.Context
+	Fetch   ch.FetchRequest
+	Future  *Future
+	Worker  worker.Result
+	Pull    transport.PullRequest
+	Ack     transport.AckRequest
+	// Notify is the legacy transport compatibility nudge payload.
 	Notify    transport.NotifyRequest
+	PullHint  transport.PullHintRequest
 	OpID      ch.OpID
 	CancelOp  ch.OpID
 	CancelErr error
 	TickNow   time.Time
+	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
+	LeaderEvictAppendSeq uint64
 }
