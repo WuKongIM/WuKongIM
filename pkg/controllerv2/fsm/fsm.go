@@ -126,6 +126,12 @@ func (sm *StateMachine) Apply(ctx context.Context, raftIndex uint64, cmd command
 	result.AppliedRaftIndex = next.AppliedRaftIndex
 
 	if next.Revision == 0 {
+		// Before init there is no valid state file to persist; still report the
+		// committed index for deterministic semantic rejects so callers can mark
+		// the Raft entry handled without publishing an invalid cluster state.
+		if result.Rejected {
+			result.AppliedRaftIndex = raftIndex
+		}
 		return result, nil
 	}
 	checksum, err := state.Checksum(next)

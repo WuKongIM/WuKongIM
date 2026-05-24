@@ -3,6 +3,7 @@ package fsm
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -160,6 +161,45 @@ func TestApplyInvalidPeersReturnsSemanticRejectAndAdvancesAppliedIndex(t *testin
 	persisted, err := store.Load(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
+}
+
+func TestApplyInvalidCommandBeforeInitReportsRaftIndexWithoutPersisting(t *testing.T) {
+	ctx := context.Background()
+	sm, store := newTestStateMachine(t)
+
+	result, err := sm.Apply(ctx, 7, command.Command{Kind: command.KindUpsertNode})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonInvalidCommand, Revision: 0, AppliedRaftIndex: 7}, result)
+	require.Zero(t, sm.Snapshot(ctx))
+	_, err = store.Load(ctx)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestApplyUsesIssuedAtForDeterministicSnapshots(t *testing.T) {
+	ctx := context.Background()
+	issuedAt := time.Date(2026, 5, 24, 20, 30, 0, 123, time.FixedZone("plus-eight", 8*60*60))
+	init := initCommand()
+	init.IssuedAt = issuedAt
+	bootstrap := bootstrapCommand(1, 1, []uint64{1, 2, 3})
+	bootstrap.IssuedAt = issuedAt.Add(time.Minute)
+
+	sm1, _ := newTestStateMachine(t)
+	applyOK(t, sm1, 1, init)
+	time.Sleep(5 * time.Millisecond)
+	applyOK(t, sm1, 2, bootstrap)
+	snap1 := sm1.Snapshot(ctx)
+
+	time.Sleep(5 * time.Millisecond)
+	sm2, _ := newTestStateMachine(t)
+	applyOK(t, sm2, 1, init)
+	time.Sleep(5 * time.Millisecond)
+	applyOK(t, sm2, 2, bootstrap)
+	snap2 := sm2.Snapshot(ctx)
+
+	require.Equal(t, issuedAt.Add(time.Minute).UTC(), snap1.UpdatedAt)
+	require.Equal(t, snap1, snap2)
+	require.NotEmpty(t, snap1.Checksum)
+	require.Equal(t, snap1.Checksum, snap2.Checksum)
 }
 
 func TestApplyCompleteTaskRemovesTask(t *testing.T) {
