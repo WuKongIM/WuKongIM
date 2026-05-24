@@ -68,6 +68,7 @@ func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 	}
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	r.scheduleLifecycleFromState(rc, now)
 }
 
@@ -77,6 +78,7 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 	}
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	resetLeaderCheckpointLifecycle(rc)
 	r.scheduleLifecycleFromState(rc, now)
 }
@@ -294,18 +296,7 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	if !rc.lifecycle.CheckpointRetryAt.IsZero() && now.Before(rc.lifecycle.CheckpointRetryAt) {
 		return
 	}
-	opID := r.nextOpID()
-	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
-	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.LEO}); err != nil {
-		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleLifecycleFromState(rc, now)
-		return
-	}
-	rc.lifecycle.Phase = lifecycleEvictingLeader
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = opID
-	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
-	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	r.startLeaderCheckpoint(rc, now)
 }
 
 func (r *Reactor) currentAppendSubmitSeq(key ch.ChannelKey) uint64 {
@@ -372,6 +363,7 @@ func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appe
 	}
 	rc.lifecycle.CheckpointReadyQueued = true
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleFinalRecheck
 }
 
 func (r *Reactor) handleLeaderEvictReady(event Event) {
@@ -384,6 +376,7 @@ func (r *Reactor) handleLeaderEvictReady(event Event) {
 		return
 	}
 	now := time.Now()
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleFinalRecheck
 	if rc.state.HW < rc.state.LEO || !r.allFollowersStopped(rc) || r.hasPendingRuntimeWork(rc) {
 		r.scheduleLifecycleFromState(rc, now)
 		return

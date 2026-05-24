@@ -1779,6 +1779,7 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 3, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
 	})
 	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
+	require.Equal(t, LeaderLifecycleCheckpointing, rc.runtimeLifecycle.LeaderPhase)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
