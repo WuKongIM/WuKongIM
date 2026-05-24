@@ -27,6 +27,43 @@ func TestNewServiceValidatesConfig(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidConfig)
 }
 
+func TestConcurrentStartStatusStepRaceShape(t *testing.T) {
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap: true,
+		Storage:        errorInitialStateStorage{err: errors.New("startup fails")},
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ctx.Err() == nil {
+				_ = service.Start(context.Background())
+			}
+		}()
+	}
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ctx.Err() == nil {
+				_ = service.Status()
+				_ = service.Step(context.Background(), raftpb.Message{To: 1})
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func TestConcurrentStartSingleFlightAndStopWaitsForStartup(t *testing.T) {
 	dir := t.TempDir()
 	base := openControllerStorage(t, dir)
@@ -373,6 +410,40 @@ func TestStartupRebuildsMissingStateFromCompleteLog(t *testing.T) {
 	require.Equal(t, snap, persisted)
 }
 
+func TestStartupRebuildAfterPartialPrefixMarkAppliedUsesCommitTarget(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	base := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	initCmd := testInitCommand("wk-partial-rebuild", peers)
+	upsertCmd := testUpsertNodeCommand(1, 1, "rebuilt-after-prefix")
+	seedControllerLog(t, base, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		testCommandEntry(t, 2, initCmd),
+		testCommandEntry(t, 3, upsertCmd),
+	}, 3, 0)
+	statePath := filepath.Join(dir, "cluster-state.json")
+
+	partialStorage := &tailUnavailableStorage{Storage: base, maxIndex: 1}
+	partial, err := newSingleService(1, peers, partialStorage, statePath, false)
+	require.NoError(t, err)
+	require.Error(t, partial.Start(ctx))
+	boot, err := base.InitialState(ctx)
+	require.NoError(t, err)
+	require.Zero(t, boot.AppliedIndex)
+	require.NoFileExists(t, statePath)
+
+	recovered := startSingleService(t, 1, peers, base, statePath, false)
+	t.Cleanup(func() { require.NoError(t, recovered.Stop()) })
+	snap := recovered.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(2), snap.Revision)
+	require.Equal(t, uint64(3), snap.AppliedRaftIndex)
+	require.Equal(t, "rebuilt-after-prefix", findTestNode(t, snap, 1).Name)
+	boot, err = base.InitialState(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), boot.AppliedIndex)
+}
+
 func TestStartupFailsDegradedWhenStateMissingAndLogCompacted(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -666,6 +737,28 @@ func (s *missingEntryStorage) Entries(ctx context.Context, lo, hi, maxSize uint6
 		filtered = append(filtered, entry)
 	}
 	return filtered, nil
+}
+
+type errorInitialStateStorage struct {
+	multiraft.Storage
+	err error
+}
+
+func (s errorInitialStateStorage) InitialState(ctx context.Context) (multiraft.BootstrapState, error) {
+	_ = ctx
+	return multiraft.BootstrapState{}, s.err
+}
+
+type tailUnavailableStorage struct {
+	multiraft.Storage
+	maxIndex uint64
+}
+
+func (s *tailUnavailableStorage) Entries(ctx context.Context, lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+	if hi > s.maxIndex+1 {
+		hi = s.maxIndex + 1
+	}
+	return s.Storage.Entries(ctx, lo, hi, maxSize)
 }
 
 type blockingInitialStateStorage struct {
