@@ -142,6 +142,10 @@ type pullWaiter struct {
 	follower ch.NodeID
 	// nextOffset is the requested offset used to prove caught-up stop eligibility.
 	nextOffset uint64
+	// maxBytes is the follower's response byte budget.
+	maxBytes int
+	// mergeCacheSuffix asks the store-read completion path to append the cached suffix after the read range.
+	mergeCacheSuffix bool
 }
 
 // NewReactor constructs a reactor.
@@ -743,13 +747,6 @@ func (r *Reactor) handlePull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	if rc.pullWaiters == nil {
-		rc.pullWaiters = make(map[ch.OpID]*pullWaiter)
-	}
-	if _, ok := rc.pullWaiters[event.OpID]; ok {
-		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
-		return
-	}
 	now := time.Now()
 	r.syncLeaderFollowers(rc)
 	if follower := rc.followers[event.Pull.Follower]; follower != nil {
@@ -763,15 +760,67 @@ func (r *Reactor) handlePull(event Event) {
 			follower.Match = match
 		}
 	}
-	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset}
+	if rc.pullWaiters != nil {
+		if _, ok := rc.pullWaiters[event.OpID]; ok {
+			event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+			return
+		}
+	}
+	waiter := &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset, maxBytes: event.Pull.MaxBytes}
+	if r.tryCompletePullFromLeaderCache(rc, event, waiter, now) {
+		return
+	}
+	if rc.pullWaiters == nil {
+		rc.pullWaiters = make(map[ch.OpID]*pullWaiter)
+	}
+	if _, ok := rc.pullWaiters[event.OpID]; ok {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
+	maxOffset, mergeCacheSuffix := leaderPullReadRange(rc, event.Pull.NextOffset)
+	waiter.mergeCacheSuffix = mergeCacheSuffix
+	rc.pullWaiters[event.OpID] = waiter
 	r.registerPullCancelContext(rc, ctx)
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
-	err = r.submitStoreReadLog(ctx, event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)
+	err = r.submitStoreReadLog(ctx, event.Pull.ChannelID, fence, event.Pull.NextOffset, maxOffset, event.Pull.MaxBytes)
 	if err != nil {
 		delete(rc.pullWaiters, event.OpID)
 		r.unregisterPullCancelContext(rc)
 		event.Future.Complete(Result{Err: err})
 	}
+}
+
+func (r *Reactor) tryCompletePullFromLeaderCache(rc *runtimeChannel, event Event, waiter *pullWaiter, now time.Time) bool {
+	if rc == nil || rc.state == nil || !rc.recentRecords.enabled() {
+		return false
+	}
+	nextOffset := event.Pull.NextOffset
+	if nextOffset == rc.state.LEO+1 {
+		r.completeLeaderPull(rc, waiter, event.Future, nil, now)
+		return true
+	}
+	if nextOffset > rc.state.LEO+1 {
+		return false
+	}
+	records, ok := rc.recentRecords.slice(nextOffset, rc.state.LEO, waiter.maxBytes)
+	if !ok {
+		return false
+	}
+	r.completeLeaderPull(rc, waiter, event.Future, records, now)
+	return true
+}
+
+func leaderPullReadRange(rc *runtimeChannel, nextOffset uint64) (maxOffset uint64, mergeCacheSuffix bool) {
+	if rc == nil || rc.state == nil {
+		return 0, false
+	}
+	if rc.recentRecords.enabled() && rc.recentRecords.hasSuffixAfter(nextOffset) {
+		base := rc.recentRecords.base()
+		if base > 0 {
+			return base - 1, true
+		}
+	}
+	return rc.state.LEO, false
 }
 
 func (r *Reactor) handleAck(event Event) {
