@@ -1,9 +1,11 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"time"
 )
 
@@ -39,7 +41,16 @@ func Encode(st ClusterState) ([]byte, error) {
 // Decode parses, verifies, normalizes, and validates a cluster-state JSON payload.
 func Decode(data []byte) (ClusterState, error) {
 	var st ClusterState
-	if err := json.Unmarshal(data, &st); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&st); err != nil {
+		return ClusterState{}, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return ClusterState{}, invalid("trailing JSON token")
+		}
 		return ClusterState{}, err
 	}
 	if st.SchemaVersion != CurrentSchemaVersion {

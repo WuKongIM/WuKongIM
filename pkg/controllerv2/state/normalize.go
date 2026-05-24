@@ -8,6 +8,21 @@ func (s *ClusterState) Normalize() {
 		return
 	}
 	s.UpdatedAt = s.UpdatedAt.UTC()
+	if s.Controllers == nil {
+		s.Controllers = []ControllerVoter{}
+	}
+	if s.Nodes == nil {
+		s.Nodes = []Node{}
+	}
+	if s.Slots == nil {
+		s.Slots = []SlotAssignment{}
+	}
+	if s.HashSlots.Ranges == nil {
+		s.HashSlots.Ranges = []HashSlotRange{}
+	}
+	if s.Tasks == nil {
+		s.Tasks = []ReconcileTask{}
+	}
 	for i := range s.Nodes {
 		if s.Nodes[i].CapacityWeight == 0 {
 			s.Nodes[i].CapacityWeight = 1
@@ -40,17 +55,17 @@ func (s *ClusterState) Normalize() {
 // Clone returns a deep copy of the cluster state.
 func (s ClusterState) Clone() ClusterState {
 	out := s
-	out.Controllers = append([]ControllerVoter(nil), s.Controllers...)
-	out.Nodes = append([]Node(nil), s.Nodes...)
+	out.Controllers = cloneSlice(s.Controllers)
+	out.Nodes = cloneSlice(s.Nodes)
 	for i := range out.Nodes {
-		out.Nodes[i].Roles = append([]NodeRole(nil), s.Nodes[i].Roles...)
+		out.Nodes[i].Roles = cloneSlice(s.Nodes[i].Roles)
 	}
-	out.Slots = append([]SlotAssignment(nil), s.Slots...)
+	out.Slots = cloneSlice(s.Slots)
 	for i := range out.Slots {
 		out.Slots[i].DesiredPeers = cloneUint64s(s.Slots[i].DesiredPeers)
 	}
-	out.HashSlots.Ranges = append([]HashSlotRange(nil), s.HashSlots.Ranges...)
-	out.Tasks = append([]ReconcileTask(nil), s.Tasks...)
+	out.HashSlots.Ranges = cloneSlice(s.HashSlots.Ranges)
+	out.Tasks = cloneSlice(s.Tasks)
 	for i := range out.Tasks {
 		out.Tasks[i].TargetPeers = cloneUint64s(s.Tasks[i].TargetPeers)
 	}
@@ -68,5 +83,14 @@ func (n Node) HasRole(role NodeRole) bool {
 }
 
 func cloneUint64s(in []uint64) []uint64 {
-	return append([]uint64(nil), in...)
+	return cloneSlice(in)
+}
+
+func cloneSlice[T any](in []T) []T {
+	if in == nil {
+		return nil
+	}
+	out := make([]T, len(in))
+	copy(out, in)
+	return out
 }

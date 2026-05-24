@@ -7,6 +7,7 @@ import (
 
 // Validate checks whether the cluster state satisfies durable ControllerV2 invariants.
 func (s ClusterState) Validate() error {
+	s = s.Clone()
 	s.Normalize()
 	if s.SchemaVersion != CurrentSchemaVersion {
 		return fmt.Errorf("%w: %d", ErrUnsupportedSchema, s.SchemaVersion)
@@ -122,7 +123,7 @@ func validateSlots(config ClusterConfig, slots []SlotAssignment, nodes map[uint6
 		if slot.ConfigEpoch == 0 {
 			return nil, invalid("slot config_epoch is required")
 		}
-		if uint16(len(slot.DesiredPeers)) != config.ReplicaCount {
+		if len(slot.DesiredPeers) != int(config.ReplicaCount) {
 			return nil, invalid("slot desired_peers must match replica_count")
 		}
 		seenPeers := make(map[uint64]struct{}, len(slot.DesiredPeers))
