@@ -79,8 +79,10 @@ type Reactor struct {
 	nextOp atomic.Uint64
 	// submitMu orders final leader eviction against concurrent Append submissions.
 	submitMu sync.Mutex
-	// appendSubmitSeq increments before every accepted or attempted Append mailbox submission.
+	// appendSubmitSeq increments before every Append reservation or mailbox submission.
 	appendSubmitSeq uint64
+	// appendReservations counts appends between loaded-state verification and mailbox submission.
+	appendReservations map[ch.ChannelKey]int
 }
 
 type runtimeChannel struct {

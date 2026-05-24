@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -354,6 +355,31 @@ func (r *Reactor) currentAppendSubmitSeq() uint64 {
 	return r.appendSubmitSeq
 }
 
+func (r *Reactor) reserveAppend(key ch.ChannelKey) func() {
+	if r == nil {
+		return func() {}
+	}
+	r.submitMu.Lock()
+	r.appendSubmitSeq++
+	if r.appendReservations == nil {
+		r.appendReservations = make(map[ch.ChannelKey]int)
+	}
+	r.appendReservations[key]++
+	r.submitMu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			r.submitMu.Lock()
+			if r.appendReservations[key] <= 1 {
+				delete(r.appendReservations, key)
+			} else {
+				r.appendReservations[key]--
+			}
+			r.submitMu.Unlock()
+		})
+	}
+}
+
 func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appendSeq uint64) {
 	if r == nil || rc == nil || rc.state == nil || rc.lifecycle.CheckpointReadyQueued {
 		return
@@ -382,6 +408,12 @@ func (r *Reactor) handleLeaderEvictReady(event Event) {
 		return
 	}
 	r.submitMu.Lock()
+	if r.appendReservations[event.Key] > 0 {
+		r.submitMu.Unlock()
+		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
 	if r.appendSubmitSeq != event.LeaderEvictAppendSeq {
 		appendSeq := r.appendSubmitSeq
 		r.submitMu.Unlock()
