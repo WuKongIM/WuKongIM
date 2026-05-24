@@ -32,7 +32,7 @@ Planner tick: LocalState -> planner.Next -> Raft Propose -> FSM Apply -> statefi
 Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState update.
 ```
 
-When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals.
+When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 
 ## Non-Goals
 
