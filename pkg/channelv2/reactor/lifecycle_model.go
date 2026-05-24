@@ -195,3 +195,12 @@ func (d LifecycleDecision) ActionKinds() []LifecycleActionKind {
 	}
 	return out
 }
+
+func decisionHasAction(decision LifecycleDecision, kind LifecycleActionKind) bool {
+	for _, action := range decision.Actions {
+		if action.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
