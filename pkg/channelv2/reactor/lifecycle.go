@@ -23,6 +23,14 @@ type channelLifecycle struct {
 	LastAppendAt    time.Time
 	ActivityVersion uint64
 	Phase           lifecyclePhase
+	// CheckpointInflight records a leader eviction checkpoint that must complete before runtime deletion.
+	CheckpointInflight bool
+	// CheckpointOpID fences the leader eviction checkpoint worker result.
+	CheckpointOpID ch.OpID
+	// CheckpointActivityVersion is the activity version that requested the leader checkpoint.
+	CheckpointActivityVersion uint64
+	// CheckpointRetryAt is the next time to retry a failed or backpressured leader checkpoint.
+	CheckpointRetryAt time.Time
 }
 
 // followerLifecycle tracks leader-visible follower runtime state that is not part of the pure machine progress.
@@ -37,6 +45,8 @@ type followerLifecycle struct {
 	Parked             bool
 	Stopped            bool
 	StopAckVersion     uint64
+	// StopOfferedVersion records the activity version last returned with PullControlStop.
+	StopOfferedVersion uint64
 }
 
 func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
@@ -45,6 +55,18 @@ func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 	}
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
+}
+
+func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader {
+		return
+	}
+	rc.lifecycle.LastAppendAt = now
+	rc.lifecycle.Phase = lifecycleHot
+	rc.lifecycle.CheckpointInflight = false
+	rc.lifecycle.CheckpointOpID = 0
+	rc.lifecycle.CheckpointActivityVersion = 0
+	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
 func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
@@ -124,6 +146,7 @@ func (r *Reactor) tickLifecycle(rc *runtimeChannel, now time.Time) {
 		}
 		r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonResume, now)
 	}
+	r.tryEvictLeader(rc, now)
 }
 
 func (r *Reactor) tickAllLifecycle(now time.Time) {
@@ -156,6 +179,118 @@ func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *f
 		return false
 	}
 	return follower.Parked || follower.Stopped || follower.LastPullAt.IsZero()
+}
+
+func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
+	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || rc.state.Status != ch.StatusActive {
+		return false
+	}
+	if !r.leaderIdleExpired(rc, now) || r.hasPendingRuntimeWork(rc) {
+		return false
+	}
+	return r.allFollowersCaughtUp(rc)
+}
+
+func (r *Reactor) leaderIdleExpired(rc *runtimeChannel, now time.Time) bool {
+	if rc == nil || rc.lifecycle.LastAppendAt.IsZero() {
+		return false
+	}
+	return !now.Before(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleEvictAfter))
+}
+
+func (r *Reactor) allFollowersCaughtUp(rc *runtimeChannel) bool {
+	if rc == nil || rc.state == nil {
+		return false
+	}
+	r.syncLeaderFollowers(rc)
+	for _, replica := range rc.state.Replicas {
+		if replica == r.cfg.LocalNode {
+			continue
+		}
+		follower := rc.followers[replica]
+		if follower == nil || follower.Match < rc.state.LEO {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Reactor) allFollowersStopped(rc *runtimeChannel) bool {
+	if rc == nil || rc.state == nil {
+		return false
+	}
+	r.syncLeaderFollowers(rc)
+	for _, replica := range rc.state.Replicas {
+		if replica == r.cfg.LocalNode {
+			continue
+		}
+		follower := rc.followers[replica]
+		if follower == nil || !follower.Stopped || follower.StopAckVersion != rc.lifecycle.ActivityVersion || follower.Match < rc.state.LEO {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Reactor) hasPendingRuntimeWork(rc *runtimeChannel) bool {
+	if rc == nil || rc.state == nil {
+		return true
+	}
+	if len(rc.waiters) != 0 || len(rc.fetchWaiters) != 0 || len(rc.pullWaiters) != 0 {
+		return true
+	}
+	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
+		return true
+	}
+	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 || len(rc.pullHintInflight) != 0 {
+		return true
+	}
+	if rc.state.InflightAppend != nil || len(rc.state.PendingAppends) != 0 {
+		return true
+	}
+	replication := rc.replication
+	return replication.pullInflight ||
+		replication.ackInflight ||
+		replication.pendingAck ||
+		replication.pendingPull != nil ||
+		replication.applyBlocked ||
+		replication.applyOpID != 0 ||
+		replication.checkpointInflight ||
+		replication.checkpointOpID != 0 ||
+		!replication.nextCheckpointAt.IsZero() ||
+		!replication.nextAckAt.IsZero()
+}
+
+func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || rc.state.Status != ch.StatusActive {
+		return
+	}
+	if !r.leaderIdleExpired(rc, now) || rc.state.HW < rc.state.LEO {
+		return
+	}
+	if !r.allFollowersStopped(rc) {
+		return
+	}
+	if r.hasPendingRuntimeWork(rc) {
+		return
+	}
+	if rc.lifecycle.CheckpointInflight {
+		return
+	}
+	if !rc.lifecycle.CheckpointRetryAt.IsZero() && now.Before(rc.lifecycle.CheckpointRetryAt) {
+		return
+	}
+	opID := r.nextOpID()
+	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
+	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.LEO}); err != nil {
+		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		return
+	}
+	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.lifecycle.CheckpointInflight = true
+	rc.lifecycle.CheckpointOpID = opID
+	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
 func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower *followerLifecycle, reason transport.PullHintReason, now time.Time) {

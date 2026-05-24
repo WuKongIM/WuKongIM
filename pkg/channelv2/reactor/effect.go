@@ -396,6 +396,9 @@ func (rc *runtimeChannel) safeToEvictRuntime() bool {
 	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 || len(rc.pullHintInflight) != 0 {
 		return false
 	}
+	if rc.lifecycle.CheckpointInflight || rc.lifecycle.CheckpointOpID != 0 || !rc.lifecycle.CheckpointRetryAt.IsZero() {
+		return false
+	}
 	replication := rc.replication
 	if replication.pullInflight || replication.ackInflight || replication.pendingAck || replication.pendingPull != nil {
 		return false

@@ -371,6 +371,10 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
 		return
 	}
+	if rc.lifecycle.CheckpointInflight && result.Fence.OpID == rc.lifecycle.CheckpointOpID {
+		r.handleLeaderCheckpointResult(rc, result)
+		return
+	}
 	if !rc.replication.stopping || !rc.replication.checkpointInflight || result.Fence.OpID != rc.replication.checkpointOpID {
 		return
 	}
@@ -391,6 +395,34 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	rc.replication.nextCheckpointAt = time.Time{}
 	rc.replication.lastError = nil
 	r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
+}
+
+func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker.Result) {
+	if rc == nil || rc.state == nil || !rc.lifecycle.CheckpointInflight || result.Fence.OpID != rc.lifecycle.CheckpointOpID {
+		return
+	}
+	activityVersion := rc.lifecycle.CheckpointActivityVersion
+	now := time.Now()
+	rc.lifecycle.CheckpointInflight = false
+	rc.lifecycle.CheckpointOpID = 0
+	rc.lifecycle.CheckpointActivityVersion = 0
+	err := result.Err
+	if err == nil && result.StoreCheckpoint == nil {
+		err = ch.ErrInvalidConfig
+	}
+	if err != nil {
+		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		return
+	}
+	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	if activityVersion != rc.lifecycle.ActivityVersion ||
+		rc.state.Role != ch.RoleLeader ||
+		rc.state.HW < rc.state.LEO ||
+		!r.allFollowersStopped(rc) ||
+		r.hasPendingRuntimeWork(rc) {
+		return
+	}
+	r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
@@ -427,14 +459,27 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		version = rc.state.LEO
 	}
 	delay := time.Duration(0)
+	control := transport.PullControlContinue
 	if len(records) == 0 {
-		delay = r.leaderPullDelay(rc, now)
+		r.syncLeaderFollowers(rc)
+		if r.leaderCanOfferStop(rc, now) && waiter.nextOffset == rc.state.LEO+1 {
+			if follower := rc.followers[waiter.follower]; follower != nil && follower.Match >= rc.state.LEO {
+				control = transport.PullControlStop
+				follower.StopOfferedVersion = version
+			}
+		}
+		if control != transport.PullControlStop {
+			delay = r.leaderPullDelay(rc, now)
+		}
 	}
 	r.syncLeaderFollowers(rc)
 	if follower := rc.followers[waiter.follower]; follower != nil {
-		if len(records) == 0 {
+		if len(records) == 0 && control != transport.PullControlStop {
 			follower.Parked = delay > 0
 			follower.NextExpectedPullAt = now.Add(delay)
+		} else if control == transport.PullControlStop {
+			follower.Parked = false
+			follower.NextExpectedPullAt = time.Time{}
 		} else {
 			follower.Parked = false
 			follower.NextExpectedPullAt = time.Time{}
@@ -448,7 +493,7 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		LeaderLEO:       rc.state.LEO,
 		ActivityVersion: version,
 		NextPullAfter:   delay,
-		Control:         transport.PullControlContinue,
+		Control:         control,
 		Records:         records,
 	}})
 }

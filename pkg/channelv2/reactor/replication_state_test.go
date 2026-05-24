@@ -1135,7 +1135,7 @@ func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	meta.ISR = []ch.NodeID{1}
 	r := NewReactor(ReactorConfig{
 		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
-		IdleSlowdownAfter: time.Millisecond, IdlePullMinInterval: 10 * time.Millisecond, IdlePullMaxInterval: time.Second,
+		IdleSlowdownAfter: time.Millisecond, IdlePullMinInterval: 10 * time.Millisecond, IdlePullMaxInterval: time.Second, IdleEvictAfter: 2 * time.Hour,
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
@@ -1165,6 +1165,133 @@ func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	require.GreaterOrEqual(t, result.Pull.NextPullAfter, 10*time.Millisecond)
 	require.NotNil(t, rc.followers[2])
 	require.True(t, rc.followers[2].Parked)
+}
+
+func TestLeaderDoesNotOfferStopWhileNonISRFollowerLagging(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("stop-non-isr-lagging", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdlePullMinInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[3] = machine.ReplicaProgress{Match: 2}
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 21,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
+	require.Greater(t, result.Pull.NextPullAfter, time.Duration(0))
+}
+
+func TestLeaderReturnsStopWhenAllReplicasCaughtUpAndIdle(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("stop-all-caught-up", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdlePullMinInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 22,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, transport.PullControlStop, result.Pull.Control)
+	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
+	require.Zero(t, result.Pull.NextPullAfter)
+	require.Equal(t, uint64(3), rc.followers[2].StopOfferedVersion)
+}
+
+func TestLeaderDoesNotLetFuturePullOffsetFakeStopEligibility(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("stop-future-offset", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdlePullMinInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 2}
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 99, MaxBytes: 1024,
+		},
+		OpID: 23,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
+	require.Less(t, rc.followers[2].Match, rc.state.LEO)
 }
 
 func TestLeaderPullResponsePacesFromReplicationIdlePollIntervalByDefault(t *testing.T) {
@@ -1388,6 +1515,149 @@ func TestLeaderIgnoresAckWithMismatchedChannelKey(t *testing.T) {
 	_, err = ackFuture.Await(context.Background())
 	require.NoError(t, err)
 	requireFuturePending(t, future)
+}
+
+func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-evict-after-all-stopped", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 3
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
+	r.syncLeaderFollowers(rc)
+
+	firstFuture := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: firstFuture,
+		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
+	})
+	require.NoError(t, awaitFutureResult(t, firstFuture).Err)
+	require.Contains(t, r.channels, meta.Key)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+
+	secondFuture := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: secondFuture,
+		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 3, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
+	})
+	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Contains(t, r.channels, meta.Key)
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("single-node-cluster-leader-evict", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond, AppendBatchMaxRecords: 1,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	res := appendDirect(t, r, sink, meta, 1, "single-node cluster append")
+	require.NoError(t, res.Err)
+	rc := r.channels[meta.Key]
+	require.Equal(t, uint64(1), rc.state.LEO)
+	require.Equal(t, uint64(1), rc.state.HW)
+
+	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestLeaderCheckpointCompletionStaleAfterNewAppendDoesNotEvict(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-stale-checkpoint-new-append", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond, AppendBatchMaxRecords: 1,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before checkpoint").Err)
+	rc := r.channels[meta.Key]
+	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+
+	appendFuture := NewFuture()
+	r.handleAppend(appendEventWithFuture(meta, 2, "after checkpoint", appendFuture))
+	require.False(t, rc.lifecycle.CheckpointInflight)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: staleCheckpoint})
+	require.Contains(t, r.channels, meta.Key)
+}
+
+func TestNewAppendCancelsLeaderEvictionAndClearsStoppedFollowersNeedingData(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("append-cancels-leader-eviction", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before eviction").Err)
+	rc := r.channels[meta.Key]
+	rc.lifecycle.ActivityVersion = 1
+	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.lifecycle.CheckpointInflight = true
+	rc.lifecycle.CheckpointOpID = 99
+	rc.lifecycle.CheckpointActivityVersion = 1
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
+	rc.state.Progress[3] = machine.ReplicaProgress{Match: 1}
+	r.syncLeaderFollowers(rc)
+	rc.followers[2].Stopped = true
+	rc.followers[2].StopAckVersion = 1
+	rc.followers[3].Stopped = true
+	rc.followers[3].StopAckVersion = 1
+
+	appendFuture := NewFuture()
+	r.handleAppend(appendEventWithFuture(meta, 2, "reactivate followers", appendFuture))
+	require.False(t, rc.lifecycle.CheckpointInflight)
+	require.Zero(t, rc.lifecycle.CheckpointOpID)
+	require.Equal(t, lifecycleHot, rc.lifecycle.Phase)
+
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
+	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
+	require.False(t, rc.followers[2].Stopped)
+	require.False(t, rc.followers[3].Stopped)
+	require.True(t, rc.followers[2].LastPullAt.IsZero())
+	require.True(t, rc.followers[3].LastPullAt.IsZero())
 }
 
 func appendQuorumEvent(meta ch.Meta, id uint64, payload string) Event {
