@@ -71,10 +71,12 @@ type Reactor struct {
 	appendCancelChannels map[ch.ChannelKey]*runtimeChannel
 	// pullCancelChannels indexes leader pull waiters with cancellable caller contexts.
 	pullCancelChannels map[ch.ChannelKey]*runtimeChannel
-	stop               chan struct{}
-	done               chan struct{}
-	once               sync.Once
-	nextOp             atomic.Uint64
+	// due schedules channel maintenance without scanning every loaded channel.
+	due    dueScheduler
+	stop   chan struct{}
+	done   chan struct{}
+	once   sync.Once
+	nextOp atomic.Uint64
 }
 
 type runtimeChannel struct {
@@ -105,6 +107,10 @@ type runtimeChannel struct {
 	pullHintInflight map[ch.OpID]pullHintInflight
 	// pullWaiters maps leader-side async pull op ids to request futures.
 	pullWaiters map[ch.OpID]*pullWaiter
+	// due versions fence stale scheduler entries after channel state changes.
+	appendFlushDueVersion uint64
+	replicationDueVersion uint64
+	lifecycleDueVersion   uint64
 }
 
 type pullHintInflight struct {
@@ -190,8 +196,7 @@ func (r *Reactor) loop() {
 			r.sweepAppendCancellations()
 			r.sweepPullCancellations()
 			now := time.Now()
-			r.flushDueAppends(now)
-			r.tickAllLifecycle(now)
+			r.processDue(now)
 			resetTimer(idleTimer, r.idleWait(now))
 			event, ok := r.mailbox.WaitOne(r.stop, idleTimer.C)
 			stopTimer(idleTimer)
@@ -235,41 +240,9 @@ func stopTimer(timer *time.Timer) {
 }
 
 func (r *Reactor) idleWait(now time.Time) time.Duration {
-	wait := time.Millisecond
-	for _, rc := range r.channels {
-		if rc == nil {
-			continue
-		}
-		if rc.appendInflight == nil && !rc.appendQ.storeBlocked && len(rc.appendQ.pending) > 0 && !rc.appendQ.flushDue.IsZero() {
-			dueIn := rc.appendQ.flushDue.Sub(now)
-			if dueIn <= 0 {
-				return 0
-			}
-			if dueIn < wait {
-				wait = dueIn
-			}
-		}
-		if !rc.lifecycle.CheckpointRetryAt.IsZero() && !rc.lifecycle.CheckpointInflight {
-			dueIn := rc.lifecycle.CheckpointRetryAt.Sub(now)
-			if dueIn <= 0 {
-				return 0
-			}
-			if dueIn < wait {
-				wait = dueIn
-			}
-		}
-		for _, follower := range rc.followers {
-			if follower == nil || follower.HintRetryAt.IsZero() || follower.HintInflight {
-				continue
-			}
-			dueIn := follower.HintRetryAt.Sub(now)
-			if dueIn <= 0 {
-				return 0
-			}
-			if dueIn < wait {
-				wait = dueIn
-			}
-		}
+	wait := r.due.nextWait(now)
+	if wait > time.Millisecond {
+		return time.Millisecond
 	}
 	return wait
 }
@@ -378,15 +351,13 @@ func (r *Reactor) handleTick(event Event) {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	r.flushDueAppends(now)
+	r.processDue(now)
 	if event.Key != "" {
 		if rc := r.channels[event.Key]; rc != nil {
+			r.tryFlushAppend(rc, now)
 			r.tickReplication(rc, now)
 			r.tickLifecycle(rc, now)
 		}
-	} else {
-		r.tickAllReplication(now)
-		r.tickAllLifecycle(now)
 	}
 	if event.Future != nil {
 		event.Future.Complete(Result{})
@@ -451,9 +422,11 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			if fencePendingState {
 				resetFollowerStopLifecycle(rc)
 			}
+			r.scheduleLifecycleFromState(rc, time.Now())
 		} else {
 			rc.followers = nil
 			rc.pullHintInflight = nil
+			r.scheduleReplicationFromState(rc, time.Now())
 		}
 	}
 	event.Future.Complete(Result{Err: decision.Err})
@@ -796,7 +769,9 @@ func (r *Reactor) handleAck(event Event) {
 		}
 		decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
 		r.completeReplies(rc, decision.Replies, nil)
-		r.tryEvictLeader(rc, time.Now())
+		now := time.Now()
+		r.tryEvictLeader(rc, now)
+		r.scheduleLifecycleFromState(rc, now)
 		event.Future.Complete(Result{})
 		return
 	}
@@ -805,5 +780,6 @@ func (r *Reactor) handleAck(event Event) {
 		follower.Match = event.Ack.MatchOffset
 	}
 	r.completeReplies(rc, decision.Replies, nil)
+	r.scheduleLifecycleFromState(rc, time.Now())
 	event.Future.Complete(Result{})
 }

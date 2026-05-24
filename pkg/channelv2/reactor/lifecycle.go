@@ -55,6 +55,7 @@ func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 	}
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Time) {
@@ -64,6 +65,7 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
 	resetLeaderCheckpointLifecycle(rc)
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 // resetLeaderCheckpointLifecycle clears only leader eviction checkpoint bookkeeping.
@@ -143,6 +145,7 @@ func (r *Reactor) tickLifecycle(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader {
 		return
 	}
+	defer r.scheduleLifecycleFromState(rc, now)
 	r.syncFollowerMatches(rc)
 	for node, follower := range rc.followers {
 		if follower == nil || follower.HintInflight || follower.HintRetryAt.IsZero() || now.Before(follower.HintRetryAt) {
@@ -155,15 +158,6 @@ func (r *Reactor) tickLifecycle(rc *runtimeChannel, now time.Time) {
 		r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonResume, now)
 	}
 	r.tryEvictLeader(rc, now)
-}
-
-func (r *Reactor) tickAllLifecycle(now time.Time) {
-	if r == nil {
-		return
-	}
-	for _, rc := range r.channels {
-		r.tickLifecycle(rc, now)
-	}
 }
 
 func (r *Reactor) resetPullHintLifecycle(rc *runtimeChannel) {
@@ -292,6 +286,7 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
 	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.LEO}); err != nil {
 		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	rc.lifecycle.Phase = lifecycleEvictingLeader
@@ -337,6 +332,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 		follower.HintInflight = false
 		follower.HintRetryAt = now.Add(r.cfg.PullHintRetryInterval)
 		r.observePullHintDropped(rc.state.Key, node, err)
+		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	follower.HintInflight = true
@@ -374,6 +370,7 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 	now := time.Now()
 	if result.Err == nil {
 		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
+		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	r.observePullHintDropped(rc.state.Key, inflight.follower, result.Err)
@@ -381,6 +378,7 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 		follower.PendingHintVersion = rc.lifecycle.ActivityVersion
 		follower.HintRetryAt = now.Add(r.cfg.PullHintRetryInterval)
 	}
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) sendCurrentPullHintIfNeeded(rc *runtimeChannel, node ch.NodeID, follower *followerLifecycle, now time.Time) {
