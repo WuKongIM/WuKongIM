@@ -15,6 +15,48 @@ func TestDefaultConfigEnablesLeaderRecentRecordCache(t *testing.T) {
 	require.Equal(t, cfg.PullMaxBytes, cfg.LeaderRecentRecordCacheBytes)
 }
 
+func TestDefaultReactorConfigEnablesLeaderRecentRecordCache(t *testing.T) {
+	cfg := defaultReactorConfig(ReactorConfig{LocalNode: 1, Store: store.NewMemoryFactory()})
+
+	require.Equal(t, 10, cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, cfg.PullMaxBytes, cfg.LeaderRecentRecordCacheBytes)
+}
+
+func TestNewGroupPassesLeaderRecentRecordCacheConfig(t *testing.T) {
+	g, err := NewGroup(Config{
+		LocalNode:                    1,
+		Store:                        store.NewMemoryFactory(),
+		ReactorCount:                 1,
+		LeaderRecentRecordCacheSize:  7,
+		LeaderRecentRecordCacheBytes: 4096,
+	})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, g.Close())
+	}()
+
+	require.Len(t, g.reactors, 1)
+	require.Equal(t, 7, g.reactors[0].cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, 4096, g.reactors[0].cfg.LeaderRecentRecordCacheBytes)
+}
+
+func TestDefaultConfigCapsLeaderRecentRecordCacheBytesAt256KiB(t *testing.T) {
+	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory(), PullMaxBytes: 512 * 1024})
+
+	require.Equal(t, 256*1024, cfg.LeaderRecentRecordCacheBytes)
+}
+
+func TestPublicFacadeConfigExposesLeaderRecentRecordCacheKnobs(t *testing.T) {
+	cfg := ch.Config{
+		PullMaxBytes:                 64 * 1024,
+		LeaderRecentRecordCacheSize:  7,
+		LeaderRecentRecordCacheBytes: 4096,
+	}
+
+	require.Equal(t, 7, cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, 4096, cfg.LeaderRecentRecordCacheBytes)
+}
+
 func TestDefaultConfigPreservesDisabledLeaderRecentRecordCache(t *testing.T) {
 	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory(), LeaderRecentRecordCacheSize: -1})
 
