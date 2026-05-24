@@ -39,6 +39,9 @@ func (c *recentRecordCache) append(records []ch.Record) {
 		c.reset()
 		return
 	}
+	if len(records) == 0 {
+		return
+	}
 	suffix := continuousIndexedSuffix(records)
 	if len(suffix) == 0 {
 		c.reset()
