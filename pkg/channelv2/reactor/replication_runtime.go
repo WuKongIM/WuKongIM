@@ -481,7 +481,7 @@ func (r *Reactor) mergeLeaderPullCacheSuffix(rc *runtimeChannel, waiter *pullWai
 	if next == 0 || next > rc.state.LEO {
 		return records
 	}
-	suffix, ok := rc.recentRecords.slice(next, rc.state.LEO, waiter.maxBytes-used)
+	suffix, ok := strictRecentRecordCacheSlice(&rc.recentRecords, next, rc.state.LEO, waiter.maxBytes-used)
 	if !ok || len(suffix) == 0 {
 		return records
 	}
@@ -489,6 +489,27 @@ func (r *Reactor) mergeLeaderPullCacheSuffix(rc *runtimeChannel, waiter *pullWai
 	merged = append(merged, records...)
 	merged = append(merged, suffix...)
 	return merged
+}
+
+func strictRecentRecordCacheSlice(cache *recentRecordCache, from uint64, maxOffset uint64, maxBytes int) ([]ch.Record, bool) {
+	records, ok := cache.slice(from, maxOffset, 0)
+	if !ok {
+		return nil, false
+	}
+	if maxBytes <= 0 {
+		return []ch.Record{}, true
+	}
+	out := make([]ch.Record, 0, len(records))
+	used := 0
+	for _, record := range records {
+		size := cacheRecordSize(record)
+		if used+size > maxBytes {
+			break
+		}
+		used += size
+		out = append(out, record)
+	}
+	return out, true
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
