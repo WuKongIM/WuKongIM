@@ -47,6 +47,10 @@ type Config struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
+	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 10.
+	LeaderRecentRecordCacheSize int
+	// LeaderRecentRecordCacheBytes bounds per-channel memory used by the recent leader log cache.
+	LeaderRecentRecordCacheBytes int
 	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
@@ -99,24 +103,26 @@ func NewGroup(cfg Config) (*Group, error) {
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
 			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
-			AppendBatchMaxRecords:       cfg.AppendBatchMaxRecords,
-			AppendBatchMaxBytes:         cfg.AppendBatchMaxBytes,
-			AppendBatchMaxWait:          cfg.AppendBatchMaxWait,
-			AppendQueueMaxRequests:      cfg.AppendQueueMaxRequests,
-			AppendQueueMaxBytes:         cfg.AppendQueueMaxBytes,
-			AppendStoreRetryBackoff:     cfg.AppendStoreRetryBackoff,
-			ReplicationIdlePollInterval: cfg.ReplicationIdlePollInterval,
-			ReplicationMinBackoff:       cfg.ReplicationMinBackoff,
-			ReplicationMaxBackoff:       cfg.ReplicationMaxBackoff,
-			PullMaxBytes:                cfg.PullMaxBytes,
-			IdleSlowdownAfter:           cfg.IdleSlowdownAfter,
-			IdleEvictAfter:              cfg.IdleEvictAfter,
-			IdlePullMinInterval:         cfg.IdlePullMinInterval,
-			IdlePullMaxInterval:         cfg.IdlePullMaxInterval,
-			IdleEvictCheckInterval:      cfg.IdleEvictCheckInterval,
-			PullHintRetryInterval:       cfg.PullHintRetryInterval,
-			Observer:                    cfg.Observer,
-			NextOpID:                    g.NextOpID,
+			AppendBatchMaxRecords:        cfg.AppendBatchMaxRecords,
+			AppendBatchMaxBytes:          cfg.AppendBatchMaxBytes,
+			AppendBatchMaxWait:           cfg.AppendBatchMaxWait,
+			AppendQueueMaxRequests:       cfg.AppendQueueMaxRequests,
+			AppendQueueMaxBytes:          cfg.AppendQueueMaxBytes,
+			AppendStoreRetryBackoff:      cfg.AppendStoreRetryBackoff,
+			ReplicationIdlePollInterval:  cfg.ReplicationIdlePollInterval,
+			ReplicationMinBackoff:        cfg.ReplicationMinBackoff,
+			ReplicationMaxBackoff:        cfg.ReplicationMaxBackoff,
+			PullMaxBytes:                 cfg.PullMaxBytes,
+			LeaderRecentRecordCacheSize:  cfg.LeaderRecentRecordCacheSize,
+			LeaderRecentRecordCacheBytes: cfg.LeaderRecentRecordCacheBytes,
+			IdleSlowdownAfter:            cfg.IdleSlowdownAfter,
+			IdleEvictAfter:               cfg.IdleEvictAfter,
+			IdlePullMinInterval:          cfg.IdlePullMinInterval,
+			IdlePullMaxInterval:          cfg.IdlePullMaxInterval,
+			IdleEvictCheckInterval:       cfg.IdleEvictCheckInterval,
+			PullHintRetryInterval:        cfg.PullHintRetryInterval,
+			Observer:                     cfg.Observer,
+			NextOpID:                     g.NextOpID,
 		})
 		g.reactors[i] = r
 		r.start()
@@ -157,6 +163,14 @@ func defaultConfig(cfg Config) Config {
 	}
 	if cfg.PullMaxBytes <= 0 {
 		cfg.PullMaxBytes = 64 * 1024
+	}
+	if cfg.LeaderRecentRecordCacheSize == 0 {
+		cfg.LeaderRecentRecordCacheSize = 10
+	}
+	if cfg.LeaderRecentRecordCacheSize < 0 {
+		cfg.LeaderRecentRecordCacheBytes = 0
+	} else if cfg.LeaderRecentRecordCacheBytes <= 0 {
+		cfg.LeaderRecentRecordCacheBytes = min(cfg.PullMaxBytes, 256*1024)
 	}
 	if cfg.IdleSlowdownAfter <= 0 {
 		cfg.IdleSlowdownAfter = 30 * time.Second

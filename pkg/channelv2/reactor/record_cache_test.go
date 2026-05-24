@@ -4,8 +4,23 @@ import (
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDefaultConfigEnablesLeaderRecentRecordCache(t *testing.T) {
+	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory()})
+
+	require.Equal(t, 10, cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, cfg.PullMaxBytes, cfg.LeaderRecentRecordCacheBytes)
+}
+
+func TestDefaultConfigPreservesDisabledLeaderRecentRecordCache(t *testing.T) {
+	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory(), LeaderRecentRecordCacheSize: -1})
+
+	require.Equal(t, -1, cfg.LeaderRecentRecordCacheSize)
+	require.Zero(t, cfg.LeaderRecentRecordCacheBytes)
+}
 
 func TestRecentRecordCacheRetainsNewestContinuousSuffix(t *testing.T) {
 	cache := newRecentRecordCache(3, 1024)

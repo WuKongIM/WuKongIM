@@ -495,6 +495,14 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	if cfg.PullMaxBytes <= 0 {
 		cfg.PullMaxBytes = 64 * 1024
 	}
+	if cfg.LeaderRecentRecordCacheSize == 0 {
+		cfg.LeaderRecentRecordCacheSize = 10
+	}
+	if cfg.LeaderRecentRecordCacheSize < 0 {
+		cfg.LeaderRecentRecordCacheBytes = 0
+	} else if cfg.LeaderRecentRecordCacheBytes <= 0 {
+		cfg.LeaderRecentRecordCacheBytes = min(cfg.PullMaxBytes, 256*1024)
+	}
 	if cfg.IdleSlowdownAfter <= 0 {
 		cfg.IdleSlowdownAfter = 30 * time.Second
 	}

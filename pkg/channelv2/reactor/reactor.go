@@ -43,6 +43,10 @@ type ReactorConfig struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
+	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls.
+	LeaderRecentRecordCacheSize int
+	// LeaderRecentRecordCacheBytes bounds per-channel memory used by the recent leader log cache.
+	LeaderRecentRecordCacheBytes int
 	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
