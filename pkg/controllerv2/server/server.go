@@ -11,6 +11,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 )
 
+// ErrStateSourceRequired indicates that a command-producing planner tick lacks authoritative state.
+var ErrStateSourceRequired = errors.New("controllerv2/server: state source is required for planner command decisions")
+
 // Proposer appends ControllerV2 commands to the current Controller Raft leader.
 type Proposer interface {
 	// Propose submits cmd to Controller Raft and waits for local apply semantics.
@@ -103,6 +106,9 @@ func (s *Server) TickPlanner(ctx context.Context) error {
 	}
 	if decision.Kind != planner.DecisionKindCommand {
 		return nil
+	}
+	if s.stateSource == nil {
+		return ErrStateSourceRequired
 	}
 	if s.proposer == nil {
 		return errors.New("controllerv2/server: proposer is required")

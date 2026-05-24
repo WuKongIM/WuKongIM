@@ -14,9 +14,11 @@ import (
 
 func TestServerTickPlannerProposesBootstrapCommand(t *testing.T) {
 	now := time.Date(2026, 5, 24, 9, 30, 0, 0, time.UTC)
+	initial := testServerState()
 	proposer := &fakeProposer{leaderID: 1}
 	srv, err := New(Config{
-		InitialState: testServerState(),
+		InitialState: initial,
+		StateSource:  &fakeStateSource{state: initial},
 		Proposer:     proposer,
 		Now:          func() time.Time { return now },
 	})
@@ -38,6 +40,20 @@ func TestServerTickPlannerProposesBootstrapCommand(t *testing.T) {
 	require.NotNil(t, proposed.Task)
 	require.Equal(t, "slot-1-bootstrap-1", proposed.Task.TaskID)
 	require.Equal(t, proposed.Assignment.DesiredPeers, proposed.Task.TargetPeers)
+}
+
+func TestServerTickPlannerCommandRequiresStateSource(t *testing.T) {
+	proposer := &fakeProposer{leaderID: 1}
+	srv, err := New(Config{
+		InitialState: testServerState(),
+		Proposer:     proposer,
+	})
+	require.NoError(t, err)
+
+	err = srv.TickPlanner(context.Background())
+
+	require.ErrorIs(t, err, ErrStateSourceRequired)
+	require.Empty(t, proposer.commands)
 }
 
 func TestServerTickPlannerRefreshesAuthoritativeStateAfterSuccessfulPropose(t *testing.T) {
