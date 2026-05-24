@@ -162,27 +162,8 @@ func (r *Reactor) trySubmitStopCheckpoint(rc *runtimeChannel, now time.Time) {
 	rc.replication.nextCheckpointAt = time.Time{}
 }
 
-func (r *Reactor) notifyFollowers(rc *runtimeChannel) {
-	if r == nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || r.cfg.Pools == nil {
-		return
-	}
-	for _, replica := range rc.state.Replicas {
-		if replica == r.cfg.LocalNode {
-			continue
-		}
-		fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: r.nextOpID()}
-		req := transport.NotifyRequest{
-			ChannelKey:  rc.state.Key,
-			ChannelID:   rc.state.ID,
-			Epoch:       rc.state.Epoch,
-			LeaderEpoch: rc.state.LeaderEpoch,
-			Leader:      r.cfg.LocalNode,
-			LeaderLEO:   rc.state.LEO,
-		}
-		_ = r.submitRPCNotify(context.Background(), replica, fence, req)
-	}
-}
-
+// handleNotify accepts the legacy transport compatibility nudge and maps it to
+// the current PullHint-driven follower resume path.
 func (r *Reactor) handleNotify(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {

@@ -45,7 +45,7 @@ func (c *cluster) HandlePullHint(ctx context.Context, req transport.PullHintRequ
 	return err
 }
 
-// HandleNotify serves a leader nudge that asks this follower to pull promptly.
+// HandleNotify maps legacy transport compatibility nudges onto PullHint handling.
 func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
 	err := c.HandlePullHint(ctx, transport.PullHintRequest{
 		ChannelKey:  req.ChannelKey,

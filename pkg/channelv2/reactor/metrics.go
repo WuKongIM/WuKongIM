@@ -25,6 +25,12 @@ type LifecycleObserver interface {
 	ObservePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error)
 }
 
+// FollowerLifecycleObserver receives optional follower lifecycle events without
+// requiring existing lifecycle observers to grow new methods.
+type FollowerLifecycleObserver interface {
+	ObserveFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64)
+}
+
 type noopObserver struct{}
 
 func (noopObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
@@ -90,6 +96,12 @@ func (r *Reactor) observePullHintSent(key ch.ChannelKey, follower ch.NodeID, rea
 func (r *Reactor) observePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error) {
 	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
 		observer.ObservePullHintDropped(key, follower, err)
+	}
+}
+
+func (r *Reactor) observeFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64) {
+	if observer, ok := r.cfg.Observer.(FollowerLifecycleObserver); ok {
+		observer.ObserveFollowerStopped(key, follower, activityVersion)
 	}
 }
 

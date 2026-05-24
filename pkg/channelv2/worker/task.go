@@ -39,7 +39,8 @@ type Task struct {
 	StoreCheckpoint *StoreCheckpointTask
 	RPCPull         *RPCPullTask
 	RPCAck          *RPCAckTask
-	RPCNotify       *RPCNotifyTask
+	// RPCNotify sends legacy transport compatibility nudges.
+	RPCNotify *RPCNotifyTask
 	// RPCPullHint sends a prompt pull nudge to a follower.
 	RPCPullHint *RPCPullHintTask
 
@@ -97,7 +98,7 @@ type RPCAckTask struct {
 	Request transport.AckRequest
 }
 
-// RPCNotifyTask nudges a remote follower to pull leader progress.
+// RPCNotifyTask is the legacy compatibility payload for follower nudges.
 type RPCNotifyTask struct {
 	Node    ch.NodeID
 	Request transport.NotifyRequest

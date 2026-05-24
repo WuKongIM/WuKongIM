@@ -67,7 +67,7 @@ type RPCPullResult struct {
 // RPCAckResult marks a completed remote acknowledgement RPC.
 type RPCAckResult struct{}
 
-// RPCNotifyResult marks a completed remote replication notification RPC.
+// RPCNotifyResult marks a completed legacy compatibility nudge RPC.
 type RPCNotifyResult struct{}
 
 // RPCPullHintResult marks a completed remote pull hint RPC.
