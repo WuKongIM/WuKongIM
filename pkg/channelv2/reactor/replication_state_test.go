@@ -407,6 +407,41 @@ func TestFollowerStopEmptyChannelSendsStoppedAckAndEvicts(t *testing.T) {
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestFollowerStopEvictionAllowsMemoryStoreReload(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-reload")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        0,
+			LeaderLEO:       0,
+			ActivityVersion: 1,
+			Control:         transport.PullControlStop,
+		}},
+	})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreCheckpoint)})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCAck)})
+	require.NotContains(t, r.channels, meta.Key)
+
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.Contains(t, r.channels, meta.Key)
+}
+
 func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
 	net := newCapturingTransport()
 	net.SetAckError(ch.ErrNotReady)

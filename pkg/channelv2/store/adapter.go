@@ -20,6 +20,7 @@ type ChannelStore interface {
 	ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error)
 	// StoreCheckpoint durably records checkpoint HW and must ignore regressive HW updates.
 	StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error
+	// Close releases resources owned by this store handle without deleting durable channel state.
 	Close() error
 }
 
