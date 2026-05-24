@@ -116,7 +116,7 @@ const (
 	PullControlStop
 )
 
-// NotifyRequest nudges a follower to pull a channel after leader append progress.
+// NotifyRequest is the legacy compatibility form of a PullHint request.
 type NotifyRequest struct {
 	ChannelKey  ch.ChannelKey
 	ChannelID   ch.ChannelID

@@ -119,18 +119,6 @@ func (r *Reactor) submitRPCAck(ctx context.Context, leader ch.NodeID, fence ch.F
 	})
 }
 
-func (r *Reactor) submitRPCNotify(ctx context.Context, node ch.NodeID, fence ch.Fence, req transport.NotifyRequest) error {
-	if r.cfg.Pools == nil {
-		return ch.ErrInvalidConfig
-	}
-	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:      worker.TaskRPCNotify,
-		Fence:     fence,
-		Context:   ctx,
-		RPCNotify: &worker.RPCNotifyTask{Node: node, Request: req},
-	})
-}
-
 func (r *Reactor) submitPullHint(ctx context.Context, node ch.NodeID, fence ch.Fence, req transport.PullHintRequest) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig

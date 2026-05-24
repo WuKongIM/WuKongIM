@@ -145,22 +145,22 @@ func TestHandleNotifyKeepsLegacyNoOpForInvalidHints(t *testing.T) {
 		{
 			name:      "unloaded without resolver",
 			localNode: 2,
-			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-missing"), ChannelID: ch.ChannelID{ID: "notify-missing", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
-			loadedKey: ch.ChannelKey("1:notify-missing"),
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:legacy-pull-hint-missing"), ChannelID: ch.ChannelID{ID: "legacy-pull-hint-missing", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:legacy-pull-hint-missing"),
 		},
 		{
 			name:      "stale resolved metadata",
 			localNode: 2,
-			resolver:  &staticMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:notify-stale"), ID: ch.ChannelID{ID: "different", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
-			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-stale"), ChannelID: ch.ChannelID{ID: "notify-stale", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
-			loadedKey: ch.ChannelKey("1:notify-stale"),
+			resolver:  &staticMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:legacy-pull-hint-stale"), ID: ch.ChannelID{ID: "different", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:legacy-pull-hint-stale"), ChannelID: ch.ChannelID{ID: "legacy-pull-hint-stale", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:legacy-pull-hint-stale"),
 		},
 		{
 			name:      "local leader validation",
 			localNode: 1,
-			resolver:  &countingMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:notify-local-leader"), ID: ch.ChannelID{ID: "notify-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
-			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:notify-local-leader"), ChannelID: ch.ChannelID{ID: "notify-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
-			loadedKey: ch.ChannelKey("1:notify-local-leader"),
+			resolver:  &countingMetaResolver{meta: ch.Meta{Key: ch.ChannelKey("1:legacy-pull-hint-local-leader"), ID: ch.ChannelID{ID: "legacy-pull-hint-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}},
+			req:       transport.NotifyRequest{ChannelKey: ch.ChannelKey("1:legacy-pull-hint-local-leader"), ChannelID: ch.ChannelID{ID: "legacy-pull-hint-local-leader", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1},
+			loadedKey: ch.ChannelKey("1:legacy-pull-hint-local-leader"),
 		},
 	}
 	for _, tt := range tests {

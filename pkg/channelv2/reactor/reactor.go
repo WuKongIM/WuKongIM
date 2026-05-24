@@ -641,11 +641,6 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		r.sendPullHintsForAppend(rc, now)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
-	for _, signal := range decision.Signals {
-		if signal.Kind == machine.SignalKindReplicate {
-			r.notifyFollowers(rc)
-		}
-	}
 	if current {
 		if stored.Err != nil {
 			for _, req := range rc.appendInflight.requests {
@@ -759,12 +754,16 @@ func (r *Reactor) handleAck(event Event) {
 				event.Future.Complete(Result{})
 				return
 			}
+			wasStopped := follower.Stopped && follower.StopAckVersion == event.Ack.ActivityVersion
 			follower.Stopped = true
 			follower.StopAckVersion = event.Ack.ActivityVersion
 			follower.Parked = false
 			follower.HintInflight = false
 			if event.Ack.MatchOffset > follower.Match {
 				follower.Match = event.Ack.MatchOffset
+			}
+			if !wasStopped {
+				r.observeFollowerStopped(rc.state.Key, event.Ack.Follower, event.Ack.ActivityVersion)
 			}
 		}
 		decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
