@@ -104,6 +104,19 @@ func TestBootstrapPlannerUsesCapacityWeight(t *testing.T) {
 	require.Equal(t, []uint64{1, 3}, decision.Command.Assignment.DesiredPeers)
 }
 
+func TestBootstrapPlannerTreatsZeroCapacityWeightAsDefaultEligible(t *testing.T) {
+	st := testPlannerState()
+	st.Config.ReplicaCount = 3
+	st.Nodes[2].CapacityWeight = 0
+
+	decision, err := NewBootstrapPlanner().Next(context.Background(), testPlannerView(st))
+
+	require.NoError(t, err)
+	require.Equal(t, DecisionKindCommand, decision.Kind)
+	require.Equal(t, uint32(1), decision.Command.Assignment.SlotID)
+	require.Equal(t, []uint64{1, 2, 3}, decision.Command.Assignment.DesiredPeers)
+}
+
 func TestBootstrapPlannerSpreadsPreferredLeader(t *testing.T) {
 	st := testPlannerState()
 	st.Config.ReplicaCount = 3

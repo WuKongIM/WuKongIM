@@ -423,6 +423,64 @@ func TestStartupReplaysStateBehindNonCommandEntriesToRaftApplied(t *testing.T) {
 	require.Equal(t, "n1", findTestNode(t, snap, 1).Name)
 }
 
+func TestStartupRejectsStateFileAheadOfLocalRaftBoundary(t *testing.T) {
+	ctx := context.Background()
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	for _, tc := range []struct {
+		name       string
+		entries    []raftpb.Entry
+		commit     uint64
+		applied    uint64
+		stateIndex uint64
+	}{
+		{
+			name: "ahead_of_hard_state_commit",
+			entries: []raftpb.Entry{
+				testConfChangeEntry(t, 1, 1),
+				testCommandEntry(t, 2, testInitCommand("wk-commit-boundary", peers)),
+				testCommandEntry(t, 3, testUpsertNodeCommand(1, 1, "committed")),
+				{Type: raftpb.EntryNormal, Term: 1, Index: 4},
+			},
+			commit:     3,
+			applied:    3,
+			stateIndex: 4,
+		},
+		{
+			name: "ahead_of_last_index",
+			entries: []raftpb.Entry{
+				testConfChangeEntry(t, 1, 1),
+				testCommandEntry(t, 2, testInitCommand("wk-last-boundary", peers)),
+				testCommandEntry(t, 3, testUpsertNodeCommand(1, 1, "last")),
+			},
+			commit:     4,
+			applied:    3,
+			stateIndex: 4,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			storage := openControllerStorage(t, dir)
+			seedControllerLog(t, storage, tc.entries, tc.commit, tc.applied)
+
+			statePath := filepath.Join(dir, "cluster-state.json")
+			writeClusterStateFileAtIndex(t, statePath, tc.stateIndex, testInitCommand("wk-future-"+tc.name, peers))
+			service, err := newSingleService(1, peers, storage, statePath, false)
+			require.NoError(t, err)
+
+			err = service.Start(ctx)
+			if err == nil {
+				t.Cleanup(func() { require.NoError(t, service.Stop()) })
+			}
+			require.Error(t, err)
+			status := service.Status()
+			require.True(t, status.Degraded)
+			require.NotEmpty(t, status.ErrorReason)
+			require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
+			require.ErrorIs(t, service.Step(ctx, raftpb.Message{To: 1}), ErrNotStarted)
+		})
+	}
+}
+
 func TestStartupRebuildsMissingStateFromCompleteLog(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -1015,6 +1073,15 @@ func newTestStateMachine(t *testing.T, path string) *fsm.StateMachine {
 	sm, err := fsm.New(statefile.New(path))
 	require.NoError(t, err)
 	return sm
+}
+
+func writeClusterStateFileAtIndex(t *testing.T, path string, raftIndex uint64, cmd command.Command) {
+	t.Helper()
+	sm := newTestStateMachine(t, path)
+	result, err := sm.Apply(context.Background(), raftIndex, cmd)
+	require.NoError(t, err)
+	require.False(t, result.Rejected, result.Reason)
+	require.Equal(t, raftIndex, sm.Snapshot(context.Background()).AppliedRaftIndex)
 }
 
 func newSingleService(id uint64, peers []Peer, storage multiraft.Storage, statePath string, allowBootstrap bool) (*Service, error) {
