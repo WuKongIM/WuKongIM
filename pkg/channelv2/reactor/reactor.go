@@ -759,11 +759,15 @@ func (r *Reactor) handleAck(event Event) {
 	}
 	r.syncLeaderFollowers(rc)
 	if event.Ack.Stopped {
-		if event.Ack.ActivityVersion != rc.lifecycle.ActivityVersion || event.Ack.MatchOffset < rc.state.LEO {
+		if event.Ack.ActivityVersion != rc.lifecycle.ActivityVersion || event.Ack.MatchOffset != rc.state.LEO {
 			event.Future.Complete(Result{})
 			return
 		}
 		if follower := rc.followers[event.Ack.Follower]; follower != nil {
+			if follower.StopOfferedVersion != 0 && follower.StopOfferedVersion != event.Ack.ActivityVersion {
+				event.Future.Complete(Result{})
+				return
+			}
 			follower.Stopped = true
 			follower.StopAckVersion = event.Ack.ActivityVersion
 			follower.Parked = false
