@@ -222,6 +222,12 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		return now, true
 	}
 	if replication.stopping {
+		if replication.stopAcked {
+			if !replication.nextStopEvictAt.IsZero() {
+				return replication.nextStopEvictAt, true
+			}
+			return now, true
+		}
 		if !replication.nextCheckpointAt.IsZero() {
 			return replication.nextCheckpointAt, true
 		}
