@@ -94,6 +94,32 @@ func TestRecentRecordCacheGapAppendResetsSuffix(t *testing.T) {
 	require.Equal(t, []uint64{8, 9}, recordIndexes(records))
 }
 
+func TestRecentRecordCacheAllZeroAppendResets(t *testing.T) {
+	cache := newRecentRecordCache(10, 1024)
+	cache.append([]ch.Record{cacheRecord(1, "a"), cacheRecord(2, "b")})
+
+	cache.append([]ch.Record{{ID: 3, Payload: []byte("unindexed"), SizeBytes: len("unindexed")}})
+
+	require.True(t, cache.empty())
+	require.Equal(t, uint64(0), cache.base())
+	require.Equal(t, uint64(0), cache.lastOffset())
+	_, ok := cache.slice(1, 2, 1024)
+	require.False(t, ok)
+}
+
+func TestRecentRecordCacheTrailingUnindexedAppendResets(t *testing.T) {
+	cache := newRecentRecordCache(10, 1024)
+	cache.append([]ch.Record{cacheRecord(1, "a"), cacheRecord(2, "b")})
+
+	cache.append([]ch.Record{cacheRecord(4, "d"), {ID: 5, Payload: []byte("pending"), SizeBytes: len("pending")}})
+
+	require.True(t, cache.empty())
+	require.Equal(t, uint64(0), cache.base())
+	require.Equal(t, uint64(0), cache.lastOffset())
+	_, ok := cache.slice(1, 2, 1024)
+	require.False(t, ok)
+}
+
 func TestRecentRecordCacheDisabled(t *testing.T) {
 	cache := newRecentRecordCache(0, 1024)
 
