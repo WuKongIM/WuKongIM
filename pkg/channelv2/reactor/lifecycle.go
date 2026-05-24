@@ -56,6 +56,8 @@ type followerLifecycle struct {
 	Parked           bool
 	Stopped          bool
 	StopAckVersion   uint64
+	// StopOffered records that PullControlStop was returned even when the activity version is zero.
+	StopOffered bool
 	// StopOfferedVersion records the activity version last returned with PullControlStop.
 	StopOfferedVersion uint64
 }
@@ -212,7 +214,7 @@ func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *f
 	if rc == nil || rc.state == nil || follower == nil || follower.Match >= rc.state.LEO {
 		return false
 	}
-	return follower.Parked || follower.Stopped || follower.StopOfferedVersion != 0 || follower.LastPullAt.IsZero()
+	return follower.Parked || follower.Stopped || follower.StopOffered || follower.LastPullAt.IsZero()
 }
 
 func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
@@ -319,6 +321,12 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	if r.hasPendingRuntimeWork(rc) {
 		return
 	}
+	if !rc.lifecycle.CheckpointRetryAt.IsZero() {
+		if now.Before(rc.lifecycle.CheckpointRetryAt) {
+			return
+		}
+		rc.lifecycle.CheckpointRetryAt = time.Time{}
+	}
 	if rc.lifecycle.CheckpointReady {
 		if rc.lifecycle.CheckpointReadyActivityVersion != rc.lifecycle.ActivityVersion {
 			rc.lifecycle.CheckpointReady = false
@@ -391,6 +399,7 @@ func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appe
 		return
 	}
 	rc.lifecycle.CheckpointReadyQueued = true
+	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
 func (r *Reactor) handleLeaderEvictReady(event Event) {

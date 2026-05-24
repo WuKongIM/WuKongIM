@@ -459,6 +459,7 @@ func resetFollowerStopLifecycle(rc *runtimeChannel) {
 		}
 		follower.Stopped = false
 		follower.StopAckVersion = 0
+		follower.StopOffered = false
 		follower.StopOfferedVersion = 0
 	}
 }
@@ -645,11 +646,12 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		r.syncFollowerMatches(rc)
 		for _, follower := range rc.followers {
 			if follower != nil && follower.Match < rc.state.LEO {
-				if follower.Stopped || follower.StopOfferedVersion != 0 {
+				if follower.Stopped || follower.StopOffered {
 					follower.LastPullAt = time.Time{}
 				}
 				follower.Stopped = false
 				follower.StopAckVersion = 0
+				follower.StopOffered = false
 				follower.StopOfferedVersion = 0
 			}
 		}
@@ -769,7 +771,7 @@ func (r *Reactor) handleAck(event Event) {
 			return
 		}
 		if follower := rc.followers[event.Ack.Follower]; follower != nil {
-			if follower.StopOfferedVersion != 0 && follower.StopOfferedVersion != event.Ack.ActivityVersion {
+			if follower.StopOffered && follower.StopOfferedVersion != event.Ack.ActivityVersion {
 				event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 				return
 			}
