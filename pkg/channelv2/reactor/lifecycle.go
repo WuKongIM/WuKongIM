@@ -63,6 +63,14 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 	}
 	rc.lifecycle.LastAppendAt = now
 	rc.lifecycle.Phase = lifecycleHot
+	resetLeaderCheckpointLifecycle(rc)
+}
+
+// resetLeaderCheckpointLifecycle clears only leader eviction checkpoint bookkeeping.
+func resetLeaderCheckpointLifecycle(rc *runtimeChannel) {
+	if rc == nil {
+		return
+	}
 	rc.lifecycle.CheckpointInflight = false
 	rc.lifecycle.CheckpointOpID = 0
 	rc.lifecycle.CheckpointActivityVersion = 0

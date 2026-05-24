@@ -369,6 +369,9 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		return
 	}
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
+		if rc.lifecycle.CheckpointInflight && result.Fence.OpID == rc.lifecycle.CheckpointOpID {
+			resetLeaderCheckpointLifecycle(rc)
+		}
 		return
 	}
 	if rc.lifecycle.CheckpointInflight && result.Fence.OpID == rc.lifecycle.CheckpointOpID {

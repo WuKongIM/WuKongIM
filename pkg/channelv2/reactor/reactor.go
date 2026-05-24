@@ -437,6 +437,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 	decision := rc.state.ApplyMeta(event.Meta)
 	if decision.Err == nil {
 		if fencePendingState {
+			resetLeaderCheckpointLifecycle(rc)
 			rc.replication.reset()
 			r.resetPullHintLifecycle(rc)
 		}
