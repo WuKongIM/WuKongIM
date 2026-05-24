@@ -495,6 +495,7 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		if r.leaderCanOfferStop(rc, now) && waiter.nextOffset == rc.state.LEO+1 {
 			if follower := rc.followers[waiter.follower]; follower != nil && follower.Match >= rc.state.LEO {
 				control = transport.PullControlStop
+				follower.StopOffered = true
 				follower.StopOfferedVersion = version
 			}
 		}

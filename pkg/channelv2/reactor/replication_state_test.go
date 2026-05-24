@@ -1401,6 +1401,7 @@ func TestLeaderReturnsStopWhenAllReplicasCaughtUpAndIdle(t *testing.T) {
 	require.Equal(t, transport.PullControlStop, result.Pull.Control)
 	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
 	require.Zero(t, result.Pull.NextPullAfter)
+	require.True(t, rc.followers[2].StopOffered)
 	require.Equal(t, uint64(3), rc.followers[2].StopOfferedVersion)
 }
 
@@ -1723,6 +1724,7 @@ func TestLeaderStoppedAckRejectsMismatchedOfferedVersion(t *testing.T) {
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	rc.lifecycle.ActivityVersion = 3
 	r.syncLeaderFollowers(rc)
+	rc.followers[2].StopOffered = true
 	rc.followers[2].StopOfferedVersion = 2
 
 	future := NewFuture()
@@ -2144,6 +2146,47 @@ func TestLeaderReadyEvictionDefersWhileAppendReservedBeforeSubmit(t *testing.T) 
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
 	require.Contains(t, r.channels, meta.Key)
+}
+
+func TestLeaderReadyEvictionReservationRetryWaitsForInterval(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	pools := newDirectTestPools(t, factory, captureCompletionSink{results: make(chan worker.Result, 4)})
+	defer pools.Close()
+
+	meta := testMeta("leader-ready-evict-reservation-retry", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictCheckInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.CheckpointReady = true
+	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
+
+	release := r.reserveAppend(meta.Key)
+	now := time.Now()
+	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
+	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 1)
+	r.handle(events[0])
+	require.Contains(t, r.channels, meta.Key)
+	retryAt := rc.lifecycle.CheckpointRetryAt
+	require.False(t, retryAt.IsZero())
+
+	r.processDue(now.Add(time.Second))
+	require.Empty(t, r.mailbox.DrainInto(nil, defaultReactorDrain))
+	require.Contains(t, r.channels, meta.Key)
+
+	release()
+	r.processDue(retryAt.Add(time.Millisecond))
+	events = r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 1)
+	r.handle(events[0])
+	require.NotContains(t, r.channels, meta.Key)
 }
 
 func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {

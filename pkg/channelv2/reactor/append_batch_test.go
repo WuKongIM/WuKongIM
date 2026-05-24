@@ -848,6 +848,7 @@ func TestAppendAfterStopOfferSendsPullHintWithoutWaitingForParkDelay(t *testing.
 	r.syncLeaderFollowers(rc)
 	rc.followers[2].Match = 1
 	rc.followers[2].LastPullAt = time.Now()
+	rc.followers[2].StopOffered = true
 	rc.followers[2].StopOfferedVersion = 1
 	before := tr.pullHintCount(2)
 
@@ -857,7 +858,56 @@ func TestAppendAfterStopOfferSendsPullHintWithoutWaitingForParkDelay(t *testing.
 		return tr.pullHintCount(2) > before
 	}, time.Second, time.Millisecond)
 	require.Equal(t, uint64(2), tr.lastPullHintVersion(2))
+	require.False(t, rc.followers[2].StopOffered)
 	require.Zero(t, rc.followers[2].StopOfferedVersion)
+	require.True(t, rc.followers[2].LastPullAt.IsZero())
+}
+
+func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	meta := testMeta("append-after-zero-stop-offer", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1,
+		IdleEvictAfter: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = 0
+	r.syncLeaderFollowers(rc)
+
+	pullFuture := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  pullFuture,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+		OpID: 21,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+	pullResult := awaitFutureResult(t, pullFuture)
+	require.Equal(t, transport.PullControlStop, pullResult.Pull.Control)
+	require.Zero(t, pullResult.Pull.ActivityVersion)
+	require.False(t, rc.followers[2].LastPullAt.IsZero())
+
+	result := appendDirect(t, r, sink, meta, 1, "reactivate zero stop offer")
+	require.NoError(t, result.Err)
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1
+	}, time.Second, time.Millisecond)
+	require.Equal(t, uint64(1), tr.lastPullHintVersion(2))
+	require.False(t, rc.followers[2].StopOffered)
 	require.True(t, rc.followers[2].LastPullAt.IsZero())
 }
 

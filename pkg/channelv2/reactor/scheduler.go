@@ -276,11 +276,16 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 			due = candidate
 		}
 	}
-	if !rc.lifecycle.CheckpointInflight {
-		add(rc.lifecycle.CheckpointRetryAt)
+	if !rc.lifecycle.CheckpointInflight && !rc.lifecycle.CheckpointRetryAt.IsZero() {
+		if now.Before(rc.lifecycle.CheckpointRetryAt) {
+			add(rc.lifecycle.CheckpointRetryAt)
+		} else {
+			rc.lifecycle.CheckpointRetryAt = time.Time{}
+		}
 	}
 	if rc.lifecycle.CheckpointReady &&
 		!rc.lifecycle.CheckpointReadyQueued &&
+		rc.lifecycle.CheckpointRetryAt.IsZero() &&
 		rc.state.HW >= rc.state.LEO &&
 		r.allFollowersStopped(rc) &&
 		!r.hasPendingRuntimeWork(rc) {
