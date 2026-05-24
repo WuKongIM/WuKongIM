@@ -24,7 +24,25 @@ var (
 	ErrStopped = errors.New("controllerv2/raft: stopped")
 	// ErrNotLeader indicates that proposals must be sent to the current leader.
 	ErrNotLeader = errors.New("controllerv2/raft: not leader")
+	// ErrProposalRejected indicates that a committed proposal was semantically rejected by the state machine.
+	ErrProposalRejected = errors.New("controllerv2/raft: proposal rejected")
 )
+
+// ProposalRejectedError describes a committed proposal that did not satisfy state-machine semantics.
+type ProposalRejectedError struct {
+	// Index is the committed Raft log index of the rejected proposal.
+	Index uint64
+	// Reason is the deterministic state-machine rejection reason.
+	Reason string
+}
+
+func (e ProposalRejectedError) Error() string {
+	return fmt.Sprintf("%s at index %d: %s", ErrProposalRejected.Error(), e.Index, e.Reason)
+}
+
+func (e ProposalRejectedError) Unwrap() error {
+	return ErrProposalRejected
+}
 
 // Service owns one ControllerV2 RawNode and applies committed commands to the state machine.
 type Service struct {
@@ -91,12 +109,11 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.started {
-		s.mu.Unlock()
 		return nil
 	}
 	if s.stopping {
-		s.mu.Unlock()
 		return ErrStopped
 	}
 	s.cfg = cfg
@@ -104,7 +121,6 @@ func (s *Service) Start(ctx context.Context) error {
 	s.statusMu.Lock()
 	s.status = initialStatus(cfg)
 	s.statusMu.Unlock()
-	s.mu.Unlock()
 
 	if err := s.recoverStartup(ctx); err != nil {
 		s.recordDegraded(err)
@@ -136,19 +152,11 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	s.mu.Lock()
-	if s.stopping {
-		s.mu.Unlock()
-		close(stopCh)
-		<-doneCh
-		return ErrStopped
-	}
 	s.stopCh = stopCh
 	s.doneCh = doneCh
 	s.stepCh = stepCh
 	s.proposal = proposalCh
 	s.started = true
-	s.mu.Unlock()
 	return nil
 }
 
@@ -340,10 +348,9 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 				pendingByIndex[entry.Index] = tracked
 			}
 			if len(ready.Messages) > 0 {
-				if err := s.cfg.Transport.Send(context.Background(), ready.Messages); err != nil {
-					failTracked(pendingQueue, pendingByIndex, err)
-					return err
-				}
+				sendCtx, cancel := context.WithTimeout(context.Background(), s.cfg.TickInterval)
+				_ = s.cfg.Transport.Send(sendCtx, ready.Messages)
+				cancel()
 			}
 			if err := s.applyCommittedEntries(context.Background(), rawNode, ready.CommittedEntries, storageView, &latestConfState, pendingByIndex); err != nil {
 				failTracked(pendingQueue, pendingByIndex, err)
@@ -422,7 +429,7 @@ func (s *Service) newRawNode(storageView *storageAdapter, startup runStartupStat
 func (s *Service) applyCommittedEntries(ctx context.Context, rawNode *etcdraft.RawNode, entries []raftpb.Entry, storageView *storageAdapter, latestConfState *raftpb.ConfState, pendingByIndex map[uint64]trackedProposal) error {
 	for _, entry := range entries {
 		tracked, hasTracked := pendingByIndex[entry.Index]
-		applyErr := s.applyCommittedEntry(ctx, rawNode, entry, latestConfState)
+		proposalErr, applyErr := s.applyCommittedEntry(ctx, rawNode, entry, latestConfState)
 		if applyErr != nil {
 			if hasTracked {
 				tracked.resp <- applyErr
@@ -438,43 +445,49 @@ func (s *Service) applyCommittedEntries(ctx context.Context, rawNode *etcdraft.R
 			return err
 		}
 		if hasTracked {
-			tracked.resp <- nil
+			tracked.resp <- proposalErr
 			delete(pendingByIndex, entry.Index)
 		}
 	}
 	return nil
 }
 
-func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.RawNode, entry raftpb.Entry, latestConfState *raftpb.ConfState) error {
+func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.RawNode, entry raftpb.Entry, latestConfState *raftpb.ConfState) (error, error) {
 	switch entry.Type {
 	case raftpb.EntryNormal:
 		if len(entry.Data) == 0 {
-			return s.advanceStateApplied(ctx, entry.Index)
+			return nil, s.advanceStateApplied(ctx, entry.Index)
 		}
 		cmd, err := command.Decode(entry.Data)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		_, err = s.cfg.StateMachine.Apply(ctx, entry.Index, cmd)
-		return err
+		result, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd)
+		if err != nil {
+			return nil, err
+		}
+		if result.Rejected {
+			return ProposalRejectedError{Index: entry.Index, Reason: result.Reason}, nil
+		}
+		return nil, nil
 	case raftpb.EntryConfChange:
 		var cc raftpb.ConfChange
 		if err := cc.Unmarshal(entry.Data); err != nil {
-			return err
+			return nil, err
 		}
 		latest := rawNode.ApplyConfChange(cc)
 		*latestConfState = cloneConfState(*latest)
-		return s.advanceStateApplied(ctx, entry.Index)
+		return nil, s.advanceStateApplied(ctx, entry.Index)
 	case raftpb.EntryConfChangeV2:
 		var cc raftpb.ConfChangeV2
 		if err := cc.Unmarshal(entry.Data); err != nil {
-			return err
+			return nil, err
 		}
 		latest := rawNode.ApplyConfChange(cc)
 		*latestConfState = cloneConfState(*latest)
-		return s.advanceStateApplied(ctx, entry.Index)
+		return nil, s.advanceStateApplied(ctx, entry.Index)
 	}
-	return nil
+	return nil, nil
 }
 
 func (s *Service) advanceStateApplied(ctx context.Context, index uint64) error {
@@ -542,11 +555,17 @@ func (s *Service) replayCompleteHistory(ctx context.Context, target uint64, mark
 	if err != nil {
 		return err
 	}
+	if first > target {
+		return fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
+	}
 	return s.replayRange(ctx, first, target, true, markApplied)
 }
 
 func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireInit bool, markApplied bool) error {
 	if hi == 0 || lo > hi {
+		if requireInit {
+			return fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
+		}
 		return nil
 	}
 	entries, err := s.cfg.Storage.Entries(ctx, lo, hi+1, 0)
