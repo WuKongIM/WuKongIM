@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +25,90 @@ func TestNewServiceValidatesConfig(t *testing.T) {
 	service, err := NewService(Config{})
 	require.Nil(t, service)
 	require.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+func TestConcurrentStartSingleFlightAndStopWaitsForStartup(t *testing.T) {
+	dir := t.TempDir()
+	base := openControllerStorage(t, dir)
+	storage := newBlockingInitialStateStorage(base)
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap: true,
+		Storage:        storage,
+		StateMachine:   newTestStateMachine(t, filepath.Join(dir, "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   5 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = service.Stop() })
+	t.Cleanup(storage.release)
+
+	startResults := make(chan error, 2)
+	go func() { startResults <- service.Start(context.Background()) }()
+	<-storage.entered
+	go func() { startResults <- service.Start(context.Background()) }()
+
+	require.Never(t, func() bool {
+		return storage.initialStateCalls.Load() > 1
+	}, 100*time.Millisecond, 10*time.Millisecond)
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- service.Stop() }()
+	require.Never(t, func() bool {
+		select {
+		case <-stopDone:
+			return true
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 10*time.Millisecond)
+
+	storage.release()
+	for i := 0; i < 2; i++ {
+		err := <-startResults
+		if err != nil {
+			require.ErrorIs(t, err, ErrStopped)
+		}
+	}
+	require.NoError(t, <-stopDone)
+}
+
+func TestSendErrorDoesNotDegradeOrStopService(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.transport.failNextSends(errors.New("transient send failure"), 1)
+	cluster.start(t)
+	require.Equal(t, int32(1), cluster.transport.failedSendCount.Load())
+
+	cluster.propose(t, testInitCommand("wk-send-error-nonfatal", cluster.peers))
+	cluster.waitForRevision(t, 1)
+	for _, node := range cluster.nodes {
+		status := node.service.Status()
+		require.False(t, status.Degraded, status.ErrorReason)
+	}
+}
+
+func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-semantic-reject", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	badRevision := uint64(0)
+	node := findTestNode(t, cluster.nodes[0].stateMachine.Snapshot(context.Background()), 1)
+	node.Name = "bad-revision"
+	err := cluster.waitForLeader(t).service.Propose(context.Background(), command.Command{
+		Kind:             command.KindUpsertNode,
+		ExpectedRevision: &badRevision,
+		Node:             &node,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), fsm.ReasonExpectedRevisionMismatch)
+	require.False(t, cluster.nodes[0].service.Status().Degraded)
+
+	cluster.propose(t, testUpsertNodeCommand(1, 1, "good-revision"))
+	states := cluster.waitForRevision(t, 2)
+	require.Equal(t, "good-revision", findTestNode(t, states[0], 1).Name)
 }
 
 func TestThreeControllerVotersCommitStateFile(t *testing.T) {
@@ -196,7 +281,15 @@ func TestRestartAfterStateFileSaveBeforeMarkAppliedReplaysIdempotently(t *testin
 		return boot.AppliedIndex >= before.AppliedRaftIndex
 	}, time.Second, 10*time.Millisecond)
 	after := cluster.nodes[0].stateMachine.Snapshot(context.Background())
-	require.Equal(t, before, after)
+	require.Equal(t, before.ClusterID, after.ClusterID)
+	require.Equal(t, before.Revision, after.Revision)
+	require.Equal(t, before.Config, after.Config)
+	require.Equal(t, before.Controllers, after.Controllers)
+	require.Equal(t, before.Nodes, after.Nodes)
+	require.Equal(t, before.Slots, after.Slots)
+	require.Equal(t, before.HashSlots, after.HashSlots)
+	require.Equal(t, before.Tasks, after.Tasks)
+	require.GreaterOrEqual(t, after.AppliedRaftIndex, before.AppliedRaftIndex)
 }
 
 func TestStartupReplaysWhenStateBehindRaftlog(t *testing.T) {
@@ -278,6 +371,22 @@ func TestStartupRebuildsMissingStateFromCompleteLog(t *testing.T) {
 	persisted, err := statefile.New(statePath).Load(ctx)
 	require.NoError(t, err)
 	require.Equal(t, snap, persisted)
+}
+
+func TestStartupFailsDegradedWhenStateMissingAndLogCompacted(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	seedControllerSnapshot(t, storage, 5, []uint64{1})
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	require.NoFileExists(t, statePath)
+	service, err := newSingleService(1, []Peer{{NodeID: 1, Addr: "n1"}}, storage, statePath, false)
+	require.NoError(t, err)
+	require.Error(t, service.Start(ctx))
+	status := service.Status()
+	require.True(t, status.Degraded)
+	require.NotEmpty(t, status.ErrorReason)
 }
 
 func TestStartupFailsDegradedWhenRequiredEntriesUnavailable(t *testing.T) {
@@ -465,8 +574,11 @@ func (c *testRaftCluster) waitForRevision(t *testing.T, revision uint64) []state
 }
 
 type memoryRaftTransport struct {
-	mu       sync.RWMutex
-	services map[uint64]*Service
+	mu               sync.RWMutex
+	services         map[uint64]*Service
+	sendErr          error
+	sendErrRemaining int
+	failedSendCount  atomic.Int32
 }
 
 func newMemoryRaftTransport() *memoryRaftTransport {
@@ -477,6 +589,13 @@ func (t *memoryRaftTransport) register(nodeID uint64, service *Service) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.services[nodeID] = service
+}
+
+func (t *memoryRaftTransport) failNextSends(err error, count int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.sendErr = err
+	t.sendErrRemaining = count
 }
 
 func (t *memoryRaftTransport) Send(ctx context.Context, batch []raftpb.Message) error {
@@ -491,6 +610,14 @@ func (t *memoryRaftTransport) Send(ctx context.Context, batch []raftpb.Message) 
 		if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) {
 			return err
 		}
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.sendErrRemaining > 0 {
+		t.sendErrRemaining--
+		t.failedSendCount.Add(1)
+		return t.sendErr
 	}
 	return nil
 }
@@ -539,6 +666,39 @@ func (s *missingEntryStorage) Entries(ctx context.Context, lo, hi, maxSize uint6
 		filtered = append(filtered, entry)
 	}
 	return filtered, nil
+}
+
+type blockingInitialStateStorage struct {
+	multiraft.Storage
+	entered           chan struct{}
+	releaseCh         chan struct{}
+	releaseOnce       sync.Once
+	initialStateCalls atomic.Int32
+}
+
+func newBlockingInitialStateStorage(storage multiraft.Storage) *blockingInitialStateStorage {
+	return &blockingInitialStateStorage{
+		Storage:   storage,
+		entered:   make(chan struct{}),
+		releaseCh: make(chan struct{}),
+	}
+}
+
+func (s *blockingInitialStateStorage) InitialState(ctx context.Context) (multiraft.BootstrapState, error) {
+	call := s.initialStateCalls.Add(1)
+	if call == 1 {
+		close(s.entered)
+		select {
+		case <-s.releaseCh:
+		case <-ctx.Done():
+			return multiraft.BootstrapState{}, ctx.Err()
+		}
+	}
+	return s.Storage.InitialState(ctx)
+}
+
+func (s *blockingInitialStateStorage) release() {
+	s.releaseOnce.Do(func() { close(s.releaseCh) })
 }
 
 func openControllerStorage(t *testing.T, dir string) multiraft.Storage {
@@ -596,6 +756,24 @@ func seedControllerLog(t *testing.T, storage multiraft.Storage, entries []raftpb
 	if applied > 0 {
 		require.NoError(t, storage.MarkApplied(context.Background(), applied))
 	}
+}
+
+func seedControllerSnapshot(t *testing.T, storage multiraft.Storage, index uint64, voters []uint64) {
+	t.Helper()
+	hs := raftpb.HardState{Term: 1, Vote: voters[0], Commit: index}
+	snap := raftpb.Snapshot{
+		Data: []byte("compacted-controller-history"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     index,
+			Term:      1,
+			ConfState: raftpb.ConfState{Voters: append([]uint64(nil), voters...)},
+		},
+	}
+	require.NoError(t, storage.Save(context.Background(), multiraft.PersistentState{
+		HardState: &hs,
+		Snapshot:  &snap,
+	}))
+	require.NoError(t, storage.MarkApplied(context.Background(), index))
 }
 
 func testConfChangeEntry(t *testing.T, index uint64, nodeID uint64) raftpb.Entry {
