@@ -37,10 +37,11 @@ leader EventPull -> TaskStoreReadLog -> PullResponse(records, leaderHW, leaderLE
 follower TaskStoreApply -> local LEO/HW
 follower TaskRPCAck(matchOffset)
 leader EventAck -> AdvanceHW -> complete quorum waiters
-leader PullControlStop -> follower TaskStoreCheckpoint -> stopped ACK -> runtime eviction
+follower PullResponse(Control=Stop) -> TaskStoreCheckpoint -> stopped ACK -> follower runtime eviction
 ```
 
 A follower keeps at most one pull RPC in flight, exactly one pending pull response waiting for store apply, and one ACK RPC in flight. Pull, apply, and ACK completions are fenced by generation, epoch, leader epoch, and op id; stale completions are ignored before they clear or advance runtime state. Apply errors and store-apply backpressure retain the pending pull response for retry. Pending ACKs are retried before new pulls, and ACK errors or ACK backpressure retain the exact stored match offset for retry. Leader pull handling is asynchronous through the store-read worker pool so blocked log reads do not block high-priority metadata events.
+Follower-side stop handling checkpoints before sending a stopped ACK and unloads only after that ACK succeeds; leader stop eligibility and leader-last eviction are lifecycle-owned behavior.
 Metadata fence changes reset follower pull/apply/ACK inflight and pending state before active followers are marked dirty under the new epoch. Leader-side pull waiters complete with `ErrStaleMeta` on metadata fence changes, the caller context error on cancellation, or `ErrClosed` on close; late store completions are ignored after the waiter is removed. Leader ACK handling ignores stale or regressive matches, so they do not advance HW or complete quorum waiters.
 
 ## Backpressure
