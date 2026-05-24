@@ -116,6 +116,7 @@ pkg/
     meta/                控制面元数据存储
     plane/               控制面 planner / reconcile 编排
     raft/                控制器单组 Raft 服务
+  controllerv2/            并行新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
   protocol/              协议对象与编解码
