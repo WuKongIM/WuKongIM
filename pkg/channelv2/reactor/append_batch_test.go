@@ -894,7 +894,7 @@ func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
 		},
 		OpID: 21,
 	})
-	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 	pullResult := awaitFutureResult(t, pullFuture)
 	require.Equal(t, transport.PullControlStop, pullResult.Pull.Control)
 	require.Zero(t, pullResult.Pull.ActivityVersion)

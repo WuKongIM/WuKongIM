@@ -493,8 +493,13 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	records := result.StoreReadLog.Records
-	now := time.Now()
+	r.completeLeaderPull(rc, waiter, future, result.StoreReadLog.Records, time.Now())
+}
+
+func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, future *Future, records []ch.Record, now time.Time) {
+	if future == nil {
+		return
+	}
 	version := rc.lifecycle.ActivityVersion
 	if version == 0 {
 		version = rc.state.LEO
@@ -514,6 +519,25 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 			delay = r.leaderPullDelay(rc, now)
 		}
 	}
+	r.updateLeaderPullFollowerState(rc, waiter, records, control, delay, now)
+	future.Complete(Result{Pull: transport.PullResponse{
+		ChannelKey:      rc.state.Key,
+		Epoch:           rc.state.Epoch,
+		LeaderEpoch:     rc.state.LeaderEpoch,
+		LeaderHW:        rc.state.HW,
+		LeaderLEO:       rc.state.LEO,
+		ActivityVersion: version,
+		NextPullAfter:   delay,
+		Control:         control,
+		Records:         records,
+	}})
+	r.scheduleLifecycleFromState(rc, now)
+}
+
+func (r *Reactor) updateLeaderPullFollowerState(rc *runtimeChannel, waiter *pullWaiter, records []ch.Record, control transport.PullControl, delay time.Duration, now time.Time) {
+	if waiter == nil {
+		return
+	}
 	r.syncLeaderFollowers(rc)
 	if follower := rc.followers[waiter.follower]; follower != nil {
 		if len(records) == 0 && control != transport.PullControlStop {
@@ -527,18 +551,6 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 			follower.NextExpectedPullAt = time.Time{}
 		}
 	}
-	future.Complete(Result{Pull: transport.PullResponse{
-		ChannelKey:      rc.state.Key,
-		Epoch:           rc.state.Epoch,
-		LeaderEpoch:     rc.state.LeaderEpoch,
-		LeaderHW:        rc.state.HW,
-		LeaderLEO:       rc.state.LEO,
-		ActivityVersion: version,
-		NextPullAfter:   delay,
-		Control:         control,
-		Records:         records,
-	}})
-	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {
