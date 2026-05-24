@@ -280,7 +280,7 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 		add(rc.lifecycle.CheckpointRetryAt)
 	}
 	if rc.lifecycle.CheckpointReady &&
-		r.leaderIdleExpired(rc, now) &&
+		!rc.lifecycle.CheckpointReadyQueued &&
 		rc.state.HW >= rc.state.LEO &&
 		r.allFollowersStopped(rc) &&
 		!r.hasPendingRuntimeWork(rc) {

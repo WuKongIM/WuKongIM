@@ -77,6 +77,10 @@ type Reactor struct {
 	done   chan struct{}
 	once   sync.Once
 	nextOp atomic.Uint64
+	// submitMu orders final leader eviction against concurrent Append submissions.
+	submitMu sync.Mutex
+	// appendSubmitSeq increments before every accepted or attempted Append mailbox submission.
+	appendSubmitSeq uint64
 }
 
 type runtimeChannel struct {
@@ -144,6 +148,14 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 	case <-r.stop:
 		return ch.ErrClosed
 	default:
+	}
+	if event.Kind == EventAppend {
+		r.submitMu.Lock()
+		r.appendSubmitSeq++
+		err := r.mailbox.Submit(priority, event)
+		r.submitMu.Unlock()
+		r.observeMailboxDepth(priority)
+		return err
 	}
 	err := r.mailbox.Submit(priority, event)
 	r.observeMailboxDepth(priority)
@@ -269,6 +281,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleNotify(event)
 	case EventPullHint:
 		r.handlePullHint(event)
+	case EventLeaderEvictReady:
+		r.handleLeaderEvictReady(event)
 	case EventWorkerResult:
 		r.handleWorkerResult(event)
 	case EventTick:

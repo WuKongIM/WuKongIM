@@ -35,6 +35,8 @@ type channelLifecycle struct {
 	CheckpointReady bool
 	// CheckpointReadyActivityVersion fences the completed checkpoint to the activity that produced it.
 	CheckpointReadyActivityVersion uint64
+	// CheckpointReadyQueued records a normal-priority final eviction recheck already in the mailbox.
+	CheckpointReadyQueued bool
 	// CheckpointRetryAt is the next time to retry a failed or backpressured leader checkpoint.
 	CheckpointRetryAt time.Time
 }
@@ -86,6 +88,7 @@ func resetLeaderCheckpointLifecycle(rc *runtimeChannel) {
 	rc.lifecycle.CheckpointActivityVersion = 0
 	rc.lifecycle.CheckpointReady = false
 	rc.lifecycle.CheckpointReadyActivityVersion = 0
+	rc.lifecycle.CheckpointReadyQueued = false
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
@@ -319,13 +322,10 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 		if rc.lifecycle.CheckpointReadyActivityVersion != rc.lifecycle.ActivityVersion {
 			rc.lifecycle.CheckpointReady = false
 			rc.lifecycle.CheckpointReadyActivityVersion = 0
+			rc.lifecycle.CheckpointReadyQueued = false
 			return
 		}
-		if !r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint") {
-			rc.lifecycle.CheckpointReady = false
-			rc.lifecycle.CheckpointReadyActivityVersion = 0
-			rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		}
+		r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
 		return
 	}
 	if rc.lifecycle.CheckpointInflight {
@@ -346,6 +346,56 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	rc.lifecycle.CheckpointOpID = opID
 	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
+}
+
+func (r *Reactor) currentAppendSubmitSeq() uint64 {
+	r.submitMu.Lock()
+	defer r.submitMu.Unlock()
+	return r.appendSubmitSeq
+}
+
+func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appendSeq uint64) {
+	if r == nil || rc == nil || rc.state == nil || rc.lifecycle.CheckpointReadyQueued {
+		return
+	}
+	event := Event{Kind: EventLeaderEvictReady, Key: rc.state.Key, LeaderEvictAppendSeq: appendSeq}
+	if err := r.mailbox.Submit(PriorityNormal, event); err != nil {
+		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
+	rc.lifecycle.CheckpointReadyQueued = true
+}
+
+func (r *Reactor) handleLeaderEvictReady(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		return
+	}
+	rc.lifecycle.CheckpointReadyQueued = false
+	if !rc.lifecycle.CheckpointReady || rc.lifecycle.CheckpointReadyActivityVersion != rc.lifecycle.ActivityVersion {
+		return
+	}
+	now := time.Now()
+	if rc.state.HW < rc.state.LEO || !r.allFollowersStopped(rc) || r.hasPendingRuntimeWork(rc) {
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
+	r.submitMu.Lock()
+	if r.appendSubmitSeq != event.LeaderEvictAppendSeq {
+		appendSeq := r.appendSubmitSeq
+		r.submitMu.Unlock()
+		r.submitLeaderEvictReady(rc, now, appendSeq)
+		return
+	}
+	evicted := r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
+	r.submitMu.Unlock()
+	if !evicted {
+		rc.lifecycle.CheckpointReady = false
+		rc.lifecycle.CheckpointReadyActivityVersion = 0
+		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.scheduleLifecycleFromState(rc, now)
+	}
 }
 
 func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower *followerLifecycle, reason transport.PullHintReason, now time.Time) {
