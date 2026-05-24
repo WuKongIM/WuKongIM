@@ -70,10 +70,13 @@ type loadedMemoryStorage struct {
 	confState raftpb.ConfState
 }
 
-// NewService creates a ControllerV2 Raft service. Call Start before use.
-func NewService(cfg Config) *Service {
+// NewService validates cfg and creates a ControllerV2 Raft service. Call Start before use.
+func NewService(cfg Config) (*Service, error) {
 	cfg = cfg.normalized()
-	return &Service{cfg: cfg, status: initialStatus(cfg)}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return &Service{cfg: cfg, status: initialStatus(cfg)}, nil
 }
 
 // Start loads durable state, recovers cluster-state.json if required, and starts the Raft run loop.
@@ -446,7 +449,7 @@ func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.Raw
 	switch entry.Type {
 	case raftpb.EntryNormal:
 		if len(entry.Data) == 0 {
-			return nil
+			return s.advanceStateApplied(ctx, entry.Index)
 		}
 		cmd, err := command.Decode(entry.Data)
 		if err != nil {
@@ -461,6 +464,7 @@ func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.Raw
 		}
 		latest := rawNode.ApplyConfChange(cc)
 		*latestConfState = cloneConfState(*latest)
+		return s.advanceStateApplied(ctx, entry.Index)
 	case raftpb.EntryConfChangeV2:
 		var cc raftpb.ConfChangeV2
 		if err := cc.Unmarshal(entry.Data); err != nil {
@@ -468,8 +472,21 @@ func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.Raw
 		}
 		latest := rawNode.ApplyConfChange(cc)
 		*latestConfState = cloneConfState(*latest)
+		return s.advanceStateApplied(ctx, entry.Index)
 	}
 	return nil
+}
+
+func (s *Service) advanceStateApplied(ctx context.Context, index uint64) error {
+	snap := s.cfg.StateMachine.Snapshot(ctx)
+	if snap.Revision == 0 || index <= snap.AppliedRaftIndex {
+		return nil
+	}
+	_, err := s.cfg.StateMachine.Apply(ctx, index, command.Command{
+		Kind:        command.KindUpdateControllerVoters,
+		Controllers: snap.Controllers,
+	})
+	return err
 }
 
 func (s *Service) recoverStartup(ctx context.Context) error {
@@ -557,6 +574,8 @@ func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireInit bo
 			if _, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd); err != nil {
 				return err
 			}
+		} else if err := s.advanceStateApplied(ctx, entry.Index); err != nil {
+			return err
 		}
 		if markApplied {
 			if err := s.cfg.Storage.MarkApplied(ctx, entry.Index); err != nil {
