@@ -25,6 +25,13 @@ Raft commit -> semantic apply -> save cluster-state.json -> publish in-memory st
 
 `Revision` is the logical cluster-state version. `AppliedRaftIndex` records which Raft entry produced the file. `pkg/raftlog` remains the authoritative local applied boundary.
 
+## Server Facade Flow
+
+```text
+Planner tick: LocalState -> planner.Next -> Raft Propose -> FSM Apply -> statefile save.
+Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState update.
+```
+
 ## Non-Goals
 
 - Do not replace `pkg/controller` in this package.
