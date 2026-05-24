@@ -49,6 +49,10 @@ type replicationState struct {
 	nextCheckpointAt time.Time
 	// deleteAfterStoppedAck allows runtime deletion after the stopped ACK succeeds.
 	deleteAfterStoppedAck bool
+	// stopAcked records that the stopped ACK succeeded and only runtime deletion remains.
+	stopAcked bool
+	// nextStopEvictAt is the earliest retry time when transient work blocks stopped runtime deletion.
+	nextStopEvictAt time.Time
 
 	// dirty marks the follower as needing immediate replication work.
 	dirty bool
@@ -151,6 +155,8 @@ func (s *replicationState) cancelStopping() {
 	s.checkpointOpID = 0
 	s.nextCheckpointAt = time.Time{}
 	s.deleteAfterStoppedAck = false
+	s.stopAcked = false
+	s.nextStopEvictAt = time.Time{}
 	if s.pendingAckStopped {
 		s.pendingAck = false
 		s.pendingAckMatch = 0

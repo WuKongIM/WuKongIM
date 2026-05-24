@@ -155,11 +155,11 @@ func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T)
 	defer pools.Close()
 	defer factory.UnblockApplies()
 	r := NewReactor(ReactorConfig{
-		ID:           0,
-		LocalNode:    2,
-		Store:        factory,
-		Pools:        pools,
-		MailboxSize:  16,
+		ID:          0,
+		LocalNode:   2,
+		Store:       factory,
+		Pools:       pools,
+		MailboxSize: 16,
 	})
 
 	meta := followerTestMeta("pending-pull-fence-reset")
@@ -367,6 +367,52 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
 	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestFollowerStopAckEvictionRetriesAfterTransientFetchWaiter(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-ack-fetch-waiter")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        3,
+			LeaderLEO:       3,
+			ActivityVersion: 3,
+			Control:         transport.PullControlStop,
+		}},
+	})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreCheckpoint)})
+	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
+
+	fetchFuture := NewFuture()
+	require.NoError(t, rc.addFetchWaiter(99, fetchFuture))
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
+	require.Contains(t, r.channels, meta.Key)
+
+	rc.removeFetchWaiter(99)
+	r.handleTick(Event{Kind: EventTick, TickNow: time.Now().Add(time.Hour)})
+	require.NotContains(t, r.channels, meta.Key)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint, worker.TaskRPCAck)
 }
 
 func TestFollowerStopEmptyChannelSendsStoppedAckAndEvicts(t *testing.T) {

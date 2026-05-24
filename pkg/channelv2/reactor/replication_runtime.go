@@ -24,6 +24,10 @@ func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	if rc.replication.stopping {
+		if rc.replication.stopAcked {
+			r.tryEvictStoppedFollower(rc, now)
+			return
+		}
 		if rc.replication.checkpointInflight {
 			return
 		}
@@ -160,6 +164,21 @@ func (r *Reactor) trySubmitStopCheckpoint(rc *runtimeChannel, now time.Time) {
 	rc.replication.checkpointInflight = true
 	rc.replication.checkpointOpID = opID
 	rc.replication.nextCheckpointAt = time.Time{}
+}
+
+// tryEvictStoppedFollower retries runtime deletion after the stopped ACK has already reached the leader.
+func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
+	if rc == nil || rc.state == nil || !rc.replication.stopping || !rc.replication.stopAcked {
+		return
+	}
+	if !rc.replication.nextStopEvictAt.IsZero() && now.Before(rc.replication.nextStopEvictAt) {
+		return
+	}
+	rc.replication.nextStopEvictAt = time.Time{}
+	if r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack retry") {
+		return
+	}
+	rc.replication.nextStopEvictAt = now.Add(r.cfg.IdleEvictCheckInterval)
 }
 
 // handleNotify accepts the legacy transport compatibility nudge and maps it to
@@ -329,7 +348,12 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	}
 	rc.replication.backoff = 0
 	if ackStopped && rc.replication.deleteAfterStoppedAck && ackActivityVersion == rc.replication.stopActivityVersion {
-		r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack")
+		rc.replication.stopAcked = true
+		rc.replication.nextStopEvictAt = time.Time{}
+		if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
+			rc.replication.nextStopEvictAt = now.Add(r.cfg.IdleEvictCheckInterval)
+			r.scheduleReplicationFromState(rc, now)
+		}
 		return
 	}
 	rc.replication.dirty = false
