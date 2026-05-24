@@ -503,7 +503,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		fetchWaiters:     make(map[ch.OpID]struct{}),
 		pullWaiters:      make(map[ch.OpID]*pullWaiter),
 		appendTimings:    make(map[ch.OpID]appendTiming),
-		lifecycle:        channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO, Phase: lifecycleHot},
+		lifecycle:        channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO},
 		runtimeLifecycle: runtimeLifecycle{LeaderPhase: LeaderLifecycleServing, FollowerPhase: FollowerLifecycleReplicating},
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,

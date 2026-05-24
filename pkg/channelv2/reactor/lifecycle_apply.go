@@ -86,7 +86,6 @@ func (r *Reactor) startLeaderCheckpoint(rc *runtimeChannel, now time.Time) bool 
 		r.scheduleLifecycleFromState(rc, now)
 		return false
 	}
-	rc.lifecycle.Phase = lifecycleEvictingLeader
 	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
 	rc.lifecycle.CheckpointInflight = true
 	rc.lifecycle.CheckpointOpID = opID

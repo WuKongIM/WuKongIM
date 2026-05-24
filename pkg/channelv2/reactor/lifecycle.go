@@ -10,22 +10,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-type lifecyclePhase uint8
-
-const (
-	lifecycleHot lifecyclePhase = iota + 1
-	lifecycleCooling
-	lifecycleStoppingFollowers
-	lifecycleEvictingLeader
-)
-
 // channelLifecycle tracks leader-owned activity and idle eviction state for one runtime channel.
 type channelLifecycle struct {
 	// LoadedAt records when runtime state was created without counting as Append activity.
 	LoadedAt        time.Time
 	LastAppendAt    time.Time
 	ActivityVersion uint64
-	Phase           lifecyclePhase
 	// CheckpointInflight records a leader eviction checkpoint that must complete before runtime deletion.
 	CheckpointInflight bool
 	// CheckpointOpID fences the leader eviction checkpoint worker result.
@@ -67,7 +57,6 @@ func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	rc.lifecycle.LastAppendAt = now
-	rc.lifecycle.Phase = lifecycleHot
 	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	r.scheduleLifecycleFromState(rc, now)
 }
@@ -77,7 +66,6 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 		return
 	}
 	rc.lifecycle.LastAppendAt = now
-	rc.lifecycle.Phase = lifecycleHot
 	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	resetLeaderCheckpointLifecycle(rc)
 	r.scheduleLifecycleFromState(rc, now)
