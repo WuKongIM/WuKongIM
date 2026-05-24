@@ -212,7 +212,7 @@ func TestHandleNotifyUsesLeaderLEOAsPullHintActivityVersion(t *testing.T) {
 
 func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	factory := newServiceBlockingReadLogFactory()
-	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, LeaderRecentRecordCacheSize: -1})
 	require.NoError(t, err)
 	defer clusterAPI.Close()
 	svc := clusterAPI.(*cluster)
