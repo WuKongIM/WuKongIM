@@ -1631,6 +1631,80 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-stopped-ack-fence-bump", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Hour, IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
+	rc.lifecycle.LastAppendAt = time.Now()
+	rc.lifecycle.ActivityVersion = 3
+	r.syncLeaderFollowers(rc)
+
+	for _, follower := range []ch.NodeID{2, 3} {
+		future := NewFuture()
+		r.handleAck(Event{
+			Kind: EventAck, Key: meta.Key, Future: future,
+			Ack: transport.AckRequest{
+				ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+				Follower: follower, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+			},
+		})
+		require.NoError(t, awaitFutureResult(t, future).Err)
+	}
+	require.True(t, rc.followers[2].Stopped)
+	require.True(t, rc.followers[3].Stopped)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+
+	fenced := meta
+	fenced.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, fenced))
+
+	rc.lifecycle.LastAppendAt = time.Now().Add(-2 * time.Hour)
+	r.tickLifecycle(rc, time.Now())
+	require.Contains(t, r.channels, meta.Key)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+
+	firstFuture := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: firstFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: fenced.Epoch, LeaderEpoch: fenced.LeaderEpoch,
+			Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, firstFuture).Err)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+
+	secondFuture := NewFuture()
+	r.handleAck(Event{
+		Kind: EventAck, Key: meta.Key, Future: secondFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: meta.Key, Epoch: fenced.Epoch, LeaderEpoch: fenced.LeaderEpoch,
+			Follower: 3, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Equal(t, fenced.LeaderEpoch, checkpoint.Fence.LeaderEpoch)
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
 func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
