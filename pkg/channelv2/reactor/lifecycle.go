@@ -31,6 +31,10 @@ type channelLifecycle struct {
 	CheckpointOpID ch.OpID
 	// CheckpointActivityVersion is the activity version that requested the leader checkpoint.
 	CheckpointActivityVersion uint64
+	// CheckpointReady records a completed leader checkpoint awaiting a normal-priority eviction recheck.
+	CheckpointReady bool
+	// CheckpointReadyActivityVersion fences the completed checkpoint to the activity that produced it.
+	CheckpointReadyActivityVersion uint64
 	// CheckpointRetryAt is the next time to retry a failed or backpressured leader checkpoint.
 	CheckpointRetryAt time.Time
 }
@@ -78,6 +82,8 @@ func resetLeaderCheckpointLifecycle(rc *runtimeChannel) {
 	rc.lifecycle.CheckpointInflight = false
 	rc.lifecycle.CheckpointOpID = 0
 	rc.lifecycle.CheckpointActivityVersion = 0
+	rc.lifecycle.CheckpointReady = false
+	rc.lifecycle.CheckpointReadyActivityVersion = 0
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
@@ -287,6 +293,19 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	if r.hasPendingRuntimeWork(rc) {
+		return
+	}
+	if rc.lifecycle.CheckpointReady {
+		if rc.lifecycle.CheckpointReadyActivityVersion != rc.lifecycle.ActivityVersion {
+			rc.lifecycle.CheckpointReady = false
+			rc.lifecycle.CheckpointReadyActivityVersion = 0
+			return
+		}
+		if !r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint") {
+			rc.lifecycle.CheckpointReady = false
+			rc.lifecycle.CheckpointReadyActivityVersion = 0
+			rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		}
 		return
 	}
 	if rc.lifecycle.CheckpointInflight {
