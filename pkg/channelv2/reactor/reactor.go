@@ -107,6 +107,8 @@ type runtimeChannel struct {
 	replication replicationState
 	// lifecycle tracks leader-owned activity and idle eviction state.
 	lifecycle channelLifecycle
+	// runtimeLifecycle tracks explicit leader/follower runtime eviction phases.
+	runtimeLifecycle runtimeLifecycle
 	// followers stores leader-owned runtime state for remote replicas.
 	followers map[ch.NodeID]*followerLifecycle
 	// pullHintInflight maps worker op ids back to followers waiting for completion.
@@ -494,13 +496,14 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
 	rc := &runtimeChannel{
-		state:         state,
-		store:         cs,
-		waiters:       make(map[ch.OpID]*Future),
-		fetchWaiters:  make(map[ch.OpID]struct{}),
-		pullWaiters:   make(map[ch.OpID]*pullWaiter),
-		appendTimings: make(map[ch.OpID]appendTiming),
-		lifecycle:     channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO, Phase: lifecycleHot},
+		state:            state,
+		store:            cs,
+		waiters:          make(map[ch.OpID]*Future),
+		fetchWaiters:     make(map[ch.OpID]struct{}),
+		pullWaiters:      make(map[ch.OpID]*pullWaiter),
+		appendTimings:    make(map[ch.OpID]appendTiming),
+		lifecycle:        channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO, Phase: lifecycleHot},
+		runtimeLifecycle: runtimeLifecycle{LeaderPhase: LeaderLifecycleServing, FollowerPhase: FollowerLifecycleReplicating},
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,

@@ -440,6 +440,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 		err = ch.ErrInvalidConfig
 	}
 	if err != nil {
+		rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
 		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
 		r.scheduleLifecycleFromState(rc, now)
 		return
@@ -453,6 +454,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleFinalRecheck
 	rc.lifecycle.CheckpointReady = true
 	rc.lifecycle.CheckpointReadyActivityVersion = activityVersion
 	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
