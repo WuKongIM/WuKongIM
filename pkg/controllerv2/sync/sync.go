@@ -94,6 +94,9 @@ func (s *Server) GetState(ctx context.Context, req GetStateRequest) (GetStateRes
 		return GetStateResponse{}, fmt.Errorf("%w: requested %q local %q", ErrClusterIDMismatch, req.ClusterID, s.clusterID)
 	}
 	leaderID := callUint64(s.leaderID)
+	if leaderID == 0 {
+		return GetStateResponse{NotReady: true}, nil
+	}
 	if leaderID != 0 && leaderID != s.nodeID {
 		return GetStateResponse{NotLeader: true, LeaderID: leaderID}, nil
 	}
@@ -209,11 +212,12 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 
 	local, localValid, loadErr := c.loadLocal(ctx)
 	reqRevision, reqChecksum := uint64(0), ""
-	compareRevision := uint64(0)
+	compareRevision, compareChecksum := uint64(0), ""
 	if localValid {
 		reqRevision = local.Revision
 		reqChecksum = local.Checksum
 		compareRevision = local.Revision
+		compareChecksum = local.Checksum
 	} else if c.hasSnapshot {
 		compareRevision = c.snapshot.Revision
 	}
@@ -266,7 +270,7 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 			lastErr = errors.New("controllerv2/sync: empty payload")
 			continue
 		}
-		if err := c.installPayload(ctx, resp, compareRevision); err != nil {
+		if err := c.installPayload(ctx, resp, compareRevision, compareChecksum); err != nil {
 			return err
 		}
 		if resp.LeaderID != 0 {
@@ -314,7 +318,7 @@ func (c *Client) candidateIDs() []uint64 {
 	return ids
 }
 
-func (c *Client) installPayload(ctx context.Context, resp GetStateResponse, compareRevision uint64) error {
+func (c *Client) installPayload(ctx context.Context, resp GetStateResponse, compareRevision uint64, compareChecksum string) error {
 	decoded, err := state.Decode(resp.Payload)
 	if err != nil {
 		return err
@@ -322,14 +326,17 @@ func (c *Client) installPayload(ctx context.Context, resp GetStateResponse, comp
 	if c.clusterID != "" && decoded.ClusterID != c.clusterID {
 		return fmt.Errorf("%w: payload %q client %q", ErrClusterIDMismatch, decoded.ClusterID, c.clusterID)
 	}
-	if resp.Revision != 0 && resp.Revision != decoded.Revision {
+	if resp.Revision != decoded.Revision {
 		return fmt.Errorf("%w: revision header %d payload %d", ErrHeaderMismatch, resp.Revision, decoded.Revision)
 	}
-	if resp.Checksum != "" && resp.Checksum != decoded.Checksum {
+	if resp.Checksum != decoded.Checksum {
 		return fmt.Errorf("%w: checksum header %s payload %s", ErrHeaderMismatch, resp.Checksum, decoded.Checksum)
 	}
 	if decoded.Revision < compareRevision {
 		return fmt.Errorf("%w: payload revision %d local revision %d", ErrStalePayload, decoded.Revision, compareRevision)
+	}
+	if decoded.Revision == compareRevision && compareChecksum != "" && decoded.Checksum == compareChecksum {
+		return nil
 	}
 	if err := c.store.Save(ctx, decoded); err != nil {
 		return err

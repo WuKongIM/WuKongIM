@@ -63,6 +63,23 @@ func TestServerReturnsPayloadForSameRevisionDifferentChecksum(t *testing.T) {
 	require.JSONEq(t, string(expectedPayload), string(resp.Payload))
 }
 
+func TestServerReturnsNotReadyWhenLeaderUnknown(t *testing.T) {
+	st := testSyncState(1, "wk-sync")
+	srv := NewServer(ServerConfig{
+		NodeID:    1,
+		ClusterID: "wk-sync",
+		LeaderID:  func() uint64 { return 0 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (state.ClusterState, error) { return st, nil },
+	})
+
+	resp, err := srv.GetState(context.Background(), GetStateRequest{ClusterID: "wk-sync"})
+
+	require.NoError(t, err)
+	require.True(t, resp.NotReady)
+	require.Empty(t, resp.Payload)
+}
+
 func TestClientInstallsNewerLeaderState(t *testing.T) {
 	ctx := context.Background()
 	store := newSyncStore(t)
@@ -167,6 +184,54 @@ func TestClientRejectsBadChecksum(t *testing.T) {
 	require.Equal(t, local.Revision, got.Revision)
 }
 
+func TestClientRejectsMissingRevisionHeader(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(1, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	leader := testSyncState(2, "wk-sync")
+	payload, checksum := encodeSyncState(t, leader)
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{1: &fakeEndpoint{resp: GetStateResponse{
+			Checksum: checksum,
+			Payload:  payload,
+		}}}, ids: []uint64{1}},
+		LeaderID: 1,
+	})
+
+	require.ErrorIs(t, client.SyncOnce(ctx), ErrHeaderMismatch)
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, local.Revision, got.Revision)
+}
+
+func TestClientRejectsMissingChecksumHeader(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(1, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	leader := testSyncState(2, "wk-sync")
+	payload, _ := encodeSyncState(t, leader)
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{1: &fakeEndpoint{resp: GetStateResponse{
+			Revision: leader.Revision,
+			Payload:  payload,
+		}}}, ids: []uint64{1}},
+		LeaderID: 1,
+	})
+
+	require.ErrorIs(t, client.SyncOnce(ctx), ErrHeaderMismatch)
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, local.Revision, got.Revision)
+}
+
 func TestClientRejectsLowerRevisionBeforeSave(t *testing.T) {
 	ctx := context.Background()
 	store := newSyncStore(t)
@@ -185,6 +250,36 @@ func TestClientRejectsLowerRevisionBeforeSave(t *testing.T) {
 	got, err := store.Load(ctx)
 	require.NoError(t, err)
 	require.Equal(t, local.Revision, got.Revision)
+}
+
+func TestClientTreatsSameRevisionSameChecksumPayloadAsNotModified(t *testing.T) {
+	ctx := context.Background()
+	saveErr := errors.New("unexpected save")
+	path := filepath.Join(t.TempDir(), "cluster-state.json")
+	store := statefile.New(path)
+	guardedStore := statefile.New(path, statefile.WithAfterTempWriteHook(func() error {
+		return saveErr
+	}))
+	local := testSyncState(2, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	payload, checksum := encodeSyncState(t, local)
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     guardedStore,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{1: &fakeEndpoint{resp: GetStateResponse{
+			Revision: local.Revision,
+			Checksum: checksum,
+			Payload:  payload,
+		}}}, ids: []uint64{1}},
+		LeaderID: 1,
+	})
+
+	require.NoError(t, client.SyncOnce(ctx))
+
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, local.Revision, got.Revision)
+	require.Equal(t, checksum, got.Checksum)
 }
 
 func TestClientKeepsMemorySnapshotWhenLocalCorruptAndLeaderUnavailable(t *testing.T) {
