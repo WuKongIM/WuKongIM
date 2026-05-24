@@ -372,32 +372,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 }
 
 func (rc *runtimeChannel) safeToEvictRuntime() bool {
-	if rc == nil {
-		return false
-	}
-	if len(rc.waiters) != 0 || len(rc.fetchWaiters) != 0 || len(rc.pullWaiters) != 0 {
-		return false
-	}
-	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
-		return false
-	}
-	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 {
-		return false
-	}
-	if rc.lifecycle.CheckpointInflight || rc.lifecycle.CheckpointOpID != 0 || !rc.lifecycle.CheckpointRetryAt.IsZero() {
-		return false
-	}
-	replication := rc.replication
-	if replication.pullInflight || replication.ackInflight || replication.pendingAck || replication.pendingPull != nil {
-		return false
-	}
-	if replication.applyBlocked || replication.applyOpID != 0 || replication.checkpointInflight || replication.checkpointOpID != 0 {
-		return false
-	}
-	if !replication.nextCheckpointAt.IsZero() || !replication.nextAckAt.IsZero() {
-		return false
-	}
-	return true
+	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).SafeToEvict()
 }
 
 func (rc *runtimeChannel) failPendingPullWaiters(err error) {

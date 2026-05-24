@@ -15,6 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLeaderPullDelayUsesIdleAgeWithoutCoolingPhase(t *testing.T) {
+	r := NewReactor(ReactorConfig{
+		LocalNode:                   1,
+		Store:                       store.NewMemoryFactory(),
+		IdleSlowdownAfter:           time.Second,
+		IdlePullMinInterval:         time.Millisecond,
+		IdlePullMaxInterval:         8 * time.Millisecond,
+		ReplicationIdlePollInterval: time.Millisecond,
+	})
+	rc := &runtimeChannel{lifecycle: channelLifecycle{LoadedAt: time.Unix(0, 0)}}
+
+	delay := r.leaderPullDelay(rc, time.Unix(3, 0))
+
+	require.GreaterOrEqual(t, delay, 2*time.Millisecond)
+}
+
 func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
@@ -349,6 +365,7 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 		}},
 	})
 
+	require.Equal(t, FollowerLifecycleStopCheckpointing, rc.runtimeLifecycle.FollowerPhase)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
@@ -1779,6 +1796,7 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 3, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
 	})
 	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
+	require.Equal(t, LeaderLifecycleCheckpointing, rc.runtimeLifecycle.LeaderPhase)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
@@ -2031,7 +2049,7 @@ func TestLeaderCheckpointCompletionDefersEvictionBehindQueuedAppend(t *testing.T
 	rc := r.channels[meta.Key]
 	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
 	rc.lifecycle.ActivityVersion = rc.state.LEO
-	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
 	rc.lifecycle.CheckpointInflight = true
 	rc.lifecycle.CheckpointOpID = 99
 	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
@@ -2075,7 +2093,7 @@ func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *test
 	rc := r.channels[meta.Key]
 	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
 	rc.lifecycle.ActivityVersion = rc.state.LEO
-	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
 	rc.lifecycle.CheckpointInflight = true
 	rc.lifecycle.CheckpointOpID = 99
 	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
@@ -2349,7 +2367,7 @@ func TestNewAppendCancelsLeaderEvictionAndClearsStoppedFollowersNeedingData(t *t
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before eviction").Err)
 	rc := r.channels[meta.Key]
 	rc.lifecycle.ActivityVersion = 1
-	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
 	rc.lifecycle.CheckpointInflight = true
 	rc.lifecycle.CheckpointOpID = 99
 	rc.lifecycle.CheckpointActivityVersion = 1
@@ -2365,7 +2383,7 @@ func TestNewAppendCancelsLeaderEvictionAndClearsStoppedFollowersNeedingData(t *t
 	r.handleAppend(appendEventWithFuture(meta, 2, "reactivate followers", appendFuture))
 	require.False(t, rc.lifecycle.CheckpointInflight)
 	require.Zero(t, rc.lifecycle.CheckpointOpID)
-	require.Equal(t, lifecycleHot, rc.lifecycle.Phase)
+	require.Equal(t, LeaderLifecycleServing, rc.runtimeLifecycle.LeaderPhase)
 
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)

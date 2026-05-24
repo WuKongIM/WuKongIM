@@ -10,22 +10,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-type lifecyclePhase uint8
-
-const (
-	lifecycleHot lifecyclePhase = iota + 1
-	lifecycleCooling
-	lifecycleStoppingFollowers
-	lifecycleEvictingLeader
-)
-
 // channelLifecycle tracks leader-owned activity and idle eviction state for one runtime channel.
 type channelLifecycle struct {
 	// LoadedAt records when runtime state was created without counting as Append activity.
 	LoadedAt        time.Time
 	LastAppendAt    time.Time
 	ActivityVersion uint64
-	Phase           lifecyclePhase
 	// CheckpointInflight records a leader eviction checkpoint that must complete before runtime deletion.
 	CheckpointInflight bool
 	// CheckpointOpID fences the leader eviction checkpoint worker result.
@@ -67,7 +57,7 @@ func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	rc.lifecycle.LastAppendAt = now
-	rc.lifecycle.Phase = lifecycleHot
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	r.scheduleLifecycleFromState(rc, now)
 }
 
@@ -76,7 +66,7 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 		return
 	}
 	rc.lifecycle.LastAppendAt = now
-	rc.lifecycle.Phase = lifecycleHot
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
 	resetLeaderCheckpointLifecycle(rc)
 	r.scheduleLifecycleFromState(rc, now)
 }
@@ -218,21 +208,15 @@ func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *f
 }
 
 func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || rc.state.Status != ch.StatusActive {
+	if rc == nil {
 		return false
 	}
-	if !r.leaderIdleExpired(rc, now) || r.hasPendingRuntimeWork(rc) {
-		return false
-	}
-	return r.allFollowersCaughtUp(rc)
+	r.syncLeaderFollowers(rc)
+	return runtimeViewFromChannel(rc, now, AppendFenceView{}).CanOfferFollowerStop(now, r.cfg.IdleEvictAfter)
 }
 
 func (r *Reactor) leaderIdleExpired(rc *runtimeChannel, now time.Time) bool {
-	idleSince := leaderIdleSince(rc)
-	if idleSince.IsZero() {
-		return false
-	}
-	return !now.Before(idleSince.Add(r.cfg.IdleEvictAfter))
+	return runtimeViewFromChannel(rc, now, AppendFenceView{}).IdleExpired(now, r.cfg.IdleEvictAfter)
 }
 
 func leaderIdleSince(rc *runtimeChannel) time.Time {
@@ -246,66 +230,23 @@ func leaderIdleSince(rc *runtimeChannel) time.Time {
 }
 
 func (r *Reactor) allFollowersCaughtUp(rc *runtimeChannel) bool {
-	if rc == nil || rc.state == nil {
+	if rc == nil {
 		return false
 	}
 	r.syncLeaderFollowers(rc)
-	for _, replica := range rc.state.Replicas {
-		if replica == r.cfg.LocalNode {
-			continue
-		}
-		follower := rc.followers[replica]
-		if follower == nil || follower.Match < rc.state.LEO {
-			return false
-		}
-	}
-	return true
+	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).AllFollowersCaughtUp()
 }
 
 func (r *Reactor) allFollowersStopped(rc *runtimeChannel) bool {
-	if rc == nil || rc.state == nil {
+	if rc == nil {
 		return false
 	}
 	r.syncLeaderFollowers(rc)
-	for _, replica := range rc.state.Replicas {
-		if replica == r.cfg.LocalNode {
-			continue
-		}
-		follower := rc.followers[replica]
-		if follower == nil || !follower.Stopped || follower.StopAckVersion != rc.lifecycle.ActivityVersion || follower.Match < rc.state.LEO {
-			return false
-		}
-	}
-	return true
+	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).AllFollowersStopped()
 }
 
 func (r *Reactor) hasPendingRuntimeWork(rc *runtimeChannel) bool {
-	if rc == nil || rc.state == nil {
-		return true
-	}
-	if len(rc.waiters) != 0 || len(rc.fetchWaiters) != 0 || len(rc.pullWaiters) != 0 {
-		return true
-	}
-	if len(rc.appendQ.pending) != 0 || rc.appendQ.storeBlocked || rc.appendInflight != nil || rc.appendStoreBlocked || !rc.appendRetryAt.IsZero() {
-		return true
-	}
-	if len(rc.appendCancelContexts) != 0 || len(rc.appendTimings) != 0 {
-		return true
-	}
-	if rc.state.InflightAppend != nil || len(rc.state.PendingAppends) != 0 {
-		return true
-	}
-	replication := rc.replication
-	return replication.pullInflight ||
-		replication.ackInflight ||
-		replication.pendingAck ||
-		replication.pendingPull != nil ||
-		replication.applyBlocked ||
-		replication.applyOpID != 0 ||
-		replication.checkpointInflight ||
-		replication.checkpointOpID != 0 ||
-		!replication.nextCheckpointAt.IsZero() ||
-		!replication.nextAckAt.IsZero()
+	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).HasPendingWork()
 }
 
 func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
@@ -343,18 +284,7 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	if !rc.lifecycle.CheckpointRetryAt.IsZero() && now.Before(rc.lifecycle.CheckpointRetryAt) {
 		return
 	}
-	opID := r.nextOpID()
-	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
-	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.LEO}); err != nil {
-		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleLifecycleFromState(rc, now)
-		return
-	}
-	rc.lifecycle.Phase = lifecycleEvictingLeader
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = opID
-	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
-	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	r.startLeaderCheckpoint(rc, now)
 }
 
 func (r *Reactor) currentAppendSubmitSeq(key ch.ChannelKey) uint64 {
@@ -421,6 +351,7 @@ func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appe
 	}
 	rc.lifecycle.CheckpointReadyQueued = true
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleFinalRecheck
 }
 
 func (r *Reactor) handleLeaderEvictReady(event Event) {
@@ -433,6 +364,7 @@ func (r *Reactor) handleLeaderEvictReady(event Event) {
 		return
 	}
 	now := time.Now()
+	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleFinalRecheck
 	if rc.state.HW < rc.state.LEO || !r.allFollowersStopped(rc) || r.hasPendingRuntimeWork(rc) {
 		r.scheduleLifecycleFromState(rc, now)
 		return
