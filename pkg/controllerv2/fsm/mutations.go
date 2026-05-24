@@ -90,7 +90,7 @@ func (sm *StateMachine) applyUpsertNode(next *state.ClusterState, cmd command.Co
 	if reflect.DeepEqual(before.Nodes, next.Nodes) {
 		return noop(ReasonNoChange)
 	}
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func (sm *StateMachine) applyUpdateControllerVoters(next *state.ClusterState, cmd command.Command) ApplyResult {
@@ -103,7 +103,7 @@ func (sm *StateMachine) applyUpdateControllerVoters(next *state.ClusterState, cm
 	if reflect.DeepEqual(before.Controllers, next.Controllers) {
 		return noop(ReasonNoChange)
 	}
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func (sm *StateMachine) applyReplaceHashSlotTable(next *state.ClusterState, cmd command.Command) ApplyResult {
@@ -116,7 +116,7 @@ func (sm *StateMachine) applyReplaceHashSlotTable(next *state.ClusterState, cmd 
 	if reflect.DeepEqual(before.HashSlots, next.HashSlots) {
 		return noop(ReasonNoChange)
 	}
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func (sm *StateMachine) applyUpsertSlotAssignmentAndTask(next *state.ClusterState, cmd command.Command) ApplyResult {
@@ -133,7 +133,7 @@ func (sm *StateMachine) applyUpsertSlotAssignmentAndTask(next *state.ClusterStat
 	if reflect.DeepEqual(before.Slots, next.Slots) && reflect.DeepEqual(before.Tasks, next.Tasks) {
 		return noop(ReasonNoChange)
 	}
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.Command) ApplyResult {
@@ -150,7 +150,7 @@ func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.
 	before := next.Clone()
 	next.Tasks = append(next.Tasks[:idx], next.Tasks[idx+1:]...)
 	next.Normalize()
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func (sm *StateMachine) applyFailTask(next *state.ClusterState, cmd command.Command) ApplyResult {
@@ -169,7 +169,7 @@ func (sm *StateMachine) applyFailTask(next *state.ClusterState, cmd command.Comm
 	next.Tasks[idx].Attempt++
 	next.Tasks[idx].LastError = truncateUTF8(cmd.TaskResult.Err, MaxTaskLastErrorBytes)
 	next.Normalize()
-	return validateChanged(next, before)
+	return validateChanged(next, before, cmd)
 }
 
 func initialStateFromCommand(cmd command.Command, raftIndex uint64) (state.ClusterState, error) {
@@ -182,7 +182,7 @@ func initialStateFromCommand(cmd command.Command, raftIndex uint64) (state.Clust
 		ClusterID:        cmd.Init.ClusterID,
 		Revision:         1,
 		AppliedRaftIndex: raftIndex,
-		UpdatedAt:        time.Now().UTC(),
+		UpdatedAt:        commandIssuedAt(cmd.IssuedAt),
 		Config:           cmd.Init.Config,
 		Controllers:      append([]state.ControllerVoter(nil), cmd.Init.Controllers...),
 		Nodes:            cloneNodes(cmd.Init.Nodes),
@@ -255,14 +255,32 @@ func isNonBootstrapIdempotent(current state.ClusterState, cmd command.Command) b
 	}
 }
 
-func validateChanged(next *state.ClusterState, before state.ClusterState) ApplyResult {
+func validateChanged(next *state.ClusterState, before state.ClusterState, cmd command.Command) ApplyResult {
 	next.Revision++
-	next.UpdatedAt = time.Now().UTC()
+	next.UpdatedAt = nextUpdatedAt(before.UpdatedAt, cmd.IssuedAt)
 	if err := next.Validate(); err != nil {
 		*next = before
 		return reject(ReasonInvalidState)
 	}
 	return changed()
+}
+
+// nextUpdatedAt is deterministic for replay: non-zero command timestamps are
+// normalized to UTC, while zero timestamps preserve the previous durable value.
+func nextUpdatedAt(previous time.Time, issuedAt time.Time) time.Time {
+	if issuedAt.IsZero() {
+		return previous.UTC()
+	}
+	return issuedAt.UTC()
+}
+
+// commandIssuedAt uses zero time for zero-timestamp init commands because no
+// previous durable state exists yet.
+func commandIssuedAt(issuedAt time.Time) time.Time {
+	if issuedAt.IsZero() {
+		return time.Time{}
+	}
+	return issuedAt.UTC()
 }
 
 func changed() ApplyResult {
