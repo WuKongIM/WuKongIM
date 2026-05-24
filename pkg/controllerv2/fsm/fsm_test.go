@@ -73,6 +73,23 @@ func TestApplyAssignmentAndTaskWritesAtomically(t *testing.T) {
 	require.Len(t, persisted.Tasks, 1)
 }
 
+func TestApplyAssignmentAndTaskRejectsSlotMismatchBeforeMutation(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(2, 1, []uint64{1, 2, 3}))
+	cmd := bootstrapCommand(1, 2, []uint64{1, 2, 3})
+	cmd.Task.SlotID = 2
+	cmd.Task.TaskID = "slot-2-bootstrap-1"
+
+	result, err := sm.Apply(ctx, 3, cmd)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Slots, 1)
+	require.Equal(t, uint32(2), snap.Slots[0].SlotID)
+}
+
 func TestApplyStaleBootstrapForAssignedSlotNoops(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)

@@ -117,6 +117,9 @@ func (sm *StateMachine) applyUpsertSlotAssignmentAndTask(next *state.ClusterStat
 	if next.Revision == 0 || cmd.Assignment == nil || cmd.Task == nil {
 		return reject(ReasonInvalidCommand)
 	}
+	if cmd.Task.SlotID != cmd.Assignment.SlotID {
+		return reject(ReasonTaskSlotMismatch)
+	}
 	before := next.Clone()
 	upsertAssignment(next, cloneAssignment(*cmd.Assignment))
 	upsertTask(next, cloneTask(*cmd.Task))

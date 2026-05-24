@@ -16,7 +16,8 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 
 	commands := []Command{
 		{
-			Kind: KindInitClusterState,
+			Kind:     KindInitClusterState,
+			IssuedAt: now,
 			Init: &InitClusterState{
 				ClusterID: "wk-command-test",
 				Config: state.ClusterConfig{
@@ -36,6 +37,7 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 		},
 		{
 			Kind:             KindUpsertSlotAssignmentAndTask,
+			IssuedAt:         now.Add(time.Minute),
 			ExpectedRevision: &expectedRevision,
 			Assignment:       &state.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 3, PreferredLeader: 2},
 			Task: &state.ReconcileTask{
@@ -59,6 +61,7 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 		data, err := Encode(want)
 		require.NoError(t, err)
 		require.Contains(t, string(data), `"version":1`)
+		require.Contains(t, string(data), `"issued_at"`)
 
 		got, err := Decode(data)
 		require.NoError(t, err)
