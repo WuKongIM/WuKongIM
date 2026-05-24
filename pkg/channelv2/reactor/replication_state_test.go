@@ -1625,7 +1625,8 @@ func TestLeaderStoppedAckRejectsMatchAboveLEO(t *testing.T) {
 		Kind: EventAck, Key: meta.Key, Future: future,
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 4, ActivityVersion: 3, Stopped: true},
 	})
-	require.NoError(t, awaitFutureResult(t, future).Err)
+	_, err := future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.False(t, rc.followers[2].Stopped)
 	require.Zero(t, rc.followers[2].StopAckVersion)
 	require.Equal(t, uint64(3), rc.followers[2].Match)
@@ -1657,7 +1658,8 @@ func TestLeaderStoppedAckRejectsMismatchedOfferedVersion(t *testing.T) {
 		Kind: EventAck, Key: meta.Key, Future: future,
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
 	})
-	require.NoError(t, awaitFutureResult(t, future).Err)
+	_, err := future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.False(t, rc.followers[2].Stopped)
 	require.Zero(t, rc.followers[2].StopAckVersion)
 	require.Equal(t, uint64(3), rc.followers[2].Match)
@@ -1806,6 +1808,31 @@ func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 	require.Equal(t, uint64(1), rc.state.HW)
 
 	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestApplyMetaColdSingleNodeClusterLeaderCanEvictWithoutAppend(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("cold-leader-evict", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond, IdleEvictCheckInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Zero(t, rc.lifecycle.LastAppendAt)
+
+	r.tickLifecycle(rc, time.Now().Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
 	require.NotContains(t, r.channels, meta.Key)

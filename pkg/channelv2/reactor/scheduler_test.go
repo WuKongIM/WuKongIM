@@ -32,6 +32,11 @@ func TestDueSchedulerNextWait(t *testing.T) {
 	require.Equal(t, time.Duration(0), s.nextWait(now.Add(3*time.Second)))
 }
 
+func TestReactorIdleWaitDoesNotSelfSpinWithoutDueWork(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	require.Equal(t, time.Hour, r.idleWait(time.Unix(10, 0)))
+}
+
 func TestDueSchedulerLifecycleTickDoesNotScanLoadedIdleLeaders(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 64)}

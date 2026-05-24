@@ -16,7 +16,7 @@
 
 ## ApplyMeta
 
-`ApplyMeta` applies the authoritative channel runtime view. It creates local channel state if needed, loads store state, applies leader/follower role, and seeds leader progress from local LEO. It remains the explicit metadata push/refresh path, but Append no longer requires callers to invoke it first when the service is configured with a metadata resolver. It does not elect leaders or repair metadata.
+`ApplyMeta` applies the authoritative channel runtime view. It creates local channel state if needed, loads store state, applies leader/follower role, and seeds leader progress from local LEO. It remains the explicit metadata push/refresh path, but Append no longer requires callers to invoke it first when the service is configured with a metadata resolver. ApplyMeta-only loads do not count as Append activity; leaders start cold and remain eligible for scheduled idle slowdown or eviction from their runtime load time. It does not elect leaders or repair metadata.
 
 ## Append
 

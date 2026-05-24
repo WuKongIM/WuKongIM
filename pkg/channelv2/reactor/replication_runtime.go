@@ -529,10 +529,11 @@ func (r *Reactor) leaderPullDelay(rc *runtimeChannel, now time.Time) time.Durati
 	if maxDelay <= 0 || maxDelay < minDelay {
 		maxDelay = minDelay
 	}
-	if rc == nil || rc.lifecycle.LastAppendAt.IsZero() {
+	idleSince := leaderIdleSince(rc)
+	if idleSince.IsZero() {
 		return minDelay
 	}
-	idleAge := now.Sub(rc.lifecycle.LastAppendAt)
+	idleAge := now.Sub(idleSince)
 	if idleAge < r.cfg.IdleSlowdownAfter {
 		return minDelay
 	}

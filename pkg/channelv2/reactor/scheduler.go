@@ -285,12 +285,13 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 		}
 		add(follower.HintRetryAt)
 	}
-	if !rc.lifecycle.LastAppendAt.IsZero() {
-		if r.cfg.IdleSlowdownAfter > 0 && now.Before(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleSlowdownAfter)) {
-			add(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleSlowdownAfter))
+	idleSince := leaderIdleSince(rc)
+	if !idleSince.IsZero() {
+		if r.cfg.IdleSlowdownAfter > 0 && now.Before(idleSince.Add(r.cfg.IdleSlowdownAfter)) {
+			add(idleSince.Add(r.cfg.IdleSlowdownAfter))
 		}
-		if now.Before(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleEvictAfter)) {
-			add(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleEvictAfter))
+		if now.Before(idleSince.Add(r.cfg.IdleEvictAfter)) {
+			add(idleSince.Add(r.cfg.IdleEvictAfter))
 		} else if !rc.lifecycle.CheckpointInflight {
 			add(now.Add(r.cfg.IdleEvictCheckInterval))
 		}
