@@ -45,6 +45,65 @@ A follower keeps at most one pull RPC in flight, exactly one pending pull respon
 Follower-side stop handling checkpoints before sending a stopped ACK and unloads only after that ACK succeeds; leader stop eligibility and leader-last eviction are lifecycle-owned behavior. A leader returns stop only after the channel has been idle past `IdleEvictAfter`, all replicas in metadata are caught up, and no runtime work is pending. Stopped ACKs must match the current activity version and LEO before they can mark a follower stopped or contribute to leader eviction. After all followers have stopped, the leader checkpoints at the safe HW/LEO and then evicts its local runtime from a normal-priority final recheck, so already-queued or concurrently submitted appends can cancel eviction before runtime deletion.
 Metadata fence changes reset follower pull/apply/ACK inflight and pending state before active followers are marked dirty under the new epoch. Leader-side pull waiters complete with `ErrStaleMeta` on metadata fence changes, the caller context error on cancellation, or `ErrClosed` on close; late store completions are ignored after the waiter is removed. Leader ACK handling ignores stale or regressive matches, so they do not advance HW or complete quorum waiters.
 
+## Channel Runtime Lifecycle Model
+
+`Unloaded` is represented by absence from the owning reactor's `channels` map.
+Loaded runtimes hold `machine.ChannelState`, `appendQueue`, `replicationState`,
+leader-visible follower state, and an explicit `runtimeLifecycle` phase model.
+Metadata reload is not a long-lived phase: accepted metadata fence changes fail
+stale waiters, reset transient lifecycle/replication state, apply the new
+`Meta`, and then choose the leader or follower runtime path from local role.
+
+Leader phases:
+
+- `Serving`: normal hot or idle leader runtime. Idle slowdown is derived from
+  idle age and `leaderPullDelay`; it is not stored as a lifecycle phase.
+- `StoppingFollowers`: the leader is idle-expired and waits for caught-up
+  followers to pull at `LEO+1` so it can return `PullControlStop`.
+- `Checkpointing`: all followers stopped for the current activity version and
+  the leader checkpoint is in flight or retrying.
+- `FinalRecheck`: the checkpoint finished and a normal-priority recheck fences
+  leader eviction behind same-channel append reservations and submit sequence
+  changes.
+
+Follower phases:
+
+- `Replicating`: ordinary pull, apply, ACK, park, and retry behavior.
+- `StopCheckpointing`: the follower accepted `PullControlStop` after local
+  LEO/HW caught up and is checkpointing before the stopped ACK.
+- `StopAcking`: the checkpoint succeeded and the follower is sending or
+  retrying the stopped ACK before unloading runtime state.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unloaded
+    Unloaded --> Loaded: ApplyMeta or lazy resolver / load store state
+    Loaded --> LeaderServing: local role = leader
+    Loaded --> FollowerReplicating: local role = follower
+
+    LeaderServing --> LeaderStoppingFollowers: idle expired && HW == LEO && followers caught up
+    LeaderStoppingFollowers --> LeaderServing: append or metadata fence
+    LeaderStoppingFollowers --> LeaderCheckpointing: all followers stopped at ActivityVersion
+    LeaderCheckpointing --> LeaderServing: append or metadata fence
+    LeaderCheckpointing --> LeaderFinalRecheck: checkpoint done and guards still pass
+    LeaderFinalRecheck --> LeaderServing: append reservation or submit sequence change
+    LeaderFinalRecheck --> Unloaded: no pending work / evict runtime
+
+    FollowerReplicating --> FollowerStopCheckpointing: PullControlStop && local LEO/HW caught up
+    FollowerStopCheckpointing --> FollowerReplicating: newer PullHint or metadata fence
+    FollowerStopCheckpointing --> FollowerStopAcking: checkpoint done
+    FollowerStopAcking --> FollowerReplicating: stale stopped ACK metadata
+    FollowerStopAcking --> Unloaded: stopped ACK succeeds / evict runtime
+
+    LeaderServing --> Unloaded: Close
+    FollowerReplicating --> Unloaded: Close
+```
+
+Lifecycle decisions are expressed as reactor-owned actions such as starting a
+checkpoint, scheduling lifecycle retry, queuing leader final recheck, sending a
+stopped ACK, or evicting runtime. Store and transport I/O still run through the
+existing worker pools; the lifecycle model only decides what should happen next.
+
 ## Backpressure
 
 Mailboxes, append queues, and worker pools are bounded, and observer hooks sample reactor mailbox depths and worker queue depths after cheap submit/drain points. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch and leader pull log reads use the store-read worker pool, with fetch fail-fast behavior when that pool rejects the task. Follower pull, apply, ACK, PullHint, and checkpoint work use typed bounded worker tasks; store-apply backpressure keeps the single pending pull response for retry, and ACK backpressure keeps the exact match offset for retry rather than issuing duplicate pulls or advancing the offset. PullHint failures are observed but do not fail accepted appends because follower short-poll can still catch up.
