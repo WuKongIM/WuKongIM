@@ -2468,6 +2468,55 @@ func TestLeaderPullCoveredByRecentCacheCompletesWithoutStoreRead(t *testing.T) {
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
+func TestLeaderPullCacheHitDoesNotOfferStopWithRecords(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-cache-hit-no-stop-with-records", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2,
+		IdleEvictAfter: time.Millisecond, IdlePullMinInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	rc.state.HW = 1
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = rc.state.LEO
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+		OpID: 338,
+	})
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Len(t, result.Pull.Records, 1)
+	require.Equal(t, uint64(1), result.Pull.Records[0].Index)
+	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
+	require.NotNil(t, rc.followers[2])
+	require.False(t, rc.followers[2].StopOffered)
+	require.Zero(t, rc.followers[2].StopOfferedVersion)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
+}
+
 func TestLeaderPullCaughtUpCompletesEmptyWithoutStoreRead(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
@@ -2553,6 +2602,48 @@ func TestLeaderPullBeforeRecentCacheBaseReadsStorePrefixOnly(t *testing.T) {
 	require.True(t, waiter.mergeCacheSuffix)
 	require.Equal(t, 1024, waiter.maxBytes)
 	requireFuturePending(t, future)
+}
+
+func TestLeaderPullStorePrefixResultFencedAfterLeaderEpochChange(t *testing.T) {
+	factory := newNonCancelingBlockingReadLogFactory()
+	g, err := NewGroup(Config{
+		LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2,
+	})
+	require.NoError(t, err)
+	defer func() {
+		factory.UnblockReadLogs()
+		require.NoError(t, g.Close())
+	}()
+
+	meta := testMeta("pull-store-prefix-fenced-after-leader-epoch", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	require.NoError(t, awaitSubmit(g, meta.Key, appendEvent(meta, 1, "a")))
+	require.NoError(t, awaitSubmit(g, meta.Key, appendEvent(meta, 2, "b")))
+	require.NoError(t, awaitSubmit(g, meta.Key, appendEvent(meta, 3, "c")))
+
+	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 339,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+	})
+	require.NoError(t, err)
+	factory.waitReadLogStarted(t)
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: updated}))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = pullFuture.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
 func TestLeaderPullReadsStorePrefixAndMergesRecentCacheSuffix(t *testing.T) {
