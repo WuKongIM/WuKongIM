@@ -102,11 +102,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cfg := s.cfg.normalized()
-	if err := cfg.validate(); err != nil {
-		s.recordDegraded(err)
-		return err
-	}
+	cfg := s.cfg
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -116,7 +112,6 @@ func (s *Service) Start(ctx context.Context) error {
 	if s.stopping {
 		return ErrStopped
 	}
-	s.cfg = cfg
 	s.err = nil
 	s.statusMu.Lock()
 	s.status = initialStatus(cfg)
@@ -512,11 +507,11 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 		return err
 	}
 	if err := s.cfg.StateMachine.Load(ctx); err != nil {
-		target := recoveryTarget(boot)
+		target := rebuildRecoveryTarget(boot)
 		if target == 0 {
 			return fmt.Errorf("controllerv2/raft: corrupt state file without committed log history: %w", err)
 		}
-		if err := s.replayCompleteHistory(ctx, target, target > boot.AppliedIndex); err != nil {
+		if err := s.rebuildStateFromCompleteHistory(ctx, target, boot.AppliedIndex); err != nil {
 			return fmt.Errorf("controllerv2/raft: rebuild corrupt state: %w", err)
 		}
 		return nil
@@ -530,11 +525,11 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 			}
 			return fmt.Errorf("%w: empty ControllerV2 state requires bootstrap", ErrInvalidConfig)
 		}
-		target := recoveryTarget(boot)
+		target := rebuildRecoveryTarget(boot)
 		if target == 0 {
 			return fmt.Errorf("controllerv2/raft: missing state file without committed log history")
 		}
-		return s.replayCompleteHistory(ctx, target, target > boot.AppliedIndex)
+		return s.rebuildStateFromCompleteHistory(ctx, target, boot.AppliedIndex)
 	}
 
 	if snap.AppliedRaftIndex < boot.AppliedIndex {
@@ -543,14 +538,24 @@ func (s *Service) recoverStartup(ctx context.Context) error {
 	return nil
 }
 
-func recoveryTarget(boot multiraft.BootstrapState) uint64 {
-	if boot.AppliedIndex > 0 {
-		return boot.AppliedIndex
+func rebuildRecoveryTarget(boot multiraft.BootstrapState) uint64 {
+	if boot.HardState.Commit > 0 {
+		return boot.HardState.Commit
 	}
-	return boot.HardState.Commit
+	return boot.AppliedIndex
 }
 
-func (s *Service) replayCompleteHistory(ctx context.Context, target uint64, markApplied bool) error {
+func (s *Service) rebuildStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
+	if err := s.replayCompleteHistory(ctx, target); err != nil {
+		return err
+	}
+	if target > currentApplied {
+		return s.cfg.Storage.MarkApplied(ctx, target)
+	}
+	return nil
+}
+
+func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) error {
 	first, err := s.cfg.Storage.FirstIndex(ctx)
 	if err != nil {
 		return err
@@ -558,7 +563,7 @@ func (s *Service) replayCompleteHistory(ctx context.Context, target uint64, mark
 	if first > target {
 		return fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
 	}
-	return s.replayRange(ctx, first, target, true, markApplied)
+	return s.replayRange(ctx, first, target, true, false)
 }
 
 func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireInit bool, markApplied bool) error {
