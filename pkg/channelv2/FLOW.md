@@ -32,14 +32,23 @@ Replication is owned by each channel's reactor runtime. `service.Tick` only call
 
 ```text
 leader append stored -> TaskRPCPullHint(inactive followers)
-follower EventPullHint/Tick -> TaskRPCPull(leader, LEO+1)
-leader EventPull -> TaskStoreReadLog -> PullResponse(records|idle pacing|stop, leaderHW, leaderLEO)
+Follower->>Workers: TaskRPCPull(leader, local LEO + 1)
+Workers->>Reactor: EventPull
+alt requested offsets covered by leader recent-record cache
+    Reactor-->>Follower: PullResponse(records, leader HW, leader LEO)
+else cache miss or older prefix needed
+    Reactor->>Workers: TaskStoreReadLog
+    Workers-->>Reactor: store prefix records
+    Reactor-->>Follower: PullResponse(store prefix + optional cache suffix, leader HW, leader LEO)
+end
 follower TaskStoreApply -> local LEO/HW
 follower TaskRPCAck(matchOffset)
 leader EventAck -> AdvanceHW -> complete quorum waiters
 follower PullResponse(Control=Stop) -> TaskStoreCheckpoint -> stopped ACK -> follower runtime eviction
 leader stopped ACKs from all replicas -> TaskStoreCheckpoint(HW=LEO) -> leader runtime eviction
 ```
+
+Leader reactors keep a small configurable recent-record suffix cache for durable append records. Follower `Pull` requests that are covered by this suffix can complete from memory; older requests still use `TaskStoreReadLog`, and the leader may append a cache-covered suffix to the store prefix when doing so does not create gaps. The cache is cleared by metadata fences or role changes and is only a performance optimization.
 
 A follower keeps at most one pull RPC in flight, exactly one pending pull response waiting for store apply, and one ACK RPC in flight. Pull, apply, and ACK completions are fenced by generation, epoch, leader epoch, and op id; stale completions are ignored before they clear or advance runtime state. Apply errors and store-apply backpressure retain the pending pull response for retry. Pending ACKs are retried before new pulls, and ACK errors or ACK backpressure retain the exact stored match offset for retry. Leader pull handling is asynchronous through the store-read worker pool so blocked log reads do not block high-priority metadata events. When no records are ready, the leader returns `NextPullAfter` to pace the follower; when idle eviction is safe for that follower, the leader returns `PullControlStop`.
 Follower-side stop handling checkpoints before sending a stopped ACK and unloads only after that ACK succeeds; leader stop eligibility and leader-last eviction are lifecycle-owned behavior. A leader returns stop only after the channel has been idle past `IdleEvictAfter`, all replicas in metadata are caught up, and no runtime work is pending. Stopped ACKs must match the current activity version and LEO before they can mark a follower stopped or contribute to leader eviction. After all followers have stopped, the leader checkpoints at the safe HW/LEO and then evicts its local runtime from a normal-priority final recheck, so already-queued or concurrently submitted appends can cancel eviction before runtime deletion.
