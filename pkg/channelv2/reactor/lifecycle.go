@@ -20,6 +20,8 @@ const (
 
 // channelLifecycle tracks leader-owned activity and idle eviction state for one runtime channel.
 type channelLifecycle struct {
+	// LoadedAt records when runtime state was created without counting as Append activity.
+	LoadedAt        time.Time
 	LastAppendAt    time.Time
 	ActivityVersion uint64
 	Phase           lifecyclePhase
@@ -180,7 +182,7 @@ func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *f
 	if rc == nil || rc.state == nil || follower == nil || follower.Match >= rc.state.LEO {
 		return false
 	}
-	return follower.Parked || follower.Stopped || follower.LastPullAt.IsZero()
+	return follower.Parked || follower.Stopped || follower.StopOfferedVersion != 0 || follower.LastPullAt.IsZero()
 }
 
 func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
@@ -194,10 +196,21 @@ func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
 }
 
 func (r *Reactor) leaderIdleExpired(rc *runtimeChannel, now time.Time) bool {
-	if rc == nil || rc.lifecycle.LastAppendAt.IsZero() {
+	idleSince := leaderIdleSince(rc)
+	if idleSince.IsZero() {
 		return false
 	}
-	return !now.Before(rc.lifecycle.LastAppendAt.Add(r.cfg.IdleEvictAfter))
+	return !now.Before(idleSince.Add(r.cfg.IdleEvictAfter))
+}
+
+func leaderIdleSince(rc *runtimeChannel) time.Time {
+	if rc == nil {
+		return time.Time{}
+	}
+	if !rc.lifecycle.LastAppendAt.IsZero() {
+		return rc.lifecycle.LastAppendAt
+	}
+	return rc.lifecycle.LoadedAt
 }
 
 func (r *Reactor) allFollowersCaughtUp(rc *runtimeChannel) bool {

@@ -788,7 +788,8 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 			Follower: 2, MatchOffset: 3, ActivityVersion: 2, Stopped: true,
 		},
 	})
-	require.NoError(t, awaitFutureResult(t, staleFuture).Err)
+	_, err := staleFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
 	require.False(t, rc.followers[2].Stopped)
@@ -804,7 +805,8 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 			Follower: 2, MatchOffset: 2, ActivityVersion: 3, Stopped: true,
 		},
 	})
-	require.NoError(t, awaitFutureResult(t, laggingFuture).Err)
+	_, err = laggingFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
 	require.False(t, rc.followers[2].Stopped)
@@ -825,6 +827,38 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	require.Equal(t, uint64(3), rc.followers[2].StopAckVersion)
 	require.Equal(t, uint64(3), rc.followers[2].Match)
 	require.Equal(t, uint64(3), rc.state.Progress[2].Match)
+}
+
+func TestAppendAfterStopOfferSendsPullHintWithoutWaitingForParkDelay(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	meta := testMeta("append-after-stop-offer", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.followers[2].LastPullAt = time.Now()
+
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before stop offer").Err)
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
+	r.syncLeaderFollowers(rc)
+	rc.followers[2].Match = 1
+	rc.followers[2].LastPullAt = time.Now()
+	rc.followers[2].StopOfferedVersion = 1
+	before := tr.pullHintCount(2)
+
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "reactivate stopping follower").Err)
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) > before
+	}, time.Second, time.Millisecond)
+	require.Equal(t, uint64(2), tr.lastPullHintVersion(2))
+	require.Zero(t, rc.followers[2].StopOfferedVersion)
+	require.True(t, rc.followers[2].LastPullAt.IsZero())
 }
 
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {

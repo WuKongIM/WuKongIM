@@ -180,6 +180,36 @@ func TestHandleNotifyKeepsLegacyNoOpForInvalidHints(t *testing.T) {
 	}
 }
 
+func TestHandleNotifyUsesLeaderLEOAsPullHintActivityVersion(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newServiceCaptureTransport()
+	meta := ch.Meta{
+		Key: ch.ChannelKey("1:legacy-notify-activity"), ID: ch.ChannelID{ID: "legacy-notify-activity", Type: 1},
+		Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive,
+	}
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 0, LeaderLEO: 0, ActivityVersion: 5, NextPullAfter: time.Hour, Control: transport.PullControlContinue,
+	})
+	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, Transport: net, ReactorCount: 1, ReplicationIdlePollInterval: time.Hour})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+	require.NoError(t, svc.ApplyMeta(meta))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.True(t, awaitServiceTick(t, svc, meta.Key, time.Now()))
+
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 0, LeaderLEO: 0, ActivityVersion: 6, NextPullAfter: time.Hour, Control: transport.PullControlContinue,
+	})
+	require.NoError(t, svc.HandleNotify(context.Background(), transport.NotifyRequest{
+		ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Leader: meta.Leader, LeaderLEO: 6,
+	}))
+
+	require.Eventually(t, func() bool { return net.PullCalls() >= 2 }, time.Second, time.Millisecond)
+}
+
 func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	factory := newServiceBlockingReadLogFactory()
 	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
@@ -387,6 +417,51 @@ func (r *failingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.Chan
 	}
 	r.calls.Add(1)
 	return ch.Meta{}, r.err
+}
+
+type serviceCaptureTransport struct {
+	mu       sync.Mutex
+	pulls    int
+	pullResp transport.PullResponse
+}
+
+func newServiceCaptureTransport() *serviceCaptureTransport {
+	return &serviceCaptureTransport{}
+}
+
+func (t *serviceCaptureTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	t.mu.Lock()
+	t.pulls++
+	resp := t.pullResp
+	t.mu.Unlock()
+	if resp.ChannelKey == "" {
+		resp = transport.PullResponse{ChannelKey: req.ChannelKey, Epoch: req.Epoch, LeaderEpoch: req.LeaderEpoch, LeaderHW: req.NextOffset - 1, LeaderLEO: req.NextOffset - 1}
+	}
+	return resp, nil
+}
+
+func (t *serviceCaptureTransport) Ack(ctx context.Context, node ch.NodeID, req transport.AckRequest) error {
+	return nil
+}
+
+func (t *serviceCaptureTransport) PullHint(ctx context.Context, node ch.NodeID, req transport.PullHintRequest) error {
+	return nil
+}
+
+func (t *serviceCaptureTransport) Notify(ctx context.Context, node ch.NodeID, req transport.NotifyRequest) error {
+	return nil
+}
+
+func (t *serviceCaptureTransport) SetPullResponse(resp transport.PullResponse) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.pullResp = resp
+}
+
+func (t *serviceCaptureTransport) PullCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pulls
 }
 
 func awaitServiceTick(t *testing.T, cluster *cluster, key ch.ChannelKey, now time.Time) bool {

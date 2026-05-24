@@ -241,7 +241,7 @@ func stopTimer(timer *time.Timer) {
 
 func (r *Reactor) idleWait(now time.Time) time.Duration {
 	wait := r.due.nextWait(now)
-	if wait > time.Millisecond {
+	if wait > time.Millisecond && (len(r.appendCancelChannels) > 0 || len(r.pullCancelChannels) > 0) {
 		return time.Millisecond
 	}
 	return wait
@@ -480,7 +480,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		fetchWaiters:  make(map[ch.OpID]struct{}),
 		pullWaiters:   make(map[ch.OpID]*pullWaiter),
 		appendTimings: make(map[ch.OpID]appendTiming),
-		lifecycle:     channelLifecycle{ActivityVersion: initial.LEO, Phase: lifecycleHot},
+		lifecycle:     channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO, Phase: lifecycleHot},
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -629,7 +629,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		r.syncFollowerMatches(rc)
 		for _, follower := range rc.followers {
 			if follower != nil && follower.Match < rc.state.LEO {
-				if follower.Stopped {
+				if follower.Stopped || follower.StopOfferedVersion != 0 {
 					follower.LastPullAt = time.Time{}
 				}
 				follower.Stopped = false
@@ -739,18 +739,22 @@ func (r *Reactor) handleAck(event Event) {
 		return
 	}
 	if rc.state.Role != ch.RoleLeader || event.Ack.ChannelKey != rc.state.Key || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
+		if event.Ack.Stopped {
+			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+			return
+		}
 		event.Future.Complete(Result{})
 		return
 	}
 	r.syncLeaderFollowers(rc)
 	if event.Ack.Stopped {
 		if event.Ack.ActivityVersion != rc.lifecycle.ActivityVersion || event.Ack.MatchOffset != rc.state.LEO {
-			event.Future.Complete(Result{})
+			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 			return
 		}
 		if follower := rc.followers[event.Ack.Follower]; follower != nil {
 			if follower.StopOfferedVersion != 0 && follower.StopOfferedVersion != event.Ack.ActivityVersion {
-				event.Future.Complete(Result{})
+				event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 				return
 			}
 			wasStopped := follower.Stopped && follower.StopAckVersion == event.Ack.ActivityVersion

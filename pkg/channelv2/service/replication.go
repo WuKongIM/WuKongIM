@@ -48,13 +48,14 @@ func (c *cluster) HandlePullHint(ctx context.Context, req transport.PullHintRequ
 // HandleNotify maps legacy transport compatibility nudges onto PullHint handling.
 func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
 	err := c.HandlePullHint(ctx, transport.PullHintRequest{
-		ChannelKey:  req.ChannelKey,
-		ChannelID:   req.ChannelID,
-		Epoch:       req.Epoch,
-		LeaderEpoch: req.LeaderEpoch,
-		Leader:      req.Leader,
-		LeaderLEO:   req.LeaderLEO,
-		Reason:      transport.PullHintReasonAppend,
+		ChannelKey:      req.ChannelKey,
+		ChannelID:       req.ChannelID,
+		Epoch:           req.Epoch,
+		LeaderEpoch:     req.LeaderEpoch,
+		Leader:          req.Leader,
+		LeaderLEO:       req.LeaderLEO,
+		ActivityVersion: req.LeaderLEO,
+		Reason:          transport.PullHintReasonAppend,
 	})
 	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) {
 		return nil
