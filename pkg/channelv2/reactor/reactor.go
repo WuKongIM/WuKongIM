@@ -448,12 +448,30 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		}
 		if rc.state.Role == ch.RoleLeader {
 			r.syncLeaderFollowers(rc)
+			if fencePendingState {
+				resetFollowerStopLifecycle(rc)
+			}
 		} else {
 			rc.followers = nil
 			rc.pullHintInflight = nil
 		}
 	}
 	event.Future.Complete(Result{Err: decision.Err})
+}
+
+// resetFollowerStopLifecycle clears stopped-ACK state that is scoped to the current metadata fence.
+func resetFollowerStopLifecycle(rc *runtimeChannel) {
+	if rc == nil {
+		return
+	}
+	for _, follower := range rc.followers {
+		if follower == nil {
+			continue
+		}
+		follower.Stopped = false
+		follower.StopAckVersion = 0
+		follower.StopOfferedVersion = 0
+	}
 }
 
 func (r *Reactor) handleCheckState(event Event) {
