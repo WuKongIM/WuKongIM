@@ -53,6 +53,6 @@ type Event struct {
 	CancelOp  ch.OpID
 	CancelErr error
 	TickNow   time.Time
-	// LeaderEvictAppendSeq fences final leader eviction behind Append submissions.
+	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
 	LeaderEvictAppendSeq uint64
 }

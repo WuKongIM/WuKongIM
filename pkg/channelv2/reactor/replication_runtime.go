@@ -177,6 +177,7 @@ func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
 	}
 	rc.replication.nextStopEvictAt = time.Time{}
 	if r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack retry") {
+		r.clearAppendSubmitState(rc.state.Key)
 		return
 	}
 	rc.replication.nextStopEvictAt = now.Add(r.cfg.IdleEvictCheckInterval)
@@ -368,6 +369,8 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 		if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
 			rc.replication.nextStopEvictAt = now.Add(r.cfg.IdleEvictCheckInterval)
 			r.scheduleReplicationFromState(rc, now)
+		} else {
+			r.clearAppendSubmitState(rc.state.Key)
 		}
 		return
 	}
@@ -452,7 +455,7 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	}
 	rc.lifecycle.CheckpointReady = true
 	rc.lifecycle.CheckpointReadyActivityVersion = activityVersion
-	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
+	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
