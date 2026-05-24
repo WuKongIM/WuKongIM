@@ -92,7 +92,9 @@ func (sm *StateMachine) Load(ctx context.Context) error {
 	return nil
 }
 
-// Reset clears the in-memory state so a caller can replay durable Raft history from an empty state.
+// Reset clears warm in-memory state before Controller Raft startup recovery replays history.
+//
+// The caller must ensure no Service run loop, Apply, or Load call is active concurrently.
 func (sm *StateMachine) Reset() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()

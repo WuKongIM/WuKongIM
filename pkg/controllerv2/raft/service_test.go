@@ -111,6 +111,46 @@ func TestConcurrentStartSingleFlightAndStopWaitsForStartup(t *testing.T) {
 	require.NoError(t, <-stopDone)
 }
 
+func TestStartDuringActiveStopReturnsStopped(t *testing.T) {
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap: true,
+		Storage:        raftlog.NewMemory(),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   5 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	service.mu.Lock()
+	service.started = true
+	service.stopCh = stopCh
+	service.doneCh = doneCh
+	service.stepCh = make(chan raftpb.Message)
+	service.proposal = make(chan proposalRequest)
+	service.mu.Unlock()
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- service.Stop() }()
+	require.Eventually(t, func() bool {
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		return service.stopping
+	}, time.Second, 10*time.Millisecond)
+
+	require.ErrorIs(t, service.Start(context.Background()), ErrStopped)
+	close(doneCh)
+	require.NoError(t, <-stopDone)
+	select {
+	case <-stopCh:
+	default:
+		t.Fatal("stop channel was not closed")
+	}
+}
+
 func TestSendErrorDoesNotDegradeOrStopService(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
 	cluster.transport.failNextSends(errors.New("transient send failure"), 1)
@@ -517,6 +557,61 @@ func TestStartupRebuildsCorruptStateWithWarmMemoryDurably(t *testing.T) {
 	require.Equal(t, uint64(1), persisted.Revision)
 	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
 	require.Equal(t, persisted, sm.Snapshot(ctx))
+}
+
+func TestStartupFailsWhenMissingStateHasCompactedPostInitTail(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	seedControllerSnapshot(t, storage, 5, []uint64{1})
+	hs := raftpb.HardState{Term: 1, Vote: 1, Commit: 6}
+	require.NoError(t, storage.Save(ctx, multiraft.PersistentState{
+		HardState: &hs,
+		Entries:   []raftpb.Entry{testCommandEntry(t, 6, testUpsertNodeCommand(1, 1, "post-init-tail"))},
+	}))
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	require.NoFileExists(t, statePath)
+	service, err := newSingleService(1, peers, storage, statePath, false)
+	require.NoError(t, err)
+	require.Error(t, service.Start(ctx))
+	status := service.Status()
+	require.True(t, status.Degraded)
+	require.NotEmpty(t, status.ErrorReason)
+	require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
+}
+
+func TestStartupAllowsRejectedInitBeforeAnyValidState(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	storage := openControllerStorage(t, dir)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	invalidInit := testInitCommand("wk-invalid-init", peers)
+	invalidInit.Init.Config.SlotCount = 0
+	seedControllerLog(t, storage, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		testCommandEntry(t, 2, invalidInit),
+		{Type: raftpb.EntryNormal, Term: 1, Index: 3},
+	}, 3, 0)
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	service := startSingleService(t, 1, peers, storage, statePath, true)
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+	require.Zero(t, service.cfg.StateMachine.Snapshot(ctx).Revision)
+	boot, err := storage.InitialState(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), boot.AppliedIndex)
+
+	require.Eventually(t, func() bool {
+		return service.Status().Role == RoleLeader
+	}, time.Second, 10*time.Millisecond)
+	require.NoError(t, service.Propose(ctx, testInitCommand("wk-after-rejected-init", peers)))
+
+	snap := service.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(1), snap.Revision)
+	require.Equal(t, "wk-after-rejected-init", snap.ClusterID)
+	require.Greater(t, snap.AppliedRaftIndex, uint64(3))
 }
 
 func TestStartupFailsDegradedWhenStateMissingAndLogCompacted(t *testing.T) {
