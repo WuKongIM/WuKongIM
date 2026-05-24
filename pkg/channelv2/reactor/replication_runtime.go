@@ -466,6 +466,31 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
 }
 
+func (r *Reactor) mergeLeaderPullCacheSuffix(rc *runtimeChannel, waiter *pullWaiter, records []ch.Record) []ch.Record {
+	if rc == nil || rc.state == nil || waiter == nil || !waiter.mergeCacheSuffix || waiter.maxBytes <= 0 {
+		return records
+	}
+	used := recordsBytes(records)
+	if used >= waiter.maxBytes {
+		return records
+	}
+	next := waiter.nextOffset
+	if len(records) > 0 {
+		next = records[len(records)-1].Index + 1
+	}
+	if next == 0 || next > rc.state.LEO {
+		return records
+	}
+	suffix, ok := rc.recentRecords.slice(next, rc.state.LEO, waiter.maxBytes-used)
+	if !ok || len(suffix) == 0 {
+		return records
+	}
+	merged := make([]ch.Record, 0, len(records)+len(suffix))
+	merged = append(merged, records...)
+	merged = append(merged, suffix...)
+	return merged
+}
+
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 	rc, err := r.lookup(result.Fence.ChannelKey)
 	if err != nil {
@@ -493,7 +518,8 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 		future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	r.completeLeaderPull(rc, waiter, future, result.StoreReadLog.Records, time.Now())
+	records := r.mergeLeaderPullCacheSuffix(rc, waiter, result.StoreReadLog.Records)
+	r.completeLeaderPull(rc, waiter, future, records, time.Now())
 }
 
 func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, future *Future, records []ch.Record, now time.Time) {

@@ -2555,6 +2555,124 @@ func TestLeaderPullBeforeRecentCacheBaseReadsStorePrefixOnly(t *testing.T) {
 	requireFuturePending(t, future)
 }
 
+func TestLeaderPullReadsStorePrefixAndMergesRecentCacheSuffix(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-merge-cache-suffix", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "b").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+		OpID: 334,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Equal(t, []uint64{1, 2, 3}, recordIndexes(result.Pull.Records))
+	require.Zero(t, result.Pull.NextPullAfter)
+}
+
+func TestLeaderPullReturnsStorePrefixWhenRecentCacheRollsForwardBeforeMerge(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-cache-rolls-before-merge", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "b").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+		OpID: 335,
+	})
+	storeResult := sink.awaitResultKind(t, worker.TaskStoreReadLog)
+	require.NoError(t, appendDirect(t, r, sink, meta, 4, "d").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 5, "e").Err)
+	r.handleStoreReadLogResult(storeResult)
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Equal(t, []uint64{1}, recordIndexes(result.Pull.Records))
+}
+
+func TestLeaderPullMergeHonorsMaxBytes(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-merge-cache-max-bytes", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 2,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "aa").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "bbb").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	future := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 5,
+		},
+		OpID: 336,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Equal(t, []uint64{1, 2}, recordIndexes(result.Pull.Records))
+}
+
 func TestLeaderPullCacheDisabledUsesStoreRead(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
