@@ -79,8 +79,8 @@ type Reactor struct {
 	nextOp atomic.Uint64
 	// submitMu orders final leader eviction against concurrent Append submissions.
 	submitMu sync.Mutex
-	// appendSubmitSeq increments before every Append reservation or mailbox submission.
-	appendSubmitSeq uint64
+	// appendSubmitSeqs increments per channel before every Append reservation or mailbox submission.
+	appendSubmitSeqs map[ch.ChannelKey]uint64
 	// appendReservations counts appends between loaded-state verification and mailbox submission.
 	appendReservations map[ch.ChannelKey]int
 }
@@ -153,7 +153,7 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 	}
 	if event.Kind == EventAppend {
 		r.submitMu.Lock()
-		r.appendSubmitSeq++
+		r.bumpAppendSubmitSeqLocked(event.Key)
 		err := r.mailbox.Submit(priority, event)
 		r.submitMu.Unlock()
 		r.observeMailboxDepth(priority)
@@ -434,6 +434,9 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			rc.replication.reset()
 		}
 		if rc.state.Role == ch.RoleLeader {
+			if rc.state.LEO > rc.lifecycle.ActivityVersion {
+				rc.lifecycle.ActivityVersion = rc.state.LEO
+			}
 			r.syncLeaderFollowers(rc)
 			if fencePendingState {
 				resetFollowerStopLifecycle(rc)

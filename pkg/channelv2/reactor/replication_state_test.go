@@ -2129,7 +2129,7 @@ func TestLeaderReadyEvictionDefersWhileAppendReservedBeforeSubmit(t *testing.T) 
 	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
 
 	release := r.reserveAppend(meta.Key)
-	r.submitLeaderEvictReady(rc, time.Now(), r.currentAppendSubmitSeq())
+	r.submitLeaderEvictReady(rc, time.Now(), r.currentAppendSubmitSeq(meta.Key))
 	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
 	require.Len(t, events, 1)
 	require.Equal(t, EventLeaderEvictReady, events[0].Kind)
@@ -2169,7 +2169,7 @@ func TestLeaderReadyEvictionReservationRetryWaitsForInterval(t *testing.T) {
 
 	release := r.reserveAppend(meta.Key)
 	now := time.Now()
-	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
+	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(meta.Key))
 	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
 	require.Len(t, events, 1)
 	r.handle(events[0])
@@ -2187,6 +2187,114 @@ func TestLeaderReadyEvictionReservationRetryWaitsForInterval(t *testing.T) {
 	require.Len(t, events, 1)
 	r.handle(events[0])
 	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestLeaderReadyEvictionIgnoresUnrelatedAppendReservation(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	pools := newDirectTestPools(t, factory, captureCompletionSink{results: make(chan worker.Result, 4)})
+	defer pools.Close()
+
+	meta := testMeta("leader-ready-evict-unrelated-reservation", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	otherMeta := testMeta("leader-ready-evict-other-channel", 1, 1)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, applyMetaDirect(t, r, otherMeta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.CheckpointReady = true
+	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
+
+	now := time.Now()
+	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(meta.Key))
+	otherRelease := r.reserveAppend(otherMeta.Key)
+	defer otherRelease()
+	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 1)
+
+	r.handle(events[0])
+	require.NotContains(t, r.channels, meta.Key)
+}
+
+func TestLeaderPromotionRefreshesActivityVersionFromDurableLEO(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-promotion-activity-version", 1, 2)
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		IdleEvictAfter: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.Equal(t, ch.RoleFollower, rc.state.Role)
+
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	_, err = cs.ApplyFollower(context.Background(), store.ApplyFollowerRequest{
+		LeaderHW: 3,
+		Records: []ch.Record{
+			{ID: 1, Index: 1, Payload: []byte("a"), SizeBytes: 1},
+			{ID: 2, Index: 2, Payload: []byte("b"), SizeBytes: 1},
+			{ID: 3, Index: 3, Payload: []byte("c"), SizeBytes: 1},
+		},
+	})
+	require.NoError(t, err)
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	require.Zero(t, rc.lifecycle.ActivityVersion)
+
+	promoted := meta
+	promoted.Leader = 1
+	promoted.LeaderEpoch = 2
+	require.NoError(t, applyMetaDirect(t, r, promoted))
+	require.Equal(t, ch.RoleLeader, rc.state.Role)
+	require.Equal(t, uint64(3), rc.lifecycle.ActivityVersion)
+
+	rc.lifecycle.LoadedAt = time.Now().Add(-time.Hour)
+	r.syncLeaderFollowers(rc)
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	r.syncLeaderFollowers(rc)
+	pullFuture := NewFuture()
+	r.handlePull(Event{
+		Kind:    EventPull,
+		Key:     promoted.Key,
+		Future:  pullFuture,
+		Context: context.Background(),
+		Pull: transport.PullRequest{
+			ChannelKey: promoted.Key, ChannelID: promoted.ID, Epoch: promoted.Epoch, LeaderEpoch: promoted.LeaderEpoch,
+			Follower: 2, NextOffset: 4, MaxBytes: 1024,
+		},
+		OpID: 41,
+	})
+	r.handleStoreReadLogResult(sink.awaitResultKind(t, worker.TaskStoreReadLog))
+	pullResult := awaitFutureResult(t, pullFuture)
+	require.Equal(t, transport.PullControlStop, pullResult.Pull.Control)
+	require.Equal(t, uint64(3), pullResult.Pull.ActivityVersion)
+
+	ackFuture := NewFuture()
+	r.handleAck(Event{
+		Kind:   EventAck,
+		Key:    promoted.Key,
+		Future: ackFuture,
+		Ack: transport.AckRequest{
+			ChannelKey: promoted.Key, Epoch: promoted.Epoch, LeaderEpoch: promoted.LeaderEpoch,
+			Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, ackFuture).Err)
+
+	r.tryEvictLeader(rc, time.Now())
+	r.handleLeaderCheckpointResult(rc, sink.awaitResultKind(t, worker.TaskStoreCheckpoint))
+	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 1)
+	r.handle(events[0])
+	require.NotContains(t, r.channels, promoted.Key)
 }
 
 func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {

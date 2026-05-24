@@ -334,7 +334,7 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 			rc.lifecycle.CheckpointReadyQueued = false
 			return
 		}
-		r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq())
+		r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
 		return
 	}
 	if rc.lifecycle.CheckpointInflight {
@@ -357,10 +357,31 @@ func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
 	rc.lifecycle.CheckpointRetryAt = time.Time{}
 }
 
-func (r *Reactor) currentAppendSubmitSeq() uint64 {
+func (r *Reactor) currentAppendSubmitSeq(key ch.ChannelKey) uint64 {
 	r.submitMu.Lock()
 	defer r.submitMu.Unlock()
-	return r.appendSubmitSeq
+	return r.appendSubmitSeqs[key]
+}
+
+func (r *Reactor) bumpAppendSubmitSeqLocked(key ch.ChannelKey) uint64 {
+	if r.appendSubmitSeqs == nil {
+		r.appendSubmitSeqs = make(map[ch.ChannelKey]uint64)
+	}
+	r.appendSubmitSeqs[key]++
+	return r.appendSubmitSeqs[key]
+}
+
+func (r *Reactor) clearAppendSubmitStateLocked(key ch.ChannelKey) {
+	if r.appendReservations[key] != 0 {
+		return
+	}
+	delete(r.appendSubmitSeqs, key)
+}
+
+func (r *Reactor) clearAppendSubmitState(key ch.ChannelKey) {
+	r.submitMu.Lock()
+	r.clearAppendSubmitStateLocked(key)
+	r.submitMu.Unlock()
 }
 
 func (r *Reactor) reserveAppend(key ch.ChannelKey) func() {
@@ -368,7 +389,7 @@ func (r *Reactor) reserveAppend(key ch.ChannelKey) func() {
 		return func() {}
 	}
 	r.submitMu.Lock()
-	r.appendSubmitSeq++
+	r.bumpAppendSubmitSeqLocked(key)
 	if r.appendReservations == nil {
 		r.appendReservations = make(map[ch.ChannelKey]int)
 	}
@@ -423,13 +444,16 @@ func (r *Reactor) handleLeaderEvictReady(event Event) {
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
-	if r.appendSubmitSeq != event.LeaderEvictAppendSeq {
-		appendSeq := r.appendSubmitSeq
+	appendSeq := r.appendSubmitSeqs[event.Key]
+	if appendSeq != event.LeaderEvictAppendSeq {
 		r.submitMu.Unlock()
 		r.submitLeaderEvictReady(rc, now, appendSeq)
 		return
 	}
 	evicted := r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
+	if evicted {
+		r.clearAppendSubmitStateLocked(event.Key)
+	}
 	r.submitMu.Unlock()
 	if !evicted {
 		rc.lifecycle.CheckpointReady = false
