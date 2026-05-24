@@ -19,7 +19,16 @@ type Proposer interface {
 	LeaderID() uint64
 }
 
-// SyncClient refreshes local ControllerV2 state from a Controller leader.
+// StateSource provides authoritative ControllerV2 snapshots after local apply.
+type StateSource interface {
+	// Snapshot returns the latest locally visible ControllerV2 cluster state.
+	Snapshot(context.Context) state.ClusterState
+}
+
+// SyncClient is a facade adapter contract that returns the state installed by sync.
+//
+// Real sync clients that expose SyncOnce(ctx) error can be wrapped by calling
+// SyncOnce and then returning their LocalState snapshot.
 type SyncClient interface {
 	// SyncOnce fetches one leader snapshot and returns the state that was installed locally.
 	SyncOnce(context.Context) (state.ClusterState, error)
@@ -33,6 +42,8 @@ type Config struct {
 	Planner planner.Planner
 	// Proposer submits planner commands to Controller Raft.
 	Proposer Proposer
+	// StateSource reads authoritative local state, for example from the ControllerV2 FSM.
+	StateSource StateSource
 	// SyncClient fetches and persists leader snapshots for non-controller nodes.
 	SyncClient SyncClient
 	// Now returns the timestamp used for planner views; nil uses time.Now.
@@ -41,13 +52,16 @@ type Config struct {
 
 // Server is a thin facade that connects local state, planning, Raft proposal, and sync.
 type Server struct {
+	tickMu sync.Mutex
+
 	mu         sync.RWMutex
 	localState state.ClusterState
 
-	planner    planner.Planner
-	proposer   Proposer
-	syncClient SyncClient
-	now        func() time.Time
+	planner     planner.Planner
+	proposer    Proposer
+	stateSource StateSource
+	syncClient  SyncClient
+	now         func() time.Time
 }
 
 // New creates a ControllerV2 server facade from cfg.
@@ -61,11 +75,12 @@ func New(cfg Config) (*Server, error) {
 		now = time.Now
 	}
 	return &Server{
-		localState: cfg.InitialState.Clone(),
-		planner:    pl,
-		proposer:   cfg.Proposer,
-		syncClient: cfg.SyncClient,
-		now:        now,
+		localState:  cfg.InitialState.Clone(),
+		planner:     pl,
+		proposer:    cfg.Proposer,
+		stateSource: cfg.StateSource,
+		syncClient:  cfg.SyncClient,
+		now:         now,
 	}, nil
 }
 
@@ -74,11 +89,13 @@ func (s *Server) TickPlanner(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	s.tickMu.Lock()
+	defer s.tickMu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	decision, err := s.planner.Next(ctx, planner.View{
-		State: s.LocalState(),
+		State: s.localStateSnapshot(ctx),
 		Now:   s.now().UTC(),
 	})
 	if err != nil {
@@ -90,14 +107,36 @@ func (s *Server) TickPlanner(ctx context.Context) error {
 	if s.proposer == nil {
 		return errors.New("controllerv2/server: proposer is required")
 	}
-	return s.proposer.Propose(ctx, decision.Command)
+	if err := s.proposer.Propose(ctx, decision.Command); err != nil {
+		return err
+	}
+	s.refreshFromStateSource(ctx)
+	return nil
 }
 
 // LocalState returns a deep copy of the latest local ControllerV2 state snapshot.
 func (s *Server) LocalState() state.ClusterState {
+	return s.localStateSnapshot(context.Background())
+}
+
+func (s *Server) localStateSnapshot(ctx context.Context) state.ClusterState {
+	if s.stateSource != nil {
+		return s.refreshFromStateSource(ctx)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.localState.Clone()
+}
+
+func (s *Server) refreshFromStateSource(ctx context.Context) state.ClusterState {
+	if s.stateSource == nil {
+		return s.localStateSnapshot(ctx)
+	}
+	st := s.stateSource.Snapshot(ctx).Clone()
+	s.mu.Lock()
+	s.localState = st.Clone()
+	s.mu.Unlock()
+	return st
 }
 
 // SyncOnce delegates to the configured sync client and publishes the returned state locally.
