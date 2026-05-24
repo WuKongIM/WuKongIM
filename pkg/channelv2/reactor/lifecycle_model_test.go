@@ -61,3 +61,33 @@ func TestRuntimeViewFromChannelCapturesPendingWork(t *testing.T) {
 	require.True(t, view.PendingWork.LifecycleCheckpoint)
 	require.True(t, view.HasPendingWork())
 }
+
+func TestLeaderLifecycleTickStartsCheckpointAfterFollowersStopped(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := runtimeLifecycle{LeaderPhase: LeaderLifecycleStoppingFollowers}
+	view := RuntimeView{
+		Role:            ch.RoleLeader,
+		Status:          ch.StatusActive,
+		LEO:             3,
+		HW:              3,
+		ActivityVersion: 3,
+		IdleSince:       now.Add(-time.Minute),
+		Followers: []FollowerView{
+			{Node: 2, Match: 3, Stopped: true, StopAckVersion: 3},
+		},
+	}
+
+	decision := lc.OnLeaderLifecycleEvent(LeaderLifecycleEvent{Kind: LeaderLifecycleTick, Now: now}, view, LifecycleConfig{IdleEvictAfter: time.Second})
+
+	require.Equal(t, LeaderLifecycleCheckpointing, decision.LeaderPhase)
+	require.Contains(t, decision.ActionKinds(), LifecycleActionStartLeaderCheckpoint)
+}
+
+func TestLeaderLifecycleAppendCancelsFinalRecheck(t *testing.T) {
+	lc := runtimeLifecycle{LeaderPhase: LeaderLifecycleFinalRecheck}
+
+	decision := lc.OnLeaderLifecycleEvent(LeaderLifecycleEvent{Kind: LeaderLifecycleAppendAdmitted}, RuntimeView{}, LifecycleConfig{})
+
+	require.Equal(t, LeaderLifecycleServing, decision.LeaderPhase)
+	require.Contains(t, decision.ActionKinds(), LifecycleActionResetEviction)
+}

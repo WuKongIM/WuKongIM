@@ -150,3 +150,48 @@ func (v RuntimeView) HasPendingWork() bool {
 func (v RuntimeView) SafeToEvict() bool {
 	return !v.HasPendingWork()
 }
+
+// LifecycleConfig carries timing values needed by pure lifecycle decisions.
+type LifecycleConfig struct {
+	IdleEvictAfter         time.Duration
+	IdleEvictCheckInterval time.Duration
+	PullHintRetryInterval  time.Duration
+}
+
+// LifecycleActionKind identifies one side effect requested by the lifecycle model.
+type LifecycleActionKind uint8
+
+const (
+	LifecycleActionScheduleLifecycle LifecycleActionKind = iota + 1
+	LifecycleActionScheduleReplication
+	LifecycleActionSendPullHint
+	LifecycleActionStartFollowerStopCheckpoint
+	LifecycleActionSendStoppedAck
+	LifecycleActionStartLeaderCheckpoint
+	LifecycleActionQueueLeaderFinalRecheck
+	LifecycleActionEvictRuntime
+	LifecycleActionResetEviction
+	LifecycleActionFailStaleWaiters
+)
+
+// LifecycleAction is a side effect for the owning reactor to execute.
+type LifecycleAction struct {
+	Kind LifecycleActionKind
+	Due  time.Time
+}
+
+// LifecycleDecision describes the next lifecycle state and reactor actions.
+type LifecycleDecision struct {
+	LeaderPhase   LeaderLifecyclePhase
+	FollowerPhase FollowerLifecyclePhase
+	Actions       []LifecycleAction
+	NextDue       time.Time
+}
+
+func (d LifecycleDecision) ActionKinds() []LifecycleActionKind {
+	out := make([]LifecycleActionKind, 0, len(d.Actions))
+	for _, action := range d.Actions {
+		out = append(out, action.Kind)
+	}
+	return out
+}
