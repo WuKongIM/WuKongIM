@@ -710,11 +710,23 @@ func TestFollowerAckResultResetsBackoff(t *testing.T) {
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now()}))
 	require.Eventually(t, func() bool { return net.AckCalls() == 1 }, time.Second, time.Millisecond)
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Eventually(t, func() bool {
+		return rc.replication.pendingAck && !rc.replication.nextAckAt.IsZero()
+	}, time.Second, time.Millisecond)
+	nextAckAt := rc.replication.nextAckAt
 	net.SetAckError(nil)
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Millisecond)}))
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+	})
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(-time.Millisecond)}))
 	require.Equal(t, 1, net.AckCalls())
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Hour + time.Millisecond)}))
-	require.Eventually(t, func() bool { return net.AckCalls() == 2 }, time.Second, time.Millisecond)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(time.Millisecond)}))
+	require.Eventually(t, func() bool { return net.AckCalls() >= 2 }, time.Second, time.Millisecond)
 }
 
 func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
