@@ -244,7 +244,7 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	require.Equal(t, 1, net.PullCalls())
 }
 
-func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testing.T) {
+func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesImmediately(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("empty-pull-hw")
 	r := NewReactor(ReactorConfig{
@@ -280,11 +280,11 @@ func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testi
 	require.False(t, rc.replication.ackInflight)
 	require.False(t, rc.replication.pendingAck)
 	require.False(t, rc.replication.nextPullAt.IsZero())
-	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
-	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
+	require.False(t, rc.replication.nextPullAt.Before(before))
+	require.True(t, rc.replication.nextPullAt.Before(after.Add(time.Second)))
 }
 
-func TestFollowerEmptyPullWithZeroNextPullAfterFallsBackToIdlePollInterval(t *testing.T) {
+func TestFollowerEmptyPullWithLeaderLEOAheadAndZeroDelayRetriesImmediately(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("empty-pull-zero-delay")
 	r := NewReactor(ReactorConfig{
@@ -315,8 +315,8 @@ func TestFollowerEmptyPullWithZeroNextPullAfterFallsBackToIdlePollInterval(t *te
 
 	require.Equal(t, uint64(3), rc.state.HW)
 	require.False(t, rc.replication.nextPullAt.IsZero())
-	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
-	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
+	require.False(t, rc.replication.nextPullAt.Before(before))
+	require.True(t, rc.replication.nextPullAt.Before(after.Add(time.Second)))
 }
 
 func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) {
@@ -549,6 +549,43 @@ func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestStoppedAckStaleMetaCancelsStopAndPullsImmediately(t *testing.T) {
+	net := newCapturingTransport()
+	net.SetAckError(ch.ErrStaleMeta)
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stopped-ack-stale-pulls")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 3, LeaderLEO: 3, ActivityVersion: 3, Control: transport.PullControlStop,
+		}},
+	})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreCheckpoint)})
+	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
+	require.True(t, net.LastAck().Stopped)
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
+	require.Contains(t, r.channels, meta.Key)
+	require.False(t, rc.replication.stopping)
+	require.False(t, rc.replication.pendingAck)
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, net.AckCalls())
+}
+
 func TestFollowerStopRejectedWhenLocalLEOBelowLeaderLEO(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
@@ -649,6 +686,41 @@ func TestStaleStopCompletionDoesNotDeleteAfterNewerPullHint(t *testing.T) {
 	require.Contains(t, r.channels, meta.Key)
 	require.Equal(t, 0, net.AckCalls())
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+}
+
+func TestPullHintDuringInflightPullPreventsOldEmptyResponseParking(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("inflight-pull-hint-old-empty")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handlePullHint(Event{Kind: EventPullHint, Key: meta.Key, PullHint: transport.PullHintRequest{
+		ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		Leader: meta.Leader, LeaderLEO: 1, ActivityVersion: 2, Reason: transport.PullHintReasonAppend,
+	}})
+	require.Equal(t, 0, net.PullCalls())
+	require.True(t, rc.replication.dirty)
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW: 0, LeaderLEO: 0, ActivityVersion: 1, NextPullAfter: time.Hour, Control: transport.PullControlContinue,
+		}},
+	})
+
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.False(t, rc.replication.parked)
+	require.True(t, rc.replication.pullInflight)
 }
 
 func TestFollowerPullHintInterruptsParked(t *testing.T) {
@@ -1708,7 +1780,7 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
 }
 
@@ -1782,7 +1854,7 @@ func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *test
 	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Equal(t, fenced.LeaderEpoch, checkpoint.Fence.LeaderEpoch)
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
 }
 
@@ -1809,7 +1881,7 @@ func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 
 	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
 }
 
@@ -1834,7 +1906,7 @@ func TestApplyMetaColdSingleNodeClusterLeaderCanEvictWithoutAppend(t *testing.T)
 
 	r.tickLifecycle(rc, time.Now().Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
 }
 
@@ -1866,6 +1938,50 @@ func TestLeaderCheckpointCompletionStaleAfterNewAppendDoesNotEvict(t *testing.T)
 
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: staleCheckpoint})
 	require.Contains(t, r.channels, meta.Key)
+}
+
+func TestLeaderCheckpointCompletionDefersEvictionBehindQueuedAppend(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("leader-checkpoint-defers-to-append", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.ActivityVersion = rc.state.LEO
+	rc.lifecycle.Phase = lifecycleEvictingLeader
+	rc.lifecycle.CheckpointInflight = true
+	rc.lifecycle.CheckpointOpID = 99
+	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
+
+	appendFuture := NewFuture()
+	require.NoError(t, r.Submit(PriorityNormal, appendEventWithFuture(meta, 1, "queued append", appendFuture)))
+	require.NoError(t, r.SubmitCompletion(Event{Kind: EventWorkerResult, Key: meta.Key, Worker: worker.Result{
+		Kind: worker.TaskStoreCheckpoint,
+		Fence: ch.Fence{
+			ChannelKey: meta.Key, Generation: rc.state.Generation,
+			Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 99,
+		},
+		StoreCheckpoint: &worker.StoreCheckpointResult{},
+	}}))
+
+	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
+	require.Len(t, events, 2)
+	for _, event := range events {
+		r.handle(event)
+	}
+
+	require.Contains(t, r.channels, meta.Key)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
+	require.Contains(t, r.channels, meta.Key)
+	require.False(t, rc.lifecycle.CheckpointInflight)
 }
 
 func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
@@ -1902,7 +2018,7 @@ func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
 	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(2*time.Hour))
 	nextCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Equal(t, fenced.LeaderEpoch, nextCheckpoint.Fence.LeaderEpoch)
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: nextCheckpoint})
+	completeLeaderCheckpointAndDue(t, r, nextCheckpoint)
 	require.NotContains(t, r.channels, meta.Key)
 }
 
@@ -1956,6 +2072,12 @@ func appendQuorumEvent(meta ch.Meta, id uint64, payload string) Event {
 func followerTestMeta(id string) ch.Meta {
 	channelID := ch.ChannelID{ID: id, Type: 1}
 	return ch.Meta{Key: ch.ChannelKeyForID(channelID), ID: channelID, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+}
+
+func completeLeaderCheckpointAndDue(t *testing.T, r *Reactor, checkpoint worker.Result) {
+	t.Helper()
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	r.processDue(time.Now().Add(time.Millisecond))
 }
 
 type capturingTransport struct {

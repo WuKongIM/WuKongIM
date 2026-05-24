@@ -279,6 +279,13 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 	if !rc.lifecycle.CheckpointInflight {
 		add(rc.lifecycle.CheckpointRetryAt)
 	}
+	if rc.lifecycle.CheckpointReady &&
+		r.leaderIdleExpired(rc, now) &&
+		rc.state.HW >= rc.state.LEO &&
+		r.allFollowersStopped(rc) &&
+		!r.hasPendingRuntimeWork(rc) {
+		add(now)
+	}
 	for _, follower := range rc.followers {
 		if follower == nil || follower.HintInflight {
 			continue

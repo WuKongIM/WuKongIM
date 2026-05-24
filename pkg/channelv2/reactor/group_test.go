@@ -108,7 +108,7 @@ func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
 
 	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	completeLeaderCheckpointAndDue(t, r, checkpoint)
 
 	require.Equal(t, 1, obs.RuntimeEvicted())
 }

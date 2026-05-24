@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -248,6 +249,11 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
+		if rc.replication.dirty || resp.LeaderLEO > rc.state.LEO || resp.ActivityVersion < rc.replication.lastActivityVersion {
+			rc.replication.markDirty(now)
+			r.tickReplication(rc, now)
+			return
+		}
 		delay := resp.NextPullAfter
 		if delay <= 0 {
 			delay = r.cfg.ReplicationIdlePollInterval
@@ -341,6 +347,15 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	}
 	now := time.Now()
 	if result.Err != nil {
+		if ackStopped && errors.Is(result.Err, ch.ErrStaleMeta) {
+			rc.replication.cancelStopping()
+			rc.replication.backoff = 0
+			rc.replication.lastError = result.Err
+			rc.replication.markDirty(now)
+			r.tickReplication(rc, now)
+			r.scheduleReplicationFromState(rc, now)
+			return
+		}
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.nextAckAt = now.Add(rc.replication.backoff)
 		r.scheduleReplicationFromState(rc, now)
@@ -414,6 +429,8 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 	rc.lifecycle.CheckpointInflight = false
 	rc.lifecycle.CheckpointOpID = 0
 	rc.lifecycle.CheckpointActivityVersion = 0
+	rc.lifecycle.CheckpointReady = false
+	rc.lifecycle.CheckpointReadyActivityVersion = 0
 	err := result.Err
 	if err == nil && result.StoreCheckpoint == nil {
 		err = ch.ErrInvalidConfig
@@ -432,7 +449,9 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
-	r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
+	rc.lifecycle.CheckpointReady = true
+	rc.lifecycle.CheckpointReadyActivityVersion = activityVersion
+	r.scheduleLifecycleFromState(rc, now)
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
