@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 )
 
 // Option customizes Node construction.
@@ -15,9 +16,12 @@ type Option func(*Node)
 type Node struct {
 	cfg       Config
 	resources []lifecycle.NamedResource
-	group     lifecycle.Group
-	started   atomic.Bool
-	stopping  atomic.Bool
+	proposer  interface {
+		Propose(context.Context, propose.Request) error
+	}
+	group    lifecycle.Group
+	started  atomic.Bool
+	stopping atomic.Bool
 }
 
 // New validates cfg and creates a clusterv2 node shell.
@@ -39,6 +43,12 @@ func withResources(resources ...lifecycle.NamedResource) Option {
 	return func(n *Node) {
 		n.resources = append([]lifecycle.NamedResource(nil), resources...)
 	}
+}
+
+func withProposer(proposer interface {
+	Propose(context.Context, propose.Request) error
+}) Option {
+	return func(n *Node) { n.proposer = proposer }
 }
 
 // Start starts the node runtime. Later tasks wire concrete resources behind this shell.
@@ -112,7 +122,14 @@ func (n *Node) Propose(ctx context.Context, req ProposeRequest) error {
 	if err := n.ensureForeground(); err != nil {
 		return err
 	}
-	return ErrNotStarted
+	if n.proposer == nil {
+		return ErrNotStarted
+	}
+	return n.proposer.Propose(ctx, propose.Request{
+		Key:     req.Key,
+		Command: req.Command,
+		Target:  propose.Target{HashSlot: req.Target.HashSlot, HasHashSlot: req.Target.HasHashSlot, SlotID: req.Target.SlotID, HasSlotID: req.Target.HasSlotID},
+	})
 }
 
 // AppendChannel appends one message through the hosted ChannelV2 service.
