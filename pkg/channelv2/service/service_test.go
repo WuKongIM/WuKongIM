@@ -62,6 +62,91 @@ func TestAppendUsesExistingReactorStateWithoutResolvingMetaAgain(t *testing.T) {
 	require.Equal(t, int32(1), resolver.calls.Load())
 }
 
+func TestAppendRejectsStaleExpectedEpochs(t *testing.T) {
+	clusterAPI, err := New(Config{LocalNode: 1, Store: store.NewMemoryFactory(), ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:expected-append"),
+		ID:          ch.ChannelID{ID: "expected-append", Type: 1},
+		Epoch:       2,
+		LeaderEpoch: 3,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+	}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{
+		ChannelID:            meta.ID,
+		Message:              ch.Message{Payload: []byte("stale-channel")},
+		ExpectedChannelEpoch: 1,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{
+		ChannelID:            meta.ID,
+		Message:              ch.Message{Payload: []byte("stale-leader")},
+		ExpectedChannelEpoch: meta.Epoch,
+		ExpectedLeaderEpoch:  2,
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	res, err := clusterAPI.Append(context.Background(), ch.AppendRequest{
+		ChannelID:            meta.ID,
+		Message:              ch.Message{Payload: []byte("current")},
+		ExpectedChannelEpoch: meta.Epoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), res.MessageSeq)
+}
+
+func TestFetchRejectsStaleExpectedEpochs(t *testing.T) {
+	clusterAPI, err := New(Config{LocalNode: 1, Store: store.NewMemoryFactory(), ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:expected-fetch"),
+		ID:          ch.ChannelID{ID: "expected-fetch", Type: 1},
+		Epoch:       2,
+		LeaderEpoch: 3,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+	}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("seed")}})
+	require.NoError(t, err)
+
+	_, err = clusterAPI.Fetch(context.Background(), ch.FetchRequest{
+		ChannelID:            meta.ID,
+		FromSeq:              1,
+		Limit:                1,
+		MaxBytes:             1024,
+		ExpectedChannelEpoch: 1,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	_, err = clusterAPI.Fetch(context.Background(), ch.FetchRequest{
+		ChannelID:            meta.ID,
+		FromSeq:              1,
+		Limit:                1,
+		MaxBytes:             1024,
+		ExpectedChannelEpoch: meta.Epoch,
+		ExpectedLeaderEpoch:  2,
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+}
+
 func TestHandlePullHintLazyLoadsFollowerMeta(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := ch.Meta{Key: ch.ChannelKey("1:hint-lazy"), ID: ch.ChannelID{ID: "hint-lazy", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
