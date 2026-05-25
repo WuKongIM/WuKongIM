@@ -5,22 +5,40 @@ import (
 	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
 )
+
+// Option customizes Node construction.
+type Option func(*Node)
 
 // Node is the clusterv2 lifecycle root and public runtime facade.
 type Node struct {
-	cfg      Config
-	started  atomic.Bool
-	stopping atomic.Bool
+	cfg       Config
+	resources []lifecycle.NamedResource
+	group     lifecycle.Group
+	started   atomic.Bool
+	stopping  atomic.Bool
 }
 
 // New validates cfg and creates a clusterv2 node shell.
-func New(cfg Config) (*Node, error) {
+func New(cfg Config, opts ...Option) (*Node, error) {
 	cfg.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return &Node{cfg: cfg}, nil
+	node := &Node{cfg: cfg}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(node)
+		}
+	}
+	return node, nil
+}
+
+func withResources(resources ...lifecycle.NamedResource) Option {
+	return func(n *Node) {
+		n.resources = append([]lifecycle.NamedResource(nil), resources...)
+	}
 }
 
 // Start starts the node runtime. Later tasks wire concrete resources behind this shell.
@@ -32,6 +50,10 @@ func (n *Node) Start(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(false)
+	if err := n.group.Start(ctx, n.resources...); err != nil {
+		n.started.Store(false)
+		return err
+	}
 	n.started.Store(true)
 	return nil
 }
@@ -45,8 +67,9 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
+	err := n.group.Stop(ctx)
 	n.started.Store(false)
-	return nil
+	return err
 }
 
 // NodeID returns this node's stable cluster identity.
@@ -126,11 +149,14 @@ func (n *Node) FetchChannel(ctx context.Context, req channelv2.FetchRequest) (ch
 }
 
 func (n *Node) ensureForeground() error {
-	if n == nil || !n.started.Load() {
+	if n == nil {
 		return ErrNotStarted
 	}
 	if n.stopping.Load() {
 		return ErrStopping
+	}
+	if !n.started.Load() {
+		return ErrNotStarted
 	}
 	return nil
 }
