@@ -1,6 +1,7 @@
 package clusternet
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -42,6 +43,15 @@ func (d *Discovery) Addr(nodeID uint64) (string, bool) {
 	}
 	addr, ok := (*current)[nodeID]
 	return addr, ok
+}
+
+// Resolve implements pkg/transport Discovery.
+func (d *Discovery) Resolve(nodeID uint64) (string, error) {
+	addr, ok := d.Addr(nodeID)
+	if !ok {
+		return "", fmt.Errorf("%w: node %d", ErrNodeNotFound, nodeID)
+	}
+	return addr, nil
 }
 
 // Snapshot returns a copy of the current discovery map.

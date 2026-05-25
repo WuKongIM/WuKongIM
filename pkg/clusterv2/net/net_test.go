@@ -76,3 +76,27 @@ func TestCodecRejectsInvalidHeader(t *testing.T) {
 		t.Fatalf("kind error = %v, want ErrInvalidFrame", err)
 	}
 }
+
+func TestTransportLoopbackRPC(t *testing.T) {
+	server := NewTransportServer(TransportServerConfig{})
+	server.Register(RPCSlotForwardPropose, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		return append([]byte("resp:"), payload...), nil
+	}))
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]control.Node{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	got, err := client.Call(context.Background(), 2, RPCSlotForwardPropose, []byte("ping"))
+	if err != nil {
+		t.Fatalf("Call() error = %v", err)
+	}
+	if string(got) != "resp:ping" {
+		t.Fatalf("Call() = %q, want resp:ping", got)
+	}
+}
