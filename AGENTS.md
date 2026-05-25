@@ -106,6 +106,7 @@ internal/
 
 pkg/
   cluster/               集群运行时
+  clusterv2/             新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controllerv2、slot/multiraft、channelv2
   channel/               Channel 维度复制、日志与节点间数据面
     isr/                 单 channel replica group 的 ISR 运行时
     log/                 Channel 消息日志、提交与元数据适配
