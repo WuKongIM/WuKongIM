@@ -14,15 +14,17 @@ type MetaDB struct {
 	shards     map[HashSlot]*Shard
 	shardLocks map[HashSlot]*sync.Mutex
 
-	testLocked []HashSlot
+	channelCache map[string]Channel
+	testLocked   []HashSlot
 }
 
 // NewDB creates a MetaDB backed by engine.
 func NewDB(engine *engine.DB) *MetaDB {
 	return &MetaDB{
-		engine:     engine,
-		shards:     make(map[HashSlot]*Shard),
-		shardLocks: make(map[HashSlot]*sync.Mutex),
+		engine:       engine,
+		shards:       make(map[HashSlot]*Shard),
+		shardLocks:   make(map[HashSlot]*sync.Mutex),
+		channelCache: make(map[string]Channel),
 	}
 }
 
@@ -83,4 +85,32 @@ func (db *MetaDB) testLockedOrder() []HashSlot {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	return append([]HashSlot(nil), db.testLocked...)
+}
+
+func (db *MetaDB) rememberChannel(cacheKey []byte, channel Channel) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.channelCache == nil {
+		db.channelCache = make(map[string]Channel)
+	}
+	db.channelCache[string(cacheKey)] = channel
+}
+
+func (db *MetaDB) cachedChannel(cacheKey []byte) (Channel, bool) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	channel, ok := db.channelCache[string(cacheKey)]
+	return channel, ok
+}
+
+func (db *MetaDB) forgetChannel(cacheKey []byte) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	delete(db.channelCache, string(cacheKey))
+}
+
+func (db *MetaDB) channelCacheSize() int {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return len(db.channelCache)
 }

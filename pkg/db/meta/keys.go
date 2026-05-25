@@ -58,9 +58,27 @@ func encodeUserRowKey(hashSlot HashSlot, uid string, familyID uint16) []byte {
 	return keycodec.AppendUint16(key, familyID)
 }
 
-func encodeChannelIDIndexKey(hashSlot HashSlot, channelID string, channelType int64) []byte {
-	key := encodeIndexPrefix(hashSlot, TableIDChannel, channelIDIndexID)
+func encodeDeviceRowKey(hashSlot HashSlot, uid string, deviceFlag int64, familyID uint16) []byte {
+	key := encodeRowPrefix(hashSlot, TableIDDevice)
+	key = keycodec.AppendString(key, uid)
+	key = keycodec.AppendInt64Ordered(key, deviceFlag)
+	return keycodec.AppendUint16(key, familyID)
+}
+
+func encodeChannelRowKey(hashSlot HashSlot, channelID string, channelType uint8, familyID uint16) []byte {
+	key := encodeRowPrefix(hashSlot, TableIDChannel)
 	key = keycodec.AppendString(key, channelID)
+	key = keycodec.AppendInt64Ordered(key, int64(channelType))
+	return keycodec.AppendUint16(key, familyID)
+}
+
+func encodeChannelIDIndexPrefix(hashSlot HashSlot, channelID string) []byte {
+	key := encodeIndexPrefix(hashSlot, TableIDChannel, channelIDIndexID)
+	return keycodec.AppendString(key, channelID)
+}
+
+func encodeChannelIDIndexKey(hashSlot HashSlot, channelID string, channelType int64) []byte {
+	key := encodeChannelIDIndexPrefix(hashSlot, channelID)
 	return keycodec.AppendInt64Ordered(key, channelType)
 }
 
