@@ -75,25 +75,20 @@ func TestClusterV2ThreeNodeChannelAppendQuorum(t *testing.T) {
 }
 
 type threeNodeHarness struct {
-	network  *clusternet.LocalNetwork
-	nodes    map[uint64]*Node
-	slots    map[uint64]*smokeSlotRuntime
-	channels map[uint64]*channels.Service
-	metas    []channelv2.Meta
-	applied  *smokeAppliedLog
-
-	tickCancel context.CancelFunc
-	tickWG     sync.WaitGroup
+	network *clusternet.LocalNetwork
+	nodes   map[uint64]*Node
+	slots   map[uint64]*smokeSlotRuntime
+	metas   []channelv2.Meta
+	applied *smokeAppliedLog
 }
 
 func newThreeNodeHarness(t testing.TB) *threeNodeHarness {
 	t.Helper()
 	return &threeNodeHarness{
-		network:  clusternet.NewLocalNetwork(),
-		nodes:    make(map[uint64]*Node),
-		slots:    make(map[uint64]*smokeSlotRuntime),
-		channels: make(map[uint64]*channels.Service),
-		applied:  newSmokeAppliedLog(),
+		network: clusternet.NewLocalNetwork(),
+		nodes:   make(map[uint64]*Node),
+		slots:   make(map[uint64]*smokeSlotRuntime),
+		applied: newSmokeAppliedLog(),
 	}
 }
 
@@ -106,12 +101,9 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 	snapshot := h.controlSnapshot()
 	for _, nodeID := range []uint64{1, 2, 3} {
 		slotRuntime := &smokeSlotRuntime{localNode: nodeID, leaders: map[uint32]uint64{1: 1}, applied: h.applied}
-		node, err := New(Config{NodeID: nodeID, ListenAddr: fmt.Sprintf("127.0.0.1:%d", 10000+nodeID), DataDir: t.TempDir()}, withController(control.NewStaticController(snapshot)), withSlotReconciler(&recordingReconciler{}))
-		if err != nil {
-			t.Fatalf("New(node=%d) error = %v", nodeID, err)
-		}
-		node.proposer = propose.NewService(propose.Config{LocalNode: nodeID, Router: node.router, Slots: slotRuntime, Forward: propose.NewNetworkForwardClient(h.network)})
-		h.network.Register(nodeID, clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(slotRuntime))
+		cfg := Config{NodeID: nodeID, ListenAddr: fmt.Sprintf("127.0.0.1:%d", 10000+nodeID), DataDir: t.TempDir()}
+		cfg.Channel.TickInterval = time.Millisecond
+		var opts []Option
 		if len(h.metas) > 0 {
 			service, err := channels.NewService(channels.Config{
 				LocalNode:  channelv2.NodeID(nodeID),
@@ -122,10 +114,16 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 			if err != nil {
 				t.Fatalf("channels.NewService(node=%d) error = %v", nodeID, err)
 			}
-			node.channels = service
-			h.channels[nodeID] = service
+			opts = append(opts, WithChannels(service))
 			channels.RegisterHandlers(h.network, nodeID, service.Server())
 		}
+		opts = append(opts, withController(control.NewStaticController(snapshot)), withSlotReconciler(&recordingReconciler{}))
+		node, err := New(cfg, opts...)
+		if err != nil {
+			t.Fatalf("New(node=%d) error = %v", nodeID, err)
+		}
+		WithProposer(propose.NewService(propose.Config{LocalNode: nodeID, Router: node.router, Slots: slotRuntime, Forward: propose.NewNetworkForwardClient(h.network)}))(node)
+		h.network.Register(nodeID, clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(slotRuntime))
 		h.nodes[nodeID] = node
 		h.slots[nodeID] = slotRuntime
 	}
@@ -135,24 +133,16 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 		}
 		h.nodes[nodeID].router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
 	}
-	h.startChannelTicks()
 }
 
 func (h *threeNodeHarness) Stop(t testing.TB) {
 	t.Helper()
-	if h.tickCancel != nil {
-		h.tickCancel()
-		h.tickWG.Wait()
-	}
 	for _, nodeID := range []uint64{1, 2, 3} {
 		if node := h.nodes[nodeID]; node != nil {
 			if err := node.Stop(context.Background()); err != nil {
 				t.Fatalf("Stop(node=%d) error = %v", nodeID, err)
 			}
 		}
-	}
-	for _, service := range h.channels {
-		_ = service.Close()
 	}
 }
 
@@ -198,7 +188,6 @@ func (h *threeNodeHarness) WaitChannelCommitted(t testing.TB, nodeID uint64, id 
 		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
 			return
 		}
-		h.tickChannels(context.Background())
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not commit channel %v seq %d", nodeID, id, seq)
@@ -215,36 +204,6 @@ func (h *threeNodeHarness) controlSnapshot() control.Snapshot {
 		},
 		Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, PreferredLeader: 1}},
 		HashSlots: control.HashSlotTable{Revision: 1, Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-	}
-}
-
-func (h *threeNodeHarness) startChannelTicks() {
-	if len(h.channels) == 0 {
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	h.tickCancel = cancel
-	h.tickWG.Add(1)
-	go func() {
-		defer h.tickWG.Done()
-		ticker := time.NewTicker(time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				h.tickChannels(ctx)
-			}
-		}
-	}()
-}
-
-func (h *threeNodeHarness) tickChannels(ctx context.Context) {
-	for _, nodeID := range []uint64{1, 2, 3} {
-		if service := h.channels[nodeID]; service != nil {
-			_ = service.Tick(ctx)
-		}
 	}
 }
 

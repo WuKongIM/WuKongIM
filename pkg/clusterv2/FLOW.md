@@ -24,8 +24,10 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 New(Config)
   -> validate v2-only config
   -> create Router and Discovery
+  -> apply optional WithProposer / WithChannels overrides
 
 Start(ctx)
+  -> initialize default proposer / ChannelV2 service when no override was provided
   -> start injected lifecycle resources
   -> start Controller adapter when configured
   -> load initial control snapshot
@@ -76,7 +78,9 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
   -> follower reactor Pull / Apply / Ack
 ```
 
-`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs; production channel metadata should come from a later Slot-backed source.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates default proposer and ChannelV2 service instances and owns the ChannelV2 tick loop.
+
+`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative Slot-backed `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring.
 
 ## Non-Goals For V1
 

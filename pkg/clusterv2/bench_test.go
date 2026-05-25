@@ -72,18 +72,14 @@ func BenchmarkChannelAppendLocal(b *testing.B) {
 		MinISR:      1,
 		Status:      channelv2.StatusActive,
 	}
-	service, err := channels.NewService(channels.Config{LocalNode: 1, Store: channelstore.NewMemoryFactory()})
+	service, err := channels.NewService(channels.Config{LocalNode: 1, Store: channelstore.NewMemoryFactory(), MetaSource: channels.NewStaticMetaSource([]channelv2.Meta{meta})})
 	if err != nil {
 		b.Fatal(err)
 	}
-	if err := service.ApplyMeta(meta); err != nil {
-		b.Fatal(err)
-	}
-	node, err := New(Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: b.TempDir()})
+	node, err := New(Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: b.TempDir()}, WithChannels(service))
 	if err != nil {
 		b.Fatal(err)
 	}
-	node.channels = service
 	b.Cleanup(func() { _ = node.Stop(context.Background()) })
 	if err := node.Start(context.Background()); err != nil {
 		b.Fatal(err)

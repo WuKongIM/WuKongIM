@@ -71,5 +71,8 @@ func (c Config) validate() error {
 	if c.NodeID == 0 || c.ListenAddr == "" || c.DataDir == "" {
 		return ErrInvalidConfig
 	}
+	if c.Channel.TickInterval < 0 {
+		return ErrInvalidConfig
+	}
 	return nil
 }
