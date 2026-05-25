@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/cockroachdb/pebble/v2/bloom"
 )
@@ -28,7 +29,7 @@ type DB struct {
 // Open opens a Pebble-backed engine at path.
 func Open(path string, opts Options) (*DB, error) {
 	if path == "" {
-		return nil, errInvalidArgument
+		return nil, dberrors.ErrInvalidArgument
 	}
 	pdb, err := pebble.Open(path, pebbleOptions(opts))
 	if err != nil {
@@ -50,7 +51,7 @@ func (e *DB) Close() error {
 // Get returns a copied value for key.
 func (e *DB) Get(key []byte) ([]byte, bool, error) {
 	if e == nil || e.pdb == nil {
-		return nil, false, errClosed
+		return nil, false, dberrors.ErrClosed
 	}
 	value, closer, err := e.pdb.Get(key)
 	if err != nil {
@@ -74,7 +75,7 @@ func (e *DB) NewBatch() *Batch {
 // NewIter creates an iterator over span.
 func (e *DB) NewIter(span Span, opts IterOptions) (*Iter, error) {
 	if e == nil || e.pdb == nil {
-		return nil, errClosed
+		return nil, dberrors.ErrClosed
 	}
 	iterOpts := &pebble.IterOptions{}
 	if len(span.Start) > 0 {

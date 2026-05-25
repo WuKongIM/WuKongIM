@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 // NodeStore is the root handle for node-local storage domains.
@@ -39,6 +40,14 @@ func (s *NodeStore) Options() NodeStoreOptions {
 		return NodeStoreOptions{}
 	}
 	return s.opts
+}
+
+// Messages returns the channel message storage domain.
+func (s *NodeStore) Messages() *message.MessageDB {
+	if s == nil {
+		return nil
+	}
+	return message.NewDB(s.message)
 }
 
 // Close closes the physical stores.

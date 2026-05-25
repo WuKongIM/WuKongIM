@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/db"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
 
@@ -117,7 +117,7 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 // Submit queues one logical request and waits for its result.
 func (c *Coordinator) Submit(ctx context.Context, req Request) error {
 	if c == nil || c.db == nil || req.Build == nil {
-		return db.ErrInvalidArgument
+		return dberrors.ErrInvalidArgument
 	}
 	if ctx == nil {
 		ctx = context.Background()

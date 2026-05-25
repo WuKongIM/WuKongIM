@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/WuKongIM/WuKongIM/pkg/db"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
 const envelopeHeaderLen = 7
@@ -55,14 +55,14 @@ func Wrap(key []byte, version byte, codec byte, flags byte, payload []byte) []by
 // Unwrap verifies and decodes a value envelope.
 func Unwrap(key []byte, value []byte) (Envelope, error) {
 	if len(value) < envelopeHeaderLen {
-		return Envelope{}, fmt.Errorf("%w: envelope too short", db.ErrCorruptValue)
+		return Envelope{}, fmt.Errorf("%w: envelope too short", dberrors.ErrCorruptValue)
 	}
 	flags := value[2]
 	if flags&FlagChecksum != 0 {
 		want := binary.BigEndian.Uint32(value[3:7])
 		got := envelopeChecksum(key, value)
 		if got != want {
-			return Envelope{}, db.ErrChecksumMismatch
+			return Envelope{}, dberrors.ErrChecksumMismatch
 		}
 	}
 	return Envelope{

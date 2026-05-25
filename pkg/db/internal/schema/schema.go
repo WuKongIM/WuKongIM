@@ -71,3 +71,13 @@ type Index struct {
 	// Covering lists optional columns stored in the index value.
 	Covering []uint16
 }
+
+// Family returns the family descriptor with id.
+func (t Table) Family(id uint16) (Family, bool) {
+	for _, family := range t.Families {
+		if family.ID == id {
+			return family, true
+		}
+	}
+	return Family{}, false
+}
