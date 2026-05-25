@@ -131,6 +131,63 @@ func encodeConversationActiveIndexKey(hashSlot HashSlot, tableID uint32, uid str
 	return keycodec.AppendInt64Ordered(key, int64(channelType))
 }
 
+func encodePluginBindingRowPrefix(hashSlot HashSlot, uid string) []byte {
+	key := encodeRowPrefix(hashSlot, TableIDPluginBinding)
+	return keycodec.AppendString(key, uid)
+}
+
+func encodePluginBindingRowKey(hashSlot HashSlot, uid, pluginNo string, familyID uint16) []byte {
+	key := encodePluginBindingRowPrefix(hashSlot, uid)
+	key = keycodec.AppendString(key, pluginNo)
+	return keycodec.AppendUint16(key, familyID)
+}
+
+func encodePluginBindingPluginIndexPrefix(hashSlot HashSlot, pluginNo string) []byte {
+	key := encodeIndexPrefix(hashSlot, TableIDPluginBinding, pluginBindingPluginIndexID)
+	return keycodec.AppendString(key, pluginNo)
+}
+
+func encodePluginBindingPluginIndexKey(hashSlot HashSlot, pluginNo string, uid string) []byte {
+	key := encodePluginBindingPluginIndexPrefix(hashSlot, pluginNo)
+	return keycodec.AppendString(key, uid)
+}
+
+func encodeHashSlotMigrationRowPrefix(hashSlot HashSlot) []byte {
+	return encodeRowPrefix(hashSlot, TableIDHashSlotMigration)
+}
+
+func encodeHashSlotMigrationStateKey(hashSlot HashSlot) []byte {
+	key := encodeHashSlotMigrationRowPrefix(hashSlot)
+	return append(key, hashSlotMigrationRecordState)
+}
+
+func encodeAppliedHashSlotDeltaPrefix(hashSlot HashSlot) []byte {
+	key := encodeHashSlotMigrationRowPrefix(hashSlot)
+	return append(key, hashSlotMigrationRecordAppliedDelta)
+}
+
+func encodeAppliedHashSlotDeltaKey(delta AppliedHashSlotDelta) []byte {
+	key := encodeAppliedHashSlotDeltaPrefix(delta.HashSlot)
+	key = keycodec.AppendUint64(key, delta.SourceSlot)
+	return keycodec.AppendUint64(key, delta.SourceIndex)
+}
+
+func encodeHashSlotMigrationOutboxHashSlotPrefix(hashSlot HashSlot) []byte {
+	key := encodeHashSlotMigrationRowPrefix(hashSlot)
+	return append(key, hashSlotMigrationRecordOutbox)
+}
+
+func encodeHashSlotMigrationOutboxPrefix(hashSlot HashSlot, sourceSlot uint64, targetSlot uint64) []byte {
+	key := encodeHashSlotMigrationOutboxHashSlotPrefix(hashSlot)
+	key = keycodec.AppendUint64(key, sourceSlot)
+	return keycodec.AppendUint64(key, targetSlot)
+}
+
+func encodeHashSlotMigrationOutboxKey(hashSlot HashSlot, sourceSlot uint64, targetSlot uint64, sourceIndex uint64) []byte {
+	key := encodeHashSlotMigrationOutboxPrefix(hashSlot, sourceSlot, targetSlot)
+	return keycodec.AppendUint64(key, sourceIndex)
+}
+
 func encodeChannelIDIndexPrefix(hashSlot HashSlot, channelID string) []byte {
 	key := encodeIndexPrefix(hashSlot, TableIDChannel, channelIDIndexID)
 	return keycodec.AppendString(key, channelID)
