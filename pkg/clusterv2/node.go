@@ -2,26 +2,43 @@ package clusterv2
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 )
 
 // Option customizes Node construction.
 type Option func(*Node)
 
+type slotReconciler interface {
+	Reconcile(context.Context, control.Snapshot) error
+}
+
 // Node is the clusterv2 lifecycle root and public runtime facade.
 type Node struct {
 	cfg       Config
 	resources []lifecycle.NamedResource
+	control   control.Controller
+	router    *routing.Router
+	discovery *clusternet.Discovery
+	slots     slotReconciler
 	proposer  interface {
 		Propose(context.Context, propose.Request) error
 	}
-	group    lifecycle.Group
-	started  atomic.Bool
-	stopping atomic.Bool
+	group lifecycle.Group
+
+	mu          sync.RWMutex
+	snapshot    Snapshot
+	watchCancel context.CancelFunc
+	started     atomic.Bool
+	stopping    atomic.Bool
 }
 
 // New validates cfg and creates a clusterv2 node shell.
@@ -30,7 +47,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)
@@ -43,6 +60,14 @@ func withResources(resources ...lifecycle.NamedResource) Option {
 	return func(n *Node) {
 		n.resources = append([]lifecycle.NamedResource(nil), resources...)
 	}
+}
+
+func withController(controller control.Controller) Option {
+	return func(n *Node) { n.control = controller }
+}
+
+func withSlotReconciler(reconciler slotReconciler) Option {
+	return func(n *Node) { n.slots = reconciler }
 }
 
 func withProposer(proposer interface {
@@ -64,6 +89,24 @@ func (n *Node) Start(ctx context.Context) error {
 		n.started.Store(false)
 		return err
 	}
+	if n.control != nil {
+		if err := n.control.Start(ctx); err != nil {
+			_ = n.group.Stop(ctx)
+			return err
+		}
+		snapshot, err := n.control.LocalSnapshot(ctx)
+		if err != nil {
+			_ = n.control.Stop(ctx)
+			_ = n.group.Stop(ctx)
+			return err
+		}
+		if err := n.applySnapshot(ctx, snapshot); err != nil {
+			_ = n.control.Stop(ctx)
+			_ = n.group.Stop(ctx)
+			return err
+		}
+		n.startWatchLoop()
+	}
 	n.started.Store(true)
 	return nil
 }
@@ -77,9 +120,20 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
-	err := n.group.Stop(ctx)
+	if n.watchCancel != nil {
+		n.watchCancel()
+	}
+	var errs []error
+	if n.control != nil {
+		if err := n.control.Stop(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := n.group.Stop(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	n.started.Store(false)
-	return err
+	return errors.Join(errs...)
 }
 
 // NodeID returns this node's stable cluster identity.
@@ -95,7 +149,9 @@ func (n *Node) Snapshot() Snapshot {
 	if n == nil {
 		return Snapshot{}
 	}
-	return Snapshot{NodeID: n.cfg.NodeID}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.snapshot
 }
 
 // RouteKey routes key using the currently installed route snapshot.
@@ -103,7 +159,7 @@ func (n *Node) RouteKey(key string) (Route, error) {
 	if err := n.ensureForeground(); err != nil {
 		return Route{}, err
 	}
-	return Route{}, ErrRouteNotReady
+	return convertRoute(n.router.RouteKey(key))
 }
 
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.
@@ -111,7 +167,7 @@ func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 	if err := n.ensureForeground(); err != nil {
 		return Route{}, err
 	}
-	return Route{}, ErrRouteNotReady
+	return convertRoute(n.router.RouteHashSlot(hashSlot))
 }
 
 // Propose submits a Slot metadata command through clusterv2 routing.
@@ -163,6 +219,65 @@ func (n *Node) FetchChannel(ctx context.Context, req channelv2.FetchRequest) (ch
 		return channelv2.FetchResult{}, err
 	}
 	return channelv2.FetchResult{}, ErrNotStarted
+}
+
+func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
+	if n.router != nil {
+		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
+			return err
+		}
+	}
+	if n.discovery != nil {
+		n.discovery.Update(snapshot.Nodes)
+	}
+	if n.slots != nil {
+		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
+			return err
+		}
+	}
+	n.mu.Lock()
+	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: false, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
+	n.mu.Unlock()
+	return nil
+}
+
+func (n *Node) startWatchLoop() {
+	ctx, cancel := context.WithCancel(context.Background())
+	n.watchCancel = cancel
+	watch := n.control.Watch()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-watch:
+				if !ok {
+					return
+				}
+				_ = n.applySnapshot(ctx, ev.Snapshot)
+			}
+		}
+	}()
+}
+
+func convertRoute(route routing.Route, err error) (Route, error) {
+	if err != nil {
+		return Route{}, mapRouteError(err)
+	}
+	return Route{HashSlot: route.HashSlot, SlotID: route.SlotID, Leader: route.Leader, Peers: append([]uint64(nil), route.Peers...), Revision: route.Revision}, nil
+}
+
+func mapRouteError(err error) error {
+	switch {
+	case errors.Is(err, routing.ErrRouteNotReady):
+		return ErrRouteNotReady
+	case errors.Is(err, routing.ErrNoSlotLeader):
+		return ErrNoSlotLeader
+	case errors.Is(err, routing.ErrRouteMismatch):
+		return ErrRouteNotReady
+	default:
+		return err
+	}
 }
 
 func (n *Node) ensureForeground() error {
