@@ -16,7 +16,10 @@ Current flow:
    materialize messages from header/payload families.
 6. `GetByMessageID`, `ListByClientMsgNo`, and `LookupIdempotency` use typed
    secondary indexes and verify indexed rows before returning.
-7. Schema and key helpers define the durable message table layout.
-8. Later tasks add system state, retention, and catalog mutation.
+7. Checkpoint, epoch history, and snapshot payload APIs store channel system
+   state under the message system keyspace; snapshot install persists payload,
+   checkpoint, and epoch point in one batch.
+8. Schema and key helpers define the durable message table layout.
+9. Later tasks add retention and catalog mutation.
 
 Storage code in this package must not import Pebble directly.

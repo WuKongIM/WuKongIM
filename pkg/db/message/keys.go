@@ -94,6 +94,28 @@ func encodeMessageSystemPrefix(channelKey ChannelKey, systemID uint16) []byte {
 		Key()
 }
 
+func encodeCheckpointKey(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDCheckpoint)
+}
+
+func encodeHistoryPrefix(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDHistory)
+}
+
+func encodeHistoryOffsetKey(channelKey ChannelKey, startOffset uint64) []byte {
+	key := encodeHistoryPrefix(channelKey)
+	return keycodec.AppendUint64(key, startOffset)
+}
+
+func encodeHistoryPointKey(channelKey ChannelKey, point EpochPoint) []byte {
+	key := encodeHistoryOffsetKey(channelKey, point.StartOffset)
+	return keycodec.AppendUint64(key, point.Epoch)
+}
+
+func encodeSnapshotKey(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDSnapshot)
+}
+
 func encodeCatalogKey(channelKey ChannelKey) []byte {
 	var builder keycodec.Builder
 	return builder.Reset().

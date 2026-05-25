@@ -71,6 +71,34 @@ type IdempotencyHit struct {
 	PayloadHash uint64
 }
 
+// Checkpoint records durable committed progress for one channel log.
+type Checkpoint struct {
+	// Epoch is the channel epoch of the checkpoint.
+	Epoch uint64
+	// LogStartOffset is the first retained durable offset.
+	LogStartOffset uint64
+	// HW is the committed high watermark.
+	HW uint64
+}
+
+// EpochPoint records the first offset owned by a channel epoch.
+type EpochPoint struct {
+	// Epoch is the channel epoch.
+	Epoch uint64
+	// StartOffset is the first offset for Epoch.
+	StartOffset uint64
+}
+
+// Snapshot stores a durable channel snapshot payload and boundary.
+type Snapshot struct {
+	// Epoch is the channel epoch captured by the snapshot.
+	Epoch uint64
+	// EndOffset is the last offset included by the snapshot.
+	EndOffset uint64
+	// Payload stores the encoded snapshot bytes.
+	Payload []byte
+}
+
 // AppendMode controls append validation work.
 type AppendMode uint8
 
