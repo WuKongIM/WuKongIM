@@ -29,6 +29,9 @@ Current flow:
 11. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
    under the hash-slot partition; typed values repeat the hash slot only for
    self-description.
-12. Later tasks add batch mutations, snapshots, and migration task tables.
+12. `Batch` stages typed operations, locks all touched hash slots in sorted
+   order, validates guards against a read-your-writes overlay, commits once,
+   then publishes channel cache entries.
+13. Later tasks add snapshots and migration task tables.
 
 Storage code in this package must not import Pebble directly.
