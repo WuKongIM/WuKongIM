@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	// ChannelMigrationBlockerNeedsSnapshotBootstrap records that snapshot bootstrap is required.
+	ChannelMigrationBlockerNeedsSnapshotBootstrap = "NeedsSnapshotBootstrap"
+)
+
+const (
 	channelMigrationPrimaryFamilyID uint16 = 0
 	channelMigrationActiveIndexID   uint16 = 2
 	channelMigrationTerminalIndexID uint16 = 3
@@ -72,7 +77,7 @@ type ChannelMigrationProgress struct {
 // ChannelMigrationTaskGuard fences a task mutation to one observed durable state.
 type ChannelMigrationTaskGuard struct {
 	ChannelID                 string
-	ChannelType               uint8
+	ChannelType               int64
 	TaskID                    string
 	ExpectedStatus            ChannelMigrationStatus
 	ExpectedPhase             ChannelMigrationPhase
@@ -84,7 +89,7 @@ type ChannelMigrationTaskGuard struct {
 // ChannelMigrationRuntimeGuard fences a task create to one runtime metadata state.
 type ChannelMigrationRuntimeGuard struct {
 	ChannelID               string
-	ChannelType             uint8
+	ChannelType             int64
 	ExpectedChannelEpoch    uint64
 	ExpectedLeaderEpoch     uint64
 	ExpectedLeader          uint64
@@ -97,6 +102,17 @@ type ChannelMigrationRuntimeGuard struct {
 type ChannelMigrationTaskCreate struct {
 	Task         ChannelMigrationTask
 	RuntimeGuard ChannelMigrationRuntimeGuard
+}
+
+// ChannelMigrationCutoverProof stores the durable proof produced by a fenced drain.
+type ChannelMigrationCutoverProof struct {
+	CutoverLEO               uint64
+	CutoverHW                uint64
+	DrainedLeaderNode        uint64
+	DrainedRuntimeGeneration uint64
+	DrainedChannelEpoch      uint64
+	DrainedLeaderEpoch       uint64
+	DrainedFenceVersion      uint64
 }
 
 // ChannelMigrationTaskClaim describes a guarded owner claim or renewal.
@@ -122,38 +138,135 @@ type ChannelMigrationTaskAdvance struct {
 	UpdatedAtMS           int64
 	CompletedAtMS         int64
 	Progress              ChannelMigrationProgress
+	CutoverProof          ChannelMigrationCutoverProof
 	EmbeddedDesiredLeader uint64
+}
+
+// ChannelMigrationFenceRequest sets or renews a channel write fence.
+type ChannelMigrationFenceRequest struct {
+	Guard        ChannelMigrationTaskGuard
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	Status       ChannelMigrationStatus
+	Phase        ChannelMigrationPhase
+	FenceReason  uint8
+	FenceUntilMS int64
+	UpdatedAtMS  int64
+}
+
+// ChannelMigrationResetFenceRequest clears an expired matching write fence.
+type ChannelMigrationResetFenceRequest struct {
+	Guard        ChannelMigrationTaskGuard
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	Status       ChannelMigrationStatus
+	Phase        ChannelMigrationPhase
+	NowMS        int64
+	UpdatedAtMS  int64
+}
+
+// ChannelMigrationLeaderTransferRequest commits a fenced leader metadata change.
+type ChannelMigrationLeaderTransferRequest struct {
+	Guard           ChannelMigrationTaskGuard
+	RuntimeGuard    ChannelMigrationRuntimeGuard
+	Status          ChannelMigrationStatus
+	Phase           ChannelMigrationPhase
+	DesiredLeader   uint64
+	NextLeaderEpoch uint64
+	LeaseUntilMS    int64
+	NowMS           int64
+	UpdatedAtMS     int64
+}
+
+// ChannelMigrationAddLearnerRequest adds a learner replica.
+type ChannelMigrationAddLearnerRequest struct {
+	Guard        ChannelMigrationTaskGuard
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	Status       ChannelMigrationStatus
+	Phase        ChannelMigrationPhase
+	TargetNode   uint64
+	UpdatedAtMS  int64
+}
+
+// ChannelMigrationPromoteLearnerRequest promotes a learner and removes source.
+type ChannelMigrationPromoteLearnerRequest struct {
+	Guard        ChannelMigrationTaskGuard
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	Status       ChannelMigrationStatus
+	Phase        ChannelMigrationPhase
+	SourceNode   uint64
+	TargetNode   uint64
+	NowMS        int64
+	UpdatedAtMS  int64
+}
+
+// ChannelMigrationClearFenceRequest clears a matching write fence.
+type ChannelMigrationClearFenceRequest struct {
+	Guard         ChannelMigrationTaskGuard
+	RuntimeGuard  ChannelMigrationRuntimeGuard
+	Status        ChannelMigrationStatus
+	Phase         ChannelMigrationPhase
+	UpdatedAtMS   int64
+	CompletedAtMS int64
+}
+
+// ChannelMigrationAbortRequest marks a migration aborted.
+type ChannelMigrationAbortRequest struct {
+	Guard         ChannelMigrationTaskGuard
+	RuntimeGuard  ChannelMigrationRuntimeGuard
+	Status        ChannelMigrationStatus
+	Phase         ChannelMigrationPhase
+	UpdatedAtMS   int64
+	CompletedAtMS int64
+	LastError     string
+}
+
+// ChannelMigrationTaskGCRequest removes terminal tasks before a cutoff.
+type ChannelMigrationTaskGCRequest struct {
+	BeforeMS int64
+	Limit    int
+}
+
+// ChannelMigrationTaskGCPlan describes terminal task cleanup work.
+type ChannelMigrationTaskGCPlan struct {
+	TaskCount  int
+	EntryCount int
 }
 
 // ChannelMigrationTask is the authoritative durable state for one migration attempt.
 type ChannelMigrationTask struct {
-	TaskID                 string
-	Kind                   ChannelMigrationKind
-	Status                 ChannelMigrationStatus
-	Phase                  ChannelMigrationPhase
-	ChannelID              string
-	ChannelType            uint8
-	SourceNode             uint64
-	TargetNode             uint64
-	DesiredLeader          uint64
-	BaseChannelEpoch       uint64
-	BaseLeaderEpoch        uint64
-	FenceToken             string
-	FenceVersion           uint64
-	FenceUntilMS           int64
-	EmbeddedLeaderTransfer bool
-	EmbeddedDesiredLeader  uint64
-	OwnerNodeID            uint64
-	OwnerLeaseUntilMS      int64
-	Attempt                uint32
-	NextRunAtMS            int64
-	BlockerCode            string
-	BlockerMessage         string
-	LastError              string
-	CreatedAtMS            int64
-	UpdatedAtMS            int64
-	CompletedAtMS          int64
-	Progress               ChannelMigrationProgress
+	TaskID                   string
+	Kind                     ChannelMigrationKind
+	Status                   ChannelMigrationStatus
+	Phase                    ChannelMigrationPhase
+	ChannelID                string
+	ChannelType              int64
+	SourceNode               uint64
+	TargetNode               uint64
+	DesiredLeader            uint64
+	BaseChannelEpoch         uint64
+	BaseLeaderEpoch          uint64
+	FenceToken               string
+	FenceVersion             uint64
+	FenceUntilMS             int64
+	EmbeddedLeaderTransfer   bool
+	EmbeddedDesiredLeader    uint64
+	OwnerNodeID              uint64
+	OwnerLeaseUntilMS        int64
+	CutoverLEO               uint64
+	CutoverHW                uint64
+	DrainedLeaderNode        uint64
+	DrainedRuntimeGeneration uint64
+	DrainedChannelEpoch      uint64
+	DrainedLeaderEpoch       uint64
+	DrainedFenceVersion      uint64
+	Attempt                  uint32
+	NextRunAtMS              int64
+	BlockerCode              string
+	BlockerMessage           string
+	LastError                string
+	CreatedAtMS              int64
+	UpdatedAtMS              int64
+	CompletedAtMS            int64
+	Progress                 ChannelMigrationProgress
 }
 
 // IsActive reports whether the task still owns the active channel slot.
@@ -191,7 +304,7 @@ func (s *Shard) CreateChannelMigrationTask(ctx context.Context, task ChannelMigr
 }
 
 // GetChannelMigrationTask returns one migration task.
-func (s *Shard) GetChannelMigrationTask(ctx context.Context, channelID string, channelType uint8, taskID string) (ChannelMigrationTask, bool, error) {
+func (s *Shard) GetChannelMigrationTask(ctx context.Context, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return ChannelMigrationTask{}, false, err
 	}
@@ -203,7 +316,7 @@ func (s *Shard) GetChannelMigrationTask(ctx context.Context, channelID string, c
 }
 
 // GetActiveChannelMigrationTask returns the active task for a channel, if any.
-func (s *Shard) GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType uint8) (ChannelMigrationTask, bool, error) {
+func (s *Shard) GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType int64) (ChannelMigrationTask, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return ChannelMigrationTask{}, false, err
 	}
@@ -381,6 +494,15 @@ func (s *Shard) stageAdvanceChannelMigrationTask(ctx context.Context, batch *eng
 	task.UpdatedAtMS = req.UpdatedAtMS
 	task.CompletedAtMS = req.CompletedAtMS
 	task.Progress = req.Progress
+	if req.CutoverProof != (ChannelMigrationCutoverProof{}) {
+		task.CutoverLEO = req.CutoverProof.CutoverLEO
+		task.CutoverHW = req.CutoverProof.CutoverHW
+		task.DrainedLeaderNode = req.CutoverProof.DrainedLeaderNode
+		task.DrainedRuntimeGeneration = req.CutoverProof.DrainedRuntimeGeneration
+		task.DrainedChannelEpoch = req.CutoverProof.DrainedChannelEpoch
+		task.DrainedLeaderEpoch = req.CutoverProof.DrainedLeaderEpoch
+		task.DrainedFenceVersion = req.CutoverProof.DrainedFenceVersion
+	}
 	if req.EmbeddedDesiredLeader != 0 {
 		task.EmbeddedLeaderTransfer = true
 		task.EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
@@ -442,7 +564,7 @@ func (s *Shard) ensureChannelMigrationActiveAvailable(ctx context.Context, activ
 	return nil
 }
 
-func (s *Shard) getChannelMigrationTaskByKey(ctx context.Context, key []byte, channelID string, channelType uint8, taskID string) (ChannelMigrationTask, bool, error) {
+func (s *Shard) getChannelMigrationTaskByKey(ctx context.Context, key []byte, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return ChannelMigrationTask{}, false, err
@@ -518,7 +640,7 @@ func (guard ChannelMigrationRuntimeGuard) matches(meta ChannelRuntimeMeta) bool 
 		meta.Leader == guard.ExpectedLeader &&
 		meta.WriteFenceToken == guard.ExpectedFenceToken &&
 		meta.WriteFenceVersion == guard.ExpectedFenceVersion &&
-		meta.RouteGeneration == guard.ExpectedRouteGeneration
+		(guard.ExpectedRouteGeneration == 0 || meta.RouteGeneration == guard.ExpectedRouteGeneration)
 }
 
 func encodeChannelMigrationTaskValue(task ChannelMigrationTask) []byte {
@@ -529,7 +651,7 @@ func encodeChannelMigrationTaskValue(task ChannelMigrationTask) []byte {
 	return value
 }
 
-func decodeChannelMigrationTaskValue(channelID string, channelType uint8, taskID string, value []byte) (ChannelMigrationTask, error) {
+func decodeChannelMigrationTaskValue(channelID string, channelType int64, taskID string, value []byte) (ChannelMigrationTask, error) {
 	var task ChannelMigrationTask
 	if err := json.Unmarshal(value, &task); err != nil {
 		return ChannelMigrationTask{}, dberrors.ErrCorruptValue
@@ -540,7 +662,7 @@ func decodeChannelMigrationTaskValue(channelID string, channelType uint8, taskID
 	return task, nil
 }
 
-func decodeChannelMigrationTaskRowKey(prefix []byte, key []byte) (string, uint8, string, uint16, bool) {
+func decodeChannelMigrationTaskRowKey(prefix []byte, key []byte) (string, int64, string, uint16, bool) {
 	if !bytes.HasPrefix(key, prefix) {
 		return "", 0, "", 0, false
 	}
@@ -549,17 +671,17 @@ func decodeChannelMigrationTaskRowKey(prefix []byte, key []byte) (string, uint8,
 		return "", 0, "", 0, false
 	}
 	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 {
+	if err != nil {
 		return "", 0, "", 0, false
 	}
 	taskID, rest, err := keycodec.ReadString(rest)
 	if err != nil || len(rest) != 2 {
 		return "", 0, "", 0, false
 	}
-	return channelID, uint8(channelTypeValue), taskID, binary.BigEndian.Uint16(rest), true
+	return channelID, channelTypeValue, taskID, binary.BigEndian.Uint16(rest), true
 }
 
-func decodeChannelMigrationTerminalIndexKey(prefix []byte, key []byte) (int64, string, uint8, string, bool) {
+func decodeChannelMigrationTerminalIndexKey(prefix []byte, key []byte) (int64, string, int64, string, bool) {
 	if !bytes.HasPrefix(key, prefix) {
 		return 0, "", 0, "", false
 	}
@@ -572,12 +694,12 @@ func decodeChannelMigrationTerminalIndexKey(prefix []byte, key []byte) (int64, s
 		return 0, "", 0, "", false
 	}
 	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 {
+	if err != nil {
 		return 0, "", 0, "", false
 	}
 	taskID, rest, err := keycodec.ReadString(rest)
 	if err != nil || len(rest) != 0 {
 		return 0, "", 0, "", false
 	}
-	return completedAt, channelID, uint8(channelTypeValue), taskID, true
+	return completedAt, channelID, channelTypeValue, taskID, true
 }

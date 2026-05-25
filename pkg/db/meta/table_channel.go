@@ -13,7 +13,7 @@ import (
 // Channel stores durable channel flags and subscriber metadata version.
 type Channel struct {
 	ChannelID                 string
-	ChannelType               uint8
+	ChannelType               int64
 	Ban                       int64
 	Disband                   int64
 	SendBan                   int64
@@ -75,7 +75,7 @@ func (s *Shard) UpdateChannel(ctx context.Context, channel Channel) error {
 }
 
 // GetChannel returns one channel by ID and type.
-func (s *Shard) GetChannel(ctx context.Context, channelID string, channelType uint8) (Channel, bool, error) {
+func (s *Shard) GetChannel(ctx context.Context, channelID string, channelType int64) (Channel, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return Channel{}, false, err
 	}
@@ -99,7 +99,7 @@ func (s *Shard) GetChannel(ctx context.Context, channelID string, channelType ui
 }
 
 // DeleteChannel removes one channel and its channel-id index entry.
-func (s *Shard) DeleteChannel(ctx context.Context, channelID string, channelType uint8) error {
+func (s *Shard) DeleteChannel(ctx context.Context, channelID string, channelType int64) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func encodeChannelValue(channel Channel) []byte {
 	return value
 }
 
-func decodeChannelValue(channelID string, channelType uint8, value []byte) (Channel, error) {
+func decodeChannelValue(channelID string, channelType int64, value []byte) (Channel, error) {
 	ban, rest, err := readValueInt64(value)
 	if err != nil {
 		return Channel{}, err
@@ -232,7 +232,7 @@ func decodeChannelValue(channelID string, channelType uint8, value []byte) (Chan
 	}, nil
 }
 
-func decodeChannelIDIndexType(prefix []byte, key []byte) (uint8, bool) {
+func decodeChannelIDIndexType(prefix []byte, key []byte) (int64, bool) {
 	if !bytes.HasPrefix(key, prefix) {
 		return 0, false
 	}
@@ -242,5 +242,5 @@ func decodeChannelIDIndexType(prefix []byte, key []byte) (uint8, bool) {
 	}
 	ordered := binary.BigEndian.Uint64(rest)
 	value := int64(ordered ^ (uint64(1) << 63))
-	return uint8(value), true
+	return value, true
 }

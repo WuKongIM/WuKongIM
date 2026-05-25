@@ -20,7 +20,7 @@ type UserConversationState struct {
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// ReadSeq is the highest message sequence acknowledged by the user.
 	ReadSeq uint64
 	// DeletedToSeq is the highest message sequence hidden from future sync.
@@ -36,7 +36,7 @@ type ConversationKey struct {
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
-	ChannelType uint8
+	ChannelType int64
 }
 
 // ConversationCursor identifies the last emitted row in a conversation page.
@@ -44,7 +44,7 @@ type ConversationCursor struct {
 	// ChannelID is the last emitted channel ID.
 	ChannelID string
 	// ChannelType is the last emitted channel type.
-	ChannelType uint8
+	ChannelType int64
 }
 
 // UserConversationActivePatch advances a conversation active timestamp.
@@ -54,7 +54,7 @@ type UserConversationActivePatch struct {
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// ActiveAt is the candidate activity timestamp.
 	ActiveAt int64
 	// MessageSeq fences stale activity hints after a user delete barrier.
@@ -68,7 +68,7 @@ type UserConversationDelete struct {
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// DeletedToSeq is the highest sequence hidden by the delete.
 	DeletedToSeq uint64
 	// UpdatedAt records when the hide operation was requested.
@@ -76,7 +76,7 @@ type UserConversationDelete struct {
 }
 
 // GetUserConversationState returns one user conversation state row.
-func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID string, channelType uint8) (UserConversationState, bool, error) {
+func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return UserConversationState{}, false, err
 	}
@@ -338,7 +338,7 @@ func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, c
 	return states, nextCursor, !hasMore, nil
 }
 
-func (s *Shard) getUserConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType uint8) (UserConversationState, bool, error) {
+func (s *Shard) getUserConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType int64) (UserConversationState, bool, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return UserConversationState{}, false, err
@@ -443,7 +443,7 @@ func encodeConversationValue(readSeq, deletedToSeq uint64, activeAt, updatedAt i
 	return appendValueInt64(value, updatedAt)
 }
 
-func decodeUserConversationValue(uid, channelID string, channelType uint8, value []byte) (UserConversationState, error) {
+func decodeUserConversationValue(uid, channelID string, channelType int64, value []byte) (UserConversationState, error) {
 	readSeq, deletedToSeq, activeAt, updatedAt, err := decodeConversationValue(value)
 	if err != nil {
 		return UserConversationState{}, err
@@ -482,7 +482,7 @@ func decodeConversationValue(value []byte) (uint64, uint64, int64, int64, error)
 	return readSeq, deletedToSeq, activeAt, updatedAt, nil
 }
 
-func decodeConversationRowKey(prefix []byte, key []byte) (string, uint8, uint16, bool) {
+func decodeConversationRowKey(prefix []byte, key []byte) (string, int64, uint16, bool) {
 	if !bytes.HasPrefix(key, prefix) {
 		return "", 0, 0, false
 	}
@@ -494,7 +494,7 @@ func decodeConversationRowKey(prefix []byte, key []byte) (string, uint8, uint16,
 	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 2 {
 		return "", 0, 0, false
 	}
-	return channelID, uint8(channelTypeValue), binary.BigEndian.Uint16(rest), true
+	return channelID, channelTypeValue, binary.BigEndian.Uint16(rest), true
 }
 
 func decodeConversationActiveIndexKey(prefix []byte, key []byte) (int64, ConversationKey, error) {
@@ -513,7 +513,7 @@ func decodeConversationActiveIndexKey(prefix []byte, key []byte) (int64, Convers
 	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 0 {
 		return 0, ConversationKey{}, dberrors.ErrCorruptValue
 	}
-	return activeAt, ConversationKey{ChannelID: channelID, ChannelType: uint8(channelTypeValue)}, nil
+	return activeAt, ConversationKey{ChannelID: channelID, ChannelType: channelTypeValue}, nil
 }
 
 func readKeyInt64Ordered(src []byte) (int64, []byte, error) {

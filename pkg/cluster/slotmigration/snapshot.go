@@ -3,7 +3,7 @@ package slotmigration
 import (
 	"context"
 
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func ExportHashSlot(db *metadb.DB, hashSlot uint16) (*metadb.SlotSnapshot, error) {

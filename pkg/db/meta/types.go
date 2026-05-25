@@ -1,14 +1,14 @@
 package meta
 
 // HashSlot identifies one metadata hash-slot partition.
-type HashSlot uint16
+type HashSlot = uint16
 
 // ChannelID identifies a channel in metadata rows and indexes.
 type ChannelID struct {
 	// ID is the channel identifier.
 	ID string
 	// Type is the channel type.
-	Type uint8
+	Type int64
 }
 
 const (

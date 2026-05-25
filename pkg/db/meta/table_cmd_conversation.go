@@ -16,7 +16,7 @@ type CMDConversationState struct {
 	// ChannelID identifies the durable command channel.
 	ChannelID string
 	// ChannelType identifies the command channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// ReadSeq is the highest command message sequence acknowledged by the user.
 	ReadSeq uint64
 	// DeletedToSeq is the highest command sequence hidden from future sync.
@@ -34,7 +34,7 @@ type CMDConversationReadPatch struct {
 	// ChannelID identifies the durable command channel.
 	ChannelID string
 	// ChannelType identifies the command channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// ReadSeq is the candidate acknowledged command sequence.
 	ReadSeq uint64
 	// UpdatedAt records when the read cursor advance was requested.
@@ -42,7 +42,7 @@ type CMDConversationReadPatch struct {
 }
 
 // GetCMDConversationState returns one command conversation state row.
-func (s *Shard) GetCMDConversationState(ctx context.Context, uid, channelID string, channelType uint8) (CMDConversationState, bool, error) {
+func (s *Shard) GetCMDConversationState(ctx context.Context, uid, channelID string, channelType int64) (CMDConversationState, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return CMDConversationState{}, false, err
 	}
@@ -159,7 +159,7 @@ func (s *Shard) ListCMDConversationActive(ctx context.Context, uid string, limit
 	return states, nil
 }
 
-func (s *Shard) getCMDConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType uint8) (CMDConversationState, bool, error) {
+func (s *Shard) getCMDConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType int64) (CMDConversationState, bool, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return CMDConversationState{}, false, err
@@ -226,7 +226,7 @@ func mergeCMDConversationState(existing, next CMDConversationState) CMDConversat
 	return next
 }
 
-func decodeCMDConversationValue(uid, channelID string, channelType uint8, value []byte) (CMDConversationState, error) {
+func decodeCMDConversationValue(uid, channelID string, channelType int64, value []byte) (CMDConversationState, error) {
 	readSeq, deletedToSeq, activeAt, updatedAt, err := decodeConversationValue(value)
 	if err != nil {
 		return CMDConversationState{}, err
