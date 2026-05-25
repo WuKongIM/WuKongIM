@@ -9,6 +9,15 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
+// GetBySeq returns one message by its durable channel sequence.
+func (l *ChannelLog) GetBySeq(ctx context.Context, seq uint64) (Message, bool, error) {
+	row, ok, err := l.getRowBySeq(ctx, seq)
+	if err != nil || !ok {
+		return Message{}, ok, err
+	}
+	return messageFromRow(row), true, nil
+}
+
 // Read returns messages in ascending sequence order starting at fromSeq.
 func (l *ChannelLog) Read(ctx context.Context, fromSeq uint64, opts ReadOptions) ([]Message, error) {
 	if fromSeq == 0 {
@@ -76,6 +85,9 @@ func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uin
 		if !haveHeader || !havePayload {
 			return false, fmt.Errorf("%w: incomplete message row at seq %d", dberrors.ErrCorruptState, currentSeq)
 		}
+		if err := validateMaterializedMessageRow(current); err != nil {
+			return false, err
+		}
 		msg := messageFromRow(current)
 		var stop bool
 		messages, totalBytes, stop = appendReadMessage(messages, totalBytes, msg, opts)
@@ -141,6 +153,45 @@ func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uin
 	return messages, nil
 }
 
+func (l *ChannelLog) getRowBySeq(ctx context.Context, seq uint64) (messageRow, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return messageRow{}, false, err
+	}
+	if l == nil || l.db == nil || l.db.engine == nil {
+		return messageRow{}, false, dberrors.ErrClosed
+	}
+	if seq == 0 {
+		return messageRow{}, false, dberrors.ErrInvalidArgument
+	}
+	headerKey := encodeMessageRowKey(l.key, seq, messageHeaderFamilyID)
+	headerValue, okHeader, err := l.db.engine.Get(headerKey)
+	if err != nil {
+		return messageRow{}, false, err
+	}
+	payloadKey := encodeMessageRowKey(l.key, seq, messagePayloadFamilyID)
+	payloadValue, okPayload, err := l.db.engine.Get(payloadKey)
+	if err != nil {
+		return messageRow{}, false, err
+	}
+	if !okHeader && !okPayload {
+		return messageRow{}, false, nil
+	}
+	if !okHeader || !okPayload {
+		return messageRow{}, false, fmt.Errorf("%w: incomplete message row at seq %d", dberrors.ErrCorruptState, seq)
+	}
+	row := messageRow{MessageSeq: seq}
+	if err := decodeMessageHeader(headerKey, headerValue, &row); err != nil {
+		return messageRow{}, false, err
+	}
+	if err := decodeMessagePayload(payloadKey, payloadValue, &row); err != nil {
+		return messageRow{}, false, err
+	}
+	if err := validateMaterializedMessageRow(row); err != nil {
+		return messageRow{}, false, err
+	}
+	return row, true, nil
+}
+
 func appendReadMessage(messages []Message, totalBytes int, msg Message, opts ReadOptions) ([]Message, int, bool) {
 	payloadBytes := len(msg.Payload)
 	if opts.MaxBytes > 0 && len(messages) > 0 && totalBytes+payloadBytes > opts.MaxBytes {
@@ -156,10 +207,23 @@ func appendReadMessage(messages []Message, totalBytes int, msg Message, opts Rea
 
 func messageFromRow(row messageRow) Message {
 	return Message{
-		MessageSeq: row.MessageSeq,
-		MessageID:  row.MessageID,
-		Payload:    append([]byte(nil), row.Payload...),
+		MessageSeq:  row.MessageSeq,
+		MessageID:   row.MessageID,
+		ClientMsgNo: row.ClientMsgNo,
+		FromUID:     row.FromUID,
+		PayloadHash: row.PayloadHash,
+		Payload:     append([]byte(nil), row.Payload...),
 	}
+}
+
+func validateMaterializedMessageRow(row messageRow) error {
+	if row.MessageID == 0 {
+		return dberrors.ErrCorruptValue
+	}
+	if row.PayloadHash != hashPayload(row.Payload) {
+		return fmt.Errorf("%w: payload hash mismatch at seq %d", dberrors.ErrCorruptState, row.MessageSeq)
+	}
+	return nil
 }
 
 func boundedCapacity(defaultCapacity int, limit int) int {

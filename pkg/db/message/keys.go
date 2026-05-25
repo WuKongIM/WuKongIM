@@ -52,6 +52,39 @@ func encodeMessageIndexPrefix(channelKey ChannelKey, indexID uint16) []byte {
 		Key()
 }
 
+func encodeMessageIDIndexKey(channelKey ChannelKey, messageID uint64) []byte {
+	key := encodeMessageIndexPrefix(channelKey, messageIndexIDMessageID)
+	return keycodec.AppendUint64(key, messageID)
+}
+
+func encodeMessageClientMsgNoIndexPrefix(channelKey ChannelKey, clientMsgNo string) []byte {
+	key := encodeMessageIndexPrefix(channelKey, messageIndexIDClientMsgNo)
+	return keycodec.AppendString(key, clientMsgNo)
+}
+
+func encodeMessageClientMsgNoIndexKey(channelKey ChannelKey, clientMsgNo string, seq uint64) []byte {
+	key := encodeMessageClientMsgNoIndexPrefix(channelKey, clientMsgNo)
+	return keycodec.AppendUint64(key, seq)
+}
+
+func decodeMessageClientMsgNoIndexSeq(channelKey ChannelKey, clientMsgNo string, key []byte) (uint64, bool) {
+	prefix := encodeMessageClientMsgNoIndexPrefix(channelKey, clientMsgNo)
+	if !bytes.HasPrefix(key, prefix) {
+		return 0, false
+	}
+	rest := key[len(prefix):]
+	if len(rest) != 8 {
+		return 0, false
+	}
+	return binary.BigEndian.Uint64(rest), true
+}
+
+func encodeMessageIdempotencyIndexKey(channelKey ChannelKey, fromUID string, clientMsgNo string) []byte {
+	key := encodeMessageIndexPrefix(channelKey, messageIndexIDFromUIDClientMsgNo)
+	key = keycodec.AppendString(key, fromUID)
+	return keycodec.AppendString(key, clientMsgNo)
+}
+
 func encodeMessageSystemPrefix(channelKey ChannelKey, systemID uint16) []byte {
 	var builder keycodec.Builder
 	return builder.Reset().
