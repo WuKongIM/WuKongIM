@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	etcdraft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -58,6 +59,9 @@ type Service struct {
 	statusMu sync.RWMutex
 	status   Status
 	leaderID atomic.Uint64
+
+	snapshotMu   sync.Mutex
+	lastSnapshot time.Time
 }
 
 type proposalRequest struct {
@@ -309,6 +313,7 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 		tracker.complete(index, err)
 	}
 	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
+	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
 	scheduler.start(context.Background())
 	defer scheduler.stop()
 
@@ -451,6 +456,19 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 		return runStartupState{}, err
 	}
 	stateSnap := s.cfg.StateMachine.Snapshot(ctx)
+	if stateSnap.Revision == 0 && !etcdraft.IsEmptySnap(snap) && len(snap.Data) > 0 {
+		restored, err := state.Decode(snap.Data)
+		if err != nil {
+			return runStartupState{}, err
+		}
+		if restored.AppliedRaftIndex == 0 || restored.AppliedRaftIndex < snap.Metadata.Index {
+			restored.AppliedRaftIndex = snap.Metadata.Index
+		}
+		if err := s.cfg.StateMachine.Restore(ctx, restored); err != nil {
+			return runStartupState{}, err
+		}
+		stateSnap = s.cfg.StateMachine.Snapshot(ctx)
+	}
 	if stateSnap.Revision != 0 {
 		if stateSnap.AppliedRaftIndex > hs.Commit {
 			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", stateSnap.AppliedRaftIndex, hs.Commit)
@@ -474,6 +492,51 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 		}
 	}
 	return runStartupState{HardState: hs, ConfState: cs, Snapshot: snap, LastIndex: last, AppliedIndex: store.AppliedIndex()}, nil
+}
+
+func (s *Service) maybeSnapshot(ctx context.Context, store *raftstore.Store, applied uint64) error {
+	if s.cfg.SnapshotCount == 0 || applied < s.cfg.SnapshotCount {
+		return nil
+	}
+	snap, err := store.Snapshot()
+	if err != nil {
+		return err
+	}
+	if applied < snap.Metadata.Index+s.cfg.SnapshotCount {
+		return nil
+	}
+	now := time.Now()
+	s.snapshotMu.Lock()
+	if !s.lastSnapshot.IsZero() && now.Sub(s.lastSnapshot) < s.cfg.SnapshotMinInterval {
+		s.snapshotMu.Unlock()
+		return nil
+	}
+	s.lastSnapshot = now
+	s.snapshotMu.Unlock()
+
+	st := s.cfg.StateMachine.Snapshot(ctx)
+	if st.Revision == 0 {
+		return nil
+	}
+	data, err := state.Encode(st)
+	if err != nil {
+		return err
+	}
+	term, err := store.Term(applied)
+	if err != nil {
+		term = s.Status().Term
+	}
+	_, conf, err := store.InitialState()
+	if err != nil {
+		return err
+	}
+	if err := store.SaveSnapshot(ctx, raftpb.Snapshot{Data: data, Metadata: raftpb.SnapshotMetadata{Index: applied, Term: term, ConfState: conf}}); err != nil {
+		return err
+	}
+	if applied > s.cfg.SnapshotCatchUpEntries {
+		return store.Compact(ctx, applied-s.cfg.SnapshotCatchUpEntries)
+	}
+	return nil
 }
 
 func (s *Service) sendReadyMessages(messages []raftpb.Message) {

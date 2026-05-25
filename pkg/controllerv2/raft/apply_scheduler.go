@@ -44,10 +44,11 @@ type confChangeResult struct {
 }
 
 type applyScheduler struct {
-	cfg      applySchedulerConfig
-	applier  batchApplier
-	marker   appliedMarker
-	complete applyCompletion
+	cfg       applySchedulerConfig
+	applier   batchApplier
+	marker    appliedMarker
+	complete  applyCompletion
+	onApplied func(context.Context, uint64) error
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -121,6 +122,9 @@ func (s *applyScheduler) applyJob(ctx context.Context, job toApply) error {
 		if err := s.marker.MarkAppliedBatch(ctx, job.snapshot.Metadata.Index); err != nil {
 			return err
 		}
+		if err := s.notifyApplied(ctx, job.snapshot.Metadata.Index); err != nil {
+			return err
+		}
 	}
 	return s.applyEntries(ctx, job.entries, job.confChangeC)
 }
@@ -142,6 +146,9 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 		}
 		last := indexes[len(indexes)-1]
 		if err := s.marker.MarkAppliedBatch(ctx, last); err != nil {
+			return err
+		}
+		if err := s.notifyApplied(ctx, last); err != nil {
 			return err
 		}
 		for i, applyResult := range result.Results {
@@ -170,6 +177,9 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 					return err
 				}
 				if err := s.marker.MarkAppliedBatch(ctx, entry.Index); err != nil {
+					return err
+				}
+				if err := s.notifyApplied(ctx, entry.Index); err != nil {
 					return err
 				}
 				if s.complete != nil {
@@ -212,9 +222,19 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 			if err := s.marker.MarkAppliedBatch(ctx, entry.Index); err != nil {
 				return err
 			}
+			if err := s.notifyApplied(ctx, entry.Index); err != nil {
+				return err
+			}
 		}
 	}
 	return flush()
+}
+
+func (s *applyScheduler) notifyApplied(ctx context.Context, index uint64) error {
+	if s.onApplied == nil || index == 0 {
+		return nil
+	}
+	return s.onApplied(ctx, index)
 }
 
 func (s *applyScheduler) setError(err error) {
