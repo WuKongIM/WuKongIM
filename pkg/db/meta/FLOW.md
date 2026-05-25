@@ -35,6 +35,16 @@ Current flow:
 13. Channel migration tasks keep primary rows, one active-task index per
    channel, and terminal indexes in sync; guarded batch creates can fence on
    runtime metadata.
-14. Later tasks add snapshots and richer migration side-effect operations.
+14. Hash-slot snapshots export row, index, and system spans for selected hash
+    slots into a checksummed payload; imports validate the payload, lock slots
+    in sorted order, replace existing spans, write entries in one sync commit,
+    and clear the channel cache.
+15. Preserving snapshot imports keep local hash-slot migration rows when they
+    already exist, while still importing incoming migration rows that are not
+    present locally.
+16. `DeleteHashSlotData` removes all row, index, and system spans for one hash
+    slot and clears the channel cache.
+17. Later tasks add richer migration side-effect operations and migrate legacy
+    callers onto this package.
 
 Storage code in this package must not import Pebble directly.

@@ -11,21 +11,21 @@ type testMetaStore struct {
 	db     *MetaDB
 }
 
-func openTestMetaStore(t *testing.T) *testMetaStore {
-	t.Helper()
-	eng, err := engine.Open(t.TempDir(), engine.Options{})
+func openTestMetaStore(tb testing.TB) *testMetaStore {
+	tb.Helper()
+	eng, err := engine.Open(tb.TempDir(), engine.Options{})
 	if err != nil {
-		t.Fatalf("engine.Open(): %v", err)
+		tb.Fatalf("engine.Open(): %v", err)
 	}
 	return &testMetaStore{engine: eng, db: NewDB(eng)}
 }
 
-func (s *testMetaStore) close(t *testing.T) {
-	t.Helper()
+func (s *testMetaStore) close(tb testing.TB) {
+	tb.Helper()
 	if s == nil || s.engine == nil {
 		return
 	}
 	if err := s.engine.Close(); err != nil {
-		t.Fatalf("engine.Close(): %v", err)
+		tb.Fatalf("engine.Close(): %v", err)
 	}
 }
