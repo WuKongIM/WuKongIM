@@ -1268,12 +1268,12 @@ If there are code changes in this task, use a `feat` or `test` commit message in
 
 ## Final Acceptance Checklist
 
-- [ ] `go test ./pkg/clusterv2/... -count=1` passes.
-- [ ] `go test ./pkg/controllerv2/... ./pkg/slot/... ./pkg/channelv2/... ./pkg/transport/... -count=1` passes or any skipped package is documented with reason.
-- [ ] `TestClusterV2ThreeNodeSlotPropose` passes.
-- [ ] `TestClusterV2ThreeNodeChannelAppendQuorum` passes.
-- [ ] `BenchmarkRouteKey` and focused benchmarks run without panic.
-- [ ] `pkg/clusterv2/FLOW.md` matches implemented behavior.
-- [ ] `AGENTS.md` includes `pkg/clusterv2` directory structure.
-- [ ] No old `pkg/cluster` code is modified.
-- [ ] No unrelated dirty file, especially `pkg/channelv2/FLOW.md`, is committed by accident.
+- [x] `GOWORK=off go test ./pkg/clusterv2/... -count=1` passes.
+- [x] `GOWORK=off go test ./pkg/controllerv2/... ./pkg/slot/... ./pkg/channelv2/... ./pkg/transport/... -count=1` passes.
+- [x] `TestClusterV2ThreeNodeSlotPropose` passes.
+- [x] `TestClusterV2ThreeNodeChannelAppendQuorum` passes.
+- [x] `BenchmarkRouteKey` and focused benchmarks run without panic.
+- [x] `pkg/clusterv2/FLOW.md` matches implemented behavior.
+- [x] `AGENTS.md` includes `pkg/clusterv2` directory structure.
+- [x] No old `pkg/cluster` code is modified.
+- [x] No unrelated dirty file, especially `pkg/channelv2/FLOW.md`, is committed by accident.
