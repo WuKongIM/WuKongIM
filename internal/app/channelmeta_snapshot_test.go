@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/stretchr/testify/require"
 )
 

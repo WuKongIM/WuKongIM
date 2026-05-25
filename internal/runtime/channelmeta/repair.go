@@ -10,10 +10,10 @@ import (
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"golang.org/x/sync/singleflight"
 )
 

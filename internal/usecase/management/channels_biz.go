@@ -10,8 +10,8 @@ import (
 
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

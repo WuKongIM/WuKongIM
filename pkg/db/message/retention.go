@@ -146,6 +146,9 @@ func decodeRetentionState(value []byte) (RetentionState, error) {
 }
 
 func validateRetentionState(state RetentionState) error {
+	if state.LocalRetentionThroughSeq == 0 && state.RetainedMaxSeq > 0 {
+		return dberrors.ErrCorruptValue
+	}
 	if state.PhysicalRetentionThroughSeq > state.LocalRetentionThroughSeq {
 		return dberrors.ErrCorruptValue
 	}

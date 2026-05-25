@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	slotmeta "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

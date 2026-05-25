@@ -98,6 +98,11 @@ func encodeRetentionStateKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDRetention)
 }
 
+func encodeCommittedCursorKey(channelKey ChannelKey, name string) []byte {
+	key := encodeMessageSystemPrefix(channelKey, messageSystemIDCursor)
+	return keycodec.AppendString(key, name)
+}
+
 func encodeCheckpointKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDCheckpoint)
 }

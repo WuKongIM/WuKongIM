@@ -15,7 +15,7 @@ import (
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 func BenchmarkClusterAppend(b *testing.B) {

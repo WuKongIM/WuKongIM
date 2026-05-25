@@ -45,8 +45,8 @@ Current flow:
     present locally.
 16. `DeleteHashSlotData` removes all row, index, and system spans for one hash
     slot and clears the channel cache.
-17. Slot FSM, proxy, and cluster callers use this package through the
-    compatibility `DB`, `ShardStore`, and `WriteBatch` surface while the typed
-    `MetaDB`/`Shard` APIs remain the new storage core.
+17. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
+    package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
+    surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
 
 Storage code in this package must not import Pebble directly.
