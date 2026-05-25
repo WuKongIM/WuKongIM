@@ -1,21 +1,36 @@
 package db
 
-import "sync/atomic"
+import (
+	"errors"
+	"sync/atomic"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+)
 
 // NodeStore is the root handle for node-local storage domains.
 type NodeStore struct {
-	closed atomic.Bool
-	opts   NodeStoreOptions
+	closed  atomic.Bool
+	opts    NodeStoreOptions
+	message *engine.DB
+	meta    *engine.DB
 }
 
-// OpenNodeStore validates options and returns a placeholder root store.
-// Pebble engines are wired in a later implementation task.
+// OpenNodeStore opens the physical message and metadata stores.
 func OpenNodeStore(opts NodeStoreOptions) (*NodeStore, error) {
 	opts = normalizeNodeStoreOptions(opts)
 	if opts.MessagePath == "" || opts.MetaPath == "" {
 		return nil, ErrInvalidArgument
 	}
-	return &NodeStore{opts: opts}, nil
+	message, err := engine.Open(opts.MessagePath, engine.Options{})
+	if err != nil {
+		return nil, err
+	}
+	meta, err := engine.Open(opts.MetaPath, engine.Options{})
+	if err != nil {
+		_ = message.Close()
+		return nil, err
+	}
+	return &NodeStore{opts: opts, message: message, meta: meta}, nil
 }
 
 // Options returns the normalized store options.
@@ -26,13 +41,12 @@ func (s *NodeStore) Options() NodeStoreOptions {
 	return s.opts
 }
 
-// Close marks the root store closed. Engine shutdown is added later.
+// Close closes the physical stores.
 func (s *NodeStore) Close() error {
-	if s == nil {
+	if s == nil || s.closed.Swap(true) {
 		return nil
 	}
-	s.closed.Store(true)
-	return nil
+	return errors.Join(s.message.Close(), s.meta.Close())
 }
 
 // Closed reports whether Close has been called.
