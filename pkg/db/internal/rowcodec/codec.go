@@ -106,10 +106,15 @@ func (w *Writer) begin(columnID uint16, typ Type) error {
 		return fmt.Errorf("%w: column ids must be ascending", dberrors.ErrInvalidArgument)
 	}
 	delta := columnID - w.last
-	if delta == 0 || delta > 15 {
-		return fmt.Errorf("%w: unsupported column delta %d", dberrors.ErrInvalidArgument, delta)
+	if delta == 0 {
+		return fmt.Errorf("%w: zero column delta", dberrors.ErrInvalidArgument)
 	}
-	w.buf = append(w.buf, byte(delta<<4)|byte(typ))
+	if delta <= 15 {
+		w.buf = append(w.buf, byte(delta<<4)|byte(typ))
+	} else {
+		w.buf = append(w.buf, byte(typ))
+		w.buf = appendUvarint(w.buf, uint64(delta))
+	}
 	w.last = columnID
 	return nil
 }
@@ -149,12 +154,17 @@ func (s *Scanner) Next() bool {
 	tag := s.data[0]
 	s.data = s.data[1:]
 	delta := uint16(tag >> 4)
+	s.typ = Type(tag & 0x0f)
 	if delta == 0 {
-		s.err = fmt.Errorf("%w: zero column delta", dberrors.ErrCorruptValue)
-		return false
+		extended, rest, ok := readUvarint(s.data)
+		if !ok || extended == 0 || extended > uint64(^uint16(0)) {
+			s.err = fmt.Errorf("%w: invalid extended column delta", dberrors.ErrCorruptValue)
+			return false
+		}
+		delta = uint16(extended)
+		s.data = rest
 	}
 	s.columnID += delta
-	s.typ = Type(tag & 0x0f)
 
 	s.ok = s.readValue()
 	return s.ok
