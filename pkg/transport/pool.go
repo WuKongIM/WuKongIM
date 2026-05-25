@@ -71,6 +71,8 @@ func NewPool(args ...any) *Pool {
 }
 
 func (p *Pool) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte) error {
+	// gofail: var wkTransportSendFault string
+	// return errors.New(wkTransportSendFault)
 	mc, err := p.acquire(context.Background(), nodeID, shardKey)
 	if err != nil {
 		p.observeEnqueue(nodeID, p.cfg.DefaultPri, err)
@@ -82,6 +84,8 @@ func (p *Pool) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte) 
 }
 
 func (p *Pool) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload []byte) ([]byte, error) {
+	// gofail: var wkTransportRPCFault string
+	// return nil, errors.New(wkTransportRPCFault)
 	if ctx == nil {
 		ctx = context.Background()
 	}
