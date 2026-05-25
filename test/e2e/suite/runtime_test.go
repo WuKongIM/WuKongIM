@@ -137,6 +137,20 @@ func TestStartThreeNodeClusterAppliesNodeConfigOverrides(t *testing.T) {
 	require.Contains(t, string(cfg), "WK_LOG_LEVEL=debug")
 }
 
+func TestStartThreeNodeClusterAppliesNodeEnvOverrides(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
+
+	suite := New(t)
+	cluster := suite.StartThreeNodeCluster(
+		WithNodeEnv(1, "GOFAIL_HTTP=127.0.0.1:12001"),
+		WithNodeEnv(2, "GOFAIL_HTTP=127.0.0.1:12002", `GOFAIL_FAILPOINTS=wkTransportSendFault=sleep("10ms")`),
+	)
+
+	require.Equal(t, []string{"GOFAIL_HTTP=127.0.0.1:12001"}, cluster.MustNode(1).Spec.Env)
+	require.Equal(t, []string{"GOFAIL_HTTP=127.0.0.1:12002", `GOFAIL_FAILPOINTS=wkTransportSendFault=sleep("10ms")`}, cluster.MustNode(2).Spec.Env)
+	require.Empty(t, cluster.MustNode(3).Spec.Env)
+}
+
 func TestStartDynamicJoinNodeWritesSeedJoinConfigAndAppendsToCluster(t *testing.T) {
 	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 

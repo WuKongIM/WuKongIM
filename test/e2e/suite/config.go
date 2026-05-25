@@ -25,6 +25,8 @@ type NodeSpec struct {
 	LogDir      string
 	// ConfigOverrides appends or replaces rendered WK_* config keys for one node.
 	ConfigOverrides map[string]string
+	// Env appends process environment variables for this node after the parent process environment.
+	Env []string
 }
 
 // RenderSingleNodeConfig renders a real wukongim.conf file for one-node clusters.
