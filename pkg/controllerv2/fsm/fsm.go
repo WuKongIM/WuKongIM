@@ -9,7 +9,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
 )
 
 const (
@@ -53,16 +52,40 @@ type ApplyResult struct {
 	AppliedRaftIndex uint64
 }
 
+// AppliedCommand binds a decoded ControllerV2 command to its committed Raft position.
+type AppliedCommand struct {
+	// Index is the committed Raft log index for Command.
+	Index uint64
+	// Term is the committed Raft term for Command.
+	Term uint64
+	// Command is the deterministic ControllerV2 mutation to apply.
+	Command command.Command
+}
+
+// BatchApplyResult describes the deterministic outcome of applying a command batch.
+type BatchApplyResult struct {
+	// Results contains one result per input command in the same order.
+	Results []ApplyResult
+	// FinalState is the state published after durable save, or the current state when no state exists yet.
+	FinalState state.ClusterState
+}
+
+// Store persists and loads ControllerV2 cluster state snapshots.
+type Store interface {
+	Load(context.Context) (state.ClusterState, error)
+	Save(context.Context, state.ClusterState) error
+}
+
 // StateMachine applies committed ControllerV2 commands to a durable state file.
 type StateMachine struct {
 	mu       sync.Mutex
-	store    *statefile.Store
+	store    Store
 	state    state.ClusterState
 	degraded bool
 }
 
 // New creates a state machine backed by store.
-func New(store *statefile.Store) (*StateMachine, error) {
+func New(store Store) (*StateMachine, error) {
 	if store == nil {
 		return nil, fmt.Errorf("controllerv2/fsm: store is required")
 	}
@@ -102,6 +125,28 @@ func (sm *StateMachine) Reset() {
 	sm.degraded = false
 }
 
+// Restore saves and publishes a recovered ControllerV2 state snapshot.
+func (sm *StateMachine) Restore(ctx context.Context, st state.ClusterState) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	next := st.Clone()
+	if next.Revision != 0 {
+		checksum, err := state.Checksum(next)
+		if err != nil {
+			sm.degraded = true
+			return err
+		}
+		next.Checksum = checksum
+		if err := sm.store.Save(ctx, next); err != nil {
+			sm.degraded = true
+			return err
+		}
+	}
+	sm.state = next.Clone()
+	sm.degraded = false
+	return nil
+}
+
 // Snapshot returns a deep copy of the latest published state.
 func (sm *StateMachine) Snapshot(ctx context.Context) state.ClusterState {
 	_ = ctx
@@ -119,42 +164,70 @@ func (sm *StateMachine) IsDegraded() bool {
 
 // Apply applies one committed Raft command and saves the resulting state before publishing it.
 func (sm *StateMachine) Apply(ctx context.Context, raftIndex uint64, cmd command.Command) (ApplyResult, error) {
+	result, err := sm.ApplyBatch(ctx, []AppliedCommand{{Index: raftIndex, Command: cmd}})
+	if err != nil {
+		if len(result.Results) > 0 {
+			return result.Results[0], err
+		}
+		return ApplyResult{}, err
+	}
+	if len(result.Results) == 0 {
+		return ApplyResult{}, nil
+	}
+	return result.Results[0], nil
+}
+
+// ApplyBatch applies committed Raft commands and saves the final state once before publishing it.
+func (sm *StateMachine) ApplyBatch(ctx context.Context, entries []AppliedCommand) (BatchApplyResult, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	current := sm.state.Clone()
-	if current.Revision != 0 && raftIndex <= current.AppliedRaftIndex {
-		return ApplyResult{Noop: true, Reason: ReasonAlreadyApplied, Revision: current.Revision, AppliedRaftIndex: current.AppliedRaftIndex}, nil
-	}
-
 	next := current.Clone()
-	result := sm.applyMutation(&next, raftIndex, cmd)
-	if next.Revision != 0 && raftIndex > current.AppliedRaftIndex {
-		next.AppliedRaftIndex = raftIndex
+	out := BatchApplyResult{Results: make([]ApplyResult, 0, len(entries))}
+
+	for _, entry := range entries {
+		if current.Revision != 0 && entry.Index <= next.AppliedRaftIndex {
+			out.Results = append(out.Results, ApplyResult{
+				Noop:             true,
+				Reason:           ReasonAlreadyApplied,
+				Revision:         next.Revision,
+				AppliedRaftIndex: next.AppliedRaftIndex,
+			})
+			continue
+		}
+
+		result := sm.applyMutation(&next, entry.Index, entry.Command)
+		if next.Revision != 0 && entry.Index > next.AppliedRaftIndex {
+			next.AppliedRaftIndex = entry.Index
+		}
+		result.Revision = next.Revision
+		result.AppliedRaftIndex = next.AppliedRaftIndex
+		if next.Revision == 0 && result.Rejected {
+			// Before init there is no valid state file to persist; still report the
+			// committed index for deterministic semantic rejects so callers can mark
+			// the Raft entry handled without publishing an invalid cluster state.
+			result.AppliedRaftIndex = entry.Index
+		}
+		out.Results = append(out.Results, result)
 	}
-	result.Revision = next.Revision
-	result.AppliedRaftIndex = next.AppliedRaftIndex
 
 	if next.Revision == 0 {
-		// Before init there is no valid state file to persist; still report the
-		// committed index for deterministic semantic rejects so callers can mark
-		// the Raft entry handled without publishing an invalid cluster state.
-		if result.Rejected {
-			result.AppliedRaftIndex = raftIndex
-		}
-		return result, nil
+		out.FinalState = next.Clone()
+		return out, nil
 	}
 	checksum, err := state.Checksum(next)
 	if err != nil {
 		sm.degraded = true
-		return result, err
+		return out, err
 	}
 	next.Checksum = checksum
 	if err := sm.store.Save(ctx, next); err != nil {
 		sm.degraded = true
-		return result, err
+		return out, err
 	}
 	sm.state = next.Clone()
 	sm.degraded = false
-	return result, nil
+	out.FinalState = sm.state.Clone()
+	return out, nil
 }

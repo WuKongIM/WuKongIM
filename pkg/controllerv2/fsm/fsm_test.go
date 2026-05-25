@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -15,6 +16,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
 	"github.com/stretchr/testify/require"
 )
+
+type countingStore struct {
+	*statefile.Store
+	saves atomic.Int32
+}
+
+func (s *countingStore) Save(ctx context.Context, st state.ClusterState) error {
+	s.saves.Add(1)
+	return s.Store.Save(ctx, st)
+}
 
 func TestApplyInitClusterStateCreatesRevisionAndHashSlots(t *testing.T) {
 	ctx := context.Background()
@@ -53,6 +64,41 @@ func TestApplyUpsertNodeNoopDoesNotIncrementRevisionButAdvancesAppliedIndex(t *t
 	persisted, err := store.Load(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
+}
+
+func TestApplyBatchPersistsOnceAndReturnsPerEntryResults(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store := &countingStore{Store: statefile.New(filepath.Join(dir, "cluster-state.json"))}
+	sm, err := New(store)
+	require.NoError(t, err)
+
+	init := initCommand()
+	node := baseNodes()[0]
+	node.Name = "node-1-batched"
+	expected := uint64(1)
+
+	result, err := sm.ApplyBatch(ctx, []AppliedCommand{
+		{Index: 10, Term: 1, Command: init},
+		{Index: 11, Term: 1, Command: command.Command{Kind: command.KindUpsertNode, ExpectedRevision: &expected, Node: &node}},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Results, 2)
+	require.Equal(t, uint64(1), result.Results[0].Revision)
+	require.Equal(t, uint64(2), result.Results[1].Revision)
+	require.Equal(t, int32(1), store.saves.Load())
+
+	snap := sm.Snapshot(ctx)
+	require.Equal(t, uint64(2), snap.Revision)
+	require.Equal(t, uint64(11), snap.AppliedRaftIndex)
+	var got state.Node
+	for _, candidate := range snap.Nodes {
+		if candidate.NodeID == 1 {
+			got = candidate
+			break
+		}
+	}
+	require.Equal(t, "node-1-batched", got.Name)
 }
 
 func TestApplyAssignmentAndTaskWritesAtomically(t *testing.T) {
