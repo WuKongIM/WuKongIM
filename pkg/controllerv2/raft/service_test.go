@@ -165,6 +165,76 @@ func TestSendErrorDoesNotDegradeOrStopService(t *testing.T) {
 	}
 }
 
+func TestLeaderSendsBeforePersist(t *testing.T) {
+	probe := newLeaderFirstSendProbe()
+	transport := newLeaderFirstSendProbeTransport(probe)
+	peers := []Peer{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	cluster := &testRaftCluster{peers: peers, transport: transport.memoryRaftTransport}
+	for _, peer := range peers {
+		dir := t.TempDir()
+		db, err := raftlog.Open(filepath.Join(dir, "raft"), raftlog.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, db.Close()) })
+		statePath := filepath.Join(dir, "cluster-state.json")
+		sm := newTestStateMachine(t, statePath)
+		storage := &leaderFirstSaveProbeStorage{
+			Storage: db.ForController(),
+			nodeID:  peer.NodeID,
+			probe:   probe,
+		}
+		service, err := NewService(Config{
+			NodeID:         peer.NodeID,
+			Peers:          peers,
+			AllowBootstrap: true,
+			Storage:        storage,
+			StateMachine:   sm,
+			Transport:      transport,
+			TickInterval:   5 * time.Millisecond,
+		})
+		require.NoError(t, err)
+		node := &testRaftNode{
+			id:           peer.NodeID,
+			dir:          dir,
+			statePath:    statePath,
+			db:           db,
+			storage:      storage,
+			stateMachine: sm,
+			service:      service,
+		}
+		cluster.nodes = append(cluster.nodes, node)
+		transport.register(peer.NodeID, service)
+	}
+	t.Cleanup(cluster.stop)
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-leader-first-bootstrap", peers))
+	cluster.waitForRevision(t, 1)
+
+	leader := cluster.waitForLeader(t)
+	probe.leaderID.Store(leader.id)
+	cmd := testUpsertNodeCommand(1, 2, "leader-first-send")
+	probe.matchData = mustEncodeTestCommand(t, cmd)
+	probe.enabled.Store(true)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resultCh := make(chan error, 1)
+	go func() {
+		resultCh <- leader.service.Propose(ctx, cmd)
+	}()
+
+	select {
+	case <-probe.saveObserved:
+	case err := <-resultCh:
+		require.NoError(t, err)
+		t.Fatal("proposal completed before the leader persisted while network send was blocked")
+	case <-time.After(time.Second):
+		t.Fatal("leader did not start network send before persisting its proposal entry")
+	}
+
+	require.NoError(t, <-resultCh)
+	cluster.waitForRevision(t, 2)
+}
+
 func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1})
 	cluster.start(t)
@@ -935,7 +1005,7 @@ func (t *memoryRaftTransport) failNextSends(err error, count int) {
 	t.sendErrRemaining = count
 }
 
-func (t *memoryRaftTransport) Send(ctx context.Context, batch []raftpb.Message) error {
+func (t *memoryRaftTransport) Send(batch []raftpb.Message) {
 	for _, msg := range batch {
 		t.mu.RLock()
 		service := t.services[msg.To]
@@ -943,9 +1013,9 @@ func (t *memoryRaftTransport) Send(ctx context.Context, batch []raftpb.Message) 
 		if service == nil {
 			continue
 		}
-		err := service.Step(ctx, msg)
+		err := service.Step(context.Background(), msg)
 		if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) {
-			return err
+			return
 		}
 	}
 
@@ -954,9 +1024,91 @@ func (t *memoryRaftTransport) Send(ctx context.Context, batch []raftpb.Message) 
 	if t.sendErrRemaining > 0 {
 		t.sendErrRemaining--
 		t.failedSendCount.Add(1)
-		return t.sendErr
 	}
-	return nil
+}
+
+type leaderFirstSendProbe struct {
+	enabled      atomic.Bool
+	leaderID     atomic.Uint64
+	matchData    []byte
+	sendStarted  chan struct{}
+	saveObserved chan struct{}
+	sendOnce     sync.Once
+	saveOnce     sync.Once
+}
+
+func newLeaderFirstSendProbe() *leaderFirstSendProbe {
+	return &leaderFirstSendProbe{
+		sendStarted:  make(chan struct{}),
+		saveObserved: make(chan struct{}),
+	}
+}
+
+type leaderFirstSendProbeTransport struct {
+	*memoryRaftTransport
+	probe *leaderFirstSendProbe
+}
+
+func newLeaderFirstSendProbeTransport(probe *leaderFirstSendProbe) *leaderFirstSendProbeTransport {
+	return &leaderFirstSendProbeTransport{memoryRaftTransport: newMemoryRaftTransport(), probe: probe}
+}
+
+func (t *leaderFirstSendProbeTransport) Send(batch []raftpb.Message) {
+	if t.probe != nil && t.probe.shouldBlockSend(batch) {
+		t.probe.sendOnce.Do(func() { close(t.probe.sendStarted) })
+	}
+	t.memoryRaftTransport.Send(batch)
+}
+
+func (p *leaderFirstSendProbe) shouldBlockSend(batch []raftpb.Message) bool {
+	if p == nil || !p.enabled.Load() {
+		return false
+	}
+	leaderID := p.leaderID.Load()
+	if leaderID == 0 {
+		return false
+	}
+	for _, msg := range batch {
+		if msg.From != leaderID || msg.Type != raftpb.MsgApp || len(msg.Entries) == 0 {
+			continue
+		}
+		for _, entry := range msg.Entries {
+			if entry.Type == raftpb.EntryNormal && string(entry.Data) == string(p.matchData) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+type leaderFirstSaveProbeStorage struct {
+	multiraft.Storage
+	nodeID uint64
+	probe  *leaderFirstSendProbe
+}
+
+func (s *leaderFirstSaveProbeStorage) Save(ctx context.Context, st multiraft.PersistentState) error {
+	if s.probe != nil && s.probe.shouldObserveSave(s.nodeID, st) {
+		select {
+		case <-s.probe.sendStarted:
+			s.probe.saveOnce.Do(func() { close(s.probe.saveObserved) })
+		case <-time.After(200 * time.Millisecond):
+			return errors.New("leader persisted proposal before starting network send")
+		}
+	}
+	return s.Storage.Save(ctx, st)
+}
+
+func (p *leaderFirstSendProbe) shouldObserveSave(nodeID uint64, st multiraft.PersistentState) bool {
+	if p == nil || !p.enabled.Load() || p.leaderID.Load() != nodeID {
+		return false
+	}
+	for _, entry := range st.Entries {
+		if entry.Type == raftpb.EntryNormal && string(entry.Data) == string(p.matchData) {
+			return true
+		}
+	}
+	return false
 }
 
 type markAppliedFailStorage struct {
@@ -1157,6 +1309,13 @@ func testCommandEntry(t *testing.T, index uint64, cmd command.Command) raftpb.En
 	data, err := command.Encode(cmd)
 	require.NoError(t, err)
 	return raftpb.Entry{Type: raftpb.EntryNormal, Term: 1, Index: index, Data: data}
+}
+
+func mustEncodeTestCommand(t *testing.T, cmd command.Command) []byte {
+	t.Helper()
+	data, err := command.Encode(cmd)
+	require.NoError(t, err)
+	return data
 }
 
 func testInitCommand(clusterID string, peers []Peer) command.Command {

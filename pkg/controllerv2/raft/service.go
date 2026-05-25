@@ -305,6 +305,13 @@ func (s *Service) Status() Status {
 	return st
 }
 
+func (s *Service) sendReadyMessages(messages []raftpb.Message) {
+	if len(messages) == 0 {
+		return
+	}
+	s.cfg.Transport.Send(messages)
+}
+
 func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, initCh chan<- error) {
 	defer close(doneCh)
 	rawNode, err := s.newRawNode(storageView, startup)
@@ -334,6 +341,10 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 	processReady := func() error {
 		for rawNode.HasReady() {
 			ready := rawNode.Ready()
+			isLeader := rawNode.Status().RaftState == etcdraft.StateLeader
+			if isLeader {
+				s.sendReadyMessages(ready.Messages)
+			}
 			if err := storageView.persistReady(context.Background(), ready); err != nil {
 				failTracked(pendingQueue, pendingByIndex, err)
 				return err
@@ -346,10 +357,8 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 				pendingQueue = pendingQueue[1:]
 				pendingByIndex[entry.Index] = tracked
 			}
-			if len(ready.Messages) > 0 {
-				sendCtx, cancel := context.WithTimeout(context.Background(), s.cfg.TickInterval)
-				_ = s.cfg.Transport.Send(sendCtx, ready.Messages)
-				cancel()
+			if !isLeader {
+				s.sendReadyMessages(ready.Messages)
 			}
 			if err := s.applyCommittedEntries(context.Background(), rawNode, ready.CommittedEntries, storageView, &latestConfState, pendingByIndex); err != nil {
 				failTracked(pendingQueue, pendingByIndex, err)
