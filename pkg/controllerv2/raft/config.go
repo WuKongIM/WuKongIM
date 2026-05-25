@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"time"
@@ -26,8 +25,11 @@ type Peer struct {
 }
 
 // Transport sends outbound ControllerV2 Raft messages to peer nodes.
+//
+// Implementations should enqueue messages and return without waiting for network I/O;
+// the service calls Send inline and may call it before local leader persistence.
 type Transport interface {
-	Send(context.Context, []raftpb.Message) error
+	Send([]raftpb.Message)
 }
 
 // Config configures one ControllerV2 Raft service instance.
