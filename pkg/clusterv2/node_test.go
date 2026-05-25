@@ -261,7 +261,31 @@ func TestNodeAppendChannelDelegatesToService(t *testing.T) {
 	}
 }
 
-type nodeChannelRuntime struct{ appendCalls int }
+func TestNodeStopClosesChannelService(t *testing.T) {
+	runtime := &nodeChannelRuntime{}
+	svc, err := channels.NewService(channels.Config{Runtime: runtime})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	node, err := New(validNodeConfig(t), withChannels(svc))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := node.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if runtime.closeCalls != 1 {
+		t.Fatalf("close calls = %d, want 1", runtime.closeCalls)
+	}
+}
+
+type nodeChannelRuntime struct {
+	appendCalls int
+	closeCalls  int
+}
 
 func (r *nodeChannelRuntime) ApplyMeta(channelv2.Meta) error { return nil }
 func (r *nodeChannelRuntime) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
@@ -275,7 +299,10 @@ func (r *nodeChannelRuntime) Fetch(context.Context, channelv2.FetchRequest) (cha
 	return channelv2.FetchResult{}, nil
 }
 func (r *nodeChannelRuntime) Tick(context.Context) error { return nil }
-func (r *nodeChannelRuntime) Close() error               { return nil }
+func (r *nodeChannelRuntime) Close() error {
+	r.closeCalls++
+	return nil
+}
 func (r *nodeChannelRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
 	return channeltransport.PullResponse{}, nil
 }

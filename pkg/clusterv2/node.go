@@ -34,6 +34,7 @@ type Node struct {
 		Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 		AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
 		Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error)
+		Close() error
 	}
 	proposer interface {
 		Propose(context.Context, propose.Request) error
@@ -134,6 +135,11 @@ func (n *Node) Stop(ctx context.Context) error {
 		n.watchCancel()
 	}
 	var errs []error
+	if n.channels != nil {
+		if err := n.channels.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if n.control != nil {
 		if err := n.control.Stop(ctx); err != nil {
 			errs = append(errs, err)
