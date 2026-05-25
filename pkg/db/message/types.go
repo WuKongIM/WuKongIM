@@ -15,6 +15,10 @@ type ChannelID struct {
 type Record struct {
 	// ID is the stable message ID.
 	ID uint64
+	// ClientMsgNo is the optional client-provided message number.
+	ClientMsgNo string
+	// FromUID is the optional sender UID used with ClientMsgNo for idempotency.
+	FromUID string
 	// Payload stores the encoded message payload.
 	Payload []byte
 	// SizeBytes optionally stores the caller-known payload size.
@@ -37,8 +41,34 @@ type Message struct {
 	MessageSeq uint64
 	// MessageID is the stable message ID.
 	MessageID uint64
+	// ClientMsgNo is the optional client-provided message number.
+	ClientMsgNo string
+	// FromUID is the optional sender UID used with ClientMsgNo for idempotency.
+	FromUID string
+	// PayloadHash is the persisted payload hash.
+	PayloadHash uint64
 	// Payload stores the message payload.
 	Payload []byte
+}
+
+// IdempotencyKey identifies one sender/client-message pair in a channel.
+type IdempotencyKey struct {
+	// FromUID is the sender UID.
+	FromUID string
+	// ClientMsgNo is the client-provided message number.
+	ClientMsgNo string
+}
+
+// IdempotencyHit is the durable message selected by an idempotency key.
+type IdempotencyHit struct {
+	// MessageSeq is the durable channel sequence.
+	MessageSeq uint64
+	// MessageID is the stable message ID.
+	MessageID uint64
+	// Offset is the zero-based channel offset matching MessageSeq-1.
+	Offset uint64
+	// PayloadHash is the payload hash recorded with the idempotency entry.
+	PayloadHash uint64
 }
 
 // AppendMode controls append validation work.
