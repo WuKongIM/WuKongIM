@@ -250,6 +250,67 @@ func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	}
 }
 
+func TestHandleAckAdvancesHWAndCompletesQuorumAppend(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:ack-quorum"),
+		ID:          ch.ChannelID{ID: "ack-quorum", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	require.NoError(t, svc.ApplyMeta(meta))
+
+	appendDone := make(chan serviceAppendOutcome, 1)
+	go func() {
+		res, err := svc.Append(context.Background(), ch.AppendRequest{
+			ChannelID: meta.ID,
+			Message:   ch.Message{MessageID: 10, Payload: []byte("hello")},
+		})
+		appendDone <- serviceAppendOutcome{result: res, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		select {
+		case outcome := <-appendDone:
+			t.Fatalf("append completed before follower ack: result=%+v err=%v", outcome.result, outcome.err)
+			return false
+		default:
+		}
+		return awaitServiceTick(t, svc, meta.Key, time.Now())
+	}, time.Second, time.Millisecond)
+
+	require.NoError(t, svc.HandleAck(context.Background(), transport.AckRequest{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		Follower:    2,
+		MatchOffset: 1,
+	}))
+
+	select {
+	case outcome := <-appendDone:
+		require.NoError(t, outcome.err)
+		require.Equal(t, uint64(1), outcome.result.MessageSeq)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for quorum append")
+	}
+
+	fetch, err := svc.Fetch(context.Background(), ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 1, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), fetch.CommittedSeq)
+	require.Len(t, fetch.Messages, 1)
+}
+
 func TestAppendBatchContextCancelAfterAdmissionCleansQueuedWaiter(t *testing.T) {
 	factory := newServiceCountingStoreFactory()
 	clusterAPI, err := New(Config{
@@ -375,6 +436,11 @@ func TestAppendBatchContextCancelReturnsContextErrorWhenCleanupBackpressured(t *
 	require.NoError(t, err)
 	_, err = fillerFuture.Await(waitCtx)
 	require.NoError(t, err)
+}
+
+type serviceAppendOutcome struct {
+	result ch.AppendResult
+	err    error
 }
 
 type countingMetaResolver struct {
