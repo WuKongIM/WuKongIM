@@ -57,6 +57,13 @@ func (p *NodeProcess) Start() error {
 	if cmd == nil {
 		cmd = exec.Command(p.BinaryPath, "-config", p.Spec.ConfigPath)
 	}
+	if len(p.Spec.Env) > 0 {
+		baseEnv := cmd.Env
+		if baseEnv == nil {
+			baseEnv = os.Environ()
+		}
+		cmd.Env = append(baseEnv, p.Spec.Env...)
+	}
 	cmd.Stdout = stdoutLog
 	cmd.Stderr = stderrLog
 
