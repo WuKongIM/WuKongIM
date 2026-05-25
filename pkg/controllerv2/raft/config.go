@@ -43,6 +43,7 @@ type Transport interface {
 type stateMachine interface {
 	Load(context.Context) error
 	Reset()
+	Restore(context.Context, state.ClusterState) error
 	Snapshot(context.Context) state.ClusterState
 	IsDegraded() bool
 	ApplyBatch(context.Context, []fsm.AppliedCommand) (fsm.BatchApplyResult, error)

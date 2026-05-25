@@ -125,6 +125,28 @@ func (sm *StateMachine) Reset() {
 	sm.degraded = false
 }
 
+// Restore saves and publishes a recovered ControllerV2 state snapshot.
+func (sm *StateMachine) Restore(ctx context.Context, st state.ClusterState) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	next := st.Clone()
+	if next.Revision != 0 {
+		checksum, err := state.Checksum(next)
+		if err != nil {
+			sm.degraded = true
+			return err
+		}
+		next.Checksum = checksum
+		if err := sm.store.Save(ctx, next); err != nil {
+			sm.degraded = true
+			return err
+		}
+	}
+	sm.state = next.Clone()
+	sm.degraded = false
+	return nil
+}
+
 // Snapshot returns a deep copy of the latest published state.
 func (sm *StateMachine) Snapshot(ctx context.Context) state.ClusterState {
 	_ = ctx
