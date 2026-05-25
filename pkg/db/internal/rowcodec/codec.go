@@ -3,7 +3,7 @@ package rowcodec
 import (
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/db"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
 // Type identifies the encoded type of a column value.
@@ -103,11 +103,11 @@ func (w *Writer) Uint8(columnID uint16, value uint8) error {
 
 func (w *Writer) begin(columnID uint16, typ Type) error {
 	if columnID <= w.last {
-		return fmt.Errorf("%w: column ids must be ascending", db.ErrInvalidArgument)
+		return fmt.Errorf("%w: column ids must be ascending", dberrors.ErrInvalidArgument)
 	}
 	delta := columnID - w.last
 	if delta == 0 || delta > 15 {
-		return fmt.Errorf("%w: unsupported column delta %d", db.ErrInvalidArgument, delta)
+		return fmt.Errorf("%w: unsupported column delta %d", dberrors.ErrInvalidArgument, delta)
 	}
 	w.buf = append(w.buf, byte(delta<<4)|byte(typ))
 	w.last = columnID
@@ -150,7 +150,7 @@ func (s *Scanner) Next() bool {
 	s.data = s.data[1:]
 	delta := uint16(tag >> 4)
 	if delta == 0 {
-		s.err = fmt.Errorf("%w: zero column delta", db.ErrCorruptValue)
+		s.err = fmt.Errorf("%w: zero column delta", dberrors.ErrCorruptValue)
 		return false
 	}
 	s.columnID += delta
@@ -242,11 +242,11 @@ func (s *Scanner) readValue() bool {
 	case TypeString, TypeBytes:
 		length, rest, ok := readUvarint(s.data)
 		if !ok {
-			s.err = fmt.Errorf("%w: invalid bytes length", db.ErrCorruptValue)
+			s.err = fmt.Errorf("%w: invalid bytes length", dberrors.ErrCorruptValue)
 			return false
 		}
 		if uint64(len(rest)) < length {
-			s.err = fmt.Errorf("%w: bytes payload truncated", db.ErrCorruptValue)
+			s.err = fmt.Errorf("%w: bytes payload truncated", dberrors.ErrCorruptValue)
 			return false
 		}
 		s.bytes = append([]byte(nil), rest[:length]...)
@@ -255,7 +255,7 @@ func (s *Scanner) readValue() bool {
 	case TypeInt64, TypeUint64:
 		value, rest, ok := readUvarint(s.data)
 		if !ok {
-			s.err = fmt.Errorf("%w: invalid varint", db.ErrCorruptValue)
+			s.err = fmt.Errorf("%w: invalid varint", dberrors.ErrCorruptValue)
 			return false
 		}
 		s.u64 = value
@@ -263,7 +263,7 @@ func (s *Scanner) readValue() bool {
 		return true
 	case TypeBool:
 		if len(s.data) < 1 {
-			s.err = fmt.Errorf("%w: bool payload truncated", db.ErrCorruptValue)
+			s.err = fmt.Errorf("%w: bool payload truncated", dberrors.ErrCorruptValue)
 			return false
 		}
 		s.boolVal = s.data[0] != 0
@@ -271,24 +271,24 @@ func (s *Scanner) readValue() bool {
 		return true
 	case TypeUint8:
 		if len(s.data) < 1 {
-			s.err = fmt.Errorf("%w: uint8 payload truncated", db.ErrCorruptValue)
+			s.err = fmt.Errorf("%w: uint8 payload truncated", dberrors.ErrCorruptValue)
 			return false
 		}
 		s.u8 = s.data[0]
 		s.data = s.data[1:]
 		return true
 	default:
-		s.err = fmt.Errorf("%w: unsupported value type %d", db.ErrCorruptValue, s.typ)
+		s.err = fmt.Errorf("%w: unsupported value type %d", dberrors.ErrCorruptValue, s.typ)
 		return false
 	}
 }
 
 func (s *Scanner) require(typ Type) error {
 	if s == nil || !s.ok {
-		return fmt.Errorf("%w: scanner is not positioned", db.ErrCorruptValue)
+		return fmt.Errorf("%w: scanner is not positioned", dberrors.ErrCorruptValue)
 	}
 	if s.typ != typ {
-		return fmt.Errorf("%w: column %d type %d is not %d", db.ErrCorruptValue, s.columnID, s.typ, typ)
+		return fmt.Errorf("%w: column %d type %d is not %d", dberrors.ErrCorruptValue, s.columnID, s.typ, typ)
 	}
 	return nil
 }

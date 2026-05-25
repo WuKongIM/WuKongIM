@@ -1,22 +1,22 @@
-package db
+package dberrors
 
-import "github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+import "errors"
 
 var (
 	// ErrInvalidArgument reports invalid caller input.
-	ErrInvalidArgument = dberrors.ErrInvalidArgument
+	ErrInvalidArgument = errors.New("db: invalid argument")
 	// ErrNotFound reports that a requested key or row does not exist.
-	ErrNotFound = dberrors.ErrNotFound
+	ErrNotFound = errors.New("db: not found")
 	// ErrAlreadyExists reports create-only writes that would overwrite existing state.
-	ErrAlreadyExists = dberrors.ErrAlreadyExists
+	ErrAlreadyExists = errors.New("db: already exists")
 	// ErrConflict reports guard, version, or uniqueness conflicts.
-	ErrConflict = dberrors.ErrConflict
+	ErrConflict = errors.New("db: conflict")
 	// ErrCorruptValue reports a malformed encoded value.
-	ErrCorruptValue = dberrors.ErrCorruptValue
+	ErrCorruptValue = errors.New("db: corrupt value")
 	// ErrCorruptState reports inconsistent durable state across keys or indexes.
-	ErrCorruptState = dberrors.ErrCorruptState
+	ErrCorruptState = errors.New("db: corrupt state")
 	// ErrChecksumMismatch reports a value envelope checksum mismatch.
-	ErrChecksumMismatch = dberrors.ErrChecksumMismatch
+	ErrChecksumMismatch = errors.New("db: checksum mismatch")
 	// ErrClosed reports operations attempted after the store has closed.
-	ErrClosed = dberrors.ErrClosed
+	ErrClosed = errors.New("db: closed")
 )
