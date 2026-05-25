@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metastore "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // NodeStore is the root handle for node-local storage domains.
@@ -14,6 +15,7 @@ type NodeStore struct {
 	opts    NodeStoreOptions
 	message *engine.DB
 	meta    *engine.DB
+	metaDB  *metastore.MetaDB
 }
 
 // OpenNodeStore opens the physical message and metadata stores.
@@ -31,7 +33,7 @@ func OpenNodeStore(opts NodeStoreOptions) (*NodeStore, error) {
 		_ = message.Close()
 		return nil, err
 	}
-	return &NodeStore{opts: opts, message: message, meta: meta}, nil
+	return &NodeStore{opts: opts, message: message, meta: meta, metaDB: metastore.NewDB(meta)}, nil
 }
 
 // Options returns the normalized store options.
@@ -48,6 +50,14 @@ func (s *NodeStore) Messages() *message.MessageDB {
 		return nil
 	}
 	return message.NewDB(s.message)
+}
+
+// Meta returns the hash-slot metadata storage domain.
+func (s *NodeStore) Meta() *metastore.MetaDB {
+	if s == nil {
+		return nil
+	}
+	return s.metaDB
 }
 
 // Close closes the physical stores.

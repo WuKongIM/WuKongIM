@@ -38,3 +38,15 @@ func TestOpenNodeStoreCreatesPhysicalStores(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenNodeStoreExposesMetaDomain(t *testing.T) {
+	opts := db.DefaultNodeStoreOptions(t.TempDir())
+	store, err := db.OpenNodeStore(opts)
+	if err != nil {
+		t.Fatalf("OpenNodeStore(): %v", err)
+	}
+	defer store.Close()
+	if store.Meta() == nil {
+		t.Fatal("Meta() = nil")
+	}
+}
