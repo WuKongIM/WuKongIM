@@ -21,6 +21,16 @@ type Record struct {
 	SizeBytes int
 }
 
+// AppendResult describes the durable sequence range assigned by an append.
+type AppendResult struct {
+	// BaseSeq is the first assigned sequence, or zero for an empty append.
+	BaseSeq uint64
+	// LastSeq is the last assigned sequence, or zero for an empty append.
+	LastSeq uint64
+	// Count is the number of records written.
+	Count int
+}
+
 // Message is one materialized persisted message.
 type Message struct {
 	// MessageSeq is the durable channel sequence.

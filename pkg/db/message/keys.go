@@ -1,6 +1,11 @@
 package message
 
-import "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+import (
+	"bytes"
+	"encoding/binary"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+)
 
 func channelPartitionID(key ChannelKey) []byte {
 	return keycodec.AppendString(nil, string(key))
@@ -24,6 +29,18 @@ func encodeMessageRowKey(channelKey ChannelKey, seq uint64, familyID uint16) []b
 		Uint64(seq).
 		Family(familyID).
 		Key()
+}
+
+func decodeMessageRowKey(channelKey ChannelKey, key []byte) (seq uint64, familyID uint16, ok bool) {
+	prefix := encodeMessageRowPrefix(channelKey)
+	if !bytes.HasPrefix(key, prefix) {
+		return 0, 0, false
+	}
+	rest := key[len(prefix):]
+	if len(rest) != 10 {
+		return 0, 0, false
+	}
+	return binary.BigEndian.Uint64(rest[:8]), binary.BigEndian.Uint16(rest[8:]), true
 }
 
 func encodeMessageIndexPrefix(channelKey ChannelKey, indexID uint16) []byte {
