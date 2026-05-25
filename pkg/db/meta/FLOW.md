@@ -24,6 +24,11 @@ Current flow:
 9. User and CMD conversation tables keep primary state rows and active indexes
    in the same commit; active scans read newest-first and verify rows to ignore
    stale index entries.
-10. Later tasks add batch mutations, snapshots, and migration tables.
+10. Plugin bindings maintain UID-primary rows plus plugin-number indexes for
+   paged scans.
+11. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
+   under the hash-slot partition; typed values repeat the hash slot only for
+   self-description.
+12. Later tasks add batch mutations, snapshots, and migration task tables.
 
 Storage code in this package must not import Pebble directly.
