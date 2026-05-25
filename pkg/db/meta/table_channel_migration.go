@@ -1,0 +1,583 @@
+package meta
+
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"encoding/json"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+)
+
+const (
+	channelMigrationPrimaryFamilyID uint16 = 0
+	channelMigrationActiveIndexID   uint16 = 2
+	channelMigrationTerminalIndexID uint16 = 3
+)
+
+// ChannelMigrationKind selects the migration workflow for a task.
+type ChannelMigrationKind uint8
+
+const (
+	// ChannelMigrationKindLeaderTransfer moves leadership to an existing replica.
+	ChannelMigrationKindLeaderTransfer ChannelMigrationKind = 1
+	// ChannelMigrationKindReplicaReplace replaces one replica with another.
+	ChannelMigrationKindReplicaReplace ChannelMigrationKind = 2
+)
+
+// ChannelMigrationStatus is the durable lifecycle state for a task.
+type ChannelMigrationStatus uint8
+
+const (
+	ChannelMigrationStatusPending   ChannelMigrationStatus = 1
+	ChannelMigrationStatusRunning   ChannelMigrationStatus = 2
+	ChannelMigrationStatusBlocked   ChannelMigrationStatus = 3
+	ChannelMigrationStatusCompleted ChannelMigrationStatus = 4
+	ChannelMigrationStatusFailed    ChannelMigrationStatus = 5
+	ChannelMigrationStatusAborted   ChannelMigrationStatus = 6
+)
+
+// ChannelMigrationPhase is the resumable executor phase for a task.
+type ChannelMigrationPhase uint8
+
+const (
+	ChannelMigrationPhaseValidate           ChannelMigrationPhase = 1
+	ChannelMigrationPhaseProbeTarget        ChannelMigrationPhase = 2
+	ChannelMigrationPhaseWriteFence         ChannelMigrationPhase = 3
+	ChannelMigrationPhaseDrainLeader        ChannelMigrationPhase = 4
+	ChannelMigrationPhaseFinalTargetCatchUp ChannelMigrationPhase = 5
+	ChannelMigrationPhaseCommitLeaderMeta   ChannelMigrationPhase = 6
+	ChannelMigrationPhaseVerifyNewLeader    ChannelMigrationPhase = 7
+	ChannelMigrationPhaseAddLearner         ChannelMigrationPhase = 20
+	ChannelMigrationPhaseBootstrapTarget    ChannelMigrationPhase = 21
+	ChannelMigrationPhaseWarmCatchUp        ChannelMigrationPhase = 22
+	ChannelMigrationPhaseCutoverFence       ChannelMigrationPhase = 23
+	ChannelMigrationPhasePromoteAndRemove   ChannelMigrationPhase = 25
+	ChannelMigrationPhaseVerifyMembership   ChannelMigrationPhase = 26
+	ChannelMigrationPhaseClearFence         ChannelMigrationPhase = 27
+)
+
+// ChannelMigrationProgress stores lightweight executor observations.
+type ChannelMigrationProgress struct {
+	LeaderLEO          uint64 `json:"leader_leo,omitempty"`
+	LeaderHW           uint64 `json:"leader_hw,omitempty"`
+	TargetLEO          uint64 `json:"target_leo,omitempty"`
+	TargetCheckpointHW uint64 `json:"target_checkpoint_hw,omitempty"`
+	LagRecords         uint64 `json:"lag_records,omitempty"`
+	StableSinceMS      int64  `json:"stable_since_ms,omitempty"`
+}
+
+// ChannelMigrationTaskGuard fences a task mutation to one observed durable state.
+type ChannelMigrationTaskGuard struct {
+	ChannelID                 string
+	ChannelType               uint8
+	TaskID                    string
+	ExpectedStatus            ChannelMigrationStatus
+	ExpectedPhase             ChannelMigrationPhase
+	ExpectedOwnerNodeID       uint64
+	ExpectedOwnerLeaseUntilMS int64
+	ExpectedUpdatedAtMS       int64
+}
+
+// ChannelMigrationRuntimeGuard fences a task create to one runtime metadata state.
+type ChannelMigrationRuntimeGuard struct {
+	ChannelID               string
+	ChannelType             uint8
+	ExpectedChannelEpoch    uint64
+	ExpectedLeaderEpoch     uint64
+	ExpectedLeader          uint64
+	ExpectedFenceToken      string
+	ExpectedFenceVersion    uint64
+	ExpectedRouteGeneration uint64
+}
+
+// ChannelMigrationTaskCreate describes a runtime-guarded task create.
+type ChannelMigrationTaskCreate struct {
+	Task         ChannelMigrationTask
+	RuntimeGuard ChannelMigrationRuntimeGuard
+}
+
+// ChannelMigrationTaskClaim describes a guarded owner claim or renewal.
+type ChannelMigrationTaskClaim struct {
+	Guard             ChannelMigrationTaskGuard
+	Status            ChannelMigrationStatus
+	Phase             ChannelMigrationPhase
+	OwnerNodeID       uint64
+	OwnerLeaseUntilMS int64
+	UpdatedAtMS       int64
+}
+
+// ChannelMigrationTaskAdvance describes a guarded phase/progress update.
+type ChannelMigrationTaskAdvance struct {
+	Guard                 ChannelMigrationTaskGuard
+	Status                ChannelMigrationStatus
+	Phase                 ChannelMigrationPhase
+	Attempt               uint32
+	NextRunAtMS           int64
+	BlockerCode           string
+	BlockerMessage        string
+	LastError             string
+	UpdatedAtMS           int64
+	CompletedAtMS         int64
+	Progress              ChannelMigrationProgress
+	EmbeddedDesiredLeader uint64
+}
+
+// ChannelMigrationTask is the authoritative durable state for one migration attempt.
+type ChannelMigrationTask struct {
+	TaskID                 string
+	Kind                   ChannelMigrationKind
+	Status                 ChannelMigrationStatus
+	Phase                  ChannelMigrationPhase
+	ChannelID              string
+	ChannelType            uint8
+	SourceNode             uint64
+	TargetNode             uint64
+	DesiredLeader          uint64
+	BaseChannelEpoch       uint64
+	BaseLeaderEpoch        uint64
+	FenceToken             string
+	FenceVersion           uint64
+	FenceUntilMS           int64
+	EmbeddedLeaderTransfer bool
+	EmbeddedDesiredLeader  uint64
+	OwnerNodeID            uint64
+	OwnerLeaseUntilMS      int64
+	Attempt                uint32
+	NextRunAtMS            int64
+	BlockerCode            string
+	BlockerMessage         string
+	LastError              string
+	CreatedAtMS            int64
+	UpdatedAtMS            int64
+	CompletedAtMS          int64
+	Progress               ChannelMigrationProgress
+}
+
+// IsActive reports whether the task still owns the active channel slot.
+func (t ChannelMigrationTask) IsActive() bool {
+	return !t.IsTerminal()
+}
+
+// IsTerminal reports whether the task has reached a retention-eligible state.
+func (t ChannelMigrationTask) IsTerminal() bool {
+	switch t.Status {
+	case ChannelMigrationStatusCompleted, ChannelMigrationStatusFailed, ChannelMigrationStatusAborted:
+		return true
+	default:
+		return false
+	}
+}
+
+// CreateChannelMigrationTask creates a task when no active task exists.
+func (s *Shard) CreateChannelMigrationTask(ctx context.Context, task ChannelMigrationTask) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTask(task); err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := s.stageCreateChannelMigrationTask(ctx, batch, task); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
+// GetChannelMigrationTask returns one migration task.
+func (s *Shard) GetChannelMigrationTask(ctx context.Context, channelID string, channelType uint8, taskID string) (ChannelMigrationTask, bool, error) {
+	if err := s.check(ctx); err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	if err := validateChannelMigrationIdentity(channelID, taskID); err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	key := encodeChannelMigrationTaskRowKey(s.hashSlot, channelID, channelType, taskID, channelMigrationPrimaryFamilyID)
+	return s.getChannelMigrationTaskByKey(ctx, key, channelID, channelType, taskID)
+}
+
+// GetActiveChannelMigrationTask returns the active task for a channel, if any.
+func (s *Shard) GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType uint8) (ChannelMigrationTask, bool, error) {
+	if err := s.check(ctx); err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	if err := validateKeyString(channelID); err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	value, ok, err := s.db.get(encodeChannelMigrationActiveIndexKey(s.hashSlot, channelID, channelType))
+	if err != nil || !ok {
+		return ChannelMigrationTask{}, ok, err
+	}
+	taskID := string(value)
+	if err := validateKeyString(taskID); err != nil {
+		return ChannelMigrationTask{}, false, dberrors.ErrCorruptValue
+	}
+	task, ok, err := s.GetChannelMigrationTask(ctx, channelID, channelType, taskID)
+	if err != nil || !ok || !task.IsActive() {
+		return ChannelMigrationTask{}, false, err
+	}
+	return task, true, nil
+}
+
+// ListChannelMigrationTasks returns all migration tasks in primary-key order.
+func (s *Shard) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrationTask, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	prefix := encodeChannelMigrationRowPrefix(s.hashSlot)
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+	tasks := make([]ChannelMigrationTask, 0)
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		channelID, channelType, taskID, familyID, ok := decodeChannelMigrationTaskRowKey(prefix, iter.Key())
+		if !ok {
+			return nil, dberrors.ErrCorruptValue
+		}
+		if familyID != channelMigrationPrimaryFamilyID {
+			continue
+		}
+		value, err := iter.Value()
+		if err != nil {
+			return nil, err
+		}
+		task, err := decodeChannelMigrationTaskValue(channelID, channelType, taskID, value)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
+// ClaimChannelMigrationTask applies a guarded owner claim or renewal.
+func (s *Shard) ClaimChannelMigrationTask(ctx context.Context, req ChannelMigrationTaskClaim) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := s.stageClaimChannelMigrationTask(ctx, batch, req); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
+// AdvanceChannelMigrationTask applies a guarded phase/progress update.
+func (s *Shard) AdvanceChannelMigrationTask(ctx context.Context, req ChannelMigrationTaskAdvance) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := s.stageAdvanceChannelMigrationTask(ctx, batch, req); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
+// CountTerminalChannelMigrationTasksBefore counts terminal-index entries before a cutoff.
+func (s *Shard) CountTerminalChannelMigrationTasksBefore(ctx context.Context, beforeMS int64, limit int) (int, error) {
+	if err := s.check(ctx); err != nil {
+		return 0, err
+	}
+	if limit <= 0 {
+		return 0, dberrors.ErrInvalidArgument
+	}
+	prefix := encodeChannelMigrationTerminalIndexPrefix(s.hashSlot)
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+	count := 0
+	for ok := iter.First(); ok && count < limit; ok = iter.Next() {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		completedAt, _, _, _, ok := decodeChannelMigrationTerminalIndexKey(prefix, iter.Key())
+		if !ok {
+			return 0, dberrors.ErrCorruptValue
+		}
+		if completedAt >= beforeMS {
+			break
+		}
+		count++
+	}
+	if err := iter.Error(); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (s *Shard) stageCreateChannelMigrationTask(ctx context.Context, batch *engine.Batch, task ChannelMigrationTask) error {
+	primaryKey := encodeChannelMigrationTaskRowKey(s.hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	if _, exists, err := s.getChannelMigrationTaskByKey(ctx, primaryKey, task.ChannelID, task.ChannelType, task.TaskID); err != nil || exists {
+		if err != nil {
+			return err
+		}
+		return dberrors.ErrAlreadyExists
+	}
+	return s.stageUpsertChannelMigrationTask(ctx, batch, task)
+}
+
+func (s *Shard) stageClaimChannelMigrationTask(ctx context.Context, batch *engine.Batch, req ChannelMigrationTaskClaim) error {
+	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+		return err
+	}
+	task, ok, err := s.GetChannelMigrationTask(ctx, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID)
+	if err != nil || !ok {
+		return err
+	}
+	if !req.Guard.matches(task) {
+		return dberrors.ErrConflict
+	}
+	task.Status = req.Status
+	task.Phase = req.Phase
+	task.OwnerNodeID = req.OwnerNodeID
+	task.OwnerLeaseUntilMS = req.OwnerLeaseUntilMS
+	task.UpdatedAtMS = req.UpdatedAtMS
+	return s.stageUpsertChannelMigrationTask(ctx, batch, task)
+}
+
+func (s *Shard) stageAdvanceChannelMigrationTask(ctx context.Context, batch *engine.Batch, req ChannelMigrationTaskAdvance) error {
+	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+		return err
+	}
+	task, ok, err := s.GetChannelMigrationTask(ctx, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID)
+	if err != nil || !ok {
+		return err
+	}
+	if !req.Guard.matches(task) {
+		return dberrors.ErrConflict
+	}
+	task.Status = req.Status
+	task.Phase = req.Phase
+	task.Attempt = req.Attempt
+	task.NextRunAtMS = req.NextRunAtMS
+	task.BlockerCode = req.BlockerCode
+	task.BlockerMessage = req.BlockerMessage
+	task.LastError = req.LastError
+	task.UpdatedAtMS = req.UpdatedAtMS
+	task.CompletedAtMS = req.CompletedAtMS
+	task.Progress = req.Progress
+	if req.EmbeddedDesiredLeader != 0 {
+		task.EmbeddedLeaderTransfer = true
+		task.EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
+	}
+	return s.stageUpsertChannelMigrationTask(ctx, batch, task)
+}
+
+func (s *Shard) stageUpsertChannelMigrationTask(ctx context.Context, batch *engine.Batch, task ChannelMigrationTask) error {
+	if err := validateChannelMigrationTask(task); err != nil {
+		return err
+	}
+	primaryKey := encodeChannelMigrationTaskRowKey(s.hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	existing, exists, err := s.getChannelMigrationTaskByKey(ctx, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		return err
+	}
+	activeIndexKey := encodeChannelMigrationActiveIndexKey(s.hashSlot, task.ChannelID, task.ChannelType)
+	if task.IsActive() {
+		if err := s.ensureChannelMigrationActiveAvailable(ctx, activeIndexKey, task); err != nil {
+			return err
+		}
+		if err := batch.Set(activeIndexKey, []byte(task.TaskID)); err != nil {
+			return err
+		}
+	} else if exists && existing.IsActive() {
+		if err := batch.Delete(activeIndexKey); err != nil {
+			return err
+		}
+	}
+	if exists && existing.IsTerminal() && (!task.IsTerminal() || existing.CompletedAtMS != task.CompletedAtMS) {
+		if err := batch.Delete(encodeChannelMigrationTerminalIndexKey(s.hashSlot, existing.CompletedAtMS, existing.ChannelID, existing.ChannelType, existing.TaskID)); err != nil {
+			return err
+		}
+	}
+	if task.IsTerminal() {
+		if err := batch.Set(encodeChannelMigrationTerminalIndexKey(s.hashSlot, task.CompletedAtMS, task.ChannelID, task.ChannelType, task.TaskID), nil); err != nil {
+			return err
+		}
+	}
+	return batch.Set(primaryKey, encodeChannelMigrationTaskValue(task))
+}
+
+func (s *Shard) ensureChannelMigrationActiveAvailable(ctx context.Context, activeIndexKey []byte, task ChannelMigrationTask) error {
+	value, ok, err := s.db.get(activeIndexKey)
+	if err != nil || !ok {
+		return err
+	}
+	existingTaskID := string(value)
+	if existingTaskID == task.TaskID {
+		return nil
+	}
+	existing, ok, err := s.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, existingTaskID)
+	if err != nil || !ok {
+		return err
+	}
+	if existing.IsActive() {
+		return dberrors.ErrAlreadyExists
+	}
+	return nil
+}
+
+func (s *Shard) getChannelMigrationTaskByKey(ctx context.Context, key []byte, channelID string, channelType uint8, taskID string) (ChannelMigrationTask, bool, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return ChannelMigrationTask{}, false, err
+		}
+	}
+	value, ok, err := s.db.get(key)
+	if err != nil || !ok {
+		return ChannelMigrationTask{}, ok, err
+	}
+	task, err := decodeChannelMigrationTaskValue(channelID, channelType, taskID, value)
+	if err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	return task, true, nil
+}
+
+func validateChannelMigrationTask(task ChannelMigrationTask) error {
+	if err := validateChannelMigrationIdentity(task.ChannelID, task.TaskID); err != nil {
+		return err
+	}
+	if task.Kind != ChannelMigrationKindLeaderTransfer && task.Kind != ChannelMigrationKindReplicaReplace {
+		return dberrors.ErrInvalidArgument
+	}
+	if task.Status < ChannelMigrationStatusPending || task.Status > ChannelMigrationStatusAborted || task.Phase == 0 {
+		return dberrors.ErrInvalidArgument
+	}
+	if task.Kind == ChannelMigrationKindLeaderTransfer && task.DesiredLeader != 0 && task.DesiredLeader != task.TargetNode {
+		return dberrors.ErrInvalidArgument
+	}
+	if task.IsTerminal() && task.CompletedAtMS <= 0 {
+		return dberrors.ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationIdentity(channelID string, taskID string) error {
+	if err := validateKeyString(channelID); err != nil {
+		return err
+	}
+	return validateKeyString(taskID)
+}
+
+func validateChannelMigrationTaskGuard(guard ChannelMigrationTaskGuard) error {
+	if err := validateChannelMigrationIdentity(guard.ChannelID, guard.TaskID); err != nil {
+		return err
+	}
+	if guard.ExpectedStatus == 0 || guard.ExpectedPhase == 0 {
+		return dberrors.ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationRuntimeGuard(guard ChannelMigrationRuntimeGuard) error {
+	return validateKeyString(guard.ChannelID)
+}
+
+func (guard ChannelMigrationTaskGuard) matches(task ChannelMigrationTask) bool {
+	return task.ChannelID == guard.ChannelID &&
+		task.ChannelType == guard.ChannelType &&
+		task.TaskID == guard.TaskID &&
+		task.Status == guard.ExpectedStatus &&
+		task.Phase == guard.ExpectedPhase &&
+		task.OwnerNodeID == guard.ExpectedOwnerNodeID &&
+		task.OwnerLeaseUntilMS == guard.ExpectedOwnerLeaseUntilMS &&
+		task.UpdatedAtMS == guard.ExpectedUpdatedAtMS
+}
+
+func (guard ChannelMigrationRuntimeGuard) matches(meta ChannelRuntimeMeta) bool {
+	return meta.ChannelID == guard.ChannelID &&
+		meta.ChannelType == guard.ChannelType &&
+		meta.ChannelEpoch == guard.ExpectedChannelEpoch &&
+		meta.LeaderEpoch == guard.ExpectedLeaderEpoch &&
+		meta.Leader == guard.ExpectedLeader &&
+		meta.WriteFenceToken == guard.ExpectedFenceToken &&
+		meta.WriteFenceVersion == guard.ExpectedFenceVersion &&
+		meta.RouteGeneration == guard.ExpectedRouteGeneration
+}
+
+func encodeChannelMigrationTaskValue(task ChannelMigrationTask) []byte {
+	value, err := json.Marshal(task)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func decodeChannelMigrationTaskValue(channelID string, channelType uint8, taskID string, value []byte) (ChannelMigrationTask, error) {
+	var task ChannelMigrationTask
+	if err := json.Unmarshal(value, &task); err != nil {
+		return ChannelMigrationTask{}, dberrors.ErrCorruptValue
+	}
+	task.ChannelID = channelID
+	task.ChannelType = channelType
+	task.TaskID = taskID
+	return task, nil
+}
+
+func decodeChannelMigrationTaskRowKey(prefix []byte, key []byte) (string, uint8, string, uint16, bool) {
+	if !bytes.HasPrefix(key, prefix) {
+		return "", 0, "", 0, false
+	}
+	channelID, rest, err := keycodec.ReadString(key[len(prefix):])
+	if err != nil {
+		return "", 0, "", 0, false
+	}
+	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
+	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 {
+		return "", 0, "", 0, false
+	}
+	taskID, rest, err := keycodec.ReadString(rest)
+	if err != nil || len(rest) != 2 {
+		return "", 0, "", 0, false
+	}
+	return channelID, uint8(channelTypeValue), taskID, binary.BigEndian.Uint16(rest), true
+}
+
+func decodeChannelMigrationTerminalIndexKey(prefix []byte, key []byte) (int64, string, uint8, string, bool) {
+	if !bytes.HasPrefix(key, prefix) {
+		return 0, "", 0, "", false
+	}
+	completedAt, rest, err := readKeyInt64Ordered(key[len(prefix):])
+	if err != nil {
+		return 0, "", 0, "", false
+	}
+	channelID, rest, err := keycodec.ReadString(rest)
+	if err != nil {
+		return 0, "", 0, "", false
+	}
+	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
+	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 {
+		return 0, "", 0, "", false
+	}
+	taskID, rest, err := keycodec.ReadString(rest)
+	if err != nil || len(rest) != 0 {
+		return 0, "", 0, "", false
+	}
+	return completedAt, channelID, uint8(channelTypeValue), taskID, true
+}

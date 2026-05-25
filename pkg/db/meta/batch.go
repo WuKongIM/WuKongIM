@@ -29,13 +29,14 @@ type ChannelRuntimeMetaGuard struct {
 
 // Batch stages metadata mutations across one or more hash slots.
 type Batch struct {
-	db             *MetaDB
-	ops            []metaBatchOp
-	hashSlots      []HashSlot
-	hashSlotSeen   map[HashSlot]struct{}
-	channelOverlay map[string]Channel
-	closed         bool
-	lastLocked     []HashSlot
+	db              *MetaDB
+	ops             []metaBatchOp
+	hashSlots       []HashSlot
+	hashSlotSeen    map[HashSlot]struct{}
+	channelOverlay  map[string]Channel
+	migrationActive map[string]struct{}
+	closed          bool
+	lastLocked      []HashSlot
 }
 
 type metaBatchOp struct {
@@ -70,6 +71,7 @@ func (b *Batch) Close() error {
 	b.hashSlots = nil
 	b.hashSlotSeen = nil
 	b.channelOverlay = nil
+	b.migrationActive = nil
 	return nil
 }
 
@@ -205,6 +207,59 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		return nil
 	})
 	return MonotonicApplied, nil
+}
+
+// CreateChannelMigrationTask stages a migration task create with active uniqueness.
+func (b *Batch) CreateChannelMigrationTask(hashSlot HashSlot, task ChannelMigrationTask) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTask(task); err != nil {
+		return err
+	}
+	activeKey := encodeChannelMigrationActiveIndexKey(hashSlot, task.ChannelID, task.ChannelType)
+	if task.IsActive() {
+		if b.migrationActive == nil {
+			b.migrationActive = make(map[string]struct{})
+		}
+		if _, ok := b.migrationActive[string(activeKey)]; ok {
+			return dberrors.ErrAlreadyExists
+		}
+		b.migrationActive[string(activeKey)] = struct{}{}
+	}
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		shard := &Shard{db: state.db, hashSlot: hashSlot}
+		return shard.stageCreateChannelMigrationTask(ctx, batch, task)
+	})
+	return nil
+}
+
+// CreateChannelMigrationTaskWithRuntimeGuard stages a guarded migration task create.
+func (b *Batch) CreateChannelMigrationTaskWithRuntimeGuard(hashSlot HashSlot, req ChannelMigrationTaskCreate) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTask(req.Task); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationRuntimeGuard(req.RuntimeGuard); err != nil {
+		return err
+	}
+	key := encodeChannelRuntimeMetaRowKey(hashSlot, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		meta, exists, err := state.loadRuntimeMeta(ctx, hashSlot, key, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return dberrors.ErrNotFound
+		}
+		if !req.RuntimeGuard.matches(meta) {
+			return dberrors.ErrConflict
+		}
+		return nil
+	})
+	return b.CreateChannelMigrationTask(hashSlot, req.Task)
 }
 
 // Commit validates and writes all staged operations atomically.

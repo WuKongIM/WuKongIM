@@ -32,6 +32,9 @@ Current flow:
 12. `Batch` stages typed operations, locks all touched hash slots in sorted
    order, validates guards against a read-your-writes overlay, commits once,
    then publishes channel cache entries.
-13. Later tasks add snapshots and migration task tables.
+13. Channel migration tasks keep primary rows, one active-task index per
+   channel, and terminal indexes in sync; guarded batch creates can fence on
+   runtime metadata.
+14. Later tasks add snapshots and richer migration side-effect operations.
 
 Storage code in this package must not import Pebble directly.

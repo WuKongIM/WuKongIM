@@ -188,6 +188,36 @@ func encodeHashSlotMigrationOutboxKey(hashSlot HashSlot, sourceSlot uint64, targ
 	return keycodec.AppendUint64(key, sourceIndex)
 }
 
+func encodeChannelMigrationRowPrefix(hashSlot HashSlot) []byte {
+	return encodeRowPrefix(hashSlot, TableIDChannelMigration)
+}
+
+func encodeChannelMigrationTaskRowKey(hashSlot HashSlot, channelID string, channelType uint8, taskID string, familyID uint16) []byte {
+	key := encodeChannelMigrationRowPrefix(hashSlot)
+	key = keycodec.AppendString(key, channelID)
+	key = keycodec.AppendInt64Ordered(key, int64(channelType))
+	key = keycodec.AppendString(key, taskID)
+	return keycodec.AppendUint16(key, familyID)
+}
+
+func encodeChannelMigrationActiveIndexKey(hashSlot HashSlot, channelID string, channelType uint8) []byte {
+	key := encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationActiveIndexID)
+	key = keycodec.AppendString(key, channelID)
+	return keycodec.AppendInt64Ordered(key, int64(channelType))
+}
+
+func encodeChannelMigrationTerminalIndexPrefix(hashSlot HashSlot) []byte {
+	return encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationTerminalIndexID)
+}
+
+func encodeChannelMigrationTerminalIndexKey(hashSlot HashSlot, completedAtMS int64, channelID string, channelType uint8, taskID string) []byte {
+	key := encodeChannelMigrationTerminalIndexPrefix(hashSlot)
+	key = keycodec.AppendInt64Ordered(key, completedAtMS)
+	key = keycodec.AppendString(key, channelID)
+	key = keycodec.AppendInt64Ordered(key, int64(channelType))
+	return keycodec.AppendString(key, taskID)
+}
+
 func encodeChannelIDIndexPrefix(hashSlot HashSlot, channelID string) []byte {
 	key := encodeIndexPrefix(hashSlot, TableIDChannel, channelIDIndexID)
 	return keycodec.AppendString(key, channelID)
