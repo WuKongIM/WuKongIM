@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	etcdraft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -40,9 +41,7 @@ func (e ProposalRejectedError) Error() string {
 	return fmt.Sprintf("%s at index %d: %s", ErrProposalRejected.Error(), e.Index, e.Reason)
 }
 
-func (e ProposalRejectedError) Unwrap() error {
-	return ErrProposalRejected
-}
+func (e ProposalRejectedError) Unwrap() error { return ErrProposalRejected }
 
 // Service owns one ControllerV2 RawNode and applies committed commands to the state machine.
 type Service struct {
@@ -60,6 +59,9 @@ type Service struct {
 	statusMu sync.RWMutex
 	status   Status
 	leaderID atomic.Uint64
+
+	snapshotMu   sync.Mutex
+	lastSnapshot time.Time
 }
 
 type proposalRequest struct {
@@ -73,23 +75,11 @@ type trackedProposal struct {
 }
 
 type runStartupState struct {
-	State     multiraft.BootstrapState
-	Snapshot  raftpb.Snapshot
-	LastIndex uint64
-}
-
-type replaySummary struct {
-	rebuiltState bool
-}
-
-type storageAdapter struct {
-	storage multiraft.Storage
-	memory  *loadedMemoryStorage
-}
-
-type loadedMemoryStorage struct {
-	*etcdraft.MemoryStorage
-	confState raftpb.ConfState
+	HardState    raftpb.HardState
+	ConfState    raftpb.ConfState
+	Snapshot     raftpb.Snapshot
+	LastIndex    uint64
+	AppliedIndex uint64
 }
 
 // NewService validates cfg and creates a ControllerV2 Raft service. Call Start before use.
@@ -121,19 +111,14 @@ func (s *Service) Start(ctx context.Context) error {
 	s.status = initialStatus(cfg)
 	s.statusMu.Unlock()
 
-	if err := s.recoverStartup(ctx); err != nil {
-		s.recordDegraded(err)
-		return err
-	}
-
-	storageView := newStorageAdapter(cfg.Storage)
-	bootstrapState, snapshot, _, err := storageView.load(ctx)
+	store, err := raftstore.Open(ctx, raftstore.Config{Dir: cfg.RaftDir, NodeID: cfg.NodeID, SegmentSize: cfg.WALSegmentSize})
 	if err != nil {
 		s.recordDegraded(err)
 		return err
 	}
-	lastIndex, err := cfg.Storage.LastIndex(ctx)
+	startup, err := s.recoverStartup(ctx, store)
 	if err != nil {
+		_ = store.Close()
 		s.recordDegraded(err)
 		return err
 	}
@@ -143,7 +128,7 @@ func (s *Service) Start(ctx context.Context) error {
 	stepCh := make(chan raftpb.Message, 1024)
 	proposalCh := make(chan proposalRequest)
 	initCh := make(chan error, 1)
-	go s.run(storageView, runStartupState{State: bootstrapState, Snapshot: snapshot, LastIndex: lastIndex}, stopCh, doneCh, stepCh, proposalCh, initCh)
+	go s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, initCh)
 	if err := <-initCh; err != nil {
 		close(stopCh)
 		<-doneCh
@@ -305,39 +290,52 @@ func (s *Service) Status() Status {
 	return st
 }
 
-func (s *Service) sendReadyMessages(messages []raftpb.Message) {
-	if len(messages) == 0 {
-		return
-	}
-	s.cfg.Transport.Send(messages)
-}
-
-func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, initCh chan<- error) {
+func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, initCh chan<- error) {
 	defer close(doneCh)
-	rawNode, err := s.newRawNode(storageView, startup)
+	defer store.Close()
+	rawNode, err := s.newRawNode(store, startup)
 	if err != nil {
 		initCh <- err
 		return
 	}
-	if shouldBootstrap(startup.State, startup.Snapshot, startup.LastIndex) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
+	if shouldBootstrap(startup) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
 		if err := rawNode.Bootstrap(raftPeers(s.cfg.Peers)); err != nil {
 			initCh <- err
 			return
 		}
 	}
+
+	tracker := newProposalTracker()
+	var trackerMu sync.Mutex
+	complete := func(index uint64, err error) {
+		trackerMu.Lock()
+		defer trackerMu.Unlock()
+		tracker.complete(index, err)
+	}
+	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
+	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
+	scheduler.start(context.Background())
+	defer scheduler.stop()
+
 	s.updateStatus(rawNode, nil)
 	initCh <- nil
 
 	ticker := time.NewTicker(s.cfg.TickInterval)
 	defer ticker.Stop()
 
-	pendingQueue := make([]trackedProposal, 0, 8)
-	pendingByIndex := make(map[uint64]trackedProposal)
-	latestConfState := cloneConfState(startup.State.ConfState)
-	if !etcdraft.IsEmptySnap(startup.Snapshot) {
-		latestConfState = cloneConfState(startup.Snapshot.Metadata.ConfState)
+	failAll := func(err error) {
+		trackerMu.Lock()
+		tracker.failAll(err)
+		trackerMu.Unlock()
 	}
-
+	failOnLeaderLoss := func() {
+		if rawNode.Status().RaftState == etcdraft.StateLeader {
+			return
+		}
+		trackerMu.Lock()
+		tracker.failAll(ErrNotLeader)
+		trackerMu.Unlock()
+	}
 	processReady := func() error {
 		for rawNode.HasReady() {
 			ready := rawNode.Ready()
@@ -345,28 +343,33 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 			if isLeader {
 				s.sendReadyMessages(ready.Messages)
 			}
-			if err := storageView.persistReady(context.Background(), ready); err != nil {
-				failTracked(pendingQueue, pendingByIndex, err)
+			if err := store.SaveReady(context.Background(), ready.HardState, ready.Entries, ready.Snapshot); err != nil {
+				failAll(err)
 				return err
 			}
-			for _, entry := range ready.Entries {
-				if entry.Type != raftpb.EntryNormal || len(entry.Data) == 0 || len(pendingQueue) == 0 {
-					continue
-				}
-				tracked := pendingQueue[0]
-				pendingQueue = pendingQueue[1:]
-				pendingByIndex[entry.Index] = tracked
-			}
+			trackerMu.Lock()
+			tracker.bindAppended(ready.Entries)
+			trackerMu.Unlock()
 			if !isLeader {
 				s.sendReadyMessages(ready.Messages)
 			}
-			if err := s.applyCommittedEntries(context.Background(), rawNode, ready.CommittedEntries, storageView, &latestConfState, pendingByIndex); err != nil {
-				failTracked(pendingQueue, pendingByIndex, err)
+			job := toApply{entries: ready.CommittedEntries, snapshot: ready.Snapshot}
+			confCount := countConfChanges(ready.CommittedEntries)
+			if confCount > 0 {
+				job.confChangeC = make(chan confChangeRequest, confCount)
+			}
+			if err := scheduler.enqueue(context.Background(), job); err != nil {
+				failAll(err)
 				return err
+			}
+			for i := 0; i < confCount; i++ {
+				req := <-job.confChangeC
+				cs, err := applyConfChange(rawNode, req.entry)
+				req.resp <- confChangeResult{state: cs, err: err}
 			}
 			rawNode.Advance(ready)
 			s.updateStatus(rawNode, nil)
-			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
+			failOnLeaderLoss()
 		}
 		return nil
 	}
@@ -378,20 +381,20 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 		}
 		select {
 		case <-stopCh:
-			failTracked(pendingQueue, pendingByIndex, ErrStopped)
+			failAll(ErrStopped)
 			return
 		case <-ticker.C:
 			rawNode.Tick()
 			s.updateStatus(rawNode, nil)
-			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
+			failOnLeaderLoss()
 		case msg := <-stepCh:
 			if err := rawNode.Step(msg); err != nil && !errors.Is(err, etcdraft.ErrStepLocalMsg) {
-				failTracked(pendingQueue, pendingByIndex, err)
+				failAll(err)
 				s.setRunError(err)
 				return
 			}
 			s.updateStatus(rawNode, nil)
-			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
+			failOnLeaderLoss()
 		case req := <-proposalCh:
 			if err := req.ctx.Err(); err != nil {
 				req.resp <- err
@@ -410,13 +413,15 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 				req.resp <- err
 				continue
 			}
-			pendingQueue = append(pendingQueue, trackedProposal{resp: req.resp})
+			trackerMu.Lock()
+			tracker.enqueue(trackedProposal{resp: req.resp})
+			trackerMu.Unlock()
 		}
 	}
 }
 
-func (s *Service) newRawNode(storageView *storageAdapter, startup runStartupState) (*etcdraft.RawNode, error) {
-	applied := startup.State.AppliedIndex
+func (s *Service) newRawNode(store etcdraft.Storage, startup runStartupState) (*etcdraft.RawNode, error) {
+	applied := startup.AppliedIndex
 	if !etcdraft.IsEmptySnap(startup.Snapshot) && startup.Snapshot.Metadata.Index > applied {
 		applied = startup.Snapshot.Metadata.Index
 	}
@@ -424,7 +429,7 @@ func (s *Service) newRawNode(storageView *storageAdapter, startup runStartupStat
 		ID:                       s.cfg.NodeID,
 		ElectionTick:             electionTick,
 		HeartbeatTick:            heartbeatTick,
-		Storage:                  storageView.memory,
+		Storage:                  store,
 		Applied:                  applied,
 		MaxSizePerMsg:            math.MaxUint64,
 		MaxCommittedSizePerReady: math.MaxUint64,
@@ -434,327 +439,140 @@ func (s *Service) newRawNode(storageView *storageAdapter, startup runStartupStat
 	})
 }
 
-func (s *Service) applyCommittedEntries(ctx context.Context, rawNode *etcdraft.RawNode, entries []raftpb.Entry, storageView *storageAdapter, latestConfState *raftpb.ConfState, pendingByIndex map[uint64]trackedProposal) error {
-	for _, entry := range entries {
-		tracked, hasTracked := pendingByIndex[entry.Index]
-		proposalErr, applyErr := s.applyCommittedEntry(ctx, rawNode, entry, latestConfState)
-		if applyErr != nil {
-			if hasTracked {
-				tracked.resp <- applyErr
-				delete(pendingByIndex, entry.Index)
-			}
-			return applyErr
+func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (runStartupState, error) {
+	if err := s.cfg.StateMachine.Load(ctx); err != nil {
+		return runStartupState{}, err
+	}
+	hs, cs, err := store.InitialState()
+	if err != nil {
+		return runStartupState{}, err
+	}
+	snap, err := store.Snapshot()
+	if err != nil {
+		return runStartupState{}, err
+	}
+	last, err := store.LastIndex()
+	if err != nil {
+		return runStartupState{}, err
+	}
+	stateSnap := s.cfg.StateMachine.Snapshot(ctx)
+	if stateSnap.Revision == 0 && !etcdraft.IsEmptySnap(snap) && len(snap.Data) > 0 {
+		restored, err := state.Decode(snap.Data)
+		if err != nil {
+			return runStartupState{}, err
 		}
-		if err := storageView.storage.MarkApplied(ctx, entry.Index); err != nil {
-			if hasTracked {
-				tracked.resp <- err
-				delete(pendingByIndex, entry.Index)
-			}
-			return err
+		if restored.AppliedRaftIndex == 0 || restored.AppliedRaftIndex < snap.Metadata.Index {
+			restored.AppliedRaftIndex = snap.Metadata.Index
 		}
-		if hasTracked {
-			tracked.resp <- proposalErr
-			delete(pendingByIndex, entry.Index)
+		if err := s.cfg.StateMachine.Restore(ctx, restored); err != nil {
+			return runStartupState{}, err
 		}
+		stateSnap = s.cfg.StateMachine.Snapshot(ctx)
+	}
+	if stateSnap.Revision != 0 {
+		if stateSnap.AppliedRaftIndex > hs.Commit {
+			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", stateSnap.AppliedRaftIndex, hs.Commit)
+		}
+		if stateSnap.AppliedRaftIndex > last {
+			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of local last raft index %d", stateSnap.AppliedRaftIndex, last)
+		}
+	}
+	replayFrom := store.AppliedIndex() + 1
+	if stateSnap.Revision != 0 {
+		replayFrom = stateSnap.AppliedRaftIndex + 1
+	}
+	if hs.Commit >= replayFrom {
+		entries, err := store.Entries(replayFrom, hs.Commit+1, 0)
+		if err != nil {
+			return runStartupState{}, err
+		}
+		replayer := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, nil)
+		if err := replayer.applyEntries(ctx, entries, nil); err != nil {
+			return runStartupState{}, err
+		}
+	}
+	return runStartupState{HardState: hs, ConfState: cs, Snapshot: snap, LastIndex: last, AppliedIndex: store.AppliedIndex()}, nil
+}
+
+func (s *Service) maybeSnapshot(ctx context.Context, store *raftstore.Store, applied uint64) error {
+	if s.cfg.SnapshotCount == 0 || applied < s.cfg.SnapshotCount {
+		return nil
+	}
+	snap, err := store.Snapshot()
+	if err != nil {
+		return err
+	}
+	if applied < snap.Metadata.Index+s.cfg.SnapshotCount {
+		return nil
+	}
+	now := time.Now()
+	s.snapshotMu.Lock()
+	if !s.lastSnapshot.IsZero() && now.Sub(s.lastSnapshot) < s.cfg.SnapshotMinInterval {
+		s.snapshotMu.Unlock()
+		return nil
+	}
+	s.lastSnapshot = now
+	s.snapshotMu.Unlock()
+
+	st := s.cfg.StateMachine.Snapshot(ctx)
+	if st.Revision == 0 {
+		return nil
+	}
+	data, err := state.Encode(st)
+	if err != nil {
+		return err
+	}
+	term, err := store.Term(applied)
+	if err != nil {
+		term = s.Status().Term
+	}
+	_, conf, err := store.InitialState()
+	if err != nil {
+		return err
+	}
+	if err := store.SaveSnapshot(ctx, raftpb.Snapshot{Data: data, Metadata: raftpb.SnapshotMetadata{Index: applied, Term: term, ConfState: conf}}); err != nil {
+		return err
+	}
+	if applied > s.cfg.SnapshotCatchUpEntries {
+		return store.Compact(ctx, applied-s.cfg.SnapshotCatchUpEntries)
 	}
 	return nil
 }
 
-func (s *Service) applyCommittedEntry(ctx context.Context, rawNode *etcdraft.RawNode, entry raftpb.Entry, latestConfState *raftpb.ConfState) (error, error) {
+func (s *Service) sendReadyMessages(messages []raftpb.Message) {
+	if len(messages) == 0 {
+		return
+	}
+	s.cfg.Transport.Send(messages)
+}
+
+func countConfChanges(entries []raftpb.Entry) int {
+	count := 0
+	for _, entry := range entries {
+		if entry.Type == raftpb.EntryConfChange || entry.Type == raftpb.EntryConfChangeV2 {
+			count++
+		}
+	}
+	return count
+}
+
+func applyConfChange(rawNode *etcdraft.RawNode, entry raftpb.Entry) (raftpb.ConfState, error) {
 	switch entry.Type {
-	case raftpb.EntryNormal:
-		if len(entry.Data) == 0 {
-			return nil, s.advanceStateApplied(ctx, entry.Index)
-		}
-		cmd, err := command.Decode(entry.Data)
-		if err != nil {
-			return nil, err
-		}
-		result, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd)
-		if err != nil {
-			return nil, err
-		}
-		if result.Rejected {
-			return ProposalRejectedError{Index: entry.Index, Reason: result.Reason}, nil
-		}
-		return nil, nil
 	case raftpb.EntryConfChange:
 		var cc raftpb.ConfChange
 		if err := cc.Unmarshal(entry.Data); err != nil {
-			return nil, err
+			return raftpb.ConfState{}, err
 		}
-		latest := rawNode.ApplyConfChange(cc)
-		*latestConfState = cloneConfState(*latest)
-		return nil, s.advanceStateApplied(ctx, entry.Index)
+		return *rawNode.ApplyConfChange(cc), nil
 	case raftpb.EntryConfChangeV2:
 		var cc raftpb.ConfChangeV2
 		if err := cc.Unmarshal(entry.Data); err != nil {
-			return nil, err
+			return raftpb.ConfState{}, err
 		}
-		latest := rawNode.ApplyConfChange(cc)
-		*latestConfState = cloneConfState(*latest)
-		return nil, s.advanceStateApplied(ctx, entry.Index)
+		return *rawNode.ApplyConfChange(cc), nil
+	default:
+		return raftpb.ConfState{}, nil
 	}
-	return nil, nil
-}
-
-func (s *Service) advanceStateApplied(ctx context.Context, index uint64) error {
-	snap := s.cfg.StateMachine.Snapshot(ctx)
-	if snap.Revision == 0 || index <= snap.AppliedRaftIndex {
-		return nil
-	}
-	_, err := s.cfg.StateMachine.Apply(ctx, index, command.Command{
-		Kind:        command.KindUpdateControllerVoters,
-		Controllers: snap.Controllers,
-	})
-	return err
-}
-
-func (s *Service) recoverStartup(ctx context.Context) error {
-	boot, err := s.cfg.Storage.InitialState(ctx)
-	if err != nil {
-		return err
-	}
-	last, err := s.cfg.Storage.LastIndex(ctx)
-	if err != nil {
-		return err
-	}
-	if err := s.cfg.StateMachine.Load(ctx); err != nil {
-		target := rebuildRecoveryTarget(boot)
-		if target == 0 {
-			return fmt.Errorf("controllerv2/raft: corrupt state file without committed log history: %w", err)
-		}
-		s.cfg.StateMachine.Reset()
-		if err := s.recoverEmptyStateFromCompleteHistory(ctx, target, boot.AppliedIndex); err != nil {
-			return fmt.Errorf("controllerv2/raft: rebuild corrupt state: %w", err)
-		}
-		return nil
-	}
-
-	snap := s.cfg.StateMachine.Snapshot(ctx)
-	if snap.Revision != 0 {
-		if err := validateStateFileRaftBoundary(snap.AppliedRaftIndex, boot, last); err != nil {
-			s.cfg.StateMachine.Reset()
-			return err
-		}
-	}
-	if snap.Revision == 0 {
-		if isEmptyRaftLog(boot, last) {
-			if s.cfg.AllowBootstrap {
-				return nil
-			}
-			return fmt.Errorf("%w: empty ControllerV2 state requires bootstrap", ErrInvalidConfig)
-		}
-		target := rebuildRecoveryTarget(boot)
-		if target == 0 {
-			return fmt.Errorf("controllerv2/raft: missing state file without committed log history")
-		}
-		return s.recoverEmptyStateFromCompleteHistory(ctx, target, boot.AppliedIndex)
-	}
-
-	if snap.AppliedRaftIndex < boot.AppliedIndex {
-		_, err := s.replayRange(ctx, snap.AppliedRaftIndex+1, boot.AppliedIndex, false)
-		return err
-	}
-	return nil
-}
-
-func validateStateFileRaftBoundary(applied uint64, boot multiraft.BootstrapState, last uint64) error {
-	if applied > boot.HardState.Commit {
-		return fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", applied, boot.HardState.Commit)
-	}
-	if applied > last {
-		return fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of local last raft index %d", applied, last)
-	}
-	return nil
-}
-
-func rebuildRecoveryTarget(boot multiraft.BootstrapState) uint64 {
-	if boot.HardState.Commit > 0 {
-		return boot.HardState.Commit
-	}
-	return boot.AppliedIndex
-}
-
-func (s *Service) recoverEmptyStateFromCompleteHistory(ctx context.Context, target uint64, currentApplied uint64) error {
-	_, summary, err := s.replayCompleteHistory(ctx, target)
-	if err != nil {
-		return err
-	}
-	if summary.rebuiltState && s.cfg.StateMachine.Snapshot(ctx).Revision == 0 {
-		return fmt.Errorf("controllerv2/raft: replay did not rebuild cluster state")
-	}
-	if target > currentApplied {
-		return s.cfg.Storage.MarkApplied(ctx, target)
-	}
-	return nil
-}
-
-func (s *Service) replayCompleteHistory(ctx context.Context, target uint64) (uint64, replaySummary, error) {
-	first, err := s.cfg.Storage.FirstIndex(ctx)
-	if err != nil {
-		return 0, replaySummary{}, err
-	}
-	if first > 1 {
-		return first, replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before first index %d", first)
-	}
-	if first > target {
-		return first, replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", target)
-	}
-	summary, err := s.replayRange(ctx, first, target, true)
-	return first, summary, err
-}
-
-func (s *Service) replayRange(ctx context.Context, lo, hi uint64, requireComplete bool) (replaySummary, error) {
-	if hi == 0 || lo > hi {
-		if requireComplete {
-			return replaySummary{}, fmt.Errorf("controllerv2/raft: complete history unavailable before applied index %d", hi)
-		}
-		return replaySummary{}, nil
-	}
-	entries, err := s.cfg.Storage.Entries(ctx, lo, hi+1, 0)
-	if err != nil {
-		return replaySummary{}, err
-	}
-	expected := lo
-	summary := replaySummary{}
-	for _, entry := range entries {
-		if entry.Index != expected {
-			return replaySummary{}, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
-		}
-		expected++
-		if entry.Type == raftpb.EntryNormal && len(entry.Data) > 0 {
-			cmd, err := command.Decode(entry.Data)
-			if err != nil {
-				return replaySummary{}, err
-			}
-			result, err := s.cfg.StateMachine.Apply(ctx, entry.Index, cmd)
-			if err != nil {
-				return replaySummary{}, err
-			}
-			if result.Revision > 0 {
-				summary.rebuiltState = true
-			}
-		} else if err := s.advanceStateApplied(ctx, entry.Index); err != nil {
-			return replaySummary{}, err
-		}
-	}
-	if expected != hi+1 {
-		return replaySummary{}, fmt.Errorf("controllerv2/raft: missing required log entry %d", expected)
-	}
-	return summary, nil
-}
-
-func newStorageAdapter(storage multiraft.Storage) *storageAdapter {
-	return &storageAdapter{storage: storage}
-}
-
-func (s *storageAdapter) load(ctx context.Context) (multiraft.BootstrapState, raftpb.Snapshot, *loadedMemoryStorage, error) {
-	state, err := s.storage.InitialState(ctx)
-	if err != nil {
-		return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-	}
-	memory := etcdraft.NewMemoryStorage()
-	snap, err := s.storage.Snapshot(ctx)
-	if err != nil {
-		return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-	}
-	if !etcdraft.IsEmptySnap(snap) {
-		if err := memory.ApplySnapshot(snap); err != nil {
-			return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-		}
-	}
-	first, err := s.storage.FirstIndex(ctx)
-	if err != nil {
-		return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-	}
-	last, err := s.storage.LastIndex(ctx)
-	if err != nil {
-		return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-	}
-	if last >= first && last > 0 {
-		entries, err := s.storage.Entries(ctx, first, last+1, 0)
-		if err != nil {
-			return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-		}
-		if len(entries) > 0 {
-			if err := memory.Append(entries); err != nil {
-				return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-			}
-		}
-	}
-	if !etcdraft.IsEmptyHardState(state.HardState) {
-		if err := memory.SetHardState(state.HardState); err != nil {
-			return multiraft.BootstrapState{}, raftpb.Snapshot{}, nil, err
-		}
-	}
-	loadedConfState := state.ConfState
-	if !etcdraft.IsEmptySnap(snap) {
-		loadedConfState = snap.Metadata.ConfState
-	}
-	loaded := newLoadedMemoryStorage(memory, loadedConfState)
-	s.memory = loaded
-	return state, snap, loaded, nil
-}
-
-func (s *storageAdapter) persistReady(ctx context.Context, ready etcdraft.Ready) error {
-	persist := multiraft.PersistentState{}
-	needsSave := false
-	if !etcdraft.IsEmptyHardState(ready.HardState) {
-		hs := ready.HardState
-		persist.HardState = &hs
-		needsSave = true
-	}
-	if len(ready.Entries) > 0 {
-		persist.Entries = append([]raftpb.Entry(nil), ready.Entries...)
-		needsSave = true
-	}
-	if !etcdraft.IsEmptySnap(ready.Snapshot) {
-		snap := ready.Snapshot
-		persist.Snapshot = &snap
-		needsSave = true
-	}
-	if needsSave {
-		if err := s.storage.Save(ctx, persist); err != nil {
-			return err
-		}
-	}
-	if persist.Snapshot != nil {
-		if err := s.memory.ApplySnapshot(*persist.Snapshot); err != nil {
-			return err
-		}
-	}
-	if len(persist.Entries) > 0 {
-		if err := s.memory.Append(persist.Entries); err != nil {
-			return err
-		}
-	}
-	if persist.HardState != nil {
-		if err := s.memory.SetHardState(*persist.HardState); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func newLoadedMemoryStorage(memory *etcdraft.MemoryStorage, confState raftpb.ConfState) *loadedMemoryStorage {
-	return &loadedMemoryStorage{MemoryStorage: memory, confState: cloneConfState(confState)}
-}
-
-func (s *loadedMemoryStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	hs, _, err := s.MemoryStorage.InitialState()
-	if err != nil {
-		return raftpb.HardState{}, raftpb.ConfState{}, err
-	}
-	return hs, cloneConfState(s.confState), nil
-}
-
-func (s *loadedMemoryStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
-	if err := s.MemoryStorage.ApplySnapshot(snapshot); err != nil {
-		return err
-	}
-	s.confState = cloneConfState(snapshot.Metadata.ConfState)
-	return nil
 }
 
 func (s *Service) setRunError(err error) {
@@ -811,36 +629,8 @@ func (s *Service) updateStatus(rawNode *etcdraft.RawNode, err error) {
 	s.statusMu.Unlock()
 }
 
-func failTracked(queue []trackedProposal, byIndex map[uint64]trackedProposal, err error) {
-	for _, tracked := range queue {
-		tracked.resp <- err
-	}
-	for idx, tracked := range byIndex {
-		tracked.resp <- err
-		delete(byIndex, idx)
-	}
-}
-
-func failInflightProposalsOnLeaderLoss(role etcdraft.StateType, queue *[]trackedProposal, byIndex map[uint64]trackedProposal) {
-	if role == etcdraft.StateLeader {
-		return
-	}
-	for _, tracked := range *queue {
-		tracked.resp <- ErrNotLeader
-	}
-	*queue = (*queue)[:0]
-	for idx, tracked := range byIndex {
-		tracked.resp <- ErrNotLeader
-		delete(byIndex, idx)
-	}
-}
-
-func shouldBootstrap(state multiraft.BootstrapState, snapshot raftpb.Snapshot, last uint64) bool {
-	return last == 0 && state.AppliedIndex == 0 && etcdraft.IsEmptyHardState(state.HardState) && isZeroConfState(state.ConfState) && etcdraft.IsEmptySnap(snapshot)
-}
-
-func isEmptyRaftLog(state multiraft.BootstrapState, last uint64) bool {
-	return last == 0 && state.AppliedIndex == 0 && etcdraft.IsEmptyHardState(state.HardState) && isZeroConfState(state.ConfState)
+func shouldBootstrap(startup runStartupState) bool {
+	return startup.LastIndex == 0 && startup.AppliedIndex == 0 && etcdraft.IsEmptyHardState(startup.HardState) && isZeroConfState(startup.ConfState) && etcdraft.IsEmptySnap(startup.Snapshot)
 }
 
 func isSmallestPeer(nodeID uint64, peers []Peer) bool {
@@ -862,15 +652,6 @@ func raftPeers(peers []Peer) []etcdraft.Peer {
 		out = append(out, etcdraft.Peer{ID: peer.NodeID})
 	}
 	return out
-}
-
-func cloneConfState(state raftpb.ConfState) raftpb.ConfState {
-	cloned := state
-	cloned.Voters = append([]uint64(nil), state.Voters...)
-	cloned.Learners = append([]uint64(nil), state.Learners...)
-	cloned.VotersOutgoing = append([]uint64(nil), state.VotersOutgoing...)
-	cloned.LearnersNext = append([]uint64(nil), state.LearnersNext...)
-	return cloned
 }
 
 func isZeroConfState(state raftpb.ConfState) bool {
