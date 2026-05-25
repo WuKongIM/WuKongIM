@@ -14,6 +14,10 @@ const (
 	messageIndexIDClientMsgNo        uint16 = 3
 	messageIndexIDFromUIDClientMsgNo uint16 = 4
 
+	messageSystemIDCheckpoint uint16 = 1
+	messageSystemIDHistory    uint16 = 2
+	messageSystemIDSnapshot   uint16 = 3
+
 	messageColumnIDMessageSeq  uint16 = 1
 	messageColumnIDMessageID   uint16 = 2
 	messageColumnIDFramerFlags uint16 = 3
