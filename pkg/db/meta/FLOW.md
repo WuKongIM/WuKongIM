@@ -21,7 +21,9 @@ Current flow:
 8. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with monotonic upserts; page scans use primary-key order and
    cursor bounds.
-9. Later tasks add batch mutations, snapshots, conversation tables, and
-   migration tables.
+9. User and CMD conversation tables keep primary state rows and active indexes
+   in the same commit; active scans read newest-first and verify rows to ignore
+   stale index entries.
+10. Later tasks add batch mutations, snapshots, and migration tables.
 
 Storage code in this package must not import Pebble directly.
