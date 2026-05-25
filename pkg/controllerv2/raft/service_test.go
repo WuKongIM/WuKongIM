@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -383,22 +382,6 @@ func newTestStateMachine(t *testing.T, path string) *fsm.StateMachine {
 	return sm
 }
 
-func newSingleService(id uint64, peers []Peer, raftDir string, statePath string, allowBootstrap bool) *Service {
-	service, err := NewService(Config{
-		NodeID:         id,
-		Peers:          peers,
-		AllowBootstrap: allowBootstrap,
-		RaftDir:        raftDir,
-		StateMachine:   newTestStateMachine(&testing.T{}, statePath),
-		Transport:      newMemoryRaftTransport(),
-		TickInterval:   5 * time.Millisecond,
-	})
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
-
 func startSingleService(t *testing.T, id uint64, peers []Peer, raftDir string, statePath string, allowBootstrap bool) *Service {
 	t.Helper()
 	sm := newTestStateMachine(t, statePath)
@@ -462,5 +445,3 @@ func findTestNode(t *testing.T, st state.ClusterState, nodeID uint64) state.Node
 	t.Fatalf("node %d not found", nodeID)
 	return state.Node{}
 }
-
-var _ = atomic.Int32{}
