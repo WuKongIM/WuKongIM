@@ -18,7 +18,10 @@ Current flow:
 7. Subscriber mutations sort and de-duplicate UIDs, update the channel
    subscriber mutation version in the same commit, and invalidate the channel
    cache.
-8. Later tasks add batch mutations, snapshots, conversation tables, and
+8. Channel runtime metadata stores routing, leadership, retention, and write
+   fence state with monotonic upserts; page scans use primary-key order and
+   cursor bounds.
+9. Later tasks add batch mutations, snapshots, conversation tables, and
    migration tables.
 
 Storage code in this package must not import Pebble directly.
