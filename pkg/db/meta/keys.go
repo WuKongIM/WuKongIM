@@ -72,6 +72,17 @@ func encodeChannelRowKey(hashSlot HashSlot, channelID string, channelType uint8,
 	return keycodec.AppendUint16(key, familyID)
 }
 
+func encodeChannelRuntimeMetaRowPrefix(hashSlot HashSlot) []byte {
+	return encodeRowPrefix(hashSlot, TableIDChannelRuntimeMeta)
+}
+
+func encodeChannelRuntimeMetaRowKey(hashSlot HashSlot, channelID string, channelType uint8, familyID uint16) []byte {
+	key := encodeChannelRuntimeMetaRowPrefix(hashSlot)
+	key = keycodec.AppendString(key, channelID)
+	key = keycodec.AppendInt64Ordered(key, int64(channelType))
+	return keycodec.AppendUint16(key, familyID)
+}
+
 func encodeSubscriberRowPrefix(hashSlot HashSlot, channelID string, channelType uint8) []byte {
 	key := encodeRowPrefix(hashSlot, TableIDSubscriber)
 	key = keycodec.AppendString(key, channelID)
