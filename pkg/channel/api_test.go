@@ -13,8 +13,8 @@ import (
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	wktransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 

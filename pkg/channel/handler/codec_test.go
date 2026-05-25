@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	store "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 

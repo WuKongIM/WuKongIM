@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // DeleteConversation durably hides a conversation and then installs a best-effort

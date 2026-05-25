@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	slotmeta "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/stretchr/testify/require"
 )
 

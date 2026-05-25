@@ -8,13 +8,13 @@ pkg/channelv2/        - Experimental multi-reactor channel log runtime; root DTO
 |-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
 |-- replication/      - Leader/follower replication helpers and protocol decisions used by reactor runtime paths.
 |-- service/          - Synchronous facade that validates requests, resolves/applies metadata, routes work to reactors, and waits on futures.
-|-- store/            - Narrow persistence contract, memory store, and old pkg/channel adapter boundary.
+|-- store/            - Narrow persistence contract, memory store, and `pkg/db/message` compatibility adapter boundary.
 |-- testkit/          - In-memory multi-node cluster harness for channelv2 tests.
 |-- transport/        - V0 local/RPC transport DTOs for pull, ack, notify compatibility, and PullHint.
 `-- worker/           - Typed bounded worker pools for store append/read/apply, RPC pull/ack/PullHint, checkpoint, and result delivery.
 ```
 
-`store/channel_adapter.go` is the only channelv2 file that may import old `pkg/channel` or `pkg/channel/store`; other channelv2 packages should depend on channelv2 interfaces.
+`store/channel_adapter.go` is the only channelv2 file that may import old `pkg/channel` DTOs or the `pkg/db/message` compatibility engine; other channelv2 packages should depend on channelv2 interfaces.
 
 Diagram labels use `event or guard / effect` so agents can distinguish triggers from side effects.
 

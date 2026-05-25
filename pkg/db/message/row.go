@@ -1,12 +1,11 @@
 package message
 
-import (
-	"hash/crc32"
+import "github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+const (
+	fnv64aOffset = 14695981039346656037
+	fnv64aPrime  = 1099511628211
 )
-
-var messagePayloadHashTable = crc32.MakeTable(crc32.Castagnoli)
 
 type messageRow struct {
 	MessageSeq  uint64
@@ -48,5 +47,10 @@ func normalizeMessageRow(row messageRow) messageRow {
 }
 
 func hashPayload(payload []byte) uint64 {
-	return uint64(crc32.Checksum(payload, messagePayloadHashTable))
+	hash := uint64(fnv64aOffset)
+	for _, b := range payload {
+		hash ^= uint64(b)
+		hash *= fnv64aPrime
+	}
+	return hash
 }

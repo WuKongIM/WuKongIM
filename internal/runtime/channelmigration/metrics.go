@@ -3,7 +3,7 @@ package channelmigration
 import (
 	"time"
 
-	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	slotmeta "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // PhaseTransition describes one durable executor phase or status update.

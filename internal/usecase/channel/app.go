@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ErrStoreRequired indicates that the channel usecase has no storage backend.

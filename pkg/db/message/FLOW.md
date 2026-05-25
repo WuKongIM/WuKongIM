@@ -25,6 +25,13 @@ Current flow:
    together; retention state preserves LEO across reopen after prefix trim.
 10. Catalog entries are updated by durable append/system mutations and can be
    listed through `MessageDB.ListChannels`.
-11. Schema and key helpers define the durable message table layout.
+11. The compatibility `Engine` / `ChannelStore` surface adapts legacy
+    `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
+    query callers onto the typed `ChannelLog` core while keeping seq/offset
+    conversion at the channel boundary.
+12. Compatibility durable payloads continue to use FNV-64a payload hashes so
+    handler idempotency checks compare the same value that was encoded into the
+    `channel.Record` payload.
+13. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

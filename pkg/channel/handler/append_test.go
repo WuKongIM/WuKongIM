@@ -8,7 +8,7 @@ import (
 	"time"
 
 	core "github.com/WuKongIM/WuKongIM/pkg/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	store "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 func TestAppendUsesRuntimeKeyAndReturnsMessageSeq(t *testing.T) {
