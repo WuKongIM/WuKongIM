@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
@@ -234,4 +237,54 @@ func waitUntil(t *testing.T, fn func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition not met before deadline")
+}
+
+func TestNodeAppendChannelDelegatesToService(t *testing.T) {
+	runtime := &nodeChannelRuntime{}
+	svc, err := channels.NewService(channels.Config{Runtime: runtime})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	node, err := New(validNodeConfig(t), withChannels(svc))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	_, err = node.AppendChannel(context.Background(), channelv2.AppendRequest{ChannelID: channelv2.ChannelID{ID: "room", Type: 1}})
+	if err != nil {
+		t.Fatalf("AppendChannel() error = %v", err)
+	}
+	if runtime.appendCalls != 1 {
+		t.Fatalf("append calls = %d, want 1", runtime.appendCalls)
+	}
+}
+
+type nodeChannelRuntime struct{ appendCalls int }
+
+func (r *nodeChannelRuntime) ApplyMeta(channelv2.Meta) error { return nil }
+func (r *nodeChannelRuntime) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
+	r.appendCalls++
+	return channelv2.AppendResult{}, nil
+}
+func (r *nodeChannelRuntime) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+	return channelv2.AppendBatchResult{}, nil
+}
+func (r *nodeChannelRuntime) Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error) {
+	return channelv2.FetchResult{}, nil
+}
+func (r *nodeChannelRuntime) Tick(context.Context) error { return nil }
+func (r *nodeChannelRuntime) Close() error               { return nil }
+func (r *nodeChannelRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *nodeChannelRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *nodeChannelRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+func (r *nodeChannelRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
 }
