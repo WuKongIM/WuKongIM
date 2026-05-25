@@ -99,6 +99,44 @@ type Snapshot struct {
 	Payload []byte
 }
 
+// ApplyFetchRequest applies a follower fetch batch and optional system state.
+type ApplyFetchRequest struct {
+	// BaseSeq explicitly pins the first record sequence.
+	BaseSeq uint64
+	// Records contains fetched records in sequence order.
+	Records []Record
+	// Checkpoint optionally stores committed progress atomically with records.
+	Checkpoint *Checkpoint
+	// EpochPoint optionally stores an epoch boundary atomically with records.
+	EpochPoint *EpochPoint
+}
+
+// RetentionState records local message retention progress for one channel.
+type RetentionState struct {
+	// LocalRetentionThroughSeq is the adopted logical retention boundary.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest physically deleted sequence.
+	PhysicalRetentionThroughSeq uint64
+	// RetainedMaxSeq preserves LEO when all rows at the tail are trimmed.
+	RetainedMaxSeq uint64
+}
+
+// RetentionTrimResult describes one prefix retention trim.
+type RetentionTrimResult struct {
+	// DeletedThroughSeq is the highest sequence deleted by this trim.
+	DeletedThroughSeq uint64
+	// Deleted is the number of message rows deleted.
+	Deleted int
+}
+
+// ChannelCatalogEntry describes one known channel in the message domain.
+type ChannelCatalogEntry struct {
+	// Key is the stable channel partition key.
+	Key ChannelKey
+	// ID is the user-facing channel identity.
+	ID ChannelID
+}
+
 // AppendMode controls append validation work.
 type AppendMode uint8
 
@@ -113,6 +151,8 @@ const (
 type AppendOptions struct {
 	// Mode controls duplicate validation.
 	Mode AppendMode
+	// BaseSeq explicitly pins the first assigned sequence when non-zero.
+	BaseSeq uint64
 }
 
 // ReadOptions configures log scans.
