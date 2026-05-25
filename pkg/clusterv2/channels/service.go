@@ -21,6 +21,10 @@ type Config struct {
 	Runtime any
 	// LocalNode is this node's ChannelV2 node ID when constructing Runtime.
 	LocalNode ch.NodeID
+	// ReactorCount is the number of ChannelV2 reactor partitions.
+	ReactorCount int
+	// MailboxSize bounds each ChannelV2 reactor mailbox.
+	MailboxSize int
 	// Store opens ChannelV2 stores when constructing Runtime.
 	Store channelstore.Factory
 	// Transport sends ChannelV2 replication RPCs when constructing Runtime.
@@ -38,7 +42,7 @@ type Service struct {
 func NewService(cfg Config) (*Service, error) {
 	runtime := cfg.Runtime
 	if runtime == nil {
-		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource})
+		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource})
 		if err != nil {
 			return nil, err
 		}

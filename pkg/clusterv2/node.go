@@ -5,8 +5,10 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
@@ -22,6 +24,14 @@ type slotReconciler interface {
 	Reconcile(context.Context, control.Snapshot) error
 }
 
+type channelService interface {
+	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
+	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+	Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error)
+	Tick(context.Context) error
+	Close() error
+}
+
 // Node is the clusterv2 lifecycle root and public runtime facade.
 type Node struct {
 	cfg       Config
@@ -30,25 +40,24 @@ type Node struct {
 	router    *routing.Router
 	discovery *clusternet.Discovery
 	slots     slotReconciler
-	channels  interface {
-		Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
-		AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
-		Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error)
-		Close() error
-	}
-	proposer interface {
+	channels  channelService
+	// defaultChannels reports whether Node constructed channels during Start.
+	defaultChannels bool
+	proposer        interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
 
-	mu          sync.RWMutex
-	snapshot    Snapshot
-	watchCancel context.CancelFunc
-	started     atomic.Bool
-	stopping    atomic.Bool
+	mu                sync.RWMutex
+	snapshot          Snapshot
+	watchCancel       context.CancelFunc
+	channelTickCancel context.CancelFunc
+	channelTickWG     sync.WaitGroup
+	started           atomic.Bool
+	stopping          atomic.Bool
 }
 
-// New validates cfg and creates a clusterv2 node shell.
+// New validates cfg and creates a clusterv2 node.
 func New(cfg Config, opts ...Option) (*Node, error) {
 	cfg.applyDefaults()
 	if err := cfg.validate(); err != nil {
@@ -77,17 +86,22 @@ func withSlotReconciler(reconciler slotReconciler) Option {
 	return func(n *Node) { n.slots = reconciler }
 }
 
-func withChannels(service *channels.Service) Option {
-	return func(n *Node) { n.channels = service }
+// WithChannels overrides the default ChannelV2 service hosted by Node.
+func WithChannels(service *channels.Service) Option {
+	return func(n *Node) {
+		n.channels = service
+		n.defaultChannels = false
+	}
 }
 
-func withProposer(proposer interface {
+// WithProposer overrides the default Slot propose service used by Node.Propose.
+func WithProposer(proposer interface {
 	Propose(context.Context, propose.Request) error
 }) Option {
 	return func(n *Node) { n.proposer = proposer }
 }
 
-// Start starts the node runtime. Later tasks wire concrete resources behind this shell.
+// Start starts the node runtime and hosted background loops.
 func (n *Node) Start(ctx context.Context) error {
 	if n == nil {
 		return ErrNotStarted
@@ -95,6 +109,17 @@ func (n *Node) Start(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	createdDefaultChannels, err := n.ensureDefaultRuntime()
+	if err != nil {
+		return err
+	}
+	started := false
+	defer func() {
+		if !started && createdDefaultChannels {
+			n.discardDefaultChannels()
+			n.markChannelsReady(false)
+		}
+	}()
 	n.stopping.Store(false)
 	if err := n.group.Start(ctx, n.resources...); err != nil {
 		n.started.Store(false)
@@ -118,8 +143,42 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		n.startWatchLoop()
 	}
+	n.markChannelsReady(n.channels != nil)
+	n.startChannelTickLoop()
 	n.started.Store(true)
+	started = true
 	return nil
+}
+
+func (n *Node) ensureDefaultRuntime() (bool, error) {
+	if n.proposer == nil {
+		n.proposer = propose.NewService(propose.Config{LocalNode: n.cfg.NodeID, Router: n.router})
+	}
+	createdDefaultChannels := false
+	if n.channels == nil {
+		service, err := channels.NewService(channels.Config{
+			LocalNode:    channelv2.NodeID(n.cfg.NodeID),
+			ReactorCount: n.cfg.Channel.ReactorCount,
+			MailboxSize:  n.cfg.Channel.MailboxSize,
+			Store:        channelstore.NewMemoryFactory(),
+		})
+		if err != nil {
+			return false, err
+		}
+		n.channels = service
+		n.defaultChannels = true
+		createdDefaultChannels = true
+	}
+	return createdDefaultChannels, nil
+}
+
+func (n *Node) discardDefaultChannels() {
+	if n == nil || !n.defaultChannels || n.channels == nil {
+		return
+	}
+	_ = n.channels.Close()
+	n.channels = nil
+	n.defaultChannels = false
 }
 
 // Stop stops the node runtime and rejects new foreground work.
@@ -134,12 +193,18 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n.watchCancel != nil {
 		n.watchCancel()
 	}
+	n.stopChannelTickLoop()
 	var errs []error
 	if n.channels != nil {
 		if err := n.channels.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
+	if n.defaultChannels {
+		n.channels = nil
+		n.defaultChannels = false
+	}
+	n.markChannelsReady(false)
 	if n.control != nil {
 		if err := n.control.Stop(ctx); err != nil {
 			errs = append(errs, err)
@@ -266,6 +331,16 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	return nil
 }
 
+func (n *Node) markChannelsReady(ready bool) {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	n.snapshot.NodeID = n.cfg.NodeID
+	n.snapshot.ChannelsReady = ready
+	n.mu.Unlock()
+}
+
 func (n *Node) startWatchLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.watchCancel = cancel
@@ -283,6 +358,37 @@ func (n *Node) startWatchLoop() {
 			}
 		}
 	}()
+}
+
+func (n *Node) startChannelTickLoop() {
+	if n == nil || n.channels == nil || n.channelTickCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	n.channelTickCancel = cancel
+	n.channelTickWG.Add(1)
+	go func() {
+		defer n.channelTickWG.Done()
+		ticker := time.NewTicker(n.cfg.Channel.TickInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = n.channels.Tick(ctx)
+			}
+		}
+	}()
+}
+
+func (n *Node) stopChannelTickLoop() {
+	if n == nil || n.channelTickCancel == nil {
+		return
+	}
+	n.channelTickCancel()
+	n.channelTickWG.Wait()
+	n.channelTickCancel = nil
 }
 
 func convertRoute(route routing.Route, err error) (Route, error) {

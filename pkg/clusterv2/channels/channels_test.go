@@ -2,11 +2,14 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
 func TestStaticMetaSourceResolvesAndDerivesKey(t *testing.T) {
@@ -18,6 +21,48 @@ func TestStaticMetaSourceResolvesAndDerivesKey(t *testing.T) {
 	}
 	if meta.Key != ch.ChannelKeyForID(id) {
 		t.Fatalf("key = %q, want derived", meta.Key)
+	}
+}
+
+func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
+	id := ch.ChannelID{ID: "room", Type: 1}
+	leaseUntil := time.UnixMilli(1234).UTC()
+	source := NewSlotMetaSource(runtimeMetaReaderFake{meta: metadb.ChannelRuntimeMeta{
+		ChannelID:    id.ID,
+		ChannelType:  int64(id.Type),
+		ChannelEpoch: 2,
+		LeaderEpoch:  3,
+		Leader:       2,
+		Replicas:     []uint64{3, 1, 2},
+		ISR:          []uint64{2, 1},
+		MinISR:       2,
+		LeaseUntilMS: leaseUntil.UnixMilli(),
+		Status:       uint8(ch.StatusActive),
+	}})
+
+	meta, err := source.ResolveChannelMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveChannelMeta() error = %v", err)
+	}
+	if meta.Key != ch.ChannelKeyForID(id) || meta.ID != id || meta.Epoch != 2 || meta.LeaderEpoch != 3 || meta.Leader != 2 {
+		t.Fatalf("meta identity/epochs = %#v", meta)
+	}
+	if got, want := meta.Replicas, []ch.NodeID{1, 2, 3}; !equalNodeIDs(got, want) {
+		t.Fatalf("Replicas = %v, want %v", got, want)
+	}
+	if got, want := meta.ISR, []ch.NodeID{1, 2}; !equalNodeIDs(got, want) {
+		t.Fatalf("ISR = %v, want %v", got, want)
+	}
+	if meta.MinISR != 2 || !meta.LeaseUntil.Equal(leaseUntil) || meta.Status != ch.StatusActive {
+		t.Fatalf("meta quorum/lease/status = %#v", meta)
+	}
+}
+
+func TestSlotMetaSourceMapsMissingRuntimeMetaToChannelNotFound(t *testing.T) {
+	source := NewSlotMetaSource(runtimeMetaReaderFake{err: metadb.ErrNotFound})
+	_, err := source.ResolveChannelMeta(context.Background(), ch.ChannelID{ID: "missing", Type: 1})
+	if !errors.Is(err, ch.ErrChannelNotFound) {
+		t.Fatalf("ResolveChannelMeta() error = %v, want ErrChannelNotFound", err)
 	}
 }
 
@@ -122,3 +167,27 @@ func (f *fakeRuntime) HandlePullHint(context.Context, channeltransport.PullHintR
 	return nil
 }
 func (f *fakeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error { return nil }
+
+type runtimeMetaReaderFake struct {
+	meta metadb.ChannelRuntimeMeta
+	err  error
+}
+
+func (f runtimeMetaReaderFake) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	if f.err != nil {
+		return metadb.ChannelRuntimeMeta{}, f.err
+	}
+	return f.meta, nil
+}
+
+func equalNodeIDs(a, b []ch.NodeID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
