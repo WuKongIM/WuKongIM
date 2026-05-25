@@ -41,11 +41,12 @@ const (
 	devicePrimaryFamilyID uint16 = 0
 	devicePrimaryIndexID  uint16 = 1
 
-	channelPrimaryFamilyID   uint16 = 0
-	channelPrimaryIndexID    uint16 = 1
-	channelIDIndexID         uint16 = 2
-	channelActiveIndexID     uint16 = 3
-	subscriberPrimaryIndexID uint16 = 1
+	channelPrimaryFamilyID    uint16 = 0
+	channelPrimaryIndexID     uint16 = 1
+	channelIDIndexID          uint16 = 2
+	channelActiveIndexID      uint16 = 3
+	subscriberPrimaryFamilyID uint16 = 0
+	subscriberPrimaryIndexID  uint16 = 1
 
 	conversationPrimaryIndexID uint16 = 1
 	conversationActiveIndexID  uint16 = 2

@@ -165,19 +165,26 @@ func (s *Shard) ListChannelsByChannelID(ctx context.Context, channelID string) (
 }
 
 func (s *Shard) writeChannelLocked(primaryKey []byte, channel Channel) error {
-	value := encodeChannelValue(channel)
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := batch.Set(primaryKey, value); err != nil {
-		return err
-	}
-	if err := batch.Set(encodeChannelIDIndexKey(s.hashSlot, channel.ChannelID, int64(channel.ChannelType)), value); err != nil {
+	if err := s.stageChannel(batch, primaryKey, channel); err != nil {
 		return err
 	}
 	if err := batch.Commit(true); err != nil {
 		return err
 	}
 	s.db.forgetChannel(primaryKey)
+	return nil
+}
+
+func (s *Shard) stageChannel(batch *engine.Batch, primaryKey []byte, channel Channel) error {
+	value := encodeChannelValue(channel)
+	if err := batch.Set(primaryKey, value); err != nil {
+		return err
+	}
+	if err := batch.Set(encodeChannelIDIndexKey(s.hashSlot, channel.ChannelID, int64(channel.ChannelType)), value); err != nil {
+		return err
+	}
 	return nil
 }
 

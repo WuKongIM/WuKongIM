@@ -15,7 +15,10 @@ Current flow:
    stay in the same commit as primary rows.
 6. Channel reads populate an opportunistic in-memory cache, and channel
    mutations invalidate the affected cache entry after commit.
-7. Later tasks add subscriber tables, batch mutations, snapshots, and migration
-   tables.
+7. Subscriber mutations sort and de-duplicate UIDs, update the channel
+   subscriber mutation version in the same commit, and invalidate the channel
+   cache.
+8. Later tasks add batch mutations, snapshots, conversation tables, and
+   migration tables.
 
 Storage code in this package must not import Pebble directly.
