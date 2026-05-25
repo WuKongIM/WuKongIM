@@ -12,7 +12,7 @@ type ChannelRuntimeMetaGuard struct {
 	// ChannelID identifies the guarded channel.
 	ChannelID string
 	// ChannelType identifies the guarded channel namespace.
-	ChannelType uint8
+	ChannelType int64
 	// ExpectedChannelEpoch is the channel epoch that must still be current.
 	ExpectedChannelEpoch uint64
 	// ExpectedLeaderEpoch is the leader epoch that must still be current.
@@ -47,12 +47,20 @@ type metaBatchOp struct {
 type batchCommitState struct {
 	db               *MetaDB
 	createdUsers     map[string]struct{}
+	userWrites       map[string]struct{}
 	runtimeMeta      map[string]runtimeMetaOverlay
+	migrationTasks   map[string]migrationTaskOverlay
 	channelPublishes map[string]Channel
+	channelDeletes   map[string]struct{}
 }
 
 type runtimeMetaOverlay struct {
 	meta   ChannelRuntimeMeta
+	exists bool
+}
+
+type migrationTaskOverlay struct {
+	task   ChannelMigrationTask
 	exists bool
 }
 
@@ -95,6 +103,7 @@ func (b *Batch) CreateUser(hashSlot HashSlot, user User) error {
 			return dberrors.ErrAlreadyExists
 		}
 		state.createdUsers[string(primaryKey)] = struct{}{}
+		state.userWrites[string(primaryKey)] = struct{}{}
 		return batch.Set(primaryKey, encodeUserValue(user))
 	})
 	return nil
@@ -110,6 +119,7 @@ func (b *Batch) UpsertUser(hashSlot HashSlot, user User) error {
 	}
 	primaryKey := encodeUserRowKey(hashSlot, user.UID, userPrimaryFamilyID)
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		state.userWrites[string(primaryKey)] = struct{}{}
 		return batch.Set(primaryKey, encodeUserValue(user))
 	})
 	return nil
@@ -134,13 +144,14 @@ func (b *Batch) UpsertChannel(hashSlot HashSlot, channel Channel) error {
 			return err
 		}
 		state.channelPublishes[string(primaryKey)] = channel
+		delete(state.channelDeletes, string(primaryKey))
 		return nil
 	})
 	return nil
 }
 
 // GetChannel reads a staged channel before falling back to committed storage.
-func (b *Batch) GetChannel(ctx context.Context, hashSlot HashSlot, channelID string, channelType uint8) (Channel, bool, error) {
+func (b *Batch) GetChannel(ctx context.Context, hashSlot HashSlot, channelID string, channelType int64) (Channel, bool, error) {
 	if err := b.ensureOpen(); err != nil {
 		return Channel{}, false, err
 	}
@@ -229,7 +240,12 @@ func (b *Batch) CreateChannelMigrationTask(hashSlot HashSlot, task ChannelMigrat
 	}
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: state.db, hashSlot: hashSlot}
-		return shard.stageCreateChannelMigrationTask(ctx, batch, task)
+		if err := shard.stageCreateChannelMigrationTask(ctx, batch, task); err != nil {
+			return err
+		}
+		key := encodeChannelMigrationTaskRowKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+		state.migrationTasks[string(key)] = migrationTaskOverlay{task: task, exists: true}
+		return nil
 	})
 	return nil
 }
@@ -285,8 +301,11 @@ func (b *Batch) Commit(ctx context.Context) error {
 	state := &batchCommitState{
 		db:               b.db,
 		createdUsers:     make(map[string]struct{}),
+		userWrites:       make(map[string]struct{}),
 		runtimeMeta:      make(map[string]runtimeMetaOverlay),
+		migrationTasks:   make(map[string]migrationTaskOverlay),
 		channelPublishes: make(map[string]Channel),
+		channelDeletes:   make(map[string]struct{}),
 	}
 	for _, op := range b.ops {
 		if err := ctx.Err(); err != nil {
@@ -301,6 +320,9 @@ func (b *Batch) Commit(ctx context.Context) error {
 	}
 	for cacheKey, channel := range state.channelPublishes {
 		b.db.rememberChannel([]byte(cacheKey), channel)
+	}
+	for cacheKey := range state.channelDeletes {
+		b.db.forgetChannel([]byte(cacheKey))
 	}
 	b.closed = true
 	return nil
@@ -328,7 +350,7 @@ func (b *Batch) lockedOrderForTest() []HashSlot {
 	return append([]HashSlot(nil), b.lastLocked...)
 }
 
-func (state *batchCommitState) loadRuntimeMeta(ctx context.Context, hashSlot HashSlot, key []byte, channelID string, channelType uint8) (ChannelRuntimeMeta, bool, error) {
+func (state *batchCommitState) loadRuntimeMeta(ctx context.Context, hashSlot HashSlot, key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
 	if entry, ok := state.runtimeMeta[string(key)]; ok {
 		return entry.meta, entry.exists, nil
 	}
@@ -339,6 +361,19 @@ func (state *batchCommitState) loadRuntimeMeta(ctx context.Context, hashSlot Has
 	}
 	state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: meta, exists: exists}
 	return meta, exists, nil
+}
+
+func (state *batchCommitState) loadChannelMigrationTask(ctx context.Context, hashSlot HashSlot, key []byte, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {
+	if entry, ok := state.migrationTasks[string(key)]; ok {
+		return entry.task, entry.exists, nil
+	}
+	shard := &Shard{db: state.db, hashSlot: hashSlot}
+	task, exists, err := shard.getChannelMigrationTaskByKey(ctx, key, channelID, channelType, taskID)
+	if err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	state.migrationTasks[string(key)] = migrationTaskOverlay{task: task, exists: exists}
+	return task, exists, nil
 }
 
 func (guard ChannelRuntimeMetaGuard) matches(meta ChannelRuntimeMeta) bool {

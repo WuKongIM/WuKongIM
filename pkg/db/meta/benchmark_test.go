@@ -274,7 +274,7 @@ func buildBenchmarkMetaFixture(tb testing.TB, db *MetaDB, hashSlot HashSlot, cfg
 		channelID := benchmarkChannelID(hashSlot, i)
 		fixture.ChannelIDs = append(fixture.ChannelIDs, channelID)
 		for j := 0; j < cfg.ChannelTypes; j++ {
-			channelType := uint8(j + 1)
+			channelType := int64(j + 1)
 			if err := shard.CreateChannel(ctx, Channel{
 				ChannelID:   channelID,
 				ChannelType: channelType,

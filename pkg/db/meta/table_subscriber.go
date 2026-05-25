@@ -11,17 +11,17 @@ import (
 )
 
 // AddSubscribers adds sorted unique subscribers and advances channel mutation version.
-func (s *Shard) AddSubscribers(ctx context.Context, channelID string, channelType uint8, uids []string, mutationVersion uint64) error {
+func (s *Shard) AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) error {
 	return s.mutateSubscribers(ctx, channelID, channelType, uids, mutationVersion, true)
 }
 
 // RemoveSubscribers removes subscribers and advances channel mutation version.
-func (s *Shard) RemoveSubscribers(ctx context.Context, channelID string, channelType uint8, uids []string, mutationVersion uint64) error {
+func (s *Shard) RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) error {
 	return s.mutateSubscribers(ctx, channelID, channelType, uids, mutationVersion, false)
 }
 
 // ContainsSubscriber reports whether uid belongs to a channel.
-func (s *Shard) ContainsSubscriber(ctx context.Context, channelID string, channelType uint8, uid string) (bool, error) {
+func (s *Shard) ContainsSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
 	if err := s.check(ctx); err != nil {
 		return false, err
 	}
@@ -36,7 +36,7 @@ func (s *Shard) ContainsSubscriber(ctx context.Context, channelID string, channe
 }
 
 // HasSubscribers reports whether a channel has at least one subscriber.
-func (s *Shard) HasSubscribers(ctx context.Context, channelID string, channelType uint8) (bool, error) {
+func (s *Shard) HasSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
 	list, _, _, err := s.ListSubscribersPage(ctx, channelID, channelType, "", 1)
 	if err != nil {
 		return false, err
@@ -45,7 +45,7 @@ func (s *Shard) HasSubscribers(ctx context.Context, channelID string, channelTyp
 }
 
 // SnapshotSubscribers returns all subscribers in stable UID order.
-func (s *Shard) SnapshotSubscribers(ctx context.Context, channelID string, channelType uint8) ([]string, error) {
+func (s *Shard) SnapshotSubscribers(ctx context.Context, channelID string, channelType int64) ([]string, error) {
 	var out []string
 	cursor := ""
 	for {
@@ -62,7 +62,7 @@ func (s *Shard) SnapshotSubscribers(ctx context.Context, channelID string, chann
 }
 
 // ListSubscribersPage returns subscribers after cursorUID in stable UID order.
-func (s *Shard) ListSubscribersPage(ctx context.Context, channelID string, channelType uint8, cursorUID string, limit int) ([]string, string, bool, error) {
+func (s *Shard) ListSubscribersPage(ctx context.Context, channelID string, channelType int64, cursorUID string, limit int) ([]string, string, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return nil, "", false, err
 	}
@@ -99,7 +99,7 @@ func (s *Shard) ListSubscribersPage(ctx context.Context, channelID string, chann
 	return uids, "", true, nil
 }
 
-func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channelType uint8, uids []string, mutationVersion uint64, add bool) error {
+func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}

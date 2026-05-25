@@ -11,9 +11,9 @@ import (
 	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"go.etcd.io/raft/v3/raftpb"
 )

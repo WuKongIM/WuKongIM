@@ -141,7 +141,7 @@ func TestChannelRuntimeMetaAdvanceRetention(t *testing.T) {
 	}
 }
 
-func testRuntimeMeta(channelID string, channelType uint8) ChannelRuntimeMeta {
+func testRuntimeMeta(channelID string, channelType int64) ChannelRuntimeMeta {
 	return ChannelRuntimeMeta{
 		ChannelID:    channelID,
 		ChannelType:  channelType,

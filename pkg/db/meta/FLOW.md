@@ -30,8 +30,9 @@ Current flow:
    under the hash-slot partition; typed values repeat the hash slot only for
    self-description.
 12. `Batch` stages typed operations, locks all touched hash slots in sorted
-   order, validates guards against a read-your-writes overlay, commits once,
-   then publishes channel cache entries.
+   order, validates guards against read-your-writes overlays for runtime
+   metadata and channel migration tasks, commits once, then publishes or
+   invalidates channel cache entries.
 13. Channel migration tasks keep primary rows, one active-task index per
    channel, and terminal indexes in sync; guarded batch creates can fence on
    runtime metadata.
@@ -44,7 +45,8 @@ Current flow:
     present locally.
 16. `DeleteHashSlotData` removes all row, index, and system spans for one hash
     slot and clears the channel cache.
-17. Later tasks add richer migration side-effect operations and migrate legacy
-    callers onto this package.
+17. Slot FSM, proxy, and cluster callers use this package through the
+    compatibility `DB`, `ShardStore`, and `WriteBatch` surface while the typed
+    `MetaDB`/`Shard` APIs remain the new storage core.
 
 Storage code in this package must not import Pebble directly.

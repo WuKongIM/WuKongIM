@@ -65,7 +65,7 @@ func encodeDeviceRowKey(hashSlot HashSlot, uid string, deviceFlag int64, familyI
 	return keycodec.AppendUint16(key, familyID)
 }
 
-func encodeChannelRowKey(hashSlot HashSlot, channelID string, channelType uint8, familyID uint16) []byte {
+func encodeChannelRowKey(hashSlot HashSlot, channelID string, channelType int64, familyID uint16) []byte {
 	key := encodeRowPrefix(hashSlot, TableIDChannel)
 	key = keycodec.AppendString(key, channelID)
 	key = keycodec.AppendInt64Ordered(key, int64(channelType))
@@ -76,20 +76,20 @@ func encodeChannelRuntimeMetaRowPrefix(hashSlot HashSlot) []byte {
 	return encodeRowPrefix(hashSlot, TableIDChannelRuntimeMeta)
 }
 
-func encodeChannelRuntimeMetaRowKey(hashSlot HashSlot, channelID string, channelType uint8, familyID uint16) []byte {
+func encodeChannelRuntimeMetaRowKey(hashSlot HashSlot, channelID string, channelType int64, familyID uint16) []byte {
 	key := encodeChannelRuntimeMetaRowPrefix(hashSlot)
 	key = keycodec.AppendString(key, channelID)
 	key = keycodec.AppendInt64Ordered(key, int64(channelType))
 	return keycodec.AppendUint16(key, familyID)
 }
 
-func encodeSubscriberRowPrefix(hashSlot HashSlot, channelID string, channelType uint8) []byte {
+func encodeSubscriberRowPrefix(hashSlot HashSlot, channelID string, channelType int64) []byte {
 	key := encodeRowPrefix(hashSlot, TableIDSubscriber)
 	key = keycodec.AppendString(key, channelID)
 	return keycodec.AppendInt64Ordered(key, int64(channelType))
 }
 
-func encodeSubscriberRowKey(hashSlot HashSlot, channelID string, channelType uint8, uid string, familyID uint16) []byte {
+func encodeSubscriberRowKey(hashSlot HashSlot, channelID string, channelType int64, uid string, familyID uint16) []byte {
 	key := encodeSubscriberRowPrefix(hashSlot, channelID, channelType)
 	key = keycodec.AppendString(key, uid)
 	return keycodec.AppendUint16(key, familyID)
@@ -100,7 +100,7 @@ func encodeConversationRowPrefix(hashSlot HashSlot, uid string) []byte {
 	return keycodec.AppendString(key, uid)
 }
 
-func encodeConversationRowKey(hashSlot HashSlot, uid string, channelID string, channelType uint8, familyID uint16) []byte {
+func encodeConversationRowKey(hashSlot HashSlot, uid string, channelID string, channelType int64, familyID uint16) []byte {
 	key := encodeConversationRowPrefix(hashSlot, uid)
 	key = keycodec.AppendString(key, channelID)
 	key = keycodec.AppendInt64Ordered(key, int64(channelType))
@@ -112,7 +112,7 @@ func encodeCMDConversationRowPrefix(hashSlot HashSlot, uid string) []byte {
 	return keycodec.AppendString(key, uid)
 }
 
-func encodeCMDConversationRowKey(hashSlot HashSlot, uid string, channelID string, channelType uint8, familyID uint16) []byte {
+func encodeCMDConversationRowKey(hashSlot HashSlot, uid string, channelID string, channelType int64, familyID uint16) []byte {
 	key := encodeCMDConversationRowPrefix(hashSlot, uid)
 	key = keycodec.AppendString(key, channelID)
 	key = keycodec.AppendInt64Ordered(key, int64(channelType))
@@ -124,7 +124,7 @@ func encodeConversationActiveIndexPrefix(hashSlot HashSlot, tableID uint32, uid 
 	return keycodec.AppendString(key, uid)
 }
 
-func encodeConversationActiveIndexKey(hashSlot HashSlot, tableID uint32, uid string, activeAt int64, channelID string, channelType uint8) []byte {
+func encodeConversationActiveIndexKey(hashSlot HashSlot, tableID uint32, uid string, activeAt int64, channelID string, channelType int64) []byte {
 	key := encodeConversationActiveIndexPrefix(hashSlot, tableID, uid)
 	key = keycodec.AppendInt64Desc(key, activeAt)
 	key = keycodec.AppendString(key, channelID)
@@ -192,7 +192,7 @@ func encodeChannelMigrationRowPrefix(hashSlot HashSlot) []byte {
 	return encodeRowPrefix(hashSlot, TableIDChannelMigration)
 }
 
-func encodeChannelMigrationTaskRowKey(hashSlot HashSlot, channelID string, channelType uint8, taskID string, familyID uint16) []byte {
+func encodeChannelMigrationTaskRowKey(hashSlot HashSlot, channelID string, channelType int64, taskID string, familyID uint16) []byte {
 	key := encodeChannelMigrationRowPrefix(hashSlot)
 	key = keycodec.AppendString(key, channelID)
 	key = keycodec.AppendInt64Ordered(key, int64(channelType))
@@ -200,7 +200,7 @@ func encodeChannelMigrationTaskRowKey(hashSlot HashSlot, channelID string, chann
 	return keycodec.AppendUint16(key, familyID)
 }
 
-func encodeChannelMigrationActiveIndexKey(hashSlot HashSlot, channelID string, channelType uint8) []byte {
+func encodeChannelMigrationActiveIndexKey(hashSlot HashSlot, channelID string, channelType int64) []byte {
 	key := encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationActiveIndexID)
 	key = keycodec.AppendString(key, channelID)
 	return keycodec.AppendInt64Ordered(key, int64(channelType))
@@ -210,7 +210,7 @@ func encodeChannelMigrationTerminalIndexPrefix(hashSlot HashSlot) []byte {
 	return encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationTerminalIndexID)
 }
 
-func encodeChannelMigrationTerminalIndexKey(hashSlot HashSlot, completedAtMS int64, channelID string, channelType uint8, taskID string) []byte {
+func encodeChannelMigrationTerminalIndexKey(hashSlot HashSlot, completedAtMS int64, channelID string, channelType int64, taskID string) []byte {
 	key := encodeChannelMigrationTerminalIndexPrefix(hashSlot)
 	key = keycodec.AppendInt64Ordered(key, completedAtMS)
 	key = keycodec.AppendString(key, channelID)

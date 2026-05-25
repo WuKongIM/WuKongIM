@@ -40,7 +40,7 @@ const runtimeMetaValueVersion byte = 1
 // ChannelRuntimeMeta stores authoritative channel routing and liveness metadata.
 type ChannelRuntimeMeta struct {
 	ChannelID    string
-	ChannelType  uint8
+	ChannelType  int64
 	ChannelEpoch uint64
 	LeaderEpoch  uint64
 	// RouteGeneration is the authoritative version of the channel routing record.
@@ -83,13 +83,13 @@ type ChannelRuntimeMetaCursor struct {
 	// ChannelID is the last returned channel ID.
 	ChannelID string
 	// ChannelType is the last returned channel type.
-	ChannelType uint8
+	ChannelType int64
 }
 
 // ChannelRetentionAdvance advances only the authoritative retention boundary.
 type ChannelRetentionAdvance struct {
 	ChannelID            string
-	ChannelType          uint8
+	ChannelType          int64
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
 	ExpectedLeader       uint64
@@ -133,7 +133,7 @@ func (s *Shard) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelRuntim
 }
 
 // GetChannelRuntimeMeta returns one runtime metadata row by channel.
-func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType uint8) (ChannelRuntimeMeta, bool, error) {
+func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return ChannelRuntimeMeta{}, false, err
 	}
@@ -145,7 +145,7 @@ func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, cha
 }
 
 // DeleteChannelRuntimeMeta removes one runtime metadata row.
-func (s *Shard) DeleteChannelRuntimeMeta(ctx context.Context, channelID string, channelType uint8) error {
+func (s *Shard) DeleteChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (s *Shard) AdvanceChannelRetentionThroughSeq(ctx context.Context, req Chann
 	return batch.Commit(true)
 }
 
-func (s *Shard) getChannelRuntimeMetaByKey(ctx context.Context, key []byte, channelID string, channelType uint8) (ChannelRuntimeMeta, bool, error) {
+func (s *Shard) getChannelRuntimeMetaByKey(ctx context.Context, key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return ChannelRuntimeMeta{}, false, err
@@ -330,6 +330,11 @@ func normalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
 		meta.RouteGeneration = maxUint64(meta.ChannelEpoch, meta.LeaderEpoch, meta.WriteFenceVersion, 1)
 	}
 	return meta
+}
+
+// NormalizeChannelRuntimeMeta returns the canonical representation of runtime metadata.
+func NormalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
+	return normalizeChannelRuntimeMeta(meta)
 }
 
 func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool, candidate ChannelRuntimeMeta) (ChannelRuntimeMeta, MonotonicResult) {
@@ -530,7 +535,7 @@ func decodeRuntimeMetaColumn(scanner *rowcodec.Scanner, meta *ChannelRuntimeMeta
 	}
 }
 
-func decodeChannelRuntimeMetaRowKey(prefix []byte, key []byte) (string, uint8, uint16, bool) {
+func decodeChannelRuntimeMetaRowKey(prefix []byte, key []byte) (string, int64, uint16, bool) {
 	if !bytes.HasPrefix(key, prefix) {
 		return "", 0, 0, false
 	}
@@ -539,7 +544,7 @@ func decodeChannelRuntimeMetaRowKey(prefix []byte, key []byte) (string, uint8, u
 		return "", 0, 0, false
 	}
 	ordered := binary.BigEndian.Uint64(rest[:8])
-	channelType := uint8(int64(ordered ^ (uint64(1) << 63)))
+	channelType := int64(ordered ^ (uint64(1) << 63))
 	familyID := binary.BigEndian.Uint16(rest[8:])
 	return channelID, channelType, familyID, true
 }
