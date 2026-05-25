@@ -17,6 +17,7 @@ const (
 	messageSystemIDCheckpoint uint16 = 1
 	messageSystemIDHistory    uint16 = 2
 	messageSystemIDSnapshot   uint16 = 3
+	messageSystemIDRetention  uint16 = 4
 
 	messageColumnIDMessageSeq  uint16 = 1
 	messageColumnIDMessageID   uint16 = 2

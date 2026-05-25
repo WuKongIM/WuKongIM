@@ -43,6 +43,9 @@ func (l *ChannelLog) StoreCheckpoint(ctx context.Context, checkpoint Checkpoint)
 	if err := batch.Set(encodeCheckpointKey(l.key), encodeCheckpoint(checkpoint)); err != nil {
 		return err
 	}
+	if err := l.stageCatalog(batch); err != nil {
+		return err
+	}
 	return batch.Commit(true)
 }
 

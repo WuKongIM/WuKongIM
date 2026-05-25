@@ -70,6 +70,9 @@ func (l *ChannelLog) AppendHistory(ctx context.Context, point EpochPoint) error 
 	if err := l.writeHistoryPoint(batch, point); err != nil {
 		return err
 	}
+	if err := l.stageCatalog(batch); err != nil {
+		return err
+	}
 	return batch.Commit(true)
 }
 
@@ -89,6 +92,9 @@ func (l *ChannelLog) TruncateHistoryTo(ctx context.Context, leo uint64) error {
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
 	if err := batch.DeleteRange(engine.Span{Start: encodeHistoryOffsetKey(l.key, leo+1), End: span.End}); err != nil {
+		return err
+	}
+	if err := l.stageCatalog(batch); err != nil {
 		return err
 	}
 	return batch.Commit(true)

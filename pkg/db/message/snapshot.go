@@ -38,6 +38,9 @@ func (l *ChannelLog) StoreSnapshotPayload(ctx context.Context, payload []byte) e
 	if err := batch.Set(encodeSnapshotKey(l.key), append([]byte(nil), payload...)); err != nil {
 		return err
 	}
+	if err := l.stageCatalog(batch); err != nil {
+		return err
+	}
 	return batch.Commit(true)
 }
 
@@ -82,6 +85,9 @@ func (l *ChannelLog) InstallSnapshot(ctx context.Context, snap Snapshot, checkpo
 		}
 	}
 	if err := l.writeHistoryPoint(batch, point); err != nil {
+		return 0, err
+	}
+	if err := l.stageCatalog(batch); err != nil {
 		return 0, err
 	}
 	if err := batch.Commit(true); err != nil {

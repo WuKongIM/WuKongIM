@@ -94,6 +94,10 @@ func encodeMessageSystemPrefix(channelKey ChannelKey, systemID uint16) []byte {
 		Key()
 }
 
+func encodeRetentionStateKey(channelKey ChannelKey) []byte {
+	return encodeMessageSystemPrefix(channelKey, messageSystemIDRetention)
+}
+
 func encodeCheckpointKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDCheckpoint)
 }
@@ -116,12 +120,28 @@ func encodeSnapshotKey(channelKey ChannelKey) []byte {
 	return encodeMessageSystemPrefix(channelKey, messageSystemIDSnapshot)
 }
 
-func encodeCatalogKey(channelKey ChannelKey) []byte {
+func encodeCatalogPrefix() []byte {
 	var builder keycodec.Builder
 	return builder.Reset().
 		Domain(keycodec.DomainMessage).
 		Partition(keycodec.PartitionGlobal, nil).
 		Catalog().
-		String(string(channelKey)).
 		Key()
+}
+
+func encodeCatalogKey(channelKey ChannelKey) []byte {
+	key := encodeCatalogPrefix()
+	return keycodec.AppendString(key, string(channelKey))
+}
+
+func decodeCatalogKey(key []byte) (ChannelKey, bool) {
+	prefix := encodeCatalogPrefix()
+	if !bytes.HasPrefix(key, prefix) {
+		return "", false
+	}
+	value, rest, err := keycodec.ReadString(key[len(prefix):])
+	if err != nil || len(rest) != 0 {
+		return "", false
+	}
+	return ChannelKey(value), true
 }

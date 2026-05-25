@@ -19,7 +19,12 @@ Current flow:
 7. Checkpoint, epoch history, and snapshot payload APIs store channel system
    state under the message system keyspace; snapshot install persists payload,
    checkpoint, and epoch point in one batch.
-8. Schema and key helpers define the durable message table layout.
-9. Later tasks add retention and catalog mutation.
+8. `ApplyFetch` applies fetched records plus optional checkpoint/history in one
+   batch with an explicit base sequence conflict check.
+9. Truncate and retention deletes remove primary rows and secondary indexes
+   together; retention state preserves LEO across reopen after prefix trim.
+10. Catalog entries are updated by durable append/system mutations and can be
+   listed through `MessageDB.ListChannels`.
+11. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

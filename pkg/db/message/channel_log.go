@@ -75,5 +75,10 @@ func (l *ChannelLog) recoverLEO(ctx context.Context) (uint64, error) {
 	if err := iter.Error(); err != nil {
 		return 0, err
 	}
+	if state, ok, err := l.LoadRetentionState(ctx); err != nil {
+		return 0, err
+	} else if ok && state.RetainedMaxSeq > leo {
+		leo = state.RetainedMaxSeq
+	}
 	return leo, nil
 }
