@@ -110,6 +110,41 @@ func TestNodeProcessDumpDiagnosticsTailsAppLogs(t *testing.T) {
 	require.NotContains(t, diagnostics, strings.Repeat("head-line\n", 20))
 }
 
+func TestNodeProcessStartMergesSpecEnvAfterCommandEnv(t *testing.T) {
+	workdir := t.TempDir()
+	stdoutPath := filepath.Join(workdir, "stdout.log")
+	stderrPath := filepath.Join(workdir, "stderr.log")
+	envPath := filepath.Join(workdir, "env.out")
+
+	cmd := exec.Command("sh", "-c", "printf 'GOFAIL_HTTP=%s\\nGOFAIL_FAILPOINTS=%s\\n' \"$GOFAIL_HTTP\" \"$GOFAIL_FAILPOINTS\" > \"$1\"", "sh", envPath)
+	cmd.Env = append(os.Environ(),
+		"GOFAIL_HTTP=127.0.0.1:old",
+		"GOFAIL_FAILPOINTS=oldFailpoint=return",
+	)
+
+	process := NodeProcess{
+		Spec: NodeSpec{
+			ConfigPath: filepath.Join(workdir, "wukongim.conf"),
+			StdoutPath: stdoutPath,
+			StderrPath: stderrPath,
+			Env: []string{
+				"GOFAIL_HTTP=127.0.0.1:12345",
+				"GOFAIL_FAILPOINTS=wkTransportRPCFault=return(\"boom\")",
+			},
+		},
+		command: cmd,
+	}
+
+	require.NoError(t, process.Start())
+	require.NoError(t, process.Cmd.Wait())
+	process.closeLogs()
+
+	envDump, err := os.ReadFile(envPath)
+	require.NoError(t, err)
+	require.Contains(t, string(envDump), "GOFAIL_HTTP=127.0.0.1:12345")
+	require.Contains(t, string(envDump), `GOFAIL_FAILPOINTS=wkTransportRPCFault=return("boom")`)
+}
+
 func runTrapSIGTERMHelper() {
 	fmt.Println("helper-started")
 	sigCh := make(chan os.Signal, 1)

@@ -60,6 +60,7 @@ type suiteOptions struct {
 	workspaceRootDir    string
 	nodeLogRootDir      string
 	nodeConfigOverrides map[uint64]map[string]string
+	nodeEnv             map[uint64][]string
 }
 
 // WithWorkspaceRootDir stores one test workspace under the provided parent directory.
@@ -91,6 +92,19 @@ func WithNodeConfigOverrides(nodeID uint64, overrides map[string]string) Option 
 		for key, value := range overrides {
 			options.nodeConfigOverrides[nodeID][key] = value
 		}
+	})
+}
+
+// WithNodeEnv appends process environment variables for one started node.
+func WithNodeEnv(nodeID uint64, env ...string) Option {
+	return optionFunc(func(options *suiteOptions) {
+		if len(env) == 0 {
+			return
+		}
+		if options.nodeEnv == nil {
+			options.nodeEnv = make(map[uint64][]string)
+		}
+		options.nodeEnv[nodeID] = append(options.nodeEnv[nodeID], env...)
 	})
 }
 
@@ -335,6 +349,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		ManagerAddr:     ports.ManagerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),
 		ConfigOverrides: cloneConfigOverrides(options.nodeConfigOverrides[nodeID]),
+		Env:             cloneEnv(options.nodeEnv[nodeID]),
 	}
 }
 
@@ -452,4 +467,11 @@ func cloneConfigOverrides(overrides map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func cloneEnv(env []string) []string {
+	if len(env) == 0 {
+		return nil
+	}
+	return append([]string(nil), env...)
 }
