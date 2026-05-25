@@ -12,7 +12,7 @@
 | `handler/` | `handler.New()` → `Service` | 请求校验、幂等去重、兼容 DurableMessage ingress/egress 编解码、基于结构化消息表的读取与查询 |
 | `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、retention boundary 应用/采用/修剪、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
 | `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、retention boundary 委托、多级背压、墓碑清理 |
-| `pkg/db/message` | `message.Open()` → `Engine` / `ChannelStore` | 共享 DB 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState/CommittedCursor 等系统状态持久化；`pkg/channel/store` 仅保留到旧包删除任务 |
+| `pkg/db/message` | `message.Open()` → `Engine` / `ChannelStore` | 共享 DB 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState/CommittedCursor 等系统状态持久化 |
 | `transport/` | `transport.Build()` | steady-state `LongPollFetch`、辅助 `Fetch`，始终独立保留的 `ReconcileProbe` RPC，以及供控制面 leader-repair 复用的同步 `ProbeClient` |
 
 ## 3. 对外接口

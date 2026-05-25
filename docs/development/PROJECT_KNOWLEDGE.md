@@ -129,6 +129,10 @@
 - After Slot Raft log compaction exists, membership changes must refresh the snapshot ConfState so newly added learners can install a snapshot and catch up.
 - Large Slot Raft snapshots are chunked only in `pkg/cluster` raft transport; receivers reassemble chunks into the original `MsgSnap` before calling `multiraft.Runtime.Step`.
 
+### Local storage
+- `pkg/db` is the single local storage library: `message` owns channel logs and `meta` owns hash-slot metadata.
+- A single-node deployment is still a single-node cluster; do not add storage or business paths that bypass cluster semantics.
+
 ### Node scale-in
 - Manager-driven node scale-in drains a node to `ready_to_remove`; it must not call physical Slot removal or Kubernetes scale-down directly.
 - Scale-in manager reads require `cluster.node:r` and `cluster.slot:r`; start/advance/cancel require `cluster.node:w` and `cluster.slot:w`.
