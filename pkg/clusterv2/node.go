@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -29,7 +30,12 @@ type Node struct {
 	router    *routing.Router
 	discovery *clusternet.Discovery
 	slots     slotReconciler
-	proposer  interface {
+	channels  interface {
+		Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
+		AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+		Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error)
+	}
+	proposer interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
@@ -68,6 +74,10 @@ func withController(controller control.Controller) Option {
 
 func withSlotReconciler(reconciler slotReconciler) Option {
 	return func(n *Node) { n.slots = reconciler }
+}
+
+func withChannels(service *channels.Service) Option {
+	return func(n *Node) { n.channels = service }
 }
 
 func withProposer(proposer interface {
@@ -196,7 +206,10 @@ func (n *Node) AppendChannel(ctx context.Context, req channelv2.AppendRequest) (
 	if err := n.ensureForeground(); err != nil {
 		return channelv2.AppendResult{}, err
 	}
-	return channelv2.AppendResult{}, ErrNotStarted
+	if n.channels == nil {
+		return channelv2.AppendResult{}, ErrNotStarted
+	}
+	return n.channels.Append(ctx, req)
 }
 
 // AppendChannelBatch appends a batch of messages through the hosted ChannelV2 service.
@@ -207,7 +220,10 @@ func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatch
 	if err := n.ensureForeground(); err != nil {
 		return channelv2.AppendBatchResult{}, err
 	}
-	return channelv2.AppendBatchResult{}, ErrNotStarted
+	if n.channels == nil {
+		return channelv2.AppendBatchResult{}, ErrNotStarted
+	}
+	return n.channels.AppendBatch(ctx, req)
 }
 
 // FetchChannel fetches committed messages through the hosted ChannelV2 service.
@@ -218,7 +234,10 @@ func (n *Node) FetchChannel(ctx context.Context, req channelv2.FetchRequest) (ch
 	if err := n.ensureForeground(); err != nil {
 		return channelv2.FetchResult{}, err
 	}
-	return channelv2.FetchResult{}, ErrNotStarted
+	if n.channels == nil {
+		return channelv2.FetchResult{}, ErrNotStarted
+	}
+	return n.channels.Fetch(ctx, req)
 }
 
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
@@ -236,7 +255,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		}
 	}
 	n.mu.Lock()
-	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: false, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
+	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
 	return nil
 }
