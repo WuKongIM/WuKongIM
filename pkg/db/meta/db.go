@@ -109,6 +109,12 @@ func (db *MetaDB) forgetChannel(cacheKey []byte) {
 	delete(db.channelCache, string(cacheKey))
 }
 
+func (db *MetaDB) clearChannelCache() {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.channelCache = make(map[string]Channel)
+}
+
 func (db *MetaDB) channelCacheSize() int {
 	db.mu.Lock()
 	defer db.mu.Unlock()
