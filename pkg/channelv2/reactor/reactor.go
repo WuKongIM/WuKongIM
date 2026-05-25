@@ -566,6 +566,14 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrNotReady})
 		return
 	}
+	if event.Append.ExpectedChannelEpoch != 0 && event.Append.ExpectedChannelEpoch != rc.state.Epoch {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if event.Append.ExpectedLeaderEpoch != 0 && event.Append.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
 	admittedAt := time.Now()
 	records := make([]ch.Record, len(event.Append.Messages))
 	for i, msg := range event.Append.Messages {
@@ -595,6 +603,14 @@ func (r *Reactor) handleFetch(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if event.Fetch.ExpectedChannelEpoch != 0 && event.Fetch.ExpectedChannelEpoch != rc.state.Epoch {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if event.Fetch.ExpectedLeaderEpoch != 0 && event.Fetch.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
 	decision := rc.state.BuildFetch(machine.FetchCommand{OpID: event.OpID, FromSeq: event.Fetch.FromSeq, Limit: event.Fetch.Limit, MaxBytes: event.Fetch.MaxBytes})
