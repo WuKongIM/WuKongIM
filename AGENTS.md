@@ -70,15 +70,6 @@ internal/
     gateway/             网关 frame -> usecase 的适配
     manager/             后台管理 HTTP API 入口、JWT 与权限适配
     node/                节点间 RPC / 转发入口适配
-  gateway/               通用网关基础设施
-    binding/             内置 handler 绑定与注册
-    core/                网关核心 server/dispatcher/registry
-    protocol/            协议适配层（wkproto / jsonrpc）
-    session/             网关会话模型与管理
-    testkit/             网关测试桩与辅助工具
-    transport/           gnet 等底层传输实现
-    types/               网关通用类型与选项
-    wkprotoenc/          WKProto 加解密辅助
   log/                   应用日志配置与 zap/lumberjack 封装
   observability/         节点内可观测性辅助
     diagnostics/         节点内有界诊断事件、采样、索引与查询
@@ -106,6 +97,7 @@ internal/
     userlimit/           节点内用户发送令牌桶限流
 
 pkg/
+  gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit
   db/                    节点本地统一存储库；message/meta 共享 engine/key/row/schema/commit/cache 基础设施
     internal/            Pebble engine、key/row codec、schema、commit coordinator、轻量 cache 等内部原语
     message/             Channel 消息日志、索引、checkpoint、epoch history、snapshot、retention、兼容 ChannelStore API
@@ -177,7 +169,7 @@ learn_project/           调研/实验代码，非主执行路径
 - `internal/usecase/*` 承载业务编排，输入输出应尽量入口无关。
 - `internal/runtime/*` 放节点内可复用运行时能力，不放入口逻辑。
 - `internal/app/*` 是唯一组合根；依赖装配只放这里。
-- `internal/gateway/*` 放网关通用基础设施，不放面向具体业务的用例编排。
+- `pkg/gateway/*` 放可复用网关通用基础设施，不放面向具体业务的用例编排。
 
 ## 变更规则
 
