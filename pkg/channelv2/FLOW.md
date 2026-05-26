@@ -14,7 +14,7 @@ pkg/channelv2/        - Experimental multi-reactor channel log runtime; root DTO
 `-- worker/           - Typed bounded worker pools for store append/read/apply, RPC pull/ack/PullHint, checkpoint, and result delivery.
 ```
 
-`store/channel_adapter.go` is the only channelv2 file that may import old `pkg/channel` DTOs or the `pkg/db/message` compatibility engine; other channelv2 packages should depend on channelv2 interfaces.
+`store/channel_adapter.go` is the only channelv2 file that may import `pkg/channel` DTOs required by the `pkg/db/message` engine; other channelv2 packages should depend on channelv2 interfaces.
 
 Diagram labels use `event or guard / effect` so agents can distinguish triggers from side effects.
 

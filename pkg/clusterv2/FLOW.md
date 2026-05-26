@@ -78,7 +78,7 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
   -> follower reactor Pull / Apply / Ack
 ```
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates default proposer and ChannelV2 service instances and owns the ChannelV2 tick loop.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates default proposer and ChannelV2 service instances, backs ChannelV2 with the message DB under `DataDir/channellog`, and owns the ChannelV2 tick loop plus default store factory cleanup.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring.
 

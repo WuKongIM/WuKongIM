@@ -68,8 +68,8 @@ func BenchmarkAppendThreeNodeManyChannelsAsync(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
-func BenchmarkAppendOldStoreAdapterAsync(b *testing.B) {
-	factory := store.NewOldStoreFactory(b.TempDir())
+func BenchmarkAppendMessageDBStoreAdapterAsync(b *testing.B) {
+	factory := store.NewMessageDBFactory(b.TempDir())
 	b.Cleanup(func() { _ = factory.Close() })
 	obs := &benchmarkObserver{}
 	cluster, err := service.New(service.Config{
@@ -82,7 +82,7 @@ func BenchmarkAppendOldStoreAdapterAsync(b *testing.B) {
 		Observer:              obs,
 	})
 	if err != nil {
-		b.Skipf("old store adapter unavailable: %v", err)
+		b.Skipf("message DB adapter unavailable: %v", err)
 	}
 	defer cluster.Close()
 	ids := precreateBenchMeta(b, cluster, 128, benchMeta)

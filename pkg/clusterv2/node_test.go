@@ -237,6 +237,44 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
+	cfg := validNodeConfig(t)
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	channelID := channelv2.ChannelID{ID: "durable", Type: 1}
+	applyDefaultChannelMeta(t, node, channelID)
+	if _, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
+		ChannelID: channelID,
+		Message:   channelv2.Message{MessageID: 100, Payload: []byte("persisted")},
+	}); err != nil {
+		t.Fatalf("AppendChannel() error = %v", err)
+	}
+	if err := node.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("restart Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	applyDefaultChannelMeta(t, node, channelID)
+	second, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
+		ChannelID: channelID,
+		Message:   channelv2.Message{MessageID: 101, Payload: []byte("after-restart")},
+	})
+	if err != nil {
+		t.Fatalf("restart AppendChannel() error = %v", err)
+	}
+	if second.MessageSeq != 2 {
+		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 2 from durable message DB LEO", second.MessageSeq)
+	}
+}
+
 func TestNodeStartMarksDefaultChannelsReadyWithoutController(t *testing.T) {
 	node, err := New(validNodeConfig(t))
 	if err != nil {
@@ -265,6 +303,9 @@ func TestNodeStopDiscardsDefaultChannelsForRestart(t *testing.T) {
 	if node.channels != nil {
 		t.Fatal("default channels retained after Stop, want discarded")
 	}
+	if node.defaultChannelStore != nil {
+		t.Fatal("default channel store retained after Stop, want discarded")
+	}
 }
 
 func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {
@@ -279,6 +320,9 @@ func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {
 	}
 	if node.channels != nil {
 		t.Fatal("default channels retained after failed Start, want discarded")
+	}
+	if node.defaultChannelStore != nil {
+		t.Fatal("default channel store retained after failed Start, want discarded")
 	}
 }
 
@@ -393,6 +437,27 @@ func TestNodeAppendChannelDelegatesToService(t *testing.T) {
 	}
 	if runtime.appendCalls != 1 {
 		t.Fatalf("append calls = %d, want 1", runtime.appendCalls)
+	}
+}
+
+func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelv2.ChannelID) {
+	t.Helper()
+	svc, ok := node.channels.(*channels.Service)
+	if !ok {
+		t.Fatalf("default channels type = %T, want *channels.Service", node.channels)
+	}
+	if err := svc.ApplyMeta(channelv2.Meta{
+		Key:         channelv2.ChannelKeyForID(channelID),
+		ID:          channelID,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channelv2.NodeID{1},
+		ISR:         []channelv2.NodeID{1},
+		MinISR:      1,
+		Status:      channelv2.StatusActive,
+	}); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
 	}
 }
 

@@ -8,45 +8,45 @@ import (
 	"io"
 	"sync"
 
-	oldchannel "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	oldstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
-// OldStoreFactory adapts the shared message DB compatibility engine to channelv2.
-type OldStoreFactory struct {
-	engine          *oldstore.Engine
+// MessageDBFactory adapts the shared message DB engine to channelv2.
+type MessageDBFactory struct {
+	engine          *messagedb.Engine
 	mu              sync.Mutex
 	checkpointLocks map[ch.ChannelKey]*sync.Mutex
 }
 
-// NewOldStoreFactory opens a message DB compatibility engine behind the v2 adapter.
-func NewOldStoreFactory(path string) *OldStoreFactory {
-	engine, err := oldstore.Open(path)
+// NewMessageDBFactory opens a message DB engine behind the v2 adapter.
+func NewMessageDBFactory(path string) *MessageDBFactory {
+	engine, err := messagedb.Open(path)
 	if err != nil {
-		return &OldStoreFactory{}
+		return &MessageDBFactory{}
 	}
-	return &OldStoreFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
+	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
 }
 
-// ChannelStore returns an adapter for one compatibility channel store.
-func (f *OldStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error) {
+// ChannelStore returns an adapter for one message DB channel store.
+func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error) {
 	if f == nil || f.engine == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	old := f.engine.ForChannel(oldchannel.ChannelKey(key), oldchannel.ChannelID{ID: id.ID, Type: id.Type})
-	return &oldChannelStoreAdapter{store: old, id: id, checkpointMu: f.checkpointLock(key)}, nil
+	dbStore := f.engine.ForChannel(channel.ChannelKey(key), channel.ChannelID{ID: id.ID, Type: id.Type})
+	return &messageDBChannelStoreAdapter{store: dbStore, id: id, checkpointMu: f.checkpointLock(key)}, nil
 }
 
-// Close closes the wrapped compatibility engine.
-func (f *OldStoreFactory) Close() error {
+// Close closes the wrapped message DB engine.
+func (f *MessageDBFactory) Close() error {
 	if f == nil || f.engine == nil {
 		return nil
 	}
 	return f.engine.Close()
 }
 
-func (f *OldStoreFactory) checkpointLock(key ch.ChannelKey) *sync.Mutex {
+func (f *MessageDBFactory) checkpointLock(key ch.ChannelKey) *sync.Mutex {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.checkpointLocks == nil {
@@ -60,13 +60,13 @@ func (f *OldStoreFactory) checkpointLock(key ch.ChannelKey) *sync.Mutex {
 	return lock
 }
 
-type oldChannelStoreAdapter struct {
-	store        *oldstore.ChannelStore
+type messageDBChannelStoreAdapter struct {
+	store        *messagedb.ChannelStore
 	id           ch.ChannelID
 	checkpointMu *sync.Mutex
 }
 
-func (a *oldChannelStoreAdapter) Load(ctx context.Context) (InitialState, error) {
+func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, error) {
 	if err := ctx.Err(); err != nil {
 		return InitialState{}, err
 	}
@@ -75,14 +75,14 @@ func (a *oldChannelStoreAdapter) Load(ctx context.Context) (InitialState, error)
 		return InitialState{}, err
 	}
 	checkpoint, err := a.store.LoadCheckpoint()
-	if err != nil && !errors.Is(err, oldchannel.ErrEmptyState) {
+	if err != nil && !errors.Is(err, channel.ErrEmptyState) {
 		return InitialState{}, err
 	}
 	hw := minUint64(checkpoint.HW, leo)
 	return InitialState{LEO: leo, HW: hw, CheckpointHW: hw}, nil
 }
 
-func (a *oldChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
+func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error) {
 	if err := ctx.Err(); err != nil {
 		return AppendLeaderResult{}, err
 	}
@@ -97,18 +97,18 @@ func (a *oldChannelStoreAdapter) AppendLeader(ctx context.Context, req AppendLea
 	return AppendLeaderResult{BaseOffset: base + 1, LastOffset: base + uint64(len(records))}, nil
 }
 
-func (a *oldChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {
+func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	leo, err := a.store.StoreApplyFetch(oldchannel.ApplyFetchStoreRequest{Records: a.encodeRecords(req.Records)})
+	leo, err := a.store.StoreApplyFetch(channel.ApplyFetchStoreRequest{Records: a.encodeRecords(req.Records)})
 	if err != nil {
 		return ApplyFollowerResult{}, err
 	}
 	return ApplyFollowerResult{LEO: leo}, nil
 }
 
-func (a *oldChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {
+func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ReadCommittedResult{}, err
 	}
@@ -122,13 +122,13 @@ func (a *oldChannelStoreAdapter) ReadCommitted(ctx context.Context, req ReadComm
 		if msg.MessageSeq > req.MaxSeq {
 			break
 		}
-		out = append(out, fromOldMessage(msg))
+		out = append(out, fromDBMessage(msg))
 		next = msg.MessageSeq + 1
 	}
 	return ReadCommittedResult{Messages: out, NextSeq: next}, nil
 }
 
-func (a *oldChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
+func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ReadLogResult{}, err
 	}
@@ -145,12 +145,12 @@ func (a *oldChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest
 		if req.MaxOffset > 0 && record.Index > req.MaxOffset {
 			break
 		}
-		out = append(out, fromOldRecord(record))
+		out = append(out, fromDBRecord(record))
 	}
 	return ReadLogResult{Records: out}, nil
 }
 
-func (a *oldChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
+func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -160,8 +160,8 @@ func (a *oldChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint
 	}
 	current, err := a.store.LoadCheckpoint()
 	if err != nil {
-		if errors.Is(err, oldchannel.ErrEmptyState) {
-			return a.store.StoreCheckpoint(oldchannel.Checkpoint{HW: checkpoint.HW})
+		if errors.Is(err, channel.ErrEmptyState) {
+			return a.store.StoreCheckpoint(channel.Checkpoint{HW: checkpoint.HW})
 		}
 		return err
 	}
@@ -172,37 +172,37 @@ func (a *oldChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint
 	return a.store.StoreCheckpoint(current)
 }
 
-func (a *oldChannelStoreAdapter) Close() error { return nil }
+func (a *messageDBChannelStoreAdapter) Close() error { return nil }
 
-func (a *oldChannelStoreAdapter) encodeRecords(records []ch.Record) []oldchannel.Record {
-	out := make([]oldchannel.Record, len(records))
+func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []channel.Record {
+	out := make([]channel.Record, len(records))
 	for i, record := range records {
-		msg := oldchannel.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: a.id.ID, ChannelType: a.id.Type, Payload: cloneBytes(record.Payload)}
-		payload, _ := encodeOldCompatibleMessage(msg)
-		out[i] = oldchannel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
+		msg := channel.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: a.id.ID, ChannelType: a.id.Type, Payload: cloneBytes(record.Payload)}
+		payload, _ := encodeDBCompatibleMessage(msg)
+		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
 	return out
 }
 
-func fromOldRecord(record oldchannel.Record) ch.Record {
-	msg, err := decodeOldCompatibleMessage(record.Payload)
+func fromDBRecord(record channel.Record) ch.Record {
+	msg, err := decodeDBCompatibleMessage(record.Payload)
 	if err == nil {
 		return ch.Record{ID: msg.MessageID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(msg.Payload), SizeBytes: len(msg.Payload)}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
-func fromOldMessage(msg oldchannel.Message) ch.Message {
+func fromDBMessage(msg channel.Message) ch.Message {
 	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload)}
 }
 
 const durableMessageHeaderSize = 45
 
-func encodeOldCompatibleMessage(message oldchannel.Message) ([]byte, error) {
+func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 	payloadHash := hashPayload(message.Payload)
 	size := durableMessageHeaderSize + 4 + len(message.MsgKey) + 4 + len(message.ClientMsgNo) + 4 + len(message.StreamNo) + 4 + len(message.ChannelID) + 4 + len(message.Topic) + 4 + len(message.FromUID) + 4 + len(message.Payload)
 	payload := make([]byte, 0, size)
-	payload = append(payload, oldchannel.DurableMessageCodecVersion)
+	payload = append(payload, channel.DurableMessageCodecVersion)
 	payload = binary.BigEndian.AppendUint64(payload, message.MessageID)
 	payload = append(payload, 0, byte(message.Setting), byte(message.StreamFlag), message.ChannelType)
 	payload = binary.BigEndian.AppendUint32(payload, message.Expire)
@@ -220,16 +220,16 @@ func encodeOldCompatibleMessage(message oldchannel.Message) ([]byte, error) {
 	return payload, nil
 }
 
-func decodeOldCompatibleMessage(payload []byte) (oldchannel.Message, error) {
+func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 	if len(payload) < durableMessageHeaderSize {
-		return oldchannel.Message{}, io.ErrUnexpectedEOF
+		return channel.Message{}, io.ErrUnexpectedEOF
 	}
-	if payload[0] != oldchannel.DurableMessageCodecVersion {
-		return oldchannel.Message{}, ch.ErrInvalidConfig
+	if payload[0] != channel.DurableMessageCodecVersion {
+		return channel.Message{}, ch.ErrInvalidConfig
 	}
-	msg := oldchannel.Message{
+	msg := channel.Message{
 		MessageID:   binary.BigEndian.Uint64(payload[1:9]),
-		Setting:     oldchannel.Message{}.Setting,
+		Setting:     channel.Message{}.Setting,
 		ChannelType: payload[12],
 		Expire:      binary.BigEndian.Uint32(payload[13:17]),
 		ClientSeq:   binary.BigEndian.Uint64(payload[17:25]),
@@ -240,31 +240,31 @@ func decodeOldCompatibleMessage(payload []byte) (oldchannel.Message, error) {
 	var b []byte
 	var err error
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.MsgKey = string(b)
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.ClientMsgNo = string(b)
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.StreamNo = string(b)
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.ChannelID = string(b)
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.Topic = string(b)
 	if b, pos, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.FromUID = string(b)
 	if b, _, err = readSizedBytes(payload, pos); err != nil {
-		return oldchannel.Message{}, err
+		return channel.Message{}, err
 	}
 	msg.Payload = cloneBytes(b)
 	return msg, nil
