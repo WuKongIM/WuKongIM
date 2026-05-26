@@ -194,17 +194,19 @@ func TestTransportMetricsObserverRecordsSendAndReceiveBytes(t *testing.T) {
 	registry := obsmetrics.New(2, "node-2")
 	hooks := transportMetricsObserver{metrics: registry}.Hooks()
 
-	hooks.OnSend(0xFE, 64)
-	hooks.OnReceive(9, 96)
+	hooks.OnSend(transport.MsgTypeRPCNotify, 64)
+	hooks.OnReceive(transport.MsgTypeRPCResponse, 96)
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
 
 	sentBytes := requireMetricFamilyByName(t, families, "wukongim_transport_sent_bytes_total")
 	require.Len(t, sentBytes.GetMetric(), 1)
+	require.True(t, metricFamilyHasLabels(sentBytes, map[string]string{"msg_type": "rpc_notify"}))
 
 	receivedBytes := requireMetricFamilyByName(t, families, "wukongim_transport_received_bytes_total")
 	require.Len(t, receivedBytes.GetMetric(), 1)
+	require.True(t, metricFamilyHasLabels(receivedBytes, map[string]string{"msg_type": "rpc_response"}))
 }
 
 func TestTransportMetricsObserverRecordsRPCClientMetrics(t *testing.T) {

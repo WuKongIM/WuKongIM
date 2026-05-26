@@ -69,7 +69,7 @@ func NewServerWithConfig(cfg ServerConfig) *Server {
 }
 
 func (s *Server) Handle(msgType uint8, h MessageHandler) {
-	if msgType == 0 || msgType == MsgTypeRPCRequest || msgType == MsgTypeRPCResponse {
+	if msgType == 0 || msgType == MsgTypeRPCNotify || msgType == MsgTypeRPCRequest || msgType == MsgTypeRPCResponse {
 		panic("nodetransport: reserved message type")
 	}
 	for {
@@ -164,6 +164,16 @@ func (s *Server) serveConn(raw net.Conn) {
 
 func (s *Server) dispatch(connCtx context.Context, mc *MuxConn, msgType uint8, body []byte, release func()) {
 	switch msgType {
+	case MsgTypeRPCNotify:
+		holder := s.rpcHandler.Load()
+		if holder == nil || holder.handler == nil {
+			release()
+			return
+		}
+		copied := append([]byte(nil), body...)
+		release()
+		s.wg.Add(1)
+		go s.handleRPCNotify(connCtx, holder.handler, copied)
 	case MsgTypeRPCRequest:
 		holder := s.rpcHandler.Load()
 		if holder == nil || holder.handler == nil {
@@ -180,6 +190,13 @@ func (s *Server) dispatch(connCtx context.Context, mc *MuxConn, msgType uint8, b
 			h(body)
 		}
 		release()
+	}
+}
+
+func (s *Server) handleRPCNotify(ctx context.Context, handler RPCHandler, body []byte) {
+	defer s.wg.Done()
+	if _, err := handler(ctx, body); err != nil {
+		s.cfg.Logger.Warn("rpc notify handler failed", wklog.Error(err))
 	}
 }
 

@@ -27,10 +27,11 @@ New(Config)
   -> apply optional WithProposer / WithChannels overrides
 
 Start(ctx)
-  -> initialize default ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
-  -> start injected lifecycle resources
+  -> initialize default node RPC transport / ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
+  -> seed node RPC discovery from configured Controller voters until the first control snapshot arrives
+  -> start default transport and injected lifecycle resources
   -> start ControllerV2-backed Controller or injected Controller
-  -> load initial control snapshot
+  -> wait for a valid initial control snapshot
   -> routing.UpdateControlSnapshot(snapshot)
   -> discovery.Update(control node addresses)
   -> slots.Reconcile(snapshot)
@@ -39,7 +40,7 @@ Start(ctx)
   -> mark node started
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests.
 
 ## Stop Flow
 
@@ -99,7 +100,7 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
 
 ## V1 Limitations
 
-- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, mirror sync, and in-process multi-voter convergence tests. Production app config wiring and operator workflows remain outside this package-level slice.
+- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Production app config wiring and operator workflows remain outside this package-level slice.
 - Slot smoke coverage uses an in-process fake Slot runtime for route/forward validation; destructive Slot cleanup remains disabled.
 - ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.

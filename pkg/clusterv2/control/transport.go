@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -15,20 +16,20 @@ type raftStepper interface {
 	Step(context.Context, raftpb.Message) error
 }
 
-// RaftTransport sends ControllerV2 Raft messages over clusterv2 typed RPC.
+// RaftTransport sends ControllerV2 Raft messages over clusterv2 typed messages.
 type RaftTransport struct {
-	caller  clusternet.Caller
+	sender  clusternet.Sender
 	timeout time.Duration
 }
 
-// NewRaftTransport creates a ControllerV2 Raft transport backed by caller.
-func NewRaftTransport(caller clusternet.Caller) *RaftTransport {
-	return &RaftTransport{caller: caller, timeout: defaultControlRPCTimeout}
+// NewRaftTransport creates a ControllerV2 Raft transport backed by sender.
+func NewRaftTransport(sender clusternet.Sender) *RaftTransport {
+	return &RaftTransport{sender: sender, timeout: defaultControlRPCTimeout}
 }
 
 // Send sends messages grouped by destination node without blocking indefinitely.
 func (t *RaftTransport) Send(messages []raftpb.Message) {
-	if t == nil || t.caller == nil {
+	if t == nil || t.sender == nil {
 		return
 	}
 	byNode := make(map[uint64][]raftpb.Message)
@@ -44,7 +45,10 @@ func (t *RaftTransport) Send(messages []raftpb.Message) {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), t.timeout)
-		_, _ = t.caller.Call(ctx, nodeID, clusternet.RPCControlRaft, payload)
+		err = t.sender.Send(ctx, nodeID, clusternet.RPCControlRaft, payload)
+		if err != nil {
+			fmt.Printf("control raft send failed %v\n", err)
+		}
 		cancel()
 	}
 }

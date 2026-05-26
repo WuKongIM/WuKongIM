@@ -35,13 +35,19 @@ type channelService interface {
 
 // Node is the clusterv2 lifecycle root and public runtime facade.
 type Node struct {
-	cfg       Config
-	resources []lifecycle.NamedResource
-	control   control.Controller
-	router    *routing.Router
-	discovery *clusternet.Discovery
-	slots     slotReconciler
-	channels  channelService
+	cfg             Config
+	resources       []lifecycle.NamedResource
+	control         control.Controller
+	router          *routing.Router
+	discovery       *clusternet.Discovery
+	transportServer *clusternet.TransportServer
+	transportClient *clusternet.TransportClient
+	slots           slotReconciler
+	channels        channelService
+	// defaultControl reports whether Node constructed the Controller runtime.
+	defaultControl bool
+	// defaultTransport reports whether Node constructed the node RPC transport.
+	defaultTransport bool
 	// defaultChannels reports whether Node constructed channels during Start.
 	defaultChannels bool
 	// defaultChannelStore owns the Node-created message DB factory.
@@ -122,9 +128,14 @@ func (n *Node) Start(ctx context.Context) error {
 			n.discardDefaultChannels()
 			n.markChannelsReady(false)
 		}
+		if !started {
+			n.discardDefaultControl()
+			n.discardDefaultTransport()
+		}
 	}()
 	n.stopping.Store(false)
-	if err := n.group.Start(ctx, n.resources...); err != nil {
+	resources := n.startResources()
+	if err := n.group.Start(ctx, resources...); err != nil {
 		n.started.Store(false)
 		return err
 	}
@@ -133,7 +144,7 @@ func (n *Node) Start(ctx context.Context) error {
 			_ = n.group.Stop(ctx)
 			return err
 		}
-		snapshot, err := n.control.LocalSnapshot(ctx)
+		snapshot, err := n.initialControlSnapshot(ctx)
 		if err != nil {
 			_ = n.control.Stop(ctx)
 			_ = n.group.Stop(ctx)
@@ -153,8 +164,63 @@ func (n *Node) Start(ctx context.Context) error {
 	return nil
 }
 
+func (n *Node) startResources() []lifecycle.NamedResource {
+	if n == nil || !n.defaultTransport || n.transportServer == nil || n.transportClient == nil {
+		return n.resources
+	}
+	resources := make([]lifecycle.NamedResource, 0, len(n.resources)+2)
+	resources = append(resources,
+		lifecycle.NamedResource{Name: "clusterv2-transport-server", Resource: transportServerResource{server: n.transportServer, addr: n.cfg.ListenAddr}},
+		lifecycle.NamedResource{Name: "clusterv2-transport-client", Resource: transportClientResource{client: n.transportClient}},
+	)
+	resources = append(resources, n.resources...)
+	return resources
+}
+
+func (n *Node) initialControlSnapshot(ctx context.Context) (control.Snapshot, error) {
+	snapshot, err := n.control.LocalSnapshot(ctx)
+	if err != nil {
+		return control.Snapshot{}, err
+	}
+	if err := snapshot.Validate(); err == nil {
+		return snapshot, nil
+	} else if !emptyControlSnapshot(snapshot) {
+		return control.Snapshot{}, err
+	}
+
+	watch := n.control.Watch()
+	for {
+		select {
+		case <-ctx.Done():
+			return control.Snapshot{}, ctx.Err()
+		case event, ok := <-watch:
+			if !ok {
+				return control.Snapshot{}, ErrNotStarted
+			}
+			if err := event.Snapshot.Validate(); err == nil {
+				return event.Snapshot.Clone(), nil
+			} else if !emptyControlSnapshot(event.Snapshot) {
+				return control.Snapshot{}, err
+			}
+		}
+	}
+}
+
+func emptyControlSnapshot(snapshot control.Snapshot) bool {
+	return snapshot.Revision == 0 &&
+		snapshot.ControllerID == 0 &&
+		len(snapshot.Nodes) == 0 &&
+		len(snapshot.Slots) == 0 &&
+		snapshot.HashSlots.Count == 0 &&
+		len(snapshot.HashSlots.Ranges) == 0 &&
+		len(snapshot.Tasks) == 0
+}
+
 func (n *Node) ensureDefaultRuntime() (bool, error) {
 	if n.control == nil {
+		if err := n.ensureDefaultTransport(); err != nil {
+			return false, err
+		}
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
 			NodeID:           n.cfg.NodeID,
 			Addr:             n.cfg.ListenAddr,
@@ -166,11 +232,18 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			InitialSlotCount: n.cfg.Slots.InitialSlotCount,
 			HashSlotCount:    n.cfg.Slots.HashSlotCount,
 			ReplicaCount:     n.cfg.Slots.ReplicaCount,
+			RaftTransport:    control.NewRaftTransport(n.transportClient),
+			SyncPeers:        control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
 		})
 		if err != nil {
 			return false, err
 		}
+		if n.cfg.Control.Role == ControlRoleVoter && n.transportServer != nil {
+			n.transportServer.Register(clusternet.RPCControlRaft, control.NewRaftHandler(runtime))
+			n.transportServer.Register(clusternet.RPCControlStateSync, control.NewStateSyncHandler(runtime))
+		}
 		n.control = runtime
+		n.defaultControl = true
 	}
 	if n.proposer == nil {
 		n.proposer = propose.NewService(propose.Config{LocalNode: n.cfg.NodeID, Router: n.router})
@@ -196,6 +269,19 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	return createdDefaultChannels, nil
 }
 
+func (n *Node) ensureDefaultTransport() error {
+	if n.transportServer != nil && n.transportClient != nil {
+		return nil
+	}
+	if n.discovery != nil {
+		n.discovery.Update(controlVoterNodes(n.cfg.Control.Voters))
+	}
+	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{})
+	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery, PoolSize: 1})
+	n.defaultTransport = true
+	return nil
+}
+
 func (n *Node) defaultChannelStorePath() string {
 	return filepath.Join(n.cfg.DataDir, "messages")
 }
@@ -210,6 +296,29 @@ func (n *Node) discardDefaultChannels() {
 	n.channels = nil
 	n.defaultChannels = false
 	_ = n.closeDefaultChannelStore()
+}
+
+func (n *Node) discardDefaultControl() {
+	if n == nil || !n.defaultControl {
+		return
+	}
+	n.control = nil
+	n.defaultControl = false
+}
+
+func (n *Node) discardDefaultTransport() {
+	if n == nil || !n.defaultTransport {
+		return
+	}
+	if n.transportClient != nil {
+		n.transportClient.Stop()
+	}
+	if n.transportServer != nil {
+		n.transportServer.Stop()
+	}
+	n.transportClient = nil
+	n.transportServer = nil
+	n.defaultTransport = false
 }
 
 // Stop stops the node runtime and rejects new foreground work.
@@ -247,6 +356,8 @@ func (n *Node) Stop(ctx context.Context) error {
 	if err := n.group.Stop(ctx); err != nil {
 		errs = append(errs, err)
 	}
+	n.discardDefaultControl()
+	n.discardDefaultTransport()
 	n.started.Store(false)
 	return errors.Join(errs...)
 }
@@ -382,6 +493,14 @@ func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {
 	return out
 }
 
+func controlVoterNodes(voters []ControlVoter) []clusternet.NodeAddress {
+	out := make([]clusternet.NodeAddress, 0, len(voters))
+	for _, voter := range voters {
+		out = append(out, clusternet.NodeAddress{NodeID: voter.NodeID, Addr: voter.Addr})
+	}
+	return out
+}
+
 func runtimeVoters(voters []ControlVoter) []control.RuntimeVoter {
 	out := make([]control.RuntimeVoter, 0, len(voters))
 	for _, voter := range voters {
@@ -488,4 +607,38 @@ func ctxErr(ctx context.Context) error {
 		return nil
 	}
 	return ctx.Err()
+}
+
+type transportServerResource struct {
+	server *clusternet.TransportServer
+	addr   string
+}
+
+func (r transportServerResource) Start(ctx context.Context) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return r.server.Start(r.addr)
+}
+
+func (r transportServerResource) Stop(context.Context) error {
+	if r.server != nil {
+		r.server.Stop()
+	}
+	return nil
+}
+
+type transportClientResource struct {
+	client *clusternet.TransportClient
+}
+
+func (r transportClientResource) Start(ctx context.Context) error {
+	return ctxErr(ctx)
+}
+
+func (r transportClientResource) Stop(context.Context) error {
+	if r.client != nil {
+		r.client.Stop()
+	}
+	return nil
 }
