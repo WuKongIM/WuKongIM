@@ -32,3 +32,12 @@ func TestDeviceUpsertAndGetAreHashSlotScoped(t *testing.T) {
 		t.Fatalf("updated GetDevice() = (%+v, %v, %v), want %+v", got, ok, err, updated)
 	}
 }
+
+func TestDeviceTableRuntimeDescriptor(t *testing.T) {
+	if deviceTable.Schema().ID != TableIDDevice {
+		t.Fatalf("device table id = %d, want %d", deviceTable.Schema().ID, TableIDDevice)
+	}
+	if got := deviceTable.Schema().Primary.Columns; len(got) != 2 {
+		t.Fatalf("device primary columns = %#v, want uid and device flag", got)
+	}
+}

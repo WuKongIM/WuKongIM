@@ -16,7 +16,6 @@ func Tables() []schema.Table {
 
 func init() {
 	for _, descriptor := range []metaTableDescriptor{
-		{Table: DeviceTable},
 		{Table: ChannelTable},
 		{Table: SubscriberTable},
 		{Table: ChannelRuntimeMetaTable},
@@ -33,7 +32,6 @@ func init() {
 // Core metadata table descriptors. Later table tasks expand column coverage
 // without changing IDs or primary/index IDs.
 var (
-	DeviceTable             = simpleMetaTable(TableIDDevice, "device")
 	SubscriberTable         = simpleMetaTable(TableIDSubscriber, "subscriber")
 	ChannelRuntimeMetaTable = simpleMetaTable(TableIDChannelRuntimeMeta, "channel_runtime_meta")
 	CMDConversationTable    = activeMetaTable(TableIDCMDConversation, "cmd_conversation")
