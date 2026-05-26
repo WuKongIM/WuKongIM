@@ -816,10 +816,10 @@ func (s *ShardStore) DeleteAllHashSlotMigrationOutbox(ctx context.Context) error
 
 // WriteBatch accumulates compatibility mutations and commits them atomically.
 type WriteBatch struct {
-	db           *DB
-	batch        *Batch
-	err          error
-	createdUsers map[string]struct{}
+	db               *DB
+	batch            *Batch
+	err              error
+	createdUsers     map[string]struct{}
 	migrationCreates map[string]ChannelMigrationTask
 }
 
@@ -879,11 +879,7 @@ func (b *WriteBatch) UpsertDevice(hashSlot uint16, device Device) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	key := encodeDeviceRowKey(HashSlot(hashSlot), device.UID, device.DeviceFlag, devicePrimaryFamilyID)
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		return batch.Set(key, encodeDeviceValue(device))
-	})
-	return nil
+	return deviceTable.StageUpsert(b.batch, HashSlot(hashSlot), device)
 }
 
 func (b *WriteBatch) UpsertChannel(hashSlot uint16, channel Channel) error {
