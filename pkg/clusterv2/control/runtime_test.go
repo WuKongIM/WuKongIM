@@ -137,3 +137,72 @@ func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 		t.Fatalf("mirror snapshot = %#v, want revision %d", snap, leaderState.Revision)
 	}
 }
+
+func TestRuntimeThreeVotersConverge(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:           voter.NodeID,
+			Addr:             voter.Addr,
+			StateDir:         t.TempDir(),
+			ClusterID:        "cluster-three",
+			Role:             RuntimeRoleVoter,
+			Voters:           voters,
+			AllowBootstrap:   true,
+			InitialSlotCount: 1,
+			HashSlotCount:    4,
+			ReplicaCount:     3,
+			TickInterval:     10 * time.Millisecond,
+			RaftTransport:    NewRaftTransport(network),
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		ready := true
+		var revision uint64
+		for _, rt := range runtimes {
+			snap, err := rt.LocalSnapshot(context.Background())
+			if err != nil || snap.Revision == 0 || len(snap.Slots) != 1 || snap.ControllerID == 0 {
+				ready = false
+				break
+			}
+			if revision == 0 {
+				revision = snap.Revision
+			}
+			if snap.Revision != revision {
+				ready = false
+				break
+			}
+		}
+		if ready {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for _, rt := range runtimes {
+		snap, _ := rt.LocalSnapshot(context.Background())
+		t.Logf("runtime %d snapshot: %#v", rt.cfg.NodeID, snap)
+	}
+	t.Fatal("runtimes did not converge")
+}

@@ -83,6 +83,9 @@ type Runtime struct {
 	sm     *cv2fsm.StateMachine
 	raft   *cv2raft.Service
 	server *cv2server.Server
+
+	refreshCancel context.CancelFunc
+	refreshWG     sync.WaitGroup
 }
 
 // NewRuntime creates a ControllerV2-backed control runtime.
@@ -145,21 +148,37 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.sm, r.raft = sm, service
 	if err := service.Start(ctx); err != nil {
+		r.sm, r.raft = nil, nil
 		return err
 	}
-	r.sm, r.raft = sm, service
 	srv, err := cv2server.New(cv2server.Config{StateSource: sm, Proposer: service, Now: r.cfg.Now})
 	if err != nil {
 		_ = service.Stop()
 		return err
 	}
 	r.server = srv
+	if len(r.cfg.Voters) > 1 {
+		if st := sm.Snapshot(ctx); st.Revision != 0 && len(st.Slots) >= int(r.cfg.InitialSlotCount) {
+			if err := r.publishFromState(ctx); err != nil {
+				_ = service.Stop()
+				return err
+			}
+		}
+		r.startRefreshLoop()
+		return nil
+	}
 	if err := r.bootstrapIfNeeded(ctx); err != nil {
 		_ = service.Stop()
 		return err
 	}
-	return r.publishFromState(ctx)
+	if err := r.publishFromState(ctx); err != nil {
+		_ = service.Stop()
+		return err
+	}
+	r.startRefreshLoop()
+	return nil
 }
 
 func (r *Runtime) startMirror(ctx context.Context) error {
@@ -219,11 +238,75 @@ func (r *Runtime) runBootstrapPlanner(ctx context.Context) error {
 	return nil
 }
 
+func (r *Runtime) startRefreshLoop() {
+	if r.refreshCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	r.refreshCancel = cancel
+	r.refreshWG.Add(1)
+	go func() {
+		defer r.refreshWG.Done()
+		interval := r.cfg.TickInterval * 5
+		if interval <= 0 {
+			interval = 100 * time.Millisecond
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = r.controlTick(ctx)
+			}
+		}
+	}()
+}
+
+func (r *Runtime) controlTick(ctx context.Context) error {
+	if r.sm == nil || r.server == nil {
+		return nil
+	}
+	st := r.sm.Snapshot(ctx)
+	if st.Revision == 0 {
+		if r.cfg.AllowBootstrap && r.isLocalLeader() {
+			if err := r.raft.Propose(ctx, r.initCommand()); err != nil && !errors.Is(err, cv2raft.ErrNotLeader) {
+				return err
+			}
+		}
+		return nil
+	}
+	if len(st.Slots) < int(r.cfg.InitialSlotCount) {
+		if r.isLocalLeader() {
+			if err := r.server.TickPlanner(ctx); err != nil && !errors.Is(err, cv2raft.ErrNotLeader) {
+				return err
+			}
+		}
+		return nil
+	}
+	return r.publishIfChanged(ctx, st.Revision)
+}
+
+func (r *Runtime) publishIfChanged(ctx context.Context, revision uint64) error {
+	r.mu.RLock()
+	currentRevision := r.snapshot.Revision
+	r.mu.RUnlock()
+	if currentRevision == revision {
+		return nil
+	}
+	return r.publishFromState(ctx)
+}
+
+func (r *Runtime) isLocalLeader() bool {
+	return r.raft != nil && (r.raft.LeaderID() == r.cfg.NodeID || r.raft.Status().Role == cv2raft.RoleLeader)
+}
+
 func (r *Runtime) waitLocalLeader(ctx context.Context) error {
 	ticker := time.NewTicker(r.cfg.TickInterval)
 	defer ticker.Stop()
 	for {
-		if r.raft.LeaderID() == r.cfg.NodeID || r.raft.Status().Role == cv2raft.RoleLeader {
+		if r.isLocalLeader() {
 			return nil
 		}
 		select {
@@ -277,6 +360,11 @@ func (r *Runtime) raftPeers() []cv2raft.Peer {
 func (r *Runtime) Stop(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
+	}
+	if r.refreshCancel != nil {
+		r.refreshCancel()
+		r.refreshWG.Wait()
+		r.refreshCancel = nil
 	}
 	if r.raft != nil {
 		return r.raft.Stop()
