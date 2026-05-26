@@ -84,6 +84,10 @@ Each spec defines:
 - active index `conversationActiveIndexID` with layout
   `KeyLayout{KeyString, KeyInt64Desc, KeyString, KeyInt64Ordered}`;
 - active index key emitted only when `ActiveAt > 0`;
+- a legacy-index primary projection from active-index parts back to primary
+  parts:
+  `(uid, active_at desc, channel_id, channel_type) -> (uid, channel_id,
+  channel_type)`;
 - value codec using the existing `encodeConversationValue`,
   `decodeUserConversationValue`, and `decodeCMDConversationValue` helpers.
 
@@ -102,14 +106,39 @@ the runtime:
 - `ListUserConversationActive` and `ListCMDConversationActive` use runtime index
   scanning with the `uid` prefix and existing `limit` validation.
 
-If the existing runtime index API cannot express all required active-index
-behavior, add the smallest reusable extension rather than reintroducing manual
-iterators. Expected extensions are limited to reusable helpers for:
+The table runtime needs one explicit compatibility extension for these active
+indexes. The existing generic secondary index format appends primary key parts to
+`indexParts`, which would change the durable active-index key. `PrimaryFromIndex`
+only covers indexes whose index tuple is exactly the primary tuple, which is not
+true here because `active_at desc` sits between `uid` and `channel_id`.
 
-- scanning an index prefix with descending key parts already described by the
-  index layout;
-- returning all rows up to `limit` while verifying primary rows;
-- keeping existing `ScanIndex(limit <= 0)` validation behavior.
+Add a reusable runtime option such as
+`PrimaryKeyFromIndexParts func(KeyParts) (KeyParts, bool)`. When set:
+
+- index entry keys are encoded as the index tuple only, preserving the existing
+  physical active-index layout;
+- scan decode derives primary parts from the decoded index tuple using the
+  projection function;
+- index scans still load the primary row and verify that the current row emits
+  the same active-index tuple before returning it;
+- stale active-index entries are skipped if the projected primary row is missing
+  or no longer active;
+- write/delete paths continue to compute old and new active-index keys from
+  decoded rows, so active-index cleanup remains exact.
+
+For both conversation tables, the projection is:
+
+```go
+func(parts KeyParts) (KeyParts, bool) {
+    if len(parts) != 4 {
+        return nil, false
+    }
+    return KeyParts{parts[0], parts[2], parts[3]}, true
+}
+```
+
+This extension should be generic enough to replace ad hoc manual active-index
+decoding without changing key layouts for future tables with legacy index keys.
 
 ## Error Handling
 
@@ -128,6 +157,8 @@ Add focused red tests before implementation:
 
 - `ConversationTable` and `CMDConversationTable` still appear in `Tables()` with
   the active index descriptor.
+- Raw active-index keys for user and CMD conversations keep the legacy layout and
+  do not append a primary-key suffix.
 - User and CMD active scans skip stale active-index entries.
 - User primary pagination keeps existing `(channel_id, channel_type)` ordering
   and cursor behavior.
