@@ -46,7 +46,6 @@ type metaBatchOp struct {
 
 type batchCommitState struct {
 	db               *MetaDB
-	createdUsers     map[string]struct{}
 	userWrites       map[string]struct{}
 	tableRows        map[string]tableRowOverlay
 	tableCreates     map[string]struct{}
@@ -275,7 +274,6 @@ func (b *Batch) Commit(ctx context.Context) error {
 	defer engineBatch.Close()
 	state := &batchCommitState{
 		db:               b.db,
-		createdUsers:     make(map[string]struct{}),
 		userWrites:       make(map[string]struct{}),
 		tableRows:        make(map[string]tableRowOverlay),
 		tableCreates:     make(map[string]struct{}),
