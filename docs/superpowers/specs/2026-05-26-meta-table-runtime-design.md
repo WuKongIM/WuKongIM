@@ -88,6 +88,7 @@ var fooTable = registerMetaTable(TableSpec[Foo]{
         IndexID:  1,
         FamilyID: 0,
         Name:     "pk_foo",
+        Layout:   KeyLayout{KeyString},
         Key: func(row Foo) KeyParts {
             return KeyParts{String(row.ID)}
         },
@@ -98,6 +99,7 @@ var fooTable = registerMetaTable(TableSpec[Foo]{
         {
             ID:   2,
             Name: "idx_foo_owner",
+            Layout: KeyLayout{KeyString, KeyString},
             Key: func(row Foo) (KeyParts, bool) {
                 return KeyParts{String(row.Owner), String(row.ID)}, true
             },
@@ -116,11 +118,21 @@ The registry rejects:
 - Empty table names or zero table IDs.
 - Reused table IDs.
 - Duplicate family IDs or index IDs inside one table.
+- Key layouts that do not match the table's primary or index key functions.
 - Invalid schema descriptors according to `schema.ValidateTable`.
 
 Table IDs can live next to the table spec in `table_<name>.go`. `types.go` can
 keep public IDs for legacy tables, but new table IDs do not need another central
 edit unless they are part of a public compatibility surface.
+
+The generic `TableSpec[R]` registers two views:
+
+- A typed `Table[R]` handle used by table wrappers.
+- An untyped descriptor projection stored in the registry for schema listing,
+  snapshot span discovery, and duplicate ID validation.
+
+This avoids storing generic values in the registry while keeping per-table code
+typed.
 
 ## Runtime API
 
@@ -133,6 +145,7 @@ type Table[R any] struct {
 
 func (t Table[R]) Get(ctx context.Context, s *Shard, pk KeyParts) (R, bool, error)
 func (t Table[R]) Create(ctx context.Context, s *Shard, row R) error
+func (t Table[R]) Update(ctx context.Context, s *Shard, row R) error
 func (t Table[R]) Upsert(ctx context.Context, s *Shard, row R) error
 func (t Table[R]) Delete(ctx context.Context, s *Shard, pk KeyParts) error
 func (t Table[R]) ScanPrimary(ctx context.Context, s *Shard, after KeyParts, limit int) ([]R, KeyParts, bool, error)
@@ -153,6 +166,10 @@ func (s *Shard) GetFoo(ctx context.Context, id string) (Foo, bool, error) {
 
 This keeps callers unaware of the table runtime while still avoiding repeated
 storage boilerplate.
+
+`Update` requires an existing primary row and returns `ErrNotFound` if the row is
+missing. This preserves APIs such as `UpdateUser` without needing a get-then-set
+race outside the table lock.
 
 ## Key Encoding
 
@@ -185,6 +202,16 @@ Supported constructors in the first version:
 - `Uint64(value uint64)`
 - `Uint8(value uint8)`
 
+Each primary key and index key also declares a `KeyLayout`:
+
+```go
+type KeyLayout []KeyPartKind
+```
+
+The layout is required because index scans must decode bytes back into
+`KeyParts`. Constructors define values for encoding; layouts define how to parse
+keys during scans.
+
 The runtime is responsible for:
 
 - Encoding primary row keys.
@@ -196,6 +223,17 @@ The runtime is responsible for:
 
 New tables should not add custom `encodeFooRowKey` or
 `encodeFooIndexKey` helpers unless they have a special non-table record layout.
+
+Physical secondary index keys always append the primary key after the index key
+parts:
+
+```text
+index(tableID,indexID) / index-key-parts... / primary-key-parts...
+```
+
+For non-unique indexes, this naturally gives stable ordering and duplicate index
+keys. For unique indexes, the runtime scans the unique index prefix without the
+primary suffix and rejects the write if it finds a different primary key.
 
 ## Value Encoding
 
@@ -277,6 +315,7 @@ typed staging helpers on table handles:
 
 ```go
 func (t Table[R]) StageCreate(b *Batch, hashSlot HashSlot, row R) error
+func (t Table[R]) StageUpdate(b *Batch, hashSlot HashSlot, row R) error
 func (t Table[R]) StageUpsert(b *Batch, hashSlot HashSlot, row R) error
 func (t Table[R]) StageDelete(b *Batch, hashSlot HashSlot, pk KeyParts) error
 ```
@@ -296,6 +335,11 @@ The first version should use runtime batch staging for ordinary tables only:
 - `device`
 - `plugin_binding`
 - newly added simple metadata tables
+
+Runtime batch staging keeps a per-table primary-key overlay for staged writes and
+deletes. This lets `StageCreate` reject duplicate creates in the same batch,
+`StageUpdate` see earlier staged rows, and index maintenance use the latest
+staged value instead of only committed storage.
 
 Keep custom batch code for tables with cache, guard, monotonic, or multi-record
 semantics:
@@ -435,4 +479,3 @@ For a normal new metadata table:
 
 No default changes should be needed in central key helpers, schema listing,
 snapshot, delete, or batch internals.
-
