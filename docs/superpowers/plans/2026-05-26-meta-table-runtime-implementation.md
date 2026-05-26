@@ -1817,7 +1817,7 @@ var pluginBindingTable = registerMetaTable(TableSpec[PluginUserBinding]{
         {ID: pluginBindingColumnPluginNo, Name: "plugin_no", Type: schema.TypeString, Required: true},
         {ID: pluginBindingColumnValue, Name: "value", Type: schema.TypeBytes},
     },
-    Families: []schema.Family{{ID: pluginBindingPrimaryFamilyID, Name: "primary", Columns: []uint16{columnIDValue}}},
+    Families: []schema.Family{{ID: pluginBindingPrimaryFamilyID, Name: "primary", Columns: []uint16{pluginBindingColumnValue}}},
     Primary: PrimarySpec[PluginUserBinding]{
         IndexID: pluginBindingPrimaryIndexID,
         FamilyID: pluginBindingPrimaryFamilyID,
@@ -1920,15 +1920,9 @@ func (s *Shard) ListPluginBindingsByUID(ctx context.Context, uid string) ([]Plug
     if err := validatePluginBindingUID(uid); err != nil {
         return nil, err
     }
-    rows, _, _, err := pluginBindingTable.ScanPrimary(ctx, s, KeyParts{String(uid)}, 0)
+    rows, _, _, err := pluginBindingTable.ScanPrimaryPrefix(ctx, s, KeyParts{String(uid)}, nil, 0)
     return rows, err
 }
-```
-
-Use the `ScanPrimaryPrefix` helper added with the primary runtime:
-
-```go
-rows, _, _, err := pluginBindingTable.ScanPrimaryPrefix(ctx, s, KeyParts{String(uid)}, nil, 0)
 ```
 
 For `ScanPluginBindingsByPluginNo`, use index prefix `KeyParts{String(pluginNo)}` and cursor UID:
@@ -2099,4 +2093,3 @@ git commit -m "docs: verify meta table runtime"
 - Compatibility `WriteBatch.CreateUser` currently differs from strict `Batch.CreateUser`. Preserve observed behavior unless a caller audit proves it is safe to tighten.
 - Keep value codecs unchanged for migrated tables. This refactor should not require a disk migration.
 - Keep complex tables custom. Do not migrate `channel_runtime_meta`, `channel_migration`, or `hashslot_migration` as part of this plan.
-
