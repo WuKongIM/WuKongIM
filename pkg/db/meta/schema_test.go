@@ -15,6 +15,8 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 		t.Fatalf("len(Tables()) = %d, registry length = %d", len(tables), len(defaultMetaRegistry.tables()))
 	}
 	seen := make(map[uint32]string, len(tables))
+	channelIDIndexRegistered := false
+	channelActiveIndexRegistered := false
 	for _, table := range tables {
 		if err := schema.ValidateTable(table); err != nil {
 			t.Fatalf("ValidateTable(%s): %v", table.Name, err)
@@ -23,6 +25,22 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			t.Fatalf("table id %d reused by %s and %s", table.ID, prev, table.Name)
 		}
 		seen[table.ID] = table.Name
+		if table.ID == TableIDChannel {
+			for _, index := range table.Indexes {
+				if index.ID == channelIDIndexID && index.Name == "idx_channel_id" {
+					channelIDIndexRegistered = true
+				}
+				if index.ID == channelActiveIndexID && index.Name == "idx_channel_active" {
+					channelActiveIndexRegistered = true
+				}
+			}
+		}
+	}
+	if !channelIDIndexRegistered {
+		t.Fatalf("channel table missing idx_channel_id index %d", channelIDIndexID)
+	}
+	if !channelActiveIndexRegistered {
+		t.Fatalf("channel table missing idx_channel_active index %d", channelActiveIndexID)
 	}
 	for _, tableID := range []uint32{
 		TableIDUser,
