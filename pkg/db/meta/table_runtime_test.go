@@ -33,6 +33,33 @@ func newRuntimeTestTable(t *testing.T) Table[runtimeTestRow] {
 			Layout:   KeyLayout{KeyString},
 			Key:      func(row runtimeTestRow) KeyParts { return KeyParts{String(row.ID)} },
 		},
+		Indexes: []IndexSpec[runtimeTestRow]{
+			{
+				ID:      2,
+				Name:    "idx_runtime_test_owner",
+				Columns: []uint16{2, 1},
+				Layout:  KeyLayout{KeyString, KeyString},
+				Key: func(row runtimeTestRow) (KeyParts, bool) {
+					if row.Owner == "" {
+						return nil, false
+					}
+					return KeyParts{String(row.Owner), String(row.ID)}, true
+				},
+			},
+			{
+				ID:      3,
+				Name:    "uidx_runtime_test_value",
+				Unique:  true,
+				Columns: []uint16{3},
+				Layout:  KeyLayout{KeyString},
+				Key: func(row runtimeTestRow) (KeyParts, bool) {
+					if row.Value == "" {
+						return nil, false
+					}
+					return KeyParts{String(row.Value)}, true
+				},
+			},
+		},
 		Validate: func(row runtimeTestRow) error {
 			return validateKeyString(row.ID)
 		},
@@ -101,6 +128,78 @@ func TestTableRuntimePrimaryCRUD(t *testing.T) {
 	_, ok, err = table.Get(ctx, shard, KeyParts{String("a")})
 	if err != nil || ok {
 		t.Fatalf("Get deleted ok=%v err=%v", ok, err)
+	}
+}
+
+func TestTableRuntimeIndexMaintenanceAndScan(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(5)
+	ctx := context.Background()
+
+	if err := table.Upsert(ctx, shard, runtimeTestRow{ID: "a", Owner: "o1", Value: "v1"}); err != nil {
+		t.Fatalf("upsert a: %v", err)
+	}
+	if err := table.Upsert(ctx, shard, runtimeTestRow{ID: "b", Owner: "o1", Value: "v2"}); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+	rows, cursor, done, err := table.ScanIndex(ctx, shard, 2, KeyParts{String("o1")}, nil, 10)
+	if err != nil || !done || len(rows) != 2 || rows[0].ID != "a" || rows[1].ID != "b" || len(cursor) != 0 {
+		t.Fatalf("owner scan rows=%#v cursor=%#v done=%v err=%v", rows, cursor, done, err)
+	}
+
+	if err := table.Upsert(ctx, shard, runtimeTestRow{ID: "a", Owner: "o2", Value: "v1"}); err != nil {
+		t.Fatalf("move owner: %v", err)
+	}
+	rows, _, done, err = table.ScanIndex(ctx, shard, 2, KeyParts{String("o1")}, nil, 10)
+	if err != nil || !done || len(rows) != 1 || rows[0].ID != "b" {
+		t.Fatalf("old owner scan rows=%#v done=%v err=%v", rows, done, err)
+	}
+}
+
+func TestTableRuntimeUniqueIndexConflict(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(6)
+	ctx := context.Background()
+
+	if err := table.Create(ctx, shard, runtimeTestRow{ID: "a", Owner: "o1", Value: "same"}); err != nil {
+		t.Fatalf("create a: %v", err)
+	}
+	err := table.Create(ctx, shard, runtimeTestRow{ID: "b", Owner: "o2", Value: "same"})
+	if err != dberrors.ErrAlreadyExists {
+		t.Fatalf("unique conflict err = %v, want ErrAlreadyExists", err)
+	}
+}
+
+func TestTableRuntimeIndexScanSkipsStaleEntries(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(7)
+	ctx := context.Background()
+
+	if err := table.Upsert(ctx, shard, runtimeTestRow{ID: "a", Owner: "current", Value: "v1"}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	staleKey, err := encodeTableIndexKey(shard.HashSlot(), table.Schema().ID, 2, KeyParts{String("stale"), String("a")}, KeyParts{String("a")})
+	if err != nil {
+		t.Fatalf("stale index key: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("set stale index: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("commit stale index: %v", err)
+	}
+	batch.Close()
+
+	rows, _, done, err := table.ScanIndex(ctx, shard, 2, KeyParts{String("stale")}, nil, 10)
+	if err != nil || !done || len(rows) != 0 {
+		t.Fatalf("stale scan rows=%#v done=%v err=%v", rows, done, err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -175,8 +176,17 @@ func (t Table[R]) Delete(ctx context.Context, s *Shard, pk KeyParts) error {
 	if err != nil {
 		return err
 	}
+	old, exists, err := t.getByPrimaryKey(s.db, s.hashSlot, pk)
+	if err != nil {
+		return err
+	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
+	if exists {
+		if err := t.stageDeleteIndexEntries(batch, s.hashSlot, old, pk); err != nil {
+			return err
+		}
+	}
 	if err := batch.Delete(primaryKey); err != nil {
 		return err
 	}
@@ -194,6 +204,81 @@ func (t Table[R]) ScanPrimary(ctx context.Context, s *Shard, after KeyParts, lim
 // ScanPrimaryPrefix returns primary-key ordered rows matching prefix.
 func (t Table[R]) ScanPrimaryPrefix(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
 	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0)
+}
+
+// ScanIndex returns rows by secondary index prefix.
+func (t Table[R]) ScanIndex(ctx context.Context, s *Shard, indexID uint16, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, nil, false, err
+	}
+	index, ok := t.indexByID(indexID)
+	if !ok {
+		return nil, nil, false, dberrors.ErrInvalidArgument
+	}
+	if limit <= 0 {
+		return nil, nil, true, nil
+	}
+	if err := validateKeyPartsAgainstLayout(prefix, index.Layout[:len(prefix)]); err != nil {
+		return nil, nil, false, err
+	}
+	if len(prefix) > len(index.Layout) {
+		return nil, nil, false, dberrors.ErrInvalidArgument
+	}
+	if len(after) > 0 {
+		if len(after) > len(index.Layout) || !keyPartsHasPrefix(after, prefix) {
+			return nil, nil, false, dberrors.ErrInvalidArgument
+		}
+		if err := validateKeyPartsAgainstLayout(after, index.Layout[:len(after)]); err != nil {
+			return nil, nil, false, err
+		}
+	}
+
+	scanPrefix, err := encodeTableIndexScanPrefix(s.hashSlot, t.spec.ID, index.ID, prefix)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	span := keycodec.NewPrefixSpan(scanPrefix)
+	if len(after) > 0 {
+		afterKey, err := encodeTableIndexScanPrefix(s.hashSlot, t.spec.ID, index.ID, after)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		span.Start = keycodec.PrefixEnd(afterKey)
+	}
+	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return nil, nil, false, err
+	}
+	defer iter.Close()
+
+	basePrefix := encodeIndexPrefix(s.hashSlot, t.spec.ID, index.ID)
+	rows := make([]R, 0, limit)
+	var cursor KeyParts
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := contextErr(ctx); err != nil {
+			return nil, nil, false, err
+		}
+		indexParts, primaryParts, ok := t.decodeIndexKey(basePrefix, iter.Key(), index)
+		if !ok || !keyPartsHasPrefix(indexParts, prefix) {
+			continue
+		}
+		row, exists, err := t.getByPrimaryKey(s.db, s.hashSlot, primaryParts)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		if !exists || !t.rowMatchesIndex(row, index, indexParts) {
+			continue
+		}
+		if len(rows) == limit {
+			return rows, cursor, false, nil
+		}
+		rows = append(rows, row)
+		cursor = append(KeyParts(nil), indexParts...)
+	}
+	if err := iter.Error(); err != nil {
+		return nil, nil, false, err
+	}
+	return rows, nil, true, nil
 }
 
 func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMode) error {
@@ -220,9 +305,16 @@ func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMod
 	if err != nil {
 		return err
 	}
-	_, exists, err := s.db.get(primaryKey)
+	existingValue, exists, err := s.db.get(primaryKey)
 	if err != nil {
 		return err
+	}
+	var existing R
+	if exists {
+		existing, err = t.spec.DecodeValue(pk, existingValue)
+		if err != nil {
+			return err
+		}
 	}
 	switch mode {
 	case tableWriteCreate:
@@ -237,7 +329,18 @@ func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMod
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
+	if exists {
+		if err := t.stageDeleteIndexEntries(batch, s.hashSlot, existing, pk); err != nil {
+			return err
+		}
+	}
+	if err := t.stageUniqueIndexChecks(ctx, s, row, pk); err != nil {
+		return err
+	}
 	if err := batch.Set(primaryKey, value); err != nil {
+		return err
+	}
+	if err := t.stagePutIndexEntries(batch, s.hashSlot, row, pk); err != nil {
 		return err
 	}
 	return batch.Commit(true)
@@ -331,6 +434,119 @@ func (t Table[R]) primaryKey(row R) (KeyParts, error) {
 		return nil, err
 	}
 	return parts, nil
+}
+
+func (t Table[R]) indexByID(indexID uint16) (IndexSpec[R], bool) {
+	for _, index := range t.spec.Indexes {
+		if index.ID == indexID {
+			return index, true
+		}
+	}
+	return IndexSpec[R]{}, false
+}
+
+func (t Table[R]) stagePutIndexEntries(batch *engine.Batch, hashSlot HashSlot, row R, pk KeyParts) error {
+	for _, index := range t.spec.Indexes {
+		indexParts, ok := index.Key(row)
+		if !ok {
+			continue
+		}
+		if err := validateKeyPartsAgainstLayout(indexParts, index.Layout); err != nil {
+			return err
+		}
+		key, err := encodeTableIndexKey(hashSlot, t.spec.ID, index.ID, indexParts, pk)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(key, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t Table[R]) stageDeleteIndexEntries(batch *engine.Batch, hashSlot HashSlot, row R, pk KeyParts) error {
+	for _, index := range t.spec.Indexes {
+		indexParts, ok := index.Key(row)
+		if !ok {
+			continue
+		}
+		if err := validateKeyPartsAgainstLayout(indexParts, index.Layout); err != nil {
+			return err
+		}
+		key, err := encodeTableIndexKey(hashSlot, t.spec.ID, index.ID, indexParts, pk)
+		if err != nil {
+			return err
+		}
+		if err := batch.Delete(key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t Table[R]) stageUniqueIndexChecks(ctx context.Context, s *Shard, row R, pk KeyParts) error {
+	for _, index := range t.spec.Indexes {
+		if !index.Unique {
+			continue
+		}
+		indexParts, ok := index.Key(row)
+		if !ok {
+			continue
+		}
+		if err := validateKeyPartsAgainstLayout(indexParts, index.Layout); err != nil {
+			return err
+		}
+		prefix, err := encodeTableIndexScanPrefix(s.hashSlot, t.spec.ID, index.ID, indexParts)
+		if err != nil {
+			return err
+		}
+		span := keycodec.NewPrefixSpan(prefix)
+		iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+		if err != nil {
+			return err
+		}
+		basePrefix := encodeIndexPrefix(s.hashSlot, t.spec.ID, index.ID)
+		for ok := iter.First(); ok; ok = iter.Next() {
+			if err := contextErr(ctx); err != nil {
+				_ = iter.Close()
+				return err
+			}
+			_, indexedPK, ok := t.decodeIndexKey(basePrefix, iter.Key(), index)
+			if ok && !indexedPK.Equal(pk) {
+				_ = iter.Close()
+				return dberrors.ErrAlreadyExists
+			}
+		}
+		if err := iter.Error(); err != nil {
+			_ = iter.Close()
+			return err
+		}
+		if err := iter.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t Table[R]) decodeIndexKey(prefix []byte, key []byte, index IndexSpec[R]) (KeyParts, KeyParts, bool) {
+	if !bytes.HasPrefix(key, prefix) {
+		return nil, nil, false
+	}
+	indexParts, rest, err := decodeKeyParts(key[len(prefix):], index.Layout)
+	if err != nil {
+		return nil, nil, false
+	}
+	primaryParts, rest, err := decodeKeyParts(rest, t.spec.Primary.Layout)
+	if err != nil || len(rest) != 0 {
+		return nil, nil, false
+	}
+	return indexParts, primaryParts, true
+}
+
+func (t Table[R]) rowMatchesIndex(row R, index IndexSpec[R], expected KeyParts) bool {
+	actual, ok := index.Key(row)
+	return ok && actual.Equal(expected)
 }
 
 func (t Table[R]) primaryRowKey(hashSlot HashSlot, pk KeyParts) ([]byte, error) {
