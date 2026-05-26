@@ -103,6 +103,40 @@ func TestPluginBindingUnbindAndValidation(t *testing.T) {
 	}
 }
 
+func TestPluginBindingTableRuntimeDescriptor(t *testing.T) {
+	if pluginBindingTable.Schema().ID != TableIDPluginBinding {
+		t.Fatalf("plugin binding table id = %d, want %d", pluginBindingTable.Schema().ID, TableIDPluginBinding)
+	}
+	if len(pluginBindingTable.Schema().Indexes) != 1 || pluginBindingTable.Schema().Indexes[0].Name != "idx_plugin_binding_plugin_no" {
+		t.Fatalf("plugin binding indexes = %#v", pluginBindingTable.Schema().Indexes)
+	}
+}
+
+func TestPluginBindingScanSkipsStaleIndex(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(22)
+
+	if err := shard.BindPluginUser(ctx, PluginUserBinding{UID: "u1", PluginNo: "p1", CreatedAtMS: 1, UpdatedAtMS: 1}); err != nil {
+		t.Fatalf("BindPluginUser: %v", err)
+	}
+	staleKey := encodePluginBindingPluginIndexKey(22, "stale", "u1")
+	batch := store.engine.NewBatch()
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("set stale index: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("commit stale index: %v", err)
+	}
+	batch.Close()
+
+	rows, _, done, err := shard.ScanPluginBindingsByPluginNo(ctx, "stale", PluginUserBindingCursor{}, 10)
+	if err != nil || !done || len(rows) != 0 {
+		t.Fatalf("stale scan rows=%#v done=%v err=%v", rows, done, err)
+	}
+}
+
 func equalPluginBindings(a, b []PluginUserBinding) bool {
 	if len(a) != len(b) {
 		return false
