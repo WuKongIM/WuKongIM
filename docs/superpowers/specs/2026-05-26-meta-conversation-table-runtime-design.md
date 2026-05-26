@@ -105,6 +105,9 @@ the runtime:
   `uid` prefix.
 - `ListUserConversationActive` and `ListCMDConversationActive` use runtime index
   scanning with the `uid` prefix and existing `limit` validation.
+- Any existing compatibility `WriteBatch` paths that stage conversation rows
+  should use the same runtime staging helper so primary rows and active indexes
+  are maintained by one implementation.
 
 The table runtime needs one explicit compatibility extension for these active
 indexes. The existing generic secondary index format appends primary key parts to
@@ -125,6 +128,11 @@ Add a reusable runtime option such as
   or no longer active;
 - write/delete paths continue to compute old and new active-index keys from
   decoded rows, so active-index cleanup remains exact.
+
+This option is only valid when the legacy index tuple uniquely contains enough
+information to derive the primary key. Runtime spec normalization should reject
+or clearly guard invalid uses where projection is absent, malformed, or
+ambiguous.
 
 For both conversation tables, the projection is:
 
@@ -159,6 +167,8 @@ Add focused red tests before implementation:
   the active index descriptor.
 - Raw active-index keys for user and CMD conversations keep the legacy layout and
   do not append a primary-key suffix.
+- Malformed active-index keys keep current error behavior rather than being
+  silently skipped.
 - User and CMD active scans skip stale active-index entries.
 - User primary pagination keeps existing `(channel_id, channel_type)` ordering
   and cursor behavior.
