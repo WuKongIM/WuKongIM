@@ -92,44 +92,12 @@ func (b *Batch) Close() error {
 
 // CreateUser stages a unique user insert.
 func (b *Batch) CreateUser(hashSlot HashSlot, user User) error {
-	if err := b.ensureOpen(); err != nil {
-		return err
-	}
-	if err := validateKeyString(user.UID); err != nil {
-		return err
-	}
-	primaryKey := encodeUserRowKey(hashSlot, user.UID, userPrimaryFamilyID)
-	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		if _, ok := state.createdUsers[string(primaryKey)]; ok {
-			return dberrors.ErrAlreadyExists
-		}
-		if _, ok, err := state.db.get(primaryKey); err != nil || ok {
-			if err != nil {
-				return err
-			}
-			return dberrors.ErrAlreadyExists
-		}
-		state.createdUsers[string(primaryKey)] = struct{}{}
-		state.userWrites[string(primaryKey)] = struct{}{}
-		return batch.Set(primaryKey, encodeUserValue(user))
-	})
-	return nil
+	return userTable.StageCreate(b, hashSlot, user)
 }
 
 // UpsertUser stages a user upsert.
 func (b *Batch) UpsertUser(hashSlot HashSlot, user User) error {
-	if err := b.ensureOpen(); err != nil {
-		return err
-	}
-	if err := validateKeyString(user.UID); err != nil {
-		return err
-	}
-	primaryKey := encodeUserRowKey(hashSlot, user.UID, userPrimaryFamilyID)
-	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		state.userWrites[string(primaryKey)] = struct{}{}
-		return batch.Set(primaryKey, encodeUserValue(user))
-	})
-	return nil
+	return userTable.StageUpsert(b, hashSlot, user)
 }
 
 // UpsertChannel stages a channel upsert and publishes the channel cache after commit.

@@ -58,3 +58,12 @@ func TestUserCRUDAndPage(t *testing.T) {
 		t.Fatalf("GetUser(deleted) = ok %v err %v, want missing", ok, err)
 	}
 }
+
+func TestUserTableRuntimeDescriptor(t *testing.T) {
+	if userTable.Schema().ID != TableIDUser {
+		t.Fatalf("user table id = %d, want %d", userTable.Schema().ID, TableIDUser)
+	}
+	if userTable.Schema().Primary.Name != "pk_user" {
+		t.Fatalf("user primary name = %q", userTable.Schema().Primary.Name)
+	}
+}
