@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,7 +44,9 @@ type Node struct {
 	channels  channelService
 	// defaultChannels reports whether Node constructed channels during Start.
 	defaultChannels bool
-	proposer        interface {
+	// defaultChannelStore owns the Node-created message DB factory.
+	defaultChannelStore *channelstore.MessageDBFactory
+	proposer            interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
@@ -156,29 +159,39 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	}
 	createdDefaultChannels := false
 	if n.channels == nil {
+		storeFactory := channelstore.NewMessageDBFactory(n.defaultChannelStorePath())
 		service, err := channels.NewService(channels.Config{
 			LocalNode:    channelv2.NodeID(n.cfg.NodeID),
 			ReactorCount: n.cfg.Channel.ReactorCount,
 			MailboxSize:  n.cfg.Channel.MailboxSize,
-			Store:        channelstore.NewMemoryFactory(),
+			Store:        storeFactory,
 		})
 		if err != nil {
+			_ = storeFactory.Close()
 			return false, err
 		}
 		n.channels = service
 		n.defaultChannels = true
+		n.defaultChannelStore = storeFactory
 		createdDefaultChannels = true
 	}
 	return createdDefaultChannels, nil
 }
 
+func (n *Node) defaultChannelStorePath() string {
+	return filepath.Join(n.cfg.DataDir, "messages")
+}
+
 func (n *Node) discardDefaultChannels() {
-	if n == nil || !n.defaultChannels || n.channels == nil {
+	if n == nil || !n.defaultChannels {
 		return
 	}
-	_ = n.channels.Close()
+	if n.channels != nil {
+		_ = n.channels.Close()
+	}
 	n.channels = nil
 	n.defaultChannels = false
+	_ = n.closeDefaultChannelStore()
 }
 
 // Stop stops the node runtime and rejects new foreground work.
@@ -203,6 +216,9 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n.defaultChannels {
 		n.channels = nil
 		n.defaultChannels = false
+		if err := n.closeDefaultChannelStore(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	n.markChannelsReady(false)
 	if n.control != nil {
@@ -215,6 +231,15 @@ func (n *Node) Stop(ctx context.Context) error {
 	}
 	n.started.Store(false)
 	return errors.Join(errs...)
+}
+
+func (n *Node) closeDefaultChannelStore() error {
+	if n == nil || n.defaultChannelStore == nil {
+		return nil
+	}
+	err := n.defaultChannelStore.Close()
+	n.defaultChannelStore = nil
+	return err
 }
 
 // NodeID returns this node's stable cluster identity.
