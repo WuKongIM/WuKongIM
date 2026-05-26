@@ -75,6 +75,49 @@ func TestClientRPCService(t *testing.T) {
 	}
 }
 
+func TestClientSendServiceDoesNotWaitForResponse(t *testing.T) {
+	s := NewServer()
+	mux := NewRPCMux()
+	started := make(chan []byte, 1)
+	release := make(chan struct{})
+	mux.Handle(7, func(ctx context.Context, body []byte) ([]byte, error) {
+		started <- append([]byte(nil), body...)
+		<-release
+		return []byte("late-response"), nil
+	})
+	s.HandleRPCMux(mux)
+	if err := s.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Stop()
+	defer close(release)
+
+	pool := NewPool(PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[NodeID]string{2: s.Listener().Addr().String()}},
+		Size:        1,
+		DialTimeout: time.Second,
+		QueueSizes:  [numPriorities]int{4, 4, 4},
+		DefaultPri:  PriorityRaft,
+	})
+	defer pool.Close()
+
+	client := NewClient(pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := client.SendService(ctx, 2, 0, 7, []byte("ping")); err != nil {
+		t.Fatalf("SendService() error = %v", err)
+	}
+
+	select {
+	case body := <-started:
+		if string(body) != "ping" {
+			t.Fatalf("body = %q, want ping", body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for one-way service handler")
+	}
+}
+
 func TestClientRPCServiceWithResultClassifierOverridesSuccessfulResult(t *testing.T) {
 	s := NewServer()
 	mux := NewRPCMux()

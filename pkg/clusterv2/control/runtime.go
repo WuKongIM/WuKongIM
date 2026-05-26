@@ -400,6 +400,25 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	return r.raft.Step(ctx, msg)
 }
 
+// GetState serves ControllerV2 state sync requests from the local voter state.
+func (r *Runtime) GetState(ctx context.Context, req cv2sync.GetStateRequest) (cv2sync.GetStateResponse, error) {
+	if r == nil || r.sm == nil {
+		return cv2sync.GetStateResponse{NotReady: true}, nil
+	}
+	endpoint := cv2sync.NewServer(cv2sync.ServerConfig{
+		NodeID:    r.cfg.NodeID,
+		ClusterID: r.cfg.ClusterID,
+		LeaderID:  r.LeaderID,
+		Ready: func() bool {
+			return r.sm.Snapshot(context.Background()).Revision != 0
+		},
+		Snapshot: func(ctx context.Context) (cv2state.ClusterState, error) {
+			return r.sm.Snapshot(ctx), nil
+		},
+	})
+	return endpoint.GetState(ctx, req)
+}
+
 // Watch returns snapshot update events.
 func (r *Runtime) Watch() <-chan SnapshotEvent { return r.watch }
 

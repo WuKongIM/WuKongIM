@@ -19,6 +19,7 @@ const (
 	MaxFrameSize = MaxMessageSize
 
 	// Reserved message types for built-in RPC mechanism.
+	MsgTypeRPCNotify   uint8 = 0xFD
 	MsgTypeRPCRequest  uint8 = 0xFE
 	MsgTypeRPCResponse uint8 = 0xFF
 

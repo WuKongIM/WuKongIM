@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestDiscoveryUpdatesAtomically(t *testing.T) {
@@ -96,5 +97,41 @@ func TestTransportLoopbackRPC(t *testing.T) {
 	}
 	if string(got) != "resp:ping" {
 		t.Fatalf("Call() = %q, want resp:ping", got)
+	}
+}
+
+func TestTransportLoopbackSendDoesNotWaitForResponse(t *testing.T) {
+	server := NewTransportServer(TransportServerConfig{})
+	received := make(chan []byte, 1)
+	release := make(chan struct{})
+	server.Register(RPCControlRaft, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		received <- append([]byte(nil), payload...)
+		<-release
+		return []byte("ignored"), nil
+	}))
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+	defer close(release)
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := client.Send(ctx, 2, RPCControlRaft, []byte("raft")); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	select {
+	case got := <-received:
+		if string(got) != "raft" {
+			t.Fatalf("payload = %q, want raft", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for one-way send")
 	}
 }

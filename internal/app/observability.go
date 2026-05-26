@@ -925,6 +925,8 @@ func slotLeaderSkew(nodes []controllermeta.ClusterNode, views []controllermeta.S
 
 func transportMsgType(msgType uint8) string {
 	switch msgType {
+	case transport.MsgTypeRPCNotify:
+		return "rpc_notify"
 	case transport.MsgTypeRPCRequest:
 		return "rpc_request"
 	case transport.MsgTypeRPCResponse:

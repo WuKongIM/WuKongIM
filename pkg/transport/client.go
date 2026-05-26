@@ -31,6 +31,11 @@ func (c *Client) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte
 	return c.pool.Send(nodeID, shardKey, msgType, body)
 }
 
+// SendService sends a service-routed one-way message without waiting for a response.
+func (c *Client) SendService(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte) error {
+	return c.pool.SendWithContext(ctx, nodeID, shardKey, MsgTypeRPCNotify, encodeRPCServicePayload(serviceID, payload))
+}
+
 func (c *Client) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload []byte) ([]byte, error) {
 	return c.pool.RPC(ctx, nodeID, shardKey, payload)
 }

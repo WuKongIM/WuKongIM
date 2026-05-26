@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -113,6 +114,16 @@ func namedTestResource(name string, resource lifecycle.Resource) lifecycle.Named
 func validNodeConfig(t *testing.T) Config {
 	t.Helper()
 	return Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+}
+
+func freeTCPAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().String()
 }
 
 type recordingResource struct {
@@ -267,6 +278,61 @@ func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 	if err == nil && route.SlotID != 1 {
 		t.Fatalf("RouteHashSlot() = %#v, want slot 1", route)
 	}
+}
+
+func TestNodeDefaultControllerV2ThreeVotersConvergeOverTransport(t *testing.T) {
+	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
+	voters := []ControlVoter{
+		{NodeID: 1, Addr: addrs[0]},
+		{NodeID: 2, Addr: addrs[1]},
+		{NodeID: 3, Addr: addrs[2]},
+	}
+	nodes := make([]*Node, 0, len(voters))
+	for _, voter := range voters {
+		cfg := Config{NodeID: voter.NodeID, ListenAddr: voter.Addr, DataDir: t.TempDir()}
+		cfg.Control.ClusterID = "node-default-control-three"
+		cfg.Control.Voters = voters
+		cfg.Control.AllowBootstrap = true
+		cfg.Slots.InitialSlotCount = 1
+		cfg.Slots.HashSlotCount = 4
+		cfg.Slots.ReplicaCount = 3
+		node, err := New(cfg)
+		if err != nil {
+			t.Fatalf("New(node=%d) error = %v", voter.NodeID, err)
+		}
+		nodes = append(nodes, node)
+	}
+
+	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(nodes))
+	for _, node := range nodes {
+		node := node
+		go func() { startErrs <- node.Start(startCtx) }()
+		t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	}
+	for range nodes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	waitUntil(t, func() bool {
+		var revision uint64
+		for _, node := range nodes {
+			snap := node.Snapshot()
+			if snap.StateRevision == 0 || !snap.RoutesReady || snap.ControllerLead == 0 || snap.SlotCount != 1 {
+				return false
+			}
+			if revision == 0 {
+				revision = snap.StateRevision
+			}
+			if snap.StateRevision != revision {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {

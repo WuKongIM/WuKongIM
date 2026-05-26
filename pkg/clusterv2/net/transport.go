@@ -88,6 +88,11 @@ func (c *TransportClient) Call(ctx context.Context, nodeID uint64, serviceID uin
 	return c.client.RPCService(ctx, nodeID, 0, serviceID, payload)
 }
 
+// Send sends serviceID to nodeID without waiting for a response.
+func (c *TransportClient) Send(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) error {
+	return c.client.SendService(ctx, nodeID, 0, serviceID, payload)
+}
+
 // Stop closes outbound transport connections.
 func (c *TransportClient) Stop() {
 	if c != nil && c.client != nil {

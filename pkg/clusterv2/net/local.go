@@ -48,6 +48,12 @@ func (n *LocalNetwork) Call(ctx context.Context, nodeID uint64, serviceID uint8,
 	return handler.HandleRPC(ctx, append([]byte(nil), payload...))
 }
 
+// Send invokes serviceID on nodeID without returning the handler response.
+func (n *LocalNetwork) Send(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) error {
+	_, err := n.Call(ctx, nodeID, serviceID, payload)
+	return err
+}
+
 func ctxErr(ctx context.Context) error {
 	if ctx == nil {
 		return nil
