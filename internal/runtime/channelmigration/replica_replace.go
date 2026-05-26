@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	slotmeta "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func (e *Executor) runReplicaReplacePhase(ctx context.Context, task Task, nowMS int64) error {

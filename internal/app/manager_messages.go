@@ -8,9 +8,9 @@ import (
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 type managerMessageMetas interface {

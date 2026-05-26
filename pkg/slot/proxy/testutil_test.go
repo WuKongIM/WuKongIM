@@ -10,9 +10,9 @@ import (
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )

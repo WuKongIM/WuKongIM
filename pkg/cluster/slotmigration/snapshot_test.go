@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func openTestDB(tb testing.TB) *metadb.DB {

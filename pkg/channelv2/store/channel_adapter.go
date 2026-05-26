@@ -9,18 +9,18 @@ import (
 	"sync"
 
 	oldchannel "github.com/WuKongIM/WuKongIM/pkg/channel"
-	oldstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	oldstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
-// OldStoreFactory adapts the existing pkg/channel/store engine to channelv2.
+// OldStoreFactory adapts the shared message DB compatibility engine to channelv2.
 type OldStoreFactory struct {
 	engine          *oldstore.Engine
 	mu              sync.Mutex
 	checkpointLocks map[ch.ChannelKey]*sync.Mutex
 }
 
-// NewOldStoreFactory opens an existing channel store engine behind the v2 adapter.
+// NewOldStoreFactory opens a message DB compatibility engine behind the v2 adapter.
 func NewOldStoreFactory(path string) *OldStoreFactory {
 	engine, err := oldstore.Open(path)
 	if err != nil {
@@ -29,7 +29,7 @@ func NewOldStoreFactory(path string) *OldStoreFactory {
 	return &OldStoreFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
 }
 
-// ChannelStore returns an adapter for one old channel store.
+// ChannelStore returns an adapter for one compatibility channel store.
 func (f *OldStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error) {
 	if f == nil || f.engine == nil {
 		return nil, ch.ErrInvalidConfig
@@ -38,7 +38,7 @@ func (f *OldStoreFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Chan
 	return &oldChannelStoreAdapter{store: old, id: id, checkpointMu: f.checkpointLock(key)}, nil
 }
 
-// Close closes the wrapped old engine.
+// Close closes the wrapped compatibility engine.
 func (f *OldStoreFactory) Close() error {
 	if f == nil || f.engine == nil {
 		return nil
