@@ -11,6 +11,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	if len(tables) < 10 {
 		t.Fatalf("len(Tables()) = %d, want at least 10", len(tables))
 	}
+	if len(tables) != len(defaultMetaRegistry.tables()) {
+		t.Fatalf("len(Tables()) = %d, registry length = %d", len(tables), len(defaultMetaRegistry.tables()))
+	}
 	seen := make(map[uint32]string, len(tables))
 	for _, table := range tables {
 		if err := schema.ValidateTable(table); err != nil {

@@ -11,17 +11,23 @@ const (
 
 // Tables returns every metadata table descriptor.
 func Tables() []schema.Table {
-	return []schema.Table{
-		UserTable,
-		DeviceTable,
-		ChannelTable,
-		SubscriberTable,
-		ChannelRuntimeMetaTable,
-		ConversationTable,
-		CMDConversationTable,
-		PluginBindingTable,
-		ChannelMigrationTable,
-		HashSlotMigrationTable,
+	return defaultMetaRegistry.tables()
+}
+
+func init() {
+	for _, descriptor := range []metaTableDescriptor{
+		{Table: UserTable},
+		{Table: DeviceTable},
+		{Table: ChannelTable},
+		{Table: SubscriberTable},
+		{Table: ChannelRuntimeMetaTable},
+		{Table: ConversationTable},
+		{Table: CMDConversationTable},
+		{Table: PluginBindingTable},
+		{Table: ChannelMigrationTable},
+		{Table: HashSlotMigrationTable, SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}},
+	} {
+		defaultMetaRegistry.mustRegister(descriptor)
 	}
 }
 
