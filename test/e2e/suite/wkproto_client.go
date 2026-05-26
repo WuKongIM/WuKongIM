@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/testkit"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )

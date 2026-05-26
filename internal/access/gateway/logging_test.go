@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/require"
