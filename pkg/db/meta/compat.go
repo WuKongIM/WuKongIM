@@ -855,14 +855,18 @@ func (b *WriteBatch) CreateUser(hashSlot uint16, user User) error {
 	}
 	key := encodeUserRowKey(HashSlot(hashSlot), user.UID, userPrimaryFamilyID)
 	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		if _, ok := state.userWrites[string(key)]; ok {
+		if overlay, ok := state.tableRows[string(key)]; ok && overlay.exists {
 			return nil
 		}
 		if _, ok, err := state.db.get(key); err != nil || ok {
 			return err
 		}
-		state.userWrites[string(key)] = struct{}{}
-		return batch.Set(key, encodeUserValue(user))
+		value := encodeUserValue(user)
+		if err := batch.Set(key, value); err != nil {
+			return err
+		}
+		state.tableRows[string(key)] = tableRowOverlay{value: append([]byte(nil), value...), exists: true}
+		return nil
 	})
 	return nil
 }
