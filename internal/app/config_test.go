@@ -18,8 +18,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/binding"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 )
 
 func TestConfigExampleMentionsEverySupportedKey(t *testing.T) {

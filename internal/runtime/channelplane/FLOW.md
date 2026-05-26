@@ -17,7 +17,7 @@
 - `internal/access/*`
 - `internal/usecase/*`
 - `internal/app`
-- `internal/gateway/*`
+- `pkg/gateway/*`
 
 Node RPC transport adapters live in `internal/access/node`. This package only speaks neutral DTOs and narrow ports.
 

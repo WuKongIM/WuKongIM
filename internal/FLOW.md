@@ -14,7 +14,7 @@
 ## 1. 职责定位
 
 ### ✅ 负责范围
-- 客户端连接管理（Gateway）
+- 客户端网关业务适配（Access Gateway）
 - 消息收发
 - 在线状态（Presence）
 - 投递（Delivery）
@@ -44,8 +44,9 @@
         ┌───────────────────┼───────────────────┐
         ▼                   ▼                   ▼
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Gateway    │    │   API/Node   │    │   Usecase    │
-│   (接入层)    │    │   (接入层)    │    │   (用例层)    │
+│ Gateway      │    │   API/Node   │    │   Usecase    │
+│ Adapter      │    │   (接入层)    │    │   (用例层)    │
+│ (接入适配)    │    │              │    │              │
 └──────────────┘    └──────────────┘    └──────────────┘
         │                   │                   │
         └───────────────────┼───────────────────┘
@@ -72,13 +73,14 @@
 #### 接入层（Access）
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| `gateway.Gateway` | `gateway/gateway.go` | 网关：管理 Transport/Protocol/Session，双向实时通信 |
-| `gateway.Handler` | `access/gateway/handler.go` | 网关桥接：将 Frame 路由到 Usecase 层 |
+| `access/gateway.Handler` | `access/gateway/handler.go` | 网关业务适配：将 `pkg/gateway` 的 Frame / lifecycle 路由到 Usecase 层 |
 | `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步、CMD 离线同步、插件公开路由 |
 | `manager.Server` | `access/manager/server.go` | 后台管理 HTTP API：JWT、权限适配、集群/业务/插件管理 DTO |
 | `node.Client` | `access/node/options.go` | 节点间 RPC 客户端 |
 | `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端，包含插件 HTTP route / 管理 / committed side-effect 转发 |
 | `plugin.Server` | `access/plugin/server.go` | PDK host RPC：将插件进程 wkrpc 调用适配到插件用例 |
+
+`pkg/gateway.Gateway` 位于 `../pkg/gateway/gateway.go`，是可复用客户端网关基础设施；`internal/app` 负责组合它并注入 `internal/access/gateway.Handler`，不要把消息、在线状态或频道业务规则放入 `pkg/gateway`。
 
 #### 用例层（Usecase）
 | 组件 | 文件 | 职责 |
@@ -129,8 +131,9 @@
 ### 2.3 依赖边界
 
 **规则**：
-- `runtime/*` 可依赖 `pkg/*`，禁止依赖 `access/*`、`gateway/*`、`usecase/*`、`app`
+- `runtime/*` 可依赖 `pkg/*`，禁止依赖 `access/*`、`usecase/*`、`app`
 - `usecase/*` 可依赖 `runtime/*`、`pkg/*`，禁止依赖 `access/*`、`app`
+- `runtime/*` / `usecase/*` 不应依赖 `pkg/gateway/*`；客户端网关入口协议由 `internal/access/gateway` 适配
 - `access/*` 作为适配器层，转换传输 DTO 到合约/用例/运行时 DTO
 - `bench/*` 是 wkbench 黑盒客户端代码，禁止依赖 server internal 包和集群运行时包；target 数据准备只能通过 `/bench/v1/*` bench API，不能使用 Manager API
 
@@ -701,13 +704,13 @@ handleRecvAck(ctx, pkt)
 ```bash
 GOWORK=off go test ./internal/app
 GOWORK=off go test ./internal/...
-GOWORK=off go test ./internal/access/gateway ./internal/gateway/transport/gnet
+GOWORK=off go test ./internal/access/gateway ./pkg/gateway/transport/gnet
 ```
 
 ### 集成测试（慢测试）
 ```bash
 GOWORK=off go test -tags=integration ./internal/app
-GOWORK=off go test -tags=integration ./internal/access/gateway ./internal/gateway/transport/gnet
+GOWORK=off go test -tags=integration ./internal/access/gateway ./pkg/gateway/transport/gnet
 ```
 
 ### 边界检查

@@ -1,8 +1,8 @@
 package gateway
 
 import (
-	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
 // Config contains all application configuration loaded for one WuKongIM node.
