@@ -2,7 +2,10 @@ package meta
 
 import (
 	"context"
+	"errors"
 	"testing"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
 func TestCMDConversationActiveReturnsOnlyCMDRowsRecentFirst(t *testing.T) {
@@ -34,6 +37,89 @@ func TestCMDConversationActiveReturnsOnlyCMDRowsRecentFirst(t *testing.T) {
 	}
 	if !equalCMDConversationStates(got, want) {
 		t.Fatalf("cmd active conversations = %+v, want %+v", got, want)
+	}
+}
+
+func TestCMDConversationActiveIndexKeepsLegacyLayout(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(22)
+	ctx := context.Background()
+
+	state := CMDConversationState{UID: "u-layout", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 123, UpdatedAt: 10}
+	if err := shard.UpsertCMDConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertCMDConversationState(): %v", err)
+	}
+
+	legacyKey := encodeConversationActiveIndexKey(22, TableIDCMDConversation, state.UID, state.ActiveAt, state.ChannelID, state.ChannelType)
+	if _, ok, err := store.engine.Get(legacyKey); err != nil || !ok {
+		t.Fatalf("legacy active index exists ok=%v err=%v, want ok", ok, err)
+	}
+	genericKey, err := encodeTableIndexKey(
+		22,
+		TableIDCMDConversation,
+		conversationActiveIndexID,
+		KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+		KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+	)
+	if err != nil {
+		t.Fatalf("encodeTableIndexKey(): %v", err)
+	}
+	if _, ok, err := store.engine.Get(genericKey); err != nil || ok {
+		t.Fatalf("generic suffixed active index exists ok=%v err=%v, want missing", ok, err)
+	}
+}
+
+func TestCMDConversationActiveSkipsStaleIndex(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(22)
+	ctx := context.Background()
+
+	state := CMDConversationState{UID: "u-stale", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10}
+	if err := shard.UpsertCMDConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertCMDConversationState(): %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	staleKey := encodeConversationActiveIndexKey(22, TableIDCMDConversation, state.UID, 200, state.ChannelID, state.ChannelType)
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("Set(stale index): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(stale index): %v", err)
+	}
+
+	got, err := shard.ListCMDConversationActive(ctx, state.UID, 10)
+	if err != nil {
+		t.Fatalf("ListCMDConversationActive(): %v", err)
+	}
+	want := []CMDConversationState{state}
+	if !equalCMDConversationStates(got, want) {
+		t.Fatalf("cmd active conversations = %+v, want %+v", got, want)
+	}
+}
+
+func TestCMDConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(22)
+	ctx := context.Background()
+
+	prefix := encodeConversationActiveIndexPrefix(22, TableIDCMDConversation, "u-bad")
+	badKey := append(append([]byte(nil), prefix...), 0x01)
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(badKey, nil); err != nil {
+		t.Fatalf("Set(malformed index): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed index): %v", err)
+	}
+
+	_, err := shard.ListCMDConversationActive(ctx, "u-bad", 10)
+	if !errors.Is(err, dberrors.ErrCorruptValue) {
+		t.Fatalf("ListCMDConversationActive() err = %v, want corrupt value", err)
 	}
 }
 
