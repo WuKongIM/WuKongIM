@@ -16,7 +16,6 @@ func Tables() []schema.Table {
 
 func init() {
 	for _, descriptor := range []metaTableDescriptor{
-		{Table: ChannelTable},
 		{Table: SubscriberTable},
 		{Table: ChannelRuntimeMetaTable},
 		{Table: ConversationTable},
@@ -36,23 +35,6 @@ var (
 	CMDConversationTable    = activeMetaTable(TableIDCMDConversation, "cmd_conversation")
 	ChannelMigrationTable   = activeMetaTable(TableIDChannelMigration, "channel_migration")
 	HashSlotMigrationTable  = activeMetaTable(TableIDHashSlotMigration, "hashslot_migration")
-
-	ChannelTable = schema.Table{
-		ID:   TableIDChannel,
-		Name: "channel",
-		Columns: []schema.Column{
-			{ID: columnIDStringKey, Name: "channel_id", Type: schema.TypeString, Required: true},
-			{ID: columnIDIntKey, Name: "channel_type", Type: schema.TypeInt64, Required: true},
-			{ID: columnIDValue, Name: "value", Type: schema.TypeBytes},
-			{ID: columnIDUpdatedAt, Name: "updated_at", Type: schema.TypeInt64},
-		},
-		Families: []schema.Family{{ID: channelPrimaryFamilyID, Name: "primary", Columns: []uint16{columnIDValue, columnIDUpdatedAt}}},
-		Primary:  schema.Index{ID: channelPrimaryIndexID, Name: "pk_channel", Unique: true, Primary: true, Columns: []uint16{columnIDStringKey, columnIDIntKey}},
-		Indexes: []schema.Index{
-			{ID: channelIDIndexID, Name: "idx_channel_id", Columns: []uint16{columnIDStringKey, columnIDIntKey}},
-			{ID: channelActiveIndexID, Name: "idx_channel_active", Columns: []uint16{columnIDUpdatedAt, columnIDStringKey}},
-		},
-	}
 
 	ConversationTable = activeMetaTable(TableIDConversation, "conversation")
 )
