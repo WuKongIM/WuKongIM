@@ -65,6 +65,8 @@ type RuntimeConfig struct {
 	RaftTransport cv2raft.Transport
 	// SyncClient mirrors ControllerV2 state for non-voter nodes.
 	SyncClient *cv2sync.Client
+	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
+	SyncPeers cv2sync.PeerPicker
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
 }
@@ -161,7 +163,26 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 }
 
 func (r *Runtime) startMirror(ctx context.Context) error {
-	return errors.New("control runtime: mirror mode not implemented")
+	client := r.cfg.SyncClient
+	if client == nil {
+		if r.cfg.SyncPeers == nil {
+			return errors.New("control runtime: mirror sync peers required")
+		}
+		client = cv2sync.NewClient(cv2sync.ClientConfig{
+			ClusterID: r.cfg.ClusterID,
+			Store:     r.store,
+			Peers:     r.cfg.SyncPeers,
+		})
+	}
+	srv, err := cv2server.New(cv2server.Config{SyncClient: syncClientAdapter{client: client}})
+	if err != nil {
+		return err
+	}
+	r.server = srv
+	if err := srv.SyncOnce(ctx); err != nil {
+		return err
+	}
+	return r.publishState(srv.LocalState())
 }
 
 func (r *Runtime) bootstrapIfNeeded(ctx context.Context) error {
@@ -306,6 +327,10 @@ func (r *Runtime) ReportSlots(ctx context.Context, report SlotRuntimeReport) err
 
 func (r *Runtime) publishFromState(ctx context.Context) error {
 	st := r.sm.Snapshot(ctx)
+	return r.publishState(st)
+}
+
+func (r *Runtime) publishState(st cv2state.ClusterState) error {
 	snap, err := SnapshotFromControllerV2(st)
 	if err != nil {
 		return err
@@ -323,5 +348,23 @@ func (r *Runtime) publishFromState(ctx context.Context) error {
 type noopRaftTransport struct{}
 
 func (noopRaftTransport) Send([]raftpb.Message) {}
+
+type syncClientAdapter struct {
+	client *cv2sync.Client
+}
+
+func (a syncClientAdapter) SyncOnce(ctx context.Context) (cv2state.ClusterState, error) {
+	if a.client == nil {
+		return cv2state.ClusterState{}, errors.New("control runtime: sync client is required")
+	}
+	if err := a.client.SyncOnce(ctx); err != nil {
+		return cv2state.ClusterState{}, err
+	}
+	st, ok := a.client.LocalState()
+	if !ok {
+		return cv2state.ClusterState{}, errors.New("control runtime: sync produced no state")
+	}
+	return st, nil
+}
 
 var _ Controller = (*Runtime)(nil)
