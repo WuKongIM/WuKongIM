@@ -3,9 +3,15 @@ package clusternet
 import (
 	"fmt"
 	"sync/atomic"
-
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
+
+// NodeAddress describes one node address visible to clusterv2 RPC discovery.
+type NodeAddress struct {
+	// NodeID is the stable non-zero node identity.
+	NodeID uint64
+	// Addr is the node RPC address.
+	Addr string
+}
 
 // Discovery stores an immutable nodeID -> address snapshot.
 type Discovery struct {
@@ -21,7 +27,7 @@ func NewDiscovery() *Discovery {
 }
 
 // Update replaces the discovery snapshot with addresses from nodes.
-func (d *Discovery) Update(nodes []control.Node) {
+func (d *Discovery) Update(nodes []NodeAddress) {
 	next := make(map[uint64]string, len(nodes))
 	for _, node := range nodes {
 		if node.NodeID == 0 || node.Addr == "" {

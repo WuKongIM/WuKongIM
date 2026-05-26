@@ -343,7 +343,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		}
 	}
 	if n.discovery != nil {
-		n.discovery.Update(snapshot.Nodes)
+		n.discovery.Update(discoveryNodes(snapshot.Nodes))
 	}
 	if n.slots != nil {
 		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
@@ -354,6 +354,14 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
 	return nil
+}
+
+func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {
+	out := make([]clusternet.NodeAddress, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, clusternet.NodeAddress{NodeID: node.NodeID, Addr: node.Addr})
+	}
+	return out
 }
 
 func (n *Node) markChannelsReady(ready bool) {

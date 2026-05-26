@@ -5,19 +5,17 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
 
 func TestDiscoveryUpdatesAtomically(t *testing.T) {
 	d := NewDiscovery()
-	d.Update([]control.Node{{NodeID: 1, Addr: "a"}, {NodeID: 2, Addr: "b"}})
+	d.Update([]NodeAddress{{NodeID: 1, Addr: "a"}, {NodeID: 2, Addr: "b"}})
 	addr, ok := d.Addr(1)
 	if !ok || addr != "a" {
 		t.Fatalf("Addr(1) = %q,%v want a,true", addr, ok)
 	}
 	snap := d.Snapshot()
-	d.Update([]control.Node{{NodeID: 2, Addr: "bb"}})
+	d.Update([]NodeAddress{{NodeID: 2, Addr: "bb"}})
 	if snap[1] != "a" {
 		t.Fatalf("old snapshot mutated: %#v", snap)
 	}
@@ -88,7 +86,7 @@ func TestTransportLoopbackRPC(t *testing.T) {
 	defer server.Stop()
 
 	discovery := NewDiscovery()
-	discovery.Update([]control.Node{{NodeID: 2, Addr: server.Addr()}})
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
 	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
 	defer client.Stop()
 
