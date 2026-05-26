@@ -10,7 +10,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 
 | Package | Responsibility |
 |---------|----------------|
-| `control` | Controller abstraction and ControllerV2 snapshot adapter. |
+| `control` | Controller abstraction, ControllerV2 runtime wrapper, snapshot adapter, Raft RPC, and state sync RPC. |
 | `routing` | Atomic HashSlot -> Slot -> Leader read model for hot paths. |
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
@@ -27,18 +27,19 @@ New(Config)
   -> apply optional WithProposer / WithChannels overrides
 
 Start(ctx)
-  -> initialize default proposer / ChannelV2 service when no override was provided
+  -> initialize default ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
   -> start injected lifecycle resources
-  -> start Controller adapter when configured
+  -> start ControllerV2-backed Controller or injected Controller
   -> load initial control snapshot
   -> routing.UpdateControlSnapshot(snapshot)
-  -> discovery.Update(snapshot.Nodes)
+  -> discovery.Update(control node addresses)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
+  -> mark ChannelV2 ready and start the tick loop
   -> mark node started
 ```
 
-`Start` requires cluster semantics even for one node. A single-node deployment should provide a valid single-node control snapshot instead of using a bypass path.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path.
 
 ## Stop Flow
 
@@ -46,8 +47,9 @@ Start(ctx)
 Stop(ctx)
   -> mark stopping and reject new foreground calls
   -> stop Controller watch loop
+  -> stop ChannelV2 tick loop
   -> close hosted ChannelV2 service
-  -> stop Controller adapter
+  -> stop ControllerV2-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
 ```
 
@@ -84,7 +86,7 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
   -> follower reactor Pull / Apply / Ack
 ```
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates default proposer and ChannelV2 service instances, backs ChannelV2 with the message DB under `DataDir/channellog`, and owns the ChannelV2 tick loop plus default store factory cleanup.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, and owns the ChannelV2 tick loop plus default store factory cleanup.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted.
 
@@ -93,11 +95,11 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
 - Do not replace or modify `pkg/cluster`.
 - Do not add compatibility with old cluster data or old cluster config.
 - Do not add hash-slot migration, onboarding, drain, scale-in, or full operator APIs.
-- Do not add bypass branches that treat single-node deployment as anything other than a single-node cluster.
+- Do not add bypass branches that treat a single-node cluster as anything other than a cluster.
 
 ## V1 Limitations
 
-- ControllerV2 integration currently focuses on snapshot mapping and an adapter shell; full Raft bootstrap is left to the production wiring phase.
+- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, mirror sync, and in-process multi-voter convergence tests. Production app config wiring and operator workflows remain outside this package-level slice.
 - Slot smoke coverage uses an in-process fake Slot runtime for route/forward validation; destructive Slot cleanup remains disabled.
 - ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.

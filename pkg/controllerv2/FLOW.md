@@ -4,6 +4,8 @@
 
 `pkg/controllerv2` is a parallel Controller implementation. Controller voter nodes apply committed Controller Raft commands to a canonical `cluster-state.json` file. Non-controller nodes do not join Controller Raft; they mirror the leader state file through full-file sync.
 
+`pkg/clusterv2/control` hosts the production-shaped integration wrapper; `pkg/controllerv2` remains the reusable Controller engine and does not import `pkg/clusterv2`.
+
 ## Package Boundaries
 
 | Package | Responsibility |
@@ -49,5 +51,5 @@ When a Controller voter wires the facade with an FSM-backed state source, `Local
 ## Non-Goals
 
 - Do not replace `pkg/controller` in this package.
-- Do not wire production cluster startup to v2 yet.
+- Do not own production cluster startup directly; `pkg/clusterv2/control` provides the package-level integration wrapper.
 - Do not store high-frequency runtime observations in `cluster-state.json`.
