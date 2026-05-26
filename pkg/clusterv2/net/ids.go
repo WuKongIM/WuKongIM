@@ -28,4 +28,6 @@ const (
 	RPCChannelAppend
 	// RPCChannelAppendBatch forwards one ChannelV2 append batch request to the channel leader.
 	RPCChannelAppendBatch
+	// RPCControlRaft carries ControllerV2 Raft protocol messages.
+	RPCControlRaft
 )
