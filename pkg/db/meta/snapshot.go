@@ -218,11 +218,9 @@ func hashSlotSnapshotReplaceSpans(hashSlot HashSlot, preserveMigrationMeta bool)
 	if !preserveMigrationMeta {
 		return hashSlotAllDataSpans(hashSlot)
 	}
-	spans := make([]Span, 0, len(Tables())+2)
-	for _, table := range Tables() {
-		if table.ID == TableIDHashSlotMigration {
-			continue
-		}
+	tables := defaultMetaRegistry.rowTablesForSnapshot(true)
+	spans := make([]Span, 0, len(tables)+2)
+	for _, table := range tables {
 		spans = append(spans, prefixSpan(encodeRowPrefix(hashSlot, table.ID)))
 	}
 	spans = append(spans, hashSlotIndexSpan(hashSlot), hashSlotSystemSpan(hashSlot))

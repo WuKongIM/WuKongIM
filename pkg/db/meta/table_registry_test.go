@@ -51,6 +51,25 @@ func TestMetaTableRegistryPreservePolicy(t *testing.T) {
 	}
 }
 
+func TestMetaTableRegistryRowTablesForSnapshotSkipsPreservedTables(t *testing.T) {
+	registry := newMetaTableRegistry()
+	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65003, "preserved"), SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}}); err != nil {
+		t.Fatalf("register preserved: %v", err)
+	}
+	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65004, "normal")}); err != nil {
+		t.Fatalf("register normal: %v", err)
+	}
+
+	tables := registry.rowTablesForSnapshot(true)
+	if len(tables) != 1 || tables[0].ID != 65004 {
+		t.Fatalf("preserving tables = %#v, want only normal table", tables)
+	}
+	tables = registry.rowTablesForSnapshot(false)
+	if len(tables) != 2 || tables[0].ID != 65003 || tables[1].ID != 65004 {
+		t.Fatalf("non-preserving tables = %#v, want both sorted tables", tables)
+	}
+}
+
 func TestMetaTableRegistryRejectsInvalidSchema(t *testing.T) {
 	registry := newMetaTableRegistry()
 	err := registry.register(metaTableDescriptor{Table: schema.Table{ID: 65004, Name: "invalid"}})
