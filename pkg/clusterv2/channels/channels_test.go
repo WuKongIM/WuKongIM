@@ -9,7 +9,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestStaticMetaSourceResolvesAndDerivesKey(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ChannelMetaSource resolves authoritative ChannelV2 metadata.
@@ -16,7 +16,7 @@ type ChannelMetaSource interface {
 	ResolveChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error)
 }
 
-// RuntimeMetaReader reads authoritative ChannelRuntimeMeta from Slot storage.
+// RuntimeMetaReader reads authoritative ChannelRuntimeMeta from unified metadata storage.
 type RuntimeMetaReader interface {
 	// GetChannelRuntimeMeta reads one authoritative runtime metadata record.
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
