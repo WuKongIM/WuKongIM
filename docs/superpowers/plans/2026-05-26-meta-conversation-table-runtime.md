@@ -564,11 +564,16 @@ if err != nil {
 nextCursor := cursor
 if len(next) >= 3 {
     nextCursor = ConversationCursor{ChannelID: next[1].S, ChannelType: next[2].I64}
+} else if len(rows) > 0 {
+    last := rows[len(rows)-1]
+    nextCursor = ConversationCursor{ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 }
 return rows, nextCursor, done, nil
 ```
 
-Confirm `ScanPrimaryPrefix` preserves the same limit/cursor semantics as current code.
+The fallback from `rows[len(rows)-1]` is required because `ScanPrimaryPrefix`
+returns an empty cursor when `done == true`, while the existing public API still
+returns the last emitted row as the cursor on final pages.
 
 - [ ] **Step 8: Run user conversation focused tests**
 
@@ -719,7 +724,7 @@ Expected: manual decode helpers may become unused after runtime migration. Remov
 Run:
 
 ```bash
-gofmt -w pkg/db/meta/table_conversation.go pkg/db/meta/table_cmd_conversation.go pkg/db/meta/schema.go pkg/db/meta/table_runtime.go pkg/db/meta/*conversation*_test.go pkg/db/meta/schema_test.go pkg/db/meta/table_runtime_test.go pkg/db/meta/FLOW.md
+gofmt -w pkg/db/meta/table_conversation.go pkg/db/meta/table_cmd_conversation.go pkg/db/meta/schema.go pkg/db/meta/table_runtime.go pkg/db/meta/*conversation*_test.go pkg/db/meta/schema_test.go pkg/db/meta/table_runtime_test.go
 go test ./pkg/db/meta -run '^$'
 ```
 
