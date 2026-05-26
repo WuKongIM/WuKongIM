@@ -13,9 +13,9 @@ All channel runtime metadata decisions follow cluster semantics. A deployment wi
 This package must not import these application or adapter layers:
 
 - `internal/access/*`
-- `internal/gateway/*`
 - `internal/usecase/*`
 - `internal/app`
+- `pkg/gateway/*`
 
 Runtime-owned DTOs stay neutral. Adapter-specific RPC DTO conversion belongs at the adapter edge, currently `internal/access/node`. `internal/app` only wires runtime ports, lifecycle, and dependency composition.
 

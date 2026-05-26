@@ -36,6 +36,8 @@ func TestForbiddenBenchImportCatchesExactRootAndChildren(t *testing.T) {
 func TestForbiddenBenchImportAllowsPrefixLookalikes(t *testing.T) {
 	for _, dep := range []string{
 		"github.com/WuKongIM/WuKongIM/internal/application",
+		"github.com/WuKongIM/WuKongIM/pkg/gateway",
+		"github.com/WuKongIM/WuKongIM/pkg/gateway/testkit",
 		"github.com/WuKongIM/WuKongIM/pkg/clustering",
 	} {
 		if forbidden, ok := forbiddenBenchImport(dep); ok {
@@ -63,7 +65,6 @@ func forbiddenBenchImport(dep string) (string, bool) {
 		"github.com/WuKongIM/WuKongIM/internal/access",
 		"github.com/WuKongIM/WuKongIM/internal/usecase",
 		"github.com/WuKongIM/WuKongIM/internal/runtime",
-		"github.com/WuKongIM/WuKongIM/internal/gateway",
 		"github.com/WuKongIM/WuKongIM/pkg/slot",
 		"github.com/WuKongIM/WuKongIM/pkg/controller",
 		"github.com/WuKongIM/WuKongIM/pkg/cluster",
