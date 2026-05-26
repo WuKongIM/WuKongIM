@@ -58,13 +58,6 @@ func encodeUserRowKey(hashSlot HashSlot, uid string, familyID uint16) []byte {
 	return keycodec.AppendUint16(key, familyID)
 }
 
-func encodeDeviceRowKey(hashSlot HashSlot, uid string, deviceFlag int64, familyID uint16) []byte {
-	key := encodeRowPrefix(hashSlot, TableIDDevice)
-	key = keycodec.AppendString(key, uid)
-	key = keycodec.AppendInt64Ordered(key, deviceFlag)
-	return keycodec.AppendUint16(key, familyID)
-}
-
 func encodeChannelRowKey(hashSlot HashSlot, channelID string, channelType int64, familyID uint16) []byte {
 	key := encodeRowPrefix(hashSlot, TableIDChannel)
 	key = keycodec.AppendString(key, channelID)

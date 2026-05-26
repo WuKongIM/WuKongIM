@@ -125,7 +125,7 @@ func (db *DB) NewWriteBatch() *WriteBatch {
 	if db == nil || db.meta == nil {
 		return &WriteBatch{err: dberrors.ErrClosed}
 	}
-	return &WriteBatch{db: db, batch: db.meta.NewBatch(), createdUsers: make(map[string]struct{}), migrationCreates: make(map[string]ChannelMigrationTask)}
+	return &WriteBatch{db: db, batch: db.meta.NewBatch(), migrationCreates: make(map[string]ChannelMigrationTask)}
 }
 
 // DeleteSlotData removes all data for a legacy single-slot hash slot.
@@ -819,7 +819,6 @@ type WriteBatch struct {
 	db               *DB
 	batch            *Batch
 	err              error
-	createdUsers     map[string]struct{}
 	migrationCreates map[string]ChannelMigrationTask
 }
 
