@@ -257,8 +257,8 @@ func waitAppendFuturesWithRetryTicks(t *testing.T, g *Group, factory *countingSt
 				continue
 			}
 			select {
-			case result := <-future.ch:
-				results[i] = result
+			case <-future.Done():
+				results[i] = future.Result()
 				completed[i] = true
 			default:
 			}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
@@ -15,6 +16,10 @@ const (
 	kindAck
 	kindPullHint
 	kindNotify
+	kindAppend
+	kindAppendResponse
+	kindAppendBatch
+	kindAppendBatchResponse
 )
 
 // EncodePullRequest encodes a ChannelV2 pull request.
@@ -53,6 +58,32 @@ func encodeNotifyRequest(req channeltransport.NotifyRequest) ([]byte, error) {
 func decodeNotifyRequest(data []byte) (channeltransport.NotifyRequest, error) {
 	var req channeltransport.NotifyRequest
 	return req, decode(data, kindNotify, &req)
+}
+func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) { return encode(kindAppend, req) }
+func decodeAppendRequest(data []byte) (ch.AppendRequest, error) {
+	var req ch.AppendRequest
+	return req, decode(data, kindAppend, &req)
+}
+func encodeAppendResponse(resp ch.AppendResult) ([]byte, error) {
+	return encode(kindAppendResponse, resp)
+}
+func decodeAppendResponse(data []byte) (ch.AppendResult, error) {
+	var resp ch.AppendResult
+	return resp, decode(data, kindAppendResponse, &resp)
+}
+func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
+	return encode(kindAppendBatch, req)
+}
+func decodeAppendBatchRequest(data []byte) (ch.AppendBatchRequest, error) {
+	var req ch.AppendBatchRequest
+	return req, decode(data, kindAppendBatch, &req)
+}
+func encodeAppendBatchResponse(resp ch.AppendBatchResult) ([]byte, error) {
+	return encode(kindAppendBatchResponse, resp)
+}
+func decodeAppendBatchResponse(data []byte) (ch.AppendBatchResult, error) {
+	var resp ch.AppendBatchResult
+	return resp, decode(data, kindAppendBatchResponse, &resp)
 }
 
 func encode(kind uint8, value any) ([]byte, error) {

@@ -61,6 +61,32 @@ func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channe
 	return err
 }
 
+// ForwardAppend sends a client append request to node.
+func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req ch.AppendRequest) (ch.AppendResult, error) {
+	payload, err := encodeAppendRequest(req)
+	if err != nil {
+		return ch.AppendResult{}, err
+	}
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAppend, payload)
+	if err != nil {
+		return ch.AppendResult{}, err
+	}
+	return decodeAppendResponse(resp)
+}
+
+// ForwardAppendBatch sends a client append batch request to node.
+func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	payload, err := encodeAppendBatchRequest(req)
+	if err != nil {
+		return ch.AppendBatchResult{}, err
+	}
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAppendBatch, payload)
+	if err != nil {
+		return ch.AppendBatchResult{}, err
+	}
+	return decodeAppendBatchResponse(resp)
+}
+
 // RegisterHandlers registers ChannelV2 replication handlers on network for nodeID.
 func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server channeltransport.Server) {
 	network.Register(nodeID, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
@@ -97,4 +123,32 @@ func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server ch
 	}))
 }
 
+// RegisterServiceHandlers registers ChannelV2 replication and append-forward handlers on network.
+func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, service *Service) {
+	RegisterHandlers(network, nodeID, service.Server())
+	network.Register(nodeID, clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := decodeAppendRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := service.Append(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return encodeAppendResponse(resp)
+	}))
+	network.Register(nodeID, clusternet.RPCChannelAppendBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := decodeAppendBatchRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := service.AppendBatch(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return encodeAppendBatchResponse(resp)
+	}))
+}
+
 var _ channeltransport.Client = (*TransportClient)(nil)
+var _ ForwardClient = (*TransportClient)(nil)

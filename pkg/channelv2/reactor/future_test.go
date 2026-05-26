@@ -25,3 +25,18 @@ func TestFutureAwaitContextCancellation(t *testing.T) {
 	_, err := future.Await(ctx)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
+func TestFutureDoneAndResultRemainAvailableAfterCompletion(t *testing.T) {
+	future := NewFuture()
+	future.Complete(Result{Append: ch.AppendResult{MessageSeq: 7}})
+
+	select {
+	case <-future.Done():
+	default:
+		t.Fatal("future done channel was not closed")
+	}
+
+	first := future.Result()
+	second := future.Result()
+	require.Equal(t, uint64(7), first.Append.MessageSeq)
+	require.Equal(t, uint64(7), second.Append.MessageSeq)
+}

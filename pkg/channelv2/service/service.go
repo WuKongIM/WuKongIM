@@ -17,7 +17,7 @@ type Config struct {
 	MailboxSize  int
 	Store        store.Factory
 	Transport    transport.Client
-	// MetaResolver lazily loads authoritative metadata for unloaded append targets and PullHint follower activation.
+	// MetaResolver lazily loads authoritative metadata for PullHint follower activation.
 	MetaResolver ch.MetaResolver
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
 	ReplicationIdlePollInterval time.Duration
@@ -62,7 +62,7 @@ type Config struct {
 type cluster struct {
 	// group owns channel reactor partitions for this service facade.
 	group *reactor.Group
-	// metaResolver loads authoritative metadata before lazy channel activation.
+	// metaResolver loads authoritative metadata before lazy follower activation.
 	metaResolver ch.MetaResolver
 	// localNode is this service node id for validating follower-only activation.
 	localNode ch.NodeID

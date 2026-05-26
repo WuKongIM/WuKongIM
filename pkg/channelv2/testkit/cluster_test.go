@@ -175,6 +175,7 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	beforeFollower2 := resolvers[2].calls.Load()
 	beforeFollower3 := resolvers[3].calls.Load()
 
+	require.NoError(t, nodes[1].ApplyMeta(meta))
 	second, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("after stop")}})
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), second.MessageSeq)

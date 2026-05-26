@@ -15,6 +15,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestClusterV2ThreeNodeSlotPropose(t *testing.T) {
@@ -74,12 +75,79 @@ func TestClusterV2ThreeNodeChannelAppendQuorum(t *testing.T) {
 	}
 }
 
+func TestClusterV2ThreeNodeFirstChannelAppendEnsuresMeta(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "room-first-append", Type: 1}
+	h := newThreeNodeHarness(t)
+	h.WithEnsuredChannelMeta()
+	h.Start(t)
+	t.Cleanup(func() { h.Stop(t) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
+		ChannelID:  channelID,
+		CommitMode: channelv2.CommitModeQuorum,
+		Message:    channelv2.Message{MessageID: 1003, Payload: []byte("first")},
+	})
+	if err != nil {
+		t.Fatalf("AppendChannel(first append) error = %v", err)
+	}
+	if res.MessageSeq == 0 {
+		t.Fatal("AppendChannel(first append) MessageSeq = 0, want committed sequence")
+	}
+	h.WaitChannelCommitted(t, 3, channelID, res.MessageSeq)
+	meta, ok := h.ChannelMeta(channelID)
+	if !ok {
+		t.Fatalf("ensured meta missing for %v", channelID)
+	}
+	if meta.Leader != 1 || !equalChannelNodeIDs(meta.Replicas, []channelv2.NodeID{1, 2, 3}) || meta.MinISR != 2 {
+		t.Fatalf("ensured meta = %#v, want slot leader channel meta", meta)
+	}
+}
+
+func TestClusterV2ThreeNodeChannelAppendForwardsFromNonLeader(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "room-forward", Type: 1}
+	h := newThreeNodeHarness(t)
+	h.WithStaticChannelMeta(channelv2.Meta{
+		Key:         channelv2.ChannelKeyForID(channelID),
+		ID:          channelID,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channelv2.NodeID{1, 2, 3},
+		ISR:         []channelv2.NodeID{1, 2, 3},
+		MinISR:      2,
+		Status:      channelv2.StatusActive,
+	})
+	h.Start(t)
+	t.Cleanup(func() { h.Stop(t) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
+		ChannelID:            channelID,
+		CommitMode:           channelv2.CommitModeQuorum,
+		Message:              channelv2.Message{MessageID: 1002, Payload: []byte("forwarded")},
+		ExpectedChannelEpoch: 1,
+		ExpectedLeaderEpoch:  1,
+	})
+	if err != nil {
+		t.Fatalf("AppendChannel(non-leader) error = %v", err)
+	}
+	if res.MessageSeq == 0 {
+		t.Fatal("AppendChannel(non-leader) MessageSeq = 0, want committed sequence")
+	}
+	h.WaitChannelCommitted(t, 2, channelID, res.MessageSeq)
+}
+
 type threeNodeHarness struct {
-	network *clusternet.LocalNetwork
-	nodes   map[uint64]*Node
-	slots   map[uint64]*smokeSlotRuntime
-	metas   []channelv2.Meta
-	applied *smokeAppliedLog
+	network    *clusternet.LocalNetwork
+	nodes      map[uint64]*Node
+	slots      map[uint64]*smokeSlotRuntime
+	metas      []channelv2.Meta
+	ensureMeta bool
+	metaSource channels.ChannelMetaSource
+	applied    *smokeAppliedLog
 }
 
 func newThreeNodeHarness(t testing.TB) *threeNodeHarness {
@@ -96,26 +164,39 @@ func (h *threeNodeHarness) WithStaticChannelMeta(meta channelv2.Meta) {
 	h.metas = append(h.metas, meta)
 }
 
+func (h *threeNodeHarness) WithEnsuredChannelMeta() {
+	h.ensureMeta = true
+}
+
+func (h *threeNodeHarness) ChannelMeta(id channelv2.ChannelID) (channelv2.Meta, bool) {
+	if h.metaSource == nil {
+		return channelv2.Meta{}, false
+	}
+	meta, err := h.metaSource.ResolveChannelMeta(context.Background(), id)
+	return meta, err == nil
+}
+
 func (h *threeNodeHarness) Start(t testing.TB) {
 	t.Helper()
 	snapshot := h.controlSnapshot()
+	metaSource := h.channelMetaSource()
 	for _, nodeID := range []uint64{1, 2, 3} {
 		slotRuntime := &smokeSlotRuntime{localNode: nodeID, leaders: map[uint32]uint64{1: 1}, applied: h.applied}
 		cfg := Config{NodeID: nodeID, ListenAddr: fmt.Sprintf("127.0.0.1:%d", 10000+nodeID), DataDir: t.TempDir()}
 		cfg.Channel.TickInterval = time.Millisecond
 		var opts []Option
-		if len(h.metas) > 0 {
+		if metaSource != nil {
 			service, err := channels.NewService(channels.Config{
 				LocalNode:  channelv2.NodeID(nodeID),
 				Store:      channelstore.NewMemoryFactory(),
 				Transport:  channels.NewTransportClient(h.network),
-				MetaSource: channels.NewStaticMetaSource(h.metas),
+				MetaSource: metaSource,
 			})
 			if err != nil {
 				t.Fatalf("channels.NewService(node=%d) error = %v", nodeID, err)
 			}
 			opts = append(opts, WithChannels(service))
-			channels.RegisterHandlers(h.network, nodeID, service.Server())
+			channels.RegisterServiceHandlers(h.network, nodeID, service)
 		}
 		opts = append(opts, withController(control.NewStaticController(snapshot)), withSlotReconciler(&recordingReconciler{}))
 		node, err := New(cfg, opts...)
@@ -133,6 +214,23 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 		}
 		h.nodes[nodeID].router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
 	}
+}
+
+func (h *threeNodeHarness) channelMetaSource() channels.ChannelMetaSource {
+	if h.ensureMeta {
+		if h.metaSource == nil {
+			store := newSmokeRuntimeMetaStore()
+			h.metaSource = channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
+				Placement: smokePlacementResolver{leader: 1, peers: []channelv2.NodeID{1, 2, 3}, minISR: 2},
+				Writer:    store,
+			})
+		}
+		return h.metaSource
+	}
+	if len(h.metas) > 0 {
+		return channels.NewStaticMetaSource(h.metas)
+	}
+	return nil
 }
 
 func (h *threeNodeHarness) Stop(t testing.TB) {
@@ -256,4 +354,64 @@ func (l *smokeAppliedLog) contains(slotID uint32, command []byte) bool {
 		}
 	}
 	return false
+}
+
+type smokeRuntimeMetaStore struct {
+	mu    sync.Mutex
+	metas map[smokeRuntimeMetaKey]metadb.ChannelRuntimeMeta
+}
+
+type smokeRuntimeMetaKey struct {
+	id  string
+	typ int64
+}
+
+func newSmokeRuntimeMetaStore() *smokeRuntimeMetaStore {
+	return &smokeRuntimeMetaStore{metas: make(map[smokeRuntimeMetaKey]metadb.ChannelRuntimeMeta)}
+}
+
+func (s *smokeRuntimeMetaStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta, ok := s.metas[smokeRuntimeMetaKey{id: channelID, typ: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return cloneRuntimeMeta(meta), nil
+}
+
+func (s *smokeRuntimeMetaStore) UpsertChannelRuntimeMeta(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta = metadb.NormalizeChannelRuntimeMeta(meta)
+	s.metas[smokeRuntimeMetaKey{id: meta.ChannelID, typ: meta.ChannelType}] = cloneRuntimeMeta(meta)
+	return nil
+}
+
+func cloneRuntimeMeta(meta metadb.ChannelRuntimeMeta) metadb.ChannelRuntimeMeta {
+	meta.Replicas = append([]uint64(nil), meta.Replicas...)
+	meta.ISR = append([]uint64(nil), meta.ISR...)
+	return meta
+}
+
+type smokePlacementResolver struct {
+	leader channelv2.NodeID
+	peers  []channelv2.NodeID
+	minISR int
+}
+
+func (r smokePlacementResolver) ResolveChannelPlacement(context.Context, channelv2.ChannelID) (channels.ChannelPlacement, error) {
+	return channels.ChannelPlacement{Leader: r.leader, Replicas: append([]channelv2.NodeID(nil), r.peers...), MinISR: r.minISR}, nil
+}
+
+func equalChannelNodeIDs(a, b []channelv2.NodeID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

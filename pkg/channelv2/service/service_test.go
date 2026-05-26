@@ -33,21 +33,33 @@ func TestSingleNodeAppendFetchCommitted(t *testing.T) {
 	require.Equal(t, uint64(1), fetchRes.CommittedSeq)
 }
 
-func TestAppendLazyLoadsMetaBeforeSubmittingToReactor(t *testing.T) {
+func TestAppendRequiresLoadedChannelState(t *testing.T) {
 	factory := store.NewMemoryFactory()
-	meta := ch.Meta{Key: ch.ChannelKey("1:lazy"), ID: ch.ChannelID{ID: "lazy", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	meta := ch.Meta{Key: ch.ChannelKey("1:not-loaded"), ID: ch.ChannelID{ID: "not-loaded", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
 	resolver := &countingMetaResolver{meta: meta}
 	cluster, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, MetaResolver: resolver})
 	require.NoError(t, err)
 	defer cluster.Close()
 
-	appendRes, err := cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("hello")}})
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), appendRes.MessageSeq)
-	require.Equal(t, int32(1), resolver.calls.Load())
+	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("hello")}})
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+	require.Equal(t, int32(0), resolver.calls.Load())
 }
 
-func TestAppendUsesExistingReactorStateWithoutResolvingMetaAgain(t *testing.T) {
+func TestAppendBatchRequiresLoadedChannelState(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := ch.Meta{Key: ch.ChannelKey("1:batch-not-loaded"), ID: ch.ChannelID{ID: "batch-not-loaded", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	resolver := &countingMetaResolver{meta: meta}
+	cluster, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, MetaResolver: resolver})
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	_, err = cluster.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: meta.ID, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+	require.Equal(t, int32(0), resolver.calls.Load())
+}
+
+func TestAppendUsesExistingReactorStateWithoutResolvingMeta(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := ch.Meta{Key: ch.ChannelKey("1:cached"), ID: ch.ChannelID{ID: "cached", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
 	resolver := &countingMetaResolver{meta: meta}
@@ -55,11 +67,12 @@ func TestAppendUsesExistingReactorStateWithoutResolvingMetaAgain(t *testing.T) {
 	require.NoError(t, err)
 	defer cluster.Close()
 
+	require.NoError(t, cluster.ApplyMeta(meta))
 	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("first")}})
 	require.NoError(t, err)
 	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("second")}})
 	require.NoError(t, err)
-	require.Equal(t, int32(1), resolver.calls.Load())
+	require.Equal(t, int32(0), resolver.calls.Load())
 }
 
 func TestAppendRejectsStaleExpectedEpochs(t *testing.T) {
