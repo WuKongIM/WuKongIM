@@ -237,6 +237,38 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 	}
 }
 
+func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Channel.TickInterval = time.Millisecond
+	cfg.Control.ClusterID = "node-default-control"
+	cfg.Slots.InitialSlotCount = 1
+	cfg.Slots.HashSlotCount = 4
+	cfg.Slots.ReplicaCount = 1
+
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := node.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	snap := node.Snapshot()
+	if !snap.RoutesReady || snap.StateRevision == 0 || snap.SlotCount != 1 || snap.HashSlotCount != 4 {
+		t.Fatalf("Snapshot() = %#v, want ControllerV2-backed ready routes", snap)
+	}
+	route, err := node.RouteHashSlot(0)
+	if err != nil && !errors.Is(err, ErrNoSlotLeader) {
+		t.Fatalf("RouteHashSlot() error = %v, want route or no slot leader", err)
+	}
+	if err == nil && route.SlotID != 1 {
+		t.Fatalf("RouteHashSlot() = %#v, want slot 1", route)
+	}
+}
+
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	cfg := validNodeConfig(t)
 	node, err := New(cfg)
