@@ -64,6 +64,7 @@ type Options struct {
     Authenticator  Authenticator
     Observer       Observer
     DefaultSession SessionOptions
+    Transport      TransportOptions
     Listeners      []ListenerOptions
     Logger         wklog.Logger
 }
