@@ -281,6 +281,52 @@ func (t Table[R]) ScanIndex(ctx context.Context, s *Shard, indexID uint16, prefi
 	return rows, nil, true, nil
 }
 
+// StageCreate stages a row insert in a metadata batch.
+func (t Table[R]) StageCreate(b *Batch, hashSlot HashSlot, row R) error {
+	return t.stageWrite(b, hashSlot, row, tableWriteCreate)
+}
+
+// StageUpdate stages an existing-row update in a metadata batch.
+func (t Table[R]) StageUpdate(b *Batch, hashSlot HashSlot, row R) error {
+	return t.stageWrite(b, hashSlot, row, tableWriteUpdate)
+}
+
+// StageUpsert stages a row upsert in a metadata batch.
+func (t Table[R]) StageUpsert(b *Batch, hashSlot HashSlot, row R) error {
+	return t.stageWrite(b, hashSlot, row, tableWriteUpsert)
+}
+
+// StageDelete stages a row delete in a metadata batch.
+func (t Table[R]) StageDelete(b *Batch, hashSlot HashSlot, pk KeyParts) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if err := t.validatePrimaryKey(pk); err != nil {
+		return err
+	}
+	primaryKey, err := t.primaryRowKey(hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		old, exists, err := t.loadBatchRow(state, hashSlot, pk, primaryKey)
+		if err != nil {
+			return err
+		}
+		if exists {
+			if err := t.stageDeleteIndexEntries(batch, hashSlot, old, pk); err != nil {
+				return err
+			}
+		}
+		if err := batch.Delete(primaryKey); err != nil {
+			return err
+		}
+		state.tableRows[string(primaryKey)] = tableRowOverlay{exists: false}
+		return nil
+	})
+	return nil
+}
+
 func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMode) error {
 	if err := s.check(ctx); err != nil {
 		return err
@@ -346,6 +392,67 @@ func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMod
 	return batch.Commit(true)
 }
 
+func (t Table[R]) stageWrite(b *Batch, hashSlot HashSlot, row R, mode tableWriteMode) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if t.spec.Validate != nil {
+		if err := t.spec.Validate(row); err != nil {
+			return err
+		}
+	}
+	pk, err := t.primaryKey(row)
+	if err != nil {
+		return err
+	}
+	value, err := t.spec.EncodeValue(row)
+	if err != nil {
+		return err
+	}
+	primaryKey, err := t.primaryRowKey(hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	value = append([]byte(nil), value...)
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		old, exists, err := t.loadBatchRow(state, hashSlot, pk, primaryKey)
+		if err != nil {
+			return err
+		}
+		switch mode {
+		case tableWriteCreate:
+			if _, ok := state.tableCreates[string(primaryKey)]; ok {
+				return dberrors.ErrAlreadyExists
+			}
+			if exists {
+				return dberrors.ErrAlreadyExists
+			}
+			state.tableCreates[string(primaryKey)] = struct{}{}
+		case tableWriteUpdate:
+			if !exists {
+				return dberrors.ErrNotFound
+			}
+		}
+		if exists {
+			if err := t.stageDeleteIndexEntries(batch, hashSlot, old, pk); err != nil {
+				return err
+			}
+		}
+		if err := t.stageUniqueIndexChecksWithState(ctx, state, hashSlot, row, pk); err != nil {
+			return err
+		}
+		if err := batch.Set(primaryKey, value); err != nil {
+			return err
+		}
+		if err := t.stagePutIndexEntries(batch, hashSlot, row, pk); err != nil {
+			return err
+		}
+		state.tableRows[string(primaryKey)] = tableRowOverlay{value: append([]byte(nil), value...), exists: true}
+		return nil
+	})
+	return nil
+}
+
 func (t Table[R]) getByPrimaryKey(db *MetaDB, hashSlot HashSlot, pk KeyParts) (R, bool, error) {
 	var zero R
 	if err := t.validatePrimaryKey(pk); err != nil {
@@ -364,6 +471,21 @@ func (t Table[R]) getByPrimaryKey(db *MetaDB, hashSlot HashSlot, pk KeyParts) (R
 		return zero, false, err
 	}
 	return row, true, nil
+}
+
+func (t Table[R]) loadBatchRow(state *batchCommitState, hashSlot HashSlot, pk KeyParts, primaryKey []byte) (R, bool, error) {
+	var zero R
+	if overlay, ok := state.tableRows[string(primaryKey)]; ok {
+		if !overlay.exists {
+			return zero, false, nil
+		}
+		row, err := t.spec.DecodeValue(pk, overlay.value)
+		if err != nil {
+			return zero, false, err
+		}
+		return row, true, nil
+	}
+	return t.getByPrimaryKey(state.db, hashSlot, pk)
 }
 
 func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool) ([]R, KeyParts, bool, error) {
@@ -523,6 +645,41 @@ func (t Table[R]) stageUniqueIndexChecks(ctx context.Context, s *Shard, row R, p
 			return err
 		}
 		if err := iter.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t Table[R]) stageUniqueIndexChecksWithState(ctx context.Context, state *batchCommitState, hashSlot HashSlot, row R, pk KeyParts) error {
+	shard := &Shard{db: state.db, hashSlot: hashSlot}
+	if err := t.stageUniqueIndexChecks(ctx, shard, row, pk); err != nil {
+		return err
+	}
+	rowPrefix := encodeRowPrefix(hashSlot, t.spec.ID)
+	for primaryKey, overlay := range state.tableRows {
+		if !overlay.exists {
+			continue
+		}
+		overlayPK, ok := decodeTablePrimaryRowKey(rowPrefix, []byte(primaryKey), t.spec.Primary.Layout, t.spec.Primary.FamilyID)
+		if !ok || overlayPK.Equal(pk) {
+			continue
+		}
+		overlayRow, err := t.spec.DecodeValue(overlayPK, overlay.value)
+		if err != nil {
+			return err
+		}
+		for _, index := range t.spec.Indexes {
+			if !index.Unique {
+				continue
+			}
+			left, leftOK := index.Key(row)
+			right, rightOK := index.Key(overlayRow)
+			if leftOK && rightOK && left.Equal(right) {
+				return dberrors.ErrAlreadyExists
+			}
+		}
+		if err := contextErr(ctx); err != nil {
 			return err
 		}
 	}

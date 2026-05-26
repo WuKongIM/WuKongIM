@@ -203,6 +203,50 @@ func TestTableRuntimeIndexScanSkipsStaleEntries(t *testing.T) {
 	}
 }
 
+func TestTableRuntimeBatchStaging(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	ctx := context.Background()
+
+	batch := store.db.NewBatch()
+	if err := table.StageCreate(batch, 8, runtimeTestRow{ID: "a", Owner: "o1", Value: "v1"}); err != nil {
+		t.Fatalf("StageCreate: %v", err)
+	}
+	if err := table.StageUpdate(batch, 8, runtimeTestRow{ID: "a", Owner: "o2", Value: "v2"}); err != nil {
+		t.Fatalf("StageUpdate: %v", err)
+	}
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	got, ok, err := table.Get(ctx, store.db.HashSlot(8), KeyParts{String("a")})
+	if err != nil || !ok || got.Owner != "o2" || got.Value != "v2" {
+		t.Fatalf("Get staged row = %#v ok=%v err=%v", got, ok, err)
+	}
+	rows, _, done, err := table.ScanIndex(ctx, store.db.HashSlot(8), 2, KeyParts{String("o1")}, nil, 10)
+	if err != nil || !done || len(rows) != 0 {
+		t.Fatalf("old index rows=%#v done=%v err=%v", rows, done, err)
+	}
+}
+
+func TestTableRuntimeBatchCreateDuplicateRollsBack(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	ctx := context.Background()
+
+	batch := store.db.NewBatch()
+	_ = table.StageCreate(batch, 9, runtimeTestRow{ID: "a", Owner: "o", Value: "v1"})
+	_ = table.StageCreate(batch, 9, runtimeTestRow{ID: "a", Owner: "o", Value: "v2"})
+	if err := batch.Commit(ctx); err != dberrors.ErrAlreadyExists {
+		t.Fatalf("Commit duplicate err = %v, want ErrAlreadyExists", err)
+	}
+	if _, ok, err := table.Get(ctx, store.db.HashSlot(9), KeyParts{String("a")}); err != nil || ok {
+		t.Fatalf("duplicate rollback get ok=%v err=%v", ok, err)
+	}
+}
+
 func TestTableRuntimePrimaryScan(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
