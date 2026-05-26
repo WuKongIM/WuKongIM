@@ -174,6 +174,31 @@ func TestTableRuntimeUniqueIndexConflict(t *testing.T) {
 	}
 }
 
+func TestTableRuntimeUniqueIndexIgnoresStaleEntry(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(16)
+	ctx := context.Background()
+
+	staleKey, err := encodeTableIndexKey(shard.HashSlot(), table.Schema().ID, 3, KeyParts{String("same")}, KeyParts{String("ghost")})
+	if err != nil {
+		t.Fatalf("stale unique index key: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("set stale unique index: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("commit stale unique index: %v", err)
+	}
+	batch.Close()
+
+	if err := table.Create(ctx, shard, runtimeTestRow{ID: "a", Owner: "o", Value: "same"}); err != nil {
+		t.Fatalf("Create with stale unique index: %v", err)
+	}
+}
+
 func TestTableRuntimeIndexScanSkipsStaleEntries(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -247,6 +272,36 @@ func TestTableRuntimeBatchCreateDuplicateRollsBack(t *testing.T) {
 	}
 }
 
+func TestTableRuntimeBatchUniqueIndexUsesStagedDeletes(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(17)
+	ctx := context.Background()
+
+	if err := table.Create(ctx, shard, runtimeTestRow{ID: "a", Owner: "o1", Value: "same"}); err != nil {
+		t.Fatalf("Create a: %v", err)
+	}
+
+	batch := store.db.NewBatch()
+	if err := table.StageDelete(batch, shard.HashSlot(), KeyParts{String("a")}); err != nil {
+		t.Fatalf("StageDelete: %v", err)
+	}
+	if err := table.StageCreate(batch, shard.HashSlot(), runtimeTestRow{ID: "b", Owner: "o2", Value: "same"}); err != nil {
+		t.Fatalf("StageCreate: %v", err)
+	}
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	if _, ok, err := table.Get(ctx, shard, KeyParts{String("a")}); err != nil || ok {
+		t.Fatalf("deleted row a ok=%v err=%v", ok, err)
+	}
+	if got, ok, err := table.Get(ctx, shard, KeyParts{String("b")}); err != nil || !ok || got.Value != "same" {
+		t.Fatalf("created row b = %#v ok=%v err=%v", got, ok, err)
+	}
+}
+
 func TestTableRuntimePrimaryScan(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -266,5 +321,18 @@ func TestTableRuntimePrimaryScan(t *testing.T) {
 	rows, cursor, done, err = table.ScanPrimary(ctx, shard, cursor, 2)
 	if err != nil || !done || len(rows) != 1 || rows[0].ID != "c" || len(cursor) != 0 {
 		t.Fatalf("second page rows=%#v cursor=%#v done=%v err=%v", rows, cursor, done, err)
+	}
+}
+
+func TestTableRuntimeScanIndexRejectsOversizedPrefix(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeTestTable(t)
+	shard := store.db.HashSlot(18)
+	ctx := context.Background()
+
+	_, _, _, err := table.ScanIndex(ctx, shard, 2, KeyParts{String("o"), String("a"), String("extra")}, nil, 1)
+	if err != dberrors.ErrInvalidArgument {
+		t.Fatalf("ScanIndex oversized prefix err = %v, want ErrInvalidArgument", err)
 	}
 }
