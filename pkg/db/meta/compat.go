@@ -1171,20 +1171,14 @@ func (b *WriteBatch) BindPluginUser(hashSlot uint16, binding PluginUserBinding) 
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		return stageBindPluginUser(batch, HashSlot(hashSlot), binding)
-	})
-	return nil
+	return pluginBindingTable.StageUpsert(b.batch, HashSlot(hashSlot), binding)
 }
 
 func (b *WriteBatch) UnbindPluginUser(hashSlot uint16, uid, pluginNo string) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		return stageUnbindPluginUser(batch, HashSlot(hashSlot), uid, pluginNo)
-	})
-	return nil
+	return pluginBindingTable.StageDelete(b.batch, HashSlot(hashSlot), KeyParts{String(uid), String(pluginNo)})
 }
 
 func (b *WriteBatch) UpsertHashSlotMigrationState(state HashSlotMigrationState) error {

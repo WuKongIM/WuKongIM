@@ -1,18 +1,20 @@
 package meta
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 const (
 	pluginBindingPrimaryFamilyID uint16 = 0
+	pluginBindingPrimaryIndexID  uint16 = 1
 	pluginBindingPluginIndexID   uint16 = 2
+
+	pluginBindingColumnUID      uint16 = 1
+	pluginBindingColumnPluginNo uint16 = 2
+	pluginBindingColumnValue    uint16 = 3
 )
 
 // PluginUserBinding records one cluster-authoritative UID to plugin binding.
@@ -35,6 +37,48 @@ type PluginUserBindingCursor struct {
 	UID string
 }
 
+var pluginBindingTable = registerMetaTable(TableSpec[PluginUserBinding]{
+	ID:   TableIDPluginBinding,
+	Name: "plugin_binding",
+	Columns: []schema.Column{
+		{ID: pluginBindingColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+		{ID: pluginBindingColumnPluginNo, Name: "plugin_no", Type: schema.TypeString, Required: true},
+		{ID: pluginBindingColumnValue, Name: "value", Type: schema.TypeBytes},
+	},
+	Families: []schema.Family{{ID: pluginBindingPrimaryFamilyID, Name: "primary", Columns: []uint16{pluginBindingColumnValue}}},
+	Primary: PrimarySpec[PluginUserBinding]{
+		IndexID:  pluginBindingPrimaryIndexID,
+		FamilyID: pluginBindingPrimaryFamilyID,
+		Name:     "pk_plugin_binding",
+		Columns:  []uint16{pluginBindingColumnUID, pluginBindingColumnPluginNo},
+		Layout:   KeyLayout{KeyString, KeyString},
+		Key: func(binding PluginUserBinding) KeyParts {
+			return KeyParts{String(binding.UID), String(binding.PluginNo)}
+		},
+	},
+	Indexes: []IndexSpec[PluginUserBinding]{
+		{
+			ID:      pluginBindingPluginIndexID,
+			Name:    "idx_plugin_binding_plugin_no",
+			Columns: []uint16{pluginBindingColumnPluginNo, pluginBindingColumnUID},
+			Layout:  KeyLayout{KeyString, KeyString},
+			Key: func(binding PluginUserBinding) (KeyParts, bool) {
+				return KeyParts{String(binding.PluginNo), String(binding.UID)}, true
+			},
+		},
+	},
+	Validate: validatePluginUserBinding,
+	EncodeValue: func(binding PluginUserBinding) ([]byte, error) {
+		return encodePluginUserBindingValue(binding), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (PluginUserBinding, error) {
+		return decodePluginUserBindingValue(primary[0].S, primary[1].S, value)
+	},
+})
+
+// PluginBindingTable describes the plugin binding table schema.
+var PluginBindingTable = pluginBindingTable.Schema()
+
 // BindPluginUser creates or updates one UID to plugin binding idempotently.
 func (s *Shard) BindPluginUser(ctx context.Context, binding PluginUserBinding) error {
 	if err := s.check(ctx); err != nil {
@@ -43,11 +87,7 @@ func (s *Shard) BindPluginUser(ctx context.Context, binding PluginUserBinding) e
 	if err := validatePluginUserBinding(binding); err != nil {
 		return err
 	}
-	unlock := s.lock()
-	defer unlock()
-
-	primaryKey := encodePluginBindingRowKey(s.hashSlot, binding.UID, binding.PluginNo, pluginBindingPrimaryFamilyID)
-	existing, exists, err := s.getPluginUserBindingByKey(ctx, primaryKey, binding.UID, binding.PluginNo)
+	existing, exists, err := s.GetPluginUserBinding(ctx, binding.UID, binding.PluginNo)
 	if err != nil {
 		return err
 	}
@@ -57,82 +97,28 @@ func (s *Shard) BindPluginUser(ctx context.Context, binding PluginUserBinding) e
 			binding.UpdatedAtMS = existing.UpdatedAtMS
 		}
 	}
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := stageBindPluginUser(batch, s.hashSlot, binding); err != nil {
-		return err
-	}
-	return batch.Commit(true)
+	return pluginBindingTable.Upsert(ctx, s, binding)
 }
 
 // UnbindPluginUser removes one UID to plugin binding idempotently.
 func (s *Shard) UnbindPluginUser(ctx context.Context, uid, pluginNo string) error {
-	if err := s.check(ctx); err != nil {
-		return err
-	}
 	if err := validatePluginUserBindingIdentity(uid, pluginNo); err != nil {
 		return err
 	}
-	unlock := s.lock()
-	defer unlock()
-
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := stageUnbindPluginUser(batch, s.hashSlot, uid, pluginNo); err != nil {
-		return err
-	}
-	return batch.Commit(true)
+	return pluginBindingTable.Delete(ctx, s, KeyParts{String(uid), String(pluginNo)})
 }
 
 // ListPluginBindingsByUID lists all plugin bindings for a UID in plugin order.
 func (s *Shard) ListPluginBindingsByUID(ctx context.Context, uid string) ([]PluginUserBinding, error) {
-	if err := s.check(ctx); err != nil {
-		return nil, err
-	}
 	if err := validatePluginBindingUID(uid); err != nil {
 		return nil, err
 	}
-	prefix := encodePluginBindingRowPrefix(s.hashSlot, uid)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer iter.Close()
-
-	bindings := make([]PluginUserBinding, 0, 4)
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		pluginNo, familyID, ok := decodePluginBindingRowKey(prefix, iter.Key())
-		if !ok {
-			return nil, dberrors.ErrCorruptValue
-		}
-		if familyID != pluginBindingPrimaryFamilyID {
-			continue
-		}
-		value, err := iter.Value()
-		if err != nil {
-			return nil, err
-		}
-		binding, err := decodePluginUserBindingValue(uid, pluginNo, value)
-		if err != nil {
-			return nil, err
-		}
-		bindings = append(bindings, binding)
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-	return bindings, nil
+	rows, _, _, err := pluginBindingTable.ScanPrimaryPrefix(ctx, s, KeyParts{String(uid)}, nil, 0)
+	return rows, err
 }
 
 // ScanPluginBindingsByPluginNo scans plugin bindings by plugin number and UID.
 func (s *Shard) ScanPluginBindingsByPluginNo(ctx context.Context, pluginNo string, cursor PluginUserBindingCursor, limit int) ([]PluginUserBinding, PluginUserBindingCursor, bool, error) {
-	if err := s.check(ctx); err != nil {
-		return nil, PluginUserBindingCursor{}, false, err
-	}
 	if err := validatePluginBindingPluginNo(pluginNo); err != nil {
 		return nil, PluginUserBindingCursor{}, false, err
 	}
@@ -142,101 +128,38 @@ func (s *Shard) ScanPluginBindingsByPluginNo(ctx context.Context, pluginNo strin
 	if limit <= 0 {
 		return nil, PluginUserBindingCursor{}, false, dberrors.ErrInvalidArgument
 	}
-	prefix := encodePluginBindingPluginIndexPrefix(s.hashSlot, pluginNo)
-	span := keycodec.NewPrefixSpan(prefix)
+	var after KeyParts
 	if cursor.UID != "" {
-		span.Start = keycodec.PrefixEnd(encodePluginBindingPluginIndexKey(s.hashSlot, pluginNo, cursor.UID))
+		after = KeyParts{String(pluginNo), String(cursor.UID)}
 	}
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	rows, next, done, err := pluginBindingTable.ScanIndex(ctx, s, pluginBindingPluginIndexID, KeyParts{String(pluginNo)}, after, limit)
 	if err != nil {
 		return nil, PluginUserBindingCursor{}, false, err
 	}
-	defer iter.Close()
-
-	bindings := make([]PluginUserBinding, 0, limit)
 	nextCursor := cursor
-	hasMore := false
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, PluginUserBindingCursor{}, false, err
-		}
-		uid, err := decodePluginBindingPluginIndexUID(prefix, iter.Key())
-		if err != nil {
-			return nil, PluginUserBindingCursor{}, false, err
-		}
-		primaryKey := encodePluginBindingRowKey(s.hashSlot, uid, pluginNo, pluginBindingPrimaryFamilyID)
-		binding, exists, err := s.getPluginUserBindingByKey(ctx, primaryKey, uid, pluginNo)
-		if err != nil {
-			return nil, PluginUserBindingCursor{}, false, err
-		}
-		if !exists {
-			continue
-		}
-		if len(bindings) == limit {
-			hasMore = true
-			break
-		}
-		bindings = append(bindings, binding)
-		nextCursor = pluginBindingToCursor(binding)
+	if len(next) >= 2 {
+		nextCursor = PluginUserBindingCursor{PluginNo: pluginNo, UID: next[1].S}
+	} else if len(rows) > 0 {
+		nextCursor = pluginBindingToCursor(rows[len(rows)-1])
 	}
-	if err := iter.Error(); err != nil {
-		return nil, PluginUserBindingCursor{}, false, err
-	}
-	return bindings, nextCursor, !hasMore, nil
+	return rows, nextCursor, done, nil
 }
 
 // ExistPluginBindingByUID reports whether a UID has at least one plugin binding.
 func (s *Shard) ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error) {
-	if err := s.check(ctx); err != nil {
-		return false, err
-	}
 	if err := validatePluginBindingUID(uid); err != nil {
 		return false, err
 	}
-	prefix := encodePluginBindingRowPrefix(s.hashSlot, uid)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return false, err
-	}
-	defer iter.Close()
-	ok := iter.First()
-	if err := iter.Error(); err != nil {
-		return false, err
-	}
-	return ok, nil
+	rows, _, _, err := pluginBindingTable.ScanPrimaryPrefix(ctx, s, KeyParts{String(uid)}, nil, 1)
+	return len(rows) > 0, err
 }
 
-func (s *Shard) getPluginUserBindingByKey(ctx context.Context, key []byte, uid, pluginNo string) (PluginUserBinding, bool, error) {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return PluginUserBinding{}, false, err
-		}
-	}
-	value, ok, err := s.db.get(key)
-	if err != nil || !ok {
-		return PluginUserBinding{}, ok, err
-	}
-	binding, err := decodePluginUserBindingValue(uid, pluginNo, value)
-	if err != nil {
+// GetPluginUserBinding returns one UID to plugin binding.
+func (s *Shard) GetPluginUserBinding(ctx context.Context, uid, pluginNo string) (PluginUserBinding, bool, error) {
+	if err := validatePluginUserBindingIdentity(uid, pluginNo); err != nil {
 		return PluginUserBinding{}, false, err
 	}
-	return binding, true, nil
-}
-
-func stageBindPluginUser(batch *engine.Batch, hashSlot HashSlot, binding PluginUserBinding) error {
-	primaryKey := encodePluginBindingRowKey(hashSlot, binding.UID, binding.PluginNo, pluginBindingPrimaryFamilyID)
-	if err := batch.Set(primaryKey, encodePluginUserBindingValue(binding)); err != nil {
-		return err
-	}
-	return batch.Set(encodePluginBindingPluginIndexKey(hashSlot, binding.PluginNo, binding.UID), nil)
-}
-
-func stageUnbindPluginUser(batch *engine.Batch, hashSlot HashSlot, uid, pluginNo string) error {
-	if err := batch.Delete(encodePluginBindingRowKey(hashSlot, uid, pluginNo, pluginBindingPrimaryFamilyID)); err != nil {
-		return err
-	}
-	return batch.Delete(encodePluginBindingPluginIndexKey(hashSlot, pluginNo, uid))
+	return pluginBindingTable.Get(ctx, s, KeyParts{String(uid), String(pluginNo)})
 }
 
 func validatePluginUserBinding(binding PluginUserBinding) error {
@@ -296,26 +219,4 @@ func decodePluginUserBindingValue(uid, pluginNo string, value []byte) (PluginUse
 		return PluginUserBinding{}, dberrors.ErrCorruptValue
 	}
 	return PluginUserBinding{UID: uid, PluginNo: pluginNo, CreatedAtMS: createdAt, UpdatedAtMS: updatedAt}, nil
-}
-
-func decodePluginBindingRowKey(prefix []byte, key []byte) (string, uint16, bool) {
-	if !bytes.HasPrefix(key, prefix) {
-		return "", 0, false
-	}
-	pluginNo, rest, err := keycodec.ReadString(key[len(prefix):])
-	if err != nil || len(rest) != 2 {
-		return "", 0, false
-	}
-	return pluginNo, binary.BigEndian.Uint16(rest), true
-}
-
-func decodePluginBindingPluginIndexUID(prefix []byte, key []byte) (string, error) {
-	if !bytes.HasPrefix(key, prefix) {
-		return "", dberrors.ErrCorruptValue
-	}
-	uid, rest, err := keycodec.ReadString(key[len(prefix):])
-	if err != nil || len(rest) != 0 {
-		return "", dberrors.ErrCorruptValue
-	}
-	return uid, nil
 }

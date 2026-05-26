@@ -21,7 +21,6 @@ func init() {
 		{Table: ChannelRuntimeMetaTable},
 		{Table: ConversationTable},
 		{Table: CMDConversationTable},
-		{Table: PluginBindingTable},
 		{Table: ChannelMigrationTable},
 		{Table: HashSlotMigrationTable, SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}},
 	} {
@@ -35,7 +34,6 @@ var (
 	SubscriberTable         = simpleMetaTable(TableIDSubscriber, "subscriber")
 	ChannelRuntimeMetaTable = simpleMetaTable(TableIDChannelRuntimeMeta, "channel_runtime_meta")
 	CMDConversationTable    = activeMetaTable(TableIDCMDConversation, "cmd_conversation")
-	PluginBindingTable      = simpleMetaTable(TableIDPluginBinding, "plugin_binding")
 	ChannelMigrationTable   = activeMetaTable(TableIDChannelMigration, "channel_migration")
 	HashSlotMigrationTable  = activeMetaTable(TableIDHashSlotMigration, "hashslot_migration")
 
