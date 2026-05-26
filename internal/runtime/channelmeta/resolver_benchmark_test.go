@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func BenchmarkSyncRefreshChannelMetaBusinessCacheHit(b *testing.B) {

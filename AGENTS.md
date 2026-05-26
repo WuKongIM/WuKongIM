@@ -106,12 +106,16 @@ internal/
     userlimit/           节点内用户发送令牌桶限流
 
 pkg/
+  db/                    节点本地统一存储库；message/meta 共享 engine/key/row/schema/commit/cache 基础设施
+    internal/            Pebble engine、key/row codec、schema、commit coordinator、轻量 cache 等内部原语
+    message/             Channel 消息日志、索引、checkpoint、epoch history、snapshot、retention、兼容 ChannelStore API
+    meta/                Hash-slot 元数据表、批处理、快照、channel runtime meta、conversation、plugin、migration 等存储
   cluster/               集群运行时
   clusterv2/             新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controllerv2、slot/multiraft、channelv2
   channel/               Channel 维度复制、日志与节点间数据面
-    isr/                 单 channel replica group 的 ISR 运行时
-    log/                 Channel 消息日志、提交与元数据适配
-    node/                Channel 节点侧服务与批处理编排
+    handler/             append/fetch/query 入口逻辑与兼容 DurableMessage 编解码
+    replica/             单 channel ISR 副本状态机、reconcile、checkpoint、retention 与 promotion 评估
+    runtime/             channel runtime 生命周期、复制调度、backpressure 与 tombstone 管理
     transport/           Channel 数据面 RPC transport 适配
   channelv2/             实验性多 Reactor channel log runtime，用于 v0 append/fetch/replication 验证
   controller/            控制面元数据、规划器与控制器 Raft 服务
@@ -128,7 +132,6 @@ pkg/
   raftlog/               Raft 日志持久化实现（存储controller和slot的分布式日志 但是不存储channel层的）
   slot/                  槽位级多副本运行时与分布式元数据
     fsm/                 槽位状态机与命令编解码
-    meta/                槽位业务元数据存储
     multiraft/           Multi-Raft 基础库
     proxy/               基于 cluster 的分布式存储 / RPC facade
   transport/             节点间 transport / RPC 抽象与实现

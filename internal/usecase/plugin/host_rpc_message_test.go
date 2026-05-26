@@ -7,8 +7,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
 func TestHostRPCMessageSendMapsPluginRequestThroughMessageApp(t *testing.T) {

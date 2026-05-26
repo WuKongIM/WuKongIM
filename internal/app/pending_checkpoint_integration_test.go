@@ -16,11 +16,11 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 

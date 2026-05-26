@@ -410,9 +410,9 @@ observeHashSlotMigrations(ctx):
        → 再向 source Slot 提案 EnterFence，确保 FenceIndex 已在 source apply 路径持久化，
          从而阻止 snapshot apply index 之后的新 source 写入落在 snapshot/outbox 之外
        → exportHashSlotSnapshot(source, hashSlot)
-         状态机导出指定 hashSlot 的数据快照 + 记录 sourceApplyIndex
+         状态机通过 `pkg/db/meta` 导出指定 hashSlot 的数据快照 + 记录 sourceApplyIndex
        → importHashSlotSnapshot(target, snap)
-         Leader 本地: 直接 import / 远程: RPC(import_snapshot)
+         Leader 本地: 通过 `pkg/db/meta` 直接 import / 远程: RPC(import_snapshot)
        → migrationWorker.MarkSnapshotComplete(hashSlot, sourceApplyIndex, bytes)
   ⑥ replay durable delta outbox:
      PhaseDelta / PhaseSwitching 且本节点是 source Leader 时，从 source 状态机批量读取持久 outbox，

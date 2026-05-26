@@ -6,8 +6,8 @@ import (
 
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
 func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (frame.ReasonCode, error) {

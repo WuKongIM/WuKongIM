@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // SystemUser is one persisted manager-facing system UID row.

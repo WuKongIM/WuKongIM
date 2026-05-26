@@ -12,7 +12,7 @@
 | `handler/` | `handler.New()` → `Service` | 请求校验、幂等去重、兼容 DurableMessage ingress/egress 编解码、基于结构化消息表的读取与查询 |
 | `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、retention boundary 应用/采用/修剪、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
 | `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、retention boundary 委托、多级背压、墓碑清理 |
-| `store/` | `store.NewEngine()` → `Engine` | Pebble 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState 等系统状态持久化 |
+| `pkg/db/message` | `message.Open()` → `Engine` / `ChannelStore` | 共享 DB 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState/CommittedCursor 等系统状态持久化 |
 | `transport/` | `transport.Build()` | steady-state `LongPollFetch`、辅助 `Fetch`，始终独立保留的 `ReconcileProbe` RPC，以及供控制面 leader-repair 复用的同步 `ProbeClient` |
 
 ## 3. 对外接口
@@ -78,7 +78,7 @@ Replica 层 (replica/append.go + replica/append_pipeline.go):
   ⑧ runtime 对本进程新建的记录批次使用 replica owned append fast path，避免重复深拷贝；facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
      AppendBatch 对同一频道一次调用 `group.Append(ctx, []Record)`，让 leader local durable append、quorum waiter 和 follower fetch 天然看到多条连续 record
   ⑨ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 对同一 channel 的并发 synced Append 先按
-     `store/commit.go` 的 FlushWindow 聚合成一个 channel-local append，再在单 channel `writeMu` 下 prepare 记录并提交给跨频道 coordinator；
+     `pkg/db/message` compatibility commit path 的 FlushWindow 聚合成一个 channel-local append，再在单 channel `writeMu` 下 prepare 记录并提交给跨频道 coordinator；
      coordinator 用可配置窗口（默认 200µs）合并 Pebble Sync，并可按请求数/记录数/字节数限制单批大小；sync 完成前不发布新的 LEO
   ⑩ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，Replica durable 写入生产路径使用
      `AppendTrusted` / `StoreApplyFetchTrusted*`，在调用方已经证明记录是下一段连续 log entry 后跳过逐行 Pebble
@@ -103,8 +103,8 @@ Replica 层 (replica/append.go + replica/append_pipeline.go):
   ③ 从 Runtime 获取 HandlerChannel → runtime.Channel(key)
   ④ 若 `CommitReady=false`，直接返回 ErrNotReady，不再从 Checkpoint 猜 committed frontier
   ⑤ handler/fetch.go 将 `FromSeq=0` 或低于 retention/snapshot floor 的请求夹到 `MinAvailableSeq`
-  ⑥ 直接调用 `store.ListMessagesBySeq(startSeq, ...)` 扫描结构化 `message` 表
-  ⑦ 读取结果按运行时 CommitHW 和 `MinAvailableSeq` 裁剪，不再通过 `store.Read()` + DurableMessage 解码重建消息
+  ⑥ 直接调用 `message.ChannelStore.ListMessagesBySeq(startSeq, ...)` 扫描结构化 `message` 表
+  ⑦ 读取结果按运行时 CommitHW 和 `MinAvailableSeq` 裁剪，不再通过 compat `ChannelStore.Read()` + DurableMessage 解码重建消息
   ⑧ 返回 Messages + NextSeq + CommittedSeq + RetentionThroughSeq + MinAvailableSeq
 ```
 
@@ -149,7 +149,7 @@ Reconcile Probe（启动 / leader transfer 后的 provisional 收敛）:
 Promotion Dry-run（供 app 侧权威 leader repair 选主）:
   ① 当 app 侧判断权威 `ChannelRuntimeMeta.Leader` 缺失 / 已死 / 不在副本集时，
      slot leader 会向 ISR 候选副本发 `channel_leader_evaluate` RPC
-  ② 候选副本从 `channel/store` 加载本地 durable view：
+  ② 候选副本从 `pkg/db/message` compatibility store 加载本地 durable view：
      `EpochHistory` / `LEO` / `CheckpointHW` / `OffsetEpoch`
   ③ 若需要 peer proof，则通过 `transport/probe_client.go` 复用 `ReconcileProbe` RPC
      向其他 ISR 副本直连拉取 proof；这条外部 probe 会带 `Generation=0`
@@ -218,8 +218,8 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 入口: `replica/recovery.go recoverFromStores`
 
 ```
-  ① 加载 Checkpoint{Epoch, LogStartOffset, HW} → store/checkpoint.go
-  ② 加载 Epoch History → store/history.go
+  ① 加载 Checkpoint{Epoch, LogStartOffset, HW} → pkg/db/message/checkpoint.go
+  ② 加载 Epoch History → pkg/db/message/history.go
   ③ 加载 RetentionState；`LocalRetentionThroughSeq` / `PhysicalRetentionThroughSeq` 只表示本地持久化进度，不会初始化逻辑 `RetentionThroughSeq`
   ④ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 与 RetentionState.RetainedMaxSeq 的较大值恢复；Epoch 匹配)
   ⑤ 启动时不再立即把 `LEO > CheckpointHW` 的尾巴截断掉；先保留 local tail，发布 `CommitReady=false`
@@ -259,12 +259,12 @@ System (0x17): prefix + key + tableID + systemID + ...
                - Retention State
 ```
 
-`channel.Record.Payload` 仍作为复制协议兼容表示存在，但不再是 Pebble 存储真相。详见 `store/keys.go`、`store/table_codec.go`
+`channel.Record.Payload` 仍作为复制协议兼容表示存在，但不再是 Pebble 存储真相。详见 `pkg/db/message/keys.go`、`pkg/db/message/codec.go`
 
 ## 8. 避坑清单
 
 - **per-channel 互斥锁**: `channel.go:lockApplyMeta` 使用引用计数的 per-key 锁，保证同一频道的 ApplyMeta 串行执行。Handler → Runtime 失败时会 RestoreMeta 回滚。
-- **结构化 `message` 表才是持久化真相**: `channel.Record.Payload` 现在只是 ingress/egress 兼容层；排查落盘问题时优先看 `store/message_table.go`、`store/table_codec.go`，不要再把 raw payload 当作唯一来源。
+- **结构化 `message` 表才是持久化真相**: `channel.Record.Payload` 现在只是 ingress/egress 兼容层；排查落盘问题时优先看 `pkg/db/message/read.go`、`pkg/db/message/codec.go`，不要再把 raw payload 当作唯一来源。
 - **幂等命中依赖唯一索引 + PayloadHash**: 幂等检查走 `uidx_from_uid_client_msg_no`，并且必须校验 FNV-64a PayloadHash 一致，否则返回 `ErrIdempotencyConflict`；不再通过扫描原始日志后解码比对。
 - **按 MessageID / ClientMsgNo 查询已经是索引直达**: `MessageID` 命中唯一索引，`ClientMsgNo` 命中 `(client_msg_no, message_seq)` 索引分页；不要再写“全表扫描后过滤”的调用路径。
 - **旧版 messagesync 只读 committed message 表**: `handler/message_sync.go:SyncMessages` 复用 `ListMessagesBySeq()`，按旧版 `start_message_seq` / `end_message_seq` / `pull_mode` 语义裁剪结果，并始终按 `message_seq` 升序返回给 HTTP API。
@@ -277,8 +277,8 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Retention 不修改 checkpoint LogStartOffset**: retention reset/trim 只维护 `RetentionThroughSeq`、`LocalRetentionThroughSeq`、`PhysicalRetentionThroughSeq` 和 retained LEO floor；只有 snapshot install 推进 `LogStartOffset`。
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
-- **Channel-local + cross-channel durable batching**: `ChannelStore.Append()` 对同一 channel 的并发 synced append 先用 commit coordinator 的 FlushWindow 聚合并预留连续 seq，再提交给 `store/commit.go` 跨频道合并 Pebble durable 写入；coordinator 支持请求数/记录数/字节数批量上限。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
-- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大且不能覆盖更高 cursor；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
+- **Channel-local + cross-channel durable batching**: `ChannelStore.Append()` 对同一 channel 的并发 synced append 先用 commit coordinator 的 FlushWindow 聚合并预留连续 seq，再提交给 `pkg/db/message` 的 compatibility 写入路径；coordinator 支持请求数/记录数/字节数批量上限。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
+- **Committed Dispatch Cursor 不是消息真相**: `pkg/db/message` committed cursor compatibility API 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大且不能覆盖更高 cursor；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试。health / metrics 暴露应通过上层观测性窄接口接入，不改变 sendack 语义。
 - **Learner 语义**: `learner = Replicas - ISR`。learner 会接收 steady-state 复制和 catch-up probe，但在进入 `ISR` 前不参与 HW quorum、MinISR 写可用性或 leader promotion 候选。

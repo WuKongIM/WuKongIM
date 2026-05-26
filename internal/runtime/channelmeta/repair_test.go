@@ -10,9 +10,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/stretchr/testify/require"
@@ -1044,16 +1044,19 @@ func writeCorruptRetentionStateForPromotionTest(dir string, key channel.ChannelK
 
 func encodeRetentionStateKeyForPromotionTest(key channel.ChannelKey) []byte {
 	const (
-		keyspaceTableSystem byte   = 0x17
-		tableIDMessage      uint32 = 1
-		retentionSystemID   uint16 = 5
+		domainMessage    byte   = 0x01
+		partitionChannel byte   = 0x01
+		spaceSystem      byte   = 0x12
+		tableIDMessage   uint32 = 1
+		retentionSystem  uint16 = 4
 	)
-	out := make([]byte, 0, 2+len(key)+6)
-	out = append(out, keyspaceTableSystem)
-	out = binary.AppendUvarint(out, uint64(len(key)))
+	out := make([]byte, 0, 4+len(key)+7)
+	out = append(out, domainMessage, partitionChannel)
+	out = binary.BigEndian.AppendUint16(out, uint16(len(key)))
 	out = append(out, key...)
+	out = append(out, spaceSystem)
 	out = binary.BigEndian.AppendUint32(out, tableIDMessage)
-	return binary.BigEndian.AppendUint16(out, retentionSystemID)
+	return binary.BigEndian.AppendUint16(out, retentionSystem)
 }
 
 type fakeChannelMetaSource struct {

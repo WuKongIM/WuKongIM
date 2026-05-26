@@ -9,8 +9,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

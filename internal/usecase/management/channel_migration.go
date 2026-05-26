@@ -9,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const (
