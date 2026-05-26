@@ -15,7 +15,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
 | `propose` | Slot metadata propose path and leader forwarding. |
-| `channels` | ChannelV2 service construction, metadata resolver, and replication transport. |
+| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, and replication transport. |
 | `observe` | Low-frequency background loops and readiness snapshots. |
 
 ## Start Flow
@@ -71,7 +71,13 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 ```text
 Node.AppendChannel / AppendChannelBatch / FetchChannel
   -> channels.Service
-  -> channelv2 service facade
+  -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
+      -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
+      -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
+      -> reread final authoritative ChannelRuntimeMeta and project it to ChannelV2 Meta
+      -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
+      -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
+  -> Fetch: channelv2 service facade
   -> local reactor and store worker pools
   -> clusterv2 channel RPC client
   -> remote channel RPC handler
@@ -80,7 +86,7 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates default proposer and ChannelV2 service instances, backs ChannelV2 with the message DB under `DataDir/channellog`, and owns the ChannelV2 tick loop plus default store factory cleanup.
 
-`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring.
+`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted.
 
 ## Non-Goals For V1
 
@@ -93,6 +99,6 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
 
 - ControllerV2 integration currently focuses on snapshot mapping and an adapter shell; full Raft bootstrap is left to the production wiring phase.
 - Slot smoke coverage uses an in-process fake Slot runtime for route/forward validation; destructive Slot cleanup remains disabled.
-- ChannelV2 append forwarding is not automatic. Calls to a non-channel-leader return ChannelV2 typed errors.
+- ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.
 - Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.

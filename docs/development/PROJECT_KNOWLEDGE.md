@@ -90,6 +90,7 @@
 - SEND batching is layered: gateway shards by raw `ChannelID + ChannelType` only to preserve entry ordering and collect micro-batches; message usecase groups adjacent canonical same-channel sends; `pkg/channel.AppendBatch` performs one replica append with contiguous seqs.
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
+- `pkg/channelv2` append is local-runtime only: clusterv2 must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
 
 ## Cluster Membership
 

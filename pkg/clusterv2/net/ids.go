@@ -24,4 +24,8 @@ const (
 	RPCControlReportNode
 	// RPCControlReportSlots serves Slot runtime report requests.
 	RPCControlReportSlots
+	// RPCChannelAppend forwards one ChannelV2 append request to the channel leader.
+	RPCChannelAppend
+	// RPCChannelAppendBatch forwards one ChannelV2 append batch request to the channel leader.
+	RPCChannelAppendBatch
 )

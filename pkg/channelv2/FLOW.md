@@ -7,7 +7,7 @@ pkg/channelv2/        - Experimental multi-reactor channel log runtime; root DTO
 |-- machine/          - Pure per-channel state transitions for metadata, append, fetch, progress, and invariants; no blocking I/O.
 |-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
 |-- replication/      - Leader/follower replication helpers and protocol decisions used by reactor runtime paths.
-|-- service/          - Synchronous facade that validates requests, resolves/applies metadata, routes work to reactors, and waits on futures.
+|-- service/          - Synchronous facade that validates requests, requires preloaded append state, lazily activates PullHint followers, routes work to reactors, and waits on futures.
 |-- store/            - Narrow persistence contract, memory store, and `pkg/db/message` compatibility adapter boundary.
 |-- testkit/          - In-memory multi-node cluster harness for channelv2 tests.
 |-- transport/        - V0 local/RPC transport DTOs for pull, ack, notify compatibility, and PullHint.
@@ -29,14 +29,10 @@ sequenceDiagram
     participant Follower as follower reactor
 
     Caller->>Service: Append / AppendBatch
-    alt channel not loaded and MetaResolver configured
-        Service->>Service: ResolveChannelMeta
-        Service->>Reactor: ApplyMeta
-    else channel not loaded and no resolver
+    Service->>Reactor: ReserveAppend(key) and HasChannelState(key)
+    alt channel runtime not loaded
         Service-->>Caller: ErrChannelNotFound
     end
-
-    Service->>Reactor: ReserveAppend(key)
     Service->>Reactor: submit append event
     Reactor->>Reactor: validate leader, epoch, capacity
     alt not leader, stale meta, or queue full
@@ -111,7 +107,7 @@ Follower phases:
 ```mermaid
 stateDiagram-v2
     [*] --> Unloaded
-    Unloaded --> Loaded: ApplyMeta or lazy resolver / load store state
+    Unloaded --> Loaded: ApplyMeta or PullHint lazy activation / load store state
     Loaded --> LeaderServing: local role = leader
     Loaded --> FollowerReplicating: local role = follower
 
