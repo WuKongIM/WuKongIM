@@ -63,7 +63,7 @@ func forbiddenBenchImport(dep string) (string, bool) {
 		"github.com/WuKongIM/WuKongIM/internal/access",
 		"github.com/WuKongIM/WuKongIM/internal/usecase",
 		"github.com/WuKongIM/WuKongIM/internal/runtime",
-		"github.com/WuKongIM/WuKongIM/internal/gateway",
+		"github.com/WuKongIM/WuKongIM/pkg/gateway",
 		"github.com/WuKongIM/WuKongIM/pkg/slot",
 		"github.com/WuKongIM/WuKongIM/pkg/controller",
 		"github.com/WuKongIM/WuKongIM/pkg/cluster",

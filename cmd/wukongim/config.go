@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/app"
-	"github.com/WuKongIM/WuKongIM/internal/gateway"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/binding"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 	"github.com/spf13/viper"
 )
 

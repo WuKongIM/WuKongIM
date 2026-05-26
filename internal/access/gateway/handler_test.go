@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
-	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -18,6 +16,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"

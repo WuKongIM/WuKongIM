@@ -20,7 +20,6 @@ func TestInternalImportBoundaries(t *testing.T) {
 	forbidden := map[string][]string{
 		modulePath + "/internal/runtime/": {
 			modulePath + "/internal/access/",
-			modulePath + "/internal/gateway/",
 			modulePath + "/internal/usecase/",
 			modulePath + "/internal/app",
 		},
@@ -52,26 +51,34 @@ func TestInternalImportBoundaries(t *testing.T) {
 }
 
 type listedPackage struct {
-	ImportPath string
-	Imports    []string
+	ImportPath   string
+	Imports      []string
+	TestImports  []string
+	XTestImports []string
 }
 
 func listInternalPackages(t *testing.T) []listedPackage {
+	t.Helper()
+	return listPackages(t, "./internal/...")
+}
+
+func listPackages(t *testing.T, patterns ...string) []listedPackage {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
 	repoRoot := filepath.Dir(filepath.Dir(file))
-	cmd := exec.Command("go", "list", "-json", "./internal/...")
+	args := append([]string{"list", "-json"}, patterns...)
+	cmd := exec.Command("go", args...)
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			t.Fatalf("go list failed: %v\n%s", err, exitErr.Stderr)
+			t.Fatalf("go %s failed: %v\n%s", strings.Join(args, " "), err, exitErr.Stderr)
 		}
-		t.Fatalf("go list failed: %v", err)
+		t.Fatalf("go %s failed: %v", strings.Join(args, " "), err)
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(out))
@@ -84,6 +91,30 @@ func listInternalPackages(t *testing.T) []listedPackage {
 		packages = append(packages, pkg)
 	}
 	return packages
+}
+
+func allImports(pkg listedPackage) []string {
+	imports := make([]string, 0, len(pkg.Imports)+len(pkg.TestImports)+len(pkg.XTestImports))
+	imports = append(imports, pkg.Imports...)
+	imports = append(imports, pkg.TestImports...)
+	imports = append(imports, pkg.XTestImports...)
+	return imports
+}
+
+func TestPkgGatewayDoesNotImportInternalPackages(t *testing.T) {
+	packages := listPackages(t, "./pkg/gateway/...")
+	var violations []string
+	for _, pkg := range packages {
+		for _, imported := range allImports(pkg) {
+			if matchesImportPrefix(imported, modulePath+"/internal/") {
+				violations = append(violations, fmt.Sprintf("%s imports %s", pkg.ImportPath, imported))
+			}
+		}
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Fatalf("pkg/gateway import boundary violations:\n%s", strings.Join(violations, "\n"))
+	}
 }
 
 func matchesImportPrefix(importPath, prefix string) bool {
