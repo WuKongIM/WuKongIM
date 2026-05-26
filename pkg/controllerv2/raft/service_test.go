@@ -18,6 +18,11 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+const (
+	testRaftTickInterval = 20 * time.Millisecond
+	testRaftStepTimeout  = 10 * time.Millisecond
+)
+
 func TestNewServiceValidatesConfig(t *testing.T) {
 	service, err := NewService(Config{})
 	require.Nil(t, service)
@@ -45,7 +50,7 @@ func TestStartDuringActiveStopReturnsStopped(t *testing.T) {
 		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
 		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
 		Transport:      newMemoryRaftTransport(),
-		TickInterval:   5 * time.Millisecond,
+		TickInterval:   testRaftTickInterval,
 	})
 	require.NoError(t, err)
 
@@ -194,6 +199,42 @@ func TestSlowApplyDoesNotBlockStep(t *testing.T) {
 	require.NoError(t, <-resultCh)
 }
 
+func TestMemoryRaftTransportSendDoesNotBlockWhenPeerStepQueueFull(t *testing.T) {
+	transport := newMemoryRaftTransport()
+	stopCh := make(chan struct{})
+	stopClosed := false
+	closeStop := func() {
+		if !stopClosed {
+			close(stopCh)
+			stopClosed = true
+		}
+	}
+	defer closeStop()
+
+	service := &Service{
+		cfg:     Config{NodeID: 1},
+		started: true,
+		stopCh:  stopCh,
+		doneCh:  make(chan struct{}),
+		stepCh:  make(chan raftpb.Message),
+	}
+	transport.register(1, service)
+
+	done := make(chan struct{})
+	go func() {
+		transport.Send([]raftpb.Message{{To: 1, From: 2, Type: raftpb.MsgHeartbeat}})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		closeStop()
+		<-done
+		t.Fatal("memory raft transport blocked behind a full peer step queue")
+	}
+}
+
 type testRaftCluster struct {
 	peers     []Peer
 	nodes     []*testRaftNode
@@ -237,7 +278,7 @@ func (c *testRaftCluster) rebuildService(t *testing.T, node *testRaftNode) {
 		RaftDir:        node.raftDir,
 		StateMachine:   node.stateMachine,
 		Transport:      c.transport,
-		TickInterval:   5 * time.Millisecond,
+		TickInterval:   testRaftTickInterval,
 	})
 	require.NoError(t, err)
 	node.service = service
@@ -345,8 +386,11 @@ func (t *memoryRaftTransport) Send(batch []raftpb.Message) {
 		if service == nil {
 			continue
 		}
-		err := service.Step(context.Background(), msg)
-		if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) {
+		// The test transport must not let one slow peer stall the sender's Raft loop.
+		ctx, cancel := context.WithTimeout(context.Background(), testRaftStepTimeout)
+		err := service.Step(ctx, msg)
+		cancel()
+		if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) && !errors.Is(err, context.DeadlineExceeded) {
 			return
 		}
 	}
@@ -386,7 +430,7 @@ func startSingleService(t *testing.T, id uint64, peers []Peer, raftDir string, s
 	t.Helper()
 	sm := newTestStateMachine(t, statePath)
 	transport := newMemoryRaftTransport()
-	service, err := NewService(Config{NodeID: id, Peers: peers, AllowBootstrap: allowBootstrap, RaftDir: raftDir, StateMachine: sm, Transport: transport, TickInterval: 5 * time.Millisecond})
+	service, err := NewService(Config{NodeID: id, Peers: peers, AllowBootstrap: allowBootstrap, RaftDir: raftDir, StateMachine: sm, Transport: transport, TickInterval: testRaftTickInterval})
 	require.NoError(t, err)
 	transport.register(id, service)
 	require.NoError(t, service.Start(context.Background()))
