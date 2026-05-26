@@ -77,3 +77,78 @@ func TestMetaTableRegistryRejectsInvalidSchema(t *testing.T) {
 		t.Fatal("register invalid schema succeeded")
 	}
 }
+
+type registryTestRow struct {
+	ID    string
+	Owner string
+}
+
+func TestRegisterMetaTableBuildsSchemaDescriptor(t *testing.T) {
+	registry := newMetaTableRegistry()
+	table, err := registerMetaTableInRegistry(registry, TableSpec[registryTestRow]{
+		ID:   65020,
+		Name: "registry_test",
+		Columns: []schema.Column{
+			{ID: 1, Name: "id", Type: schema.TypeString, Required: true},
+			{ID: 2, Name: "owner", Type: schema.TypeString},
+			{ID: 3, Name: "value", Type: schema.TypeBytes},
+		},
+		Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3}}},
+		Primary: PrimarySpec[registryTestRow]{
+			IndexID:  1,
+			FamilyID: 0,
+			Name:     "pk_registry_test",
+			Columns:  []uint16{1},
+			Layout:   KeyLayout{KeyString},
+			Key:      func(row registryTestRow) KeyParts { return KeyParts{String(row.ID)} },
+		},
+		Indexes: []IndexSpec[registryTestRow]{
+			{
+				ID:      2,
+				Name:    "idx_registry_test_owner",
+				Columns: []uint16{2, 1},
+				Layout:  KeyLayout{KeyString, KeyString},
+				Key: func(row registryTestRow) (KeyParts, bool) {
+					return KeyParts{String(row.Owner), String(row.ID)}, row.Owner != ""
+				},
+			},
+		},
+		EncodeValue: func(row registryTestRow) ([]byte, error) { return []byte(row.Owner), nil },
+		DecodeValue: func(primary KeyParts, value []byte) (registryTestRow, error) {
+			return registryTestRow{ID: primary[0].S, Owner: string(value)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("registerMetaTableInRegistry(): %v", err)
+	}
+	if table.Schema().Name != "registry_test" {
+		t.Fatalf("schema name = %q", table.Schema().Name)
+	}
+	tables := registry.tables()
+	if len(tables) != 1 || tables[0].Primary.Name != "pk_registry_test" || len(tables[0].Indexes) != 1 {
+		t.Fatalf("registered tables = %#v", tables)
+	}
+}
+
+func TestRegisterMetaTableRejectsMismatchedLayout(t *testing.T) {
+	registry := newMetaTableRegistry()
+	_, err := registerMetaTableInRegistry(registry, TableSpec[registryTestRow]{
+		ID:       65021,
+		Name:     "bad_layout",
+		Columns:  []schema.Column{{ID: 1, Name: "id", Type: schema.TypeString, Required: true}},
+		Families: []schema.Family{{ID: 0, Name: "primary"}},
+		Primary: PrimarySpec[registryTestRow]{
+			IndexID:  1,
+			FamilyID: 0,
+			Name:     "pk_bad_layout",
+			Columns:  []uint16{1},
+			Layout:   KeyLayout{},
+			Key:      func(row registryTestRow) KeyParts { return KeyParts{String(row.ID)} },
+		},
+		EncodeValue: func(row registryTestRow) ([]byte, error) { return nil, nil },
+		DecodeValue: func(primary KeyParts, value []byte) (registryTestRow, error) { return registryTestRow{}, nil },
+	})
+	if err == nil {
+		t.Fatal("register with mismatched layout succeeded")
+	}
+}
