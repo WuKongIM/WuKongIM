@@ -1,77 +1,110 @@
 package meta
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 // Channel stores durable channel flags and subscriber metadata version.
 type Channel struct {
-	ChannelID                 string
-	ChannelType               int64
-	Ban                       int64
-	Disband                   int64
-	SendBan                   int64
-	AllowStranger             int64
+	// ChannelID identifies the logical channel.
+	ChannelID string
+	// ChannelType separates namespaces for the same channel id.
+	ChannelType int64
+	// Ban marks the channel as banned for sends.
+	Ban int64
+	// Disband marks the channel as disbanded.
+	Disband int64
+	// SendBan marks the channel as send-banned.
+	SendBan int64
+	// AllowStranger records whether non-subscribers may access the channel.
+	AllowStranger int64
+	// SubscriberMutationVersion tracks subscriber list mutation ordering.
 	SubscriberMutationVersion uint64
 }
 
+var channelTable = registerMetaTable(TableSpec[Channel]{
+	ID:   TableIDChannel,
+	Name: "channel",
+	Columns: []schema.Column{
+		{ID: columnIDStringKey, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: columnIDIntKey, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: columnIDValue, Name: "value", Type: schema.TypeBytes},
+		{ID: columnIDUpdatedAt, Name: "updated_at", Type: schema.TypeInt64},
+	},
+	Families: []schema.Family{{ID: channelPrimaryFamilyID, Name: "primary", Columns: []uint16{columnIDValue, columnIDUpdatedAt}}},
+	Primary: PrimarySpec[Channel]{
+		IndexID:  channelPrimaryIndexID,
+		FamilyID: channelPrimaryFamilyID,
+		Name:     "pk_channel",
+		Columns:  []uint16{columnIDStringKey, columnIDIntKey},
+		Layout:   KeyLayout{KeyString, KeyInt64Ordered},
+		Key: func(channel Channel) KeyParts {
+			return KeyParts{String(channel.ChannelID), Int64Ordered(channel.ChannelType)}
+		},
+	},
+	Indexes: []IndexSpec[Channel]{
+		{
+			ID:      channelIDIndexID,
+			Name:    "idx_channel_id",
+			Columns: []uint16{columnIDStringKey, columnIDIntKey},
+			Layout:  KeyLayout{KeyString, KeyInt64Ordered},
+			// Keep the pre-runtime durable index key as (channel_id, channel_type).
+			PrimaryFromIndex: true,
+			// Keep channel bytes in index values for old channel-index readers.
+			StorePrimaryValue: true,
+			Key: func(channel Channel) (KeyParts, bool) {
+				return KeyParts{String(channel.ChannelID), Int64Ordered(channel.ChannelType)}, true
+			},
+		},
+		{
+			ID:             channelActiveIndexID,
+			Name:           "idx_channel_active",
+			Columns:        []uint16{columnIDUpdatedAt, columnIDStringKey},
+			Layout:         KeyLayout{KeyInt64Ordered, KeyString},
+			DescriptorOnly: true,
+		},
+	},
+	Validate: validateChannel,
+	EncodeValue: func(channel Channel) ([]byte, error) {
+		return encodeChannelValue(channel), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (Channel, error) {
+		return decodeChannelValue(primary[0].S, primary[1].I64, value)
+	},
+})
+
+// ChannelTable describes the channel table schema.
+var ChannelTable = channelTable.Schema()
+
 // CreateChannel inserts a channel and rejects duplicates.
 func (s *Shard) CreateChannel(ctx context.Context, channel Channel) error {
-	if err := s.check(ctx); err != nil {
+	if err := channelTable.Create(ctx, s, channel); err != nil {
 		return err
 	}
-	if err := validateKeyString(channel.ChannelID); err != nil {
-		return err
-	}
-	unlock := s.lock()
-	defer unlock()
-	primaryKey := encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID)
-	if _, ok, err := s.db.get(primaryKey); err != nil || ok {
-		if err != nil {
-			return err
-		}
-		return dberrors.ErrAlreadyExists
-	}
-	return s.writeChannelLocked(primaryKey, channel)
+	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	return nil
 }
 
 // UpsertChannel stores a channel regardless of prior existence.
 func (s *Shard) UpsertChannel(ctx context.Context, channel Channel) error {
-	if err := s.check(ctx); err != nil {
+	if err := channelTable.Upsert(ctx, s, channel); err != nil {
 		return err
 	}
-	if err := validateKeyString(channel.ChannelID); err != nil {
-		return err
-	}
-	unlock := s.lock()
-	defer unlock()
-	return s.writeChannelLocked(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID), channel)
+	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	return nil
 }
 
 // UpdateChannel updates an existing channel.
 func (s *Shard) UpdateChannel(ctx context.Context, channel Channel) error {
-	if err := s.check(ctx); err != nil {
+	if err := channelTable.Update(ctx, s, channel); err != nil {
 		return err
 	}
-	if err := validateKeyString(channel.ChannelID); err != nil {
-		return err
-	}
-	unlock := s.lock()
-	defer unlock()
-	primaryKey := encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID)
-	if _, ok, err := s.db.get(primaryKey); err != nil || !ok {
-		if err != nil {
-			return err
-		}
-		return dberrors.ErrNotFound
-	}
-	return s.writeChannelLocked(primaryKey, channel)
+	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	return nil
 }
 
 // GetChannel returns one channel by ID and type.
@@ -86,13 +119,9 @@ func (s *Shard) GetChannel(ctx context.Context, channelID string, channelType in
 	if channel, ok := s.db.cachedChannel(primaryKey); ok {
 		return channel, true, nil
 	}
-	value, ok, err := s.db.get(primaryKey)
+	channel, ok, err := channelTable.Get(ctx, s, KeyParts{String(channelID), Int64Ordered(channelType)})
 	if err != nil || !ok {
 		return Channel{}, ok, err
-	}
-	channel, err := decodeChannelValue(channelID, channelType, value)
-	if err != nil {
-		return Channel{}, false, err
 	}
 	s.db.rememberChannel(primaryKey, channel)
 	return channel, true, nil
@@ -106,18 +135,8 @@ func (s *Shard) DeleteChannel(ctx context.Context, channelID string, channelType
 	if err := validateKeyString(channelID); err != nil {
 		return err
 	}
-	unlock := s.lock()
-	defer unlock()
 	primaryKey := encodeChannelRowKey(s.hashSlot, channelID, channelType, channelPrimaryFamilyID)
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := batch.Delete(primaryKey); err != nil {
-		return err
-	}
-	if err := batch.Delete(encodeChannelIDIndexKey(s.hashSlot, channelID, int64(channelType))); err != nil {
-		return err
-	}
-	if err := batch.Commit(true); err != nil {
+	if err := channelTable.Delete(ctx, s, KeyParts{String(channelID), Int64Ordered(channelType)}); err != nil {
 		return err
 	}
 	s.db.forgetChannel(primaryKey)
@@ -132,60 +151,29 @@ func (s *Shard) ListChannelsByChannelID(ctx context.Context, channelID string) (
 	if err := validateKeyString(channelID); err != nil {
 		return nil, err
 	}
-	prefix := encodeChannelIDIndexPrefix(s.hashSlot, channelID)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer iter.Close()
-	channels := make([]Channel, 0)
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		channelType, ok := decodeChannelIDIndexType(prefix, iter.Key())
-		if !ok {
-			return nil, dberrors.ErrCorruptValue
-		}
-		value, err := iter.Value()
-		if err != nil {
-			return nil, err
-		}
-		channel, err := decodeChannelValue(channelID, channelType, value)
-		if err != nil {
-			return nil, err
-		}
-		channels = append(channels, channel)
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-	return channels, nil
-}
-
-func (s *Shard) writeChannelLocked(primaryKey []byte, channel Channel) error {
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := s.stageChannel(batch, primaryKey, channel); err != nil {
-		return err
-	}
-	if err := batch.Commit(true); err != nil {
-		return err
-	}
-	s.db.forgetChannel(primaryKey)
-	return nil
+	return channelTable.ScanIndexAll(ctx, s, channelIDIndexID, KeyParts{String(channelID)})
 }
 
 func (s *Shard) stageChannel(batch *engine.Batch, primaryKey []byte, channel Channel) error {
-	value := encodeChannelValue(channel)
+	pk, err := channelTable.primaryKey(channel)
+	if err != nil {
+		return err
+	}
+	value, err := channelTable.spec.EncodeValue(channel)
+	if err != nil {
+		return err
+	}
 	if err := batch.Set(primaryKey, value); err != nil {
 		return err
 	}
-	if err := batch.Set(encodeChannelIDIndexKey(s.hashSlot, channel.ChannelID, int64(channel.ChannelType)), value); err != nil {
+	if err := channelTable.stagePutIndexEntries(batch, s.hashSlot, channel, pk, value); err != nil {
 		return err
 	}
 	return nil
+}
+
+func validateChannel(channel Channel) error {
+	return validateKeyString(channel.ChannelID)
 }
 
 func encodeChannelValue(channel Channel) []byte {
@@ -230,17 +218,4 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 		AllowStranger:             allowStranger,
 		SubscriberMutationVersion: version,
 	}, nil
-}
-
-func decodeChannelIDIndexType(prefix []byte, key []byte) (int64, bool) {
-	if !bytes.HasPrefix(key, prefix) {
-		return 0, false
-	}
-	rest := key[len(prefix):]
-	if len(rest) != 8 {
-		return 0, false
-	}
-	ordered := binary.BigEndian.Uint64(rest)
-	value := int64(ordered ^ (uint64(1) << 63))
-	return value, true
 }
