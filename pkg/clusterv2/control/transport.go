@@ -106,3 +106,39 @@ func NewStateSyncHandler(endpoint cv2sync.Endpoint) clusternet.Handler {
 		return EncodeStateSyncResponse(resp)
 	})
 }
+
+// StaticPeerPicker resolves a fixed ControllerV2 voter set to clusterv2 sync endpoints.
+type StaticPeerPicker struct {
+	endpoints map[uint64]cv2sync.Endpoint
+	ids       []uint64
+}
+
+// NewStaticPeerPicker creates a fixed peer picker backed by caller.
+func NewStaticPeerPicker(caller clusternet.Caller, voters []RuntimeVoter) *StaticPeerPicker {
+	picker := &StaticPeerPicker{
+		endpoints: make(map[uint64]cv2sync.Endpoint, len(voters)),
+		ids:       make([]uint64, 0, len(voters)),
+	}
+	for _, voter := range voters {
+		picker.ids = append(picker.ids, voter.NodeID)
+		picker.endpoints[voter.NodeID] = NewStateSyncEndpoint(caller, voter.NodeID)
+	}
+	return picker
+}
+
+// Endpoint returns the sync endpoint for nodeID.
+func (p *StaticPeerPicker) Endpoint(nodeID uint64) (cv2sync.Endpoint, bool) {
+	if p == nil {
+		return nil, false
+	}
+	endpoint, ok := p.endpoints[nodeID]
+	return endpoint, ok
+}
+
+// PeerIDs returns the fixed ControllerV2 voter IDs.
+func (p *StaticPeerPicker) PeerIDs() []uint64 {
+	if p == nil {
+		return nil
+	}
+	return append([]uint64(nil), p.ids...)
+}

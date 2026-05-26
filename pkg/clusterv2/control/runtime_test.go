@@ -6,6 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
+	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
 )
 
 func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
@@ -93,5 +97,43 @@ func TestRuntimeRestartReusesExistingState(t *testing.T) {
 
 	if secondSnap.Revision != firstSnap.Revision || len(secondSnap.Slots) != len(firstSnap.Slots) {
 		t.Fatalf("restart snapshot = %#v, first %#v", secondSnap, firstSnap)
+	}
+}
+
+func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	leaderState := controllerV2State()
+	syncServer := cv2sync.NewServer(cv2sync.ServerConfig{
+		NodeID:    1,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 1 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (cv2state.ClusterState, error) { return leaderState, nil },
+	})
+	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:    4,
+		Addr:      "n4",
+		StateDir:  t.TempDir(),
+		ClusterID: leaderState.ClusterID,
+		Role:      RuntimeRoleMirror,
+		Voters:    []RuntimeVoter{{NodeID: 1, Addr: "n1"}},
+		SyncPeers: NewStaticPeerPicker(network, []RuntimeVoter{{NodeID: 1, Addr: "n1"}}),
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	snap, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot() error = %v", err)
+	}
+	if snap.Revision != leaderState.Revision || len(snap.Nodes) != len(leaderState.Nodes) {
+		t.Fatalf("mirror snapshot = %#v, want revision %d", snap, leaderState.Revision)
 	}
 }
