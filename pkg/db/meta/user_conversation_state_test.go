@@ -41,6 +41,89 @@ func TestUserConversationActiveReturnsRecentFirst(t *testing.T) {
 	}
 }
 
+func TestUserConversationActiveIndexKeepsLegacyLayout(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(21)
+	ctx := context.Background()
+
+	state := UserConversationState{UID: "u-layout", ChannelID: "g1", ChannelType: 2, ActiveAt: 123, UpdatedAt: 10}
+	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertUserConversationState(): %v", err)
+	}
+
+	legacyKey := encodeConversationActiveIndexKey(21, TableIDConversation, state.UID, state.ActiveAt, state.ChannelID, state.ChannelType)
+	if _, ok, err := store.engine.Get(legacyKey); err != nil || !ok {
+		t.Fatalf("legacy active index exists ok=%v err=%v, want ok", ok, err)
+	}
+	genericKey, err := encodeTableIndexKey(
+		21,
+		TableIDConversation,
+		conversationActiveIndexID,
+		KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+		KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+	)
+	if err != nil {
+		t.Fatalf("encodeTableIndexKey(): %v", err)
+	}
+	if _, ok, err := store.engine.Get(genericKey); err != nil || ok {
+		t.Fatalf("generic suffixed active index exists ok=%v err=%v, want missing", ok, err)
+	}
+}
+
+func TestUserConversationActiveSkipsStaleIndex(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(23)
+	ctx := context.Background()
+
+	state := UserConversationState{UID: "u-stale", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10}
+	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertUserConversationState(): %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	staleKey := encodeConversationActiveIndexKey(23, TableIDConversation, state.UID, 200, state.ChannelID, state.ChannelType)
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("Set(stale index): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(stale index): %v", err)
+	}
+
+	got, err := shard.ListUserConversationActive(ctx, state.UID, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActive(): %v", err)
+	}
+	want := []UserConversationState{state}
+	if !equalUserConversationStates(got, want) {
+		t.Fatalf("active conversations = %+v, want %+v", got, want)
+	}
+}
+
+func TestUserConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(23)
+	ctx := context.Background()
+
+	prefix := encodeConversationActiveIndexPrefix(23, TableIDConversation, "u-bad")
+	badKey := append(append([]byte(nil), prefix...), 0x01)
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(badKey, nil); err != nil {
+		t.Fatalf("Set(malformed index): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed index): %v", err)
+	}
+
+	_, err := shard.ListUserConversationActive(ctx, "u-bad", 10)
+	if !errors.Is(err, dberrors.ErrCorruptValue) {
+		t.Fatalf("ListUserConversationActive() err = %v, want corrupt value", err)
+	}
+}
+
 func TestUserConversationTouchClearHideAndPage(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
