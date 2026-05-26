@@ -154,6 +154,24 @@ func (n *Node) Start(ctx context.Context) error {
 }
 
 func (n *Node) ensureDefaultRuntime() (bool, error) {
+	if n.control == nil {
+		runtime, err := control.NewRuntime(control.RuntimeConfig{
+			NodeID:           n.cfg.NodeID,
+			Addr:             n.cfg.ListenAddr,
+			StateDir:         n.cfg.Control.StateDir,
+			ClusterID:        n.cfg.Control.ClusterID,
+			Role:             control.RuntimeRole(n.cfg.Control.Role),
+			Voters:           runtimeVoters(n.cfg.Control.Voters),
+			AllowBootstrap:   n.cfg.Control.AllowBootstrap,
+			InitialSlotCount: n.cfg.Slots.InitialSlotCount,
+			HashSlotCount:    n.cfg.Slots.HashSlotCount,
+			ReplicaCount:     n.cfg.Slots.ReplicaCount,
+		})
+		if err != nil {
+			return false, err
+		}
+		n.control = runtime
+	}
 	if n.proposer == nil {
 		n.proposer = propose.NewService(propose.Config{LocalNode: n.cfg.NodeID, Router: n.router})
 	}
@@ -360,6 +378,14 @@ func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {
 	out := make([]clusternet.NodeAddress, 0, len(nodes))
 	for _, node := range nodes {
 		out = append(out, clusternet.NodeAddress{NodeID: node.NodeID, Addr: node.Addr})
+	}
+	return out
+}
+
+func runtimeVoters(voters []ControlVoter) []control.RuntimeVoter {
+	out := make([]control.RuntimeVoter, 0, len(voters))
+	for _, voter := range voters {
+		out = append(out, control.RuntimeVoter{NodeID: voter.NodeID, Addr: voter.Addr})
 	}
 	return out
 }
