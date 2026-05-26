@@ -8,6 +8,27 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
+func TestSnapshotReplaceSpansUseRegistryPolicies(t *testing.T) {
+	spans := hashSlotSnapshotReplaceSpans(9, true)
+	for _, span := range spans {
+		if bytesInSpan(encodeHashSlotMigrationStateKey(9), span) {
+			t.Fatalf("preserving replace spans include hash-slot migration key span: %#v", span)
+		}
+	}
+
+	foundUser := false
+	userKey := encodeUserRowKey(9, "u1", userPrimaryFamilyID)
+	for _, span := range spans {
+		if bytesInSpan(userKey, span) {
+			foundUser = true
+			break
+		}
+	}
+	if !foundUser {
+		t.Fatalf("preserving replace spans did not include user row span")
+	}
+}
+
 func TestSnapshotHashSlotRoundTripAndDeleteHashSlotData(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

@@ -77,6 +77,26 @@ func (r *metaTableRegistry) tables() []schema.Table {
 	return tables
 }
 
+func (r *metaTableRegistry) rowTablesForSnapshot(preserve bool) []schema.Table {
+	if r == nil || len(r.byID) == 0 {
+		return nil
+	}
+	ids := make([]uint32, 0, len(r.byID))
+	for id, descriptor := range r.byID {
+		if preserve && descriptor.SnapshotPolicy.PreserveOnImport {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	tables := make([]schema.Table, 0, len(ids))
+	for _, id := range ids {
+		tables = append(tables, cloneSchemaTable(r.byID[id].Table))
+	}
+	return tables
+}
+
 func cloneMetaTableDescriptor(descriptor metaTableDescriptor) metaTableDescriptor {
 	descriptor.Table = cloneSchemaTable(descriptor.Table)
 	return descriptor
