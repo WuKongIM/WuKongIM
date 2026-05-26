@@ -48,10 +48,17 @@ type batchCommitState struct {
 	db               *MetaDB
 	createdUsers     map[string]struct{}
 	userWrites       map[string]struct{}
+	tableRows        map[string]tableRowOverlay
+	tableCreates     map[string]struct{}
 	runtimeMeta      map[string]runtimeMetaOverlay
 	migrationTasks   map[string]migrationTaskOverlay
 	channelPublishes map[string]Channel
 	channelDeletes   map[string]struct{}
+}
+
+type tableRowOverlay struct {
+	value  []byte
+	exists bool
 }
 
 type runtimeMetaOverlay struct {
@@ -302,6 +309,8 @@ func (b *Batch) Commit(ctx context.Context) error {
 		db:               b.db,
 		createdUsers:     make(map[string]struct{}),
 		userWrites:       make(map[string]struct{}),
+		tableRows:        make(map[string]tableRowOverlay),
+		tableCreates:     make(map[string]struct{}),
 		runtimeMeta:      make(map[string]runtimeMetaOverlay),
 		migrationTasks:   make(map[string]migrationTaskOverlay),
 		channelPublishes: make(map[string]Channel),
