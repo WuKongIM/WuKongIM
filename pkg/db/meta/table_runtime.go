@@ -1,9 +1,12 @@
 package meta
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
@@ -119,4 +122,267 @@ func cloneFamilies(families []schema.Family) []schema.Family {
 		out[i].Columns = append([]uint16(nil), out[i].Columns...)
 	}
 	return out
+}
+
+type tableWriteMode uint8
+
+const (
+	tableWriteCreate tableWriteMode = iota + 1
+	tableWriteUpdate
+	tableWriteUpsert
+)
+
+// Get returns one row by primary key.
+func (t Table[R]) Get(ctx context.Context, s *Shard, pk KeyParts) (R, bool, error) {
+	var zero R
+	if err := s.check(ctx); err != nil {
+		return zero, false, err
+	}
+	row, exists, err := t.getByPrimaryKey(s.db, s.hashSlot, pk)
+	if err != nil || !exists {
+		return zero, exists, err
+	}
+	return row, true, nil
+}
+
+// Create inserts a row and rejects duplicate primary keys.
+func (t Table[R]) Create(ctx context.Context, s *Shard, row R) error {
+	return t.write(ctx, s, row, tableWriteCreate)
+}
+
+// Update replaces an existing row and rejects missing primary keys.
+func (t Table[R]) Update(ctx context.Context, s *Shard, row R) error {
+	return t.write(ctx, s, row, tableWriteUpdate)
+}
+
+// Upsert stores a row regardless of prior existence.
+func (t Table[R]) Upsert(ctx context.Context, s *Shard, row R) error {
+	return t.write(ctx, s, row, tableWriteUpsert)
+}
+
+// Delete removes a row by primary key. Missing rows are ignored.
+func (t Table[R]) Delete(ctx context.Context, s *Shard, pk KeyParts) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	if err := t.validatePrimaryKey(pk); err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+
+	primaryKey, err := t.primaryRowKey(s.hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Delete(primaryKey); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
+// ScanPrimary returns a primary-key ordered page after cursor.
+func (t Table[R]) ScanPrimary(ctx context.Context, s *Shard, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	if limit <= 0 {
+		return nil, nil, true, nil
+	}
+	return t.scanPrimary(ctx, s, nil, after, limit, false)
+}
+
+// ScanPrimaryPrefix returns primary-key ordered rows matching prefix.
+func (t Table[R]) ScanPrimaryPrefix(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0)
+}
+
+func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMode) error {
+	if err := s.check(ctx); err != nil {
+		return err
+	}
+	if t.spec.Validate != nil {
+		if err := t.spec.Validate(row); err != nil {
+			return err
+		}
+	}
+	pk, err := t.primaryKey(row)
+	if err != nil {
+		return err
+	}
+	value, err := t.spec.EncodeValue(row)
+	if err != nil {
+		return err
+	}
+	unlock := s.lock()
+	defer unlock()
+
+	primaryKey, err := t.primaryRowKey(s.hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	_, exists, err := s.db.get(primaryKey)
+	if err != nil {
+		return err
+	}
+	switch mode {
+	case tableWriteCreate:
+		if exists {
+			return dberrors.ErrAlreadyExists
+		}
+	case tableWriteUpdate:
+		if !exists {
+			return dberrors.ErrNotFound
+		}
+	}
+
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(primaryKey, value); err != nil {
+		return err
+	}
+	return batch.Commit(true)
+}
+
+func (t Table[R]) getByPrimaryKey(db *MetaDB, hashSlot HashSlot, pk KeyParts) (R, bool, error) {
+	var zero R
+	if err := t.validatePrimaryKey(pk); err != nil {
+		return zero, false, err
+	}
+	primaryKey, err := t.primaryRowKey(hashSlot, pk)
+	if err != nil {
+		return zero, false, err
+	}
+	value, ok, err := db.get(primaryKey)
+	if err != nil || !ok {
+		return zero, ok, err
+	}
+	row, err := t.spec.DecodeValue(pk, value)
+	if err != nil {
+		return zero, false, err
+	}
+	return row, true, nil
+}
+
+func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool) ([]R, KeyParts, bool, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, nil, false, err
+	}
+	if err := t.validatePrimaryPrefix(prefix); err != nil {
+		return nil, nil, false, err
+	}
+	if len(after) > 0 {
+		if err := t.validatePrimaryKey(after); err != nil {
+			return nil, nil, false, err
+		}
+	}
+
+	basePrefix := encodeRowPrefix(s.hashSlot, t.spec.ID)
+	scanPrefix, err := encodeKeyParts(basePrefix, prefix)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	span := keycodec.NewPrefixSpan(scanPrefix)
+	if len(after) > 0 {
+		afterKey, err := t.primaryRowKey(s.hashSlot, after)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		span.Start = keycodec.PrefixEnd(afterKey)
+	}
+	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return nil, nil, false, err
+	}
+	defer iter.Close()
+
+	rows := make([]R, 0, positiveLimit(limit))
+	var cursor KeyParts
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := contextErr(ctx); err != nil {
+			return nil, nil, false, err
+		}
+		pk, ok := decodeTablePrimaryRowKey(basePrefix, iter.Key(), t.spec.Primary.Layout, t.spec.Primary.FamilyID)
+		if !ok || !keyPartsHasPrefix(pk, prefix) {
+			continue
+		}
+		value, err := iter.Value()
+		if err != nil {
+			return nil, nil, false, err
+		}
+		row, err := t.spec.DecodeValue(pk, value)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		if !unlimited && len(rows) == limit {
+			return rows, cursor, false, nil
+		}
+		rows = append(rows, row)
+		cursor = append(KeyParts(nil), pk...)
+	}
+	if err := iter.Error(); err != nil {
+		return nil, nil, false, err
+	}
+	return rows, nil, true, nil
+}
+
+func (t Table[R]) primaryKey(row R) (KeyParts, error) {
+	parts := t.spec.Primary.Key(row)
+	if err := t.validatePrimaryKey(parts); err != nil {
+		return nil, err
+	}
+	return parts, nil
+}
+
+func (t Table[R]) primaryRowKey(hashSlot HashSlot, pk KeyParts) ([]byte, error) {
+	if err := t.validatePrimaryKey(pk); err != nil {
+		return nil, err
+	}
+	return encodeTablePrimaryRowKey(hashSlot, t.spec.ID, pk, t.spec.Primary.FamilyID)
+}
+
+func (t Table[R]) validatePrimaryKey(pk KeyParts) error {
+	return validateKeyPartsAgainstLayout(pk, t.spec.Primary.Layout)
+}
+
+func (t Table[R]) validatePrimaryPrefix(prefix KeyParts) error {
+	if len(prefix) > len(t.spec.Primary.Layout) {
+		return dberrors.ErrInvalidArgument
+	}
+	return validateKeyPartsAgainstLayout(prefix, t.spec.Primary.Layout[:len(prefix)])
+}
+
+func validateKeyPartsAgainstLayout(parts KeyParts, layout KeyLayout) error {
+	if len(parts) != len(layout) {
+		return dberrors.ErrInvalidArgument
+	}
+	for i, part := range parts {
+		if part.Kind != layout[i] {
+			return dberrors.ErrInvalidArgument
+		}
+		if part.Kind == KeyString {
+			if err := validateKeyString(part.S); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func keyPartsHasPrefix(parts KeyParts, prefix KeyParts) bool {
+	if len(prefix) > len(parts) {
+		return false
+	}
+	for i := range prefix {
+		if parts[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func positiveLimit(limit int) int {
+	if limit > 0 {
+		return limit
+	}
+	return 0
 }
