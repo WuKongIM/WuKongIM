@@ -161,6 +161,32 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 }
 
+func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+			{Result: message.SendResult{MessageID: 12, MessageSeq: 102, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+	})
+	if err == nil {
+		t.Fatalf("OnSendBatch() error = nil, want batch result count mismatch")
+	}
+	if len(written) != 0 {
+		t.Fatalf("written frame count = %d, want 0 on mismatch", len(written))
+	}
+}
+
 type recordingMessages struct {
 	sendResult   message.SendResult
 	sendErr      error
