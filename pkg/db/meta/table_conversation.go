@@ -1,14 +1,12 @@
 package meta
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
@@ -474,52 +472,10 @@ func decodeConversationValue(value []byte) (uint64, uint64, int64, int64, error)
 	return readSeq, deletedToSeq, activeAt, updatedAt, nil
 }
 
-func decodeConversationRowKey(prefix []byte, key []byte) (string, int64, uint16, bool) {
-	if !bytes.HasPrefix(key, prefix) {
-		return "", 0, 0, false
-	}
-	channelID, rest, err := keycodec.ReadString(key[len(prefix):])
-	if err != nil {
-		return "", 0, 0, false
-	}
-	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 2 {
-		return "", 0, 0, false
-	}
-	return channelID, channelTypeValue, binary.BigEndian.Uint16(rest), true
-}
-
-func decodeConversationActiveIndexKey(prefix []byte, key []byte) (int64, ConversationKey, error) {
-	if !bytes.HasPrefix(key, prefix) {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	activeAt, rest, err := readKeyInt64Desc(key[len(prefix):])
-	if err != nil {
-		return 0, ConversationKey{}, err
-	}
-	channelID, rest, err := keycodec.ReadString(rest)
-	if err != nil {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 0 {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	return activeAt, ConversationKey{ChannelID: channelID, ChannelType: channelTypeValue}, nil
-}
-
 func readKeyInt64Ordered(src []byte) (int64, []byte, error) {
 	if len(src) < 8 {
 		return 0, nil, dberrors.ErrCorruptValue
 	}
 	ordered := binary.BigEndian.Uint64(src[:8])
-	return int64(ordered ^ (uint64(1) << 63)), src[8:], nil
-}
-
-func readKeyInt64Desc(src []byte) (int64, []byte, error) {
-	if len(src) < 8 {
-		return 0, nil, dberrors.ErrCorruptValue
-	}
-	ordered := ^binary.BigEndian.Uint64(src[:8])
 	return int64(ordered ^ (uint64(1) << 63)), src[8:], nil
 }
