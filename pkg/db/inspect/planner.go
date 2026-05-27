@@ -45,6 +45,9 @@ func planQuery(opts Options, q Query) (plan, error) {
 	if !ok {
 		return plan{}, ErrInvalidQuery
 	}
+	if !inspectTableExists(domain, table) {
+		return plan{}, ErrInvalidQuery
+	}
 	if err := validateFilters(domain, table, q.Filters); err != nil {
 		return plan{}, err
 	}
@@ -99,7 +102,11 @@ func planMetaQuery(opts Options, p plan) (plan, error) {
 
 	qualified := p.Domain + "." + p.TableName
 	if keyName, ok := partitionKeys[qualified]; ok {
-		if value, ok := p.Query.Filters[keyName].(string); ok && value != "" {
+		if raw, exists := p.Query.Filters[keyName]; exists {
+			value, ok := raw.(string)
+			if !ok || value == "" {
+				return plan{}, ErrInvalidQuery
+			}
 			if opts.HashSlotCount == 0 {
 				return plan{}, ErrHashSlotRequired
 			}
@@ -135,9 +142,6 @@ func planMessageQuery(p plan) (plan, error) {
 }
 
 func validateFilters(domain, table string, filters map[string]any) error {
-	if len(filters) == 0 {
-		return nil
-	}
 	qualified := domain + "." + table
 	columns, ok := inspectColumns[qualified]
 	if !ok {
@@ -165,6 +169,14 @@ func validateCursorForPlan(p plan) error {
 	if p.Cursor.Domain != p.Domain || p.Cursor.Table != p.TableName || p.Cursor.ScanMode != p.ScanMode {
 		return ErrCursorMismatch
 	}
+	if p.Domain == "meta" {
+		if p.HashSlotCount > 0 && p.Cursor.HashSlot >= p.HashSlotCount {
+			return ErrCursorMismatch
+		}
+		if p.HashSlotSet && p.Cursor.HashSlot != p.HashSlot {
+			return ErrCursorMismatch
+		}
+	}
 	if p.ScanMode == scanModeMessageChannel {
 		channelKey, _ := p.Query.Filters["channel_key"].(string)
 		if p.Cursor.ChannelKey != channelKey {
@@ -172,6 +184,11 @@ func validateCursorForPlan(p plan) error {
 		}
 	}
 	return nil
+}
+
+func inspectTableExists(domain, table string) bool {
+	_, ok := inspectColumns[domain+"."+table]
+	return ok
 }
 
 func normalizeLimit(opts Options, limit int) int {

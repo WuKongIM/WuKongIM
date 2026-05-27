@@ -368,15 +368,16 @@ var inspectColumnTypes = map[string]string{
 }
 
 func validateProjection(domain, table string, columns []string) error {
+	tableColumns, ok := inspectColumns[domain+"."+table]
+	if !ok {
+		return ErrInvalidQuery
+	}
 	if len(columns) == 0 || len(columns) == 1 && columns[0] == "*" {
 		return nil
 	}
-	allowed := make(map[string]struct{}, len(inspectColumns[domain+"."+table]))
-	for _, column := range inspectColumns[domain+"."+table] {
+	allowed := make(map[string]struct{}, len(tableColumns))
+	for _, column := range tableColumns {
 		allowed[column] = struct{}{}
-	}
-	if len(allowed) == 0 {
-		return ErrInvalidQuery
 	}
 	for _, column := range columns {
 		if _, ok := allowed[column]; !ok {
