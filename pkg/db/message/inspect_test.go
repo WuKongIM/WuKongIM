@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -161,6 +162,71 @@ func TestInspectMessagesByChannelKeyAndCursor(t *testing.T) {
 	}
 }
 
+func TestInspectMessagesDoesNotPopulateChannelCache(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	got, err := InspectMessages(ctx, store.db, InspectMessageRequest{ChannelKey: "g1:2"})
+	if err != nil {
+		t.Fatalf("InspectMessages(): %v", err)
+	}
+	if len(got.Rows) != 0 || !got.Done || got.Next != nil {
+		t.Fatalf("InspectMessages() = %+v, want empty done result", got)
+	}
+	if _, ok := store.db.logs[ChannelKey("g1:2")]; ok {
+		t.Fatalf("InspectMessages populated db.logs for g1:2")
+	}
+
+	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	if _, err := log.Append(ctx, testRecords(200, "after-inspect"), AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	entries, err := store.db.ListChannels(ctx)
+	if err != nil {
+		t.Fatalf("ListChannels(): %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries len = %d, want 1: %+v", len(entries), entries)
+	}
+	if entries[0].ID.ID != "g1" || entries[0].ID.Type != 2 {
+		t.Fatalf("catalog ID = %+v, want real channel ID/type", entries[0].ID)
+	}
+}
+
+func TestInspectMessagesAfterMaxSeqIsDone(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	if _, err := log.Append(ctx, testRecords(300, "payload"), AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	got, err := InspectMessages(ctx, store.db, InspectMessageRequest{
+		ChannelKey: "g1:2",
+		AfterSeq:   math.MaxUint64,
+		Limit:      1,
+	})
+	if err != nil {
+		t.Fatalf("InspectMessages(): %v", err)
+	}
+	if len(got.Rows) != 0 {
+		t.Fatalf("rows len = %d, want 0: %+v", len(got.Rows), got.Rows)
+	}
+	if !got.Done {
+		t.Fatalf("Done = false, want true")
+	}
+	if got.Next != nil {
+		t.Fatalf("Next = %+v, want nil", got.Next)
+	}
+	if got.ScannedRows != 0 {
+		t.Fatalf("ScannedRows = %d, want 0", got.ScannedRows)
+	}
+}
+
 func TestInspectMessagesRequiresChannelKey(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
@@ -222,7 +288,7 @@ func assertInspectMessageRow(t *testing.T, row InspectMessageRow, record Record,
 	if row["payload_hash"] != hashPayload(record.Payload) {
 		t.Fatalf("payload_hash = %v, want %d in %+v", row["payload_hash"], hashPayload(record.Payload), row)
 	}
-	if row["payload_size"] != len(record.Payload) {
+	if row["payload_size"] != uint64(len(record.Payload)) {
 		t.Fatalf("payload_size = %v, want %d in %+v", row["payload_size"], len(record.Payload), row)
 	}
 	payload, ok := row["payload"].([]byte)
