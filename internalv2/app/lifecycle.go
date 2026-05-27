@@ -7,25 +7,36 @@ import (
 
 // Start starts the cluster first, then the gateway when configured.
 func (a *App) Start(ctx context.Context) error {
-	if a == nil || a.cluster == nil {
+	if a == nil {
 		return ErrInvalidConfig
 	}
-	if a.stopped.Load() {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+
+	if a.cluster == nil {
+		return ErrInvalidConfig
+	}
+	if a.stopped {
 		return ErrStopped
 	}
-	if !a.started.CompareAndSwap(false, true) {
+	if a.started {
 		return ErrAlreadyStarted
 	}
 	if err := a.cluster.Start(ctx); err != nil {
-		a.started.Store(false)
 		return err
 	}
+	a.started = true
+	a.clusterStarted = true
 	if a.gateway != nil {
 		if err := a.gateway.Start(); err != nil {
 			stopErr := a.cluster.Stop(ctx)
-			a.started.Store(false)
+			if stopErr == nil {
+				a.started = false
+				a.clusterStarted = false
+			}
 			return errors.Join(err, stopErr)
 		}
+		a.gatewayStarted = true
 	}
 	return nil
 }
@@ -35,16 +46,30 @@ func (a *App) Stop(ctx context.Context) error {
 	if a == nil {
 		return nil
 	}
-	a.stopped.Store(true)
-	if !a.started.Swap(false) {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+
+	a.stopped = true
+	if !a.started {
 		return nil
 	}
 	var err error
-	if a.gateway != nil {
-		err = errors.Join(err, a.gateway.Stop())
+	if a.gatewayStarted && a.gateway != nil {
+		if stopErr := a.gateway.Stop(); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.gatewayStarted = false
+		}
 	}
-	if a.cluster != nil {
-		err = errors.Join(err, a.cluster.Stop(ctx))
+	if a.clusterStarted && a.cluster != nil {
+		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.clusterStarted = false
+		}
+	}
+	if !a.gatewayStarted && !a.clusterStarted {
+		a.started = false
 	}
 	return err
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
@@ -33,8 +34,12 @@ type App struct {
 	gateway  GatewayRuntime
 	handler  *accessgateway.Handler
 	messages *message.App
-	started  atomic.Bool
-	stopped  atomic.Bool
+
+	lifecycleMu    sync.Mutex
+	started        bool
+	stopped        bool
+	clusterStarted bool
+	gatewayStarted bool
 }
 
 // New creates an internalv2 App.
