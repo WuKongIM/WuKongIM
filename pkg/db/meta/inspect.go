@@ -111,6 +111,10 @@ func inspectScanTable[R any](ctx context.Context, db *MetaDB, req InspectScanReq
 	if err != nil {
 		return InspectScanResult{}, err
 	}
+	prefix := inspectPrimaryPrefix(req.Table, table, req.Filters)
+	if req.After != nil && len(afterPrimary) > 0 && len(prefix) > 0 && !keyPartsHasPrefix(afterPrimary, prefix) {
+		return InspectScanResult{}, fmt.Errorf("%w: inspect cursor outside primary prefix", dberrors.ErrInvalidArgument)
+	}
 
 	result := InspectScanResult{
 		Rows: make([]InspectRow, 0, req.Limit),
@@ -126,7 +130,7 @@ func inspectScanTable[R any](ctx context.Context, db *MetaDB, req InspectScanReq
 		if req.After != nil && req.After.HashSlot == slot {
 			after = afterPrimary
 		}
-		scannedSlot, done, next, err := inspectScanTableSlot(ctx, db.HashSlot(slot), table, after, req.Limit, req.Filters, rowFn, &result)
+		scannedSlot, done, next, err := inspectScanTableSlot(ctx, db.HashSlot(slot), table, prefix, after, req.Limit, req.Filters, rowFn, &result)
 		if err != nil {
 			return InspectScanResult{}, err
 		}
@@ -174,6 +178,54 @@ func inspectCheckDB(db *MetaDB) error {
 	return iter.Close()
 }
 
+func inspectPrimaryPrefix[R any](tableName string, table Table[R], filters map[string]any) KeyParts {
+	if len(filters) == 0 {
+		return nil
+	}
+	columns := inspectColumnsByID(table.schema.Columns)
+	prefix := make(KeyParts, 0, len(table.spec.Primary.Layout))
+	for i, columnID := range table.spec.Primary.Columns {
+		columnName, ok := columns[columnID]
+		if !ok {
+			break
+		}
+		value, ok := inspectPrimaryFilterValue(tableName, columnName, filters)
+		if !ok {
+			break
+		}
+		part, ok := inspectCoerceKeyPart(table.spec.Primary.Layout[i], value)
+		if !ok {
+			break
+		}
+		prefix = append(prefix, part)
+	}
+	return prefix
+}
+
+func inspectColumnsByID(columns []schema.Column) map[uint16]string {
+	out := make(map[uint16]string, len(columns))
+	for _, column := range columns {
+		out[column.ID] = column.Name
+	}
+	return out
+}
+
+func inspectPrimaryFilterValue(tableName, columnName string, filters map[string]any) (any, bool) {
+	for _, name := range inspectPrimaryFilterNames(tableName, columnName) {
+		if value, ok := filters[name]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func inspectPrimaryFilterNames(tableName, columnName string) []string {
+	if tableName == "user" && columnName == "key" {
+		return []string{"uid", "key"}
+	}
+	return []string{columnName}
+}
+
 func inspectCursorPrimary(tableName string, cursor *InspectCursor, layout KeyLayout) (KeyParts, error) {
 	if cursor == nil || len(cursor.Primary) == 0 {
 		return nil, nil
@@ -185,36 +237,12 @@ func inspectCursorPrimary(tableName string, cursor *InspectCursor, layout KeyLay
 	for i, kind := range layout {
 		value := cursor.Primary[i]
 		switch kind {
-		case KeyString:
-			part, ok := value.(string)
-			if !ok || part == "" {
-				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
-			}
-			parts = append(parts, String(part))
-		case KeyInt64Ordered:
-			part, ok := inspectCoerceInt64(value)
+		case KeyString, KeyInt64Ordered, KeyInt64Desc, KeyUint64, KeyUint8:
+			part, ok := inspectCoerceKeyPart(kind, value)
 			if !ok {
 				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 			}
-			parts = append(parts, Int64Ordered(part))
-		case KeyInt64Desc:
-			part, ok := inspectCoerceInt64(value)
-			if !ok {
-				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
-			}
-			parts = append(parts, Int64Desc(part))
-		case KeyUint64:
-			part, ok := inspectCoerceUint64(value)
-			if !ok {
-				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
-			}
-			parts = append(parts, Uint64(part))
-		case KeyUint8:
-			part, ok := inspectCoerceUint8(value)
-			if !ok {
-				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
-			}
-			parts = append(parts, Uint8(part))
+			parts = append(parts, part)
 		default:
 			return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 		}
@@ -240,6 +268,43 @@ func inspectCursorValues(parts KeyParts) []any {
 		}
 	}
 	return values
+}
+
+func inspectCoerceKeyPart(kind KeyPartKind, value any) (KeyPart, bool) {
+	switch kind {
+	case KeyString:
+		part, ok := value.(string)
+		if !ok || part == "" {
+			return KeyPart{}, false
+		}
+		return String(part), true
+	case KeyInt64Ordered:
+		part, ok := inspectCoerceInt64(value)
+		if !ok {
+			return KeyPart{}, false
+		}
+		return Int64Ordered(part), true
+	case KeyInt64Desc:
+		part, ok := inspectCoerceInt64(value)
+		if !ok {
+			return KeyPart{}, false
+		}
+		return Int64Desc(part), true
+	case KeyUint64:
+		part, ok := inspectCoerceUint64(value)
+		if !ok {
+			return KeyPart{}, false
+		}
+		return Uint64(part), true
+	case KeyUint8:
+		part, ok := inspectCoerceUint8(value)
+		if !ok {
+			return KeyPart{}, false
+		}
+		return Uint8(part), true
+	default:
+		return KeyPart{}, false
+	}
 }
 
 func inspectCoerceInt64(value any) (int64, bool) {
@@ -331,11 +396,11 @@ func inspectCoerceUint8(value any) (uint8, bool) {
 	return uint8(v), true
 }
 
-func inspectScanTableSlot[R any](ctx context.Context, shard *Shard, table Table[R], after KeyParts, targetRows int, filters map[string]any, rowFn func(R) InspectRow, result *InspectScanResult) (bool, bool, KeyParts, error) {
+func inspectScanTableSlot[R any](ctx context.Context, shard *Shard, table Table[R], prefix KeyParts, after KeyParts, targetRows int, filters map[string]any, rowFn func(R) InspectRow, result *InspectScanResult) (bool, bool, KeyParts, error) {
 	cursor := append(KeyParts(nil), after...)
 	for len(result.Rows) < targetRows {
 		pageLimit := targetRows - len(result.Rows)
-		rows, next, done, err := table.ScanPrimary(ctx, shard, cursor, pageLimit)
+		rows, next, done, err := inspectScanPrimaryPage(ctx, shard, table, prefix, cursor, pageLimit)
 		if err != nil {
 			return false, false, nil, err
 		}
@@ -355,6 +420,13 @@ func inspectScanTableSlot[R any](ctx context.Context, shard *Shard, table Table[
 		cursor = append(KeyParts(nil), next...)
 	}
 	return true, false, cursor, nil
+}
+
+func inspectScanPrimaryPage[R any](ctx context.Context, shard *Shard, table Table[R], prefix KeyParts, cursor KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	if len(prefix) > 0 {
+		return table.ScanPrimaryPrefix(ctx, shard, prefix, cursor, limit)
+	}
+	return table.ScanPrimary(ctx, shard, cursor, limit)
 }
 
 func inspectUserRow(user User) InspectRow {

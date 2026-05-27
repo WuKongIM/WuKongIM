@@ -203,6 +203,41 @@ func TestInspectScanDeviceByUID(t *testing.T) {
 	}
 }
 
+func TestInspectScanDeviceFilterUsesPrimaryPrefix(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(5)
+	for _, device := range []Device{
+		{UID: "u-prefix", DeviceFlag: 1, Token: "match"},
+		{UID: "z-other", DeviceFlag: 1, Token: "skip"},
+	} {
+		if err := shard.UpsertDevice(ctx, device); err != nil {
+			t.Fatalf("UpsertDevice(%+v): %v", device, err)
+		}
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "device",
+		HashSlot:    5,
+		HashSlotSet: true,
+		Filters:     map[string]any{"uid": "u-prefix"},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	if got.ScannedRows != 1 {
+		t.Fatalf("ScannedRows = %d, want 1 prefix-bounded decode", got.ScannedRows)
+	}
+	if got.Rows[0]["uid"] != "u-prefix" {
+		t.Fatalf("row = %+v, want u-prefix", got.Rows[0])
+	}
+}
+
 func TestInspectScanDeviceCursorAcceptsJSONFloat64NumericPart(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -244,6 +279,61 @@ func TestInspectScanRejectsNonIntegralNumericCursorPart(t *testing.T) {
 		HashSlot:    5,
 		HashSlotSet: true,
 		After:       &InspectCursor{HashSlot: 5, Primary: []any{"u-device", float64(1.5)}},
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrInvalidArgument) {
+		t.Fatalf("InspectScan() err = %v, want invalid argument", err)
+	}
+}
+
+func TestInspectScanSubscriberFilterUsesCompositePrimaryPrefix(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(11)
+	for _, subscriber := range []Subscriber{
+		{ChannelID: "sub", ChannelType: 2, UID: "u1"},
+		{ChannelID: "sub", ChannelType: 2, UID: "u2"},
+		{ChannelID: "zzz", ChannelType: 2, UID: "u3"},
+	} {
+		if err := subscriberTable.Upsert(ctx, shard, subscriber); err != nil {
+			t.Fatalf("subscriberTable.Upsert(%+v): %v", subscriber, err)
+		}
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "subscriber",
+		HashSlot:    11,
+		HashSlotSet: true,
+		Filters:     map[string]any{"channel_id": "sub", "channel_type": int64(2)},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 2 {
+		t.Fatalf("rows len = %d, want 2: %+v", len(got.Rows), got.Rows)
+	}
+	if got.ScannedRows != 2 {
+		t.Fatalf("ScannedRows = %d, want 2 prefix-bounded decodes", got.ScannedRows)
+	}
+	for _, row := range got.Rows {
+		if row["channel_id"] != "sub" || row["channel_type"] != int64(2) {
+			t.Fatalf("row = %+v, want subscriber prefix", row)
+		}
+	}
+}
+
+func TestInspectScanRejectsCursorOutsidePrimaryPrefixFilter(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+
+	_, err := InspectScan(context.Background(), store.db, InspectScanRequest{
+		Table:       "channel",
+		HashSlot:    7,
+		HashSlotSet: true,
+		Filters:     map[string]any{"channel_id": "g1"},
+		After:       &InspectCursor{HashSlot: 7, Primary: []any{"g2", int64(2)}},
 		Limit:       10,
 	})
 	if !errors.Is(err, dberrors.ErrInvalidArgument) {
