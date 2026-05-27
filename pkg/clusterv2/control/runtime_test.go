@@ -2,12 +2,14 @@ package control
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
 )
@@ -49,6 +51,53 @@ func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cfg.StateDir, "cluster-state.json")); err != nil {
 		t.Fatalf("cluster-state.json missing: %v", err)
+	}
+}
+
+func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-probe-single",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	before, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(before) error = %v", err)
+	}
+	if err := runtime.ProbePropose(ctx); err != nil {
+		t.Fatalf("ProbePropose() error = %v", err)
+	}
+	after, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(after) error = %v", err)
+	}
+	if before.Revision != after.Revision || len(before.Slots) != len(after.Slots) {
+		t.Fatalf("ProbePropose mutated local snapshot: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestRuntimeProbeProposeWithoutRaftReturnsNotStarted(t *testing.T) {
+	var runtime Runtime
+	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, cv2raft.ErrNotStarted) {
+		t.Fatalf("ProbePropose() error = %v, want ErrNotStarted", err)
 	}
 }
 
