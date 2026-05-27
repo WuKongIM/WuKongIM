@@ -17,6 +17,8 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	seen := make(map[uint32]string, len(tables))
 	channelIDIndexRegistered := false
 	channelActiveIndexRegistered := false
+	conversationActiveIndexRegistered := false
+	cmdConversationActiveIndexRegistered := false
 	for _, table := range tables {
 		if err := schema.ValidateTable(table); err != nil {
 			t.Fatalf("ValidateTable(%s): %v", table.Name, err)
@@ -35,12 +37,32 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 				}
 			}
 		}
+		if table.ID == TableIDConversation {
+			for _, index := range table.Indexes {
+				if index.ID == conversationActiveIndexID && index.Name == "idx_conversation_active" {
+					conversationActiveIndexRegistered = true
+				}
+			}
+		}
+		if table.ID == TableIDCMDConversation {
+			for _, index := range table.Indexes {
+				if index.ID == conversationActiveIndexID && index.Name == "idx_cmd_conversation_active" {
+					cmdConversationActiveIndexRegistered = true
+				}
+			}
+		}
 	}
 	if !channelIDIndexRegistered {
 		t.Fatalf("channel table missing idx_channel_id index %d", channelIDIndexID)
 	}
 	if !channelActiveIndexRegistered {
 		t.Fatalf("channel table missing idx_channel_active index %d", channelActiveIndexID)
+	}
+	if !conversationActiveIndexRegistered {
+		t.Fatalf("conversation table missing idx_conversation_active index %d", conversationActiveIndexID)
+	}
+	if !cmdConversationActiveIndexRegistered {
+		t.Fatalf("cmd conversation table missing idx_cmd_conversation_active index %d", conversationActiveIndexID)
 	}
 	for _, tableID := range []uint32{
 		TableIDUser,
