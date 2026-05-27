@@ -107,19 +107,22 @@ func runQuery(ctx context.Context, store *inspect.Store, format string, sql stri
 
 func runREPL(ctx context.Context, store *inspect.Store, format string, stdin io.Reader, stdout, stderr io.Writer) int {
 	scanner := bufio.NewScanner(stdin)
+	exitCode := exitOK
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
 		if line == "exit" || line == "quit" {
-			return exitOK
+			return exitCode
 		}
-		_ = runQuery(ctx, store, format, line, stdout, stderr)
+		if code := runQuery(ctx, store, format, line, stdout, stderr); code != exitOK && exitCode == exitOK {
+			exitCode = code
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(stderr, "read repl: %v\n", err)
 		return exitInternal
 	}
-	return exitOK
+	return exitCode
 }

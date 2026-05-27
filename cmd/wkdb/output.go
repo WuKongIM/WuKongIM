@@ -68,7 +68,12 @@ func renderJSONL(w io.Writer, result inspect.Result) error {
 			return err
 		}
 	}
-	return nil
+	return enc.Encode(renderedJSONLStats{Type: "stats", Stats: renderStats(result.Stats)})
+}
+
+type renderedJSONLStats struct {
+	Type  string        `json:"type"`
+	Stats renderedStats `json:"stats"`
 }
 
 func normalizeRow(row inspect.Row) inspect.Row {
@@ -85,8 +90,7 @@ func normalizeRow(row inspect.Row) inspect.Row {
 
 func renderTable(w io.Writer, result inspect.Result) error {
 	if len(result.Rows) == 0 {
-		_, err := fmt.Fprintf(w, "rows=0 has_more=%v\n", result.Stats.HasMore)
-		return err
+		return renderTableFooter(w, result.Stats)
 	}
 	columns := sortedColumns(result.Rows)
 	if err := renderTableHeader(w, columns); err != nil {
@@ -108,16 +112,7 @@ func renderTable(w io.Writer, result inspect.Result) error {
 			return err
 		}
 	}
-	_, err := fmt.Fprintf(
-		w,
-		"rows=%d has_more=%v scan_mode=%s scanned_rows=%d next_cursor=%s\n",
-		result.Stats.ReturnedRows,
-		result.Stats.HasMore,
-		result.Stats.ScanMode,
-		result.Stats.ScannedRows,
-		result.Stats.NextCursor,
-	)
-	return err
+	return renderTableFooter(w, result.Stats)
 }
 
 func renderTableHeader(w io.Writer, columns []string) error {
@@ -148,4 +143,17 @@ func sortedColumns(rows []inspect.Row) []string {
 	}
 	sort.Strings(columns)
 	return columns
+}
+
+func renderTableFooter(w io.Writer, stats inspect.Stats) error {
+	_, err := fmt.Fprintf(
+		w,
+		"rows=%d has_more=%v scan_mode=%s scanned_rows=%d next_cursor=%s\n",
+		stats.ReturnedRows,
+		stats.HasMore,
+		stats.ScanMode,
+		stats.ScannedRows,
+		stats.NextCursor,
+	)
+	return err
 }
