@@ -63,7 +63,11 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		})
 	}
 	if app.messages == nil {
-		app.messages = message.New(message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)})
+		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
+		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
+			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
+		}
+		app.messages = message.New(messageOpts)
 	}
 	if app.handler == nil {
 		app.handler = accessgateway.New(accessgateway.Options{Messages: app.messages, SendTimeout: cfg.Gateway.SendTimeout})
