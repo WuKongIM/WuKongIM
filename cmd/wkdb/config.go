@@ -71,7 +71,7 @@ func resolveCLIConfig(flags cliFlags, env []string) (cliConfig, error) {
 		return cliConfig{}, fmt.Errorf("unknown format %q", format)
 	}
 	if metaPath == "" && messagePath == "" {
-		return cliConfig{}, fmt.Errorf("storage path required: set --data-dir, --meta-path, --message-path, or WK_NODE_DATA_DIR")
+		return cliConfig{}, fmt.Errorf("storage path required: set --data-dir, --meta-path, --message-path, WK_NODE_DATA_DIR, WK_STORAGE_DB_PATH, or WK_STORAGE_CHANNEL_LOG_PATH")
 	}
 
 	return cliConfig{
