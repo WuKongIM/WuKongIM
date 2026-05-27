@@ -53,6 +53,8 @@ Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState
 
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 
+The root `Runtime` builds one full-file state sync endpoint during voter startup. `Runtime.GetState` delegates to that endpoint instead of constructing sync server wiring on each request.
+
 ## Non-Goals
 
 - Do not replace `pkg/controller` in this package.

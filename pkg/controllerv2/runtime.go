@@ -32,6 +32,8 @@ type Runtime struct {
 	raft   *cv2raft.Service
 	server *server.Server
 
+	syncServer *cv2sync.Server
+
 	refreshCancel context.CancelFunc
 	refreshWG     sync.WaitGroup
 }
@@ -107,6 +109,7 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		return err
 	}
 	r.server = srv
+	r.syncServer = r.newStateSyncServer()
 	if len(r.cfg.Voters) > 1 {
 		if st := sm.Snapshot(ctx); st.Revision != 0 && len(st.Slots) >= int(r.cfg.InitialSlotCount) {
 			if err := r.publishFromState(ctx); err != nil {
@@ -364,21 +367,31 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 
 // GetState serves ControllerV2 state sync requests from local voter state.
 func (r *Runtime) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
-	if r == nil || r.sm == nil {
+	if r == nil || r.syncServer == nil {
 		return GetStateResponse{NotReady: true}, nil
 	}
-	endpoint := cv2sync.NewServer(cv2sync.ServerConfig{
+	return r.syncServer.GetState(ctx, req)
+}
+
+// newStateSyncServer wires the full-file sync endpoint for a voter runtime.
+func (r *Runtime) newStateSyncServer() *cv2sync.Server {
+	return cv2sync.NewServer(cv2sync.ServerConfig{
 		NodeID:    r.cfg.NodeID,
 		ClusterID: r.cfg.ClusterID,
 		LeaderID:  r.LeaderID,
 		Ready: func() bool {
+			if r.sm == nil {
+				return false
+			}
 			return r.sm.Snapshot(context.Background()).Revision != 0
 		},
 		Snapshot: func(ctx context.Context) (state.ClusterState, error) {
+			if r.sm == nil {
+				return state.ClusterState{}, ErrNotStarted
+			}
 			return r.sm.Snapshot(ctx), nil
 		},
 	})
-	return endpoint.GetState(ctx, req)
 }
 
 // Watch returns state update events.

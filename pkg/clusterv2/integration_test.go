@@ -3,331 +3,223 @@ package clusterv2
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
-func TestClusterV2ThreeNodeSlotPropose(t *testing.T) {
-	h := newThreeNodeHarness(t)
-	h.Start(t)
-	t.Cleanup(func() { h.Stop(t) })
+func TestClusterV2SingleNodeDefaultProposeAppliesSlotCommand(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
 
-	h.WaitSlotLeader(t, 1)
-	nonLeader := h.NonLeaderForSlot(t, 1)
-	err := nonLeader.Propose(context.Background(), ProposeRequest{Key: "user-a", Command: []byte("cmd")})
-	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
-	}
-	h.RequireCommandApplied(t, 1, []byte("cmd"))
-}
-
-func TestClusterV2ThreeNodeChannelAppendQuorum(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-a", Type: 1}
-	h := newThreeNodeHarness(t)
-	h.WithStaticChannelMeta(channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(channelID),
-		ID:          channelID,
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channelv2.NodeID{1, 2, 3},
-		ISR:         []channelv2.NodeID{1, 2, 3},
-		MinISR:      2,
-		Status:      channelv2.StatusActive,
-	})
-	h.Start(t)
-	t.Cleanup(func() { h.Stop(t) })
-
+	waitRouteLeader(t, node, 0, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	res, err := h.Node(1).AppendChannel(ctx, channelv2.AppendRequest{
-		ChannelID:            channelID,
-		CommitMode:           channelv2.CommitModeQuorum,
-		Message:              channelv2.Message{MessageID: 1001, Payload: []byte("hello")},
-		ExpectedChannelEpoch: 1,
-		ExpectedLeaderEpoch:  1,
-	})
-	if err != nil {
-		t.Fatalf("AppendChannel() error = %v", err)
+	if err := node.Propose(ctx, ProposeRequest{
+		Key: "user-a",
+		Command: metafsm.EncodeUpsertUserCommand(metadb.User{
+			UID:         "user-a",
+			Token:       "token-a",
+			DeviceFlag:  1,
+			DeviceLevel: 2,
+		}),
+	}); err != nil {
+		t.Fatalf("Propose(default slot command) error = %v", err)
 	}
-	if res.MessageSeq == 0 {
-		t.Fatal("AppendChannel() MessageSeq = 0, want committed sequence")
-	}
-
-	h.WaitChannelCommitted(t, 2, channelID, res.MessageSeq)
 }
 
-func TestClusterV2ThreeNodeFirstChannelAppendEnsuresMeta(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-first-append", Type: 1}
-	h := newThreeNodeHarness(t)
-	h.WithEnsuredChannelMeta()
-	h.Start(t)
-	t.Cleanup(func() { h.Stop(t) })
+func TestClusterV2ThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "room-default-quorum", Type: 1}
+	nodes := newDefaultThreeNodeCluster(t)
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+	applyChannelMetaToAll(t, nodes, defaultThreeNodeChannelMeta(channelID))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
+	res, err := nodes[0].AppendChannel(ctx, channelv2.AppendRequest{
 		ChannelID:  channelID,
 		CommitMode: channelv2.CommitModeQuorum,
-		Message:    channelv2.Message{MessageID: 1003, Payload: []byte("first")},
+		Message:    channelv2.Message{MessageID: 1001, Payload: []byte("hello-default")},
 	})
 	if err != nil {
-		t.Fatalf("AppendChannel(first append) error = %v", err)
+		t.Fatalf("AppendChannel(default channels) error = %v", err)
 	}
 	if res.MessageSeq == 0 {
-		t.Fatal("AppendChannel(first append) MessageSeq = 0, want committed sequence")
+		t.Fatal("AppendChannel(default channels) MessageSeq = 0, want committed sequence")
 	}
-	h.WaitChannelCommitted(t, 3, channelID, res.MessageSeq)
-	meta, ok := h.ChannelMeta(channelID)
-	if !ok {
-		t.Fatalf("ensured meta missing for %v", channelID)
-	}
-	if meta.Leader != 1 || !equalChannelNodeIDs(meta.Replicas, []channelv2.NodeID{1, 2, 3}) || meta.MinISR != 2 {
-		t.Fatalf("ensured meta = %#v, want slot leader channel meta", meta)
+
+	for _, node := range nodes {
+		requireChannelMessage(t, node, channelID, res.MessageSeq, 1001, []byte("hello-default"))
 	}
 }
 
-func TestClusterV2ThreeNodeChannelAppendReplicatesToAllNodes(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-replicate-all", Type: 1}
-	payload := []byte("replicated")
-	h := newThreeNodeHarness(t)
-	h.WithEnsuredChannelMeta()
-	h.Start(t)
-	t.Cleanup(func() { h.Stop(t) })
+func TestClusterV2ThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "room-default-follower-store", Type: 1}
+	nodes := newDefaultThreeNodeCluster(t)
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+	applyChannelMetaToAll(t, nodes, defaultThreeNodeChannelMeta(channelID))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
+	res, err := nodes[0].AppendChannel(ctx, channelv2.AppendRequest{
 		ChannelID:  channelID,
 		CommitMode: channelv2.CommitModeQuorum,
-		Message:    channelv2.Message{MessageID: 1004, Payload: payload},
+		Message:    channelv2.Message{MessageID: 1002, Payload: []byte("follower-fetch")},
 	})
 	if err != nil {
-		t.Fatalf("AppendChannel(replicate all) error = %v", err)
-	}
-	if res.MessageSeq != 1 {
-		t.Fatalf("AppendChannel(replicate all) MessageSeq = %d, want 1", res.MessageSeq)
+		t.Fatalf("AppendChannel(default channels) error = %v", err)
 	}
 
-	for _, nodeID := range []uint64{1, 2, 3} {
-		h.RequireChannelMessage(t, nodeID, channelID, res.MessageSeq, 1004, payload)
-	}
+	requireChannelMessage(t, nodes[1], channelID, res.MessageSeq, 1002, []byte("follower-fetch"))
 }
 
-func TestClusterV2ThreeNodeChannelAppendForwardsFromNonLeader(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-forward", Type: 1}
-	h := newThreeNodeHarness(t)
-	h.WithStaticChannelMeta(channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(channelID),
-		ID:          channelID,
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channelv2.NodeID{1, 2, 3},
-		ISR:         []channelv2.NodeID{1, 2, 3},
-		MinISR:      2,
-		Status:      channelv2.StatusActive,
-	})
-	h.Start(t)
-	t.Cleanup(func() { h.Stop(t) })
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
-		ChannelID:            channelID,
-		CommitMode:           channelv2.CommitModeQuorum,
-		Message:              channelv2.Message{MessageID: 1002, Payload: []byte("forwarded")},
-		ExpectedChannelEpoch: 1,
-		ExpectedLeaderEpoch:  1,
-	})
+func newDefaultSingleNode(t testing.TB) *Node {
+	t.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: freeTCPAddr(t.(*testing.T)), DataDir: t.TempDir()}
+	cfg.Control.ClusterID = "clusterv2-integration-single"
+	cfg.Slots.InitialSlotCount = 1
+	cfg.Slots.HashSlotCount = 4
+	cfg.Slots.ReplicaCount = 1
+	cfg.Channel.TickInterval = time.Millisecond
+	node, err := New(cfg)
 	if err != nil {
-		t.Fatalf("AppendChannel(non-leader) error = %v", err)
+		t.Fatalf("New(single node) error = %v", err)
 	}
-	if res.MessageSeq == 0 {
-		t.Fatal("AppendChannel(non-leader) MessageSeq = 0, want committed sequence")
-	}
-	h.WaitChannelCommitted(t, 2, channelID, res.MessageSeq)
+	return node
 }
 
-type threeNodeHarness struct {
-	network    *clusternet.LocalNetwork
-	nodes      map[uint64]*Node
-	stores     map[uint64]*channelstore.MemoryFactory
-	slots      map[uint64]*smokeSlotRuntime
-	metas      []channelv2.Meta
-	ensureMeta bool
-	metaSource channels.ChannelMetaSource
-	applied    *smokeAppliedLog
-}
-
-func newThreeNodeHarness(t testing.TB) *threeNodeHarness {
+func newDefaultThreeNodeCluster(t testing.TB) []*Node {
 	t.Helper()
-	return &threeNodeHarness{
-		network: clusternet.NewLocalNetwork(),
-		nodes:   make(map[uint64]*Node),
-		stores:  make(map[uint64]*channelstore.MemoryFactory),
-		slots:   make(map[uint64]*smokeSlotRuntime),
-		applied: newSmokeAppliedLog(),
+	tb := t.(*testing.T)
+	addrs := []string{freeTCPAddr(tb), freeTCPAddr(tb), freeTCPAddr(tb)}
+	voters := []ControlVoter{
+		{NodeID: 1, Addr: addrs[0]},
+		{NodeID: 2, Addr: addrs[1]},
+		{NodeID: 3, Addr: addrs[2]},
 	}
-}
-
-func (h *threeNodeHarness) WithStaticChannelMeta(meta channelv2.Meta) {
-	h.metas = append(h.metas, meta)
-}
-
-func (h *threeNodeHarness) WithEnsuredChannelMeta() {
-	h.ensureMeta = true
-}
-
-func (h *threeNodeHarness) ChannelMeta(id channelv2.ChannelID) (channelv2.Meta, bool) {
-	if h.metaSource == nil {
-		return channelv2.Meta{}, false
-	}
-	meta, err := h.metaSource.ResolveChannelMeta(context.Background(), id)
-	return meta, err == nil
-}
-
-func (h *threeNodeHarness) Start(t testing.TB) {
-	t.Helper()
-	snapshot := h.controlSnapshot()
-	metaSource := h.channelMetaSource()
-	for _, nodeID := range []uint64{1, 2, 3} {
-		slotRuntime := &smokeSlotRuntime{localNode: nodeID, leaders: map[uint32]uint64{1: 1}, applied: h.applied}
-		cfg := Config{NodeID: nodeID, ListenAddr: fmt.Sprintf("127.0.0.1:%d", 10000+nodeID), DataDir: t.TempDir()}
+	nodes := make([]*Node, 0, len(voters))
+	for _, voter := range voters {
+		cfg := Config{NodeID: voter.NodeID, ListenAddr: voter.Addr, DataDir: t.TempDir()}
+		cfg.Control.ClusterID = "clusterv2-integration-three"
+		cfg.Control.Voters = voters
+		cfg.Control.AllowBootstrap = true
+		cfg.Slots.InitialSlotCount = 1
+		cfg.Slots.HashSlotCount = 4
+		cfg.Slots.ReplicaCount = 3
 		cfg.Channel.TickInterval = time.Millisecond
-		var opts []Option
-		if metaSource != nil {
-			storeFactory := channelstore.NewMemoryFactory()
-			service, err := channels.NewService(channels.Config{
-				LocalNode:  channelv2.NodeID(nodeID),
-				Store:      storeFactory,
-				Transport:  channels.NewTransportClient(h.network),
-				MetaSource: metaSource,
-			})
-			if err != nil {
-				t.Fatalf("channels.NewService(node=%d) error = %v", nodeID, err)
-			}
-			opts = append(opts, WithChannels(service))
-			channels.RegisterServiceHandlers(h.network, nodeID, service)
-			h.stores[nodeID] = storeFactory
-		}
-		opts = append(opts, withController(control.NewStaticController(snapshot)), withSlotReconciler(&recordingReconciler{}))
-		node, err := New(cfg, opts...)
+		node, err := New(cfg)
 		if err != nil {
-			t.Fatalf("New(node=%d) error = %v", nodeID, err)
+			t.Fatalf("New(node=%d) error = %v", voter.NodeID, err)
 		}
-		WithProposer(propose.NewService(propose.Config{LocalNode: nodeID, Router: node.router, Slots: slotRuntime, Forward: propose.NewNetworkForwardClient(h.network)}))(node)
-		h.network.Register(nodeID, clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(slotRuntime))
-		h.nodes[nodeID] = node
-		h.slots[nodeID] = slotRuntime
+		nodes = append(nodes, node)
 	}
-	for _, nodeID := range []uint64{1, 2, 3} {
-		if err := h.nodes[nodeID].Start(context.Background()); err != nil {
-			t.Fatalf("Start(node=%d) error = %v", nodeID, err)
-		}
-		h.nodes[nodeID].router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
-	}
+	return nodes
 }
 
-func (h *threeNodeHarness) channelMetaSource() channels.ChannelMetaSource {
-	if h.ensureMeta {
-		if h.metaSource == nil {
-			store := newSmokeRuntimeMetaStore()
-			h.metaSource = channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
-				Placement: smokePlacementResolver{leader: 1, peers: []channelv2.NodeID{1, 2, 3}, minISR: 2},
-				Writer:    store,
-			})
-		}
-		return h.metaSource
-	}
-	if len(h.metas) > 0 {
-		return channels.NewStaticMetaSource(h.metas)
-	}
-	return nil
-}
-
-func (h *threeNodeHarness) Stop(t testing.TB) {
+func startNode(t testing.TB, node *Node) {
 	t.Helper()
-	for _, nodeID := range []uint64{1, 2, 3} {
-		if node := h.nodes[nodeID]; node != nil {
-			if err := node.Stop(context.Background()); err != nil {
-				t.Fatalf("Stop(node=%d) error = %v", nodeID, err)
-			}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := node.Start(ctx); err != nil {
+		t.Fatalf("Start(node=%d) error = %v", node.NodeID(), err)
+	}
+}
+
+func startNodes(t testing.TB, nodes ...*Node) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	errs := make(chan error, len(nodes))
+	for _, node := range nodes {
+		node := node
+		go func() { errs <- node.Start(ctx) }()
+	}
+	for range nodes {
+		if err := <-errs; err != nil {
+			t.Fatalf("Start() error = %v", err)
 		}
 	}
 }
 
-func (h *threeNodeHarness) Node(nodeID uint64) *Node { return h.nodes[nodeID] }
+func stopNodes(t testing.TB, nodes ...*Node) {
+	t.Helper()
+	for i := len(nodes) - 1; i >= 0; i-- {
+		if nodes[i] == nil {
+			continue
+		}
+		if err := nodes[i].Stop(context.Background()); err != nil {
+			t.Fatalf("Stop(node=%d) error = %v", nodes[i].NodeID(), err)
+		}
+	}
+}
 
-func (h *threeNodeHarness) WaitSlotLeader(t testing.TB, slotID uint32) {
+func waitClusterReady(t testing.TB, nodes ...*Node) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := WaitClusterReady(ctx, nodes...); err != nil {
+		t.Fatalf("WaitClusterReady() error = %v", err)
+	}
+}
+
+func waitRouteLeader(t testing.TB, node *Node, hashSlot uint16, want uint64) {
 	t.Helper()
 	waitUntil(t.(*testing.T), func() bool {
-		for _, node := range h.nodes {
-			route, err := node.RouteHashSlot(0)
-			if err != nil || route.SlotID != slotID || route.Leader == 0 {
-				return false
-			}
-		}
-		return true
+		route, err := node.RouteHashSlot(hashSlot)
+		return err == nil && route.Leader == want
 	})
 }
 
-func (h *threeNodeHarness) NonLeaderForSlot(t testing.TB, slotID uint32) *Node {
+func applyChannelMetaToAll(t testing.TB, nodes []*Node, meta channelv2.Meta) {
 	t.Helper()
-	leader := h.slots[1].leaders[slotID]
-	for _, nodeID := range []uint64{1, 2, 3} {
-		if nodeID != leader {
-			return h.nodes[nodeID]
+	for _, node := range nodes {
+		svc, ok := node.channels.(*channels.Service)
+		if !ok {
+			t.Fatalf("default channels(node=%d) type = %T, want *channels.Service", node.NodeID(), node.channels)
+		}
+		if err := svc.ApplyMeta(meta); err != nil {
+			t.Fatalf("ApplyMeta(node=%d) error = %v", node.NodeID(), err)
 		}
 	}
-	t.Fatalf("missing non-leader for slot %d", slotID)
-	return nil
 }
 
-func (h *threeNodeHarness) RequireCommandApplied(t testing.TB, slotID uint32, command []byte) {
-	t.Helper()
-	waitUntil(t.(*testing.T), func() bool {
-		return h.applied.contains(slotID, command)
-	})
-}
-
-func (h *threeNodeHarness) WaitChannelCommitted(t testing.TB, nodeID uint64, id channelv2.ChannelID, seq uint64) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		messages, err := h.readChannelMessages(nodeID, id, seq)
-		if err == nil && len(messages) > 0 {
-			return
-		}
-		time.Sleep(time.Millisecond)
+func defaultThreeNodeChannelMeta(id channelv2.ChannelID) channelv2.Meta {
+	return channelv2.Meta{
+		Key:         channelv2.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channelv2.NodeID{1, 2, 3},
+		ISR:         []channelv2.NodeID{1, 2, 3},
+		MinISR:      2,
+		Status:      channelv2.StatusActive,
 	}
-	t.Fatalf("node %d did not commit channel %v seq %d", nodeID, id, seq)
 }
 
-func (h *threeNodeHarness) RequireChannelMessage(t testing.TB, nodeID uint64, id channelv2.ChannelID, seq uint64, messageID uint64, payload []byte) {
+func requireChannelMessage(t testing.TB, node *Node, id channelv2.ChannelID, seq uint64, messageID uint64, payload []byte) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(3 * time.Second)
 	var lastErr error
 	var lastMessages []channelv2.Message
 	for time.Now().Before(deadline) {
-		messages, err := h.readChannelMessages(nodeID, id, seq)
+		messages, err := readDefaultChannelStore(node, id, seq)
 		if err == nil && len(messages) > 0 {
 			msg := messages[0]
 			if msg.MessageSeq == seq && msg.MessageID == messageID && bytes.Equal(msg.Payload, payload) {
 				return
 			}
-			t.Fatalf("node %d fetched message = %#v, want seq=%d messageID=%d payload=%q", nodeID, msg, seq, messageID, payload)
+			t.Fatalf("node %d fetched message = %#v, want seq=%d messageID=%d payload=%q", node.NodeID(), msg, seq, messageID, payload)
 		}
 		lastErr = err
 		if err == nil {
@@ -335,15 +227,14 @@ func (h *threeNodeHarness) RequireChannelMessage(t testing.TB, nodeID uint64, id
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("node %d did not replicate channel %v seq %d; lastErr=%v lastMessages=%#v", nodeID, id, seq, lastErr, lastMessages)
+	t.Fatalf("node %d did not replicate channel %v seq %d; lastErr=%v lastMessages=%#v", node.NodeID(), id, seq, lastErr, lastMessages)
 }
 
-func (h *threeNodeHarness) readChannelMessages(nodeID uint64, id channelv2.ChannelID, seq uint64) ([]channelv2.Message, error) {
-	factory := h.stores[nodeID]
-	if factory == nil {
-		return nil, channelv2.ErrChannelNotFound
+func readDefaultChannelStore(node *Node, id channelv2.ChannelID, seq uint64) ([]channelv2.Message, error) {
+	if node == nil || node.defaultChannelStore == nil {
+		return nil, ErrNotStarted
 	}
-	cs, err := factory.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	cs, err := node.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
 	if err != nil {
 		return nil, err
 	}
@@ -352,129 +243,4 @@ func (h *threeNodeHarness) readChannelMessages(nodeID uint64, id channelv2.Chann
 		return nil, err
 	}
 	return read.Messages, nil
-}
-
-func (h *threeNodeHarness) controlSnapshot() control.Snapshot {
-	return control.Snapshot{
-		Revision:     1,
-		ControllerID: 1,
-		Nodes: []control.Node{
-			{NodeID: 1, Addr: "127.0.0.1:10001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
-			{NodeID: 2, Addr: "127.0.0.1:10002", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
-			{NodeID: 3, Addr: "127.0.0.1:10003", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
-		},
-		Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, PreferredLeader: 1}},
-		HashSlots: control.HashSlotTable{Revision: 1, Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-	}
-}
-
-type smokeSlotRuntime struct {
-	localNode uint64
-	leaders   map[uint32]uint64
-	applied   *smokeAppliedLog
-}
-
-func (s *smokeSlotRuntime) IsLocalLeader(slotID uint32) bool {
-	return s.leaders[slotID] == s.localNode
-}
-
-func (s *smokeSlotRuntime) Propose(ctx context.Context, slotID uint32, payload []byte) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if !s.IsLocalLeader(slotID) {
-		return propose.ErrNotLeader
-	}
-	_, command, err := propose.DecodePayload(payload)
-	if err != nil {
-		return err
-	}
-	s.applied.add(slotID, command)
-	return nil
-}
-
-type smokeAppliedLog struct {
-	mu       sync.Mutex
-	commands map[uint32][][]byte
-}
-
-func newSmokeAppliedLog() *smokeAppliedLog {
-	return &smokeAppliedLog{commands: make(map[uint32][][]byte)}
-}
-
-func (l *smokeAppliedLog) add(slotID uint32, command []byte) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.commands[slotID] = append(l.commands[slotID], append([]byte(nil), command...))
-}
-
-func (l *smokeAppliedLog) contains(slotID uint32, command []byte) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, item := range l.commands[slotID] {
-		if bytes.Equal(item, command) {
-			return true
-		}
-	}
-	return false
-}
-
-type smokeRuntimeMetaStore struct {
-	mu    sync.Mutex
-	metas map[smokeRuntimeMetaKey]metadb.ChannelRuntimeMeta
-}
-
-type smokeRuntimeMetaKey struct {
-	id  string
-	typ int64
-}
-
-func newSmokeRuntimeMetaStore() *smokeRuntimeMetaStore {
-	return &smokeRuntimeMetaStore{metas: make(map[smokeRuntimeMetaKey]metadb.ChannelRuntimeMeta)}
-}
-
-func (s *smokeRuntimeMetaStore) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	meta, ok := s.metas[smokeRuntimeMetaKey{id: channelID, typ: channelType}]
-	if !ok {
-		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
-	}
-	return cloneRuntimeMeta(meta), nil
-}
-
-func (s *smokeRuntimeMetaStore) UpsertChannelRuntimeMeta(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	meta = metadb.NormalizeChannelRuntimeMeta(meta)
-	s.metas[smokeRuntimeMetaKey{id: meta.ChannelID, typ: meta.ChannelType}] = cloneRuntimeMeta(meta)
-	return nil
-}
-
-func cloneRuntimeMeta(meta metadb.ChannelRuntimeMeta) metadb.ChannelRuntimeMeta {
-	meta.Replicas = append([]uint64(nil), meta.Replicas...)
-	meta.ISR = append([]uint64(nil), meta.ISR...)
-	return meta
-}
-
-type smokePlacementResolver struct {
-	leader channelv2.NodeID
-	peers  []channelv2.NodeID
-	minISR int
-}
-
-func (r smokePlacementResolver) ResolveChannelPlacement(context.Context, channelv2.ChannelID) (channels.ChannelPlacement, error) {
-	return channels.ChannelPlacement{Leader: r.leader, Replicas: append([]channelv2.NodeID(nil), r.peers...), MinISR: r.minISR}, nil
-}
-
-func equalChannelNodeIDs(a, b []channelv2.NodeID) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

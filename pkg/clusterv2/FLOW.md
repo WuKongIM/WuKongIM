@@ -28,6 +28,7 @@ New(Config)
 
 Start(ctx)
   -> initialize default node RPC transport / ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
+  -> initialize a real single-node-cluster Slot Multi-Raft runtime for default propose when the configured Slot replica count is 1
   -> seed node RPC discovery from configured Controller voters until the first control snapshot arrives
   -> start default transport and injected lifecycle resources
   -> start ControllerV2-backed Controller or injected Controller
@@ -36,6 +37,7 @@ Start(ctx)
   -> discovery.Update(control node addresses)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
+  -> start the default Slot leader observation loop when the default Slot runtime is active
   -> mark ChannelV2 ready and start the tick loop
   -> mark node started
 ```
@@ -90,7 +92,7 @@ Node.AppendChannel / AppendChannelBatch
   -> follower reactor Pull / Apply / Ack
 ```
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, and owns the ChannelV2 tick loop plus default store factory cleanup.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. For single-node clusters with `ReplicaCount=1`, the default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, and metadata FSM storage under `DataDir/slotmeta`; multi-replica Slot runtime auto-wiring remains outside this default path.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted.
 
@@ -104,7 +106,7 @@ Node.AppendChannel / AppendChannelBatch
 ## V1 Limitations
 
 - ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Production app config wiring and operator workflows remain outside this package-level slice.
-- Slot smoke coverage uses an in-process fake Slot runtime for route/forward validation; destructive Slot cleanup remains disabled.
+- Slot coverage now uses the real default single-node-cluster Slot runtime for default propose. Multi-replica Slot auto-wiring is still limited; older route/forward smoke coverage may use in-process Slot runtimes where distributed Slot convergence is not the assertion. Destructive Slot cleanup remains disabled.
 - ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.
 - Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.

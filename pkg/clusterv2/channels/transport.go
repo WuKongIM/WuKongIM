@@ -8,6 +8,12 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 )
 
+// HandlerRegistrar registers clusterv2 typed RPC handlers.
+type HandlerRegistrar interface {
+	// Register registers handler for serviceID.
+	Register(serviceID uint8, handler clusternet.Handler)
+}
+
 // TransportClient implements ChannelV2 transport over clusterv2 typed RPC.
 type TransportClient struct {
 	caller clusternet.Caller
@@ -87,9 +93,9 @@ func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID
 	return decodeAppendBatchResponse(resp)
 }
 
-// RegisterHandlers registers ChannelV2 replication handlers on network for nodeID.
-func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server channeltransport.Server) {
-	network.Register(nodeID, clusternet.RPCChannelPull, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+// RegisterHandlersOn registers ChannelV2 replication handlers on registrar.
+func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Server) {
+	registrar.Register(clusternet.RPCChannelPull, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodePullRequest(payload)
 		if err != nil {
 			return nil, err
@@ -100,21 +106,21 @@ func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server ch
 		}
 		return encodePullResponse(resp)
 	}))
-	network.Register(nodeID, clusternet.RPCChannelAck, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+	registrar.Register(clusternet.RPCChannelAck, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAckRequest(payload)
 		if err != nil {
 			return nil, err
 		}
 		return nil, server.HandleAck(ctx, req)
 	}))
-	network.Register(nodeID, clusternet.RPCChannelPullHint, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+	registrar.Register(clusternet.RPCChannelPullHint, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodePullHintRequest(payload)
 		if err != nil {
 			return nil, err
 		}
 		return nil, server.HandlePullHint(ctx, req)
 	}))
-	network.Register(nodeID, clusternet.RPCChannelNotify, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+	registrar.Register(clusternet.RPCChannelNotify, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeNotifyRequest(payload)
 		if err != nil {
 			return nil, err
@@ -123,10 +129,15 @@ func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server ch
 	}))
 }
 
-// RegisterServiceHandlers registers ChannelV2 replication and append-forward handlers on network.
-func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, service *Service) {
-	RegisterHandlers(network, nodeID, service.Server())
-	network.Register(nodeID, clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+// RegisterHandlers registers ChannelV2 replication handlers on network for nodeID.
+func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server channeltransport.Server) {
+	RegisterHandlersOn(localNetworkRegistrar{network: network, nodeID: nodeID}, server)
+}
+
+// RegisterServiceHandlersOn registers ChannelV2 replication and append-forward handlers on registrar.
+func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
+	RegisterHandlersOn(registrar, service.Server())
+	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAppendRequest(payload)
 		if err != nil {
 			return nil, err
@@ -137,7 +148,7 @@ func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, se
 		}
 		return encodeAppendResponse(resp)
 	}))
-	network.Register(nodeID, clusternet.RPCChannelAppendBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+	registrar.Register(clusternet.RPCChannelAppendBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAppendBatchRequest(payload)
 		if err != nil {
 			return nil, err
@@ -148,6 +159,20 @@ func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, se
 		}
 		return encodeAppendBatchResponse(resp)
 	}))
+}
+
+// RegisterServiceHandlers registers ChannelV2 replication and append-forward handlers on network.
+func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, service *Service) {
+	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: nodeID}, service)
+}
+
+type localNetworkRegistrar struct {
+	network *clusternet.LocalNetwork
+	nodeID  uint64
+}
+
+func (r localNetworkRegistrar) Register(serviceID uint8, handler clusternet.Handler) {
+	r.network.Register(r.nodeID, serviceID, handler)
 }
 
 var _ channeltransport.Client = (*TransportClient)(nil)
