@@ -63,6 +63,9 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	if req.Table != "user" {
 		return InspectScanResult{}, fmt.Errorf("%w: unknown inspect table %q", dberrors.ErrInvalidArgument, req.Table)
 	}
+	if req.HashSlotSet && req.After != nil && req.After.HashSlot != req.HashSlot {
+		return InspectScanResult{}, fmt.Errorf("%w: inspect cursor hash slot mismatch", dberrors.ErrInvalidArgument)
+	}
 	slots, err := inspectScanSlots(req)
 	if err != nil {
 		return InspectScanResult{}, err
@@ -143,6 +146,9 @@ func inspectUserAfterUID(cursor *InspectCursor) (string, error) {
 	}
 	uid, ok := cursor.Primary[0].(string)
 	if !ok {
+		return "", fmt.Errorf("%w: invalid user inspect cursor", dberrors.ErrInvalidArgument)
+	}
+	if uid == "" {
 		return "", fmt.Errorf("%w: invalid user inspect cursor", dberrors.ErrInvalidArgument)
 	}
 	return uid, nil
