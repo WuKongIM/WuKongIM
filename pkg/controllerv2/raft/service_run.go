@@ -21,6 +21,8 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 		return
 	}
 	if shouldBootstrap(startup) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
+		// Even a single local voter bootstraps through Raft so the first
+		// cluster-state file is produced by the same committed-log path.
 		if err := rawNode.Bootstrap(raftPeers(s.cfg.Peers)); err != nil {
 			initCh <- err
 			return
@@ -135,6 +137,8 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 				}
 				data = encoded
 			}
+			// Probe proposals intentionally carry no Controller command. The empty
+			// normal entry advances Raft applied metadata without changing Revision.
 			if err := rawNode.Propose(data); err != nil {
 				req.resp <- err
 				continue

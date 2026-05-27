@@ -13,6 +13,9 @@ func handleBootstrapRevisionMismatch(current *state.ClusterState, cmd command.Co
 	if cmd.ExpectedRevision == nil || *cmd.ExpectedRevision == current.Revision {
 		return ApplyResult{}, false
 	}
+	// Bootstrap planning can race with an already-committed slot assignment. A
+	// mismatched ExpectedRevision is idempotent only when current state proves
+	// this stale bootstrap command has already been made obsolete.
 	if cmd.Assignment == nil || cmd.Task == nil || cmd.Task.Kind != state.TaskKindBootstrap {
 		return reject(ReasonExpectedRevisionMismatch), true
 	}
