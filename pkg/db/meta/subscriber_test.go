@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"testing"
 )
@@ -60,6 +61,66 @@ func TestSubscriberAddListContainsAndRemove(t *testing.T) {
 	}
 	if len(snapshot) != 1 || snapshot[0] != "u2" {
 		t.Fatalf("snapshot after remove = %+v, want [u2]", snapshot)
+	}
+}
+
+func TestSubscriberTableKeepsLegacyRowLayout(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(2)
+	ctx := context.Background()
+	channel := Channel{ChannelID: "group-layout-sub", ChannelType: 1}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"u1"}, 1); err != nil {
+		t.Fatalf("AddSubscribers(): %v", err)
+	}
+
+	legacyKey := encodeSubscriberRowKey(2, channel.ChannelID, channel.ChannelType, "u1", subscriberPrimaryFamilyID)
+	if _, ok, err := store.engine.Get(legacyKey); err != nil || !ok {
+		t.Fatalf("legacy subscriber key ok=%v err=%v, want ok", ok, err)
+	}
+	runtimeKey, err := encodeTablePrimaryRowKey(2, TableIDSubscriber, KeyParts{String(channel.ChannelID), Int64Ordered(channel.ChannelType), String("u1")}, subscriberPrimaryFamilyID)
+	if err != nil {
+		t.Fatalf("runtime subscriber key: %v", err)
+	}
+	if !bytes.Equal(runtimeKey, legacyKey) {
+		t.Fatalf("runtime key %x, want legacy key %x", runtimeKey, legacyKey)
+	}
+}
+
+func TestSubscriberPageLimitDoesNotDecodeTail(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(3)
+	ctx := context.Background()
+	channel := Channel{ChannelID: "group-tail-sub", ChannelType: 1}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"u1"}, 1); err != nil {
+		t.Fatalf("AddSubscribers(): %v", err)
+	}
+	malformedTail, err := encodeKeyParts(encodeSubscriberRowPrefix(3, channel.ChannelID, channel.ChannelType), KeyParts{String("u2")})
+	if err != nil {
+		t.Fatalf("encode malformed tail: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(malformedTail, nil); err != nil {
+		t.Fatalf("Set(malformed tail): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed tail): %v", err)
+	}
+
+	list, cursor, done, err := shard.ListSubscribersPage(ctx, channel.ChannelID, channel.ChannelType, "", 1)
+	if err != nil {
+		t.Fatalf("ListSubscribersPage(): %v", err)
+	}
+	if done || cursor != "u1" || len(list) != 1 || list[0] != "u1" {
+		t.Fatalf("page = %+v cursor=%q done=%v, want u1 and more", list, cursor, done)
 	}
 }
 

@@ -1007,7 +1007,10 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 			channel.SubscriberMutationVersion = mutationVersion
 		}
 		for _, uid := range normalized {
-			key := encodeSubscriberRowKey(hs, channelID, channelType, uid, subscriberPrimaryFamilyID)
+			key, err := subscriberRowKey(hs, channelID, channelType, uid)
+			if err != nil {
+				return err
+			}
 			if add {
 				if err := batch.Set(key, nil); err != nil {
 					return err

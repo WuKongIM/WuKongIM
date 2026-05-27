@@ -247,16 +247,20 @@ func (t Table[R]) ScanPrimary(ctx context.Context, s *Shard, after KeyParts, lim
 	if limit <= 0 {
 		return nil, nil, true, nil
 	}
-	return t.scanPrimary(ctx, s, nil, after, limit, false, false)
+	return t.scanPrimary(ctx, s, nil, after, limit, false, false, false)
 }
 
 // ScanPrimaryPrefix returns primary-key ordered rows matching prefix.
 func (t Table[R]) ScanPrimaryPrefix(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
-	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, false)
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, false, false)
 }
 
 func (t Table[R]) scanPrimaryPrefixStrict(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
-	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, true)
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, true, false)
+}
+
+func (t Table[R]) scanPrimaryPrefixRows(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, false, true)
 }
 
 // ScanIndex returns rows by secondary index prefix.
@@ -600,7 +604,7 @@ func (t Table[R]) loadBatchRow(state *batchCommitState, hashSlot HashSlot, pk Ke
 	return t.getByPrimaryKey(state.db, hashSlot, pk)
 }
 
-func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool, strictMalformed bool) ([]R, KeyParts, bool, error) {
+func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool, strictMalformed bool, stopAtLimit bool) ([]R, KeyParts, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return nil, nil, false, err
 	}
@@ -658,6 +662,9 @@ func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, af
 		}
 		rows = append(rows, row)
 		cursor = append(KeyParts(nil), pk...)
+		if stopAtLimit && !unlimited && len(rows) == limit {
+			return rows, cursor, false, nil
+		}
 	}
 	if err := iter.Error(); err != nil {
 		return nil, nil, false, err

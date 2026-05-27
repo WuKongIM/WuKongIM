@@ -1,14 +1,49 @@
 package meta
 
 import (
-	"bytes"
 	"context"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
+
+const (
+	subscriberColumnChannelID   uint16 = 1
+	subscriberColumnChannelType uint16 = 2
+	subscriberColumnUID         uint16 = 3
+)
+
+var subscriberTable = registerMetaTable(TableSpec[Subscriber]{
+	ID:   TableIDSubscriber,
+	Name: "subscriber",
+	Columns: []schema.Column{
+		{ID: subscriberColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: subscriberColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: subscriberColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+	},
+	Families: []schema.Family{{ID: subscriberPrimaryFamilyID, Name: "primary"}},
+	Primary: PrimarySpec[Subscriber]{
+		IndexID:  subscriberPrimaryIndexID,
+		FamilyID: subscriberPrimaryFamilyID,
+		Name:     "pk_subscriber",
+		Columns:  []uint16{subscriberColumnChannelID, subscriberColumnChannelType, subscriberColumnUID},
+		Layout:   KeyLayout{KeyString, KeyInt64Ordered, KeyString},
+		Key: func(subscriber Subscriber) KeyParts {
+			return subscriberPrimaryKey(subscriber.ChannelID, subscriber.ChannelType, subscriber.UID)
+		},
+	},
+	Validate: validateSubscriber,
+	EncodeValue: func(Subscriber) ([]byte, error) {
+		return nil, nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (Subscriber, error) {
+		return Subscriber{ChannelID: primary[0].S, ChannelType: primary[1].I64, UID: primary[2].S}, nil
+	},
+})
+
+// SubscriberTable describes the subscriber table schema.
+var SubscriberTable = subscriberTable.Schema()
 
 // AddSubscribers adds sorted unique subscribers and advances channel mutation version.
 func (s *Shard) AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) error {
@@ -31,7 +66,7 @@ func (s *Shard) ContainsSubscriber(ctx context.Context, channelID string, channe
 	if err := validateKeyString(uid); err != nil {
 		return false, err
 	}
-	_, ok, err := s.db.get(encodeSubscriberRowKey(s.hashSlot, channelID, channelType, uid, subscriberPrimaryFamilyID))
+	_, ok, err := subscriberTable.Get(ctx, s, subscriberPrimaryKey(channelID, channelType, uid))
 	return ok, err
 }
 
@@ -72,31 +107,22 @@ func (s *Shard) ListSubscribersPage(ctx context.Context, channelID string, chann
 	if limit <= 0 {
 		return nil, "", true, nil
 	}
-	prefix := encodeSubscriberRowPrefix(s.hashSlot, channelID, channelType)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	var after KeyParts
+	if cursorUID != "" {
+		after = subscriberPrimaryKey(channelID, channelType, cursorUID)
+	}
+	rows, next, done, err := subscriberTable.scanPrimaryPrefixRows(ctx, s, KeyParts{String(channelID), Int64Ordered(channelType)}, after, limit)
 	if err != nil {
 		return nil, "", false, err
 	}
-	defer iter.Close()
-	uids := make([]string, 0, limit)
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, "", false, err
-		}
-		uid, ok := decodeSubscriberUID(prefix, iter.Key())
-		if !ok || uid <= cursorUID {
-			continue
-		}
-		uids = append(uids, uid)
-		if len(uids) == limit {
-			return uids, uid, false, nil
-		}
+	uids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		uids = append(uids, row.UID)
 	}
-	if err := iter.Error(); err != nil {
-		return nil, "", false, err
+	if done || len(next) < 3 {
+		return uids, "", done, nil
 	}
-	return uids, "", true, nil
+	return uids, next[2].S, done, nil
 }
 
 func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {
@@ -132,7 +158,10 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
 	for _, uid := range normalized {
-		key := encodeSubscriberRowKey(s.hashSlot, channelID, channelType, uid, subscriberPrimaryFamilyID)
+		key, err := subscriberRowKey(s.hashSlot, channelID, channelType, uid)
+		if err != nil {
+			return err
+		}
 		if add {
 			if err := batch.Set(key, nil); err != nil {
 				return err
@@ -149,6 +178,21 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 	}
 	s.db.forgetChannel(primaryKey)
 	return nil
+}
+
+func subscriberPrimaryKey(channelID string, channelType int64, uid string) KeyParts {
+	return KeyParts{String(channelID), Int64Ordered(channelType), String(uid)}
+}
+
+func subscriberRowKey(hashSlot HashSlot, channelID string, channelType int64, uid string) ([]byte, error) {
+	return subscriberTable.primaryRowKey(hashSlot, subscriberPrimaryKey(channelID, channelType, uid))
+}
+
+func validateSubscriber(subscriber Subscriber) error {
+	if err := validateKeyString(subscriber.ChannelID); err != nil {
+		return err
+	}
+	return validateKeyString(subscriber.UID)
 }
 
 func normalizeSubscriberUIDs(uids []string) ([]string, error) {
@@ -169,15 +213,4 @@ func normalizeSubscriberUIDs(uids []string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
-}
-
-func decodeSubscriberUID(prefix []byte, key []byte) (string, bool) {
-	if !bytes.HasPrefix(key, prefix) {
-		return "", false
-	}
-	uid, rest, err := keycodec.ReadString(key[len(prefix):])
-	if err != nil || len(rest) != 2 {
-		return "", false
-	}
-	return uid, true
 }
