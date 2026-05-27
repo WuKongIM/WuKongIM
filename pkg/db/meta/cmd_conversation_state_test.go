@@ -123,6 +123,39 @@ func TestCMDConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
 	}
 }
 
+func TestCMDConversationActiveLimitDoesNotDecodeTail(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(25)
+	ctx := context.Background()
+
+	state := CMDConversationState{UID: "u-tail", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 200, UpdatedAt: 10}
+	if err := shard.UpsertCMDConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertCMDConversationState(): %v", err)
+	}
+	malformedTail, err := encodeTableIndexScanPrefix(25, TableIDCMDConversation, conversationActiveIndexID, KeyParts{String(state.UID), Int64Desc(100)})
+	if err != nil {
+		t.Fatalf("encode malformed tail: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(malformedTail, nil); err != nil {
+		t.Fatalf("Set(malformed tail): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed tail): %v", err)
+	}
+
+	got, err := shard.ListCMDConversationActive(ctx, state.UID, 1)
+	if err != nil {
+		t.Fatalf("ListCMDConversationActive(): %v", err)
+	}
+	want := []CMDConversationState{state}
+	if !equalCMDConversationStates(got, want) {
+		t.Fatalf("cmd active conversations = %+v, want %+v", got, want)
+	}
+}
+
 func TestCMDConversationUpsertMergesMaxFieldsAndAdvanceRead(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

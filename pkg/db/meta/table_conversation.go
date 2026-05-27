@@ -301,7 +301,7 @@ func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limi
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, err
 	}
-	rows, _, _, err := conversationTable.ScanIndex(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, nil, limit)
+	rows, err := conversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, limit)
 	return rows, err
 }
 
@@ -323,7 +323,7 @@ func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, c
 	if cursor != (ConversationCursor{}) {
 		after = KeyParts{String(uid), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
 	}
-	rows, next, done, err := conversationTable.ScanPrimaryPrefix(ctx, s, KeyParts{String(uid)}, after, limit)
+	rows, next, done, err := conversationTable.scanPrimaryPrefixStrict(ctx, s, KeyParts{String(uid)}, after, limit)
 	if err != nil {
 		return nil, ConversationCursor{}, false, err
 	}

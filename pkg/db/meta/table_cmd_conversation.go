@@ -175,7 +175,7 @@ func (s *Shard) ListCMDConversationActive(ctx context.Context, uid string, limit
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, err
 	}
-	rows, _, _, err := cmdConversationTable.ScanIndex(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, nil, limit)
+	rows, err := cmdConversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, limit)
 	return rows, err
 }
 

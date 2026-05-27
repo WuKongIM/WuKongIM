@@ -247,12 +247,16 @@ func (t Table[R]) ScanPrimary(ctx context.Context, s *Shard, after KeyParts, lim
 	if limit <= 0 {
 		return nil, nil, true, nil
 	}
-	return t.scanPrimary(ctx, s, nil, after, limit, false)
+	return t.scanPrimary(ctx, s, nil, after, limit, false, false)
 }
 
 // ScanPrimaryPrefix returns primary-key ordered rows matching prefix.
 func (t Table[R]) ScanPrimaryPrefix(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
-	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0)
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, false)
+}
+
+func (t Table[R]) scanPrimaryPrefixStrict(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int) ([]R, KeyParts, bool, error) {
+	return t.scanPrimary(ctx, s, prefix, after, limit, limit <= 0, true)
 }
 
 // ScanIndex returns rows by secondary index prefix.
@@ -276,6 +280,15 @@ func (t Table[R]) ScanIndexAll(ctx context.Context, s *Shard, indexID uint16, pr
 }
 
 func (t Table[R]) scanIndex(ctx context.Context, s *Shard, indexID uint16, prefix KeyParts, after KeyParts, limit int, unlimited bool) ([]R, KeyParts, bool, error) {
+	return t.scanIndexWithOptions(ctx, s, indexID, prefix, after, limit, unlimited, false)
+}
+
+func (t Table[R]) scanIndexRows(ctx context.Context, s *Shard, indexID uint16, prefix KeyParts, limit int) ([]R, error) {
+	rows, _, _, err := t.scanIndexWithOptions(ctx, s, indexID, prefix, nil, limit, false, true)
+	return rows, err
+}
+
+func (t Table[R]) scanIndexWithOptions(ctx context.Context, s *Shard, indexID uint16, prefix KeyParts, after KeyParts, limit int, unlimited bool, stopAtLimit bool) ([]R, KeyParts, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return nil, nil, false, err
 	}
@@ -342,6 +355,9 @@ func (t Table[R]) scanIndex(ctx context.Context, s *Shard, indexID uint16, prefi
 		}
 		rows = append(rows, row)
 		cursor = append(KeyParts(nil), indexParts...)
+		if stopAtLimit && !unlimited && len(rows) == limit {
+			return rows, cursor, false, nil
+		}
 	}
 	if err := iter.Error(); err != nil {
 		return nil, nil, false, err
@@ -584,7 +600,7 @@ func (t Table[R]) loadBatchRow(state *batchCommitState, hashSlot HashSlot, pk Ke
 	return t.getByPrimaryKey(state.db, hashSlot, pk)
 }
 
-func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool) ([]R, KeyParts, bool, error) {
+func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, after KeyParts, limit int, unlimited bool, strictMalformed bool) ([]R, KeyParts, bool, error) {
 	if err := s.check(ctx); err != nil {
 		return nil, nil, false, err
 	}
@@ -624,6 +640,9 @@ func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, af
 		}
 		pk, ok := decodeTablePrimaryRowKey(basePrefix, iter.Key(), t.spec.Primary.Layout, t.spec.Primary.FamilyID)
 		if !ok || !keyPartsHasPrefix(pk, prefix) {
+			if strictMalformed {
+				return nil, nil, false, dberrors.ErrCorruptValue
+			}
 			continue
 		}
 		value, err := iter.Value()
