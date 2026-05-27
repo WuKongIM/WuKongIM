@@ -11,31 +11,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 )
 
-const (
-	// ReasonNoChange marks an idempotent command that did not change logical state.
-	ReasonNoChange = "no_change"
-	// ReasonAlreadyApplied marks an entry at or before the durable applied index.
-	ReasonAlreadyApplied = "already_applied"
-	// ReasonStaleBootstrapObsolete marks a bootstrap command superseded by newer slot state.
-	ReasonStaleBootstrapObsolete = "stale_bootstrap_obsolete"
-	// ReasonStaleBootstrapMissingSlot marks a stale bootstrap command for a still-missing slot.
-	ReasonStaleBootstrapMissingSlot = "stale_bootstrap_missing_slot"
-	// ReasonExpectedRevisionMismatch marks a failed compare-and-set guard.
-	ReasonExpectedRevisionMismatch = "expected_revision_mismatch"
-	// ReasonInvalidState marks a command that would violate cluster-state invariants.
-	ReasonInvalidState = "invalid_state"
-	// ReasonInvalidCommand marks a command missing required payload fields.
-	ReasonInvalidCommand = "invalid_command"
-	// ReasonInvalidTaskResult marks a task result missing required identifiers.
-	ReasonInvalidTaskResult = "invalid_task_result"
-	// ReasonTaskMissing marks an obsolete task result for an absent active task.
-	ReasonTaskMissing = "task_missing"
-	// ReasonTaskSlotMismatch marks a task result that targets the wrong slot.
-	ReasonTaskSlotMismatch = "task_slot_mismatch"
-	// ReasonInitConflict marks an init command that does not match existing state.
-	ReasonInitConflict = "init_conflict"
-)
-
 // ApplyResult describes the deterministic outcome of applying one committed command.
 type ApplyResult struct {
 	// Changed is true when the command advanced the logical state revision.

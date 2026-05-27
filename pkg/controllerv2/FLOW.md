@@ -22,6 +22,21 @@ The root `pkg/controllerv2` package is the external facade. Callers should depen
 | `raft` | Controller Raft wrapper, WAL-backed log storage, scheduled apply, snapshots, and compaction. |
 | `server` | Thin composition facade for tests and future integration. |
 
+## Reading Guide
+
+Start at the root facade when reading production behavior:
+
+The split-file names below describe the intended layout after this readability pass is completed; before the split lands, the same logic still lives in the original larger files.
+
+1. `runtime.go` exposes the public API and holds runtime state.
+2. `runtime_start.go` wires voter or mirror mode.
+3. `runtime_bootstrap.go` creates the initial ControllerV2 state through the same Raft path used by multi-node voters.
+4. `raft/service.go` owns public Raft lifecycle; `raft/service_run.go` owns Ready persistence, message send order, and scheduled apply.
+5. `fsm/mutations.go` dispatches commands; `fsm/mutation_handlers.go` contains the actual state changes.
+6. `sync/server.go` and `sync/client.go` implement full-file sync for mirror nodes.
+
+`Revision` is the logical cluster-state version. `AppliedRaftIndex` is the last committed Raft entry materialized into `cluster-state.json`. Probe entries may advance applied metadata without advancing `Revision`.
+
 ## Raft And Apply Order
 
 ```text
