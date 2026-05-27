@@ -82,6 +82,30 @@ func TestPlanRejectsUnknownMetaFilter(t *testing.T) {
 	}
 }
 
+func TestPlanRejectsMetaPartitionKeyWrongType(t *testing.T) {
+	query, err := Parse("select * from meta.user where uid=1 limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+
+	_, err = planQuery(Options{HashSlotCount: 16}, query)
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("planQuery() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestPlanRejectsUnknownSelectStarTable(t *testing.T) {
+	query, err := Parse("select * from meta.unknown limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+
+	_, err = planQuery(Options{HashSlotCount: 16}, query)
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("planQuery() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestPlanMessageRequiresChannelKey(t *testing.T) {
 	query, err := Parse("select * from message.message limit 10")
 	if err != nil {
@@ -128,6 +152,31 @@ func TestPlanRejectsTamperedCursorScanMode(t *testing.T) {
 	query.Cursor = raw
 
 	_, err = planQuery(Options{}, query)
+	if !errors.Is(err, ErrCursorMismatch) {
+		t.Fatalf("planQuery() err = %v, want ErrCursorMismatch", err)
+	}
+}
+
+func TestPlanRejectsLocalBoundedCursorHashSlotOutOfRange(t *testing.T) {
+	query, err := Parse("select * from meta.user limit 1")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	query.Limit = normalizeLimit(Options{}, query.Limit)
+	raw, err := encodeCursor(cursorPayload{
+		Domain:    "meta",
+		Table:     "user",
+		ScanMode:  scanModeLocalBounded,
+		HashSlot:  99,
+		Primary:   []any{"u1"},
+		QueryHash: queryHash(query),
+	})
+	if err != nil {
+		t.Fatalf("encodeCursor() err = %v", err)
+	}
+	query.Cursor = raw
+
+	_, err = planQuery(Options{HashSlotCount: 4}, query)
 	if !errors.Is(err, ErrCursorMismatch) {
 		t.Fatalf("planQuery() err = %v, want ErrCursorMismatch", err)
 	}
