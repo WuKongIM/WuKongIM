@@ -30,7 +30,7 @@ func Parse(raw string) (Query, error) {
 			return Query{Kind: QueryShowTables}, nil
 		}
 	case "describe", "desc":
-		if len(tokens) == 2 && tokens[1].Text != "" && !tokens[1].Quoted {
+		if len(tokens) == 2 && validTableIdentifier(tokens[1]) {
 			return Query{Kind: QueryDescribe, Table: tokens[1].Text}, nil
 		}
 	case "select":
@@ -97,7 +97,7 @@ func parseSelect(tokens []token) (Query, error) {
 		return Query{}, err
 	}
 	table := tokens[from+1].Text
-	if table == "" || tokens[from+1].Quoted {
+	if !validTableIdentifier(tokens[from+1]) {
 		return Query{}, ErrInvalidQuery
 	}
 
@@ -171,6 +171,9 @@ func parseColumns(tokens []token) ([]string, error) {
 		if !expectColumn || tok.Text == "" {
 			return nil, ErrInvalidQuery
 		}
+		if !validColumnIdentifier(tok) {
+			return nil, ErrInvalidQuery
+		}
 		columns = append(columns, tok.Text)
 		expectColumn = false
 	}
@@ -190,6 +193,9 @@ func parseWhere(tokens []token, start int, filters map[string]any) (int, error) 
 			return 0, ErrInvalidQuery
 		}
 		key := tokens[i].Text
+		if !validNameIdentifier(tokens[i]) {
+			return 0, ErrInvalidQuery
+		}
 		value, err := parseLiteral(tokens[i+2])
 		if err != nil {
 			return 0, err
@@ -209,6 +215,53 @@ func parseWhere(tokens []token, start int, filters map[string]any) (int, error) 
 	}
 }
 
+func validTableIdentifier(tok token) bool {
+	if tok.Quoted || tok.Text == "" || isClause(tok) || isUnsupportedClauseStarter(tok) {
+		return false
+	}
+	segmentLen := 0
+	for _, r := range tok.Text {
+		if r == '.' {
+			if segmentLen == 0 {
+				return false
+			}
+			segmentLen = 0
+			continue
+		}
+		if !isIdentifierRune(r) {
+			return false
+		}
+		segmentLen++
+	}
+	return segmentLen > 0
+}
+
+func validColumnIdentifier(tok token) bool {
+	if tok.Quoted {
+		return false
+	}
+	if tok.Text == "*" {
+		return true
+	}
+	return validNameIdentifier(tok)
+}
+
+func validNameIdentifier(tok token) bool {
+	if tok.Quoted || tok.Text == "" {
+		return false
+	}
+	for _, r := range tok.Text {
+		if !isIdentifierRune(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isIdentifierRune(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_'
+}
+
 func isUnsupportedSelectClause(tokens []token, i int) bool {
 	if i >= len(tokens) || tokens[i].Quoted {
 		return false
@@ -218,6 +271,18 @@ func isUnsupportedSelectClause(tokens []token, i int) bool {
 		return true
 	case "group", "order":
 		return i+1 < len(tokens) && !tokens[i+1].Quoted && lower(tokens[i+1]) == "by"
+	default:
+		return false
+	}
+}
+
+func isUnsupportedClauseStarter(tok token) bool {
+	if tok.Quoted {
+		return false
+	}
+	switch lower(tok) {
+	case "join", "group", "order", "offset":
+		return true
 	default:
 		return false
 	}
