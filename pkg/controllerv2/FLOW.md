@@ -4,12 +4,15 @@
 
 `pkg/controllerv2` is a parallel Controller implementation. Controller voter nodes apply committed Controller Raft commands to a canonical `cluster-state.json` file. Non-controller nodes do not join Controller Raft; they mirror the leader state file through full-file sync.
 
+The root `pkg/controllerv2` package is the external facade. Callers should depend on its `Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping, and state sync request/response contracts. Subpackages remain Controller engine implementation details and should not be imported by `pkg/clusterv2` production code.
+
 `pkg/clusterv2/control` hosts the production-shaped integration wrapper; `pkg/controllerv2` remains the reusable Controller engine and does not import `pkg/clusterv2`.
 
 ## Package Boundaries
 
 | Package | Responsibility |
 |---------|----------------|
+| root `controllerv2` | Public runtime facade, strongly typed state change events, and transport-agnostic Controller network contracts. |
 | `state` | Durable JSON model, normalization, validation, checksum, initial hash-slot table. |
 | `statefile` | Atomic load/save for `cluster-state.json`. |
 | `command` | Versioned Raft command envelope. |
@@ -44,8 +47,8 @@ Startup first loads `cluster-state.json`, restores it from the latest Raft snaps
 ## Server Facade Flow
 
 ```text
-Planner tick: LocalState -> planner.Next -> Raft Propose -> WAL append -> scheduled FSM apply -> statefile save.
-Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState update.
+Planner tick: LocalState -> planner.Next -> Raft Propose -> WAL append -> scheduled FSM apply -> statefile save -> StateEvent.
+Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState update -> StateEvent.
 ```
 
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.

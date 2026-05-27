@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 // ControllerV2StateSource provides locally visible ControllerV2 state snapshots.
 type ControllerV2StateSource interface {
 	// Snapshot returns the latest locally visible ControllerV2 cluster state.
-	Snapshot(context.Context) cv2state.ClusterState
+	Snapshot(context.Context) cv2.ClusterState
 }
 
 // ControllerV2Config wires a ControllerV2Adapter.
@@ -35,7 +35,7 @@ func NewControllerV2Adapter(cfg ControllerV2Config) *ControllerV2Adapter {
 }
 
 // SnapshotFromControllerV2 maps ControllerV2 durable state into the clusterv2 control model.
-func SnapshotFromControllerV2(st cv2state.ClusterState) (Snapshot, error) {
+func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 	if err := st.Validate(); err != nil {
 		return Snapshot{}, err
 	}
@@ -143,26 +143,26 @@ func (a *ControllerV2Adapter) ReportSlots(ctx context.Context, report SlotRuntim
 // Watch returns snapshot update events.
 func (a *ControllerV2Adapter) Watch() <-chan SnapshotEvent { return a.watch }
 
-func mapControllerV2Roles(in []cv2state.NodeRole) []Role {
+func mapControllerV2Roles(in []cv2.NodeRole) []Role {
 	out := make([]Role, 0, len(in))
 	for _, role := range in {
 		switch role {
-		case cv2state.NodeRoleControllerVoter:
+		case cv2.NodeRoleControllerVoter:
 			out = append(out, RoleController)
-		case cv2state.NodeRoleData:
+		case cv2.NodeRoleData:
 			out = append(out, RoleData)
 		}
 	}
 	return out
 }
 
-func mapControllerV2Status(status cv2state.NodeStatus) NodeStatus {
+func mapControllerV2Status(status cv2.NodeStatus) NodeStatus {
 	switch status {
-	case cv2state.NodeStatusAlive:
+	case cv2.NodeStatusAlive:
 		return NodeAlive
-	case cv2state.NodeStatusSuspect:
+	case cv2.NodeStatusSuspect:
 		return NodeSuspect
-	case cv2state.NodeStatusDown:
+	case cv2.NodeStatusDown:
 		return NodeDown
 	default:
 		return NodeDown
