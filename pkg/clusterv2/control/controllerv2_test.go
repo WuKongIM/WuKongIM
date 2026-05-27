@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 func TestControllerV2SnapshotMapping(t *testing.T) {
@@ -69,24 +69,24 @@ func TestControllerV2AdapterPublishesAfterRefresh(t *testing.T) {
 	}
 }
 
-func controllerV2State() cv2state.ClusterState {
-	return cv2state.ClusterState{
-		SchemaVersion: cv2state.CurrentSchemaVersion,
+func controllerV2State() cv2.ClusterState {
+	return cv2.ClusterState{
+		SchemaVersion: cv2.CurrentSchemaVersion,
 		ClusterID:     "cluster-a",
 		Revision:      7,
-		Config:        cv2state.ClusterConfig{SlotCount: 1, HashSlotCount: 4, ReplicaCount: 3},
-		Controllers:   []cv2state.ControllerVoter{{NodeID: 1, Addr: "127.0.0.1:1001", Role: cv2state.ControllerRoleVoter}},
-		Nodes: []cv2state.Node{
-			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []cv2state.NodeRole{cv2state.NodeRoleControllerVoter, cv2state.NodeRoleData}, JoinState: cv2state.NodeJoinStateActive, Status: cv2state.NodeStatusAlive, CapacityWeight: 1},
-			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []cv2state.NodeRole{cv2state.NodeRoleData}, JoinState: cv2state.NodeJoinStateActive, Status: cv2state.NodeStatusAlive, CapacityWeight: 1},
-			{NodeID: 3, Addr: "127.0.0.1:1003", Roles: []cv2state.NodeRole{cv2state.NodeRoleData}, JoinState: cv2state.NodeJoinStateActive, Status: cv2state.NodeStatusAlive, CapacityWeight: 1},
+		Config:        cv2.ClusterConfig{SlotCount: 1, HashSlotCount: 4, ReplicaCount: 3},
+		Controllers:   []cv2.ControllerVoter{{NodeID: 1, Addr: "127.0.0.1:1001", Role: cv2.ControllerRoleVoter}},
+		Nodes: []cv2.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 3, Addr: "127.0.0.1:1003", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
 		},
-		Slots:     []cv2state.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, PreferredLeader: 1}},
-		HashSlots: cv2state.HashSlotTable{Version: cv2state.CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []cv2state.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-		Tasks:     []cv2state.ReconcileTask{{TaskID: "bootstrap-1", SlotID: 1, Kind: cv2state.TaskKindBootstrap, Step: cv2state.TaskStepCreateSlot, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, Status: cv2state.TaskStatusPending}},
+		Slots:     []cv2.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, PreferredLeader: 1}},
+		HashSlots: cv2.HashSlotTable{Version: cv2.CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []cv2.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		Tasks:     []cv2.ReconcileTask{{TaskID: "bootstrap-1", SlotID: 1, Kind: cv2.TaskKindBootstrap, Step: cv2.TaskStepCreateSlot, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, Status: cv2.TaskStatusPending}},
 	}
 }
 
-type fakeStateSource struct{ state cv2state.ClusterState }
+type fakeStateSource struct{ state cv2.ClusterState }
 
-func (s *fakeStateSource) Snapshot(context.Context) cv2state.ClusterState { return s.state }
+func (s *fakeStateSource) Snapshot(context.Context) cv2.ClusterState { return s.state }

@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
+
+const controllerProbeAttemptTimeout = time.Second
 
 type nodeReadinessState struct {
 	NodeID         uint64
@@ -38,8 +41,31 @@ func WaitNodeReady(ctx context.Context, node *Node) error {
 	}
 }
 
-// WaitClusterReady waits until all nodes are locally ready and one supported Controller voter probe succeeds.
+// WaitClusterReady waits until all nodes are locally ready and have observed the same control snapshot.
 func WaitClusterReady(ctx context.Context, nodes ...*Node) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if len(nodes) == 0 {
+		return errors.New("clusterv2 readiness: no nodes")
+	}
+	latest := make([]nodeReadinessState, len(nodes))
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if clusterLocalReady(nodes, latest) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return readinessTimeoutError(ctx.Err(), latest)
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitControllerWriteReady waits until cluster snapshots converge and one Controller voter accepts a write probe.
+func WaitControllerWriteReady(ctx context.Context, nodes ...*Node) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -111,24 +137,76 @@ func nodeLocalReady(node *Node, latest *nodeReadinessState) bool {
 
 func controllerProbeReady(ctx context.Context, nodes []*Node, latest []nodeReadinessState) bool {
 	supported := false
+	for _, nodeID := range controllerProbeCandidates(nodes, latest) {
+		probeSupported, probeReady := controllerProbeNode(ctx, nodes, latest, nodeID)
+		if probeSupported {
+			supported = true
+		}
+		if probeReady {
+			return true
+		}
+	}
+	return !supported
+}
+
+func controllerProbeCandidates(nodes []*Node, latest []nodeReadinessState) []uint64 {
+	seen := make(map[uint64]struct{}, len(nodes))
+	out := make([]uint64, 0, len(nodes))
+	add := func(nodeID uint64) {
+		if nodeID == 0 {
+			return
+		}
+		if _, ok := seen[nodeID]; ok {
+			return
+		}
+		seen[nodeID] = struct{}{}
+		out = append(out, nodeID)
+	}
+	for _, node := range nodes {
+		if node != nil && node.control != nil {
+			add(node.control.LeaderID())
+		}
+	}
+	for _, item := range latest {
+		add(item.Snapshot.ControllerLead)
+	}
+	for _, item := range latest {
+		add(item.NodeID)
+	}
+	return out
+}
+
+func controllerProbeNode(ctx context.Context, nodes []*Node, latest []nodeReadinessState, nodeID uint64) (bool, bool) {
+	if nodeID == 0 {
+		return false, false
+	}
 	for i, node := range nodes {
-		if node == nil || node.control == nil {
+		if latest[i].NodeID != nodeID {
 			continue
+		}
+		if node == nil || node.control == nil {
+			return false, false
 		}
 		probe, ok := node.control.(control.ProposeProbe)
 		latest[i].ProbeSupported = ok
 		if !ok {
-			continue
+			return false, false
 		}
-		supported = true
-		err := probe.ProbePropose(ctx)
-		if err == nil {
-			latest[i].ProbeError = ""
-			return true
-		}
-		latest[i].ProbeError = err.Error()
+		return true, runControllerProbe(ctx, probe, &latest[i])
 	}
-	return !supported
+	return false, false
+}
+
+func runControllerProbe(ctx context.Context, probe control.ProposeProbe, latest *nodeReadinessState) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, controllerProbeAttemptTimeout)
+	err := probe.ProbePropose(probeCtx)
+	cancel()
+	if err == nil {
+		latest.ProbeError = ""
+		return true
+	}
+	latest.ProbeError = err.Error()
+	return false
 }
 
 func readinessTimeoutError(cause error, latest []nodeReadinessState) error {
@@ -165,7 +243,7 @@ func TestWaitNodeReadySucceedsForStartedSingleNodeCluster(t *testing.T) {
 	}
 }
 
-func TestWaitClusterReadyReportsControllerProbeTimeout(t *testing.T) {
+func TestWaitControllerWriteReadyReportsControllerProbeTimeout(t *testing.T) {
 	probeErr := errors.New("probe boom")
 	controller := &failingProbeController{StaticController: control.NewStaticController(nodeControlSnapshot()), err: probeErr}
 	node, err := New(validNodeConfig(t), withController(controller))
@@ -179,12 +257,33 @@ func TestWaitClusterReadyReportsControllerProbeTimeout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
-	err = WaitClusterReady(ctx, node)
+	err = WaitControllerWriteReady(ctx, node)
 	if err == nil {
-		t.Fatal("WaitClusterReady() error = nil, want timeout")
+		t.Fatal("WaitControllerWriteReady() error = nil, want timeout")
 	}
 	if !strings.Contains(err.Error(), "probe boom") || !strings.Contains(err.Error(), "snapshot=") {
-		t.Fatalf("WaitClusterReady() error = %v, want probe and snapshot details", err)
+		t.Fatalf("WaitControllerWriteReady() error = %v, want probe and snapshot details", err)
+	}
+}
+
+func TestWaitControllerWriteReadyRetriesSlowControllerProbe(t *testing.T) {
+	controller := &slowThenReadyProbeController{StaticController: control.NewStaticController(nodeControlSnapshot())}
+	node, err := New(validNodeConfig(t), withController(controller))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	defer cancel()
+	if err := WaitControllerWriteReady(ctx, node); err != nil {
+		t.Fatalf("WaitControllerWriteReady() error = %v", err)
+	}
+	if calls := controller.calls.Load(); calls < 2 {
+		t.Fatalf("ProbePropose() calls = %d, want at least 2", calls)
 	}
 }
 
@@ -194,3 +293,16 @@ type failingProbeController struct {
 }
 
 func (c *failingProbeController) ProbePropose(context.Context) error { return c.err }
+
+type slowThenReadyProbeController struct {
+	*control.StaticController
+	calls atomic.Int32
+}
+
+func (c *slowThenReadyProbeController) ProbePropose(ctx context.Context) error {
+	if c.calls.Add(1) == 1 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return nil
+}
