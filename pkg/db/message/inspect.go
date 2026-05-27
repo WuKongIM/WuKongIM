@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
@@ -43,6 +44,9 @@ type InspectMessageResult struct {
 
 // InspectChannels lists message catalog channels for read-only diagnostics.
 func InspectChannels(ctx context.Context, db *MessageDB, req InspectMessageRequest) (InspectMessageResult, error) {
+	if err := inspectMessageCheckDB(db); err != nil {
+		return InspectMessageResult{}, err
+	}
 	if req.Limit <= 0 {
 		req.Limit = 100
 	}
@@ -89,8 +93,14 @@ func InspectMessages(ctx context.Context, db *MessageDB, req InspectMessageReque
 	if req.Limit <= 0 {
 		req.Limit = 100
 	}
+	if req.AfterSeq == math.MaxUint64 {
+		return InspectMessageResult{
+			Rows: make([]InspectMessageRow, 0, req.Limit),
+			Done: true,
+		}, nil
+	}
 
-	log := db.Channel(ChannelKey(req.ChannelKey), ChannelID{})
+	log := &ChannelLog{db: db, key: ChannelKey(req.ChannelKey)}
 	messages, err := log.Read(ctx, req.AfterSeq+1, ReadOptions{Limit: req.Limit + 1})
 	if err != nil {
 		return InspectMessageResult{}, err
@@ -136,7 +146,7 @@ func inspectMessageRow(msg Message) InspectMessageRow {
 		"client_msg_no": msg.ClientMsgNo,
 		"from_uid":      msg.FromUID,
 		"payload_hash":  msg.PayloadHash,
-		"payload_size":  len(payload),
+		"payload_size":  uint64(len(payload)),
 		"payload":       payload,
 	}
 }
