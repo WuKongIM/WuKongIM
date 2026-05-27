@@ -14,16 +14,16 @@ Current flow:
    primary/index runtime behavior.
 4. Schema descriptors define the durable metadata table catalog.
 5. Multi-hash-slot helpers lock shards in sorted order to avoid deadlocks.
-6. User, device, and plugin binding tables use the table runtime for primary
-   rows, indexes, scans, and ordinary batch staging.
+6. User, device, subscriber, and plugin binding tables use the table runtime
+   for primary rows, indexes, scans, and ordinary batch staging.
 7. Channel ordinary CRUD and channel-ID reads use the table runtime, while
    channel batch/cache orchestration remains custom so post-commit cache
    publishing is unchanged.
 8. Channel reads populate an opportunistic in-memory cache, and channel
    mutations invalidate the affected cache entry after commit.
-9. Subscriber mutations sort and de-duplicate UIDs, update the channel
-   subscriber mutation version in the same commit, and invalidate the channel
-   cache.
+9. Subscriber mutations sort and de-duplicate UIDs, keep membership rows through
+   the table runtime, update the channel subscriber mutation version in the same
+   commit, and invalidate the channel cache.
 10. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with monotonic upserts; page scans use primary-key order and
    cursor bounds.
