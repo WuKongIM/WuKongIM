@@ -53,6 +53,7 @@
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
+  wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
 internal/
   bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
