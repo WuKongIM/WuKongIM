@@ -5,6 +5,7 @@
 - `internalv2` phase 1 is a parallel send-to-sendack skeleton: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/clusterv2` / `pkg/channelv2` append.
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass clusterv2 semantics.
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
+- New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
 
 ## Channel Runtime
 
