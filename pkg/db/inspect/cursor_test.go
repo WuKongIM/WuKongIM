@@ -35,6 +35,33 @@ func TestCursorMetaRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCursorNumericPrimaryRoundTrip(t *testing.T) {
+	query, err := Parse("select * from meta.conversation where uid='u1' limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	query.Limit = normalizeLimit(Options{}, query.Limit)
+	raw, err := encodeCursor(cursorPayload{
+		Domain:    "meta",
+		Table:     "conversation",
+		ScanMode:  scanModePointPartition,
+		HashSlot:  3,
+		Primary:   []any{"u1", "g1", int64(2)},
+		QueryHash: queryHash(query),
+	})
+	if err != nil {
+		t.Fatalf("encodeCursor() err = %v", err)
+	}
+
+	got, err := decodeCursor(raw, query)
+	if err != nil {
+		t.Fatalf("decodeCursor() err = %v", err)
+	}
+	if !reflect.DeepEqual(got.Primary, []any{"u1", "g1", int64(2)}) {
+		t.Fatalf("Primary = %#v, want string/string/int64", got.Primary)
+	}
+}
+
 func TestCursorRejectsQueryMismatch(t *testing.T) {
 	query, err := Parse("select uid from meta.user where uid='u1' limit 10")
 	if err != nil {

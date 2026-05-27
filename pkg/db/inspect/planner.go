@@ -45,6 +45,9 @@ func planQuery(opts Options, q Query) (plan, error) {
 	if !ok {
 		return plan{}, ErrInvalidQuery
 	}
+	if err := validateFilters(domain, table, q.Filters); err != nil {
+		return plan{}, err
+	}
 	var cursor *cursorPayload
 	if q.Cursor != "" {
 		payload, err := decodeCursor(q.Cursor, q)
@@ -60,20 +63,32 @@ func planQuery(opts Options, q Query) (plan, error) {
 		HashSlotCount: opts.HashSlotCount,
 		Cursor:        cursor,
 	}
+	var planned plan
+	var err error
 	switch domain {
 	case "meta":
-		return planMetaQuery(opts, p)
+		planned, err = planMetaQuery(opts, p)
 	case "message":
-		return planMessageQuery(p)
+		planned, err = planMessageQuery(p)
 	default:
 		return plan{}, ErrInvalidQuery
 	}
+	if err != nil {
+		return plan{}, err
+	}
+	if err := validateCursorForPlan(planned); err != nil {
+		return plan{}, err
+	}
+	return planned, nil
 }
 
 func planMetaQuery(opts Options, p plan) (plan, error) {
 	if value, ok := p.Query.Filters["hash_slot"]; ok {
 		hashSlot, ok := asUint16(value)
 		if !ok {
+			return plan{}, ErrInvalidQuery
+		}
+		if opts.HashSlotCount > 0 && hashSlot >= opts.HashSlotCount {
 			return plan{}, ErrInvalidQuery
 		}
 		p.ScanMode = scanModeExplicitPartition
@@ -117,6 +132,46 @@ func planMessageQuery(p plan) (plan, error) {
 	default:
 		return plan{}, ErrInvalidQuery
 	}
+}
+
+func validateFilters(domain, table string, filters map[string]any) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	qualified := domain + "." + table
+	columns, ok := inspectColumns[qualified]
+	if !ok {
+		return ErrInvalidQuery
+	}
+	allowed := make(map[string]struct{}, len(columns)+1)
+	for _, column := range columns {
+		allowed[column] = struct{}{}
+	}
+	if domain == "meta" {
+		allowed["hash_slot"] = struct{}{}
+	}
+	for key := range filters {
+		if _, ok := allowed[key]; !ok {
+			return ErrInvalidQuery
+		}
+	}
+	return nil
+}
+
+func validateCursorForPlan(p plan) error {
+	if p.Cursor == nil {
+		return nil
+	}
+	if p.Cursor.Domain != p.Domain || p.Cursor.Table != p.TableName || p.Cursor.ScanMode != p.ScanMode {
+		return ErrCursorMismatch
+	}
+	if p.ScanMode == scanModeMessageChannel {
+		channelKey, _ := p.Query.Filters["channel_key"].(string)
+		if p.Cursor.ChannelKey != channelKey {
+			return ErrCursorMismatch
+		}
+	}
+	return nil
 }
 
 func normalizeLimit(opts Options, limit int) int {

@@ -46,6 +46,18 @@ func TestPlanMetaExplicitHashSlot(t *testing.T) {
 	}
 }
 
+func TestPlanMetaExplicitHashSlotRejectsOutOfRange(t *testing.T) {
+	query, err := Parse("select * from meta.user where hash_slot=999 limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+
+	_, err = planQuery(Options{HashSlotCount: 16}, query)
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("planQuery() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestPlanMetaLocalBoundedRequiresHashSlotCount(t *testing.T) {
 	query, err := Parse("select * from meta.user limit 10")
 	if err != nil {
@@ -55,6 +67,18 @@ func TestPlanMetaLocalBoundedRequiresHashSlotCount(t *testing.T) {
 	_, err = planQuery(Options{}, query)
 	if !errors.Is(err, ErrHashSlotRequired) {
 		t.Fatalf("planQuery() err = %v, want ErrHashSlotRequired", err)
+	}
+}
+
+func TestPlanRejectsUnknownMetaFilter(t *testing.T) {
+	query, err := Parse("select * from meta.user where missing=1 limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+
+	_, err = planQuery(Options{HashSlotCount: 16}, query)
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("planQuery() err = %v, want ErrInvalidQuery", err)
 	}
 }
 
@@ -82,5 +106,54 @@ func TestPlanMessageCatalog(t *testing.T) {
 	}
 	if plan.ScanMode != scanModeMessageCatalog {
 		t.Fatalf("ScanMode = %q, want %q", plan.ScanMode, scanModeMessageCatalog)
+	}
+}
+
+func TestPlanRejectsTamperedCursorScanMode(t *testing.T) {
+	query, err := Parse("select * from message.message where channel_key='g1:2' limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	query.Limit = normalizeLimit(Options{}, query.Limit)
+	raw, err := encodeCursor(cursorPayload{
+		Domain:     "message",
+		Table:      "message",
+		ScanMode:   scanModeMessageCatalog,
+		ChannelKey: "g1:2",
+		QueryHash:  queryHash(query),
+	})
+	if err != nil {
+		t.Fatalf("encodeCursor() err = %v", err)
+	}
+	query.Cursor = raw
+
+	_, err = planQuery(Options{}, query)
+	if !errors.Is(err, ErrCursorMismatch) {
+		t.Fatalf("planQuery() err = %v, want ErrCursorMismatch", err)
+	}
+}
+
+func TestPlanRejectsMessageCursorChannelMismatch(t *testing.T) {
+	query, err := Parse("select * from message.message where channel_key='g1:2' limit 10")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	query.Limit = normalizeLimit(Options{}, query.Limit)
+	raw, err := encodeCursor(cursorPayload{
+		Domain:     "message",
+		Table:      "message",
+		ScanMode:   scanModeMessageChannel,
+		ChannelKey: "g2:2",
+		AfterSeq:   1,
+		QueryHash:  queryHash(query),
+	})
+	if err != nil {
+		t.Fatalf("encodeCursor() err = %v", err)
+	}
+	query.Cursor = raw
+
+	_, err = planQuery(Options{}, query)
+	if !errors.Is(err, ErrCursorMismatch) {
+		t.Fatalf("planQuery() err = %v, want ErrCursorMismatch", err)
 	}
 }
