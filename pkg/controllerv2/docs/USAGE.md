@@ -2,13 +2,17 @@
 
 `pkg/controllerv2` is a reusable Controller engine. It owns durable
 `cluster-state.json`, Controller Raft command apply, bootstrap planning, and
-full-file state sync. Production startup should stay in the caller, for example
-`pkg/clusterv2/control`; this package should not import `pkg/clusterv2`.
+full-file state sync. External callers should use the root package facade:
+`Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping,
+and state sync request/response contracts.
+
+Production startup should stay in the caller, for example `pkg/clusterv2/control`;
+this package should not import `pkg/clusterv2`.
 
 The snippets below use `cv2*` import aliases for
 `github.com/WuKongIM/WuKongIM/pkg/controllerv2/...` packages.
 
-## Packages
+## Internal Packages
 
 | Package | Use |
 | --- | --- |

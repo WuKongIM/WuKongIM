@@ -9,9 +9,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
-	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
-	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
@@ -96,7 +94,7 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 
 func TestRuntimeProbeProposeWithoutRaftReturnsNotStarted(t *testing.T) {
 	var runtime Runtime
-	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, cv2raft.ErrNotStarted) {
+	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, cv2.ErrNotStarted) {
 		t.Fatalf("ProbePropose() error = %v, want ErrNotStarted", err)
 	}
 }
@@ -152,12 +150,12 @@ func TestRuntimeRestartReusesExistingState(t *testing.T) {
 func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerV2State()
-	syncServer := cv2sync.NewServer(cv2sync.ServerConfig{
+	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2state.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 

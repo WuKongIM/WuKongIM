@@ -59,6 +59,7 @@ type Node struct {
 
 	mu                sync.RWMutex
 	snapshot          Snapshot
+	controlSnapshot   control.Snapshot
 	watchCancel       context.CancelFunc
 	channelTickCancel context.CancelFunc
 	channelTickWG     sync.WaitGroup
@@ -466,20 +467,26 @@ func (n *Node) FetchChannel(ctx context.Context, req channelv2.FetchRequest) (ch
 }
 
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
-	if n.router != nil {
+	n.mu.RLock()
+	previous := n.controlSnapshot.Clone()
+	firstSnapshot := emptyControlSnapshot(previous)
+	n.mu.RUnlock()
+	changes := snapshotChanges(previous, snapshot)
+	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
 		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
 			return err
 		}
 	}
-	if n.discovery != nil {
+	if n.discovery != nil && (firstSnapshot || changes.nodes) {
 		n.discovery.Update(discoveryNodes(snapshot.Nodes))
 	}
-	if n.slots != nil {
+	if n.slots != nil && (firstSnapshot || changes.slots) {
 		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
 			return err
 		}
 	}
 	n.mu.Lock()
+	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
 	return nil

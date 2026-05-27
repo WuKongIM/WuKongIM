@@ -3,7 +3,7 @@ package control
 import (
 	"testing"
 
-	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -23,7 +23,7 @@ func TestControlRaftBatchCodecRoundTrip(t *testing.T) {
 }
 
 func TestControlSyncCodecRoundTrip(t *testing.T) {
-	req := cv2sync.GetStateRequest{ClusterID: "cluster-a", LocalRevision: 7, LocalChecksum: "crc32c:abcd"}
+	req := cv2.GetStateRequest{ClusterID: "cluster-a", LocalRevision: 7, LocalChecksum: "crc32c:abcd"}
 	payload, err := EncodeStateSyncRequest(req)
 	if err != nil {
 		t.Fatalf("EncodeStateSyncRequest() error = %v", err)
@@ -36,7 +36,7 @@ func TestControlSyncCodecRoundTrip(t *testing.T) {
 		t.Fatalf("DecodeStateSyncRequest() = %#v, want %#v", got, req)
 	}
 
-	resp := cv2sync.GetStateResponse{LeaderID: 1, Revision: 8, Checksum: "crc32c:1234", Payload: []byte(`{"revision":8}`)}
+	resp := cv2.GetStateResponse{LeaderID: 1, Revision: 8, Checksum: "crc32c:1234", Payload: []byte(`{"revision":8}`)}
 	encoded, err := EncodeStateSyncResponse(resp)
 	if err != nil {
 		t.Fatalf("EncodeStateSyncResponse() error = %v", err)
