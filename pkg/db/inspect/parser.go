@@ -85,6 +85,9 @@ func lex(raw string) ([]token, error) {
 
 func containsUnsupported(tokens []token) bool {
 	for _, tok := range tokens {
+		if tok.Quoted {
+			continue
+		}
 		switch lower(tok) {
 		case "join", "group", "order", "offset":
 			return true

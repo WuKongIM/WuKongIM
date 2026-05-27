@@ -70,6 +70,26 @@ func TestParseSelectNumericFilterAndCursor(t *testing.T) {
 	}
 }
 
+func TestParseAllowsUnsupportedKeywordStringLiteral(t *testing.T) {
+	query, err := Parse("select * from meta.user where uid='join'")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	if !reflect.DeepEqual(query.Filters, map[string]any{"uid": "join"}) {
+		t.Fatalf("Filters = %#v, want uid=join", query.Filters)
+	}
+}
+
+func TestParseAllowsUnsupportedKeywordCursorLiteral(t *testing.T) {
+	query, err := Parse("select * from meta.user cursor 'offset'")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	if query.Cursor != "offset" {
+		t.Fatalf("Cursor = %q, want offset", query.Cursor)
+	}
+}
+
 func TestParseRejectsUnsupportedJoin(t *testing.T) {
 	_, err := Parse("select * from meta.user join meta.channel on uid=uid")
 	if !errors.Is(err, ErrUnsupportedQuery) {
