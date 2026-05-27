@@ -9,7 +9,7 @@ import (
 
 func TestMetaTableRegistryRejectsDuplicateTableID(t *testing.T) {
 	registry := newMetaTableRegistry()
-	table := simpleMetaTable(65001, "test_duplicate")
+	table := registryTestSchemaTable(65001, "test_duplicate")
 	if err := registry.register(metaTableDescriptor{Table: table}); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
@@ -21,10 +21,10 @@ func TestMetaTableRegistryRejectsDuplicateTableID(t *testing.T) {
 
 func TestMetaTableRegistryTablesAreSortedAndCopied(t *testing.T) {
 	registry := newMetaTableRegistry()
-	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65002, "z_table")}); err != nil {
+	if err := registry.register(metaTableDescriptor{Table: registryTestSchemaTable(65002, "z_table")}); err != nil {
 		t.Fatalf("register z: %v", err)
 	}
-	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65001, "a_table")}); err != nil {
+	if err := registry.register(metaTableDescriptor{Table: registryTestSchemaTable(65001, "a_table")}); err != nil {
 		t.Fatalf("register a: %v", err)
 	}
 
@@ -41,7 +41,7 @@ func TestMetaTableRegistryTablesAreSortedAndCopied(t *testing.T) {
 
 func TestMetaTableRegistryPreservePolicy(t *testing.T) {
 	registry := newMetaTableRegistry()
-	table := simpleMetaTable(65003, "preserved")
+	table := registryTestSchemaTable(65003, "preserved")
 	if err := registry.register(metaTableDescriptor{Table: table, SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -53,10 +53,10 @@ func TestMetaTableRegistryPreservePolicy(t *testing.T) {
 
 func TestMetaTableRegistryRowTablesForSnapshotSkipsPreservedTables(t *testing.T) {
 	registry := newMetaTableRegistry()
-	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65003, "preserved"), SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}}); err != nil {
+	if err := registry.register(metaTableDescriptor{Table: registryTestSchemaTable(65003, "preserved"), SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}}); err != nil {
 		t.Fatalf("register preserved: %v", err)
 	}
-	if err := registry.register(metaTableDescriptor{Table: simpleMetaTable(65004, "normal")}); err != nil {
+	if err := registry.register(metaTableDescriptor{Table: registryTestSchemaTable(65004, "normal")}); err != nil {
 		t.Fatalf("register normal: %v", err)
 	}
 
@@ -75,6 +75,19 @@ func TestMetaTableRegistryRejectsInvalidSchema(t *testing.T) {
 	err := registry.register(metaTableDescriptor{Table: schema.Table{ID: 65004, Name: "invalid"}})
 	if err == nil {
 		t.Fatal("register invalid schema succeeded")
+	}
+}
+
+func registryTestSchemaTable(id uint32, name string) schema.Table {
+	return schema.Table{
+		ID:   id,
+		Name: name,
+		Columns: []schema.Column{
+			{ID: 1, Name: "key", Type: schema.TypeString, Required: true},
+			{ID: 2, Name: "value", Type: schema.TypeBytes},
+		},
+		Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{2}}},
+		Primary:  schema.Index{ID: 1, Name: "pk_" + name, Unique: true, Primary: true, Columns: []uint16{1}},
 	}
 }
 

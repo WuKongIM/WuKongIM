@@ -13,25 +13,3 @@ const (
 func Tables() []schema.Table {
 	return defaultMetaRegistry.tables()
 }
-
-// Core metadata table descriptors. Later table tasks expand column coverage
-// without changing IDs or primary/index IDs.
-func simpleMetaTable(id uint32, name string) schema.Table {
-	return schema.Table{
-		ID:   id,
-		Name: name,
-		Columns: []schema.Column{
-			{ID: columnIDStringKey, Name: "key", Type: schema.TypeString, Required: true},
-			{ID: columnIDValue, Name: "value", Type: schema.TypeBytes},
-		},
-		Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{columnIDValue}}},
-		Primary:  schema.Index{ID: 1, Name: "pk_" + name, Unique: true, Primary: true, Columns: []uint16{columnIDStringKey}},
-	}
-}
-
-func activeMetaTable(id uint32, name string) schema.Table {
-	table := simpleMetaTable(id, name)
-	table.Columns = append(table.Columns, schema.Column{ID: columnIDUpdatedAt, Name: "active_at", Type: schema.TypeInt64})
-	table.Indexes = []schema.Index{{ID: conversationActiveIndexID, Name: "idx_" + name + "_active", Columns: []uint16{columnIDUpdatedAt, columnIDStringKey}}}
-	return table
-}

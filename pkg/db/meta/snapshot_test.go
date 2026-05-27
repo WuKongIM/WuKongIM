@@ -106,6 +106,17 @@ func TestSnapshotMultiHashSlotAndMigrationPreserve(t *testing.T) {
 	if err := source.db.HashSlot(3).UpsertHashSlotMigrationState(ctx, incomingMigration); err != nil {
 		t.Fatalf("source UpsertHashSlotMigrationState(): %v", err)
 	}
+	incomingApplied := AppliedHashSlotDelta{HashSlot: 3, SourceSlot: 1, SourceIndex: 100}
+	if err := source.db.HashSlot(3).MarkAppliedHashSlotDelta(ctx, incomingApplied); err != nil {
+		t.Fatalf("source MarkAppliedHashSlotDelta(): %v", err)
+	}
+	incomingOutboxOverlap := HashSlotMigrationOutboxRow{HashSlot: 3, SourceSlot: 1, TargetSlot: 2, SourceIndex: 100, Data: []byte("incoming-overlap")}
+	incomingOutboxNew := HashSlotMigrationOutboxRow{HashSlot: 3, SourceSlot: 1, TargetSlot: 2, SourceIndex: 101, Data: []byte("incoming-new")}
+	for _, row := range []HashSlotMigrationOutboxRow{incomingOutboxOverlap, incomingOutboxNew} {
+		if err := source.db.HashSlot(3).UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("source UpsertHashSlotMigrationOutbox(%+v): %v", row, err)
+		}
+	}
 	snap, err := source.db.ExportHashSlotSnapshot(ctx, []uint16{3, 11})
 	if err != nil {
 		t.Fatalf("ExportHashSlotSnapshot(): %v", err)
@@ -117,8 +128,23 @@ func TestSnapshotMultiHashSlotAndMigrationPreserve(t *testing.T) {
 	if err := target.db.HashSlot(3).UpsertHashSlotMigrationState(ctx, localMigration); err != nil {
 		t.Fatalf("target UpsertHashSlotMigrationState(): %v", err)
 	}
+	localApplied := AppliedHashSlotDelta{HashSlot: 3, SourceSlot: 10, SourceIndex: 200}
+	if err := target.db.HashSlot(3).MarkAppliedHashSlotDelta(ctx, localApplied); err != nil {
+		t.Fatalf("target MarkAppliedHashSlotDelta(): %v", err)
+	}
+	localOutboxOverlap := incomingOutboxOverlap
+	localOutboxOverlap.Data = []byte("local-overlap")
+	localOutboxDistinct := HashSlotMigrationOutboxRow{HashSlot: 3, SourceSlot: 10, TargetSlot: 20, SourceIndex: 200, Data: []byte("local-distinct")}
+	for _, row := range []HashSlotMigrationOutboxRow{localOutboxOverlap, localOutboxDistinct} {
+		if err := target.db.HashSlot(3).UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("target UpsertHashSlotMigrationOutbox(%+v): %v", row, err)
+		}
+	}
 	if err := target.db.ImportHashSlotSnapshotPreservingMigrationMeta(ctx, snap); err != nil {
 		t.Fatalf("ImportHashSlotSnapshotPreservingMigrationMeta(): %v", err)
+	}
+	if user, ok, err := target.db.HashSlot(3).GetUser(ctx, "u-left"); err != nil || !ok || user.Token != "left" {
+		t.Fatalf("restored left user = %+v ok=%v err=%v, want left", user, ok, err)
 	}
 	if user, ok, err := target.db.HashSlot(11).GetUser(ctx, "u-right"); err != nil || !ok || user.Token != "right" {
 		t.Fatalf("restored right user = %+v ok=%v err=%v, want right", user, ok, err)
@@ -126,6 +152,22 @@ func TestSnapshotMultiHashSlotAndMigrationPreserve(t *testing.T) {
 	gotMigration, ok, err := target.db.HashSlot(3).LoadHashSlotMigrationState(ctx)
 	if err != nil || !ok || gotMigration != localMigration {
 		t.Fatalf("migration state = %+v ok=%v err=%v, want local %+v", gotMigration, ok, err, localMigration)
+	}
+	for _, delta := range []AppliedHashSlotDelta{localApplied, incomingApplied} {
+		exists, err := target.db.HashSlot(3).HasAppliedHashSlotDelta(ctx, delta)
+		if err != nil || !exists {
+			t.Fatalf("applied delta %+v exists=%v err=%v, want true", delta, exists, err)
+		}
+	}
+	gotOutbox, ok, err := target.db.HashSlot(3).LoadHashSlotMigrationOutbox(ctx, localOutboxOverlap.SourceSlot, localOutboxOverlap.TargetSlot, localOutboxOverlap.SourceIndex)
+	if err != nil || !ok || !equalHashSlotMigrationOutboxRow(gotOutbox, localOutboxOverlap) {
+		t.Fatalf("overlap outbox = %+v ok=%v err=%v, want local %+v", gotOutbox, ok, err, localOutboxOverlap)
+	}
+	for _, want := range []HashSlotMigrationOutboxRow{localOutboxDistinct, incomingOutboxNew} {
+		got, ok, err := target.db.HashSlot(3).LoadHashSlotMigrationOutbox(ctx, want.SourceSlot, want.TargetSlot, want.SourceIndex)
+		if err != nil || !ok || !equalHashSlotMigrationOutboxRow(got, want) {
+			t.Fatalf("outbox row = %+v ok=%v err=%v, want %+v", got, ok, err, want)
+		}
 	}
 }
 
