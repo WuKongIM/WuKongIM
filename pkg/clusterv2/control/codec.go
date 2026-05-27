@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -40,7 +40,7 @@ func DecodeRaftBatch(data []byte) ([]raftpb.Message, error) {
 }
 
 // EncodeStateSyncRequest encodes a ControllerV2 full-file sync request.
-func EncodeStateSyncRequest(req cv2sync.GetStateRequest) ([]byte, error) {
+func EncodeStateSyncRequest(req cv2.GetStateRequest) ([]byte, error) {
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -50,20 +50,20 @@ func EncodeStateSyncRequest(req cv2sync.GetStateRequest) ([]byte, error) {
 }
 
 // DecodeStateSyncRequest decodes a ControllerV2 full-file sync request.
-func DecodeStateSyncRequest(data []byte) (cv2sync.GetStateRequest, error) {
+func DecodeStateSyncRequest(data []byte) (cv2.GetStateRequest, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncRequest)
 	if err != nil {
-		return cv2sync.GetStateRequest{}, err
+		return cv2.GetStateRequest{}, err
 	}
-	var req cv2sync.GetStateRequest
+	var req cv2.GetStateRequest
 	if err := json.Unmarshal(payload, &req); err != nil {
-		return cv2sync.GetStateRequest{}, err
+		return cv2.GetStateRequest{}, err
 	}
 	return req, nil
 }
 
 // EncodeStateSyncResponse encodes a ControllerV2 full-file sync response.
-func EncodeStateSyncResponse(resp cv2sync.GetStateResponse) ([]byte, error) {
+func EncodeStateSyncResponse(resp cv2.GetStateResponse) ([]byte, error) {
 	payload, err := json.Marshal(resp)
 	if err != nil {
 		return nil, err
@@ -73,14 +73,14 @@ func EncodeStateSyncResponse(resp cv2sync.GetStateResponse) ([]byte, error) {
 }
 
 // DecodeStateSyncResponse decodes a ControllerV2 full-file sync response.
-func DecodeStateSyncResponse(data []byte) (cv2sync.GetStateResponse, error) {
+func DecodeStateSyncResponse(data []byte) (cv2.GetStateResponse, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncResponse)
 	if err != nil {
-		return cv2sync.GetStateResponse{}, err
+		return cv2.GetStateResponse{}, err
 	}
-	var resp cv2sync.GetStateResponse
+	var resp cv2.GetStateResponse
 	if err := json.Unmarshal(payload, &resp); err != nil {
-		return cv2sync.GetStateResponse{}, err
+		return cv2.GetStateResponse{}, err
 	}
 	return resp, nil
 }

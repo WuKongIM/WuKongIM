@@ -10,7 +10,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 
 | Package | Responsibility |
 |---------|----------------|
-| `control` | Controller abstraction, ControllerV2 runtime wrapper, snapshot adapter, Raft RPC, and state sync RPC. |
+| `control` | Controller abstraction, root ControllerV2 facade adapter, snapshot adapter, Raft RPC, and state sync RPC. |
 | `routing` | Atomic HashSlot -> Slot -> Leader read model for hot paths. |
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
@@ -42,7 +42,9 @@ Start(ctx)
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests.
 
-`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Tests that require distributed Controller write readiness should wait for all nodes to be locally ready and then require one ControllerV2 voter to pass the `control.ProposeProbe` capability. Slot and Channel write tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
+`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel write tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
+
+ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
 ## Stop Flow
 
