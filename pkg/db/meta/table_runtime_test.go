@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
@@ -20,6 +21,11 @@ type runtimeProjectedRow struct {
 	ID       string
 	ActiveAt int64
 	Value    string
+}
+
+type runtimeKeyAwareRow struct {
+	ID      string
+	Payload string
 }
 
 func newRuntimeTestTable(t *testing.T) Table[runtimeTestRow] {
@@ -172,6 +178,44 @@ func newRuntimeProjectedIndexTable(t *testing.T) Table[runtimeProjectedRow] {
 	return table
 }
 
+func newRuntimeKeyAwareCodecTable(t *testing.T) Table[runtimeKeyAwareRow] {
+	t.Helper()
+	table, err := registerMetaTableInRegistry(newMetaTableRegistry(), TableSpec[runtimeKeyAwareRow]{
+		ID:   65033,
+		Name: "runtime_key_aware_codec_test",
+		Columns: []schema.Column{
+			{ID: 1, Name: "id", Type: schema.TypeString, Required: true},
+			{ID: 2, Name: "payload", Type: schema.TypeBytes},
+		},
+		Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{2}}},
+		Primary: PrimarySpec[runtimeKeyAwareRow]{
+			IndexID:  1,
+			FamilyID: 0,
+			Name:     "pk_runtime_key_aware_codec_test",
+			Columns:  []uint16{1},
+			Layout:   KeyLayout{KeyString},
+			Key:      func(row runtimeKeyAwareRow) KeyParts { return KeyParts{String(row.ID)} },
+		},
+		Validate: func(row runtimeKeyAwareRow) error {
+			return validateKeyString(row.ID)
+		},
+		EncodeValueWithKey: func(primaryKey []byte, row runtimeKeyAwareRow) ([]byte, error) {
+			return rowcodec.Wrap(primaryKey, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, []byte(row.Payload)), nil
+		},
+		DecodeValueWithKey: func(primaryKey []byte, primary KeyParts, value []byte) (runtimeKeyAwareRow, error) {
+			env, err := rowcodec.Unwrap(primaryKey, value)
+			if err != nil {
+				return runtimeKeyAwareRow{}, err
+			}
+			return runtimeKeyAwareRow{ID: primary[0].S, Payload: string(env.Payload)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("register key-aware codec test table: %v", err)
+	}
+	return table
+}
+
 func TestTableRuntimePrimaryCRUD(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -211,6 +255,40 @@ func TestTableRuntimePrimaryCRUD(t *testing.T) {
 	_, ok, err = table.Get(ctx, shard, KeyParts{String("a")})
 	if err != nil || ok {
 		t.Fatalf("Get deleted ok=%v err=%v", ok, err)
+	}
+}
+
+func TestTableRuntimeValueCodecReceivesPrimaryRowKey(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeKeyAwareCodecTable(t)
+	shard := store.db.HashSlot(11)
+	ctx := context.Background()
+
+	row := runtimeKeyAwareRow{ID: "keyed", Payload: "bound-to-row-key"}
+	if err := table.Upsert(ctx, shard, row); err != nil {
+		t.Fatalf("Upsert(): %v", err)
+	}
+	got, ok, err := table.Get(ctx, shard, KeyParts{String(row.ID)})
+	if err != nil || !ok || got != row {
+		t.Fatalf("Get() = %#v ok=%v err=%v, want %#v", got, ok, err, row)
+	}
+	page, cursor, done, err := table.ScanPrimary(ctx, shard, nil, 1)
+	if err != nil || !done || len(page) != 1 || page[0] != row || len(cursor) != 0 {
+		t.Fatalf("ScanPrimary() page=%#v cursor=%#v done=%v err=%v", page, cursor, done, err)
+	}
+
+	primaryKey, err := table.primaryRowKey(shard.hashSlot, KeyParts{String(row.ID)})
+	if err != nil {
+		t.Fatalf("primary row key: %v", err)
+	}
+	stored, ok, err := store.db.get(primaryKey)
+	if err != nil || !ok {
+		t.Fatalf("stored row ok=%v err=%v", ok, err)
+	}
+	wrongKey := append(append([]byte(nil), primaryKey...), 0xff)
+	if _, err := rowcodec.Unwrap(wrongKey, stored); err == nil {
+		t.Fatal("Unwrap(wrong key) err = nil, want checksum failure")
 	}
 }
 

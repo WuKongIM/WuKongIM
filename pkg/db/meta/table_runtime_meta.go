@@ -9,13 +9,18 @@ import (
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 const (
 	channelRuntimeMetaPrimaryFamilyID uint16 = 0
+	channelRuntimeMetaPrimaryIndexID  uint16 = 1
+
+	channelRuntimeMetaColumnChannelID   uint16 = 1
+	channelRuntimeMetaColumnChannelType uint16 = 2
+	channelRuntimeMetaColumnValue       uint16 = 3
 
 	runtimeMetaColumnChannelEpoch        uint16 = 1
 	runtimeMetaColumnLeaderEpoch         uint16 = 2
@@ -36,6 +41,43 @@ const (
 )
 
 const runtimeMetaValueVersion byte = 1
+
+var channelRuntimeMetaTable = registerMetaTable(TableSpec[ChannelRuntimeMeta]{
+	ID:   TableIDChannelRuntimeMeta,
+	Name: "channel_runtime_meta",
+	Columns: []schema.Column{
+		{ID: channelRuntimeMetaColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: channelRuntimeMetaColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: channelRuntimeMetaColumnValue, Name: "value", Type: schema.TypeBytes},
+	},
+	Families: []schema.Family{{ID: channelRuntimeMetaPrimaryFamilyID, Name: "primary", Columns: []uint16{channelRuntimeMetaColumnValue}}},
+	Primary: PrimarySpec[ChannelRuntimeMeta]{
+		IndexID:  channelRuntimeMetaPrimaryIndexID,
+		FamilyID: channelRuntimeMetaPrimaryFamilyID,
+		Name:     "pk_channel_runtime_meta",
+		Columns:  []uint16{channelRuntimeMetaColumnChannelID, channelRuntimeMetaColumnChannelType},
+		Layout:   KeyLayout{KeyString, KeyInt64Ordered},
+		Key: func(meta ChannelRuntimeMeta) KeyParts {
+			return channelRuntimeMetaPrimaryKey(meta.ChannelID, meta.ChannelType)
+		},
+	},
+	Validate: validateChannelRuntimeMeta,
+	EncodeValueWithKey: func(primaryKey []byte, meta ChannelRuntimeMeta) ([]byte, error) {
+		return encodeChannelRuntimeMetaValue(primaryKey, meta), nil
+	},
+	DecodeValueWithKey: func(primaryKey []byte, primary KeyParts, value []byte) (ChannelRuntimeMeta, error) {
+		meta, err := decodeChannelRuntimeMetaValue(primaryKey, value)
+		if err != nil {
+			return ChannelRuntimeMeta{}, err
+		}
+		meta.ChannelID = primary[0].S
+		meta.ChannelType = primary[1].I64
+		return meta, nil
+	},
+})
+
+// ChannelRuntimeMetaTable describes the runtime metadata table schema.
+var ChannelRuntimeMetaTable = channelRuntimeMetaTable.Schema()
 
 // ChannelRuntimeMeta stores authoritative channel routing and liveness metadata.
 type ChannelRuntimeMeta struct {
@@ -123,7 +165,11 @@ func (s *Shard) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelRuntim
 	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := batch.Set(key, encodeChannelRuntimeMetaValue(key, next)); err != nil {
+	value, err := channelRuntimeMetaTable.encodeValue(key, next)
+	if err != nil {
+		return 0, err
+	}
+	if err := batch.Set(key, value); err != nil {
 		return 0, err
 	}
 	if err := batch.Commit(true); err != nil {
@@ -140,8 +186,7 @@ func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, cha
 	if err := validateKeyString(channelID); err != nil {
 		return ChannelRuntimeMeta{}, false, err
 	}
-	key := encodeChannelRuntimeMetaRowKey(s.hashSlot, channelID, channelType, channelRuntimeMetaPrimaryFamilyID)
-	return s.getChannelRuntimeMetaByKey(ctx, key, channelID, channelType)
+	return channelRuntimeMetaTable.Get(ctx, s, channelRuntimeMetaPrimaryKey(channelID, channelType))
 }
 
 // DeleteChannelRuntimeMeta removes one runtime metadata row.
@@ -180,52 +225,24 @@ func (s *Shard) ListChannelRuntimeMetaPage(ctx context.Context, cursor ChannelRu
 	if limit <= 0 {
 		return nil, ChannelRuntimeMetaCursor{}, false, dberrors.ErrInvalidArgument
 	}
-	prefix := encodeChannelRuntimeMetaRowPrefix(s.hashSlot)
-	span := keycodec.NewPrefixSpan(prefix)
+	var after KeyParts
 	if cursor != (ChannelRuntimeMetaCursor{}) {
-		span.Start = keycodec.PrefixEnd(encodeChannelRuntimeMetaRowKey(s.hashSlot, cursor.ChannelID, cursor.ChannelType, channelRuntimeMetaPrimaryFamilyID))
+		after = channelRuntimeMetaPrimaryKey(cursor.ChannelID, cursor.ChannelType)
 	}
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	rows, _, _, err := channelRuntimeMetaTable.ScanPrimary(ctx, s, after, limit+1)
 	if err != nil {
 		return nil, ChannelRuntimeMetaCursor{}, false, err
 	}
-	defer iter.Close()
-
-	page := make([]ChannelRuntimeMeta, 0, limit)
+	done := len(rows) <= limit
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
 	nextCursor := cursor
-	hasMore := false
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, ChannelRuntimeMetaCursor{}, false, err
-		}
-		channelID, channelType, familyID, ok := decodeChannelRuntimeMetaRowKey(prefix, iter.Key())
-		if !ok {
-			return nil, ChannelRuntimeMetaCursor{}, false, dberrors.ErrCorruptValue
-		}
-		if familyID != channelRuntimeMetaPrimaryFamilyID {
-			continue
-		}
-		if len(page) == limit {
-			hasMore = true
-			break
-		}
-		value, err := iter.Value()
-		if err != nil {
-			return nil, ChannelRuntimeMetaCursor{}, false, err
-		}
-		meta, err := decodeChannelRuntimeMetaValue(iter.Key(), value)
-		if err != nil {
-			return nil, ChannelRuntimeMetaCursor{}, false, err
-		}
-		meta.ChannelID = channelID
-		meta.ChannelType = channelType
-		page = append(page, meta)
-		nextCursor = ChannelRuntimeMetaCursor{ChannelID: channelID, ChannelType: channelType}
+	if len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = ChannelRuntimeMetaCursor{ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
-	if err := iter.Error(); err != nil {
-		return nil, ChannelRuntimeMetaCursor{}, false, err
-	}
-	return page, nextCursor, !hasMore, nil
+	return rows, nextCursor, done, nil
 }
 
 // AdvanceChannelRetentionThroughSeq advances only retention fields behind an observed fence.
@@ -263,7 +280,11 @@ func (s *Shard) AdvanceChannelRetentionThroughSeq(ctx context.Context, req Chann
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := batch.Set(key, encodeChannelRuntimeMetaValue(key, next)); err != nil {
+	value, err := channelRuntimeMetaTable.encodeValue(key, next)
+	if err != nil {
+		return err
+	}
+	if err := batch.Set(key, value); err != nil {
 		return err
 	}
 	return batch.Commit(true)
@@ -279,13 +300,15 @@ func (s *Shard) getChannelRuntimeMetaByKey(ctx context.Context, key []byte, chan
 	if err != nil || !ok {
 		return ChannelRuntimeMeta{}, ok, err
 	}
-	meta, err := decodeChannelRuntimeMetaValue(key, value)
+	meta, err := channelRuntimeMetaTable.decodeValue(key, channelRuntimeMetaPrimaryKey(channelID, channelType), value)
 	if err != nil {
 		return ChannelRuntimeMeta{}, false, err
 	}
-	meta.ChannelID = channelID
-	meta.ChannelType = channelType
 	return meta, true, nil
+}
+
+func channelRuntimeMetaPrimaryKey(channelID string, channelType int64) KeyParts {
+	return KeyParts{String(channelID), Int64Ordered(channelType)}
 }
 
 func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {

@@ -16,7 +16,6 @@ func Tables() []schema.Table {
 
 func init() {
 	for _, descriptor := range []metaTableDescriptor{
-		{Table: ChannelRuntimeMetaTable},
 		{Table: ChannelMigrationTable},
 		{Table: HashSlotMigrationTable, SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}},
 	} {
@@ -27,9 +26,8 @@ func init() {
 // Core metadata table descriptors. Later table tasks expand column coverage
 // without changing IDs or primary/index IDs.
 var (
-	ChannelRuntimeMetaTable = simpleMetaTable(TableIDChannelRuntimeMeta, "channel_runtime_meta")
-	ChannelMigrationTable   = activeMetaTable(TableIDChannelMigration, "channel_migration")
-	HashSlotMigrationTable  = activeMetaTable(TableIDHashSlotMigration, "hashslot_migration")
+	ChannelMigrationTable  = activeMetaTable(TableIDChannelMigration, "channel_migration")
+	HashSlotMigrationTable = activeMetaTable(TableIDHashSlotMigration, "hashslot_migration")
 )
 
 func simpleMetaTable(id uint32, name string) schema.Table {

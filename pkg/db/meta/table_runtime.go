@@ -22,9 +22,15 @@ type TableSpec[R any] struct {
 	Indexes        []IndexSpec[R]
 	SnapshotPolicy SnapshotPolicy
 
-	Validate    func(R) error
+	Validate func(R) error
+	// EncodeValue encodes a row value when the codec does not depend on the physical row key.
 	EncodeValue func(R) ([]byte, error)
+	// EncodeValueWithKey encodes a row value for codecs whose checksum binds the physical row key.
+	EncodeValueWithKey func([]byte, R) ([]byte, error)
+	// DecodeValue decodes a row value when the codec does not depend on the physical row key.
 	DecodeValue func(KeyParts, []byte) (R, error)
+	// DecodeValueWithKey decodes a row value for codecs whose checksum binds the physical row key.
+	DecodeValueWithKey func([]byte, KeyParts, []byte) (R, error)
 }
 
 // PrimarySpec describes the primary key and row family for a table.
@@ -92,8 +98,14 @@ func (t Table[R]) Schema() schema.Table {
 }
 
 func normalizeTableSpec[R any](spec TableSpec[R]) (TableSpec[R], schema.Table, error) {
-	if spec.ID == 0 || spec.Name == "" || spec.Primary.Key == nil || spec.EncodeValue == nil || spec.DecodeValue == nil {
+	if spec.ID == 0 || spec.Name == "" || spec.Primary.Key == nil {
 		return spec, schema.Table{}, fmt.Errorf("%w: incomplete table spec", dberrors.ErrInvalidArgument)
+	}
+	if (spec.EncodeValue == nil) == (spec.EncodeValueWithKey == nil) {
+		return spec, schema.Table{}, fmt.Errorf("%w: table spec must define exactly one value encoder", dberrors.ErrInvalidArgument)
+	}
+	if (spec.DecodeValue == nil) == (spec.DecodeValueWithKey == nil) {
+		return spec, schema.Table{}, fmt.Errorf("%w: table spec must define exactly one value decoder", dberrors.ErrInvalidArgument)
 	}
 	if spec.Primary.IndexID == 0 || spec.Primary.Name == "" || len(spec.Primary.Layout) != len(spec.Primary.Columns) {
 		return spec, schema.Table{}, fmt.Errorf("%w: invalid primary spec", dberrors.ErrInvalidArgument)
@@ -227,7 +239,7 @@ func (t Table[R]) Delete(ctx context.Context, s *Shard, pk KeyParts) error {
 	}
 	if exists {
 		if t.hasDecodedIndexEntries() {
-			old, err := t.spec.DecodeValue(pk, existingValue)
+			old, err := t.decodeValue(primaryKey, pk, existingValue)
 			if err != nil {
 				return err
 			}
@@ -433,14 +445,14 @@ func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMod
 	if err != nil {
 		return err
 	}
-	value, err := t.spec.EncodeValue(row)
-	if err != nil {
-		return err
-	}
 	unlock := s.lock()
 	defer unlock()
 
 	primaryKey, err := t.primaryRowKey(s.hashSlot, pk)
+	if err != nil {
+		return err
+	}
+	value, err := t.encodeValue(primaryKey, row)
 	if err != nil {
 		return err
 	}
@@ -468,7 +480,7 @@ func (t Table[R]) write(ctx context.Context, s *Shard, row R, mode tableWriteMod
 	}
 	if exists {
 		if t.hasDecodedIndexEntries() {
-			existing, err := t.spec.DecodeValue(pk, existingValue)
+			existing, err := t.decodeValue(primaryKey, pk, existingValue)
 			if err != nil {
 				return err
 			}
@@ -502,11 +514,11 @@ func (t Table[R]) stageWrite(b *Batch, hashSlot HashSlot, row R, mode tableWrite
 	if err != nil {
 		return err
 	}
-	value, err := t.spec.EncodeValue(row)
+	primaryKey, err := t.primaryRowKey(hashSlot, pk)
 	if err != nil {
 		return err
 	}
-	primaryKey, err := t.primaryRowKey(hashSlot, pk)
+	value, err := t.encodeValue(primaryKey, row)
 	if err != nil {
 		return err
 	}
@@ -536,7 +548,7 @@ func (t Table[R]) stageWrite(b *Batch, hashSlot HashSlot, row R, mode tableWrite
 			}
 		}
 		if exists && t.hasDecodedIndexEntries() {
-			old, err := t.spec.DecodeValue(pk, existingValue)
+			old, err := t.decodeValue(primaryKey, pk, existingValue)
 			if err != nil {
 				return err
 			}
@@ -569,6 +581,20 @@ func (t Table[R]) loadBatchValue(state *batchCommitState, primaryKey []byte) ([]
 	return state.db.get(primaryKey)
 }
 
+func (t Table[R]) encodeValue(primaryKey []byte, row R) ([]byte, error) {
+	if t.spec.EncodeValueWithKey != nil {
+		return t.spec.EncodeValueWithKey(primaryKey, row)
+	}
+	return t.spec.EncodeValue(row)
+}
+
+func (t Table[R]) decodeValue(primaryKey []byte, pk KeyParts, value []byte) (R, error) {
+	if t.spec.DecodeValueWithKey != nil {
+		return t.spec.DecodeValueWithKey(primaryKey, pk, value)
+	}
+	return t.spec.DecodeValue(pk, value)
+}
+
 func (t Table[R]) getByPrimaryKey(db *MetaDB, hashSlot HashSlot, pk KeyParts) (R, bool, error) {
 	var zero R
 	if err := t.validatePrimaryKey(pk); err != nil {
@@ -582,7 +608,7 @@ func (t Table[R]) getByPrimaryKey(db *MetaDB, hashSlot HashSlot, pk KeyParts) (R
 	if err != nil || !ok {
 		return zero, ok, err
 	}
-	row, err := t.spec.DecodeValue(pk, value)
+	row, err := t.decodeValue(primaryKey, pk, value)
 	if err != nil {
 		return zero, false, err
 	}
@@ -595,7 +621,7 @@ func (t Table[R]) loadBatchRow(state *batchCommitState, hashSlot HashSlot, pk Ke
 		if !overlay.exists {
 			return zero, false, nil
 		}
-		row, err := t.spec.DecodeValue(pk, overlay.value)
+		row, err := t.decodeValue(primaryKey, pk, overlay.value)
 		if err != nil {
 			return zero, false, err
 		}
@@ -653,7 +679,7 @@ func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, af
 		if err != nil {
 			return nil, nil, false, err
 		}
-		row, err := t.spec.DecodeValue(pk, value)
+		row, err := t.decodeValue(iter.Key(), pk, value)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -840,7 +866,7 @@ func (t Table[R]) stageUniqueIndexChecks(ctx context.Context, db *MetaDB, state 
 			if !ok || overlayPK.Equal(pk) {
 				continue
 			}
-			overlayRow, err := t.spec.DecodeValue(overlayPK, overlay.value)
+			overlayRow, err := t.decodeValue([]byte(primaryKey), overlayPK, overlay.value)
 			if err != nil {
 				return err
 			}

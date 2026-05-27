@@ -629,12 +629,10 @@ func (db *DB) ListChannelRuntimeMeta(ctx context.Context) ([]ChannelRuntimeMeta,
 		if err != nil {
 			return nil, err
 		}
-		meta, err := decodeChannelRuntimeMetaValue(key, value)
+		meta, err := channelRuntimeMetaTable.decodeValue(key, channelRuntimeMetaPrimaryKey(channelID, channelType), value)
 		if err != nil {
 			return nil, err
 		}
-		meta.ChannelID = channelID
-		meta.ChannelType = channelType
 		out = append(out, meta)
 	}
 	return out, iter.Error()
@@ -961,7 +959,11 @@ func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req Chan
 		next.RetentionThroughSeq = req.RetentionThroughSeq
 		next.RetentionUpdatedAtMS = req.RetentionUpdatedAtMS
 		next.RouteGeneration = nextChannelRouteGeneration(existing.RouteGeneration)
-		if err := batch.Set(key, encodeChannelRuntimeMetaValue(key, next)); err != nil {
+		value, err := channelRuntimeMetaTable.encodeValue(key, next)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(key, value); err != nil {
 			return err
 		}
 		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}
@@ -1714,7 +1716,11 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 		if err := shard.stageUpsertChannelMigrationTask(ctx, batch, nextTask); err != nil {
 			return err
 		}
-		if err := batch.Set(metaKey, encodeChannelRuntimeMetaValue(metaKey, nextMeta)); err != nil {
+		value, err := channelRuntimeMetaTable.encodeValue(metaKey, nextMeta)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(metaKey, value); err != nil {
 			return err
 		}
 		st.migrationTasks[string(taskKey)] = migrationTaskOverlay{task: nextTask, exists: true}

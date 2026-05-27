@@ -17,6 +17,7 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	seen := make(map[uint32]string, len(tables))
 	channelIDIndexRegistered := false
 	channelActiveIndexRegistered := false
+	channelRuntimeMetaPrimaryRegistered := false
 	subscriberPrimaryRegistered := false
 	conversationActiveIndexRegistered := false
 	cmdConversationActiveIndexRegistered := false
@@ -37,6 +38,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 					channelActiveIndexRegistered = true
 				}
 			}
+		}
+		if table.ID == TableIDChannelRuntimeMeta &&
+			table.Primary.ID == channelRuntimeMetaPrimaryIndexID &&
+			table.Primary.Name == "pk_channel_runtime_meta" &&
+			len(table.Primary.Columns) == 2 {
+			channelRuntimeMetaPrimaryRegistered = true
 		}
 		if table.ID == TableIDSubscriber &&
 			table.Primary.ID == subscriberPrimaryIndexID &&
@@ -64,6 +71,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	}
 	if !channelActiveIndexRegistered {
 		t.Fatalf("channel table missing idx_channel_active index %d", channelActiveIndexID)
+	}
+	if !channelRuntimeMetaPrimaryRegistered {
+		t.Fatalf("channel runtime meta table missing typed primary index")
 	}
 	if !subscriberPrimaryRegistered {
 		t.Fatalf("subscriber table missing typed primary index %d", subscriberPrimaryIndexID)

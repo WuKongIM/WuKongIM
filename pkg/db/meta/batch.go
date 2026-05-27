@@ -184,7 +184,11 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		case MonotonicConflict:
 			return dberrors.ErrConflict
 		}
-		if err := batch.Set(key, encodeChannelRuntimeMetaValue(key, next)); err != nil {
+		value, err := channelRuntimeMetaTable.encodeValue(key, next)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(key, value); err != nil {
 			return err
 		}
 		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}

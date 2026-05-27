@@ -39,6 +39,41 @@ func TestChannelRuntimeMetaUpsertGetNormalizeAndDelete(t *testing.T) {
 	}
 }
 
+func TestChannelRuntimeMetaKeepsLegacyRowLayoutAndKeyBoundValue(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(7)
+
+	meta := testRuntimeMeta("runtime-layout", 2)
+	if _, err := shard.UpsertChannelRuntimeMeta(context.Background(), meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+
+	legacyKey := encodeChannelRuntimeMetaRowKey(7, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	runtimeKey, err := channelRuntimeMetaTable.primaryRowKey(7, channelRuntimeMetaPrimaryKey(meta.ChannelID, meta.ChannelType))
+	if err != nil {
+		t.Fatalf("runtime primary row key: %v", err)
+	}
+	if string(runtimeKey) != string(legacyKey) {
+		t.Fatalf("runtime row key %x, want legacy %x", runtimeKey, legacyKey)
+	}
+	stored, ok, err := store.db.get(legacyKey)
+	if err != nil || !ok {
+		t.Fatalf("legacy row ok=%v err=%v", ok, err)
+	}
+	got, err := channelRuntimeMetaTable.decodeValue(legacyKey, channelRuntimeMetaPrimaryKey(meta.ChannelID, meta.ChannelType), stored)
+	if err != nil {
+		t.Fatalf("decode runtime value: %v", err)
+	}
+	if !equalRuntimeMeta(got, normalizeChannelRuntimeMeta(meta)) {
+		t.Fatalf("decoded meta = %+v, want %+v", got, normalizeChannelRuntimeMeta(meta))
+	}
+	wrongKey := append(append([]byte(nil), legacyKey...), 0xff)
+	if _, err := channelRuntimeMetaTable.decodeValue(wrongKey, channelRuntimeMetaPrimaryKey(meta.ChannelID, meta.ChannelType), stored); err == nil {
+		t.Fatal("decode with wrong row key err = nil, want checksum failure")
+	}
+}
+
 func TestChannelRuntimeMetaMonotonicAppliedIgnoredStaleAndConflict(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
