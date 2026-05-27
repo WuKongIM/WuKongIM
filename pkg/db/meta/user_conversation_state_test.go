@@ -124,6 +124,61 @@ func TestUserConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
 	}
 }
 
+func TestUserConversationActiveLimitDoesNotDecodeTail(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(25)
+	ctx := context.Background()
+
+	state := UserConversationState{UID: "u-tail", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, UpdatedAt: 10}
+	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertUserConversationState(): %v", err)
+	}
+	malformedTail, err := encodeTableIndexScanPrefix(25, TableIDConversation, conversationActiveIndexID, KeyParts{String(state.UID), Int64Desc(100)})
+	if err != nil {
+		t.Fatalf("encode malformed tail: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(malformedTail, nil); err != nil {
+		t.Fatalf("Set(malformed tail): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed tail): %v", err)
+	}
+
+	got, err := shard.ListUserConversationActive(ctx, state.UID, 1)
+	if err != nil {
+		t.Fatalf("ListUserConversationActive(): %v", err)
+	}
+	want := []UserConversationState{state}
+	if !equalUserConversationStates(got, want) {
+		t.Fatalf("active conversations = %+v, want %+v", got, want)
+	}
+}
+
+func TestUserConversationStatePageMalformedRowReturnsCorruptValue(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(26)
+	ctx := context.Background()
+
+	malformed := append(encodeConversationRowPrefix(26, "u-bad-row"), 0x01)
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(malformed, nil); err != nil {
+		t.Fatalf("Set(malformed row): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(malformed row): %v", err)
+	}
+
+	_, _, _, err := shard.ListUserConversationStatePage(ctx, "u-bad-row", ConversationCursor{}, 10)
+	if !errors.Is(err, dberrors.ErrCorruptValue) {
+		t.Fatalf("ListUserConversationStatePage() err = %v, want corrupt value", err)
+	}
+}
+
 func TestUserConversationTouchClearHideAndPage(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
