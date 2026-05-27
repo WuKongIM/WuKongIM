@@ -29,11 +29,11 @@ func Parse(raw string) (Query, error) {
 
 	switch lower(tokens[0]) {
 	case "show":
-		if len(tokens) == 2 && lower(tokens[1]) == "tables" {
+		if len(tokens) == 2 && !tokens[1].Quoted && lower(tokens[1]) == "tables" {
 			return Query{Kind: QueryShowTables}, nil
 		}
 	case "describe", "desc":
-		if len(tokens) == 2 && tokens[1].Text != "" {
+		if len(tokens) == 2 && tokens[1].Text != "" && !tokens[1].Quoted {
 			return Query{Kind: QueryDescribe, Table: tokens[1].Text}, nil
 		}
 	case "select":
@@ -123,15 +123,24 @@ func parseSelect(tokens []token) (Query, error) {
 		Columns: columns,
 		Filters: make(map[string]any),
 	}
+	var seenWhere, seenLimit, seenCursor bool
 	for i := from + 2; i < len(tokens); {
 		switch lower(tokens[i]) {
 		case "where":
+			if seenWhere {
+				return Query{}, ErrInvalidQuery
+			}
+			seenWhere = true
 			next, err := parseWhere(tokens, i+1, query.Filters)
 			if err != nil {
 				return Query{}, err
 			}
 			i = next
 		case "limit":
+			if seenLimit {
+				return Query{}, ErrInvalidQuery
+			}
+			seenLimit = true
 			if i+1 >= len(tokens) || tokens[i+1].Quoted {
 				return Query{}, ErrInvalidQuery
 			}
@@ -142,6 +151,10 @@ func parseSelect(tokens []token) (Query, error) {
 			query.Limit = limit
 			i += 2
 		case "cursor":
+			if seenCursor {
+				return Query{}, ErrInvalidQuery
+			}
+			seenCursor = true
 			if i+1 >= len(tokens) || tokens[i+1].Text == "" {
 				return Query{}, ErrInvalidQuery
 			}

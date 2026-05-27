@@ -16,6 +16,13 @@ func TestParseShowTables(t *testing.T) {
 	}
 }
 
+func TestParseRejectsQuotedShowTables(t *testing.T) {
+	_, err := Parse("show 'tables'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestParseDescribeTable(t *testing.T) {
 	query, err := Parse("describe meta.user")
 	if err != nil {
@@ -26,6 +33,13 @@ func TestParseDescribeTable(t *testing.T) {
 	}
 	if query.Table != "meta.user" {
 		t.Fatalf("Table = %q, want meta.user", query.Table)
+	}
+}
+
+func TestParseRejectsQuotedDescribeTable(t *testing.T) {
+	_, err := Parse("describe 'meta.user'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
 	}
 }
 
@@ -94,6 +108,27 @@ func TestParseRejectsUnsupportedJoin(t *testing.T) {
 	_, err := Parse("select * from meta.user join meta.channel on uid=uid")
 	if !errors.Is(err, ErrUnsupportedQuery) {
 		t.Fatalf("Parse() err = %v, want ErrUnsupportedQuery", err)
+	}
+}
+
+func TestParseRejectsDuplicateWhere(t *testing.T) {
+	_, err := Parse("select * from meta.user where uid='u1' where token='t'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsDuplicateLimit(t *testing.T) {
+	_, err := Parse("select * from meta.user limit 10 limit 20")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsDuplicateCursor(t *testing.T) {
+	_, err := Parse("select * from meta.user cursor 'a' cursor 'b'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
 	}
 }
 
