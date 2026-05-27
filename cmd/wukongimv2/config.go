@@ -132,21 +132,30 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		},
 	}
 
-	if raw := configValue(values, "WK_NODE_ID"); raw != "" {
-		nodeID, err := parseUint64("WK_NODE_ID", raw)
-		if err != nil {
-			return app.Config{}, err
-		}
-		cfg.NodeID = nodeID
-		cfg.Cluster.NodeID = nodeID
+	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
+	if err != nil {
+		return app.Config{}, err
 	}
-	if raw := configValue(values, "WK_NODE_DATA_DIR"); raw != "" {
-		cfg.DataDir = raw
-		cfg.Cluster.DataDir = raw
+	nodeID, err := parseUint64("WK_NODE_ID", rawNodeID)
+	if err != nil {
+		return app.Config{}, err
 	}
-	if raw := configValue(values, "WK_CLUSTER_LISTEN_ADDR"); raw != "" {
-		cfg.Cluster.ListenAddr = raw
+	cfg.NodeID = nodeID
+	cfg.Cluster.NodeID = nodeID
+
+	dataDir, err := requiredConfigValue(values, "WK_NODE_DATA_DIR")
+	if err != nil {
+		return app.Config{}, err
 	}
+	cfg.DataDir = dataDir
+	cfg.Cluster.DataDir = dataDir
+
+	listenAddr, err := requiredConfigValue(values, "WK_CLUSTER_LISTEN_ADDR")
+	if err != nil {
+		return app.Config{}, err
+	}
+	cfg.Cluster.ListenAddr = listenAddr
+
 	if raw := configValue(values, "WK_CLUSTER_INITIAL_SLOT_COUNT"); raw != "" {
 		initialSlotCount, err := parseUint32("WK_CLUSTER_INITIAL_SLOT_COUNT", raw)
 		if err != nil {
@@ -235,4 +244,12 @@ func parseDuration(key, raw string) (time.Duration, error) {
 
 func configValue(values map[string]string, key string) string {
 	return strings.TrimSpace(values[key])
+}
+
+func requiredConfigValue(values map[string]string, key string) (string, error) {
+	value := configValue(values, key)
+	if value == "" {
+		return "", fmt.Errorf("missing required config key %s", key)
+	}
+	return value, nil
 }
