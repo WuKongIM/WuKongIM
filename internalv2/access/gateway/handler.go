@@ -91,11 +91,19 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
 	defer cancel()
 
-	result, err := h.messages.Send(reqCtx, cmd)
+	result := h.sendOne(reqCtx, cmd)
+	return writeSendack(ctx, pkt, result)
+}
+
+func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) message.SendResult {
+	if h == nil || h.messages == nil {
+		return message.SendResult{Reason: message.ReasonSystemError}
+	}
+	result, err := h.messages.Send(ctx, cmd)
 	if err != nil {
 		result.Reason = reasonForError(err)
 	}
-	return writeSendack(ctx, pkt, result)
+	return result
 }
 
 var _ coregateway.Handler = (*Handler)(nil)

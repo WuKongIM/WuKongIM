@@ -101,6 +101,29 @@ func TestOnFrameUnauthenticatedSessionWritesAuthFailSendack(t *testing.T) {
 	}
 }
 
+func TestOnFrameNilMessagesWritesSystemErrorSendack(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{SendTimeout: time.Second})
+	pkt := &frame.SendPacket{ClientSeq: 9, ClientMsgNo: "client-3", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v, want sendack instead of raw error", err)
+	}
+	ack := requireSendack(t, written, 0)
+	if ack.ClientSeq != pkt.ClientSeq || ack.ClientMsgNo != pkt.ClientMsgNo {
+		t.Fatalf("ack client fields = seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo)
+	}
+	if ack.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonSystemError)
+	}
+}
+
 func TestOnFrameUnknownFrameReturnsErrUnsupportedFrame(t *testing.T) {
 	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
 
@@ -161,6 +184,86 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 }
 
+func TestOnSendBatchNilMessagesWritesSystemErrorSendacks(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context:    coregateway.Context{Session: sess, RequestContext: context.Background()},
+			ReplyToken: "reply-1",
+			Frame:      &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v, want sendacks instead of raw error", err)
+	}
+	first := requireSendack(t, written, 0)
+	if first.ClientSeq != 1 || first.ClientMsgNo != "a" || first.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("first ack = %#v", first)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ClientSeq != 2 || second.ClientMsgNo != "b" || second.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("second ack = %#v", second)
+	}
+	if got := metas[0].ReplyToken; got != "reply-1" {
+		t.Fatalf("first reply token = %q, want reply-1", got)
+	}
+}
+
+func TestOnSendBatchFallsBackToSingleSendUsecase(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &singleOnlyMessages{
+		results: []message.SendResult{
+			{MessageID: 21, MessageSeq: 201, Reason: message.ReasonSuccess},
+			{Reason: message.ReasonNodeNotMatch},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context:    coregateway.Context{Session: sess, RequestContext: context.Background()},
+			ReplyToken: "reply-2",
+			Frame:      &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(usecase.commands) != 2 {
+		t.Fatalf("single send call count = %d, want 2", len(usecase.commands))
+	}
+	if usecase.commands[0].ClientMsgNo != "a" || usecase.commands[1].ClientMsgNo != "b" {
+		t.Fatalf("single send commands not aligned: %#v", usecase.commands)
+	}
+	first := requireSendack(t, written, 0)
+	if first.ClientSeq != 1 || first.ClientMsgNo != "a" || first.MessageID != 21 || first.MessageSeq != 201 || first.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("first ack = %#v", first)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ClientSeq != 2 || second.ClientMsgNo != "b" || second.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("second ack = %#v", second)
+	}
+	if got := metas[1].ReplyToken; got != "reply-2" {
+		t.Fatalf("second reply token = %q, want reply-2", got)
+	}
+}
+
 func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
 	var written []frame.Frame
 	sess := newTestSession(t, &written)
@@ -204,6 +307,26 @@ func (m *recordingMessages) Send(_ context.Context, cmd message.SendCommand) (me
 func (m *recordingMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
 	m.batchItems = append([]message.SendBatchItem(nil), items...)
 	return m.batchResults
+}
+
+type singleOnlyMessages struct {
+	results  []message.SendResult
+	errs     []error
+	commands []message.SendCommand
+}
+
+func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (message.SendResult, error) {
+	m.commands = append(m.commands, cmd)
+	index := len(m.commands) - 1
+	var result message.SendResult
+	if index < len(m.results) {
+		result = m.results[index]
+	}
+	var err error
+	if index < len(m.errs) {
+		err = m.errs[index]
+	}
+	return result, err
 }
 
 func newTestSession(t *testing.T, written *[]frame.Frame) session.Session {
