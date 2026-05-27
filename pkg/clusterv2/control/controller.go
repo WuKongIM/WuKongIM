@@ -20,6 +20,12 @@ type Controller interface {
 	Watch() <-chan SnapshotEvent
 }
 
+// ProposeProbe verifies whether the local control runtime can commit a Controller proposal.
+type ProposeProbe interface {
+	// ProbePropose commits a non-mutating Controller proposal probe.
+	ProbePropose(context.Context) error
+}
+
 // SnapshotEvent notifies consumers that a new immutable snapshot is available.
 type SnapshotEvent struct {
 	// Snapshot is the new control snapshot.

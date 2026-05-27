@@ -392,6 +392,17 @@ func (r *Runtime) LeaderID() uint64 {
 	return r.snapshot.ControllerID
 }
 
+// ProbePropose verifies the hosted ControllerV2 proposal path when this runtime is a voter.
+func (r *Runtime) ProbePropose(ctx context.Context) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.raft == nil {
+		return cv2raft.ErrNotStarted
+	}
+	return r.raft.ProbePropose(ctx)
+}
+
 // Step applies an inbound ControllerV2 Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	if r.raft == nil {
