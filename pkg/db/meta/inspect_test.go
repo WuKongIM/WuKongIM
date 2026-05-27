@@ -203,6 +203,87 @@ func TestInspectScanDeviceByUID(t *testing.T) {
 	}
 }
 
+func TestInspectScanDeviceCursorAcceptsJSONFloat64NumericPart(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(5)
+	for _, device := range []Device{
+		{UID: "u-device", DeviceFlag: 1, Token: "first"},
+		{UID: "u-device", DeviceFlag: 2, Token: "second"},
+	} {
+		if err := shard.UpsertDevice(ctx, device); err != nil {
+			t.Fatalf("UpsertDevice(%+v): %v", device, err)
+		}
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "device",
+		HashSlot:    5,
+		HashSlotSet: true,
+		After:       &InspectCursor{HashSlot: 5, Primary: []any{"u-device", float64(1)}},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	if got.Rows[0]["device_flag"] != int64(2) || got.Rows[0]["token"] != "second" {
+		t.Fatalf("row = %+v, want resumed second device", got.Rows[0])
+	}
+}
+
+func TestInspectScanRejectsNonIntegralNumericCursorPart(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+
+	_, err := InspectScan(context.Background(), store.db, InspectScanRequest{
+		Table:       "device",
+		HashSlot:    5,
+		HashSlotSet: true,
+		After:       &InspectCursor{HashSlot: 5, Primary: []any{"u-device", float64(1.5)}},
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrInvalidArgument) {
+		t.Fatalf("InspectScan() err = %v, want invalid argument", err)
+	}
+}
+
+func TestInspectScanConversationNumericFilterMatchesUnsignedRowField(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	if err := conversationTable.Upsert(ctx, store.db.HashSlot(12), UserConversationState{
+		UID:         "u-conv",
+		ChannelID:   "conv",
+		ChannelType: 2,
+		ReadSeq:     3,
+		ActiveAt:    10,
+		UpdatedAt:   11,
+	}); err != nil {
+		t.Fatalf("conversationTable.Upsert(): %v", err)
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "conversation",
+		HashSlot:    12,
+		HashSlotSet: true,
+		Filters:     map[string]any{"read_seq": int64(3)},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	if got.Rows[0]["read_seq"] != uint64(3) {
+		t.Fatalf("row = %+v, want read_seq 3", got.Rows[0])
+	}
+}
+
 func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 	tests := []struct {
 		name   string
