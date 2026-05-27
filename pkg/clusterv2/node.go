@@ -28,7 +28,6 @@ type slotReconciler interface {
 type channelService interface {
 	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
-	Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error)
 	Tick(context.Context) error
 	Close() error
 }
@@ -450,20 +449,6 @@ func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatch
 		return channelv2.AppendBatchResult{}, ErrNotStarted
 	}
 	return n.channels.AppendBatch(ctx, req)
-}
-
-// FetchChannel fetches committed messages through the hosted ChannelV2 service.
-func (n *Node) FetchChannel(ctx context.Context, req channelv2.FetchRequest) (channelv2.FetchResult, error) {
-	if err := ctxErr(ctx); err != nil {
-		return channelv2.FetchResult{}, err
-	}
-	if err := n.ensureForeground(); err != nil {
-		return channelv2.FetchResult{}, err
-	}
-	if n.channels == nil {
-		return channelv2.FetchResult{}, ErrNotStarted
-	}
-	return n.channels.Fetch(ctx, req)
 }
 
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {

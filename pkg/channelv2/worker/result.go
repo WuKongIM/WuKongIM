@@ -15,16 +15,15 @@ type Result struct {
 	// Duration is the worker execution time measured by the owning pool.
 	Duration time.Duration
 
-	StoreAppend        *StoreAppendResult
-	StoreReadCommitted *StoreReadCommittedResult
-	StoreReadLog       *StoreReadLogResult
-	StoreApply         *StoreApplyResult
-	StoreCheckpoint    *StoreCheckpointResult
-	RPCPull            *RPCPullResult
-	RPCAck             *RPCAckResult
-	RPCNotify          *RPCNotifyResult
-	RPCPullHint        *RPCPullHintResult
-	Value              any
+	StoreAppend     *StoreAppendResult
+	StoreReadLog    *StoreReadLogResult
+	StoreApply      *StoreApplyResult
+	StoreCheckpoint *StoreCheckpointResult
+	RPCPull         *RPCPullResult
+	RPCAck          *RPCAckResult
+	RPCNotify       *RPCNotifyResult
+	RPCPullHint     *RPCPullHintResult
+	Value           any
 }
 
 // StoreAppendResult returns the durable offset range for a leader append.
@@ -33,14 +32,6 @@ type StoreAppendResult struct {
 	BaseOffset uint64
 	// LastOffset is the last offset assigned to the appended records.
 	LastOffset uint64
-}
-
-// StoreReadCommittedResult contains committed messages read from storage.
-type StoreReadCommittedResult struct {
-	// Messages are the committed messages returned by storage.
-	Messages []ch.Message
-	// NextSeq is the next sequence callers should read from.
-	NextSeq uint64
 }
 
 // StoreReadLogResult contains raw log records read for replication.

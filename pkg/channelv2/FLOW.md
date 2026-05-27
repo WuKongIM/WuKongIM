@@ -4,7 +4,7 @@
 
 ```text
 pkg/channelv2/        - Experimental multi-reactor channel log runtime; root DTOs, errors, Cluster facade, Config, tests, and benchmarks.
-|-- machine/          - Pure per-channel state transitions for metadata, append, fetch, progress, and invariants; no blocking I/O.
+|-- machine/          - Pure per-channel state transitions for metadata, append, progress, and invariants; no blocking I/O.
 |-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
 |-- replication/      - Leader/follower replication helpers and protocol decisions used by reactor runtime paths.
 |-- service/          - Synchronous facade that validates requests, requires preloaded append state, lazily activates PullHint followers, routes work to reactors, and waits on futures.

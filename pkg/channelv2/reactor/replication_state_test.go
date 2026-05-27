@@ -386,52 +386,6 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 	require.NotContains(t, r.channels, meta.Key)
 }
 
-func TestFollowerStopAckEvictionRetriesAfterTransientFetchWaiter(t *testing.T) {
-	net := newCapturingTransport()
-	factory := store.NewMemoryFactory()
-	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
-	defer pools.Close()
-
-	meta := followerTestMeta("stop-ack-fetch-waiter")
-	r := NewReactor(ReactorConfig{
-		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
-		IdleEvictCheckInterval: time.Millisecond,
-	})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	rc := r.channels[meta.Key]
-	rc.state.LEO = 3
-	rc.state.HW = 3
-	rc.replication.pullInflight = true
-	rc.replication.pullOpID = 7
-
-	r.handleRPCPullResult(worker.Result{
-		Kind:  worker.TaskRPCPull,
-		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
-		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
-			ChannelKey:      meta.Key,
-			Epoch:           meta.Epoch,
-			LeaderEpoch:     meta.LeaderEpoch,
-			LeaderHW:        3,
-			LeaderLEO:       3,
-			ActivityVersion: 3,
-			Control:         transport.PullControlStop,
-		}},
-	})
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreCheckpoint)})
-	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
-
-	fetchFuture := NewFuture()
-	require.NoError(t, rc.addFetchWaiter(99, fetchFuture))
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
-	require.Contains(t, r.channels, meta.Key)
-
-	rc.removeFetchWaiter(99)
-	r.handleTick(Event{Kind: EventTick, TickNow: time.Now().Add(time.Hour)})
-	require.NotContains(t, r.channels, meta.Key)
-	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint, worker.TaskRPCAck)
-}
-
 func TestFollowerStopEmptyChannelSendsStoppedAckAndEvicts(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
@@ -820,12 +774,12 @@ func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now()}))
 	require.Eventually(t, func() bool { return net.LastAck().MatchOffset == 1 }, time.Second, time.Millisecond)
 
-	fetch, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventFetch, Key: meta.Key, OpID: 99, Fetch: ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 10, MaxBytes: 1024}})
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
 	require.NoError(t, err)
-	result, err := fetch.Await(context.Background())
+	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
 	require.NoError(t, err)
-	require.Len(t, result.Fetch.Messages, 1)
-	require.Equal(t, uint64(1), result.Fetch.CommittedSeq)
+	require.Len(t, read.Messages, 1)
+	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
 func TestFollowerAckResultResetsBackoff(t *testing.T) {

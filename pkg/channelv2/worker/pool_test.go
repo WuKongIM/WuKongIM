@@ -125,7 +125,7 @@ func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 		}
 	}, time.Second, time.Millisecond)
 
-	require.NoError(t, pools.Submit(context.Background(), Task{Kind: TaskStoreReadCommitted, Fence: fence}))
+	require.NoError(t, pools.Submit(context.Background(), Task{Kind: TaskStoreReadLog, Fence: fence}))
 	require.Equal(t, 1, pools.QueueDepth(TaskStoreReadLog))
 	require.Equal(t, 0, pools.QueueDepth(TaskStoreAppend))
 	require.ErrorIs(t, pools.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence}), ch.ErrInvalidConfig)

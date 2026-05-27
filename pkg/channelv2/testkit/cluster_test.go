@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/service"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,15 +134,20 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	network := transport.NewLocalNetwork()
 	meta := ch.Meta{Key: ch.ChannelKey("1:reactivate-stopped-follower"), ID: ch.ChannelID{ID: "reactivate-stopped-follower", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive}
 	nodes := make(map[ch.NodeID]ch.Cluster)
+	stores := make(map[ch.NodeID]*store.MemoryFactory)
 	resolvers := make(map[ch.NodeID]*testkitCountingMetaResolver)
+	observers := make(map[ch.NodeID]*testkitObserver)
 	for _, nodeID := range []ch.NodeID{1, 2, 3} {
 		resolver := &testkitCountingMetaResolver{meta: meta}
+		factory := store.NewMemoryFactory()
+		observer := &testkitObserver{}
 		cluster, err := service.New(service.Config{
 			LocalNode:                   nodeID,
-			Store:                       store.NewMemoryFactory(),
+			Store:                       factory,
 			ReactorCount:                1,
 			Transport:                   network.Client(),
 			MetaResolver:                resolver,
+			Observer:                    observer,
 			ReplicationIdlePollInterval: time.Millisecond,
 			IdleSlowdownAfter:           time.Millisecond,
 			IdleEvictAfter:              5 * time.Millisecond,
@@ -154,7 +160,9 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 		require.NoError(t, err)
 		defer cluster.Close()
 		nodes[nodeID] = cluster
+		stores[nodeID] = factory
 		resolvers[nodeID] = resolver
+		observers[nodeID] = observer
 		server, ok := cluster.(transport.Server)
 		require.True(t, ok)
 		network.Register(nodeID, server)
@@ -168,10 +176,10 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	first, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("before stop")}})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), first.MessageSeq)
-	waitTestkitCommitted(t, nodes, meta.ID, 2, 1, time.Second)
-	waitTestkitCommitted(t, nodes, meta.ID, 3, 1, time.Second)
+	waitTestkitCommitted(t, nodes, stores, meta.ID, 2, 1, time.Second)
+	waitTestkitCommitted(t, nodes, stores, meta.ID, 3, 1, time.Second)
 
-	waitTestkitUnloaded(t, nodes, meta.ID, []ch.NodeID{2, 3}, 2*time.Second)
+	waitTestkitEvicted(t, nodes, observers, []ch.NodeID{2, 3}, 2*time.Second)
 	beforeFollower2 := resolvers[2].calls.Load()
 	beforeFollower3 := resolvers[3].calls.Load()
 
@@ -179,8 +187,8 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	second, err := nodes[1].Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("after stop")}})
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), second.MessageSeq)
-	waitTestkitCommitted(t, nodes, meta.ID, 2, 2, time.Second)
-	waitTestkitCommitted(t, nodes, meta.ID, 3, 2, time.Second)
+	waitTestkitCommitted(t, nodes, stores, meta.ID, 2, 2, time.Second)
+	waitTestkitCommitted(t, nodes, stores, meta.ID, 3, 2, time.Second)
 	require.Greater(t, resolvers[2].calls.Load(), beforeFollower2)
 	require.Greater(t, resolvers[3].calls.Load(), beforeFollower3)
 }
@@ -238,6 +246,25 @@ func (r *testkitCountingMetaResolver) ResolveChannelMeta(ctx context.Context, id
 	return r.meta, nil
 }
 
+type testkitObserver struct {
+	evicted atomic.Int32
+}
+
+func (o *testkitObserver) SetReactorMailboxDepth(int, string, int) {}
+func (o *testkitObserver) SetWorkerQueueDepth(string, int)         {}
+func (o *testkitObserver) ObserveAppendBatch(int, int, time.Duration) {
+}
+func (o *testkitObserver) ObserveAppendLatency(ch.CommitMode, time.Duration) {}
+func (o *testkitObserver) ObserveWorkerResult(worker.TaskKind, error, time.Duration) {
+}
+func (o *testkitObserver) ObserveChannelRuntimeLoaded(ch.ChannelKey) {}
+func (o *testkitObserver) ObserveChannelRuntimeEvicted(ch.ChannelKey, ch.Role) {
+	o.evicted.Add(1)
+}
+func (o *testkitObserver) ObservePullHintSent(ch.ChannelKey, ch.NodeID, transport.PullHintReason) {
+}
+func (o *testkitObserver) ObservePullHintDropped(ch.ChannelKey, ch.NodeID, error) {}
+
 func startAppend(t testing.TB, h *ClusterHarness, nodeID ch.NodeID, id ch.ChannelID, payload []byte) <-chan appendOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -285,13 +312,13 @@ func waitAppendResult(t testing.TB, h *ClusterHarness, done <-chan appendOutcome
 	return ch.AppendResult{}
 }
 
-func waitTestkitCommitted(t testing.TB, nodes map[ch.NodeID]ch.Cluster, id ch.ChannelID, nodeID ch.NodeID, seq uint64, timeout time.Duration) {
+func waitTestkitCommitted(t testing.TB, nodes map[ch.NodeID]ch.Cluster, stores map[ch.NodeID]*store.MemoryFactory, id ch.ChannelID, nodeID ch.NodeID, seq uint64, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		tickTestkitNodes(context.Background(), nodes)
-		res, err := nodes[nodeID].Fetch(context.Background(), ch.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
-		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
+		messages, err := readTestkitStore(stores[nodeID], id, seq)
+		if err == nil && len(messages) > 0 {
 			return
 		}
 		time.Sleep(time.Millisecond)
@@ -299,25 +326,39 @@ func waitTestkitCommitted(t testing.TB, nodes map[ch.NodeID]ch.Cluster, id ch.Ch
 	t.Fatalf("node %d did not commit seq %d", nodeID, seq)
 }
 
-func waitTestkitUnloaded(t testing.TB, nodes map[ch.NodeID]ch.Cluster, id ch.ChannelID, nodeIDs []ch.NodeID, timeout time.Duration) {
+func waitTestkitEvicted(t testing.TB, nodes map[ch.NodeID]ch.Cluster, observers map[ch.NodeID]*testkitObserver, nodeIDs []ch.NodeID, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		tickTestkitNodes(context.Background(), nodes)
-		allUnloaded := true
+		allEvicted := true
 		for _, nodeID := range nodeIDs {
-			_, err := nodes[nodeID].Fetch(context.Background(), ch.FetchRequest{ChannelID: id, FromSeq: 1, Limit: 1, MaxBytes: 1024})
-			if err == nil {
-				allUnloaded = false
+			if observers[nodeID].evicted.Load() == 0 {
+				allEvicted = false
 				break
 			}
 		}
-		if allUnloaded {
+		if allEvicted {
 			return
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("nodes %v did not unload channel %s", nodeIDs, id.ID)
+	t.Fatalf("nodes %v did not evict channel runtime", nodeIDs)
+}
+
+func readTestkitStore(factory *store.MemoryFactory, id ch.ChannelID, seq uint64) ([]ch.Message, error) {
+	if factory == nil {
+		return nil, ch.ErrChannelNotFound
+	}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	if err != nil {
+		return nil, err
+	}
+	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: seq, MaxSeq: seq, Limit: 1, MaxBytes: 1024})
+	if err != nil {
+		return nil, err
+	}
+	return read.Messages, nil
 }
 
 func tickTestkitNodes(ctx context.Context, nodes map[ch.NodeID]ch.Cluster) {

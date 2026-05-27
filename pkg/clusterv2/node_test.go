@@ -672,9 +672,6 @@ func (r *nodeChannelRuntime) Append(context.Context, channelv2.AppendRequest) (c
 func (r *nodeChannelRuntime) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
 	return channelv2.AppendBatchResult{}, nil
 }
-func (r *nodeChannelRuntime) Fetch(context.Context, channelv2.FetchRequest) (channelv2.FetchResult, error) {
-	return channelv2.FetchResult{}, nil
-}
 func (r *nodeChannelRuntime) Tick(context.Context) error { return nil }
 func (r *nodeChannelRuntime) Close() error {
 	r.closeCalls++

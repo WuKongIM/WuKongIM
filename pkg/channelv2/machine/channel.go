@@ -7,7 +7,6 @@ type TaskKind uint8
 
 const (
 	TaskKindStoreAppend TaskKind = iota + 1
-	TaskKindStoreReadCommitted
 	TaskKindStoreReadLog
 	TaskKindStoreApply
 	TaskKindRPCPull
@@ -16,27 +15,18 @@ const (
 
 // Task is a pure description of work the reactor should run elsewhere.
 type Task struct {
-	Kind          TaskKind
-	Fence         ch.Fence
-	StoreAppend   *StoreAppendTask
-	ReadCommitted *ReadCommittedTask
-	ReadLog       *ReadLogTask
-	StoreApply    *StoreApplyTask
-	Ack           *AckTask
+	Kind        TaskKind
+	Fence       ch.Fence
+	StoreAppend *StoreAppendTask
+	ReadLog     *ReadLogTask
+	StoreApply  *StoreApplyTask
+	Ack         *AckTask
 }
 
 // StoreAppendTask asks a worker to durably append leader records.
 type StoreAppendTask struct {
 	Records []ch.Record
 	Sync    bool
-}
-
-// ReadCommittedTask asks a worker to read committed messages.
-type ReadCommittedTask struct {
-	FromSeq  uint64
-	MaxSeq   uint64
-	Limit    int
-	MaxBytes int
 }
 
 // ReadLogTask asks a worker to read raw records for replication.
@@ -63,7 +53,6 @@ type ReplyKind uint8
 
 const (
 	ReplyKindAppend ReplyKind = iota + 1
-	ReplyKindFetch
 )
 
 // Reply completes a waiting caller future.
@@ -73,7 +62,6 @@ type Reply struct {
 	Err         error
 	Append      ch.AppendBatchItemResult
 	AppendItems []ch.AppendBatchItemResult
-	Fetch       ch.FetchResult
 }
 
 // SignalKind identifies non-blocking notifications requested by the machine.

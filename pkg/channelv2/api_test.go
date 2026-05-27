@@ -37,8 +37,5 @@ func (nopCluster) Append(context.Context, ch.AppendRequest) (ch.AppendResult, er
 func (nopCluster) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
 	return ch.AppendBatchResult{}, nil
 }
-func (nopCluster) Fetch(context.Context, ch.FetchRequest) (ch.FetchResult, error) {
-	return ch.FetchResult{}, nil
-}
 func (nopCluster) Tick(context.Context) error { return nil }
 func (nopCluster) Close() error               { return nil }

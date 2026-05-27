@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSingleNodeAppendFetchCommitted(t *testing.T) {
+func TestSingleNodeAppendStoresMessage(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	cluster, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
 	require.NoError(t, err)
@@ -27,10 +27,9 @@ func TestSingleNodeAppendFetchCommitted(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), appendRes.MessageSeq)
 
-	fetchRes, err := cluster.Fetch(context.Background(), ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 10, MaxBytes: 1024})
-	require.NoError(t, err)
-	require.Len(t, fetchRes.Messages, 1)
-	require.Equal(t, uint64(1), fetchRes.CommittedSeq)
+	messages := readServiceStoreMessages(t, factory, meta, 1)
+	require.Len(t, messages, 1)
+	require.Equal(t, uint64(1), messages[0].MessageSeq)
 }
 
 func TestAppendRequiresLoadedChannelState(t *testing.T) {
@@ -117,47 +116,6 @@ func TestAppendRejectsStaleExpectedEpochs(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), res.MessageSeq)
-}
-
-func TestFetchRejectsStaleExpectedEpochs(t *testing.T) {
-	clusterAPI, err := New(Config{LocalNode: 1, Store: store.NewMemoryFactory(), ReactorCount: 1})
-	require.NoError(t, err)
-	defer clusterAPI.Close()
-
-	meta := ch.Meta{
-		Key:         ch.ChannelKey("1:expected-fetch"),
-		ID:          ch.ChannelID{ID: "expected-fetch", Type: 1},
-		Epoch:       2,
-		LeaderEpoch: 3,
-		Leader:      1,
-		Replicas:    []ch.NodeID{1},
-		ISR:         []ch.NodeID{1},
-		MinISR:      1,
-		Status:      ch.StatusActive,
-	}
-	require.NoError(t, clusterAPI.ApplyMeta(meta))
-	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("seed")}})
-	require.NoError(t, err)
-
-	_, err = clusterAPI.Fetch(context.Background(), ch.FetchRequest{
-		ChannelID:            meta.ID,
-		FromSeq:              1,
-		Limit:                1,
-		MaxBytes:             1024,
-		ExpectedChannelEpoch: 1,
-		ExpectedLeaderEpoch:  meta.LeaderEpoch,
-	})
-	require.ErrorIs(t, err, ch.ErrStaleMeta)
-
-	_, err = clusterAPI.Fetch(context.Background(), ch.FetchRequest{
-		ChannelID:            meta.ID,
-		FromSeq:              1,
-		Limit:                1,
-		MaxBytes:             1024,
-		ExpectedChannelEpoch: meta.Epoch,
-		ExpectedLeaderEpoch:  2,
-	})
-	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
 func TestHandlePullHintLazyLoadsFollowerMeta(t *testing.T) {
@@ -403,10 +361,9 @@ func TestHandleAckAdvancesHWAndCompletesQuorumAppend(t *testing.T) {
 		t.Fatal("timed out waiting for quorum append")
 	}
 
-	fetch, err := svc.Fetch(context.Background(), ch.FetchRequest{ChannelID: meta.ID, FromSeq: 1, Limit: 1, MaxBytes: 1024})
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), fetch.CommittedSeq)
-	require.Len(t, fetch.Messages, 1)
+	messages := readServiceStoreMessages(t, factory, meta, 1)
+	require.Len(t, messages, 1)
+	require.Equal(t, uint64(1), messages[0].MessageSeq)
 }
 
 func TestAppendBatchContextCancelAfterAdmissionCleansQueuedWaiter(t *testing.T) {
@@ -539,6 +496,15 @@ func TestAppendBatchContextCancelReturnsContextErrorWhenCleanupBackpressured(t *
 type serviceAppendOutcome struct {
 	result ch.AppendResult
 	err    error
+}
+
+func readServiceStoreMessages(t testing.TB, factory *store.MemoryFactory, meta ch.Meta, maxSeq uint64) []ch.Message {
+	t.Helper()
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: 1, MaxSeq: maxSeq, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	return read.Messages
 }
 
 type countingMetaResolver struct {

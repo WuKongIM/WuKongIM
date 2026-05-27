@@ -151,23 +151,6 @@ type AppendBatchItemResult struct {
 	Err        error
 }
 
-// FetchRequest reads committed messages from a channel.
-type FetchRequest struct {
-	ChannelID            ChannelID
-	FromSeq              uint64
-	Limit                int
-	MaxBytes             int
-	ExpectedChannelEpoch uint64
-	ExpectedLeaderEpoch  uint64
-}
-
-// FetchResult contains committed messages and the next read sequence.
-type FetchResult struct {
-	Messages     []Message
-	NextSeq      uint64
-	CommittedSeq uint64
-}
-
 // ChannelKeyForID derives the default reactor key for a channel id.
 func ChannelKeyForID(id ChannelID) ChannelKey {
 	return ChannelKey(strconv.Itoa(int(id.Type)) + ":" + id.ID)

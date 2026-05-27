@@ -21,7 +21,6 @@ func TestPublicAPICompile(t *testing.T) {
 	_ = node.Propose(context.Background(), clusterv2.ProposeRequest{Key: "u1", Command: []byte("cmd")})
 	_, _ = node.AppendChannel(context.Background(), channelv2.AppendRequest{})
 	_, _ = node.AppendChannelBatch(context.Background(), channelv2.AppendBatchRequest{})
-	_, _ = node.FetchChannel(context.Background(), channelv2.FetchRequest{})
 	_ = node.Stop(context.Background())
 }
 

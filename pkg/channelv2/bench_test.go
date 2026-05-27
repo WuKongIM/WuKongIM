@@ -145,27 +145,6 @@ func BenchmarkAppendThreeNodeManyChannelsMemoryTransport(b *testing.B) {
 	}
 }
 
-func BenchmarkFetchCommittedManyChannels(b *testing.B) {
-	cluster := newBenchSingleNode(b)
-	ctx := context.Background()
-	for i := 0; i < 1024; i++ {
-		meta := benchMeta(fmt.Sprintf("c-%d", i))
-		if err := cluster.ApplyMeta(meta); err != nil {
-			b.Fatal(err)
-		}
-		if _, err := cluster.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{MessageID: uint64(i + 1), Payload: benchPayload}}); err != nil {
-			b.Fatal(err)
-		}
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		id := ch.ChannelID{ID: fmt.Sprintf("c-%d", i%1024), Type: 1}
-		if _, err := cluster.Fetch(ctx, ch.FetchRequest{ChannelID: id, FromSeq: 1, Limit: 1, MaxBytes: 1024}); err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func newBenchSingleNode(b *testing.B) ch.Cluster {
 	b.Helper()
 	cluster, err := service.New(service.Config{LocalNode: 1, Store: store.NewMemoryFactory(), ReactorCount: 4})

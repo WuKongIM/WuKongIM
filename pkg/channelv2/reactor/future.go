@@ -12,7 +12,6 @@ import (
 type Result struct {
 	Append      ch.AppendResult
 	AppendBatch ch.AppendBatchResult
-	Fetch       ch.FetchResult
 	Pull        transport.PullResponse
 	Err         error
 }

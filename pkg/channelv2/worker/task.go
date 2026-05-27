@@ -15,7 +15,6 @@ const (
 	TaskFunc TaskKind = iota + 1
 	TaskStoreAppend
 	TaskStoreApply
-	TaskStoreReadCommitted
 	TaskStoreReadLog
 	TaskRPCPull
 	TaskRPCAck
@@ -31,10 +30,9 @@ type Task struct {
 	// Context cancels this task when the original caller gives up, in addition to pool shutdown.
 	Context context.Context
 
-	StoreAppend        *StoreAppendTask
-	StoreReadCommitted *StoreReadCommittedTask
-	StoreReadLog       *StoreReadLogTask
-	StoreApply         *StoreApplyTask
+	StoreAppend  *StoreAppendTask
+	StoreReadLog *StoreReadLogTask
+	StoreApply   *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
 	StoreCheckpoint *StoreCheckpointTask
 	RPCPull         *RPCPullTask
@@ -52,15 +50,6 @@ type StoreAppendTask struct {
 	ChannelID ch.ChannelID
 	Records   []ch.Record
 	Sync      bool
-}
-
-// StoreReadCommittedTask asks a worker to read committed messages.
-type StoreReadCommittedTask struct {
-	ChannelID ch.ChannelID
-	FromSeq   uint64
-	MaxSeq    uint64
-	Limit     int
-	MaxBytes  int
 }
 
 // StoreReadLogTask asks a worker to read raw records for replication.
@@ -130,8 +119,6 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		}
 	case TaskStoreAppend:
 		res = runStoreAppend(ctx, deps, t)
-	case TaskStoreReadCommitted:
-		res = runStoreReadCommitted(ctx, deps, t)
 	case TaskStoreReadLog:
 		res = runStoreReadLog(ctx, deps, t)
 	case TaskStoreApply:
@@ -211,22 +198,6 @@ func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
 	}
 	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreAppend: &StoreAppendResult{BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset}}
-}
-
-func runStoreReadCommitted(ctx context.Context, deps Deps, t Task) Result {
-	payload := t.StoreReadCommitted
-	if payload == nil || deps.Stores == nil {
-		return invalidResult(t)
-	}
-	cs, err := deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)
-	if err != nil {
-		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
-	}
-	if cs == nil {
-		return invalidResult(t)
-	}
-	read, err := cs.ReadCommitted(ctx, store.ReadCommittedRequest{FromSeq: payload.FromSeq, MaxSeq: payload.MaxSeq, Limit: payload.Limit, MaxBytes: payload.MaxBytes})
-	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreReadCommitted: &StoreReadCommittedResult{Messages: read.Messages, NextSeq: read.NextSeq}}
 }
 
 func runStoreReadLog(ctx context.Context, deps Deps, t Task) Result {

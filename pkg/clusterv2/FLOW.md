@@ -76,7 +76,7 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 ## ChannelV2 Flow
 
 ```text
-Node.AppendChannel / AppendChannelBatch / FetchChannel
+Node.AppendChannel / AppendChannelBatch
   -> channels.Service
   -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
       -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
@@ -84,7 +84,6 @@ Node.AppendChannel / AppendChannelBatch / FetchChannel
       -> reread final authoritative ChannelRuntimeMeta and project it to ChannelV2 Meta
       -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
       -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
-  -> Fetch: channelv2 service facade
   -> local reactor and store worker pools
   -> clusterv2 channel RPC client
   -> remote channel RPC handler
