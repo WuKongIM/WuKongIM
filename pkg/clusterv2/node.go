@@ -16,6 +16,9 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 // Option customizes Node construction.
@@ -51,6 +54,16 @@ type Node struct {
 	defaultChannels bool
 	// defaultChannelStore owns the Node-created message DB factory.
 	defaultChannelStore *channelstore.MessageDBFactory
+	// defaultSlots reports whether Node constructed the local Slot runtime.
+	defaultSlots bool
+	// defaultSlotRuntime owns the Node-created Slot Multi-Raft runtime.
+	defaultSlotRuntime *multiraft.Runtime
+	// defaultSlotRaftDB owns the Node-created Slot Raft log store.
+	defaultSlotRaftDB *raftlog.DB
+	// defaultSlotMetaDB owns the Node-created Slot metadata store.
+	defaultSlotMetaDB *metadb.DB
+	// defaultSlotProposer adapts the default Slot runtime to the propose service.
+	defaultSlotProposer propose.SlotRuntime
 	proposer            interface {
 		Propose(context.Context, propose.Request) error
 	}
@@ -62,6 +75,8 @@ type Node struct {
 	watchCancel       context.CancelFunc
 	channelTickCancel context.CancelFunc
 	channelTickWG     sync.WaitGroup
+	slotLeaderCancel  context.CancelFunc
+	slotLeaderWG      sync.WaitGroup
 	started           atomic.Bool
 	stopping          atomic.Bool
 }
@@ -129,6 +144,7 @@ func (n *Node) Start(ctx context.Context) error {
 			n.markChannelsReady(false)
 		}
 		if !started {
+			n.discardDefaultSlots()
 			n.discardDefaultControl()
 			n.discardDefaultTransport()
 		}
@@ -157,6 +173,7 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		n.startWatchLoop()
 	}
+	n.startSlotLeaderLoop()
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
 	n.started.Store(true)
@@ -246,20 +263,40 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		n.defaultControl = true
 	}
 	if n.proposer == nil {
-		n.proposer = propose.NewService(propose.Config{LocalNode: n.cfg.NodeID, Router: n.router})
+		if err := n.ensureDefaultSlots(); err != nil {
+			return false, err
+		}
+		var forward propose.ForwardClient
+		if n.transportClient != nil {
+			forward = propose.NewNetworkForwardClient(n.transportClient)
+		}
+		n.proposer = propose.NewService(propose.Config{
+			LocalNode: n.cfg.NodeID,
+			Router:    n.router,
+			Slots:     n.defaultSlotProposer,
+			Forward:   forward,
+		})
 	}
 	createdDefaultChannels := false
 	if n.channels == nil {
 		storeFactory := channelstore.NewMessageDBFactory(n.defaultChannelStorePath())
+		var transport *channels.TransportClient
+		if n.transportClient != nil {
+			transport = channels.NewTransportClient(n.transportClient)
+		}
 		service, err := channels.NewService(channels.Config{
 			LocalNode:    channelv2.NodeID(n.cfg.NodeID),
 			ReactorCount: n.cfg.Channel.ReactorCount,
 			MailboxSize:  n.cfg.Channel.MailboxSize,
 			Store:        storeFactory,
+			Transport:    transport,
 		})
 		if err != nil {
 			_ = storeFactory.Close()
 			return false, err
+		}
+		if n.transportServer != nil {
+			channels.RegisterServiceHandlersOn(n.transportServer, service)
 		}
 		n.channels = service
 		n.defaultChannels = true
@@ -298,6 +335,28 @@ func (n *Node) discardDefaultChannels() {
 	_ = n.closeDefaultChannelStore()
 }
 
+func (n *Node) discardDefaultSlots() {
+	if n == nil || !n.defaultSlots {
+		return
+	}
+	n.stopSlotLeaderLoop()
+	if n.defaultSlotRuntime != nil {
+		_ = n.defaultSlotRuntime.Close()
+		n.defaultSlotRuntime = nil
+	}
+	if n.defaultSlotRaftDB != nil {
+		_ = n.defaultSlotRaftDB.Close()
+		n.defaultSlotRaftDB = nil
+	}
+	if n.defaultSlotMetaDB != nil {
+		_ = n.defaultSlotMetaDB.Close()
+		n.defaultSlotMetaDB = nil
+	}
+	n.defaultSlotProposer = nil
+	n.slots = nil
+	n.defaultSlots = false
+}
+
 func (n *Node) discardDefaultControl() {
 	if n == nil || !n.defaultControl {
 		return
@@ -333,6 +392,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	if n.watchCancel != nil {
 		n.watchCancel()
 	}
+	n.stopSlotLeaderLoop()
 	n.stopChannelTickLoop()
 	var errs []error
 	if n.channels != nil {
@@ -355,6 +415,29 @@ func (n *Node) Stop(ctx context.Context) error {
 	}
 	if err := n.group.Stop(ctx); err != nil {
 		errs = append(errs, err)
+	}
+	if n.defaultSlots {
+		if n.defaultSlotRuntime != nil {
+			if err := n.defaultSlotRuntime.Close(); err != nil {
+				errs = append(errs, err)
+			}
+			n.defaultSlotRuntime = nil
+		}
+		if n.defaultSlotRaftDB != nil {
+			if err := n.defaultSlotRaftDB.Close(); err != nil {
+				errs = append(errs, err)
+			}
+			n.defaultSlotRaftDB = nil
+		}
+		if n.defaultSlotMetaDB != nil {
+			if err := n.defaultSlotMetaDB.Close(); err != nil {
+				errs = append(errs, err)
+			}
+			n.defaultSlotMetaDB = nil
+		}
+		n.defaultSlotProposer = nil
+		n.slots = nil
+		n.defaultSlots = false
 	}
 	n.discardDefaultControl()
 	n.discardDefaultTransport()

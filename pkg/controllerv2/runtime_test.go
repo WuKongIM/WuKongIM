@@ -114,6 +114,58 @@ func TestRuntimeMirrorSyncsStateEvent(t *testing.T) {
 	}
 }
 
+func TestRuntimeVoterWiresStateSyncServerOnStart(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "n1",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-state-sync",
+		Role:             RuntimeRoleVoter,
+		Voters:           []Voter{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	_ = readStateEvent(t, runtime.Watch())
+
+	if runtime.syncServer == nil {
+		t.Fatalf("Start() did not wire state sync server")
+	}
+	first := runtime.syncServer
+	resp, err := runtime.GetState(ctx, GetStateRequest{ClusterID: "cluster-state-sync"})
+	if err != nil {
+		t.Fatalf("GetState() error = %v", err)
+	}
+	if resp.LeaderID != 1 || resp.Revision == 0 || len(resp.Payload) == 0 {
+		t.Fatalf("GetState() = %#v, want leader payload", resp)
+	}
+	resp, err = runtime.GetState(ctx, GetStateRequest{
+		ClusterID:     "cluster-state-sync",
+		LocalRevision: resp.Revision,
+		LocalChecksum: resp.Checksum,
+	})
+	if err != nil {
+		t.Fatalf("GetState(not modified) error = %v", err)
+	}
+	if runtime.syncServer != first {
+		t.Fatalf("GetState() rebuilt state sync server")
+	}
+	if !resp.NotModified {
+		t.Fatalf("GetState(not modified) = %#v, want NotModified", resp)
+	}
+}
+
 func TestRuntimeProbeProposeDoesNotMutateRevision(t *testing.T) {
 	runtime, err := NewRuntime(RuntimeConfig{
 		NodeID:           1,
