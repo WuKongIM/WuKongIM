@@ -29,6 +29,12 @@ func reasonForError(err error) message.Reason {
 	switch {
 	case err == nil:
 		return message.ReasonSuccess
+	case errors.Is(err, message.ErrChannelNotFound):
+		return message.ReasonChannelNotExist
+	case errors.Is(err, message.ErrNotLeader), errors.Is(err, message.ErrStaleRoute), errors.Is(err, message.ErrRouteNotReady):
+		return message.ReasonNodeNotMatch
+	case errors.Is(err, message.ErrInvalidCommand):
+		return message.ReasonInvalidRequest
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return message.ReasonSystemError
 	default:
