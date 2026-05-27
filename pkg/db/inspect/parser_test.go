@@ -16,6 +16,13 @@ func TestParseShowTables(t *testing.T) {
 	}
 }
 
+func TestParseRejectsQuotedCommandKeyword(t *testing.T) {
+	_, err := Parse("'show' tables")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestParseRejectsQuotedShowTables(t *testing.T) {
 	_, err := Parse("show 'tables'")
 	if !errors.Is(err, ErrInvalidQuery) {
@@ -93,6 +100,13 @@ func TestParseRejectsInvalidSelectColumn(t *testing.T) {
 	}
 }
 
+func TestParseRejectsQuotedFromKeyword(t *testing.T) {
+	_, err := Parse("select uid, 'from' meta.user")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestParseSelectNumericFilterAndCursor(t *testing.T) {
 	query, err := Parse("select * from meta.channel where channel_type=2 cursor 'abc' limit 5")
 	if err != nil {
@@ -129,6 +143,20 @@ func TestParseAllowsUnsupportedKeywordCursorLiteral(t *testing.T) {
 	}
 	if query.Cursor != "offset" {
 		t.Fatalf("Cursor = %q, want offset", query.Cursor)
+	}
+}
+
+func TestParseRejectsQuotedWhereKeyword(t *testing.T) {
+	_, err := Parse("select * from meta.user 'where' uid='u1'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsPunctuationCursor(t *testing.T) {
+	_, err := Parse("select * from meta.user cursor ,")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
 	}
 }
 

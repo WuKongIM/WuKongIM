@@ -24,6 +24,9 @@ func Parse(raw string) (Query, error) {
 		return Query{}, ErrInvalidQuery
 	}
 
+	if tokens[0].Quoted {
+		return Query{}, ErrInvalidQuery
+	}
 	switch lower(tokens[0]) {
 	case "show":
 		if len(tokens) == 2 && !tokens[1].Quoted && lower(tokens[1]) == "tables" {
@@ -83,7 +86,7 @@ func lex(raw string) ([]token, error) {
 func parseSelect(tokens []token) (Query, error) {
 	from := -1
 	for i := 1; i < len(tokens); i++ {
-		if lower(tokens[i]) == "from" {
+		if !tokens[i].Quoted && lower(tokens[i]) == "from" {
 			from = i
 			break
 		}
@@ -109,6 +112,9 @@ func parseSelect(tokens []token) (Query, error) {
 	}
 	var seenWhere, seenLimit, seenCursor bool
 	for i := from + 2; i < len(tokens); {
+		if tokens[i].Quoted {
+			return Query{}, ErrInvalidQuery
+		}
 		switch lower(tokens[i]) {
 		case "where":
 			if seenWhere {
@@ -140,6 +146,9 @@ func parseSelect(tokens []token) (Query, error) {
 			}
 			seenCursor = true
 			if i+1 >= len(tokens) || tokens[i+1].Text == "" {
+				return Query{}, ErrInvalidQuery
+			}
+			if !tokens[i+1].Quoted && !validNameIdentifier(tokens[i+1]) {
 				return Query{}, ErrInvalidQuery
 			}
 			query.Cursor = tokens[i+1].Text
@@ -300,6 +309,9 @@ func parseLiteral(tok token) (any, error) {
 }
 
 func isClause(tok token) bool {
+	if tok.Quoted {
+		return false
+	}
 	switch lower(tok) {
 	case "where", "limit", "cursor":
 		return true
