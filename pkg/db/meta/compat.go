@@ -1193,20 +1193,14 @@ func (b *WriteBatch) UpsertHashSlotMigrationState(state HashSlotMigrationState) 
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	b.batch.addOp(state.HashSlot, func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
-		return batch.Set(encodeHashSlotMigrationStateKey(state.HashSlot), encodeHashSlotMigrationStateValue(state))
-	})
-	return nil
+	return hashSlotMigrationTable.StageUpsert(b.batch, state.HashSlot, state)
 }
 
 func (b *WriteBatch) DeleteHashSlotMigrationState(hashSlot uint16) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
-		return batch.Delete(encodeHashSlotMigrationStateKey(HashSlot(hashSlot)))
-	})
-	return nil
+	return hashSlotMigrationTable.StageDelete(b.batch, HashSlot(hashSlot), hashSlotMigrationStatePrimaryKey())
 }
 
 func (b *WriteBatch) MarkAppliedHashSlotDelta(delta AppliedHashSlotDelta) error {

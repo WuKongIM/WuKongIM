@@ -79,6 +79,38 @@ func TestHashSlotMigrationStateAndAppliedDelta(t *testing.T) {
 	}
 }
 
+func TestHashSlotMigrationStateKeepsLegacyRowLayout(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(7)
+	ctx := context.Background()
+
+	state := HashSlotMigrationState{HashSlot: 7, SourceSlot: 11, TargetSlot: 22, Phase: 1, FenceIndex: 100, LastOutboxIndex: 120, LastAckedIndex: 90}
+	if err := shard.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+
+	legacyKey := encodeHashSlotMigrationStateKey(7)
+	runtimeKey, err := hashSlotMigrationTable.primaryRowKey(7, hashSlotMigrationStatePrimaryKey())
+	if err != nil {
+		t.Fatalf("runtime state row key: %v", err)
+	}
+	if string(runtimeKey) != string(legacyKey) {
+		t.Fatalf("runtime state key %x, want legacy %x", runtimeKey, legacyKey)
+	}
+	if _, ok, err := store.db.get(legacyKey); err != nil || !ok {
+		t.Fatalf("legacy state row ok=%v err=%v", ok, err)
+	}
+
+	applied := AppliedHashSlotDelta{HashSlot: 7, SourceSlot: 11, SourceIndex: 121}
+	if err := shard.MarkAppliedHashSlotDelta(ctx, applied); err != nil {
+		t.Fatalf("MarkAppliedHashSlotDelta(): %v", err)
+	}
+	if _, ok, err := store.db.get(encodeAppliedHashSlotDeltaKey(applied)); err != nil || !ok {
+		t.Fatalf("applied delta row ok=%v err=%v", ok, err)
+	}
+}
+
 func TestHashSlotMigrationOutboxCRUDScanAndAckDelete(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

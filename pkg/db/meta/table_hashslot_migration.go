@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 const (
@@ -19,7 +20,48 @@ const (
 	hashSlotMigrationStateValueLen            = 1 + 8 + 8 + 1 + 8 + 8 + 8
 	hashSlotMigrationPhaseDone          uint8 = 3
 	hashSlotMigrationOutboxValueVersion byte  = 1
+
+	hashSlotMigrationPrimaryFamilyID uint16 = 0
+	hashSlotMigrationPrimaryIndexID  uint16 = 1
+
+	hashSlotMigrationColumnRecordType uint16 = 1
+	hashSlotMigrationColumnValue      uint16 = 2
 )
+
+var hashSlotMigrationTable = registerMetaTable(TableSpec[HashSlotMigrationState]{
+	ID:             TableIDHashSlotMigration,
+	Name:           "hashslot_migration",
+	SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true},
+	Columns: []schema.Column{
+		{ID: hashSlotMigrationColumnRecordType, Name: "record_type", Type: schema.TypeInt64, Required: true},
+		{ID: hashSlotMigrationColumnValue, Name: "value", Type: schema.TypeBytes},
+	},
+	Families: []schema.Family{{ID: hashSlotMigrationPrimaryFamilyID, Name: "primary", Columns: []uint16{hashSlotMigrationColumnValue}}},
+	Primary: PrimarySpec[HashSlotMigrationState]{
+		IndexID:          hashSlotMigrationPrimaryIndexID,
+		FamilyID:         hashSlotMigrationPrimaryFamilyID,
+		Name:             "pk_hashslot_migration",
+		Columns:          []uint16{hashSlotMigrationColumnRecordType},
+		Layout:           KeyLayout{KeyUint8},
+		OmitFamilySuffix: true,
+		Key: func(HashSlotMigrationState) KeyParts {
+			return hashSlotMigrationStatePrimaryKey()
+		},
+	},
+	EncodeValue: func(state HashSlotMigrationState) ([]byte, error) {
+		return encodeHashSlotMigrationStateValue(state), nil
+	},
+	DecodeValueWithKey: func(primaryKey []byte, _ KeyParts, value []byte) (HashSlotMigrationState, error) {
+		hashSlot, ok := isMetaRowKeyForTable(primaryKey, TableIDHashSlotMigration)
+		if !ok {
+			return HashSlotMigrationState{}, dberrors.ErrCorruptValue
+		}
+		return decodeHashSlotMigrationStateValue(hashSlot, value)
+	},
+})
+
+// HashSlotMigrationTable describes the hash-slot migration table schema.
+var HashSlotMigrationTable = hashSlotMigrationTable.Schema()
 
 // HashSlotMigrationState stores durable migration progress for one hash slot.
 type HashSlotMigrationState struct {
@@ -71,15 +113,7 @@ func (s *Shard) UpsertHashSlotMigrationState(ctx context.Context, state HashSlot
 	if err := s.validateHashSlotMigrationState(state); err != nil {
 		return err
 	}
-	unlock := s.lock()
-	defer unlock()
-
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := batch.Set(encodeHashSlotMigrationStateKey(s.hashSlot), encodeHashSlotMigrationStateValue(state)); err != nil {
-		return err
-	}
-	return batch.Commit(true)
+	return hashSlotMigrationTable.Upsert(ctx, s, state)
 }
 
 // LoadHashSlotMigrationState loads migration progress for this shard.
@@ -87,15 +121,7 @@ func (s *Shard) LoadHashSlotMigrationState(ctx context.Context) (HashSlotMigrati
 	if err := s.check(ctx); err != nil {
 		return HashSlotMigrationState{}, false, err
 	}
-	value, ok, err := s.db.get(encodeHashSlotMigrationStateKey(s.hashSlot))
-	if err != nil || !ok {
-		return HashSlotMigrationState{}, ok, err
-	}
-	state, err := decodeHashSlotMigrationStateValue(s.hashSlot, value)
-	if err != nil {
-		return HashSlotMigrationState{}, false, err
-	}
-	return state, true, nil
+	return hashSlotMigrationTable.Get(ctx, s, hashSlotMigrationStatePrimaryKey())
 }
 
 // DeleteHashSlotMigrationState removes migration progress for this shard.
@@ -103,15 +129,7 @@ func (s *Shard) DeleteHashSlotMigrationState(ctx context.Context) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
-	unlock := s.lock()
-	defer unlock()
-
-	batch := s.db.engine.NewBatch()
-	defer batch.Close()
-	if err := batch.Delete(encodeHashSlotMigrationStateKey(s.hashSlot)); err != nil {
-		return err
-	}
-	return batch.Commit(true)
+	return hashSlotMigrationTable.Delete(ctx, s, hashSlotMigrationStatePrimaryKey())
 }
 
 // MarkAppliedHashSlotDelta records a migration delta as applied.
@@ -390,6 +408,10 @@ func validateHashSlotMigrationOutboxIdentity(sourceSlot, targetSlot uint64) erro
 		return dberrors.ErrInvalidArgument
 	}
 	return nil
+}
+
+func hashSlotMigrationStatePrimaryKey() KeyParts {
+	return KeyParts{Uint8(hashSlotMigrationRecordState)}
 }
 
 func encodeHashSlotMigrationStateValue(state HashSlotMigrationState) []byte {
