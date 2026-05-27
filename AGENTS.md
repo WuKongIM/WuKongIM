@@ -22,7 +22,7 @@
 - 集成测试：`go test -tags=integration ./...` (不要随便跑 时间很长 开发一般跑单元测试即可)
 - 运行主程序：`go run ./cmd/wukongim`
 - 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.conf`
-- 定向测试：`go test ./internal/... ./pkg/...`
+- 定向测试：`go test ./internal/... ./internalv2/... ./pkg/...`
 
 ## 性能调试规则
 
@@ -96,6 +96,17 @@ internal/
     online/              在线会话注册与本地投递
     sequence/            序列号分配
     userlimit/           节点内用户发送令牌桶限流
+
+internalv2/
+  app/                   新架构组合根；负责 clusterv2、message usecase、gateway handler/runtime 装配与生命周期
+  access/                新架构入口适配层
+    gateway/             gateway SendPacket/SendBatch -> message usecase，Sendack 写回与协议错误映射
+  contracts/             新架构跨用例/运行时轻量事件合约
+    messageevents/       消息提交事件合约
+  usecase/               新架构入口无关业务用例
+    message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
+  infra/                 新架构外部运行时适配器
+    cluster/             clusterv2/channelv2 append 适配与 typed error 映射
 
 pkg/
   gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit
@@ -171,6 +182,10 @@ learn_project/           调研/实验代码，非主执行路径
 - `internal/usecase/*` 承载业务编排，输入输出应尽量入口无关。
 - `internal/runtime/*` 放节点内可复用运行时能力，不放入口逻辑。
 - `internal/app/*` 是唯一组合根；依赖装配只放这里。
+- `internalv2/access/*` 只做新架构入口协议适配，不承载通用业务规则。
+- `internalv2/usecase/*` 承载新架构入口无关业务编排，不能依赖 gateway/frame/cluster 具体实现。
+- `internalv2/infra/*` 只做新架构到 pkg 运行时或外部基础设施的适配。
+- `internalv2/app/*` 是 internalv2 唯一组合根；依赖装配只放这里。
 - `pkg/gateway/*` 放可复用网关通用基础设施，不放面向具体业务的用例编排。
 
 ## 变更规则
@@ -178,6 +193,7 @@ learn_project/           调研/实验代码，非主执行路径
 - 新增 HTTP、RPC、任务入口时，优先落到 `internal/access/<entry>`。
 - 新增可复用业务能力时，优先落到 `internal/usecase/<domain>`。
 - 新增本地状态、在线路由、分配器等能力时，优先落到 `internal/runtime/<capability>`。
+- 新增 internalv2 能力时，保持 `access -> usecase -> ports/contracts`，由 `infra` 实现具体 pkg 运行时适配。
 - 不再引入新的“大而全 service 包”或新的全局聚合服务对象。
 
 ## 提交前检查
