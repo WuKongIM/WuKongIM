@@ -70,6 +70,8 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 		stateSnap = s.cfg.StateMachine.Snapshot(ctx)
 	}
 	if stateSnap.Revision != 0 {
+		// cluster-state.json is only materialized state. Recovery trusts the
+		// Controller Raft WAL commit boundary and applied metadata as authoritative.
 		if stateSnap.AppliedRaftIndex > hs.Commit {
 			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", stateSnap.AppliedRaftIndex, hs.Commit)
 		}
