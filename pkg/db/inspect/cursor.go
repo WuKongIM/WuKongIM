@@ -1,12 +1,14 @@
 package inspect
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -37,16 +39,47 @@ func decodeCursor(raw string, q Query) (cursorPayload, error) {
 		return cursorPayload{}, fmt.Errorf("%w: malformed cursor", ErrInvalidQuery)
 	}
 	var payload cursorPayload
-	if err := json.Unmarshal(data, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
 		return cursorPayload{}, fmt.Errorf("%w: malformed cursor", ErrInvalidQuery)
 	}
 	if payload.Version != 1 {
 		return cursorPayload{}, fmt.Errorf("%w: unsupported cursor version", ErrInvalidQuery)
 	}
+	primary, err := normalizeCursorPrimary(payload.Primary)
+	if err != nil {
+		return cursorPayload{}, err
+	}
+	payload.Primary = primary
 	if payload.QueryHash != queryHash(q) {
 		return cursorPayload{}, ErrCursorMismatch
 	}
 	return payload, nil
+}
+
+func normalizeCursorPrimary(primary []any) ([]any, error) {
+	if len(primary) == 0 {
+		return nil, nil
+	}
+	out := make([]any, 0, len(primary))
+	for _, value := range primary {
+		switch v := value.(type) {
+		case json.Number:
+			if i, err := v.Int64(); err == nil {
+				out = append(out, i)
+				continue
+			}
+			u, err := strconv.ParseUint(v.String(), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid cursor primary", ErrInvalidQuery)
+			}
+			out = append(out, u)
+		default:
+			out = append(out, value)
+		}
+	}
+	return out, nil
 }
 
 func queryHash(q Query) string {

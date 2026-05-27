@@ -2,9 +2,11 @@ package inspect
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	db "github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -104,7 +106,104 @@ func TestStoreQueryMessageMessagesByCursor(t *testing.T) {
 	}
 }
 
+func TestStoreQueryMessageMessagesAppliesMessageSeqFilter(t *testing.T) {
+	path := seedInspectMessages(t)
+	store, err := OpenStore(Options{MessagePath: path})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	defer store.Close()
+
+	missing, err := store.Query(context.Background(), "select * from message.message where channel_key='g1:2' and message_seq=999 limit 10")
+	if err != nil {
+		t.Fatalf("missing Query() err = %v", err)
+	}
+	if len(missing.Rows) != 0 {
+		t.Fatalf("missing rows = %+v, want none", missing.Rows)
+	}
+
+	found, err := store.Query(context.Background(), "select * from message.message where channel_key='g1:2' and message_seq=1 limit 10")
+	if err != nil {
+		t.Fatalf("found Query() err = %v", err)
+	}
+	if len(found.Rows) != 1 || found.Rows[0]["message_seq"] != uint64(1) {
+		t.Fatalf("found rows = %+v, want seq 1", found.Rows)
+	}
+}
+
+func TestStoreQueryMessageChannelsRejectsUnknownFilter(t *testing.T) {
+	path := seedInspectMessages(t)
+	store, err := OpenStore(Options{MessagePath: path})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	defer store.Close()
+
+	_, err = store.Query(context.Background(), "select * from message.channels where unknown=1 limit 10")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Query() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestStoreQueryMissingDomainHandlesFailCleanly(t *testing.T) {
+	metaPath := seedInspectMetaUser(t, 16, meta.User{UID: "u1", Token: "t1"})
+	metaOnly, err := OpenStore(Options{MetaPath: metaPath, HashSlotCount: 16})
+	if err != nil {
+		t.Fatalf("OpenStore(meta) err = %v", err)
+	}
+	defer metaOnly.Close()
+	if _, err := metaOnly.Query(context.Background(), "select * from message.message where channel_key='g1:2' limit 1"); err == nil {
+		t.Fatal("message query on meta-only store err = nil, want clean failure")
+	}
+
+	messagePath := seedInspectMessages(t)
+	messageOnly, err := OpenStore(Options{MessagePath: messagePath, HashSlotCount: 16})
+	if err != nil {
+		t.Fatalf("OpenStore(message) err = %v", err)
+	}
+	defer messageOnly.Close()
+	if _, err := messageOnly.Query(context.Background(), "select * from meta.user where uid='u1' limit 1"); err == nil || errors.Is(err, db.ErrInvalidArgument) {
+		t.Fatalf("meta query on message-only store err = %v, want clean underlying failure", err)
+	}
+}
+
+func TestStoreQueryMetaLocalBoundedCursorDoesNotDuplicate(t *testing.T) {
+	path := seedInspectMetaUsers(t, 4, []meta.User{
+		{UID: "u1", Token: "t1"},
+		{UID: "u2", Token: "t2"},
+		{UID: "u3", Token: "t3"},
+	})
+	store, err := OpenStore(Options{MetaPath: path, HashSlotCount: 4})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	defer store.Close()
+
+	first, err := store.Query(context.Background(), "select * from meta.user limit 1")
+	if err != nil {
+		t.Fatalf("first Query() err = %v", err)
+	}
+	if len(first.Rows) != 1 || first.Stats.NextCursor == "" {
+		t.Fatalf("first = %+v, want one row with next cursor", first)
+	}
+	second, err := store.Query(context.Background(), "select * from meta.user limit 1 cursor '"+first.Stats.NextCursor+"'")
+	if err != nil {
+		t.Fatalf("second Query() err = %v", err)
+	}
+	if len(second.Rows) != 1 {
+		t.Fatalf("second rows = %+v, want one row", second.Rows)
+	}
+	if first.Rows[0]["uid"] == second.Rows[0]["uid"] {
+		t.Fatalf("cursor returned duplicate uid %q", first.Rows[0]["uid"])
+	}
+}
+
 func seedInspectMetaUser(t *testing.T, hashSlotCount uint16, user meta.User) string {
+	t.Helper()
+	return seedInspectMetaUsers(t, hashSlotCount, []meta.User{user})
+}
+
+func seedInspectMetaUsers(t *testing.T, hashSlotCount uint16, users []meta.User) string {
 	t.Helper()
 
 	path := t.TempDir()
@@ -113,9 +212,11 @@ func seedInspectMetaUser(t *testing.T, hashSlotCount uint16, user meta.User) str
 		t.Fatalf("engine.Open() err = %v", err)
 	}
 	db := meta.NewDB(eng)
-	hashSlot := meta.HashSlot(cluster.HashSlotForKey(user.UID, hashSlotCount))
-	if err := db.HashSlot(hashSlot).UpsertUser(context.Background(), user); err != nil {
-		t.Fatalf("UpsertUser() err = %v", err)
+	for _, user := range users {
+		hashSlot := meta.HashSlot(cluster.HashSlotForKey(user.UID, hashSlotCount))
+		if err := db.HashSlot(hashSlot).UpsertUser(context.Background(), user); err != nil {
+			t.Fatalf("UpsertUser(%s) err = %v", user.UID, err)
+		}
 	}
 	if err := eng.Close(); err != nil {
 		t.Fatalf("engine.Close() err = %v", err)

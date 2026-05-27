@@ -3,6 +3,8 @@ package inspect
 import (
 	"context"
 	"fmt"
+	"math"
+	"reflect"
 	"sort"
 
 	db "github.com/WuKongIM/WuKongIM/pkg/db"
@@ -150,26 +152,26 @@ func (s *Store) executeMessageCatalog(ctx context.Context, p plan) (Result, erro
 	if p.Cursor != nil {
 		req.AfterChannelKey = p.Cursor.ChannelKey
 	}
-	scan, err := msgdb.InspectChannels(ctx, s.messageDB, req)
+	rows, scannedRows, next, done, err := s.scanFilteredMessageCatalog(ctx, req, p.Query.Filters, p.Query.Limit)
 	if err != nil {
 		return Result{}, err
 	}
-	rows, err := projectRows(messageRowsToRows(scan.Rows), p.Domain, p.TableName, p.Query.Columns)
+	rows, err = projectRows(rows, p.Domain, p.TableName, p.Query.Columns)
 	if err != nil {
 		return Result{}, err
 	}
 	stats := Stats{
 		ScanMode:     p.ScanMode,
-		ScannedRows:  scan.ScannedRows,
+		ScannedRows:  scannedRows,
 		ReturnedRows: len(rows),
-		HasMore:      !scan.Done,
+		HasMore:      !done,
 	}
-	if scan.Next != nil && !scan.Done {
+	if next != nil && !done {
 		stats.NextCursor, err = encodeCursor(cursorPayload{
 			Domain:     p.Domain,
 			Table:      p.TableName,
 			ScanMode:   p.ScanMode,
-			ChannelKey: scan.Next.AfterChannelKey,
+			ChannelKey: next.AfterChannelKey,
 			QueryHash:  queryHash(p.Query),
 		})
 		if err != nil {
@@ -188,13 +190,9 @@ func (s *Store) executeMessageChannel(ctx context.Context, p plan) (Result, erro
 	if p.Cursor != nil {
 		req.AfterSeq = p.Cursor.AfterSeq
 	}
-	scan, err := msgdb.InspectMessages(ctx, s.messageDB, req)
+	rows, scannedRows, next, done, err := s.scanFilteredMessageChannel(ctx, req, p.Query.Filters, p.Query.Limit)
 	if err != nil {
 		return Result{}, err
-	}
-	rows := messageRowsToRows(scan.Rows)
-	for _, row := range rows {
-		row["channel_key"] = channelKey
 	}
 	rows, err = projectRows(rows, p.Domain, p.TableName, p.Query.Columns)
 	if err != nil {
@@ -202,17 +200,17 @@ func (s *Store) executeMessageChannel(ctx context.Context, p plan) (Result, erro
 	}
 	stats := Stats{
 		ScanMode:     p.ScanMode,
-		ScannedRows:  scan.ScannedRows,
+		ScannedRows:  scannedRows,
 		ReturnedRows: len(rows),
-		HasMore:      !scan.Done,
+		HasMore:      !done,
 	}
-	if scan.Next != nil && !scan.Done {
+	if next != nil && !done {
 		stats.NextCursor, err = encodeCursor(cursorPayload{
 			Domain:     p.Domain,
 			Table:      p.TableName,
 			ScanMode:   p.ScanMode,
 			ChannelKey: channelKey,
-			AfterSeq:   scan.Next.AfterSeq,
+			AfterSeq:   next.AfterSeq,
 			QueryHash:  queryHash(p.Query),
 		})
 		if err != nil {
@@ -220,6 +218,62 @@ func (s *Store) executeMessageChannel(ctx context.Context, p plan) (Result, erro
 		}
 	}
 	return Result{Rows: rows, Stats: stats}, nil
+}
+
+func (s *Store) scanFilteredMessageCatalog(ctx context.Context, req msgdb.InspectMessageRequest, filters map[string]any, limit int) ([]Row, int, *msgdb.InspectMessageCursor, bool, error) {
+	rows := make([]Row, 0, limit)
+	scannedRows := 0
+	for {
+		req.Limit = limit - len(rows)
+		scan, err := msgdb.InspectChannels(ctx, s.messageDB, req)
+		if err != nil {
+			return nil, 0, nil, false, err
+		}
+		scannedRows += scan.ScannedRows
+		rows = appendBoundedRows(rows, filterRows(messageRowsToRows(scan.Rows), filters), limit)
+		if len(rows) >= limit || scan.Done {
+			return rows, scannedRows, scan.Next, scan.Done, nil
+		}
+		if scan.Next == nil || scan.Next.AfterChannelKey == "" {
+			return rows, scannedRows, nil, true, nil
+		}
+		req.AfterChannelKey = scan.Next.AfterChannelKey
+	}
+}
+
+func (s *Store) scanFilteredMessageChannel(ctx context.Context, req msgdb.InspectMessageRequest, filters map[string]any, limit int) ([]Row, int, *msgdb.InspectMessageCursor, bool, error) {
+	rows := make([]Row, 0, limit)
+	scannedRows := 0
+	for {
+		req.Limit = limit - len(rows)
+		scan, err := msgdb.InspectMessages(ctx, s.messageDB, req)
+		if err != nil {
+			return nil, 0, nil, false, err
+		}
+		scannedRows += scan.ScannedRows
+		pageRows := messageRowsToRows(scan.Rows)
+		for _, row := range pageRows {
+			row["channel_key"] = req.ChannelKey
+		}
+		rows = appendBoundedRows(rows, filterRows(pageRows, filters), limit)
+		if len(rows) >= limit || scan.Done {
+			return rows, scannedRows, scan.Next, scan.Done, nil
+		}
+		if scan.Next == nil {
+			return rows, scannedRows, nil, true, nil
+		}
+		req.AfterSeq = scan.Next.AfterSeq
+	}
+}
+
+func appendBoundedRows(dst []Row, src []Row, limit int) []Row {
+	for _, row := range src {
+		if len(dst) >= limit {
+			return dst
+		}
+		dst = append(dst, row)
+	}
+	return dst
 }
 
 func describeSchemaColumns(columns []schema.Column) []Row {
@@ -343,6 +397,97 @@ func filtersWithoutHashSlot(filters map[string]any) map[string]any {
 		}
 	}
 	return out
+}
+
+func filterRows(rows []Row, filters map[string]any) []Row {
+	if len(filters) == 0 || len(rows) == 0 {
+		return rows
+	}
+	out := make([]Row, 0, len(rows))
+	for _, row := range rows {
+		if rowMatchesFilters(row, filters) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func rowMatchesFilters(row Row, filters map[string]any) bool {
+	for key, want := range filters {
+		got, ok := row[key]
+		if !ok || !valuesEqual(got, want) {
+			return false
+		}
+	}
+	return true
+}
+
+func valuesEqual(got, want any) bool {
+	gotNum, gotNumeric, gotOK := integralNumeric(got)
+	wantNum, wantNumeric, wantOK := integralNumeric(want)
+	if gotNumeric && wantNumeric {
+		return gotOK && wantOK && gotNum == wantNum
+	}
+	return reflect.DeepEqual(got, want)
+}
+
+type numericValue struct {
+	negative  bool
+	magnitude uint64
+}
+
+func integralNumeric(value any) (numericValue, bool, bool) {
+	switch v := value.(type) {
+	case int:
+		return signedNumeric(int64(v)), true, true
+	case int8:
+		return signedNumeric(int64(v)), true, true
+	case int16:
+		return signedNumeric(int64(v)), true, true
+	case int32:
+		return signedNumeric(int64(v)), true, true
+	case int64:
+		return signedNumeric(v), true, true
+	case uint:
+		return numericValue{magnitude: uint64(v)}, true, true
+	case uint8:
+		return numericValue{magnitude: uint64(v)}, true, true
+	case uint16:
+		return numericValue{magnitude: uint64(v)}, true, true
+	case uint32:
+		return numericValue{magnitude: uint64(v)}, true, true
+	case uint64:
+		return numericValue{magnitude: v}, true, true
+	case float32:
+		return floatNumeric(float64(v))
+	case float64:
+		return floatNumeric(v)
+	default:
+		return numericValue{}, false, false
+	}
+}
+
+func signedNumeric(value int64) numericValue {
+	if value >= 0 {
+		return numericValue{magnitude: uint64(value)}
+	}
+	return numericValue{negative: true, magnitude: uint64(-(value + 1)) + 1}
+}
+
+func floatNumeric(value float64) (numericValue, bool, bool) {
+	if math.IsInf(value, 0) || math.IsNaN(value) || math.Trunc(value) != value {
+		return numericValue{}, true, false
+	}
+	if value < 0 {
+		if value < float64(math.MinInt64) {
+			return numericValue{}, true, false
+		}
+		return signedNumeric(int64(value)), true, true
+	}
+	if value >= 18446744073709551616.0 {
+		return numericValue{}, true, false
+	}
+	return numericValue{magnitude: uint64(value)}, true, true
 }
 
 func metaRowsToRows(rows []metadb.InspectRow) []Row {
