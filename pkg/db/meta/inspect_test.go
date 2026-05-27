@@ -70,6 +70,51 @@ func TestInspectScanUserLocalBoundedLimitAcrossHashSlots(t *testing.T) {
 	}
 }
 
+func TestInspectScanUserLocalFilteredScanContinuesPastFilteredRows(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	fixtures := []struct {
+		slot HashSlot
+		user User
+	}{
+		{slot: 1, user: User{UID: "u1a", Token: "skip"}},
+		{slot: 1, user: User{UID: "u1b", Token: "skip"}},
+		{slot: 2, user: User{UID: "u2", Token: "skip"}},
+		{slot: 3, user: User{UID: "u3", Token: "match"}},
+	}
+	for _, fixture := range fixtures {
+		if err := store.db.HashSlot(fixture.slot).CreateUser(ctx, fixture.user); err != nil {
+			t.Fatalf("CreateUser(slot %d, uid %s): %v", fixture.slot, fixture.user.UID, err)
+		}
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:         "user",
+		HashSlotCount: 4,
+		Filters:       map[string]any{"token": "match"},
+		Limit:         1,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	if got.Rows[0]["uid"] != "u3" || got.Rows[0]["token"] != "match" {
+		t.Fatalf("row = %+v, want slot 3 match", got.Rows[0])
+	}
+	if !got.Done {
+		t.Fatalf("Done = false, want true")
+	}
+	if got.Next != nil {
+		t.Fatalf("Next = %+v, want nil", got.Next)
+	}
+	if got.ScannedRows != 4 {
+		t.Fatalf("ScannedRows = %d, want 4", got.ScannedRows)
+	}
+}
+
 func TestInspectScanRejectsUnknownTable(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

@@ -86,7 +86,7 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		if req.After != nil && req.After.HashSlot == slot {
 			cursorUID = afterUID
 		}
-		scannedSlot, done, nextUID, err := inspectScanUserSlot(ctx, db.HashSlot(slot), cursorUID, req.Limit-len(result.Rows), req.Filters, &result)
+		scannedSlot, done, nextUID, err := inspectScanUserSlot(ctx, db.HashSlot(slot), cursorUID, req.Limit, req.Filters, &result)
 		if err != nil {
 			return InspectScanResult{}, err
 		}
@@ -148,19 +148,30 @@ func inspectUserAfterUID(cursor *InspectCursor) (string, error) {
 	return uid, nil
 }
 
-func inspectScanUserSlot(ctx context.Context, shard *Shard, afterUID string, limit int, filters map[string]any, result *InspectScanResult) (bool, bool, string, error) {
-	users, cursor, done, err := shard.ListUsersPage(ctx, afterUID, limit)
-	if err != nil {
-		return false, false, "", err
-	}
-	result.ScannedRows += len(users)
-	for _, user := range users {
-		row := inspectUserRow(user)
-		if inspectRowMatches(row, filters) {
-			result.Rows = append(result.Rows, row)
+func inspectScanUserSlot(ctx context.Context, shard *Shard, afterUID string, targetRows int, filters map[string]any, result *InspectScanResult) (bool, bool, string, error) {
+	cursorUID := afterUID
+	for len(result.Rows) < targetRows {
+		pageLimit := targetRows - len(result.Rows)
+		users, cursor, done, err := shard.ListUsersPage(ctx, cursorUID, pageLimit)
+		if err != nil {
+			return false, false, "", err
 		}
+		result.ScannedRows += len(users)
+		for _, user := range users {
+			row := inspectUserRow(user)
+			if inspectRowMatches(row, filters) {
+				result.Rows = append(result.Rows, row)
+			}
+		}
+		if done {
+			return true, true, "", nil
+		}
+		if cursor == "" || cursor == cursorUID {
+			return true, false, "", fmt.Errorf("%w: non-advancing user inspect cursor", dberrors.ErrCorruptState)
+		}
+		cursorUID = cursor
 	}
-	return true, done, cursor, nil
+	return true, false, cursorUID, nil
 }
 
 func inspectUserRow(user User) InspectRow {
