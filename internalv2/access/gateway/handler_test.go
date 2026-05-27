@@ -124,6 +124,40 @@ func TestOnFrameNilMessagesWritesSystemErrorSendack(t *testing.T) {
 	}
 }
 
+func TestOnFrameMapsMessageErrorsToSendackReasons(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want frame.ReasonCode
+	}{
+		{name: "route not ready", err: message.ErrRouteNotReady, want: frame.ReasonNodeNotMatch},
+		{name: "not leader", err: message.ErrNotLeader, want: frame.ReasonNodeNotMatch},
+		{name: "stale route", err: message.ErrStaleRoute, want: frame.ReasonNodeNotMatch},
+		{name: "channel missing", err: message.ErrChannelNotFound, want: frame.ReasonChannelNotExist},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var written []frame.Frame
+			sess := newTestSession(t, &written)
+			sess.SetValue(coregateway.SessionValueUID, "u1")
+			handler := New(Options{Messages: &recordingMessages{sendErr: tt.err}, SendTimeout: time.Second})
+			pkt := &frame.SendPacket{ClientSeq: 10, ClientMsgNo: "client-error", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+
+			err := handler.OnFrame(coregateway.Context{
+				Session:        sess,
+				RequestContext: context.Background(),
+			}, pkt)
+			if err != nil {
+				t.Fatalf("OnFrame() error = %v", err)
+			}
+			ack := requireSendack(t, written, 0)
+			if ack.ReasonCode != tt.want {
+				t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, tt.want)
+			}
+		})
+	}
+}
+
 func TestOnFrameUnknownFrameReturnsErrUnsupportedFrame(t *testing.T) {
 	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
 
@@ -181,6 +215,50 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 	if got := metas[1].ReplyToken; got != "reply-2" {
 		t.Fatalf("second reply token = %q, want reply-2", got)
+	}
+}
+
+func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Err: message.ErrRouteNotReady},
+			{Err: message.ErrNotLeader},
+			{Err: message.ErrChannelNotFound},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch1", ChannelType: 2, Payload: []byte("three")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	first := requireSendack(t, written, 0)
+	if first.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("first ack reason = %v, want %v", first.ReasonCode, frame.ReasonNodeNotMatch)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("second ack reason = %v, want %v", second.ReasonCode, frame.ReasonNodeNotMatch)
+	}
+	third := requireSendack(t, written, 2)
+	if third.ReasonCode != frame.ReasonChannelNotExist {
+		t.Fatalf("third ack reason = %v, want %v", third.ReasonCode, frame.ReasonChannelNotExist)
 	}
 }
 

@@ -17,8 +17,6 @@ var (
 	ErrUnauthenticatedSession = errors.New("internalv2/access/gateway: unauthenticated session")
 	// ErrMissingRequestContext reports a gateway event without a request context.
 	ErrMissingRequestContext = errors.New("internalv2/access/gateway: missing request context")
-	// ErrMessageBatchUsecaseRequired reports a handler configured without batch support.
-	ErrMessageBatchUsecaseRequired = errors.New("internalv2/access/gateway: message batch usecase required")
 	// ErrSendBatchResultCountMismatch reports non-aligned batch usecase results.
 	ErrSendBatchResultCountMismatch = errors.New("internalv2/access/gateway: send batch result count mismatch")
 )
