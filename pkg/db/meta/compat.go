@@ -1291,7 +1291,10 @@ func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMig
 		return err
 	}
 	hs := HashSlot(hashSlot)
-	primaryKey := encodeChannelMigrationTaskRowKey(hs, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	primaryKey, err := channelMigrationTaskRowKey(hs, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		return err
+	}
 	if existing, ok := b.migrationCreates[string(primaryKey)]; ok {
 		if existing == task {
 			return nil
@@ -1339,7 +1342,10 @@ func (b *WriteBatch) CreateChannelMigrationTaskWithRuntimeGuard(hashSlot uint16,
 	}
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
-		primaryKey := encodeChannelMigrationTaskRowKey(hs, req.Task.ChannelID, req.Task.ChannelType, req.Task.TaskID, channelMigrationPrimaryFamilyID)
+		primaryKey, err := channelMigrationTaskRowKey(hs, req.Task.ChannelID, req.Task.ChannelType, req.Task.TaskID)
+		if err != nil {
+			return err
+		}
 		existing, exists, err := st.loadChannelMigrationTask(ctx, hs, primaryKey, req.Task.ChannelID, req.Task.ChannelType, req.Task.TaskID)
 		if err != nil {
 			return err
@@ -1413,7 +1419,10 @@ func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMig
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: hs}
-		taskKey := encodeChannelMigrationTaskRowKey(hs, guard.ChannelID, guard.ChannelType, guard.TaskID, channelMigrationPrimaryFamilyID)
+		taskKey, err := channelMigrationTaskRowKey(hs, guard.ChannelID, guard.ChannelType, guard.TaskID)
+		if err != nil {
+			return err
+		}
 		task, ok, err := st.loadChannelMigrationTask(ctx, hs, taskKey, guard.ChannelID, guard.ChannelType, guard.TaskID)
 		if err != nil {
 			return err
@@ -1677,7 +1686,10 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: hs}
-		taskKey := encodeChannelMigrationTaskRowKey(hs, guard.ChannelID, guard.ChannelType, guard.TaskID, channelMigrationPrimaryFamilyID)
+		taskKey, err := channelMigrationTaskRowKey(hs, guard.ChannelID, guard.ChannelType, guard.TaskID)
+		if err != nil {
+			return err
+		}
 		task, ok, err := st.loadChannelMigrationTask(ctx, hs, taskKey, guard.ChannelID, guard.ChannelType, guard.TaskID)
 		if err != nil {
 			return err
@@ -1775,7 +1787,11 @@ func (b *WriteBatch) DeleteTerminalChannelMigrationTasksBefore(hashSlot uint16, 
 			if !task.IsTerminal() || task.CompletedAtMS >= req.BeforeMS {
 				continue
 			}
-			if err := batch.Delete(encodeChannelMigrationTaskRowKey(hs, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)); err != nil {
+			taskKey, err := channelMigrationTaskRowKey(hs, task.ChannelID, task.ChannelType, task.TaskID)
+			if err != nil {
+				return err
+			}
+			if err := batch.Delete(taskKey); err != nil {
 				return err
 			}
 			if err := batch.Delete(encodeChannelMigrationTerminalIndexKey(hs, task.CompletedAtMS, task.ChannelID, task.ChannelType, task.TaskID)); err != nil {

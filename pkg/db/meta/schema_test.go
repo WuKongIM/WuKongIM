@@ -18,6 +18,8 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	channelIDIndexRegistered := false
 	channelActiveIndexRegistered := false
 	channelRuntimeMetaPrimaryRegistered := false
+	channelMigrationPrimaryRegistered := false
+	channelMigrationTerminalIndexRegistered := false
 	subscriberPrimaryRegistered := false
 	conversationActiveIndexRegistered := false
 	cmdConversationActiveIndexRegistered := false
@@ -44,6 +46,19 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			table.Primary.Name == "pk_channel_runtime_meta" &&
 			len(table.Primary.Columns) == 2 {
 			channelRuntimeMetaPrimaryRegistered = true
+		}
+		if table.ID == TableIDChannelMigration &&
+			table.Primary.ID == channelMigrationPrimaryIndexID &&
+			table.Primary.Name == "pk_channel_migration" &&
+			len(table.Primary.Columns) == 3 {
+			channelMigrationPrimaryRegistered = true
+			for _, index := range table.Indexes {
+				if index.ID == channelMigrationTerminalIndexID &&
+					index.Name == "idx_channel_migration_terminal" &&
+					len(index.Columns) == 4 {
+					channelMigrationTerminalIndexRegistered = true
+				}
+			}
 		}
 		if table.ID == TableIDSubscriber &&
 			table.Primary.ID == subscriberPrimaryIndexID &&
@@ -74,6 +89,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	}
 	if !channelRuntimeMetaPrimaryRegistered {
 		t.Fatalf("channel runtime meta table missing typed primary index")
+	}
+	if !channelMigrationPrimaryRegistered {
+		t.Fatalf("channel migration table missing typed primary index")
+	}
+	if !channelMigrationTerminalIndexRegistered {
+		t.Fatalf("channel migration table missing terminal index %d", channelMigrationTerminalIndexID)
 	}
 	if !subscriberPrimaryRegistered {
 		t.Fatalf("subscriber table missing typed primary index %d", subscriberPrimaryIndexID)

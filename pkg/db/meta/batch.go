@@ -220,7 +220,10 @@ func (b *Batch) CreateChannelMigrationTask(hashSlot HashSlot, task ChannelMigrat
 		if err := shard.stageCreateChannelMigrationTask(ctx, batch, task); err != nil {
 			return err
 		}
-		key := encodeChannelMigrationTaskRowKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+		key, err := channelMigrationTaskRowKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID)
+		if err != nil {
+			return err
+		}
 		state.migrationTasks[string(key)] = migrationTaskOverlay{task: task, exists: true}
 		return nil
 	})
