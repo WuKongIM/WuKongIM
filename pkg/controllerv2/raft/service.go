@@ -50,6 +50,7 @@ type Service struct {
 	mu       sync.Mutex
 	started  bool
 	stopping bool
+	stopped  bool
 	stopCh   chan struct{}
 	doneCh   chan struct{}
 	stepCh   chan raftpb.Message
@@ -65,9 +66,10 @@ type Service struct {
 }
 
 type proposalRequest struct {
-	ctx  context.Context
-	cmd  command.Command
-	resp chan error
+	ctx   context.Context
+	cmd   command.Command
+	probe bool
+	resp  chan error
 }
 
 type trackedProposal struct {
@@ -107,6 +109,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if s.started {
 		return nil
 	}
+	s.stopped = false
 	s.err = nil
 	s.statusMu.Lock()
 	s.status = initialStatus(cfg)
@@ -171,6 +174,7 @@ func (s *Service) Stop() error {
 	s.mu.Lock()
 	s.started = false
 	s.stopping = false
+	s.stopped = true
 	s.stopCh = nil
 	s.doneCh = nil
 	s.stepCh = nil
@@ -189,12 +193,26 @@ func (s *Service) Stop() error {
 
 // Propose appends a ControllerV2 command on the leader and waits until it is applied.
 func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
+	return s.submitProposal(ctx, proposalRequest{cmd: cmd})
+}
+
+// ProbePropose appends an empty Raft entry and waits until it is applied.
+// It verifies the Controller proposal write path without mutating ControllerV2 cluster state.
+func (s *Service) ProbePropose(ctx context.Context) error {
+	return s.submitProposal(ctx, proposalRequest{probe: true})
+}
+
+func (s *Service) submitProposal(ctx context.Context, req proposalRequest) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	s.mu.Lock()
 	if !s.started {
+		stopped := s.stopped
 		s.mu.Unlock()
+		if stopped {
+			return ErrStopped
+		}
 		return ErrNotStarted
 	}
 	if s.stopping {
@@ -206,7 +224,8 @@ func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
 	doneCh := s.doneCh
 	s.mu.Unlock()
 
-	req := proposalRequest{ctx: ctx, cmd: cmd, resp: make(chan error, 1)}
+	req.ctx = ctx
+	req.resp = make(chan error, 1)
 	select {
 	case proposalCh <- req:
 	case <-ctx.Done():
@@ -405,17 +424,21 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 				req.resp <- ErrNotLeader
 				continue
 			}
-			data, err := command.Encode(req.cmd)
-			if err != nil {
-				req.resp <- err
-				continue
+			var data []byte
+			if !req.probe {
+				encoded, err := command.Encode(req.cmd)
+				if err != nil {
+					req.resp <- err
+					continue
+				}
+				data = encoded
 			}
 			if err := rawNode.Propose(data); err != nil {
 				req.resp <- err
 				continue
 			}
 			trackerMu.Lock()
-			tracker.enqueue(trackedProposal{resp: req.resp})
+			tracker.enqueue(trackedProposal{resp: req.resp, probe: req.probe})
 			trackerMu.Unlock()
 		}
 	}
