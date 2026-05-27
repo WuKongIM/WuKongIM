@@ -17,7 +17,11 @@ func (t *proposalTracker) enqueue(p trackedProposal) {
 
 func (t *proposalTracker) bindAppended(entries []raftpb.Entry) {
 	for _, entry := range entries {
-		if entry.Type != raftpb.EntryNormal || len(entry.Data) == 0 || len(t.queue) == 0 {
+		if entry.Type != raftpb.EntryNormal || len(t.queue) == 0 {
+			continue
+		}
+		isProbeEntry := len(entry.Data) == 0
+		if t.queue[0].probe != isProbeEntry {
 			continue
 		}
 		tracked := t.queue[0]
