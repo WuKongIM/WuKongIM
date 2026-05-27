@@ -48,6 +48,13 @@ type IndexSpec[R any] struct {
 	DescriptorOnly bool
 	// PrimaryFromIndex keeps legacy indexes whose index tuple is also the full primary key.
 	PrimaryFromIndex bool
+	// PrimaryKeyFromIndexParts derives the primary key from a legacy index tuple that stores no primary suffix.
+	//
+	// The index tuple must uniquely determine the primary key. This is safe for
+	// either unique or non-unique indexes when the projection is lossless.
+	PrimaryKeyFromIndexParts func(KeyParts) (KeyParts, bool)
+	// CorruptIndexKeyIsError makes index scans fail when a malformed key appears under the requested prefix.
+	CorruptIndexKeyIsError bool
 	// StorePrimaryValue writes the row value into the index entry for legacy readers.
 	StorePrimaryValue bool
 	Key               func(R) (KeyParts, bool)
@@ -99,11 +106,17 @@ func normalizeTableSpec[R any](spec TableSpec[R]) (TableSpec[R], schema.Table, e
 		if !index.DescriptorOnly && index.Key == nil {
 			return spec, schema.Table{}, fmt.Errorf("%w: invalid index spec", dberrors.ErrInvalidArgument)
 		}
-		if index.DescriptorOnly && (index.Unique || index.PrimaryFromIndex || index.StorePrimaryValue || index.Key != nil) {
+		if index.DescriptorOnly && (index.Unique || index.PrimaryFromIndex || index.PrimaryKeyFromIndexParts != nil || index.CorruptIndexKeyIsError || index.StorePrimaryValue || index.Key != nil) {
 			return spec, schema.Table{}, fmt.Errorf("%w: invalid descriptor-only index spec", dberrors.ErrInvalidArgument)
+		}
+		if index.PrimaryFromIndex && index.PrimaryKeyFromIndexParts != nil {
+			return spec, schema.Table{}, fmt.Errorf("%w: primary-from-index and projected primary key are mutually exclusive", dberrors.ErrInvalidArgument)
 		}
 		if index.PrimaryFromIndex && !keyLayoutEqual(index.Layout, spec.Primary.Layout) {
 			return spec, schema.Table{}, fmt.Errorf("%w: primary-from-index layout must match primary layout", dberrors.ErrInvalidArgument)
+		}
+		if index.PrimaryKeyFromIndexParts != nil && index.Key == nil {
+			return spec, schema.Table{}, fmt.Errorf("%w: projected primary key index requires key function", dberrors.ErrInvalidArgument)
 		}
 		indexes = append(indexes, schema.Index{
 			ID:      index.ID,
@@ -310,7 +323,10 @@ func (t Table[R]) scanIndex(ctx context.Context, s *Shard, indexID uint16, prefi
 		if err := contextErr(ctx); err != nil {
 			return nil, nil, false, err
 		}
-		indexParts, primaryParts, ok := t.decodeIndexKey(basePrefix, iter.Key(), index)
+		indexParts, primaryParts, ok, err := t.decodeIndexKey(basePrefix, iter.Key(), index)
+		if err != nil && index.CorruptIndexKeyIsError {
+			return nil, nil, false, err
+		}
 		if !ok || !keyPartsHasPrefix(indexParts, prefix) {
 			continue
 		}
@@ -730,7 +746,7 @@ func (t Table[R]) indexPartsForRow(row R, index IndexSpec[R], pk KeyParts) (KeyP
 }
 
 func (t Table[R]) indexEntryKey(hashSlot HashSlot, index IndexSpec[R], indexParts KeyParts, primary KeyParts) ([]byte, error) {
-	if index.PrimaryFromIndex {
+	if index.PrimaryFromIndex || index.PrimaryKeyFromIndexParts != nil {
 		return encodeTableIndexScanPrefix(hashSlot, t.spec.ID, index.ID, indexParts)
 	}
 	return encodeTableIndexKey(hashSlot, t.spec.ID, index.ID, indexParts, primary)
@@ -766,7 +782,7 @@ func (t Table[R]) stageUniqueIndexChecks(ctx context.Context, db *MetaDB, state 
 				_ = iter.Close()
 				return err
 			}
-			_, indexedPK, ok := t.decodeIndexKey(basePrefix, iter.Key(), index)
+			_, indexedPK, ok, _ := t.decodeIndexKey(basePrefix, iter.Key(), index)
 			if !ok || indexedPK.Equal(pk) {
 				continue
 			}
@@ -846,25 +862,38 @@ func (t Table[R]) indexedPrimaryStillConflicts(ctx context.Context, db *MetaDB, 
 	return t.rowMatchesIndex(row, index, indexParts), nil
 }
 
-func (t Table[R]) decodeIndexKey(prefix []byte, key []byte, index IndexSpec[R]) (KeyParts, KeyParts, bool) {
+func (t Table[R]) decodeIndexKey(prefix []byte, key []byte, index IndexSpec[R]) (KeyParts, KeyParts, bool, error) {
 	if !bytes.HasPrefix(key, prefix) {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 	indexParts, rest, err := decodeKeyParts(key[len(prefix):], index.Layout)
 	if err != nil {
-		return nil, nil, false
+		return nil, nil, false, err
 	}
 	if index.PrimaryFromIndex {
 		if len(rest) != 0 {
-			return nil, nil, false
+			return nil, nil, false, dberrors.ErrCorruptValue
 		}
-		return indexParts, indexParts, true
+		return indexParts, indexParts, true, nil
+	}
+	if index.PrimaryKeyFromIndexParts != nil {
+		if len(rest) != 0 {
+			return nil, nil, false, dberrors.ErrCorruptValue
+		}
+		primaryParts, ok := index.PrimaryKeyFromIndexParts(indexParts)
+		if !ok {
+			return nil, nil, false, dberrors.ErrCorruptValue
+		}
+		if err := t.validatePrimaryKey(primaryParts); err != nil {
+			return nil, nil, false, dberrors.ErrCorruptValue
+		}
+		return indexParts, primaryParts, true, nil
 	}
 	primaryParts, rest, err := decodeKeyParts(rest, t.spec.Primary.Layout)
 	if err != nil || len(rest) != 0 {
-		return nil, nil, false
+		return nil, nil, false, dberrors.ErrCorruptValue
 	}
-	return indexParts, primaryParts, true
+	return indexParts, primaryParts, true, nil
 }
 
 func (t Table[R]) rowMatchesIndex(row R, index IndexSpec[R], expected KeyParts) bool {
