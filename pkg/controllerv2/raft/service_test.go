@@ -128,6 +128,78 @@ func TestThreeControllerVotersRejectFollowerProposal(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotLeader)
 }
 
+func TestProbeProposeSingleNodeSucceedsWithoutStateMutation(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-probe-single", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	before := cluster.nodes[0].stateMachine.Snapshot(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, cluster.waitForLeader(t).service.ProbePropose(ctx))
+	after := cluster.nodes[0].stateMachine.Snapshot(context.Background())
+
+	require.Equal(t, before, after)
+}
+
+func TestProbeProposeFollowerReturnsNotLeader(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+	var follower *testRaftNode
+	for _, node := range cluster.nodes {
+		if node.id != leader.id {
+			follower = node
+			break
+		}
+	}
+	require.NotNil(t, follower)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.ErrorIs(t, follower.service.ProbePropose(ctx), ErrNotLeader)
+}
+
+func TestProbeProposeFindsLeaderInThreeVoters(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+
+	require.Eventually(t, func() bool {
+		for _, node := range cluster.nodes {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			err := node.service.ProbePropose(ctx)
+			cancel()
+			if err == nil {
+				return true
+			}
+			if !errors.Is(err, ErrNotLeader) {
+				t.Logf("ProbePropose(node=%d) error: %v", node.id, err)
+			}
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestProbeProposeLifecycleErrors(t *testing.T) {
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          peers,
+		AllowBootstrap: true,
+		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   testRaftTickInterval,
+	})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, service.ProbePropose(context.Background()), ErrNotStarted)
+	require.NoError(t, service.Start(context.Background()))
+	require.NoError(t, service.Stop())
+	require.ErrorIs(t, service.ProbePropose(context.Background()), ErrStopped)
+}
+
 func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1})
 	cluster.start(t)
