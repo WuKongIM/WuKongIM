@@ -178,6 +178,33 @@ func TestInspectMessagesRejectsNilDB(t *testing.T) {
 	}
 }
 
+func TestInspectChannelsRejectsNilDB(t *testing.T) {
+	_, err := InspectChannels(context.Background(), nil, InspectMessageRequest{})
+	if !errors.Is(err, dberrors.ErrClosed) {
+		t.Fatalf("InspectChannels(nil db) err = %v, want ErrClosed", err)
+	}
+}
+
+func TestInspectChannelsRejectsClosedStore(t *testing.T) {
+	store := openTestMessageStore(t)
+	store.close(t)
+
+	_, err := InspectChannels(context.Background(), store.db, InspectMessageRequest{})
+	if !errors.Is(err, dberrors.ErrClosed) {
+		t.Fatalf("InspectChannels(closed store) err = %v, want ErrClosed", err)
+	}
+}
+
+func TestInspectMessagesRejectsClosedStore(t *testing.T) {
+	store := openTestMessageStore(t)
+	store.close(t)
+
+	_, err := InspectMessages(context.Background(), store.db, InspectMessageRequest{ChannelKey: "g1:2"})
+	if !errors.Is(err, dberrors.ErrClosed) {
+		t.Fatalf("InspectMessages(closed store) err = %v, want ErrClosed", err)
+	}
+}
+
 func assertInspectMessageRow(t *testing.T, row InspectMessageRow, record Record, seq uint64) {
 	t.Helper()
 	if row["message_seq"] != seq {
