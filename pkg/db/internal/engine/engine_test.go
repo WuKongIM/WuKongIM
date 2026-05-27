@@ -93,6 +93,49 @@ func TestDeleteRange(t *testing.T) {
 	}
 }
 
+func TestOpenReadOnlyRejectsWrites(t *testing.T) {
+	dir := t.TempDir()
+	db, err := engine.Open(dir, engine.Options{})
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	batch := db.NewBatch()
+	if err := batch.Set([]byte("k"), []byte("v")); err != nil {
+		t.Fatalf("Set(): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if err := batch.Close(); err != nil {
+		t.Fatalf("Close batch(): %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+
+	readOnly, err := engine.Open(dir, engine.Options{ReadOnly: true})
+	if err != nil {
+		t.Fatalf("Open(read-only): %v", err)
+	}
+	defer readOnly.Close()
+
+	got, ok, err := readOnly.Get([]byte("k"))
+	if err != nil {
+		t.Fatalf("Get(): %v", err)
+	}
+	if !ok || string(got) != "v" {
+		t.Fatalf("Get() = %q, %v; want v, true", got, ok)
+	}
+	roBatch := readOnly.NewBatch()
+	defer roBatch.Close()
+	if err := roBatch.Set([]byte("next"), []byte("value")); err != nil {
+		t.Fatalf("Set() should stage before Pebble rejects commit: %v", err)
+	}
+	if err := roBatch.Commit(true); err == nil {
+		t.Fatal("Commit(read-only) = nil, want error")
+	}
+}
+
 func openTestDB(t *testing.T) *engine.DB {
 	t.Helper()
 	db, err := engine.Open(t.TempDir(), engine.Options{})

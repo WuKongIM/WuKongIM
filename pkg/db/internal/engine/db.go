@@ -19,6 +19,8 @@ type Options struct {
 	CacheSize int64
 	// MemTableSize configures Pebble memtable bytes.
 	MemTableSize int64
+	// ReadOnly opens the engine without allowing writes or background compactions.
+	ReadOnly bool
 }
 
 // DB wraps a Pebble database without exposing Pebble types to domain packages.
@@ -104,6 +106,7 @@ func pebbleOptions(opts Options) *pebble.Options {
 		MemTableStopWritesThreshold: 4,
 		L0CompactionThreshold:       8,
 		L0StopWritesThreshold:       24,
+		ReadOnly:                    opts.ReadOnly,
 	}
 	popts.Levels[0].FilterPolicy = bloom.FilterPolicy(10)
 	return popts
