@@ -25,8 +25,9 @@ Current flow:
    together; retention state preserves LEO across reopen after prefix trim.
 10. Catalog entries are updated by durable append/system mutations and can be
    listed through `MessageDB.ListChannels`.
-11. Read-only inspect APIs list catalog channels and scan channel messages for
-    diagnostics without mutating storage.
+11. Read-only inspect APIs page catalog channels directly by catalog key and
+    scan channel messages for diagnostics without mutating storage or
+    populating channel caches.
 12. The compatibility `Engine` / `ChannelStore` surface adapts legacy
     `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
     query callers onto the typed `ChannelLog` core while keeping seq/offset

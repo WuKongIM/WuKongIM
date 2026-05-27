@@ -103,6 +103,38 @@ func TestInspectChannelsCursorAndLimit(t *testing.T) {
 	}
 }
 
+func TestInspectChannelsLimitDoesNotDecodeBeyondLookahead(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	for i, key := range []ChannelKey{"a", "b"} {
+		log := store.db.Channel(key, ChannelID{ID: string(key), Type: 1})
+		if _, err := log.Append(ctx, testRecords(uint64(400+i), "seed"), AppendOptions{}); err != nil {
+			t.Fatalf("Append(%s): %v", key, err)
+		}
+	}
+	batch := store.engine.NewBatch()
+	defer batch.Close()
+	if err := batch.Set(encodeCatalogKey("z"), []byte{0x01}); err != nil {
+		t.Fatalf("Set corrupt catalog row: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit corrupt catalog row: %v", err)
+	}
+
+	got, err := InspectChannels(ctx, store.db, InspectMessageRequest{Limit: 1})
+	if err != nil {
+		t.Fatalf("InspectChannels(): %v", err)
+	}
+	if len(got.Rows) != 1 || got.Rows[0]["channel_key"] != "a" {
+		t.Fatalf("rows = %+v, want only first channel", got.Rows)
+	}
+	if got.Done || got.Next == nil || got.Next.AfterChannelKey != "a" {
+		t.Fatalf("result = %+v, want bounded page with next after a", got)
+	}
+}
+
 func TestInspectMessagesByChannelKeyAndCursor(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

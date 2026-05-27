@@ -53,7 +53,10 @@ Current flow:
     present locally.
 17. `DeleteHashSlotData` removes all row, index, and system spans for one hash
     slot and clears the channel cache.
-18. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
+18. Read-only inspect APIs expose stable diagnostic rows for known metadata
+    tables, supporting explicit hash-slot scans and bounded local scans across
+    hash slots without mutating storage.
+19. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
     package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
     surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
 
