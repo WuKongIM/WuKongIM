@@ -317,22 +317,11 @@ func TestNodeDefaultControllerV2ThreeVotersConvergeOverTransport(t *testing.T) {
 		}
 	}
 
-	waitUntil(t, func() bool {
-		var revision uint64
-		for _, node := range nodes {
-			snap := node.Snapshot()
-			if snap.StateRevision == 0 || !snap.RoutesReady || snap.ControllerLead == 0 || snap.SlotCount != 1 {
-				return false
-			}
-			if revision == 0 {
-				revision = snap.StateRevision
-			}
-			if snap.StateRevision != revision {
-				return false
-			}
-		}
-		return true
-	})
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	if err := WaitClusterReady(readyCtx, nodes...); err != nil {
+		t.Fatalf("WaitClusterReady() error = %v", err)
+	}
 }
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
