@@ -47,6 +47,17 @@ func TestStoreShowTablesAndDescribe(t *testing.T) {
 	if !resultHasRowValue(desc, "column", "message_seq") || !resultHasRowValue(desc, "column", "channel_key") {
 		t.Fatalf("describe rows = %+v, want message.message columns", desc.Rows)
 	}
+
+	metaDesc, err := store.Query(context.Background(), "describe meta.user")
+	if err != nil {
+		t.Fatalf("describe meta.user err = %v", err)
+	}
+	if !resultHasRowValue(metaDesc, "column", "uid") || !resultHasRowValue(metaDesc, "column", "token") {
+		t.Fatalf("describe meta.user rows = %+v, want inspect columns uid/token", metaDesc.Rows)
+	}
+	if resultHasRowValue(metaDesc, "column", "key") || resultHasRowValue(metaDesc, "column", "value") {
+		t.Fatalf("describe meta.user rows = %+v, should not expose raw key/value schema", metaDesc.Rows)
+	}
 }
 
 func TestStoreQueryMetaUserByUID(t *testing.T) {
@@ -198,6 +209,26 @@ func TestStoreQueryMetaLocalBoundedCursorDoesNotDuplicate(t *testing.T) {
 	}
 }
 
+func TestStoreQueryHashSlotMigrationKeepsHashSlotFilter(t *testing.T) {
+	path := seedInspectHashSlotMigrations(t, []meta.HashSlotMigrationState{
+		{HashSlot: 17, SourceSlot: 1, TargetSlot: 2, Phase: 1, FenceIndex: 30, LastOutboxIndex: 40, LastAckedIndex: 20},
+		{HashSlot: 18, SourceSlot: 3, TargetSlot: 4, Phase: 2, FenceIndex: 50, LastOutboxIndex: 60, LastAckedIndex: 40},
+	})
+	store, err := OpenStore(Options{MetaPath: path, HashSlotCount: 32})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	defer store.Close()
+
+	result, err := store.Query(context.Background(), "select * from meta.hashslot_migration where hash_slot=17 limit 10")
+	if err != nil {
+		t.Fatalf("Query() err = %v", err)
+	}
+	if len(result.Rows) != 1 || result.Rows[0]["hash_slot"] != meta.HashSlot(17) {
+		t.Fatalf("rows = %+v, want only hash_slot 17", result.Rows)
+	}
+}
+
 func seedInspectMetaUser(t *testing.T, hashSlotCount uint16, user meta.User) string {
 	t.Helper()
 	return seedInspectMetaUsers(t, hashSlotCount, []meta.User{user})
@@ -216,6 +247,26 @@ func seedInspectMetaUsers(t *testing.T, hashSlotCount uint16, users []meta.User)
 		hashSlot := meta.HashSlot(cluster.HashSlotForKey(user.UID, hashSlotCount))
 		if err := db.HashSlot(hashSlot).UpsertUser(context.Background(), user); err != nil {
 			t.Fatalf("UpsertUser(%s) err = %v", user.UID, err)
+		}
+	}
+	if err := eng.Close(); err != nil {
+		t.Fatalf("engine.Close() err = %v", err)
+	}
+	return path
+}
+
+func seedInspectHashSlotMigrations(t *testing.T, states []meta.HashSlotMigrationState) string {
+	t.Helper()
+
+	path := t.TempDir()
+	eng, err := engine.Open(path, engine.Options{})
+	if err != nil {
+		t.Fatalf("engine.Open() err = %v", err)
+	}
+	db := meta.NewDB(eng)
+	for _, state := range states {
+		if err := db.HashSlot(state.HashSlot).UpsertHashSlotMigrationState(context.Background(), state); err != nil {
+			t.Fatalf("UpsertHashSlotMigrationState(%d) err = %v", state.HashSlot, err)
 		}
 	}
 	if err := eng.Close(); err != nil {

@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	db "github.com/WuKongIM/WuKongIM/pkg/db"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -61,14 +60,9 @@ func (s *Store) describe(table string) (Result, error) {
 	var rows []Row
 	switch domain {
 	case "meta":
-		for _, metaTable := range metadb.InspectTables() {
-			if metaTable.Name == name {
-				rows = describeSchemaColumns(metaTable.Columns)
-				break
-			}
-		}
+		rows = describeInspectTable(domain, name)
 	case "message":
-		rows = describeMessageTable(name)
+		rows = describeInspectTable(domain, name)
 	default:
 		return Result{}, ErrInvalidQuery
 	}
@@ -101,7 +95,7 @@ func (s *Store) executeMeta(ctx context.Context, p plan) (Result, error) {
 		HashSlot:      metadb.HashSlot(p.HashSlot),
 		HashSlotSet:   p.HashSlotSet,
 		HashSlotCount: p.HashSlotCount,
-		Filters:       filtersWithoutHashSlot(p.Query.Filters),
+		Filters:       metaScanFilters(p.TableName, p.Query.Filters),
 		Limit:         p.Query.Limit,
 	}
 	if p.Cursor != nil {
@@ -276,47 +270,26 @@ func appendBoundedRows(dst []Row, src []Row, limit int) []Row {
 	return dst
 }
 
-func describeSchemaColumns(columns []schema.Column) []Row {
-	rows := make([]Row, 0, len(columns))
-	for _, column := range columns {
-		rows = append(rows, Row{
-			"column":   column.Name,
-			"type":     schemaTypeName(column.Type),
-			"required": column.Required,
-		})
-	}
-	return rows
-}
-
-func describeMessageTable(table string) []Row {
-	columns, ok := inspectColumns["message."+table]
+func describeInspectTable(domain, table string) []Row {
+	columns, ok := inspectColumns[domain+"."+table]
 	if !ok {
 		return nil
 	}
 	rows := make([]Row, 0, len(columns))
 	for _, column := range columns {
-		rows = append(rows, Row{"column": column, "type": messageColumnTypes[column]})
+		rows = append(rows, Row{"column": column, "type": inspectColumnType(domain, table, column)})
 	}
 	return rows
 }
 
-func schemaTypeName(t schema.Type) string {
-	switch t {
-	case schema.TypeString:
-		return "string"
-	case schema.TypeBytes:
-		return "bytes"
-	case schema.TypeInt64:
-		return "int64"
-	case schema.TypeUint64:
-		return "uint64"
-	case schema.TypeBool:
-		return "bool"
-	case schema.TypeUint8:
-		return "uint8"
-	default:
-		return "unknown"
+func inspectColumnType(domain, table, column string) string {
+	if typ, ok := inspectColumnTypes[domain+"."+table+"."+column]; ok {
+		return typ
 	}
+	if typ, ok := inspectColumnTypes[column]; ok {
+		return typ
+	}
+	return "any"
 }
 
 var inspectColumns = map[string][]string{
@@ -334,17 +307,64 @@ var inspectColumns = map[string][]string{
 	"message.message":           {"channel_key", "message_seq", "message_id", "client_msg_no", "from_uid", "payload_hash", "payload_size", "payload"},
 }
 
-var messageColumnTypes = map[string]string{
-	"channel_key":   "string",
-	"channel_id":    "string",
-	"channel_type":  "uint8",
-	"message_seq":   "uint64",
-	"message_id":    "uint64",
-	"client_msg_no": "string",
-	"from_uid":      "string",
-	"payload_hash":  "uint64",
-	"payload_size":  "uint64",
-	"payload":       "bytes",
+var inspectColumnTypes = map[string]string{
+	"uid":                         "string",
+	"token":                       "string",
+	"device_flag":                 "int64",
+	"device_level":                "int64",
+	"channel_id":                  "string",
+	"channel_type":                "uint8",
+	"ban":                         "bool",
+	"disband":                     "bool",
+	"send_ban":                    "bool",
+	"allow_stranger":              "bool",
+	"subscriber_mutation_version": "uint64",
+	"channel_epoch":               "uint64",
+	"leader_epoch":                "uint64",
+	"route_generation":            "uint64",
+	"replicas":                    "uint64_array",
+	"isr":                         "uint64_array",
+	"leader":                      "uint64",
+	"min_isr":                     "uint8",
+	"status":                      "uint8",
+	"features":                    "string_array",
+	"lease_until_ms":              "int64",
+	"retention_through_seq":       "uint64",
+	"retention_updated_at_ms":     "int64",
+	"write_fence_token":           "string",
+	"write_fence_version":         "uint64",
+	"write_fence_reason":          "string",
+	"write_fence_until_ms":        "int64",
+	"read_seq":                    "uint64",
+	"deleted_to_seq":              "uint64",
+	"active_at":                   "int64",
+	"updated_at":                  "int64",
+	"plugin_no":                   "string",
+	"created_at_ms":               "int64",
+	"updated_at_ms":               "int64",
+	"task_id":                     "string",
+	"kind":                        "uint8",
+	"phase":                       "uint8",
+	"source_node":                 "uint64",
+	"target_node":                 "uint64",
+	"desired_leader":              "uint64",
+	"owner_node_id":               "uint64",
+	"owner_lease_until_ms":        "int64",
+	"completed_at_ms":             "int64",
+	"hash_slot":                   "uint16",
+	"source_slot":                 "uint64",
+	"target_slot":                 "uint64",
+	"fence_index":                 "uint64",
+	"last_outbox_index":           "uint64",
+	"last_acked_index":            "uint64",
+	"channel_key":                 "string",
+	"message_seq":                 "uint64",
+	"message_id":                  "uint64",
+	"client_msg_no":               "string",
+	"from_uid":                    "string",
+	"payload_hash":                "uint64",
+	"payload_size":                "uint64",
+	"payload":                     "bytes",
 }
 
 func validateProjection(domain, table string, columns []string) error {
@@ -386,13 +406,13 @@ func projectRows(rows []Row, domain, table string, columns []string) ([]Row, err
 	return projected, nil
 }
 
-func filtersWithoutHashSlot(filters map[string]any) map[string]any {
+func metaScanFilters(table string, filters map[string]any) map[string]any {
 	if len(filters) == 0 {
 		return nil
 	}
 	out := make(map[string]any, len(filters))
 	for key, value := range filters {
-		if key != "hash_slot" {
+		if key != "hash_slot" || table == "hashslot_migration" {
 			out[key] = value
 		}
 	}
