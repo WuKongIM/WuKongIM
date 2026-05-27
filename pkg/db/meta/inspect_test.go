@@ -129,3 +129,62 @@ func TestInspectScanRejectsUnknownTable(t *testing.T) {
 		t.Fatalf("InspectScan() err = %v, want invalid argument", err)
 	}
 }
+
+func TestInspectScanRejectsEmptyUserCursorPrimary(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+
+	_, err := InspectScan(context.Background(), store.db, InspectScanRequest{
+		Table:       "user",
+		HashSlot:    7,
+		HashSlotSet: true,
+		After:       &InspectCursor{HashSlot: 7, Primary: []any{""}},
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrInvalidArgument) {
+		t.Fatalf("InspectScan() err = %v, want invalid argument", err)
+	}
+}
+
+func TestInspectScanRejectsExplicitHashSlotCursorMismatch(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+
+	_, err := InspectScan(context.Background(), store.db, InspectScanRequest{
+		Table:       "user",
+		HashSlot:    7,
+		HashSlotSet: true,
+		After:       &InspectCursor{HashSlot: 8},
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrInvalidArgument) {
+		t.Fatalf("InspectScan() err = %v, want invalid argument", err)
+	}
+}
+
+func TestInspectScanRejectsNilDB(t *testing.T) {
+	_, err := InspectScan(context.Background(), nil, InspectScanRequest{
+		Table:       "user",
+		HashSlot:    1,
+		HashSlotSet: true,
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrClosed) {
+		t.Fatalf("InspectScan() err = %v, want closed", err)
+	}
+}
+
+func TestInspectScanRejectsClosedDB(t *testing.T) {
+	store := openTestMetaStore(t)
+	store.close(t)
+
+	_, err := InspectScan(context.Background(), store.db, InspectScanRequest{
+		Table:       "user",
+		HashSlot:    1,
+		HashSlotSet: true,
+		Limit:       10,
+	})
+	if !errors.Is(err, dberrors.ErrClosed) {
+		t.Fatalf("InspectScan() err = %v, want closed", err)
+	}
+}
