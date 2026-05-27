@@ -23,9 +23,6 @@ func Parse(raw string) (Query, error) {
 	if len(tokens) == 0 {
 		return Query{}, ErrInvalidQuery
 	}
-	if containsUnsupported(tokens) {
-		return Query{}, ErrUnsupportedQuery
-	}
 
 	switch lower(tokens[0]) {
 	case "show":
@@ -81,19 +78,6 @@ func lex(raw string) ([]token, error) {
 		i = j
 	}
 	return tokens, nil
-}
-
-func containsUnsupported(tokens []token) bool {
-	for _, tok := range tokens {
-		if tok.Quoted {
-			continue
-		}
-		switch lower(tok) {
-		case "join", "group", "order", "offset":
-			return true
-		}
-	}
-	return false
 }
 
 func parseSelect(tokens []token) (Query, error) {
@@ -161,6 +145,9 @@ func parseSelect(tokens []token) (Query, error) {
 			query.Cursor = tokens[i+1].Text
 			i += 2
 		default:
+			if isUnsupportedSelectClause(tokens, i) {
+				return Query{}, ErrUnsupportedQuery
+			}
 			return Query{}, ErrInvalidQuery
 		}
 	}
@@ -209,7 +196,7 @@ func parseWhere(tokens []token, start int, filters map[string]any) (int, error) 
 		}
 		filters[key] = value
 		i += 3
-		if i >= len(tokens) || isClause(tokens[i]) {
+		if i >= len(tokens) || isClause(tokens[i]) || isUnsupportedSelectClause(tokens, i) {
 			return i, nil
 		}
 		if lower(tokens[i]) != "and" {
@@ -219,6 +206,20 @@ func parseWhere(tokens []token, start int, filters map[string]any) (int, error) 
 		if i >= len(tokens) || isClause(tokens[i]) {
 			return 0, ErrInvalidQuery
 		}
+	}
+}
+
+func isUnsupportedSelectClause(tokens []token, i int) bool {
+	if i >= len(tokens) || tokens[i].Quoted {
+		return false
+	}
+	switch lower(tokens[i]) {
+	case "join", "offset":
+		return true
+	case "group", "order":
+		return i+1 < len(tokens) && !tokens[i+1].Quoted && lower(tokens[i+1]) == "by"
+	default:
+		return false
 	}
 }
 

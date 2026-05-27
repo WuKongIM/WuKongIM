@@ -104,8 +104,49 @@ func TestParseAllowsUnsupportedKeywordCursorLiteral(t *testing.T) {
 	}
 }
 
+func TestParseAllowsUnsupportedKeywordColumnIdentifier(t *testing.T) {
+	query, err := Parse("select order from meta.user")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	if !reflect.DeepEqual(query.Columns, []string{"order"}) {
+		t.Fatalf("Columns = %#v, want order", query.Columns)
+	}
+}
+
+func TestParseAllowsUnsupportedKeywordFilterIdentifier(t *testing.T) {
+	query, err := Parse("select * from meta.user where order=1")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	if got, ok := query.Filters["order"].(int64); !ok || got != 1 {
+		t.Fatalf("order filter = %#v, want int64(1)", query.Filters["order"])
+	}
+}
+
 func TestParseRejectsUnsupportedJoin(t *testing.T) {
 	_, err := Parse("select * from meta.user join meta.channel on uid=uid")
+	if !errors.Is(err, ErrUnsupportedQuery) {
+		t.Fatalf("Parse() err = %v, want ErrUnsupportedQuery", err)
+	}
+}
+
+func TestParseRejectsUnsupportedGroupBy(t *testing.T) {
+	_, err := Parse("select * from meta.user group by uid")
+	if !errors.Is(err, ErrUnsupportedQuery) {
+		t.Fatalf("Parse() err = %v, want ErrUnsupportedQuery", err)
+	}
+}
+
+func TestParseRejectsUnsupportedOrderBy(t *testing.T) {
+	_, err := Parse("select * from meta.user order by uid")
+	if !errors.Is(err, ErrUnsupportedQuery) {
+		t.Fatalf("Parse() err = %v, want ErrUnsupportedQuery", err)
+	}
+}
+
+func TestParseRejectsUnsupportedOffset(t *testing.T) {
+	_, err := Parse("select * from meta.user offset 10")
 	if !errors.Is(err, ErrUnsupportedQuery) {
 		t.Fatalf("Parse() err = %v, want ErrUnsupportedQuery", err)
 	}
