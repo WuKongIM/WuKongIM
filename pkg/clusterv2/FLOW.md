@@ -6,6 +6,15 @@
 
 The root `Node` stays thin: it owns lifecycle, readiness, public API delegation, and snapshot fan-out only. Foreground routing, Slot propose, ChannelV2 replication, Controller state mapping, and node RPC each live in focused subpackages.
 
+## Source Reading Path
+
+- Start with `api.go`, `config.go`, and `node.go` for the public surface.
+- Read `node_lifecycle.go`, `node_defaults.go`, `node_snapshot.go`, and `node_loops.go` for root runtime wiring details.
+- Read `default_slots.go`, `default_slot_leaders.go`, and `default_slot_proposer.go` for the default single-node cluster Slot path.
+- Root `Node` tests follow the same split: lifecycle, defaults, snapshot, channel, and shared helpers.
+- In `channels`, read `service.go` first, then `meta.go`, `slot_meta.go`, `placement.go`, and `transport.go`.
+- In `control`, `snapshot.go` is the read model, while `snapshot_validate.go` and `snapshot_clone.go` hold model mechanics.
+
 ## Package Boundaries
 
 | Package | Responsibility |
