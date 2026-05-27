@@ -205,6 +205,9 @@ func parseWhere(tokens []token, start int, filters map[string]any) (int, error) 
 		if !validNameIdentifier(tokens[i]) {
 			return 0, ErrInvalidQuery
 		}
+		if _, ok := filters[key]; ok {
+			return 0, ErrInvalidQuery
+		}
 		value, err := parseLiteral(tokens[i+2])
 		if err != nil {
 			return 0, err

@@ -229,6 +229,23 @@ func TestParseRejectsDuplicateCursor(t *testing.T) {
 	}
 }
 
+func TestParseRejectsDuplicateFilterKey(t *testing.T) {
+	_, err := Parse("select * from meta.user where uid='u1' and uid='u2'")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseAllowsDifferentFilterKeys(t *testing.T) {
+	query, err := Parse("select * from meta.user where uid='u1' and token='t'")
+	if err != nil {
+		t.Fatalf("Parse() err = %v", err)
+	}
+	if !reflect.DeepEqual(query.Filters, map[string]any{"uid": "u1", "token": "t"}) {
+		t.Fatalf("Filters = %#v, want uid/token", query.Filters)
+	}
+}
+
 func TestParseRejectsInvalidLiteral(t *testing.T) {
 	_, err := Parse("select * from meta.user where uid=u1")
 	if !errors.Is(err, ErrInvalidQuery) {
