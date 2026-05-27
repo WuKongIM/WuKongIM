@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -117,6 +118,86 @@ func TestSendBatchMapsAppendItemErrorsToReasons(t *testing.T) {
 	}
 }
 
+func TestSendBatchFiltersCanceledItemsBeforeAppend(t *testing.T) {
+	appender := &recordingAppender{}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}})
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	results := app.SendBatch([]SendBatchItem{
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("ok")}},
+		{Context: canceled, Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("canceled")}},
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("also-ok")}},
+	})
+
+	if !errors.Is(results[1].Err, context.Canceled) {
+		t.Fatalf("canceled result error = %v, want context canceled", results[1].Err)
+	}
+	if results[0].Result.Reason != ReasonSuccess || results[2].Result.Reason != ReasonSuccess {
+		t.Fatalf("active results = %#v %#v, want success", results[0], results[2])
+	}
+	if appender.calls != 1 {
+		t.Fatalf("append calls = %d, want 1", appender.calls)
+	}
+	if got := len(appender.requests[0].Messages); got != 2 {
+		t.Fatalf("appended messages = %d, want 2", got)
+	}
+	if got := string(appender.requests[0].Messages[0].Payload); got != "ok" {
+		t.Fatalf("first appended payload = %q, want ok", got)
+	}
+	if got := string(appender.requests[0].Messages[1].Payload); got != "also-ok" {
+		t.Fatalf("second appended payload = %q, want also-ok", got)
+	}
+}
+
+func TestSendBatchAppendContextIsNotDerivedFromFirstItemCancellation(t *testing.T) {
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	appender := &contextCapturingAppender{
+		onAppend: cancelFirst,
+	}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Context: firstCtx, Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("first")}},
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("second")}},
+	})
+
+	for i, result := range results {
+		if result.Err != nil {
+			t.Fatalf("result[%d] error = %v", i, result.Err)
+		}
+		if result.Result.Reason != ReasonSuccess {
+			t.Fatalf("result[%d] reason = %v, want success", i, result.Result.Reason)
+		}
+	}
+	if appender.ctxCanceledAfterFirstCancel {
+		t.Fatalf("append context was canceled by first item cancellation")
+	}
+}
+
+func TestSegmentContextUsesEarliestItemDeadline(t *testing.T) {
+	late := time.Now().Add(time.Hour)
+	early := time.Now().Add(time.Minute)
+	lateCtx, lateCancel := context.WithDeadline(context.Background(), late)
+	defer lateCancel()
+	earlyCtx, earlyCancel := context.WithDeadline(context.Background(), early)
+	defer earlyCancel()
+
+	ctx, cancel := segmentContext([]preparedSend{
+		{ctx: lateCtx},
+		{ctx: earlyCtx},
+	})
+	defer cancel()
+
+	got, ok := ctx.Deadline()
+	if !ok {
+		t.Fatalf("segment context missing deadline")
+	}
+	if !got.Equal(early) {
+		t.Fatalf("segment deadline = %v, want %v", got, early)
+	}
+}
+
 func TestCommittedSinkErrorDoesNotChangeSendResult(t *testing.T) {
 	observer := &recordingObserver{}
 	app := New(Options{
@@ -170,6 +251,28 @@ func (a *recordingAppender) AppendBatch(_ context.Context, req AppendBatchReques
 		if i < len(a.itemErrs) {
 			items[i].Err = a.itemErrs[i]
 		}
+	}
+	return AppendBatchResult{Items: items}, nil
+}
+
+type contextCapturingAppender struct {
+	onAppend                    func()
+	ctxCanceledAfterFirstCancel bool
+}
+
+func (a *contextCapturingAppender) AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	if a.onAppend != nil {
+		a.onAppend()
+	}
+	select {
+	case <-ctx.Done():
+		a.ctxCanceledAfterFirstCancel = true
+	default:
+	}
+	items := make([]AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		msg.MessageSeq = uint64(i + 1)
+		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 	}
 	return AppendBatchResult{Items: items}, nil
 }

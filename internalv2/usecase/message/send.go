@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -103,12 +104,23 @@ func splitSegments(items []preparedSend) []segment {
 }
 
 func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
+	active := make([]preparedSend, 0, len(segment.items))
+	for _, item := range segment.items {
+		if err := item.ctx.Err(); err != nil {
+			results[item.index] = SendBatchItemResult{Err: err}
+			continue
+		}
+		active = append(active, item)
+	}
+	if len(active) == 0 {
+		return
+	}
 	req := AppendBatchRequest{
 		ChannelID:  segment.channel,
-		Messages:   make([]Message, 0, len(segment.items)),
+		Messages:   make([]Message, 0, len(active)),
 		CommitMode: CommitModeQuorum,
 	}
-	for _, item := range segment.items {
+	for _, item := range active {
 		req.Messages = append(req.Messages, Message{
 			MessageID:   item.cmd.MessageID,
 			ChannelID:   item.cmd.ChannelID,
@@ -118,14 +130,16 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 			Payload:     cloneBytes(item.cmd.Payload),
 		})
 	}
-	res, err := a.appender.AppendBatch(segment.items[0].ctx, req)
+	ctx, cancel := segmentContext(active)
+	defer cancel()
+	res, err := a.appender.AppendBatch(ctx, req)
 	if err != nil {
-		for _, item := range segment.items {
+		for _, item := range active {
 			results[item.index] = SendBatchItemResult{Err: err}
 		}
 		return
 	}
-	for i, item := range segment.items {
+	for i, item := range active {
 		if i >= len(res.Items) {
 			results[item.index] = SendBatchItemResult{Err: ErrAppendFailed}
 			continue
@@ -139,6 +153,25 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 		a.submitCommitted(item.ctx, item.cmd, appended)
 		results[item.index] = SendBatchItemResult{Result: result}
 	}
+}
+
+func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) {
+	var earliest time.Time
+	hasDeadline := false
+	for _, item := range items {
+		deadline, ok := item.ctx.Deadline()
+		if !ok {
+			continue
+		}
+		if !hasDeadline || deadline.Before(earliest) {
+			earliest = deadline
+			hasDeadline = true
+		}
+	}
+	if hasDeadline {
+		return context.WithDeadline(context.Background(), earliest)
+	}
+	return context.WithCancel(context.Background())
 }
 
 func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended AppendBatchItemResult) {
