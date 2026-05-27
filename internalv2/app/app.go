@@ -45,24 +45,25 @@ type App struct {
 // New creates an internalv2 App.
 func New(cfg Config, opts ...Option) (*App, error) {
 	app := &App{cfg: cfg}
+	clusterCfg := defaultClusterConfig(cfg)
 	for _, opt := range opts {
 		if opt != nil {
 			opt(app)
 		}
 	}
 	if app.cluster == nil {
-		node, err := clusterv2.New(defaultClusterConfig(cfg))
+		node, err := clusterv2.New(clusterCfg)
 		if err != nil {
 			return nil, err
 		}
 		app.cluster = node
 		app.messages = message.New(message.Options{
 			Appender:  clusterinfra.NewChannelAppender(node),
-			MessageID: newNodeMessageIDs(cfg.NodeID),
+			MessageID: newNodeMessageIDs(clusterCfg.NodeID),
 		})
 	}
 	if app.messages == nil {
-		app.messages = message.New(message.Options{MessageID: newNodeMessageIDs(cfg.NodeID)})
+		app.messages = message.New(message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)})
 	}
 	if app.handler == nil {
 		app.handler = accessgateway.New(accessgateway.Options{Messages: app.messages, SendTimeout: cfg.Gateway.SendTimeout})
