@@ -3,11 +3,17 @@ package meta
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
+)
+
+const (
+	inspectMaxInt64 = int64(^uint64(0) >> 1)
+	inspectMinInt64 = -inspectMaxInt64 - 1
 )
 
 // InspectRow contains one decoded metadata row.
@@ -186,25 +192,25 @@ func inspectCursorPrimary(tableName string, cursor *InspectCursor, layout KeyLay
 			}
 			parts = append(parts, String(part))
 		case KeyInt64Ordered:
-			part, ok := value.(int64)
+			part, ok := inspectCoerceInt64(value)
 			if !ok {
 				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 			}
 			parts = append(parts, Int64Ordered(part))
 		case KeyInt64Desc:
-			part, ok := value.(int64)
+			part, ok := inspectCoerceInt64(value)
 			if !ok {
 				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 			}
 			parts = append(parts, Int64Desc(part))
 		case KeyUint64:
-			part, ok := value.(uint64)
+			part, ok := inspectCoerceUint64(value)
 			if !ok {
 				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 			}
 			parts = append(parts, Uint64(part))
 		case KeyUint8:
-			part, ok := value.(uint8)
+			part, ok := inspectCoerceUint8(value)
 			if !ok {
 				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 			}
@@ -234,6 +240,95 @@ func inspectCursorValues(parts KeyParts) []any {
 		}
 	}
 	return values
+}
+
+func inspectCoerceInt64(value any) (int64, bool) {
+	switch v := value.(type) {
+	case int:
+		return int64(v), true
+	case int8:
+		return int64(v), true
+	case int16:
+		return int64(v), true
+	case int32:
+		return int64(v), true
+	case int64:
+		return v, true
+	case uint:
+		if uint64(v) > uint64(inspectMaxInt64) {
+			return 0, false
+		}
+		return int64(v), true
+	case uint8:
+		return int64(v), true
+	case uint16:
+		return int64(v), true
+	case uint32:
+		return int64(v), true
+	case uint64:
+		if v > uint64(inspectMaxInt64) {
+			return 0, false
+		}
+		return int64(v), true
+	case float64:
+		if !math.IsInf(v, 0) && !math.IsNaN(v) && math.Trunc(v) == v && v >= float64(inspectMinInt64) && v < 9223372036854775808.0 {
+			return int64(v), true
+		}
+	}
+	return 0, false
+}
+
+func inspectCoerceUint64(value any) (uint64, bool) {
+	switch v := value.(type) {
+	case int:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int8:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int16:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int32:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int64:
+		if v < 0 {
+			return 0, false
+		}
+		return uint64(v), true
+	case uint:
+		return uint64(v), true
+	case uint8:
+		return uint64(v), true
+	case uint16:
+		return uint64(v), true
+	case uint32:
+		return uint64(v), true
+	case uint64:
+		return v, true
+	case float64:
+		if !math.IsInf(v, 0) && !math.IsNaN(v) && math.Trunc(v) == v && v >= 0 && v < 18446744073709551616.0 {
+			return uint64(v), true
+		}
+	}
+	return 0, false
+}
+
+func inspectCoerceUint8(value any) (uint8, bool) {
+	v, ok := inspectCoerceUint64(value)
+	if !ok || v > 255 {
+		return 0, false
+	}
+	return uint8(v), true
 }
 
 func inspectScanTableSlot[R any](ctx context.Context, shard *Shard, table Table[R], after KeyParts, targetRows int, filters map[string]any, rowFn func(R) InspectRow, result *InspectScanResult) (bool, bool, KeyParts, error) {
@@ -390,9 +485,77 @@ func inspectHashSlotMigrationRow(state HashSlotMigrationState) InspectRow {
 func inspectRowMatches(row InspectRow, filters map[string]any) bool {
 	for key, want := range filters {
 		got, ok := row[key]
-		if !ok || !reflect.DeepEqual(got, want) {
+		if !ok || !inspectValuesEqual(got, want) {
 			return false
 		}
 	}
 	return true
+}
+
+func inspectValuesEqual(got, want any) bool {
+	gotNum, gotIsNumeric, gotOK := inspectIntegralNumeric(got)
+	wantNum, wantIsNumeric, wantOK := inspectIntegralNumeric(want)
+	if gotIsNumeric && wantIsNumeric {
+		return gotOK && wantOK && gotNum == wantNum
+	}
+	return reflect.DeepEqual(got, want)
+}
+
+type inspectNumericValue struct {
+	negative  bool
+	magnitude uint64
+}
+
+func inspectIntegralNumeric(value any) (inspectNumericValue, bool, bool) {
+	switch v := value.(type) {
+	case int:
+		return inspectSignedNumeric(int64(v)), true, true
+	case int8:
+		return inspectSignedNumeric(int64(v)), true, true
+	case int16:
+		return inspectSignedNumeric(int64(v)), true, true
+	case int32:
+		return inspectSignedNumeric(int64(v)), true, true
+	case int64:
+		return inspectSignedNumeric(v), true, true
+	case uint:
+		return inspectNumericValue{magnitude: uint64(v)}, true, true
+	case uint8:
+		return inspectNumericValue{magnitude: uint64(v)}, true, true
+	case uint16:
+		return inspectNumericValue{magnitude: uint64(v)}, true, true
+	case uint32:
+		return inspectNumericValue{magnitude: uint64(v)}, true, true
+	case uint64:
+		return inspectNumericValue{magnitude: v}, true, true
+	case float32:
+		return inspectFloatNumeric(float64(v))
+	case float64:
+		return inspectFloatNumeric(v)
+	default:
+		return inspectNumericValue{}, false, false
+	}
+}
+
+func inspectSignedNumeric(value int64) inspectNumericValue {
+	if value >= 0 {
+		return inspectNumericValue{magnitude: uint64(value)}
+	}
+	return inspectNumericValue{negative: true, magnitude: uint64(-(value + 1)) + 1}
+}
+
+func inspectFloatNumeric(value float64) (inspectNumericValue, bool, bool) {
+	if math.IsInf(value, 0) || math.IsNaN(value) || math.Trunc(value) != value {
+		return inspectNumericValue{}, true, false
+	}
+	if value < 0 {
+		if value < float64(inspectMinInt64) {
+			return inspectNumericValue{}, true, false
+		}
+		return inspectSignedNumeric(int64(value)), true, true
+	}
+	if value >= 18446744073709551616.0 {
+		return inspectNumericValue{}, true, false
+	}
+	return inspectNumericValue{magnitude: uint64(value)}, true, true
 }
