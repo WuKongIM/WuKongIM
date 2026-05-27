@@ -37,6 +37,8 @@ RawNode Ready
 `Revision` is the logical cluster-state version. `AppliedRaftIndex` records the last Raft entry materialized into `cluster-state.json`.
 `cluster-state.json` is the materialized ControllerV2 state snapshot; the ControllerV2 Raft WAL is the authoritative committed log and applied-boundary metadata source.
 
+Empty normal Raft entries are also used by `raft.Service.ProbePropose` as non-mutating readiness probes. A probe entry advances Controller Raft applied metadata after it is committed and scheduled, but it is not decoded as a Controller command, does not call the FSM, does not increment logical `Revision`, and does not rewrite `cluster-state.json` business state.
+
 Startup first loads `cluster-state.json`, restores it from the latest Raft snapshot when the state file is empty, then replays any committed WAL suffix after the materialized `AppliedRaftIndex`. The Raft run loop stays responsive because durable WAL append happens before `Advance`, while state-machine IO runs in the scheduler goroutine.
 
 ## Server Facade Flow

@@ -42,6 +42,8 @@ Start(ctx)
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests.
 
+`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Tests that require distributed Controller write readiness should wait for all nodes to be locally ready and then require one ControllerV2 voter to pass the `control.ProposeProbe` capability. Slot and Channel write tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
+
 ## Stop Flow
 
 ```text
