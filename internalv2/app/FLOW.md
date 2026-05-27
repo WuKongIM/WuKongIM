@@ -17,7 +17,7 @@ New(Config)
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> create message.App with clusterv2 ChannelAppender and node-scoped IDs
   -> create access/gateway.Handler
-  -> create pkg/gateway.Gateway only when listeners are configured
+  -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
 If a test or harness supplies `WithCluster` and that runtime implements the
@@ -32,6 +32,7 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 ```text
 Start(ctx)
   -> cluster.Start(ctx)
+  -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> gateway.Start()
 
 Stop(ctx)

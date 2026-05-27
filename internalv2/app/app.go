@@ -75,6 +75,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if app.gateway == nil && len(cfg.Gateway.Listeners) > 0 {
 		gw, err := gateway.New(gateway.Options{
 			Handler:        app.handler,
+			Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: clusterCfg.NodeID}),
 			Listeners:      cfg.Gateway.Listeners,
 			DefaultSession: cfg.Gateway.Session,
 			Transport:      cfg.Gateway.Transport,
