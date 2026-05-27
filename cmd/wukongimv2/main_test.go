@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,6 +57,57 @@ func TestRunStartsAndStopsAfterContextCancel(t *testing.T) {
 		}
 	default:
 		t.Fatal("Stop was not called")
+	}
+}
+
+func TestRunReturnsStartErrorWithoutStopping(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, requiredConfigLines(dir)...)
+
+	startErr := errors.New("start failed")
+	fake := &fakeRuntimeApp{startErr: startErr}
+
+	err := run(context.Background(), []string{"-config", path}, func(app.Config) (runtimeApp, error) {
+		return fake, nil
+	})
+	if !errors.Is(err, startErr) {
+		t.Fatalf("run() error = %v, want %v", err, startErr)
+	}
+	if got := fake.startCalls.Load(); got != 1 {
+		t.Fatalf("Start calls = %d, want 1", got)
+	}
+	if got := fake.stopCalls.Load(); got != 0 {
+		t.Fatalf("Stop calls = %d, want 0", got)
+	}
+}
+
+func TestRunReturnsStopErrorAfterContextCancel(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, requiredConfigLines(dir)...)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stopErr := errors.New("stop failed")
+	fake := &fakeRuntimeApp{
+		onStart: func() { cancel() },
+		stopErr: stopErr,
+	}
+
+	err := run(ctx, []string{"-config", path}, func(app.Config) (runtimeApp, error) {
+		return fake, nil
+	})
+	if !errors.Is(err, stopErr) {
+		t.Fatalf("run() error = %v, want %v", err, stopErr)
+	}
+	if got := fake.startCalls.Load(); got != 1 {
+		t.Fatalf("Start calls = %d, want 1", got)
+	}
+	if got := fake.stopCalls.Load(); got != 1 {
+		t.Fatalf("Stop calls = %d, want 1", got)
 	}
 }
 
@@ -138,6 +191,8 @@ func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
 	}
 	fset := token.NewFileSet()
 	legacyImport := strings.Join([]string{"github.com/WuKongIM/WuKongIM/internal", "app"}, "/")
+	allowedV2Import := "github.com/WuKongIM/WuKongIM/internalv2/app"
+	internalV2Prefix := "github.com/WuKongIM/WuKongIM/internalv2/"
 	foundV2 := false
 	for _, path := range files {
 		if strings.HasSuffix(path, "_test.go") {
@@ -155,7 +210,10 @@ func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
 			if importPath == legacyImport {
 				t.Fatalf("%s imports legacy app composition root", path)
 			}
-			if importPath == "github.com/WuKongIM/WuKongIM/internalv2/app" {
+			if strings.HasPrefix(importPath, internalV2Prefix) && importPath != allowedV2Import {
+				t.Fatalf("%s imports disallowed internalv2 package %q", path, importPath)
+			}
+			if importPath == allowedV2Import {
 				foundV2 = true
 			}
 		}
@@ -166,24 +224,30 @@ func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
 }
 
 type fakeRuntimeApp struct {
-	started chan struct{}
-	stopped chan context.Context
-	onStart func()
+	startErr   error
+	stopErr    error
+	startCalls atomic.Int32
+	stopCalls  atomic.Int32
+	started    chan struct{}
+	stopped    chan context.Context
+	onStart    func()
 }
 
 func (f *fakeRuntimeApp) Start(context.Context) error {
+	f.startCalls.Add(1)
 	if f.started != nil {
 		close(f.started)
 	}
 	if f.onStart != nil {
 		f.onStart()
 	}
-	return nil
+	return f.startErr
 }
 
 func (f *fakeRuntimeApp) Stop(ctx context.Context) error {
+	f.stopCalls.Add(1)
 	if f.stopped != nil {
 		f.stopped <- ctx
 	}
-	return nil
+	return f.stopErr
 }
