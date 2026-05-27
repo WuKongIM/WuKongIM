@@ -26,6 +26,8 @@ The root `pkg/controllerv2` package is the external facade. Callers should depen
 
 Start at the root facade when reading production behavior:
 
+The split-file names below describe the intended layout after this readability pass is completed; before the split lands, the same logic still lives in the original larger files.
+
 1. `runtime.go` exposes the public API and holds runtime state.
 2. `runtime_start.go` wires voter or mirror mode.
 3. `runtime_bootstrap.go` creates the initial ControllerV2 state through the same Raft path used by multi-node voters.
