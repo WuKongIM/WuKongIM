@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -12,6 +13,13 @@ type runtimeTestRow struct {
 	ID    string
 	Owner string
 	Value string
+}
+
+type runtimeProjectedRow struct {
+	Owner    string
+	ID       string
+	ActiveAt int64
+	Value    string
 }
 
 func newRuntimeTestTable(t *testing.T) Table[runtimeTestRow] {
@@ -85,6 +93,81 @@ func newRuntimeTestTable(t *testing.T) Table[runtimeTestRow] {
 	})
 	if err != nil {
 		t.Fatalf("register test table: %v", err)
+	}
+	return table
+}
+
+func newRuntimeProjectedIndexTable(t *testing.T) Table[runtimeProjectedRow] {
+	t.Helper()
+	table, err := registerMetaTableInRegistry(newMetaTableRegistry(), TableSpec[runtimeProjectedRow]{
+		ID:   65032,
+		Name: "runtime_projected_index_test",
+		Columns: []schema.Column{
+			{ID: 1, Name: "owner", Type: schema.TypeString, Required: true},
+			{ID: 2, Name: "id", Type: schema.TypeString, Required: true},
+			{ID: 3, Name: "active_at", Type: schema.TypeInt64},
+			{ID: 4, Name: "value", Type: schema.TypeString},
+		},
+		Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3, 4}}},
+		Primary: PrimarySpec[runtimeProjectedRow]{
+			IndexID:  1,
+			FamilyID: 0,
+			Name:     "pk_runtime_projected_index_test",
+			Columns:  []uint16{1, 2},
+			Layout:   KeyLayout{KeyString, KeyString},
+			Key: func(row runtimeProjectedRow) KeyParts {
+				return KeyParts{String(row.Owner), String(row.ID)}
+			},
+		},
+		Indexes: []IndexSpec[runtimeProjectedRow]{
+			{
+				ID:      2,
+				Name:    "idx_runtime_projected_index_active",
+				Columns: []uint16{1, 3, 2},
+				Layout:  KeyLayout{KeyString, KeyInt64Desc, KeyString},
+				Key: func(row runtimeProjectedRow) (KeyParts, bool) {
+					if row.ActiveAt <= 0 {
+						return nil, false
+					}
+					return KeyParts{String(row.Owner), Int64Desc(row.ActiveAt), String(row.ID)}, true
+				},
+				PrimaryKeyFromIndexParts: func(parts KeyParts) (KeyParts, bool) {
+					if len(parts) != 3 {
+						return nil, false
+					}
+					return KeyParts{parts[0], parts[2]}, true
+				},
+				CorruptIndexKeyIsError: true,
+			},
+		},
+		Validate: func(row runtimeProjectedRow) error {
+			if err := validateKeyString(row.Owner); err != nil {
+				return err
+			}
+			return validateKeyString(row.ID)
+		},
+		EncodeValue: func(row runtimeProjectedRow) ([]byte, error) {
+			value := appendValueInt64(nil, row.ActiveAt)
+			value = appendValueString(value, row.Value)
+			return value, nil
+		},
+		DecodeValue: func(primary KeyParts, value []byte) (runtimeProjectedRow, error) {
+			activeAt, rest, err := readValueInt64(value)
+			if err != nil {
+				return runtimeProjectedRow{}, err
+			}
+			val, rest, err := readValueString(rest)
+			if err != nil {
+				return runtimeProjectedRow{}, err
+			}
+			if len(rest) != 0 {
+				return runtimeProjectedRow{}, dberrors.ErrCorruptValue
+			}
+			return runtimeProjectedRow{Owner: primary[0].S, ID: primary[1].S, ActiveAt: activeAt, Value: val}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("register projected index test table: %v", err)
 	}
 	return table
 }
@@ -584,5 +667,102 @@ func TestTableRuntimePrimaryFromIndexDerivesKeyFromPrimary(t *testing.T) {
 	}
 	if _, ok, err := store.db.get(indexKey); err != nil || ok {
 		t.Fatalf("primary-derived index after delete ok=%v err=%v", ok, err)
+	}
+}
+
+func TestTableRuntimeProjectedIndexKeepsLegacyKey(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeProjectedIndexTable(t)
+	shard := store.db.HashSlot(45)
+	ctx := context.Background()
+
+	row := runtimeProjectedRow{Owner: "o", ID: "a", ActiveAt: 100, Value: "v"}
+	if err := table.Upsert(ctx, shard, row); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	indexParts := KeyParts{String("o"), Int64Desc(100), String("a")}
+	legacyKey, err := encodeTableIndexScanPrefix(shard.HashSlot(), table.Schema().ID, 2, indexParts)
+	if err != nil {
+		t.Fatalf("legacy index key: %v", err)
+	}
+	if _, ok, err := store.db.get(legacyKey); err != nil || !ok {
+		t.Fatalf("legacy projected index key ok=%v err=%v, want exists", ok, err)
+	}
+
+	primary := KeyParts{String("o"), String("a")}
+	normalKey, err := encodeTableIndexKey(shard.HashSlot(), table.Schema().ID, 2, indexParts, primary)
+	if err != nil {
+		t.Fatalf("normal index key: %v", err)
+	}
+	if _, ok, err := store.db.get(normalKey); err != nil || ok {
+		t.Fatalf("normal index key ok=%v err=%v, want missing", ok, err)
+	}
+}
+
+func TestTableRuntimeProjectedIndexScanAndStaleHandling(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeProjectedIndexTable(t)
+	shard := store.db.HashSlot(46)
+	ctx := context.Background()
+
+	if err := table.Upsert(ctx, shard, runtimeProjectedRow{Owner: "o", ID: "a", ActiveAt: 100, Value: "a"}); err != nil {
+		t.Fatalf("upsert a: %v", err)
+	}
+	if err := table.Upsert(ctx, shard, runtimeProjectedRow{Owner: "o", ID: "b", ActiveAt: 200, Value: "b"}); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+
+	rows, _, done, err := table.ScanIndex(ctx, shard, 2, KeyParts{String("o")}, nil, 10)
+	if err != nil || !done || len(rows) != 2 || rows[0].ID != "b" || rows[1].ID != "a" {
+		t.Fatalf("initial projected scan rows=%#v done=%v err=%v", rows, done, err)
+	}
+
+	staleParts := KeyParts{String("o"), Int64Desc(300), String("a")}
+	staleKey, err := encodeTableIndexScanPrefix(shard.HashSlot(), table.Schema().ID, 2, staleParts)
+	if err != nil {
+		t.Fatalf("stale index key: %v", err)
+	}
+	batch := store.engine.NewBatch()
+	if err := batch.Set(staleKey, nil); err != nil {
+		t.Fatalf("set stale projected index: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("commit stale projected index: %v", err)
+	}
+	batch.Close()
+
+	rows, _, done, err = table.ScanIndex(ctx, shard, 2, KeyParts{String("o")}, nil, 10)
+	if err != nil || !done || len(rows) != 2 || rows[0].ID != "b" || rows[1].ID != "a" {
+		t.Fatalf("projected scan with stale rows=%#v done=%v err=%v", rows, done, err)
+	}
+}
+
+func TestTableRuntimeProjectedIndexMalformedKeyReturnsCorrupt(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	table := newRuntimeProjectedIndexTable(t)
+	shard := store.db.HashSlot(47)
+	ctx := context.Background()
+
+	badKey, err := encodeTableIndexScanPrefix(shard.HashSlot(), table.Schema().ID, 2, KeyParts{String("bad")})
+	if err != nil {
+		t.Fatalf("bad index key prefix: %v", err)
+	}
+	badKey = append(badKey, 0)
+	batch := store.engine.NewBatch()
+	if err := batch.Set(badKey, nil); err != nil {
+		t.Fatalf("set malformed projected index: %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("commit malformed projected index: %v", err)
+	}
+	batch.Close()
+
+	_, _, _, err = table.ScanIndex(ctx, shard, 2, KeyParts{String("bad")}, nil, 10)
+	if !errors.Is(err, dberrors.ErrCorruptValue) {
+		t.Fatalf("ScanIndex malformed err = %v, want ErrCorruptValue", err)
 	}
 }

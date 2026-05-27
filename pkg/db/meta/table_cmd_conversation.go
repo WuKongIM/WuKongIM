@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 const cmdConversationPrimaryFamilyID uint16 = 0
@@ -26,6 +26,55 @@ type CMDConversationState struct {
 	// UpdatedAt records the latest cursor/state mutation timestamp.
 	UpdatedAt int64
 }
+
+var cmdConversationTable = registerMetaTable(TableSpec[CMDConversationState]{
+	ID:   TableIDCMDConversation,
+	Name: "cmd_conversation",
+	Columns: []schema.Column{
+		{ID: conversationColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+		{ID: conversationColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: conversationColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: conversationColumnValue, Name: "value", Type: schema.TypeBytes},
+		{ID: conversationColumnActiveAt, Name: "active_at", Type: schema.TypeInt64},
+	},
+	Families: []schema.Family{{ID: cmdConversationPrimaryFamilyID, Name: "primary", Columns: []uint16{conversationColumnValue, conversationColumnActiveAt}}},
+	Primary: PrimarySpec[CMDConversationState]{
+		IndexID:  conversationPrimaryIndexID,
+		FamilyID: cmdConversationPrimaryFamilyID,
+		Name:     "pk_cmd_conversation",
+		Columns:  []uint16{conversationColumnUID, conversationColumnChannelID, conversationColumnChannelType},
+		Layout:   KeyLayout{KeyString, KeyString, KeyInt64Ordered},
+		Key: func(state CMDConversationState) KeyParts {
+			return KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)}
+		},
+	},
+	Indexes: []IndexSpec[CMDConversationState]{
+		{
+			ID:      conversationActiveIndexID,
+			Name:    "idx_cmd_conversation_active",
+			Columns: []uint16{conversationColumnUID, conversationColumnActiveAt, conversationColumnChannelID, conversationColumnChannelType},
+			Layout:  KeyLayout{KeyString, KeyInt64Desc, KeyString, KeyInt64Ordered},
+			Key: func(state CMDConversationState) (KeyParts, bool) {
+				if state.ActiveAt <= 0 {
+					return nil, false
+				}
+				return KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)}, true
+			},
+			PrimaryKeyFromIndexParts: conversationPrimaryFromActiveIndexParts,
+			CorruptIndexKeyIsError:   true,
+		},
+	},
+	Validate: validateCMDConversationState,
+	EncodeValue: func(state CMDConversationState) ([]byte, error) {
+		return encodeConversationValue(state.ReadSeq, state.DeletedToSeq, state.ActiveAt, state.UpdatedAt), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (CMDConversationState, error) {
+		return decodeCMDConversationValue(primary[0].S, primary[1].S, primary[2].I64, value)
+	},
+})
+
+// CMDConversationTable describes the command conversation table schema.
+var CMDConversationTable = cmdConversationTable.Schema()
 
 // CMDConversationReadPatch advances one command-channel read cursor.
 type CMDConversationReadPatch struct {
@@ -52,8 +101,8 @@ func (s *Shard) GetCMDConversationState(ctx context.Context, uid, channelID stri
 	if err := validateConversationKey(ConversationKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
 		return CMDConversationState{}, false, err
 	}
-	key := encodeCMDConversationRowKey(s.hashSlot, uid, channelID, channelType, cmdConversationPrimaryFamilyID)
-	return s.getCMDConversationStateByKey(ctx, key, uid, channelID, channelType)
+	state, ok, err := cmdConversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
+	return state, ok, err
 }
 
 // UpsertCMDConversationState stores a command conversation state with max-field merging.
@@ -126,71 +175,26 @@ func (s *Shard) ListCMDConversationActive(ctx context.Context, uid string, limit
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, err
 	}
-	prefix := encodeConversationActiveIndexPrefix(s.hashSlot, TableIDCMDConversation, uid)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer iter.Close()
-
-	states := make([]CMDConversationState, 0, limit)
-	for ok := iter.First(); ok && len(states) < limit; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		activeAt, key, err := decodeConversationActiveIndexKey(prefix, iter.Key())
-		if err != nil {
-			return nil, err
-		}
-		primaryKey := encodeCMDConversationRowKey(s.hashSlot, uid, key.ChannelID, key.ChannelType, cmdConversationPrimaryFamilyID)
-		state, exists, err := s.getCMDConversationStateByKey(ctx, primaryKey, uid, key.ChannelID, key.ChannelType)
-		if err != nil {
-			return nil, err
-		}
-		if !exists || state.ActiveAt <= 0 || state.ActiveAt != activeAt {
-			continue
-		}
-		states = append(states, state)
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-	return states, nil
+	rows, err := cmdConversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, limit)
+	return rows, err
 }
 
 func (s *Shard) getCMDConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType int64) (CMDConversationState, bool, error) {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return CMDConversationState{}, false, err
-		}
-	}
-	value, ok, err := s.db.get(key)
-	if err != nil || !ok {
-		return CMDConversationState{}, ok, err
-	}
-	state, err := decodeCMDConversationValue(uid, channelID, channelType, value)
-	if err != nil {
-		return CMDConversationState{}, false, err
-	}
-	return state, true, nil
+	return cmdConversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
 }
 
 func (s *Shard) stageCMDConversationState(batch *engine.Batch, primaryKey []byte, existing CMDConversationState, exists bool, next CMDConversationState) error {
-	if exists && existing.ActiveAt > 0 && existing.ActiveAt != next.ActiveAt {
-		if err := batch.Delete(encodeConversationActiveIndexKey(s.hashSlot, TableIDCMDConversation, existing.UID, existing.ActiveAt, existing.ChannelID, existing.ChannelType)); err != nil {
+	pk := KeyParts{String(next.UID), String(next.ChannelID), Int64Ordered(next.ChannelType)}
+	if exists {
+		if err := cmdConversationTable.stageDeleteIndexEntries(batch, s.hashSlot, existing, pk); err != nil {
 			return err
 		}
 	}
-	if err := batch.Set(primaryKey, encodeConversationValue(next.ReadSeq, next.DeletedToSeq, next.ActiveAt, next.UpdatedAt)); err != nil {
+	value := encodeConversationValue(next.ReadSeq, next.DeletedToSeq, next.ActiveAt, next.UpdatedAt)
+	if err := batch.Set(primaryKey, value); err != nil {
 		return err
 	}
-	if next.ActiveAt > 0 {
-		if err := batch.Set(encodeConversationActiveIndexKey(s.hashSlot, TableIDCMDConversation, next.UID, next.ActiveAt, next.ChannelID, next.ChannelType), nil); err != nil {
-			return err
-		}
-	}
-	return nil
+	return cmdConversationTable.stagePutIndexEntries(batch, s.hashSlot, next, pk, value)
 }
 
 func validateCMDConversationState(state CMDConversationState) error {

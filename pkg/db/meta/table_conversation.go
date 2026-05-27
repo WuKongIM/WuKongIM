@@ -1,17 +1,24 @@
 package meta
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
-const conversationPrimaryFamilyID uint16 = 0
+const (
+	conversationPrimaryFamilyID uint16 = 0
+
+	conversationColumnUID         uint16 = 1
+	conversationColumnChannelID   uint16 = 2
+	conversationColumnChannelType uint16 = 3
+	conversationColumnValue       uint16 = 4
+	conversationColumnActiveAt    uint16 = 5
+)
 
 // UserConversationState stores one user's durable conversation cursors.
 type UserConversationState struct {
@@ -30,6 +37,55 @@ type UserConversationState struct {
 	// UpdatedAt records the latest state mutation timestamp.
 	UpdatedAt int64
 }
+
+var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
+	ID:   TableIDConversation,
+	Name: "conversation",
+	Columns: []schema.Column{
+		{ID: conversationColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+		{ID: conversationColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: conversationColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: conversationColumnValue, Name: "value", Type: schema.TypeBytes},
+		{ID: conversationColumnActiveAt, Name: "active_at", Type: schema.TypeInt64},
+	},
+	Families: []schema.Family{{ID: conversationPrimaryFamilyID, Name: "primary", Columns: []uint16{conversationColumnValue, conversationColumnActiveAt}}},
+	Primary: PrimarySpec[UserConversationState]{
+		IndexID:  conversationPrimaryIndexID,
+		FamilyID: conversationPrimaryFamilyID,
+		Name:     "pk_conversation",
+		Columns:  []uint16{conversationColumnUID, conversationColumnChannelID, conversationColumnChannelType},
+		Layout:   KeyLayout{KeyString, KeyString, KeyInt64Ordered},
+		Key: func(state UserConversationState) KeyParts {
+			return KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)}
+		},
+	},
+	Indexes: []IndexSpec[UserConversationState]{
+		{
+			ID:      conversationActiveIndexID,
+			Name:    "idx_conversation_active",
+			Columns: []uint16{conversationColumnUID, conversationColumnActiveAt, conversationColumnChannelID, conversationColumnChannelType},
+			Layout:  KeyLayout{KeyString, KeyInt64Desc, KeyString, KeyInt64Ordered},
+			Key: func(state UserConversationState) (KeyParts, bool) {
+				if state.ActiveAt <= 0 {
+					return nil, false
+				}
+				return KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)}, true
+			},
+			PrimaryKeyFromIndexParts: conversationPrimaryFromActiveIndexParts,
+			CorruptIndexKeyIsError:   true,
+		},
+	},
+	Validate: validateUserConversationState,
+	EncodeValue: func(state UserConversationState) ([]byte, error) {
+		return encodeConversationValue(state.ReadSeq, state.DeletedToSeq, state.ActiveAt, state.UpdatedAt), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (UserConversationState, error) {
+		return decodeUserConversationValue(primary[0].S, primary[1].S, primary[2].I64, value)
+	},
+})
+
+// ConversationTable describes the user conversation table schema.
+var ConversationTable = conversationTable.Schema()
 
 // ConversationKey identifies a user-owned conversation row.
 type ConversationKey struct {
@@ -86,8 +142,8 @@ func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID str
 	if err := validateConversationKey(ConversationKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
 		return UserConversationState{}, false, err
 	}
-	key := encodeConversationRowKey(s.hashSlot, uid, channelID, channelType, conversationPrimaryFamilyID)
-	return s.getUserConversationStateByKey(ctx, key, uid, channelID, channelType)
+	state, ok, err := conversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
+	return state, ok, err
 }
 
 // UpsertUserConversationState stores a user conversation state.
@@ -102,7 +158,7 @@ func (s *Shard) UpsertUserConversationState(ctx context.Context, state UserConve
 	defer unlock()
 
 	primaryKey := encodeConversationRowKey(s.hashSlot, state.UID, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
-	existing, exists, err := s.getUserConversationStateByKey(ctx, primaryKey, state.UID, state.ChannelID, state.ChannelType)
+	existing, exists, err := conversationTable.Get(ctx, s, KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)})
 	if err != nil {
 		return err
 	}
@@ -132,7 +188,7 @@ func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserCon
 	defer unlock()
 
 	primaryKey := encodeConversationRowKey(s.hashSlot, patch.UID, patch.ChannelID, patch.ChannelType, conversationPrimaryFamilyID)
-	current, exists, err := s.getUserConversationStateByKey(ctx, primaryKey, patch.UID, patch.ChannelID, patch.ChannelType)
+	current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(patch.UID), String(patch.ChannelID), Int64Ordered(patch.ChannelType)})
 	if err != nil {
 		return err
 	}
@@ -178,7 +234,7 @@ func (s *Shard) ClearUserConversationActiveAt(ctx context.Context, uid string, k
 	defer batch.Close()
 	for _, key := range normalized {
 		primaryKey := encodeConversationRowKey(s.hashSlot, uid, key.ChannelID, key.ChannelType, conversationPrimaryFamilyID)
-		current, exists, err := s.getUserConversationStateByKey(ctx, primaryKey, uid, key.ChannelID, key.ChannelType)
+		current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(uid), String(key.ChannelID), Int64Ordered(key.ChannelType)})
 		if err != nil {
 			return err
 		}
@@ -206,7 +262,7 @@ func (s *Shard) HideUserConversation(ctx context.Context, req UserConversationDe
 	defer unlock()
 
 	primaryKey := encodeConversationRowKey(s.hashSlot, req.UID, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
-	current, exists, err := s.getUserConversationStateByKey(ctx, primaryKey, req.UID, req.ChannelID, req.ChannelType)
+	current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(req.UID), String(req.ChannelID), Int64Ordered(req.ChannelType)})
 	if err != nil {
 		return err
 	}
@@ -245,37 +301,8 @@ func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limi
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, err
 	}
-	prefix := encodeConversationActiveIndexPrefix(s.hashSlot, TableIDConversation, uid)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer iter.Close()
-
-	states := make([]UserConversationState, 0, limit)
-	for ok := iter.First(); ok && len(states) < limit; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		activeAt, key, err := decodeConversationActiveIndexKey(prefix, iter.Key())
-		if err != nil {
-			return nil, err
-		}
-		primaryKey := encodeConversationRowKey(s.hashSlot, uid, key.ChannelID, key.ChannelType, conversationPrimaryFamilyID)
-		state, exists, err := s.getUserConversationStateByKey(ctx, primaryKey, uid, key.ChannelID, key.ChannelType)
-		if err != nil {
-			return nil, err
-		}
-		if !exists || state.ActiveAt <= 0 || state.ActiveAt != activeAt {
-			continue
-		}
-		states = append(states, state)
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-	return states, nil
+	rows, err := conversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, limit)
+	return rows, err
 }
 
 // ListUserConversationStatePage returns primary rows in stable key order.
@@ -292,84 +319,47 @@ func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, c
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, ConversationCursor{}, false, err
 	}
-	prefix := encodeConversationRowPrefix(s.hashSlot, uid)
-	span := keycodec.NewPrefixSpan(prefix)
+	var after KeyParts
 	if cursor != (ConversationCursor{}) {
-		span.Start = keycodec.PrefixEnd(encodeConversationRowKey(s.hashSlot, uid, cursor.ChannelID, cursor.ChannelType, conversationPrimaryFamilyID))
+		after = KeyParts{String(uid), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
 	}
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	rows, next, done, err := conversationTable.scanPrimaryPrefixStrict(ctx, s, KeyParts{String(uid)}, after, limit)
 	if err != nil {
 		return nil, ConversationCursor{}, false, err
 	}
-	defer iter.Close()
-
-	states := make([]UserConversationState, 0, limit)
 	nextCursor := cursor
-	hasMore := false
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, ConversationCursor{}, false, err
-		}
-		channelID, channelType, familyID, ok := decodeConversationRowKey(prefix, iter.Key())
-		if !ok {
-			return nil, ConversationCursor{}, false, dberrors.ErrCorruptValue
-		}
-		if familyID != conversationPrimaryFamilyID {
-			continue
-		}
-		if len(states) == limit {
-			hasMore = true
-			break
-		}
-		value, err := iter.Value()
-		if err != nil {
-			return nil, ConversationCursor{}, false, err
-		}
-		state, err := decodeUserConversationValue(uid, channelID, channelType, value)
-		if err != nil {
-			return nil, ConversationCursor{}, false, err
-		}
-		states = append(states, state)
-		nextCursor = ConversationCursor{ChannelID: channelID, ChannelType: channelType}
+	if len(next) >= 3 {
+		nextCursor = ConversationCursor{ChannelID: next[1].S, ChannelType: next[2].I64}
+	} else if len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = ConversationCursor{ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
-	if err := iter.Error(); err != nil {
-		return nil, ConversationCursor{}, false, err
-	}
-	return states, nextCursor, !hasMore, nil
+	return rows, nextCursor, done, nil
 }
 
 func (s *Shard) getUserConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType int64) (UserConversationState, bool, error) {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return UserConversationState{}, false, err
-		}
-	}
-	value, ok, err := s.db.get(key)
-	if err != nil || !ok {
-		return UserConversationState{}, ok, err
-	}
-	state, err := decodeUserConversationValue(uid, channelID, channelType, value)
-	if err != nil {
-		return UserConversationState{}, false, err
-	}
-	return state, true, nil
+	return conversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
 }
 
 func (s *Shard) stageUserConversationState(batch *engine.Batch, primaryKey []byte, existing UserConversationState, exists bool, next UserConversationState) error {
-	if exists && existing.ActiveAt > 0 && existing.ActiveAt != next.ActiveAt {
-		if err := batch.Delete(encodeConversationActiveIndexKey(s.hashSlot, TableIDConversation, existing.UID, existing.ActiveAt, existing.ChannelID, existing.ChannelType)); err != nil {
+	pk := KeyParts{String(next.UID), String(next.ChannelID), Int64Ordered(next.ChannelType)}
+	if exists {
+		if err := conversationTable.stageDeleteIndexEntries(batch, s.hashSlot, existing, pk); err != nil {
 			return err
 		}
 	}
-	if err := batch.Set(primaryKey, encodeConversationValue(next.ReadSeq, next.DeletedToSeq, next.ActiveAt, next.UpdatedAt)); err != nil {
+	value := encodeConversationValue(next.ReadSeq, next.DeletedToSeq, next.ActiveAt, next.UpdatedAt)
+	if err := batch.Set(primaryKey, value); err != nil {
 		return err
 	}
-	if next.ActiveAt > 0 {
-		if err := batch.Set(encodeConversationActiveIndexKey(s.hashSlot, TableIDConversation, next.UID, next.ActiveAt, next.ChannelID, next.ChannelType), nil); err != nil {
-			return err
-		}
+	return conversationTable.stagePutIndexEntries(batch, s.hashSlot, next, pk, value)
+}
+
+func conversationPrimaryFromActiveIndexParts(parts KeyParts) (KeyParts, bool) {
+	if len(parts) != 4 {
+		return nil, false
 	}
-	return nil
+	return KeyParts{parts[0], parts[2], parts[3]}, true
 }
 
 func validateUserConversationState(state UserConversationState) error {
@@ -482,52 +472,10 @@ func decodeConversationValue(value []byte) (uint64, uint64, int64, int64, error)
 	return readSeq, deletedToSeq, activeAt, updatedAt, nil
 }
 
-func decodeConversationRowKey(prefix []byte, key []byte) (string, int64, uint16, bool) {
-	if !bytes.HasPrefix(key, prefix) {
-		return "", 0, 0, false
-	}
-	channelID, rest, err := keycodec.ReadString(key[len(prefix):])
-	if err != nil {
-		return "", 0, 0, false
-	}
-	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 2 {
-		return "", 0, 0, false
-	}
-	return channelID, channelTypeValue, binary.BigEndian.Uint16(rest), true
-}
-
-func decodeConversationActiveIndexKey(prefix []byte, key []byte) (int64, ConversationKey, error) {
-	if !bytes.HasPrefix(key, prefix) {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	activeAt, rest, err := readKeyInt64Desc(key[len(prefix):])
-	if err != nil {
-		return 0, ConversationKey{}, err
-	}
-	channelID, rest, err := keycodec.ReadString(rest)
-	if err != nil {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
-	if err != nil || channelTypeValue < 0 || channelTypeValue > 255 || len(rest) != 0 {
-		return 0, ConversationKey{}, dberrors.ErrCorruptValue
-	}
-	return activeAt, ConversationKey{ChannelID: channelID, ChannelType: channelTypeValue}, nil
-}
-
 func readKeyInt64Ordered(src []byte) (int64, []byte, error) {
 	if len(src) < 8 {
 		return 0, nil, dberrors.ErrCorruptValue
 	}
 	ordered := binary.BigEndian.Uint64(src[:8])
-	return int64(ordered ^ (uint64(1) << 63)), src[8:], nil
-}
-
-func readKeyInt64Desc(src []byte) (int64, []byte, error) {
-	if len(src) < 8 {
-		return 0, nil, dberrors.ErrCorruptValue
-	}
-	ordered := ^binary.BigEndian.Uint64(src[:8])
 	return int64(ordered ^ (uint64(1) << 63)), src[8:], nil
 }

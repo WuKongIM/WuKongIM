@@ -27,9 +27,9 @@ Current flow:
 10. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with monotonic upserts; page scans use primary-key order and
    cursor bounds.
-11. User and CMD conversation tables keep primary state rows and active indexes
-   in the same commit; active scans read newest-first and verify rows to ignore
-   stale index entries.
+11. User and CMD conversation tables use the table runtime for primary rows,
+   primary-prefix pages, active-index maintenance, and active scans; their typed
+   methods keep merge, hide, clear, and read-advance business semantics.
 12. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
    under the hash-slot partition; typed values repeat the hash slot only for
    self-description.

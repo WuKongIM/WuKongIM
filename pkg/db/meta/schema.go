@@ -18,8 +18,6 @@ func init() {
 	for _, descriptor := range []metaTableDescriptor{
 		{Table: SubscriberTable},
 		{Table: ChannelRuntimeMetaTable},
-		{Table: ConversationTable},
-		{Table: CMDConversationTable},
 		{Table: ChannelMigrationTable},
 		{Table: HashSlotMigrationTable, SnapshotPolicy: SnapshotPolicy{PreserveOnImport: true}},
 	} {
@@ -32,11 +30,8 @@ func init() {
 var (
 	SubscriberTable         = simpleMetaTable(TableIDSubscriber, "subscriber")
 	ChannelRuntimeMetaTable = simpleMetaTable(TableIDChannelRuntimeMeta, "channel_runtime_meta")
-	CMDConversationTable    = activeMetaTable(TableIDCMDConversation, "cmd_conversation")
 	ChannelMigrationTable   = activeMetaTable(TableIDChannelMigration, "channel_migration")
 	HashSlotMigrationTable  = activeMetaTable(TableIDHashSlotMigration, "hashslot_migration")
-
-	ConversationTable = activeMetaTable(TableIDConversation, "conversation")
 )
 
 func simpleMetaTable(id uint32, name string) schema.Table {
