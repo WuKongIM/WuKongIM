@@ -38,6 +38,59 @@ func TestChannelMigrationTaskCreateGetActiveAndList(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationTaskKeepsLegacyRowIndexLayouts(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(8)
+	ctx := context.Background()
+	task := testChannelMigrationTask("task-layout", "channel-layout")
+
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	legacyRowKey := encodeChannelMigrationTaskRowKey(8, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	runtimeRowKey, err := channelMigrationTable.primaryRowKey(8, channelMigrationTaskPrimaryKey(task.ChannelID, task.ChannelType, task.TaskID))
+	if err != nil {
+		t.Fatalf("runtime row key: %v", err)
+	}
+	if string(runtimeRowKey) != string(legacyRowKey) {
+		t.Fatalf("runtime row key %x, want legacy %x", runtimeRowKey, legacyRowKey)
+	}
+	if _, ok, err := store.db.get(legacyRowKey); err != nil || !ok {
+		t.Fatalf("legacy row ok=%v err=%v", ok, err)
+	}
+
+	activeValue, ok, err := store.db.get(encodeChannelMigrationActiveIndexKey(8, task.ChannelID, task.ChannelType))
+	if err != nil || !ok || string(activeValue) != task.TaskID {
+		t.Fatalf("active index value=%q ok=%v err=%v, want task id", string(activeValue), ok, err)
+	}
+
+	terminal := task
+	terminal.Status = ChannelMigrationStatusCompleted
+	terminal.CompletedAtMS = task.UpdatedAtMS + 1000
+	if err := shard.AdvanceChannelMigrationTask(ctx, ChannelMigrationTaskAdvance{
+		Guard:         channelMigrationTaskGuard(task),
+		Status:        terminal.Status,
+		Phase:         ChannelMigrationPhaseClearFence,
+		UpdatedAtMS:   terminal.UpdatedAtMS + 1,
+		CompletedAtMS: terminal.CompletedAtMS,
+	}); err != nil {
+		t.Fatalf("AdvanceChannelMigrationTask(): %v", err)
+	}
+	legacyTerminalKey := encodeChannelMigrationTerminalIndexKey(8, terminal.CompletedAtMS, terminal.ChannelID, terminal.ChannelType, terminal.TaskID)
+	runtimeTerminalKey, err := channelMigrationTable.indexEntryKey(8, channelMigrationTerminalIndexSpec(), channelMigrationTerminalIndexParts(terminal), channelMigrationTaskPrimaryKey(terminal.ChannelID, terminal.ChannelType, terminal.TaskID))
+	if err != nil {
+		t.Fatalf("runtime terminal key: %v", err)
+	}
+	if string(runtimeTerminalKey) != string(legacyTerminalKey) {
+		t.Fatalf("runtime terminal key %x, want legacy %x", runtimeTerminalKey, legacyTerminalKey)
+	}
+	if _, ok, err := store.db.get(legacyTerminalKey); err != nil || !ok {
+		t.Fatalf("legacy terminal index ok=%v err=%v", ok, err)
+	}
+}
+
 func TestChannelMigrationTaskRejectsSecondActiveTask(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

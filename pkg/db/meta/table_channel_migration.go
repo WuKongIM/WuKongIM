@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 const (
@@ -18,9 +19,59 @@ const (
 
 const (
 	channelMigrationPrimaryFamilyID uint16 = 0
+	channelMigrationPrimaryIndexID  uint16 = 1
 	channelMigrationActiveIndexID   uint16 = 2
 	channelMigrationTerminalIndexID uint16 = 3
+
+	channelMigrationColumnChannelID   uint16 = 1
+	channelMigrationColumnChannelType uint16 = 2
+	channelMigrationColumnTaskID      uint16 = 3
+	channelMigrationColumnCompletedAt uint16 = 4
+	channelMigrationColumnValue       uint16 = 5
 )
+
+var channelMigrationTable = registerMetaTable(TableSpec[ChannelMigrationTask]{
+	ID:   TableIDChannelMigration,
+	Name: "channel_migration",
+	Columns: []schema.Column{
+		{ID: channelMigrationColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: channelMigrationColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: channelMigrationColumnTaskID, Name: "task_id", Type: schema.TypeString, Required: true},
+		{ID: channelMigrationColumnCompletedAt, Name: "completed_at", Type: schema.TypeInt64},
+		{ID: channelMigrationColumnValue, Name: "value", Type: schema.TypeBytes},
+	},
+	Families: []schema.Family{{ID: channelMigrationPrimaryFamilyID, Name: "primary", Columns: []uint16{channelMigrationColumnValue}}},
+	Primary: PrimarySpec[ChannelMigrationTask]{
+		IndexID:  channelMigrationPrimaryIndexID,
+		FamilyID: channelMigrationPrimaryFamilyID,
+		Name:     "pk_channel_migration",
+		Columns:  []uint16{channelMigrationColumnChannelID, channelMigrationColumnChannelType, channelMigrationColumnTaskID},
+		Layout:   KeyLayout{KeyString, KeyInt64Ordered, KeyString},
+		Key: func(task ChannelMigrationTask) KeyParts {
+			return channelMigrationTaskPrimaryKey(task.ChannelID, task.ChannelType, task.TaskID)
+		},
+	},
+	Indexes: []IndexSpec[ChannelMigrationTask]{
+		{
+			ID:             channelMigrationActiveIndexID,
+			Name:           "idx_channel_migration_active",
+			Columns:        []uint16{channelMigrationColumnChannelID, channelMigrationColumnChannelType},
+			Layout:         KeyLayout{KeyString, KeyInt64Ordered},
+			DescriptorOnly: true,
+		},
+		channelMigrationTerminalIndexSpec(),
+	},
+	Validate: validateChannelMigrationTask,
+	EncodeValue: func(task ChannelMigrationTask) ([]byte, error) {
+		return encodeChannelMigrationTaskValue(task), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (ChannelMigrationTask, error) {
+		return decodeChannelMigrationTaskValue(primary[0].S, primary[1].I64, primary[2].S, value)
+	},
+})
+
+// ChannelMigrationTable describes the channel migration task table schema.
+var ChannelMigrationTable = channelMigrationTable.Schema()
 
 // ChannelMigrationKind selects the migration workflow for a task.
 type ChannelMigrationKind uint8
@@ -311,8 +362,7 @@ func (s *Shard) GetChannelMigrationTask(ctx context.Context, channelID string, c
 	if err := validateChannelMigrationIdentity(channelID, taskID); err != nil {
 		return ChannelMigrationTask{}, false, err
 	}
-	key := encodeChannelMigrationTaskRowKey(s.hashSlot, channelID, channelType, taskID, channelMigrationPrimaryFamilyID)
-	return s.getChannelMigrationTaskByKey(ctx, key, channelID, channelType, taskID)
+	return channelMigrationTable.Get(ctx, s, channelMigrationTaskPrimaryKey(channelID, channelType, taskID))
 }
 
 // GetActiveChannelMigrationTask returns the active task for a channel, if any.
@@ -343,39 +393,8 @@ func (s *Shard) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrati
 	if err := s.check(ctx); err != nil {
 		return nil, err
 	}
-	prefix := encodeChannelMigrationRowPrefix(s.hashSlot)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer iter.Close()
-	tasks := make([]ChannelMigrationTask, 0)
-	for ok := iter.First(); ok; ok = iter.Next() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		channelID, channelType, taskID, familyID, ok := decodeChannelMigrationTaskRowKey(prefix, iter.Key())
-		if !ok {
-			return nil, dberrors.ErrCorruptValue
-		}
-		if familyID != channelMigrationPrimaryFamilyID {
-			continue
-		}
-		value, err := iter.Value()
-		if err != nil {
-			return nil, err
-		}
-		task, err := decodeChannelMigrationTaskValue(channelID, channelType, taskID, value)
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, task)
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-	return tasks, nil
+	tasks, _, _, err := channelMigrationTable.scanPrimary(ctx, s, nil, nil, 0, true, true, false)
+	return tasks, err
 }
 
 // ClaimChannelMigrationTask applies a guarded owner claim or renewal.
@@ -444,7 +463,10 @@ func (s *Shard) CountTerminalChannelMigrationTasksBefore(ctx context.Context, be
 }
 
 func (s *Shard) stageCreateChannelMigrationTask(ctx context.Context, batch *engine.Batch, task ChannelMigrationTask) error {
-	primaryKey := encodeChannelMigrationTaskRowKey(s.hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	primaryKey, err := channelMigrationTaskRowKey(s.hashSlot, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		return err
+	}
 	if _, exists, err := s.getChannelMigrationTaskByKey(ctx, primaryKey, task.ChannelID, task.ChannelType, task.TaskID); err != nil || exists {
 		if err != nil {
 			return err
@@ -514,7 +536,11 @@ func (s *Shard) stageUpsertChannelMigrationTask(ctx context.Context, batch *engi
 	if err := validateChannelMigrationTask(task); err != nil {
 		return err
 	}
-	primaryKey := encodeChannelMigrationTaskRowKey(s.hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationPrimaryFamilyID)
+	pk := channelMigrationTaskPrimaryKey(task.ChannelID, task.ChannelType, task.TaskID)
+	primaryKey, err := channelMigrationTable.primaryRowKey(s.hashSlot, pk)
+	if err != nil {
+		return err
+	}
 	existing, exists, err := s.getChannelMigrationTaskByKey(ctx, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
 	if err != nil {
 		return err
@@ -532,17 +558,19 @@ func (s *Shard) stageUpsertChannelMigrationTask(ctx context.Context, batch *engi
 			return err
 		}
 	}
-	if exists && existing.IsTerminal() && (!task.IsTerminal() || existing.CompletedAtMS != task.CompletedAtMS) {
-		if err := batch.Delete(encodeChannelMigrationTerminalIndexKey(s.hashSlot, existing.CompletedAtMS, existing.ChannelID, existing.ChannelType, existing.TaskID)); err != nil {
+	if exists {
+		if err := channelMigrationTable.stageDeleteIndexEntries(batch, s.hashSlot, existing, pk); err != nil {
 			return err
 		}
 	}
-	if task.IsTerminal() {
-		if err := batch.Set(encodeChannelMigrationTerminalIndexKey(s.hashSlot, task.CompletedAtMS, task.ChannelID, task.ChannelType, task.TaskID), nil); err != nil {
-			return err
-		}
+	value, err := channelMigrationTable.encodeValue(primaryKey, task)
+	if err != nil {
+		return err
 	}
-	return batch.Set(primaryKey, encodeChannelMigrationTaskValue(task))
+	if err := batch.Set(primaryKey, value); err != nil {
+		return err
+	}
+	return channelMigrationTable.stagePutIndexEntries(batch, s.hashSlot, task, pk, value)
 }
 
 func (s *Shard) ensureChannelMigrationActiveAvailable(ctx context.Context, activeIndexKey []byte, task ChannelMigrationTask) error {
@@ -574,11 +602,47 @@ func (s *Shard) getChannelMigrationTaskByKey(ctx context.Context, key []byte, ch
 	if err != nil || !ok {
 		return ChannelMigrationTask{}, ok, err
 	}
-	task, err := decodeChannelMigrationTaskValue(channelID, channelType, taskID, value)
+	task, err := channelMigrationTable.decodeValue(key, channelMigrationTaskPrimaryKey(channelID, channelType, taskID), value)
 	if err != nil {
 		return ChannelMigrationTask{}, false, err
 	}
 	return task, true, nil
+}
+
+func channelMigrationTaskPrimaryKey(channelID string, channelType int64, taskID string) KeyParts {
+	return KeyParts{String(channelID), Int64Ordered(channelType), String(taskID)}
+}
+
+func channelMigrationTaskRowKey(hashSlot HashSlot, channelID string, channelType int64, taskID string) ([]byte, error) {
+	return channelMigrationTable.primaryRowKey(hashSlot, channelMigrationTaskPrimaryKey(channelID, channelType, taskID))
+}
+
+func channelMigrationTerminalIndexSpec() IndexSpec[ChannelMigrationTask] {
+	return IndexSpec[ChannelMigrationTask]{
+		ID:      channelMigrationTerminalIndexID,
+		Name:    "idx_channel_migration_terminal",
+		Columns: []uint16{channelMigrationColumnCompletedAt, channelMigrationColumnChannelID, channelMigrationColumnChannelType, channelMigrationColumnTaskID},
+		Layout:  KeyLayout{KeyInt64Ordered, KeyString, KeyInt64Ordered, KeyString},
+		Key: func(task ChannelMigrationTask) (KeyParts, bool) {
+			if !task.IsTerminal() {
+				return nil, false
+			}
+			return channelMigrationTerminalIndexParts(task), true
+		},
+		PrimaryKeyFromIndexParts: channelMigrationPrimaryFromTerminalIndexParts,
+		CorruptIndexKeyIsError:   true,
+	}
+}
+
+func channelMigrationTerminalIndexParts(task ChannelMigrationTask) KeyParts {
+	return KeyParts{Int64Ordered(task.CompletedAtMS), String(task.ChannelID), Int64Ordered(task.ChannelType), String(task.TaskID)}
+}
+
+func channelMigrationPrimaryFromTerminalIndexParts(parts KeyParts) (KeyParts, bool) {
+	if len(parts) != 4 {
+		return nil, false
+	}
+	return KeyParts{parts[1], parts[2], parts[3]}, true
 }
 
 func validateChannelMigrationTask(task ChannelMigrationTask) error {

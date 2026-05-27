@@ -32,16 +32,17 @@ Current flow:
 11. User and CMD conversation tables use the table runtime for primary rows,
    primary-prefix pages, active-index maintenance, and active scans; their typed
    methods keep merge, hide, clear, and read-advance business semantics.
-12. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
+12. Channel migration tasks use the table runtime for primary rows and terminal
+   indexes while keeping the active-task index custom because its legacy value
+   stores the active `task_id`; guarded task/runtime-meta mutations keep
+   read-your-writes overlays before committing both records atomically.
+13. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
    under the hash-slot partition; typed values repeat the hash slot only for
    self-description.
-13. `Batch` stages typed operations, locks all touched hash slots in sorted
+14. `Batch` stages typed operations, locks all touched hash slots in sorted
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
    tasks, commits once, then publishes or invalidates channel cache entries.
-14. Channel migration tasks keep primary rows, one active-task index per
-   channel, and terminal indexes in sync; guarded batch creates can fence on
-   runtime metadata.
 15. Hash-slot snapshots export row, index, and system spans for selected hash
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,
