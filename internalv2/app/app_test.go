@@ -3,10 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
+
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
@@ -124,6 +128,18 @@ func TestRollbackStopFailureLeavesClusterCleanupRetryPossible(t *testing.T) {
 	}
 }
 
+func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
+	app, err := New(Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(&fakeCluster{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ids := messageIDAllocatorFromApp(t, app)
+	if got, want := ids.Next(), uint64(7<<48)+1; got != want {
+		t.Fatalf("first message id = %d, want %d", got, want)
+	}
+}
+
 type fakeCluster struct {
 	calls    *[]string
 	startErr error
@@ -131,12 +147,16 @@ type fakeCluster struct {
 }
 
 func (f *fakeCluster) Start(context.Context) error {
-	*f.calls = append(*f.calls, "cluster.start")
+	if f.calls != nil {
+		*f.calls = append(*f.calls, "cluster.start")
+	}
 	return f.startErr
 }
 
 func (f *fakeCluster) Stop(context.Context) error {
-	*f.calls = append(*f.calls, "cluster.stop")
+	if f.calls != nil {
+		*f.calls = append(*f.calls, "cluster.stop")
+	}
 	return f.stopErr
 }
 
@@ -209,4 +229,25 @@ func (f *stateGateway) runningState() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.running
+}
+
+type messageIDAllocator interface {
+	Next() uint64
+}
+
+func messageIDAllocatorFromApp(t *testing.T, app *App) messageIDAllocator {
+	t.Helper()
+	messages := app.Messages()
+	if messages == nil {
+		t.Fatalf("Messages() = nil")
+	}
+	field := reflect.ValueOf(messages).Elem().FieldByName("messageID")
+	if !field.IsValid() {
+		t.Fatalf("message app has no messageID field")
+	}
+	ids, ok := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(messageIDAllocator)
+	if !ok {
+		t.Fatalf("messageID field does not implement Next() uint64")
+	}
+	return ids
 }
