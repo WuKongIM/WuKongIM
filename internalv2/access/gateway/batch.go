@@ -54,11 +54,10 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	}
 
 	batchResults := batcher.SendBatch(validItems)
+	if len(batchResults) != len(validItems) {
+		return ErrSendBatchResultCountMismatch
+	}
 	for j, index := range validIndexes {
-		if j >= len(batchResults) {
-			results[index].Reason = message.ReasonSystemError
-			continue
-		}
 		result := batchResults[j].Result
 		if batchResults[j].Err != nil {
 			result.Reason = reasonForError(batchResults[j].Err)
