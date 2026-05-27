@@ -2,9 +2,12 @@ package message
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
 // InspectMessageRow contains one decoded message-domain inspection row.
@@ -50,36 +53,106 @@ func InspectChannels(ctx context.Context, db *MessageDB, req InspectMessageReque
 	if req.Limit <= 0 {
 		req.Limit = 100
 	}
-	entries, err := db.ListChannels(ctx)
+	entries, scannedRows, done, err := inspectChannelCatalogPage(ctx, db, req)
 	if err != nil {
 		return InspectMessageResult{}, err
 	}
 
 	result := InspectMessageResult{
-		Rows: make([]InspectMessageRow, 0, req.Limit),
-		Done: true,
+		Rows:        make([]InspectMessageRow, 0, boundedCapacity(len(entries), req.Limit)),
+		Done:        done,
+		ScannedRows: scannedRows,
+	}
+	if len(entries) > req.Limit {
+		entries = entries[:req.Limit]
 	}
 	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return InspectMessageResult{}, err
-		}
-		key := string(entry.Key)
-		if req.ChannelKey != "" && key != req.ChannelKey {
-			continue
-		}
-		if req.AfterChannelKey != "" && key <= req.AfterChannelKey {
-			continue
-		}
-
-		result.ScannedRows++
-		if len(result.Rows) >= req.Limit {
-			result.Done = false
-			result.Next = &InspectMessageCursor{AfterChannelKey: result.Rows[len(result.Rows)-1]["channel_key"].(string)}
-			break
-		}
 		result.Rows = append(result.Rows, inspectChannelRow(entry))
 	}
+	if !result.Done && len(result.Rows) > 0 {
+		result.Next = &InspectMessageCursor{AfterChannelKey: result.Rows[len(result.Rows)-1]["channel_key"].(string)}
+	}
 	return result, nil
+}
+
+func inspectChannelCatalogPage(ctx context.Context, db *MessageDB, req InspectMessageRequest) ([]ChannelCatalogEntry, int, bool, error) {
+	if req.ChannelKey != "" {
+		return inspectChannelCatalogPoint(ctx, db, req.ChannelKey, req.AfterChannelKey)
+	}
+	prefix := encodeCatalogPrefix()
+	span := keycodec.NewPrefixSpan(prefix)
+	start := span.Start
+	if req.AfterChannelKey != "" {
+		start = encodeCatalogKey(ChannelKey(req.AfterChannelKey))
+	}
+	iter, err := db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return nil, 0, false, err
+	}
+	defer iter.Close()
+
+	entries := make([]ChannelCatalogEntry, 0, req.Limit+1)
+	scannedRows := 0
+	done := true
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, false, err
+		}
+		key, entry, err := decodeCatalogIteratorEntry(iter)
+		if err != nil {
+			return nil, 0, false, err
+		}
+		if req.AfterChannelKey != "" && string(key) <= req.AfterChannelKey {
+			continue
+		}
+		scannedRows++
+		entries = append(entries, entry)
+		if len(entries) > req.Limit {
+			done = false
+			break
+		}
+	}
+	if err := iter.Error(); err != nil {
+		return nil, 0, false, err
+	}
+	return entries, scannedRows, done, nil
+}
+
+func inspectChannelCatalogPoint(ctx context.Context, db *MessageDB, channelKey string, afterChannelKey string) ([]ChannelCatalogEntry, int, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, false, err
+	}
+	if afterChannelKey != "" && channelKey <= afterChannelKey {
+		return nil, 0, true, nil
+	}
+	value, ok, err := db.engine.Get(encodeCatalogKey(ChannelKey(channelKey)))
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if !ok {
+		return nil, 0, true, nil
+	}
+	id, err := decodeCatalogValue(value)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	return []ChannelCatalogEntry{{Key: ChannelKey(channelKey), ID: id}}, 1, true, nil
+}
+
+func decodeCatalogIteratorEntry(iter *engine.Iter) (ChannelKey, ChannelCatalogEntry, error) {
+	key, ok := decodeCatalogKey(iter.Key())
+	if !ok {
+		return "", ChannelCatalogEntry{}, fmt.Errorf("%w: corrupt catalog key", dberrors.ErrCorruptValue)
+	}
+	value, err := iter.Value()
+	if err != nil {
+		return "", ChannelCatalogEntry{}, err
+	}
+	id, err := decodeCatalogValue(value)
+	if err != nil {
+		return "", ChannelCatalogEntry{}, err
+	}
+	return key, ChannelCatalogEntry{Key: key, ID: id}, nil
 }
 
 // InspectMessages scans one channel's messages for read-only diagnostics.

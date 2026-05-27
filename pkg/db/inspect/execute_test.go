@@ -58,6 +58,14 @@ func TestStoreShowTablesAndDescribe(t *testing.T) {
 	if resultHasRowValue(metaDesc, "column", "key") || resultHasRowValue(metaDesc, "column", "value") {
 		t.Fatalf("describe meta.user rows = %+v, should not expose raw key/value schema", metaDesc.Rows)
 	}
+
+	channelDesc, err := store.Query(context.Background(), "describe meta.channel")
+	if err != nil {
+		t.Fatalf("describe meta.channel err = %v", err)
+	}
+	if !resultHasRow(channelDesc, Row{"column": "ban", "type": "int64"}) {
+		t.Fatalf("describe meta.channel rows = %+v, want ban int64", channelDesc.Rows)
+	}
 }
 
 func TestStoreQueryMetaUserByUID(t *testing.T) {
@@ -301,6 +309,22 @@ func seedInspectMessages(t *testing.T) string {
 func resultHasRowValue(result Result, key string, value any) bool {
 	for _, row := range result.Rows {
 		if row[key] == value {
+			return true
+		}
+	}
+	return false
+}
+
+func resultHasRow(result Result, want Row) bool {
+	for _, row := range result.Rows {
+		matches := true
+		for key, value := range want {
+			if row[key] != value {
+				matches = false
+				break
+			}
+		}
+		if matches {
 			return true
 		}
 	}
