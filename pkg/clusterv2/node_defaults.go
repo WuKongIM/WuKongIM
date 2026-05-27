@@ -1,6 +1,7 @@
 package clusterv2
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -9,6 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 func (n *Node) ensureDefaultRuntime() (bool, error) {
@@ -68,6 +71,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			MailboxSize:  n.cfg.Channel.MailboxSize,
 			Store:        storeFactory,
 			Transport:    transport,
+			MetaSource:   n.defaultChannelMetaSource(),
 		})
 		if err != nil {
 			_ = storeFactory.Close()
@@ -99,6 +103,48 @@ func (n *Node) ensureDefaultTransport() error {
 
 func (n *Node) defaultChannelStorePath() string {
 	return filepath.Join(n.cfg.DataDir, "messages")
+}
+
+func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
+	if n == nil || n.defaultSlotMetaDB == nil {
+		return nil
+	}
+	store := defaultChannelRuntimeMetaStore{node: n}
+	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
+		Placement: channels.NewSlotPlacementResolver(n.router, 1),
+	})
+}
+
+// defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.
+type defaultChannelRuntimeMetaStore struct {
+	node *Node
+}
+
+func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	if s.node == nil || s.node.defaultSlotMetaDB == nil {
+		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
+	}
+	route, err := s.node.RouteKey(channelID)
+	if err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	return s.node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, channelID, channelType)
+}
+
+func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if s.node == nil {
+		return ErrNotStarted
+	}
+	return s.node.Propose(ctx, ProposeRequest{
+		Key:     meta.ChannelID,
+		Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(meta),
+	})
 }
 
 func (n *Node) discardDefaultChannels() {

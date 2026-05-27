@@ -137,6 +137,10 @@ func TestNodeStopClosesChannelService(t *testing.T) {
 
 func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelv2.ChannelID) {
 	t.Helper()
+	waitUntil(t, func() bool {
+		route, err := node.RouteKey(channelID.ID)
+		return err == nil && route.Leader == node.NodeID()
+	})
 	svc, ok := node.channels.(*channels.Service)
 	if !ok {
 		t.Fatalf("default channels type = %T, want *channels.Service", node.channels)
