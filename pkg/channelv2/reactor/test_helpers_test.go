@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +38,34 @@ func awaitSubmit(g *Group, key ch.ChannelKey, event Event) error {
 	}
 	_, err = future.Await(ctx)
 	return err
+}
+
+func applyMetaDirect(t *testing.T, reactor *Reactor, meta ch.Meta) error {
+	t.Helper()
+	future := NewFuture()
+	reactor.handleApplyMeta(Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta, Future: future})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := future.Await(ctx)
+	return err
+}
+
+func awaitFutureResult(t *testing.T, future *Future) Result {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := future.Await(ctx)
+	require.NoError(t, err)
+	return result
+}
+
+func seedCommittedMessage(t *testing.T, factory store.Factory, meta ch.Meta, id uint64, payload string) {
+	t.Helper()
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{{ID: id, Payload: []byte(payload), SizeBytes: len(payload)}}})
+	require.NoError(t, err)
+	require.NoError(t, cs.StoreCheckpoint(context.Background(), ch.Checkpoint{HW: 1}))
 }
 
 func appendEvent(meta ch.Meta, id uint64, payload string) Event {

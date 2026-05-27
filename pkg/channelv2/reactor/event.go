@@ -17,7 +17,6 @@ const (
 	// EventCheckState asks the owning reactor whether it has channel state loaded.
 	EventCheckState
 	EventAppend
-	EventFetch
 	// EventWorkerResult carries a blocking worker completion back to its reactor.
 	EventWorkerResult
 	// EventTick asks a reactor to perform low-priority maintenance work.
@@ -41,7 +40,6 @@ type Event struct {
 	Meta    ch.Meta
 	Append  ch.AppendBatchRequest
 	Context context.Context
-	Fetch   ch.FetchRequest
 	Future  *Future
 	Worker  worker.Result
 	Pull    transport.PullRequest

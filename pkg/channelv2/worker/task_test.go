@@ -89,36 +89,6 @@ func TestTaskRunStoreAppendUsesStoreDeps(t *testing.T) {
 	require.Equal(t, uint64(1), res.StoreAppend.LastOffset)
 }
 
-func TestTaskRunStoreReadCommittedUsesStoreDeps(t *testing.T) {
-	key := ch.ChannelKey("1:a")
-	id := ch.ChannelID{ID: "a", Type: 1}
-	factory := store.NewMemoryFactory()
-	cs, err := factory.ChannelStore(key, id)
-	require.NoError(t, err)
-	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("a"), SizeBytes: 1}}})
-	require.NoError(t, err)
-	require.NoError(t, cs.StoreCheckpoint(context.Background(), ch.Checkpoint{HW: 1}))
-	fence := ch.Fence{ChannelKey: key, Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 12}
-
-	res := Task{
-		Kind:  TaskStoreReadCommitted,
-		Fence: fence,
-		StoreReadCommitted: &StoreReadCommittedTask{
-			ChannelID: id,
-			FromSeq:   1,
-			MaxSeq:    1,
-			Limit:     10,
-			MaxBytes:  1024,
-		},
-	}.Run(context.Background(), Deps{Stores: factory})
-
-	require.NoError(t, res.Err)
-	require.Equal(t, TaskStoreReadCommitted, res.Kind)
-	require.NotNil(t, res.StoreReadCommitted)
-	require.Len(t, res.StoreReadCommitted.Messages, 1)
-	require.Equal(t, uint64(2), res.StoreReadCommitted.NextSeq)
-}
-
 func TestTaskRunStoreReadLogUsesStoreDeps(t *testing.T) {
 	key := ch.ChannelKey("1:a")
 	id := ch.ChannelID{ID: "a", Type: 1}
@@ -231,7 +201,7 @@ func TestTaskRunRPCPullHint(t *testing.T) {
 }
 
 func TestTaskRunMissingDepsReturnsInvalidConfig(t *testing.T) {
-	res := Task{Kind: TaskStoreReadCommitted}.Run(context.Background(), Deps{})
+	res := Task{Kind: TaskStoreReadLog}.Run(context.Background(), Deps{})
 	require.ErrorIs(t, res.Err, ch.ErrInvalidConfig)
 }
 
@@ -277,7 +247,6 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 		task Task
 	}{
 		{name: "store append", task: Task{Kind: TaskStoreAppend, Fence: fence}},
-		{name: "store read committed", task: Task{Kind: TaskStoreReadCommitted, Fence: fence}},
 		{name: "store read log", task: Task{Kind: TaskStoreReadLog, Fence: fence}},
 		{name: "store apply", task: Task{Kind: TaskStoreApply, Fence: fence}},
 		{name: "store checkpoint", task: Task{Kind: TaskStoreCheckpoint, Fence: fence}},

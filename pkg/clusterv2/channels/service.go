@@ -124,11 +124,6 @@ func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	return s.runtime.AppendBatch(ctx, req)
 }
 
-// Fetch reads committed messages.
-func (s *Service) Fetch(ctx context.Context, req ch.FetchRequest) (ch.FetchResult, error) {
-	return s.runtime.Fetch(ctx, req)
-}
-
 // Tick advances ChannelV2 background work.
 func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 

@@ -380,9 +380,6 @@ func (clusterOnlyRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendRe
 func (clusterOnlyRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
 	return ch.AppendBatchResult{}, nil
 }
-func (clusterOnlyRuntime) Fetch(context.Context, ch.FetchRequest) (ch.FetchResult, error) {
-	return ch.FetchResult{}, nil
-}
 func (clusterOnlyRuntime) Tick(context.Context) error { return nil }
 func (clusterOnlyRuntime) Close() error               { return nil }
 
@@ -416,9 +413,6 @@ func (f *fakeRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.Ap
 		return ch.AppendBatchResult{}, ch.ErrChannelNotFound
 	}
 	return f.appendBatch, nil
-}
-func (f *fakeRuntime) Fetch(context.Context, ch.FetchRequest) (ch.FetchResult, error) {
-	return ch.FetchResult{}, nil
 }
 func (f *fakeRuntime) Tick(context.Context) error { return nil }
 func (f *fakeRuntime) Close() error               { return nil }

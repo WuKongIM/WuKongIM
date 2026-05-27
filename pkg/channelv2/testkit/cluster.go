@@ -16,6 +16,7 @@ import (
 // ClusterHarness is an in-memory multi-node channelv2 test cluster.
 type ClusterHarness struct {
 	Nodes   map[ch.NodeID]ch.Cluster
+	Stores  map[ch.NodeID]*store.MemoryFactory
 	Network *transport.LocalNetwork
 	stop    chan struct{}
 }
@@ -24,11 +25,13 @@ type ClusterHarness struct {
 func NewClusterHarness(t testing.TB, nodeIDs []ch.NodeID) *ClusterHarness {
 	t.Helper()
 	network := transport.NewLocalNetwork()
-	h := &ClusterHarness{Nodes: make(map[ch.NodeID]ch.Cluster), Network: network, stop: make(chan struct{})}
+	h := &ClusterHarness{Nodes: make(map[ch.NodeID]ch.Cluster), Stores: make(map[ch.NodeID]*store.MemoryFactory), Network: network, stop: make(chan struct{})}
 	for _, nodeID := range nodeIDs {
-		cluster, err := service.New(service.Config{LocalNode: nodeID, Store: store.NewMemoryFactory(), ReactorCount: 1, Transport: network.Client()})
+		factory := store.NewMemoryFactory()
+		cluster, err := service.New(service.Config{LocalNode: nodeID, Store: factory, ReactorCount: 1, Transport: network.Client()})
 		require.NoError(t, err)
 		h.Nodes[nodeID] = cluster
+		h.Stores[nodeID] = factory
 		if server, ok := cluster.(transport.Server); ok {
 			network.Register(nodeID, server)
 		}
@@ -44,19 +47,35 @@ func (h *ClusterHarness) ApplyMetaToAll(meta ch.Meta) {
 	}
 }
 
-// WaitCommitted polls a node until Fetch exposes seq as committed.
+// WaitCommitted polls a node store until seq is present.
 func (h *ClusterHarness) WaitCommitted(t testing.TB, nodeID ch.NodeID, id ch.ChannelID, seq uint64, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		res, err := h.Nodes[nodeID].Fetch(context.Background(), ch.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
-		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
+		messages, err := h.readMessages(nodeID, id, seq)
+		if err == nil && len(messages) > 0 {
 			return
 		}
 		_ = h.Nodes[nodeID].Tick(context.Background())
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not commit seq %d", nodeID, seq)
+}
+
+func (h *ClusterHarness) readMessages(nodeID ch.NodeID, id ch.ChannelID, seq uint64) ([]ch.Message, error) {
+	factory := h.Stores[nodeID]
+	if factory == nil {
+		return nil, ch.ErrChannelNotFound
+	}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	if err != nil {
+		return nil, err
+	}
+	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: seq, MaxSeq: seq, Limit: 1, MaxBytes: 1024})
+	if err != nil {
+		return nil, err
+	}
+	return read.Messages, nil
 }
 
 // TickAll advances every harness node once in stable node-id order.

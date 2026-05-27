@@ -96,7 +96,7 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 	switch kind {
 	case TaskStoreAppend:
 		return p.StoreAppend
-	case TaskStoreReadCommitted, TaskStoreReadLog:
+	case TaskStoreReadLog:
 		return p.StoreRead
 	case TaskStoreApply, TaskStoreCheckpoint:
 		return p.StoreApply

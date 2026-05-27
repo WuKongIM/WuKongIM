@@ -66,13 +66,6 @@ func TestClusterV2ThreeNodeChannelAppendQuorum(t *testing.T) {
 	}
 
 	h.WaitChannelCommitted(t, 2, channelID, res.MessageSeq)
-	fetched, err := h.Node(2).FetchChannel(context.Background(), channelv2.FetchRequest{ChannelID: channelID, FromSeq: 1, Limit: 10})
-	if err != nil {
-		t.Fatalf("FetchChannel() error = %v", err)
-	}
-	if len(fetched.Messages) != 1 || !bytes.Equal(fetched.Messages[0].Payload, []byte("hello")) {
-		t.Fatalf("FetchChannel() messages = %#v, want hello", fetched.Messages)
-	}
 }
 
 func TestClusterV2ThreeNodeFirstChannelAppendEnsuresMeta(t *testing.T) {
@@ -170,6 +163,7 @@ func TestClusterV2ThreeNodeChannelAppendForwardsFromNonLeader(t *testing.T) {
 type threeNodeHarness struct {
 	network    *clusternet.LocalNetwork
 	nodes      map[uint64]*Node
+	stores     map[uint64]*channelstore.MemoryFactory
 	slots      map[uint64]*smokeSlotRuntime
 	metas      []channelv2.Meta
 	ensureMeta bool
@@ -182,6 +176,7 @@ func newThreeNodeHarness(t testing.TB) *threeNodeHarness {
 	return &threeNodeHarness{
 		network: clusternet.NewLocalNetwork(),
 		nodes:   make(map[uint64]*Node),
+		stores:  make(map[uint64]*channelstore.MemoryFactory),
 		slots:   make(map[uint64]*smokeSlotRuntime),
 		applied: newSmokeAppliedLog(),
 	}
@@ -213,9 +208,10 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 		cfg.Channel.TickInterval = time.Millisecond
 		var opts []Option
 		if metaSource != nil {
+			storeFactory := channelstore.NewMemoryFactory()
 			service, err := channels.NewService(channels.Config{
 				LocalNode:  channelv2.NodeID(nodeID),
-				Store:      channelstore.NewMemoryFactory(),
+				Store:      storeFactory,
 				Transport:  channels.NewTransportClient(h.network),
 				MetaSource: metaSource,
 			})
@@ -224,6 +220,7 @@ func (h *threeNodeHarness) Start(t testing.TB) {
 			}
 			opts = append(opts, WithChannels(service))
 			channels.RegisterServiceHandlers(h.network, nodeID, service)
+			h.stores[nodeID] = storeFactory
 		}
 		opts = append(opts, withController(control.NewStaticController(snapshot)), withSlotReconciler(&recordingReconciler{}))
 		node, err := New(cfg, opts...)
@@ -309,8 +306,8 @@ func (h *threeNodeHarness) WaitChannelCommitted(t testing.TB, nodeID uint64, id 
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		res, err := h.nodes[nodeID].FetchChannel(context.Background(), channelv2.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
-		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
+		messages, err := h.readChannelMessages(nodeID, id, seq)
+		if err == nil && len(messages) > 0 {
 			return
 		}
 		time.Sleep(time.Millisecond)
@@ -324,9 +321,9 @@ func (h *threeNodeHarness) RequireChannelMessage(t testing.TB, nodeID uint64, id
 	var lastErr error
 	var lastMessages []channelv2.Message
 	for time.Now().Before(deadline) {
-		res, err := h.nodes[nodeID].FetchChannel(context.Background(), channelv2.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
-		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
-			msg := res.Messages[0]
+		messages, err := h.readChannelMessages(nodeID, id, seq)
+		if err == nil && len(messages) > 0 {
+			msg := messages[0]
 			if msg.MessageSeq == seq && msg.MessageID == messageID && bytes.Equal(msg.Payload, payload) {
 				return
 			}
@@ -334,11 +331,27 @@ func (h *threeNodeHarness) RequireChannelMessage(t testing.TB, nodeID uint64, id
 		}
 		lastErr = err
 		if err == nil {
-			lastMessages = append([]channelv2.Message(nil), res.Messages...)
+			lastMessages = append([]channelv2.Message(nil), messages...)
 		}
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not replicate channel %v seq %d; lastErr=%v lastMessages=%#v", nodeID, id, seq, lastErr, lastMessages)
+}
+
+func (h *threeNodeHarness) readChannelMessages(nodeID uint64, id channelv2.ChannelID, seq uint64) ([]channelv2.Message, error) {
+	factory := h.stores[nodeID]
+	if factory == nil {
+		return nil, channelv2.ErrChannelNotFound
+	}
+	cs, err := factory.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	if err != nil {
+		return nil, err
+	}
+	read, err := cs.ReadCommitted(context.Background(), channelstore.ReadCommittedRequest{FromSeq: seq, MaxSeq: seq, Limit: 1, MaxBytes: 1024})
+	if err != nil {
+		return nil, err
+	}
+	return read.Messages, nil
 }
 
 func (h *threeNodeHarness) controlSnapshot() control.Snapshot {

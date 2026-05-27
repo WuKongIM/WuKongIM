@@ -48,7 +48,6 @@ func TestRuntimeViewFromChannelCapturesPendingWork(t *testing.T) {
 	rc := &runtimeChannel{
 		state:                state,
 		waiters:              map[ch.OpID]*Future{1: NewFuture()},
-		fetchWaiters:         map[ch.OpID]struct{}{},
 		pullWaiters:          map[ch.OpID]*pullWaiter{},
 		appendCancelContexts: map[ch.OpID]context.Context{},
 		appendTimings:        map[ch.OpID]appendTiming{},

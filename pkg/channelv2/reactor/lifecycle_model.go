@@ -57,7 +57,6 @@ type FollowerView struct {
 // PendingWorkView summarizes transient runtime work that blocks eviction.
 type PendingWorkView struct {
 	Waiters              int
-	FetchWaiters         int
 	PullWaiters          int
 	AppendQueued         int
 	AppendQueueBlocked   bool
@@ -124,7 +123,6 @@ func (v RuntimeView) CanOfferFollowerStop(now time.Time, idleAfter time.Duration
 func (v RuntimeView) HasPendingWork() bool {
 	p := v.PendingWork
 	return p.Waiters != 0 ||
-		p.FetchWaiters != 0 ||
 		p.PullWaiters != 0 ||
 		p.AppendQueued != 0 ||
 		p.AppendQueueBlocked ||

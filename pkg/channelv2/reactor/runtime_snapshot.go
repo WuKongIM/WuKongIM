@@ -46,7 +46,6 @@ func pendingWorkViewFromChannel(rc *runtimeChannel) PendingWorkView {
 	replication := rc.replication
 	view := PendingWorkView{
 		Waiters:              len(rc.waiters),
-		FetchWaiters:         len(rc.fetchWaiters),
 		PullWaiters:          len(rc.pullWaiters),
 		AppendQueued:         len(rc.appendQ.pending),
 		AppendQueueBlocked:   rc.appendQ.storeBlocked,

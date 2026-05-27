@@ -10,7 +10,6 @@ type Cluster interface {
 	ApplyMeta(Meta) error
 	Append(context.Context, AppendRequest) (AppendResult, error)
 	AppendBatch(context.Context, AppendBatchRequest) (AppendBatchResult, error)
-	Fetch(context.Context, FetchRequest) (FetchResult, error)
 	Tick(context.Context) error
 	Close() error
 }

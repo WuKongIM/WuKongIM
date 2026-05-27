@@ -93,8 +93,6 @@ type runtimeChannel struct {
 	state   *machine.ChannelState
 	store   store.ChannelStore
 	waiters map[ch.OpID]*Future
-	// fetchWaiters marks waiter entries that must be fenced by metadata changes.
-	fetchWaiters map[ch.OpID]struct{}
 	// appendQ holds accepted append requests before they are flushed as durable batches.
 	appendQ appendQueue
 	// appendInflight is the currently submitted durable append batch.
@@ -285,8 +283,6 @@ func (r *Reactor) handle(event Event) {
 		r.handleAppend(event)
 	case EventCancelWaiter:
 		r.handleCancelWaiter(event)
-	case EventFetch:
-		r.handleFetch(event)
 	case EventPull:
 		r.handlePull(event)
 	case EventAck:
@@ -358,8 +354,6 @@ func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
 	case worker.TaskStoreAppend:
 		r.handleStoreAppendResult(event.Worker)
-	case worker.TaskStoreReadCommitted:
-		r.handleStoreReadCommittedResult(event.Worker)
 	case worker.TaskStoreReadLog:
 		r.handleStoreReadLogResult(event.Worker)
 	case worker.TaskStoreCheckpoint:
@@ -428,7 +422,6 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			event.Future.Complete(Result{Err: err})
 			return
 		}
-		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
 		r.failPendingAppendWaiters(rc, ch.ErrStaleMeta)
 		rc.failPendingPullWaiters(ch.ErrStaleMeta)
 		r.clearPullCancelChannel(rc)
@@ -512,7 +505,6 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		state:            state,
 		store:            cs,
 		waiters:          make(map[ch.OpID]*Future),
-		fetchWaiters:     make(map[ch.OpID]struct{}),
 		pullWaiters:      make(map[ch.OpID]*pullWaiter),
 		appendTimings:    make(map[ch.OpID]appendTiming),
 		recentRecords:    newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes),
@@ -597,64 +589,6 @@ func (r *Reactor) handleAppend(event Event) {
 	rc.appendTimings[event.OpID] = appendTiming{mode: mode, enqueuedAt: req.enqueuedAt}
 	r.registerAppendCancelContext(rc, event.OpID, event.Context)
 	r.tryFlushAppend(rc, admittedAt)
-}
-
-func (r *Reactor) handleFetch(event Event) {
-	rc, err := r.lookup(event.Key)
-	if err != nil {
-		event.Future.Complete(Result{Err: err})
-		return
-	}
-	if event.Fetch.ExpectedChannelEpoch != 0 && event.Fetch.ExpectedChannelEpoch != rc.state.Epoch {
-		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
-		return
-	}
-	if event.Fetch.ExpectedLeaderEpoch != 0 && event.Fetch.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
-		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
-		return
-	}
-	decision := rc.state.BuildFetch(machine.FetchCommand{OpID: event.OpID, FromSeq: event.Fetch.FromSeq, Limit: event.Fetch.Limit, MaxBytes: event.Fetch.MaxBytes})
-	if decision.Err != nil {
-		event.Future.Complete(Result{Err: decision.Err})
-		return
-	}
-	if r.completeReplies(rc, decision.Replies, event.Future) {
-		return
-	}
-	if len(decision.Tasks) == 0 {
-		event.Future.Complete(Result{})
-		return
-	}
-	if err := rc.addFetchWaiter(event.OpID, event.Future); err != nil {
-		event.Future.Complete(Result{Err: err})
-		return
-	}
-	if err := r.submitStoreReadCommitted(context.Background(), event.Fetch.ChannelID, decision.Tasks[0]); err != nil {
-		rc.removeFetchWaiter(event.OpID)
-		event.Future.Complete(Result{Err: err})
-	}
-}
-
-func (r *Reactor) handleStoreReadCommittedResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
-	if err != nil {
-		return
-	}
-	readErr := result.Err
-	readResult := machine.ReadCommittedResult{Fence: result.Fence, Err: readErr}
-	if result.StoreReadCommitted == nil {
-		if readErr == nil {
-			readResult.Err = ch.ErrInvalidConfig
-		}
-	} else {
-		readResult.Messages = result.StoreReadCommitted.Messages
-		readResult.NextSeq = result.StoreReadCommitted.NextSeq
-	}
-	decision := rc.state.ApplyReadCommitted(readResult)
-	if r.completeReplies(rc, decision.Replies, nil) {
-		return
-	}
-	rc.completeStaleFetchIfWaiting(result.Fence.OpID)
 }
 
 func (r *Reactor) handleStoreAppendResult(result worker.Result) {

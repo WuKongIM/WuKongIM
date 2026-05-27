@@ -28,25 +28,6 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 	})
 }
 
-func (r *Reactor) submitStoreReadCommitted(ctx context.Context, channelID ch.ChannelID, task machine.Task) error {
-	if task.ReadCommitted == nil || r.cfg.Pools == nil {
-		return ch.ErrInvalidConfig
-	}
-	read := task.ReadCommitted
-	return r.cfg.Pools.Submit(ctx, worker.Task{
-		Kind:    worker.TaskStoreReadCommitted,
-		Fence:   task.Fence,
-		Context: ctx,
-		StoreReadCommitted: &worker.StoreReadCommittedTask{
-			ChannelID: channelID,
-			FromSeq:   read.FromSeq,
-			MaxSeq:    read.MaxSeq,
-			Limit:     read.Limit,
-			MaxBytes:  read.MaxBytes,
-		},
-	})
-}
-
 func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, fromOffset uint64, maxOffset uint64, maxBytes int) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
@@ -141,11 +122,9 @@ func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, i
 		case machine.ReplyKindAppend:
 			future := immediate
 			if future == nil && rc != nil {
-				if _, ok := rc.fetchWaiters[reply.OpID]; !ok {
-					future = rc.waiters[reply.OpID]
-					delete(rc.waiters, reply.OpID)
-					r.unregisterAppendCancelContext(rc, reply.OpID)
-				}
+				future = rc.waiters[reply.OpID]
+				delete(rc.waiters, reply.OpID)
+				r.unregisterAppendCancelContext(rc, reply.OpID)
 			}
 			if future != nil {
 				batch := ch.AppendBatchResult{Items: reply.AppendItems}
@@ -154,20 +133,6 @@ func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, i
 				}
 				r.observeAppendComplete(rc, reply.OpID)
 				future.Complete(Result{AppendBatch: batch, Err: reply.Err})
-				completed = true
-			}
-		case machine.ReplyKindFetch:
-			future := immediate
-			if future == nil && rc != nil {
-				if _, ok := rc.fetchWaiters[reply.OpID]; ok {
-					waiter := rc.waiters[reply.OpID]
-					future = waiter
-					delete(rc.waiters, reply.OpID)
-					delete(rc.fetchWaiters, reply.OpID)
-				}
-			}
-			if future != nil {
-				future.Complete(Result{Fetch: reply.Fetch, Err: reply.Err})
 				completed = true
 			}
 		}
@@ -190,20 +155,6 @@ func (rc *runtimeChannel) addWaiter(opID ch.OpID, future *Future) error {
 		return ch.ErrInvalidConfig
 	}
 	rc.waiters[opID] = future
-	return nil
-}
-
-func (rc *runtimeChannel) addFetchWaiter(opID ch.OpID, future *Future) error {
-	if err := rc.addWaiter(opID, future); err != nil {
-		return err
-	}
-	if rc == nil || future == nil {
-		return nil
-	}
-	if rc.fetchWaiters == nil {
-		rc.fetchWaiters = make(map[ch.OpID]struct{})
-	}
-	rc.fetchWaiters[opID] = struct{}{}
 	return nil
 }
 
@@ -274,48 +225,12 @@ func (r *Reactor) clearPullCancelChannel(rc *runtimeChannel) {
 	delete(r.pullCancelChannels, rc.state.Key)
 }
 
-func (rc *runtimeChannel) removeFetchWaiter(opID ch.OpID) *Future {
-	if rc == nil {
-		return nil
-	}
-	future := rc.waiters[opID]
-	delete(rc.waiters, opID)
-	delete(rc.fetchWaiters, opID)
-	return future
-}
-
-func (rc *runtimeChannel) completeStaleFetchIfWaiting(opID ch.OpID) {
-	if rc == nil {
-		return
-	}
-	if _, ok := rc.fetchWaiters[opID]; !ok {
-		return
-	}
-	future := rc.removeFetchWaiter(opID)
-	future.Complete(Result{Err: ch.ErrStaleMeta})
-}
-
-func (rc *runtimeChannel) failPendingFetchWaiters(err error) {
-	if rc == nil || len(rc.fetchWaiters) == 0 {
-		return
-	}
-	for opID := range rc.fetchWaiters {
-		future := rc.removeFetchWaiter(opID)
-		if future != nil {
-			future.Complete(Result{Err: err})
-		}
-	}
-}
-
 // failPendingAppendWaiters completes append waiters that are fenced by accepted metadata.
 func (r *Reactor) failPendingAppendWaiters(rc *runtimeChannel, err error) {
 	if r == nil || rc == nil {
 		return
 	}
 	for opID, future := range rc.waiters {
-		if _, ok := rc.fetchWaiters[opID]; ok {
-			continue
-		}
 		delete(rc.waiters, opID)
 		r.unregisterAppendCancelContext(rc, opID)
 		r.completeAppendFuture(rc, opID, future, Result{Err: err})
@@ -336,16 +251,9 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	for opID, future := range rc.waiters {
 		delete(rc.waiters, opID)
 		if future != nil {
-			if _, ok := rc.fetchWaiters[opID]; ok {
-				future.Complete(Result{Err: err})
-			} else {
-				r.unregisterAppendCancelContext(rc, opID)
-				r.completeAppendFuture(rc, opID, future, Result{Err: err})
-			}
+			r.unregisterAppendCancelContext(rc, opID)
+			r.completeAppendFuture(rc, opID, future, Result{Err: err})
 		}
-	}
-	for opID := range rc.fetchWaiters {
-		delete(rc.fetchWaiters, opID)
 	}
 	rc.appendQ.clear()
 	rc.appendInflight = nil
@@ -640,9 +548,6 @@ func (r *Reactor) cancelAppendWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr
 		}
 		r.completeAppendFuture(rc, opID, future, Result{Err: cancelErr})
 		return true
-	}
-	if _, isFetch := rc.fetchWaiters[opID]; isFetch {
-		return false
 	}
 	future := rc.waiters[opID]
 	if future != nil {
