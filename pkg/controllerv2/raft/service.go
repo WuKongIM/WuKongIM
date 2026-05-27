@@ -71,7 +71,8 @@ type proposalRequest struct {
 }
 
 type trackedProposal struct {
-	resp chan error
+	resp  chan error
+	probe bool
 }
 
 type runStartupState struct {
