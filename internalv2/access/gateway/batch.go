@@ -13,11 +13,6 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		return nil
 	}
 
-	batcher, ok := h.messages.(MessageBatchUsecase)
-	if !ok {
-		return ErrMessageBatchUsecaseRequired
-	}
-
 	contexts := make([]coregateway.Context, len(items))
 	results := make([]message.SendResult, len(items))
 	validIndexes := make([]int, 0, len(items))
@@ -53,16 +48,23 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		validItems = append(validItems, message.SendBatchItem{Context: reqCtx, Command: cmd})
 	}
 
-	batchResults := batcher.SendBatch(validItems)
-	if len(batchResults) != len(validItems) {
-		return ErrSendBatchResultCountMismatch
-	}
-	for j, index := range validIndexes {
-		result := batchResults[j].Result
-		if batchResults[j].Err != nil {
-			result.Reason = reasonForError(batchResults[j].Err)
+	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
+		batchResults := batcher.SendBatch(validItems)
+		if len(batchResults) != len(validItems) {
+			return ErrSendBatchResultCountMismatch
 		}
-		results[index] = result
+		for j, index := range validIndexes {
+			result := batchResults[j].Result
+			if batchResults[j].Err != nil {
+				result.Reason = reasonForError(batchResults[j].Err)
+			}
+			results[index] = result
+		}
+	} else {
+		for j, index := range validIndexes {
+			item := validItems[j]
+			results[index] = h.sendOne(item.Context, item.Command)
+		}
 	}
 
 	for i, item := range items {
