@@ -105,6 +105,33 @@ func TestClusterV2ThreeNodeFirstChannelAppendEnsuresMeta(t *testing.T) {
 	}
 }
 
+func TestClusterV2ThreeNodeChannelAppendReplicatesToAllNodes(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "room-replicate-all", Type: 1}
+	payload := []byte("replicated")
+	h := newThreeNodeHarness(t)
+	h.WithEnsuredChannelMeta()
+	h.Start(t)
+	t.Cleanup(func() { h.Stop(t) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	res, err := h.Node(2).AppendChannel(ctx, channelv2.AppendRequest{
+		ChannelID:  channelID,
+		CommitMode: channelv2.CommitModeQuorum,
+		Message:    channelv2.Message{MessageID: 1004, Payload: payload},
+	})
+	if err != nil {
+		t.Fatalf("AppendChannel(replicate all) error = %v", err)
+	}
+	if res.MessageSeq != 1 {
+		t.Fatalf("AppendChannel(replicate all) MessageSeq = %d, want 1", res.MessageSeq)
+	}
+
+	for _, nodeID := range []uint64{1, 2, 3} {
+		h.RequireChannelMessage(t, nodeID, channelID, res.MessageSeq, 1004, payload)
+	}
+}
+
 func TestClusterV2ThreeNodeChannelAppendForwardsFromNonLeader(t *testing.T) {
 	channelID := channelv2.ChannelID{ID: "room-forward", Type: 1}
 	h := newThreeNodeHarness(t)
@@ -289,6 +316,29 @@ func (h *threeNodeHarness) WaitChannelCommitted(t testing.TB, nodeID uint64, id 
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not commit channel %v seq %d", nodeID, id, seq)
+}
+
+func (h *threeNodeHarness) RequireChannelMessage(t testing.TB, nodeID uint64, id channelv2.ChannelID, seq uint64, messageID uint64, payload []byte) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var lastErr error
+	var lastMessages []channelv2.Message
+	for time.Now().Before(deadline) {
+		res, err := h.nodes[nodeID].FetchChannel(context.Background(), channelv2.FetchRequest{ChannelID: id, FromSeq: seq, Limit: 1, MaxBytes: 1024})
+		if err == nil && res.CommittedSeq >= seq && len(res.Messages) > 0 {
+			msg := res.Messages[0]
+			if msg.MessageSeq == seq && msg.MessageID == messageID && bytes.Equal(msg.Payload, payload) {
+				return
+			}
+			t.Fatalf("node %d fetched message = %#v, want seq=%d messageID=%d payload=%q", nodeID, msg, seq, messageID, payload)
+		}
+		lastErr = err
+		if err == nil {
+			lastMessages = append([]channelv2.Message(nil), res.Messages...)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("node %d did not replicate channel %v seq %d; lastErr=%v lastMessages=%#v", nodeID, id, seq, lastErr, lastMessages)
 }
 
 func (h *threeNodeHarness) controlSnapshot() control.Snapshot {
