@@ -20,6 +20,7 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	channelRuntimeMetaPrimaryRegistered := false
 	channelMigrationPrimaryRegistered := false
 	channelMigrationTerminalIndexRegistered := false
+	hashSlotMigrationPrimaryRegistered := false
 	subscriberPrimaryRegistered := false
 	conversationActiveIndexRegistered := false
 	cmdConversationActiveIndexRegistered := false
@@ -60,6 +61,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 				}
 			}
 		}
+		if table.ID == TableIDHashSlotMigration &&
+			table.Primary.ID == hashSlotMigrationPrimaryIndexID &&
+			table.Primary.Name == "pk_hashslot_migration" &&
+			len(table.Primary.Columns) == 1 {
+			hashSlotMigrationPrimaryRegistered = true
+		}
 		if table.ID == TableIDSubscriber &&
 			table.Primary.ID == subscriberPrimaryIndexID &&
 			table.Primary.Name == "pk_subscriber" &&
@@ -95,6 +102,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	}
 	if !channelMigrationTerminalIndexRegistered {
 		t.Fatalf("channel migration table missing terminal index %d", channelMigrationTerminalIndexID)
+	}
+	if !hashSlotMigrationPrimaryRegistered {
+		t.Fatalf("hash-slot migration table missing typed primary index")
 	}
 	if !subscriberPrimaryRegistered {
 		t.Fatalf("subscriber table missing typed primary index %d", subscriberPrimaryIndexID)

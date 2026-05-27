@@ -3,6 +3,7 @@ package meta
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -35,12 +36,15 @@ type TableSpec[R any] struct {
 
 // PrimarySpec describes the primary key and row family for a table.
 type PrimarySpec[R any] struct {
-	IndexID  uint16
+	IndexID uint16
+	// FamilyID is the primary family suffix for normal table-runtime row keys.
 	FamilyID uint16
 	Name     string
 	Columns  []uint16
 	Layout   KeyLayout
-	Key      func(R) KeyParts
+	// OmitFamilySuffix preserves legacy row keys that encode only primary key parts.
+	OmitFamilySuffix bool
+	Key              func(R) KeyParts
 }
 
 // IndexSpec describes one secondary index.
@@ -668,7 +672,7 @@ func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, af
 		if err := contextErr(ctx); err != nil {
 			return nil, nil, false, err
 		}
-		pk, ok := decodeTablePrimaryRowKey(basePrefix, iter.Key(), t.spec.Primary.Layout, t.spec.Primary.FamilyID)
+		pk, ok := t.decodePrimaryRowKey(basePrefix, iter.Key())
 		if !ok || !keyPartsHasPrefix(pk, prefix) {
 			if strictMalformed {
 				return nil, nil, false, dberrors.ErrCorruptValue
@@ -862,7 +866,7 @@ func (t Table[R]) stageUniqueIndexChecks(ctx context.Context, db *MetaDB, state 
 			if !overlay.exists {
 				continue
 			}
-			overlayPK, ok := decodeTablePrimaryRowKey(rowPrefix, []byte(primaryKey), t.spec.Primary.Layout, t.spec.Primary.FamilyID)
+			overlayPK, ok := t.decodePrimaryRowKey(rowPrefix, []byte(primaryKey))
 			if !ok || overlayPK.Equal(pk) {
 				continue
 			}
@@ -961,7 +965,28 @@ func (t Table[R]) primaryRowKey(hashSlot HashSlot, pk KeyParts) ([]byte, error) 
 	if err := t.validatePrimaryKey(pk); err != nil {
 		return nil, err
 	}
+	if t.spec.Primary.OmitFamilySuffix {
+		key := encodeRowPrefix(hashSlot, t.spec.ID)
+		return encodeKeyParts(key, pk)
+	}
 	return encodeTablePrimaryRowKey(hashSlot, t.spec.ID, pk, t.spec.Primary.FamilyID)
+}
+
+func (t Table[R]) decodePrimaryRowKey(prefix []byte, key []byte) (KeyParts, bool) {
+	if !bytes.HasPrefix(key, prefix) {
+		return nil, false
+	}
+	parts, rest, err := decodeKeyParts(key[len(prefix):], t.spec.Primary.Layout)
+	if err != nil {
+		return nil, false
+	}
+	if t.spec.Primary.OmitFamilySuffix {
+		return parts, len(rest) == 0
+	}
+	if len(rest) != 2 || binary.BigEndian.Uint16(rest) != t.spec.Primary.FamilyID {
+		return nil, false
+	}
+	return parts, true
 }
 
 func (t Table[R]) validatePrimaryKey(pk KeyParts) error {

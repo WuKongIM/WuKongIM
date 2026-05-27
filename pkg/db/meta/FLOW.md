@@ -36,9 +36,10 @@ Current flow:
    indexes while keeping the active-task index custom because its legacy value
    stores the active `task_id`; guarded task/runtime-meta mutations keep
    read-your-writes overlays before committing both records atomically.
-13. Hash-slot migration state, applied-delta dedup rows, and outbox rows stay
-   under the hash-slot partition; typed values repeat the hash slot only for
-   self-description.
+13. Hash-slot migration state uses the table runtime with a legacy primary key
+   that omits the family suffix; applied-delta dedup rows and outbox rows stay
+   as custom records under the same hash-slot partition, and typed values repeat
+   the hash slot only for self-description.
 14. `Batch` stages typed operations, locks all touched hash slots in sorted
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
