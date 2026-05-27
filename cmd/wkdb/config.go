@@ -60,9 +60,19 @@ func resolveCLIConfig(flags cliFlags, env []string) (cliConfig, error) {
 	messagePath := resolveStoragePath(flags.messagePath, flagDataDir, values["WK_STORAGE_CHANNEL_LOG_PATH"], dataDir, "channellog")
 	hashSlotCount := flags.hashSlotCount
 	if hashSlotCount == 0 {
-		hashSlotCount = parseHashSlotCount(values)
+		var err error
+		hashSlotCount, err = parseHashSlotCount(values)
+		if err != nil {
+			return cliConfig{}, err
+		}
 	}
 	format := firstNonEmpty(flags.format, "table")
+	if !validFormat(format) {
+		return cliConfig{}, fmt.Errorf("unknown format %q", format)
+	}
+	if metaPath == "" && messagePath == "" {
+		return cliConfig{}, fmt.Errorf("storage path required: set --data-dir, --meta-path, --message-path, or WK_NODE_DATA_DIR")
+	}
 
 	return cliConfig{
 		options: inspect.Options{
@@ -90,6 +100,15 @@ func resolveStoragePath(flagPath, flagDataDir, configuredPath, dataDir, name str
 		return filepath.Join(dataDir, name)
 	}
 	return ""
+}
+
+func validFormat(format string) bool {
+	switch format {
+	case "table", "json", "jsonl":
+		return true
+	default:
+		return false
+	}
 }
 
 func readKeyValueFile(path string) (map[string]string, error) {
@@ -131,16 +150,17 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func parseHashSlotCount(values map[string]string) uint16 {
+func parseHashSlotCount(values map[string]string) (uint16, error) {
 	for _, key := range []string{"WK_CLUSTER_HASH_SLOT_COUNT", "WK_CLUSTER_INITIAL_SLOT_COUNT", "WK_CLUSTER_SLOT_COUNT"} {
 		raw := strings.TrimSpace(values[key])
 		if raw == "" {
 			continue
 		}
 		n, err := strconv.ParseUint(raw, 10, 16)
-		if err == nil {
-			return uint16(n)
+		if err != nil {
+			return 0, fmt.Errorf("%s must be an unsigned 16-bit integer: %w", key, err)
 		}
+		return uint16(n), nil
 	}
-	return 0
+	return 0, nil
 }
