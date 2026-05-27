@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,17 +14,21 @@ import (
 func TestLoadConfigDefaultValues(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	chdir(t, t.TempDir())
+	dir := t.TempDir()
+	t.Setenv("WK_NODE_ID", "1")
+	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "node-1"))
+	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7001")
 
 	cfg, err := loadConfig(nil)
 	if err != nil {
 		t.Fatalf("loadConfig() error = %v", err)
 	}
 
-	if cfg.NodeID != 0 || cfg.Cluster.NodeID != 0 {
-		t.Fatalf("NodeID = %d/%d, want zero values", cfg.NodeID, cfg.Cluster.NodeID)
+	if cfg.NodeID != 1 || cfg.Cluster.NodeID != 1 {
+		t.Fatalf("NodeID = %d/%d, want 1", cfg.NodeID, cfg.Cluster.NodeID)
 	}
-	if cfg.DataDir != "" || cfg.Cluster.DataDir != "" {
-		t.Fatalf("DataDir = %q/%q, want empty", cfg.DataDir, cfg.Cluster.DataDir)
+	if cfg.DataDir != filepath.Join(dir, "node-1") || cfg.Cluster.DataDir != filepath.Join(dir, "node-1") {
+		t.Fatalf("DataDir = %q/%q", cfg.DataDir, cfg.Cluster.DataDir)
 	}
 	assertListeners(t, cfg.Gateway.Listeners, []gateway.ListenerOptions{
 		binding.TCPWKProto("tcp-wkproto", "0.0.0.0:5100"),
@@ -37,6 +42,7 @@ func TestLoadConfigDefaultPathSearch(t *testing.T) {
 	chdir(t, dir)
 	writeConf(t, filepath.Join(dir, "conf", "wukongim.conf"),
 		"WK_NODE_ID=7",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-7"),
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7007",
 	)
 
@@ -136,6 +142,9 @@ func TestLoadConfigJSONListeners(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "wukongim.conf")
 	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
 		`WK_GATEWAY_LISTENERS=[{"name":"tcp-test","network":"tcp","address":"127.0.0.1:5101","transport":"gnet","protocol":"wkproto"}]`,
 	)
 
@@ -151,23 +160,75 @@ func TestLoadConfigJSONListeners(t *testing.T) {
 
 func TestLoadConfigRejectsBadValues(t *testing.T) {
 	cases := []struct {
-		name string
-		line string
+		name    string
+		line    string
+		wantKey string
 	}{
-		{name: "node id", line: "WK_NODE_ID=bad"},
-		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1"},
-		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json"},
-		{name: "send timeout", line: "WK_GATEWAY_SEND_TIMEOUT=soon"},
+		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
+		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
+		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
+		{name: "send timeout", line: "WK_GATEWAY_SEND_TIMEOUT=soon", wantKey: "WK_GATEWAY_SEND_TIMEOUT"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)
 			dir := t.TempDir()
 			path := filepath.Join(dir, "wukongim.conf")
-			writeConf(t, path, tc.line)
+			lines := requiredConfigLines(dir)
+			key := strings.SplitN(tc.line, "=", 2)[0]
+			replaced := false
+			for i, line := range lines {
+				if strings.HasPrefix(line, key+"=") {
+					lines[i] = tc.line
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
+				lines = append(lines, tc.line)
+			}
+			writeConf(t, path, lines...)
 
-			if _, err := loadConfig([]string{"-config", path}); err == nil {
+			_, err := loadConfig([]string{"-config", path})
+			if err == nil {
 				t.Fatalf("loadConfig() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tc.wantKey) {
+				t.Fatalf("loadConfig() error = %v, want key %s", err, tc.wantKey)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsMissingRequiredValues(t *testing.T) {
+	cases := []struct {
+		name    string
+		wantKey string
+	}{
+		{name: "node id", wantKey: "WK_NODE_ID"},
+		{name: "data dir", wantKey: "WK_NODE_DATA_DIR"},
+		{name: "cluster listen addr", wantKey: "WK_CLUSTER_LISTEN_ADDR"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			unsetLoadConfigEnv(t)
+			dir := t.TempDir()
+			path := filepath.Join(dir, "wukongim.conf")
+			lines := requiredConfigLines(dir)
+			filtered := lines[:0]
+			for _, line := range lines {
+				if !strings.HasPrefix(line, tc.wantKey+"=") {
+					filtered = append(filtered, line)
+				}
+			}
+			writeConf(t, path, filtered...)
+
+			_, err := loadConfig([]string{"-config", path})
+			if err == nil {
+				t.Fatalf("loadConfig() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tc.wantKey) {
+				t.Fatalf("loadConfig() error = %v, want key %s", err, tc.wantKey)
 			}
 		})
 	}
@@ -182,6 +243,14 @@ func assertListeners(t *testing.T, got, want []gateway.ListenerOptions) {
 		if got[i] != want[i] {
 			t.Fatalf("listener[%d] = %#v, want %#v", i, got[i], want[i])
 		}
+	}
+}
+
+func requiredConfigLines(dir string) []string {
+	return []string{
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
 	}
 }
 
