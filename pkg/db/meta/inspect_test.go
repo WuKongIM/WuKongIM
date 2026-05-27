@@ -8,6 +8,30 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
+func TestInspectTablesIncludesRegisteredSchemas(t *testing.T) {
+	got := InspectTables()
+	names := make(map[string]bool, len(got))
+	for _, table := range got {
+		names[table.Name] = true
+	}
+	for _, name := range []string{
+		"user",
+		"device",
+		"channel",
+		"channel_runtime_meta",
+		"subscriber",
+		"conversation",
+		"cmd_conversation",
+		"plugin_binding",
+		"channel_migration",
+		"hashslot_migration",
+	} {
+		if !names[name] {
+			t.Fatalf("InspectTables() missing %q; got %+v", name, got)
+		}
+	}
+}
+
 func TestInspectScanUserByHashSlot(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -112,6 +136,217 @@ func TestInspectScanUserLocalFilteredScanContinuesPastFilteredRows(t *testing.T)
 	}
 	if got.ScannedRows != 4 {
 		t.Fatalf("ScannedRows = %d, want 4", got.ScannedRows)
+	}
+}
+
+func TestInspectScanChannelByFilter(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	channel := Channel{
+		ChannelID:                 "g1",
+		ChannelType:               2,
+		Ban:                       1,
+		Disband:                   0,
+		SendBan:                   1,
+		AllowStranger:             1,
+		SubscriberMutationVersion: 42,
+	}
+	if err := store.db.HashSlot(7).UpsertChannel(ctx, channel); err != nil {
+		t.Fatalf("UpsertChannel(): %v", err)
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "channel",
+		HashSlot:    7,
+		HashSlotSet: true,
+		Filters:     map[string]any{"channel_id": "g1"},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	row := got.Rows[0]
+	if row["channel_id"] != "g1" || row["channel_type"] != int64(2) || row["subscriber_mutation_version"] != uint64(42) {
+		t.Fatalf("row = %+v, want channel fields", row)
+	}
+}
+
+func TestInspectScanDeviceByUID(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	device := Device{UID: "u-device", DeviceFlag: 3, Token: "device-token", DeviceLevel: 9}
+	if err := store.db.HashSlot(5).UpsertDevice(ctx, device); err != nil {
+		t.Fatalf("UpsertDevice(): %v", err)
+	}
+
+	got, err := InspectScan(ctx, store.db, InspectScanRequest{
+		Table:       "device",
+		HashSlot:    5,
+		HashSlotSet: true,
+		Filters:     map[string]any{"uid": "u-device"},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("InspectScan(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	row := got.Rows[0]
+	if row["device_flag"] != int64(3) || row["token"] != "device-token" || row["device_level"] != int64(9) {
+		t.Fatalf("row = %+v, want device fields", row)
+	}
+}
+
+func TestInspectScanRemainingTablesSmoke(t *testing.T) {
+	tests := []struct {
+		name   string
+		table  string
+		slot   HashSlot
+		seed   func(context.Context, *Shard) error
+		assert func(*testing.T, InspectRow)
+	}{
+		{
+			name:  "subscriber",
+			table: "subscriber",
+			slot:  11,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return subscriberTable.Upsert(ctx, shard, Subscriber{ChannelID: "sub", ChannelType: 2, UID: "u-sub"})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "sub" || row["channel_type"] != int64(2) || row["uid"] != "u-sub" {
+					t.Fatalf("subscriber row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "conversation",
+			table: "conversation",
+			slot:  12,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return conversationTable.Upsert(ctx, shard, UserConversationState{UID: "u-conv", ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["uid"] != "u-conv" || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) {
+					t.Fatalf("conversation row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "cmd_conversation",
+			table: "cmd_conversation",
+			slot:  13,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return cmdConversationTable.Upsert(ctx, shard, CMDConversationState{UID: "u-cmd", ChannelID: "cmd", ChannelType: 2, ReadSeq: 4, DeletedToSeq: 1, ActiveAt: 20, UpdatedAt: 21})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["uid"] != "u-cmd" || row["read_seq"] != uint64(4) || row["active_at"] != int64(20) {
+					t.Fatalf("cmd conversation row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "plugin_binding",
+			table: "plugin_binding",
+			slot:  14,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return shard.BindPluginUser(ctx, PluginUserBinding{UID: "u-plugin", PluginNo: "p1", CreatedAtMS: 100, UpdatedAtMS: 101})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["uid"] != "u-plugin" || row["plugin_no"] != "p1" || row["created_at_ms"] != int64(100) {
+					t.Fatalf("plugin binding row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "channel_runtime_meta",
+			table: "channel_runtime_meta",
+			slot:  15,
+			seed: func(ctx context.Context, shard *Shard) error {
+				_, err := shard.UpsertChannelRuntimeMeta(ctx, ChannelRuntimeMeta{ChannelID: "rt", ChannelType: 2, ChannelEpoch: 5, LeaderEpoch: 6, Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1})
+				return err
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "rt" || row["channel_epoch"] != uint64(5) || row["leader"] != uint64(1) {
+					t.Fatalf("runtime meta row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "channel_migration",
+			table: "channel_migration",
+			slot:  16,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return shard.CreateChannelMigrationTask(ctx, ChannelMigrationTask{
+					TaskID:        "task1",
+					Kind:          ChannelMigrationKindLeaderTransfer,
+					Status:        ChannelMigrationStatusPending,
+					Phase:         ChannelMigrationPhaseValidate,
+					ChannelID:     "mig",
+					ChannelType:   2,
+					SourceNode:    1,
+					TargetNode:    2,
+					DesiredLeader: 2,
+					CreatedAtMS:   10,
+					UpdatedAtMS:   11,
+				})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "mig" || row["task_id"] != "task1" || row["target_node"] != uint64(2) {
+					t.Fatalf("channel migration row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "hashslot_migration",
+			table: "hashslot_migration",
+			slot:  17,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return shard.UpsertHashSlotMigrationState(ctx, HashSlotMigrationState{HashSlot: 17, SourceSlot: 1, TargetSlot: 2, Phase: 1, FenceIndex: 3, LastOutboxIndex: 4, LastAckedIndex: 2})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["hash_slot"] != HashSlot(17) || row["source_slot"] != uint64(1) || row["last_acked_index"] != uint64(2) {
+					t.Fatalf("hashslot migration row = %+v", row)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := openTestMetaStore(t)
+			defer store.close(t)
+			ctx := context.Background()
+			if err := tt.seed(ctx, store.db.HashSlot(tt.slot)); err != nil {
+				t.Fatalf("seed(): %v", err)
+			}
+
+			got, err := InspectScan(ctx, store.db, InspectScanRequest{
+				Table:       tt.table,
+				HashSlot:    tt.slot,
+				HashSlotSet: true,
+				Limit:       10,
+			})
+			if err != nil {
+				t.Fatalf("InspectScan(): %v", err)
+			}
+			if len(got.Rows) != 1 {
+				t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+			}
+			tt.assert(t, got.Rows[0])
+		})
 	}
 }
 

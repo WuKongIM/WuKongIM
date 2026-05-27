@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
 // InspectRow contains one decoded metadata row.
@@ -52,6 +53,11 @@ type InspectScanResult struct {
 	ScannedHashSlots []HashSlot
 }
 
+// InspectTables returns the registered metadata table schemas for read-only discovery.
+func InspectTables() []schema.Table {
+	return Tables()
+}
+
 // InspectScan scans metadata rows for read-only inspection.
 func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (InspectScanResult, error) {
 	if err := inspectCheckDB(db); err != nil {
@@ -60,9 +66,6 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	if req.Limit <= 0 {
 		req.Limit = 100
 	}
-	if req.Table != "user" {
-		return InspectScanResult{}, fmt.Errorf("%w: unknown inspect table %q", dberrors.ErrInvalidArgument, req.Table)
-	}
 	if req.HashSlotSet && req.After != nil && req.After.HashSlot != req.HashSlot {
 		return InspectScanResult{}, fmt.Errorf("%w: inspect cursor hash slot mismatch", dberrors.ErrInvalidArgument)
 	}
@@ -70,7 +73,35 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	if err != nil {
 		return InspectScanResult{}, err
 	}
-	afterUID, err := inspectUserAfterUID(req.After)
+
+	switch req.Table {
+	case "user":
+		return inspectScanTable(ctx, db, req, slots, userTable, inspectUserRow)
+	case "device":
+		return inspectScanTable(ctx, db, req, slots, deviceTable, inspectDeviceRow)
+	case "channel":
+		return inspectScanTable(ctx, db, req, slots, channelTable, inspectChannelRow)
+	case "channel_runtime_meta":
+		return inspectScanTable(ctx, db, req, slots, channelRuntimeMetaTable, inspectChannelRuntimeMetaRow)
+	case "subscriber":
+		return inspectScanTable(ctx, db, req, slots, subscriberTable, inspectSubscriberRow)
+	case "conversation":
+		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
+	case "cmd_conversation":
+		return inspectScanTable(ctx, db, req, slots, cmdConversationTable, inspectCMDConversationRow)
+	case "plugin_binding":
+		return inspectScanTable(ctx, db, req, slots, pluginBindingTable, inspectPluginBindingRow)
+	case "channel_migration":
+		return inspectScanTable(ctx, db, req, slots, channelMigrationTable, inspectChannelMigrationRow)
+	case "hashslot_migration":
+		return inspectScanTable(ctx, db, req, slots, hashSlotMigrationTable, inspectHashSlotMigrationRow)
+	default:
+		return InspectScanResult{}, fmt.Errorf("%w: unknown inspect table %q", dberrors.ErrInvalidArgument, req.Table)
+	}
+}
+
+func inspectScanTable[R any](ctx context.Context, db *MetaDB, req InspectScanRequest, slots []HashSlot, table Table[R], rowFn func(R) InspectRow) (InspectScanResult, error) {
+	afterPrimary, err := inspectCursorPrimary(req.Table, req.After, table.spec.Primary.Layout)
 	if err != nil {
 		return InspectScanResult{}, err
 	}
@@ -85,11 +116,11 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 			result.Next = &InspectCursor{HashSlot: slot}
 			break
 		}
-		cursorUID := ""
+		var after KeyParts
 		if req.After != nil && req.After.HashSlot == slot {
-			cursorUID = afterUID
+			after = afterPrimary
 		}
-		scannedSlot, done, nextUID, err := inspectScanUserSlot(ctx, db.HashSlot(slot), cursorUID, req.Limit, req.Filters, &result)
+		scannedSlot, done, next, err := inspectScanTableSlot(ctx, db.HashSlot(slot), table, after, req.Limit, req.Filters, rowFn, &result)
 		if err != nil {
 			return InspectScanResult{}, err
 		}
@@ -98,7 +129,7 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		}
 		if !done {
 			result.Done = false
-			result.Next = &InspectCursor{HashSlot: slot, Primary: []any{nextUID}}
+			result.Next = &InspectCursor{HashSlot: slot, Primary: inspectCursorValues(next)}
 			break
 		}
 	}
@@ -137,47 +168,98 @@ func inspectCheckDB(db *MetaDB) error {
 	return iter.Close()
 }
 
-func inspectUserAfterUID(cursor *InspectCursor) (string, error) {
+func inspectCursorPrimary(tableName string, cursor *InspectCursor, layout KeyLayout) (KeyParts, error) {
 	if cursor == nil || len(cursor.Primary) == 0 {
-		return "", nil
+		return nil, nil
 	}
-	if len(cursor.Primary) != 1 {
-		return "", fmt.Errorf("%w: invalid user inspect cursor", dberrors.ErrInvalidArgument)
+	if len(cursor.Primary) != len(layout) {
+		return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
 	}
-	uid, ok := cursor.Primary[0].(string)
-	if !ok {
-		return "", fmt.Errorf("%w: invalid user inspect cursor", dberrors.ErrInvalidArgument)
+	parts := make(KeyParts, 0, len(layout))
+	for i, kind := range layout {
+		value := cursor.Primary[i]
+		switch kind {
+		case KeyString:
+			part, ok := value.(string)
+			if !ok || part == "" {
+				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+			}
+			parts = append(parts, String(part))
+		case KeyInt64Ordered:
+			part, ok := value.(int64)
+			if !ok {
+				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+			}
+			parts = append(parts, Int64Ordered(part))
+		case KeyInt64Desc:
+			part, ok := value.(int64)
+			if !ok {
+				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+			}
+			parts = append(parts, Int64Desc(part))
+		case KeyUint64:
+			part, ok := value.(uint64)
+			if !ok {
+				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+			}
+			parts = append(parts, Uint64(part))
+		case KeyUint8:
+			part, ok := value.(uint8)
+			if !ok {
+				return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+			}
+			parts = append(parts, Uint8(part))
+		default:
+			return nil, fmt.Errorf("%w: invalid %s inspect cursor", dberrors.ErrInvalidArgument, tableName)
+		}
 	}
-	if uid == "" {
-		return "", fmt.Errorf("%w: invalid user inspect cursor", dberrors.ErrInvalidArgument)
-	}
-	return uid, nil
+	return parts, nil
 }
 
-func inspectScanUserSlot(ctx context.Context, shard *Shard, afterUID string, targetRows int, filters map[string]any, result *InspectScanResult) (bool, bool, string, error) {
-	cursorUID := afterUID
+func inspectCursorValues(parts KeyParts) []any {
+	if len(parts) == 0 {
+		return nil
+	}
+	values := make([]any, 0, len(parts))
+	for _, part := range parts {
+		switch part.Kind {
+		case KeyString:
+			values = append(values, part.S)
+		case KeyInt64Ordered, KeyInt64Desc:
+			values = append(values, part.I64)
+		case KeyUint64:
+			values = append(values, part.U64)
+		case KeyUint8:
+			values = append(values, part.U8)
+		}
+	}
+	return values
+}
+
+func inspectScanTableSlot[R any](ctx context.Context, shard *Shard, table Table[R], after KeyParts, targetRows int, filters map[string]any, rowFn func(R) InspectRow, result *InspectScanResult) (bool, bool, KeyParts, error) {
+	cursor := append(KeyParts(nil), after...)
 	for len(result.Rows) < targetRows {
 		pageLimit := targetRows - len(result.Rows)
-		users, cursor, done, err := shard.ListUsersPage(ctx, cursorUID, pageLimit)
+		rows, next, done, err := table.ScanPrimary(ctx, shard, cursor, pageLimit)
 		if err != nil {
-			return false, false, "", err
+			return false, false, nil, err
 		}
-		result.ScannedRows += len(users)
-		for _, user := range users {
-			row := inspectUserRow(user)
+		result.ScannedRows += len(rows)
+		for _, typedRow := range rows {
+			row := rowFn(typedRow)
 			if inspectRowMatches(row, filters) {
 				result.Rows = append(result.Rows, row)
 			}
 		}
 		if done {
-			return true, true, "", nil
+			return true, true, nil, nil
 		}
-		if cursor == "" || cursor == cursorUID {
-			return true, false, "", fmt.Errorf("%w: non-advancing user inspect cursor", dberrors.ErrCorruptState)
+		if len(next) == 0 || next.Equal(cursor) {
+			return true, false, nil, fmt.Errorf("%w: non-advancing %s inspect cursor", dberrors.ErrCorruptState, table.spec.Name)
 		}
-		cursorUID = cursor
+		cursor = append(KeyParts(nil), next...)
 	}
-	return true, false, cursorUID, nil
+	return true, false, cursor, nil
 }
 
 func inspectUserRow(user User) InspectRow {
@@ -186,6 +268,122 @@ func inspectUserRow(user User) InspectRow {
 		"token":        user.Token,
 		"device_flag":  user.DeviceFlag,
 		"device_level": user.DeviceLevel,
+	}
+}
+
+func inspectDeviceRow(device Device) InspectRow {
+	return InspectRow{
+		"uid":          device.UID,
+		"device_flag":  device.DeviceFlag,
+		"token":        device.Token,
+		"device_level": device.DeviceLevel,
+	}
+}
+
+func inspectChannelRow(channel Channel) InspectRow {
+	return InspectRow{
+		"channel_id":                  channel.ChannelID,
+		"channel_type":                channel.ChannelType,
+		"ban":                         channel.Ban,
+		"disband":                     channel.Disband,
+		"send_ban":                    channel.SendBan,
+		"allow_stranger":              channel.AllowStranger,
+		"subscriber_mutation_version": channel.SubscriberMutationVersion,
+	}
+}
+
+func inspectChannelRuntimeMetaRow(meta ChannelRuntimeMeta) InspectRow {
+	return InspectRow{
+		"channel_id":              meta.ChannelID,
+		"channel_type":            meta.ChannelType,
+		"channel_epoch":           meta.ChannelEpoch,
+		"leader_epoch":            meta.LeaderEpoch,
+		"route_generation":        meta.RouteGeneration,
+		"replicas":                meta.Replicas,
+		"isr":                     meta.ISR,
+		"leader":                  meta.Leader,
+		"min_isr":                 meta.MinISR,
+		"status":                  meta.Status,
+		"features":                meta.Features,
+		"lease_until_ms":          meta.LeaseUntilMS,
+		"retention_through_seq":   meta.RetentionThroughSeq,
+		"retention_updated_at_ms": meta.RetentionUpdatedAtMS,
+		"write_fence_token":       meta.WriteFenceToken,
+		"write_fence_version":     meta.WriteFenceVersion,
+		"write_fence_reason":      meta.WriteFenceReason,
+		"write_fence_until_ms":    meta.WriteFenceUntilMS,
+	}
+}
+
+func inspectSubscriberRow(subscriber Subscriber) InspectRow {
+	return InspectRow{
+		"channel_id":   subscriber.ChannelID,
+		"channel_type": subscriber.ChannelType,
+		"uid":          subscriber.UID,
+	}
+}
+
+func inspectConversationRow(state UserConversationState) InspectRow {
+	return InspectRow{
+		"uid":            state.UID,
+		"channel_id":     state.ChannelID,
+		"channel_type":   state.ChannelType,
+		"read_seq":       state.ReadSeq,
+		"deleted_to_seq": state.DeletedToSeq,
+		"active_at":      state.ActiveAt,
+		"updated_at":     state.UpdatedAt,
+	}
+}
+
+func inspectCMDConversationRow(state CMDConversationState) InspectRow {
+	return InspectRow{
+		"uid":            state.UID,
+		"channel_id":     state.ChannelID,
+		"channel_type":   state.ChannelType,
+		"read_seq":       state.ReadSeq,
+		"deleted_to_seq": state.DeletedToSeq,
+		"active_at":      state.ActiveAt,
+		"updated_at":     state.UpdatedAt,
+	}
+}
+
+func inspectPluginBindingRow(binding PluginUserBinding) InspectRow {
+	return InspectRow{
+		"uid":           binding.UID,
+		"plugin_no":     binding.PluginNo,
+		"created_at_ms": binding.CreatedAtMS,
+		"updated_at_ms": binding.UpdatedAtMS,
+	}
+}
+
+func inspectChannelMigrationRow(task ChannelMigrationTask) InspectRow {
+	return InspectRow{
+		"channel_id":           task.ChannelID,
+		"channel_type":         task.ChannelType,
+		"task_id":              task.TaskID,
+		"kind":                 uint8(task.Kind),
+		"status":               uint8(task.Status),
+		"phase":                uint8(task.Phase),
+		"source_node":          task.SourceNode,
+		"target_node":          task.TargetNode,
+		"desired_leader":       task.DesiredLeader,
+		"owner_node_id":        task.OwnerNodeID,
+		"owner_lease_until_ms": task.OwnerLeaseUntilMS,
+		"created_at_ms":        task.CreatedAtMS,
+		"updated_at_ms":        task.UpdatedAtMS,
+		"completed_at_ms":      task.CompletedAtMS,
+	}
+}
+
+func inspectHashSlotMigrationRow(state HashSlotMigrationState) InspectRow {
+	return InspectRow{
+		"hash_slot":         state.HashSlot,
+		"source_slot":       state.SourceSlot,
+		"target_slot":       state.TargetSlot,
+		"phase":             state.Phase,
+		"fence_index":       state.FenceIndex,
+		"last_outbox_index": state.LastOutboxIndex,
+		"last_acked_index":  state.LastAckedIndex,
 	}
 }
 
