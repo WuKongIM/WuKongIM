@@ -43,6 +43,13 @@ func TestParseRejectsQuotedDescribeTable(t *testing.T) {
 	}
 }
 
+func TestParseRejectsInvalidDescribeTable(t *testing.T) {
+	_, err := Parse("describe ,")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
 func TestParseSelectWhereLimit(t *testing.T) {
 	query, err := Parse("select uid, token from meta.user where uid='u1' limit 20")
 	if err != nil {
@@ -62,6 +69,27 @@ func TestParseSelectWhereLimit(t *testing.T) {
 	}
 	if query.Limit != 20 {
 		t.Fatalf("Limit = %d, want 20", query.Limit)
+	}
+}
+
+func TestParseRejectsInvalidSelectTablePunctuation(t *testing.T) {
+	_, err := Parse("select * from ,")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsInvalidSelectTableClauseKeyword(t *testing.T) {
+	_, err := Parse("select * from where")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsInvalidSelectColumn(t *testing.T) {
+	_, err := Parse("select = from meta.user")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
 	}
 }
 
@@ -175,6 +203,13 @@ func TestParseRejectsDuplicateCursor(t *testing.T) {
 
 func TestParseRejectsInvalidLiteral(t *testing.T) {
 	_, err := Parse("select * from meta.user where uid=u1")
+	if !errors.Is(err, ErrInvalidQuery) {
+		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
+	}
+}
+
+func TestParseRejectsInvalidFilterKey(t *testing.T) {
+	_, err := Parse("select * from meta.user where =1")
 	if !errors.Is(err, ErrInvalidQuery) {
 		t.Fatalf("Parse() err = %v, want ErrInvalidQuery", err)
 	}
