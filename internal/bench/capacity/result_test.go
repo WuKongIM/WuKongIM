@@ -28,3 +28,25 @@ func TestWriteResultWritesJSONAndSummary(t *testing.T) {
 	require.FileExists(t, filepath.Join(dir, "result.json"))
 	require.FileExists(t, filepath.Join(dir, "summary.md"))
 }
+
+func TestCapacityResultSummaryIncludesAttemptMessageCounts(t *testing.T) {
+	result := Result{
+		Status:       StatusFailed,
+		Profile:      "hot-channel",
+		MaxStableQPS: 100,
+		Attempts: []AttemptResult{{
+			Attempt:           Attempt{Index: 1, OfferedQPS: 200},
+			ActualQPS:         90,
+			ScheduledMessages: 2000,
+			SendSuccess:       900,
+			SendErrors:        100,
+			BacklogMessages:   1000,
+			FailureReason:     "actual_qps_below_min_ratio",
+		}},
+	}
+
+	require.Contains(t, SummaryMarkdown(result), "# wkbench capacity hot-channel")
+	require.Contains(t, SummaryMarkdown(result), "scheduled=2000 success=900 errors=100 backlog=1000")
+	require.Contains(t, ConsoleSummary(result), "wkbench capacity hot-channel")
+	require.Contains(t, ConsoleSummary(result), "scheduled=2000\tsuccess=900\terrors=100\tbacklog=1000")
+}

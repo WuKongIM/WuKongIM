@@ -16,8 +16,9 @@ message.AppendBatchRequest
   -> message.AppendBatchResult
 ```
 
-Payloads are cloned in both directions. Commit mode and typed errors are mapped
-at this boundary so the message usecase stays cluster-agnostic.
+Payloads are cloned in both directions unless the message usecase marks result
+payloads as unnecessary for SENDACK-only flows. Commit mode and typed errors are
+mapped at this boundary so the message usecase stays cluster-agnostic.
 
 ## Error Mapping
 

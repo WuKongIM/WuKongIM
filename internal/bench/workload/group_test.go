@@ -436,6 +436,46 @@ func TestGroupWorkloadRunHonorsLocalRateDurationPerChannel(t *testing.T) {
 	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("run", "many-group", "group-send")))
 }
 
+func TestGroupWorkloadRoundRobinSenderPickFansIntoOneChannel(t *testing.T) {
+	clients := map[string]PersonClient{
+		"u-0": newRecordingPersonClient(),
+		"u-1": newRecordingPersonClient(),
+		"u-2": newRecordingPersonClient(),
+	}
+	for _, client := range clients {
+		client.(*recordingPersonClient).autoSendack = true
+	}
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "hot-group",
+		TrafficName:     "hot-send",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     time.Second,
+		LocalRate:       model.Rate{PerSecond: 3},
+		MaxConcurrency:  3,
+		SenderPick:      "round_robin",
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-hot-group-0",
+			OnlineMembers: []string{"u-0", "u-1", "u-2"},
+		}},
+		Metrics: metrics.NewRegistry(),
+		sleep: func(ctx context.Context, d time.Duration) error {
+			return nil
+		},
+	}, clients)
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	for _, uid := range []string{"u-0", "u-1", "u-2"} {
+		sender := clients[uid].(*recordingPersonClient)
+		require.Len(t, sender.sentFrames, 1, "sender %s should send one message", uid)
+		require.Equal(t, "run-a-hot-group-0", sender.sentFrames[0].ChannelID)
+	}
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("run", "hot-group", "hot-send")))
+}
+
 func TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce(t *testing.T) {
 	clients := map[string]PersonClient{
 		"u-0": newRecordingPersonClient(),

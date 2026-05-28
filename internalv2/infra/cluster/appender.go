@@ -28,9 +28,10 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req message.AppendBat
 		return message.AppendBatchResult{}, message.ErrAppenderRequired
 	}
 	res, err := a.node.AppendChannelBatch(ctx, channelv2.AppendBatchRequest{
-		ChannelID:  channelv2.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
-		Messages:   toChannelMessages(req.Messages),
-		CommitMode: toChannelCommitMode(req.CommitMode),
+		ChannelID:         channelv2.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
+		Messages:          toChannelMessages(req.Messages),
+		CommitMode:        toChannelCommitMode(req.CommitMode),
+		OmitResultPayload: req.OmitResultPayload,
 	})
 	if err != nil {
 		return message.AppendBatchResult{}, mapAppendError(err)

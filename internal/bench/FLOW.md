@@ -10,7 +10,7 @@
 - `coordinator`: top-level run orchestration, preflight, worker assignment, phase polling, failure classification, and report collection.
 - `worker`: HTTP control server plus the default workload runner used by worker processes.
 - `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
-- `capacity`: maximum stable ingress QPS search used by `wkbench capacity send`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
+- `capacity`: maximum stable ingress QPS search used by `wkbench capacity send` and `wkbench capacity hot-channel`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
 - `workload`: reusable connection, person traffic, and group traffic executors.
 - `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, snapshot, token, channel, and subscriber APIs.
 - `wkproto`: benchmark WKProto client implementation.
@@ -69,6 +69,13 @@ cmd/wkbench capacity send
 clean data directories. It only connects to already-running target API nodes.
 The reported QPS is ingress sendack QPS during the measured `run` phase; group
 fanout adds delivery work but is not the primary QPS denominator.
+
+`capacity hot-channel` uses the same discovery, temporary worker, search, and
+report flow, but every attempt fixes `channels.profiles[0].count` to one group
+channel and sets the offered QPS as that channel's `rate_per_channel`. Its
+`--senders` value controls how many online group members fan into the one
+logical channel, and group traffic uses `sender_pick: round_robin` to spread
+sendack waits across those senders.
 
 ## Worker Control Flow
 
@@ -166,7 +173,7 @@ The background drainer does not inject short socket read deadlines because a tim
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Cooldown waits for the configured drain period without new sends.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Timed run windows stop scheduling new messages when the window expires and then wait only for already-started send operations to finish; overloaded attempts therefore report lower actual QPS instead of extending the measured window to drain the full original schedule. Cooldown waits for the configured drain period without new sends.
 
 ## Planner Flow
 

@@ -187,6 +187,70 @@ curl -fsS http://127.0.0.1:15002/debug/pprof/heap > pprof/node2-heap.pb.gz
 curl -fsS http://127.0.0.1:15003/debug/pprof/heap > pprof/node3-heap.pb.gz
 ```
 
+## Prometheus Bottleneck Attribution
+
+Use Prometheus metrics as the primary evidence source for bottleneck attribution. Keep `/bench/v1/snapshot` limited to benchmark setup counters; it is not a performance attribution surface.
+
+For `cmd/wukongimv2`, enable metrics through the normal API listener:
+
+```ini
+WK_API_LISTEN_ADDR=127.0.0.1:5001
+WK_METRICS_ENABLE=true
+```
+
+Then scrape:
+
+```bash
+curl -fsS http://127.0.0.1:5001/metrics > metrics/wukongimv2.prom
+```
+
+For lightweight local testing without a Prometheus server, capture one snapshot
+before the measured window and one after it:
+
+```bash
+curl -fsS http://127.0.0.1:5001/metrics > metrics/before.prom
+# run wkbench capacity send or another measured SEND -> SENDACK workload
+curl -fsS http://127.0.0.1:5001/metrics > metrics/after.prom
+go run ./cmd/wkbench metrics classify --before metrics/before.prom --after metrics/after.prom
+```
+
+The classifier is a first-pass attribution helper. Use the raw `.prom` files,
+pprof, and logs before changing configuration or code.
+
+When a Prometheus server is scraping the target, use these starter queries.
+
+Gateway async SEND pressure:
+
+```promql
+wukongim_gateway_async_send_queue_depth
+wukongim_gateway_async_send_queue_depth / clamp_min(wukongim_gateway_async_send_queue_capacity, 1)
+histogram_quantile(0.99, rate(wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket[1m]))
+histogram_quantile(0.99, rate(wukongim_gateway_async_send_batch_wait_duration_seconds_bucket[1m]))
+histogram_quantile(0.50, rate(wukongim_gateway_async_send_batch_records_bucket[1m]))
+```
+
+ChannelV2 append pressure:
+
+```promql
+sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
+sum by (pool) (wukongim_channelv2_worker_queue_depth)
+histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
+histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_worker_task_duration_seconds_bucket[1m])))
+histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
+```
+
+Interpretation matrix:
+
+| Evidence | Classification | Next check |
+| --- | --- | --- |
+| Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
+| Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
+| Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
+| Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
+| Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |
+
+Avoid high-cardinality Prometheus labels such as `uid`, `channel_id`, or `client_msg_no`. Use `pkg/observability/sendtrace` and diagnostics sampling for per-message investigation after Prometheus identifies the subsystem.
+
 ## Classification Guide
 
 | Evidence | Likely Class | First Check |

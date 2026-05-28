@@ -3,8 +3,13 @@ package clusterv2
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 )
+
+const minDefaultChannelReactorCount = 4
 
 // Config contains v2-only cluster runtime configuration.
 type Config struct {
@@ -69,12 +74,14 @@ type SlotConfig struct {
 
 // ChannelConfig contains ChannelV2 service configuration.
 type ChannelConfig struct {
-	// ReactorCount is the number of ChannelV2 reactor partitions.
+	// ReactorCount is the number of ChannelV2 reactor partitions. Zero derives a CPU-aware default.
 	ReactorCount int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
 	// TickInterval controls how often Node-owned loops call ChannelV2 Tick.
 	TickInterval time.Duration
+	// Observer receives lightweight ChannelV2 reactor and worker metrics.
+	Observer reactor.Observer
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.
@@ -95,8 +102,15 @@ func (c *Config) applyDefaults() {
 	if c.Channel.TickInterval == 0 {
 		c.Channel.TickInterval = 20 * time.Millisecond
 	}
+	if c.Channel.ReactorCount == 0 {
+		c.Channel.ReactorCount = defaultChannelReactorCount()
+	}
 	c.applyControlDefaults()
 	c.applySlotDefaults()
+}
+
+func defaultChannelReactorCount() int {
+	return max(minDefaultChannelReactorCount, runtime.GOMAXPROCS(0))
 }
 
 func (c *Config) applyControlDefaults() {
@@ -136,6 +150,12 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.TickInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.ReactorCount < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.MailboxSize < 0 {
 		return ErrInvalidConfig
 	}
 	if err := c.validateControl(); err != nil {

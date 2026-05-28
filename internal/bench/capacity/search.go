@@ -35,6 +35,14 @@ type AttemptResult struct {
 	Passed bool `json:"passed"`
 	// ActualQPS is the observed successful sendack QPS during measured run.
 	ActualQPS float64 `json:"actual_qps"`
+	// ScheduledMessages is the number of messages planned for the measured run window.
+	ScheduledMessages uint64 `json:"scheduled_messages"`
+	// SendSuccess is the successful sendack count during the measured run.
+	SendSuccess uint64 `json:"send_success"`
+	// SendErrors is the failed send/sendack count during the measured run.
+	SendErrors uint64 `json:"send_errors"`
+	// BacklogMessages is the estimated scheduled messages that were not attempted before the run window closed.
+	BacklogMessages uint64 `json:"backlog_messages"`
 	// SendackP50 is the observed run-phase sendack p50 latency.
 	SendackP50 time.Duration `json:"sendack_p50"`
 	// SendackP95 is the observed run-phase sendack p95 latency.

@@ -17,7 +17,11 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg.Gateway.MessageReceived("tcp", 12)
 	reg.Gateway.MessageDelivered("tcp", 18)
 	reg.Gateway.FrameHandled("SEND", 5*time.Millisecond)
+	reg.Gateway.SetAsyncSendQueue(3, 1024)
+	reg.Gateway.ObserveAsyncSendDispatchWait("wkproto", 2*time.Millisecond)
+	reg.Gateway.ObserveAsyncSendBatch(8, 256, 500*time.Microsecond)
 	reg.Gateway.ConnectionClosed("tcp")
+	reg.Gateway.ConnectionClosedReason("tcp", "peer_closed")
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -40,6 +44,16 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	})
 	require.Equal(t, float64(12), receivedBytes.GetMetric()[0].GetCounter().GetValue())
 
+	closes := requireMetricFamily(t, families, "wukongim_gateway_connection_closes_total")
+	require.Len(t, closes.GetMetric(), 1)
+	requireMetricLabels(t, closes.GetMetric()[0], map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"protocol":  "tcp",
+		"reason":    "peer_closed",
+	})
+	require.Equal(t, float64(1), closes.GetMetric()[0].GetCounter().GetValue())
+
 	deliveredTotal := requireMetricFamily(t, families, "wukongim_gateway_messages_delivered_total")
 	require.Len(t, deliveredTotal.GetMetric(), 1)
 	requireMetricLabels(t, deliveredTotal.GetMetric()[0], map[string]string{
@@ -48,6 +62,26 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 		"protocol":  "tcp",
 	})
 	require.Equal(t, float64(1), deliveredTotal.GetMetric()[0].GetCounter().GetValue())
+
+	queueDepth := requireMetricFamily(t, families, "wukongim_gateway_async_send_queue_depth")
+	require.Len(t, queueDepth.GetMetric(), 1)
+	require.Equal(t, float64(3), queueDepth.GetMetric()[0].GetGauge().GetValue())
+
+	queueCapacity := requireMetricFamily(t, families, "wukongim_gateway_async_send_queue_capacity")
+	require.Len(t, queueCapacity.GetMetric(), 1)
+	require.Equal(t, float64(1024), queueCapacity.GetMetric()[0].GetGauge().GetValue())
+
+	wait := requireMetricFamily(t, families, "wukongim_gateway_async_send_dispatch_wait_duration_seconds")
+	require.Len(t, wait.GetMetric(), 1)
+	requireMetricLabels(t, wait.GetMetric()[0], map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"protocol":  "wkproto",
+	})
+
+	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_records")
+	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_bytes")
+	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_wait_duration_seconds")
 }
 
 func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
@@ -123,6 +157,59 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 
 	wait := requireMetricFamily(t, families, "wukongim_channel_execution_mailbox_wait_duration_seconds")
 	require.Len(t, wait.GetMetric(), 1)
+}
+
+func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
+	reg := New(8, "node-8")
+
+	reg.ChannelV2.SetReactorMailboxDepth(2, "normal", 9)
+	reg.ChannelV2.SetWorkerQueueDepth("store_append", 4)
+	reg.ChannelV2.ObserveAppendBatch(16, 1024, 3*time.Millisecond)
+	reg.ChannelV2.ObserveAppendLatency("local", 7*time.Millisecond)
+	reg.ChannelV2.ObserveWorkerResult("store_append", "ok", 11*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	mailbox := requireMetricFamily(t, families, "wukongim_channelv2_reactor_mailbox_depth")
+	require.Len(t, mailbox.GetMetric(), 1)
+	requireMetricLabels(t, mailbox.GetMetric()[0], map[string]string{
+		"node_id":    "8",
+		"node_name":  "node-8",
+		"reactor_id": "2",
+		"priority":   "normal",
+	})
+	require.Equal(t, float64(9), mailbox.GetMetric()[0].GetGauge().GetValue())
+
+	workerQueue := requireMetricFamily(t, families, "wukongim_channelv2_worker_queue_depth")
+	require.Len(t, workerQueue.GetMetric(), 1)
+	requireMetricLabels(t, workerQueue.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"pool":      "store_append",
+	})
+	require.Equal(t, float64(4), workerQueue.GetMetric()[0].GetGauge().GetValue())
+
+	requireMetricFamily(t, families, "wukongim_channelv2_append_batch_records")
+	requireMetricFamily(t, families, "wukongim_channelv2_append_batch_bytes")
+	requireMetricFamily(t, families, "wukongim_channelv2_append_batch_wait_duration_seconds")
+
+	appendLatency := requireMetricFamily(t, families, "wukongim_channelv2_append_duration_seconds")
+	require.Len(t, appendLatency.GetMetric(), 1)
+	requireMetricLabels(t, appendLatency.GetMetric()[0], map[string]string{
+		"node_id":     "8",
+		"node_name":   "node-8",
+		"commit_mode": "local",
+	})
+
+	workerDuration := requireMetricFamily(t, families, "wukongim_channelv2_worker_task_duration_seconds")
+	require.Len(t, workerDuration.GetMetric(), 1)
+	requireMetricLabels(t, workerDuration.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"kind":      "store_append",
+		"result":    "ok",
+	})
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {

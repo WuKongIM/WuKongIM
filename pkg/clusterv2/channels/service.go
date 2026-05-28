@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	channelservice "github.com/WuKongIM/WuKongIM/pkg/channelv2/service"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
@@ -33,6 +34,8 @@ type Config struct {
 	ReactorCount int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
+	// Observer receives lightweight ChannelV2 reactor and worker metrics.
+	Observer reactor.Observer
 	// Store opens ChannelV2 stores when constructing Runtime.
 	Store channelstore.Factory
 	// Transport sends ChannelV2 replication RPCs when constructing Runtime.
@@ -61,7 +64,7 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	if runtime == nil {
-		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource})
+		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource, Observer: cfg.Observer})
 		if err != nil {
 			return nil, err
 		}

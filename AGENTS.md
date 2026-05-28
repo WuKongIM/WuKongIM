@@ -52,7 +52,7 @@
 
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
-  wukongimv2/            internalv2 独立验证入口，用于迁移期单节点集群 SEND -> SENDACK 骨架验证
+  wukongimv2/            internalv2/app 迁移期独立验证入口，当前验证单节点集群 SEND -> SENDACK 骨架
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
@@ -99,8 +99,9 @@ internal/
     userlimit/           节点内用户发送令牌桶限流
 
 internalv2/
-  app/                   新架构组合根；负责 clusterv2、message usecase、gateway handler/runtime 装配与生命周期
+  app/                   新架构组合根；负责 clusterv2、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
   access/                新架构入口适配层
+    api/                 phase-1 health、readyz 与 bench/v1 target HTTP API 入口
     gateway/             gateway SendPacket/SendBatch -> message usecase，Sendack 写回与协议错误映射
   contracts/             新架构跨用例/运行时轻量事件合约
     messageevents/       消息提交事件合约

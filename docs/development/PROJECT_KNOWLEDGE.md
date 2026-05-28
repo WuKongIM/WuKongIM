@@ -6,6 +6,7 @@
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass clusterv2 semantics.
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
+- `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND metrics with ChannelV2 reactor/worker metrics. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 
 ## Channel Runtime
 
@@ -98,6 +99,7 @@
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
 - `pkg/channelv2` append is local-runtime only: clusterv2 must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
+- wukongimv2 single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
 
 ## Cluster Membership
 

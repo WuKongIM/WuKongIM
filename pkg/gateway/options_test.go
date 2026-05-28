@@ -85,6 +85,12 @@ func TestDefaultSessionOptions(t *testing.T) {
 	if opts.IdleTimeout != 3*time.Minute {
 		t.Fatalf("expected default idle timeout %v, got %v", 3*time.Minute, opts.IdleTimeout)
 	}
+	if opts.AsyncSendBatchMaxWait != time.Millisecond {
+		t.Fatalf("expected default async SEND batch wait 1ms, got %s", opts.AsyncSendBatchMaxWait)
+	}
+	if opts.AsyncSendBatchMaxRecords != 512 {
+		t.Fatalf("expected default async SEND batch records 512, got %d", opts.AsyncSendBatchMaxRecords)
+	}
 }
 
 func TestOptionsValidateNormalizesPartialSessionOverrides(t *testing.T) {

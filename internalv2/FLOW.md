@@ -14,6 +14,7 @@ storage, or routing branches that bypass cluster semantics.
 | Package | Responsibility |
 |---------|----------------|
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
+| `access/api` | Minimal health, readiness, and bench/v1 target HTTP surface for phase-1 SEND -> SENDACK benchmarking. |
 | `access/gateway` | Gateway frame adapter: `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `usecase/message` | Entry-agnostic SEND orchestration, batching, validation, message ID allocation, append ports, and committed event submission. |
 | `infra/cluster` | Adapter from message append ports to `pkg/clusterv2` / `pkg/channelv2`. |
@@ -43,6 +44,20 @@ pkg/gateway SendPacket
   -> pkg/channelv2 append
   -> internalv2/usecase/message.SendResult
   -> internalv2/access/gateway writes SendackPacket
+```
+
+## Phase-1 Bench Target Flow
+
+```text
+wkbench target preflight
+  -> internalv2/access/api healthz, readyz, bench/v1 capabilities
+wkbench capacity discovery
+  -> internalv2/access/api bench/v1 capacity-target
+wkbench prepare
+  -> internalv2/access/api benchmark-only setup acknowledgments
+wkbench traffic
+  -> pkg/gateway WKProto SEND
+  -> Phase-1 Send Flow
 ```
 
 `Send` is only a batch-of-one wrapper. `SendBatch` is the canonical correctness

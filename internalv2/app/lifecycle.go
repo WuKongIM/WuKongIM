@@ -20,7 +20,7 @@ type clusterWriteReadyRuntime interface {
 	RouteHashSlot(uint16) (clusterv2.Route, error)
 }
 
-// Start starts the cluster first, then the gateway when configured.
+// Start starts the cluster first, then optional API and gateway runtimes when configured.
 func (a *App) Start(ctx context.Context) error {
 	if a == nil {
 		return ErrInvalidConfig
@@ -50,13 +50,16 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		return errors.Join(err, stopErr)
 	}
+	if a.api != nil {
+		if err := a.api.Start(); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.apiStarted = true
+	}
 	if a.gateway != nil {
 		if err := a.gateway.Start(); err != nil {
-			stopErr := a.cluster.Stop(ctx)
-			if stopErr == nil {
-				a.started = false
-				a.clusterStarted = false
-			}
+			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
 		a.gatewayStarted = true
@@ -64,7 +67,7 @@ func (a *App) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the gateway first, then the cluster.
+// Stop stops the gateway first, then optional API and cluster runtimes.
 func (a *App) Stop(ctx context.Context) error {
 	if a == nil {
 		return nil
@@ -84,6 +87,13 @@ func (a *App) Stop(ctx context.Context) error {
 			a.gatewayStarted = false
 		}
 	}
+	if a.apiStarted && a.api != nil {
+		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.apiStarted = false
+		}
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			err = errors.Join(err, stopErr)
@@ -91,10 +101,51 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.clusterStarted {
 		a.started = false
 	}
 	return err
+}
+
+func (a *App) rollbackStarted(ctx context.Context) error {
+	var err error
+	if a.apiStarted && a.api != nil {
+		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.apiStarted = false
+		}
+	}
+	if a.clusterStarted && a.cluster != nil {
+		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.clusterStarted = false
+		}
+	}
+	if err == nil {
+		a.started = false
+	}
+	return err
+}
+
+func (a *App) readyzReport(context.Context) (bool, any) {
+	if a == nil || a.cluster == nil {
+		return false, map[string]any{"ready": false, "reason": "cluster not configured"}
+	}
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
+		return true, map[string]any{"ready": true}
+	}
+	var lastErr error
+	if clusterWriteReady(routes, &lastErr) {
+		return true, map[string]any{"ready": true}
+	}
+	reason := "cluster write routing not ready"
+	if lastErr != nil {
+		reason = lastErr.Error()
+	}
+	return false, map[string]any{"ready": false, "reason": reason}
 }
 
 func (a *App) waitClusterWriteReady(ctx context.Context) error {

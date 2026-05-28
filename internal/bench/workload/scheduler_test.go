@@ -79,3 +79,19 @@ func TestRunScheduledMessagesByKeySerializesSameKey(t *testing.T) {
 
 	require.NoError(t, <-done)
 }
+
+func TestRunScheduledMessagesStopsSchedulingWhenWindowExpires(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	started := make(chan int, 4)
+	err := runScheduledMessages(ctx, 4, 5*time.Millisecond, 1, func(ctx context.Context, offset int) error {
+		started <- offset
+		time.Sleep(40 * time.Millisecond)
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, len(started))
+	require.Equal(t, 0, <-started)
+}

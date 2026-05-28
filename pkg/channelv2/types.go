@@ -136,6 +136,7 @@ type AppendBatchRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
+	OmitResultPayload    bool
 }
 
 // AppendBatchResult aligns per-message append results with the request order.

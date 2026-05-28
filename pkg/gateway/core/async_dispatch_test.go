@@ -171,9 +171,10 @@ func TestAsyncDispatchQueueBoundsBufferedCapacityForManyWorkers(t *testing.T) {
 	}
 
 	totalCapacity := 0
+	wantPerShard := asyncDispatchQueueCapacityPerShard(maxAsyncDispatchWorkers)
 	for i, shard := range queue.shards {
-		if got := cap(shard.tasks); got != asyncDispatchMinQueuePerWorker {
-			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, asyncDispatchMinQueuePerWorker)
+		if got := cap(shard.tasks); got != wantPerShard {
+			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, wantPerShard)
 		}
 		totalCapacity += cap(shard.tasks)
 	}
@@ -184,10 +185,10 @@ func TestAsyncDispatchQueueBoundsBufferedCapacityForManyWorkers(t *testing.T) {
 
 func TestAsyncSendBatchOptionsUseDefaults(t *testing.T) {
 	opt := gatewaytypes.NormalizeSessionOptions(gatewaytypes.SessionOptions{})
-	if got, want := opt.AsyncSendBatchMaxWait, 500*time.Microsecond; got != want {
+	if got, want := opt.AsyncSendBatchMaxWait, time.Millisecond; got != want {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want %s", got, want)
 	}
-	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
+	if got, want := opt.AsyncSendBatchMaxRecords, 512; got != want {
 		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
 	}
 	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {
@@ -204,7 +205,7 @@ func TestAsyncSendBatchOptionsCanDisableWaitButNotBounds(t *testing.T) {
 	if opt.AsyncSendBatchMaxWait != 0 {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 0", opt.AsyncSendBatchMaxWait)
 	}
-	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
+	if got, want := opt.AsyncSendBatchMaxRecords, 512; got != want {
 		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
 	}
 	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {
@@ -226,8 +227,8 @@ func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
 		want       int
 	}{
 		{name: "low clamps to minimum", gomaxprocs: 1, want: 64},
-		{name: "scales by cpu", gomaxprocs: 10, want: 640},
-		{name: "high caps maximum", gomaxprocs: 128, want: 1024},
+		{name: "scales by cpu", gomaxprocs: 10, want: 80},
+		{name: "high caps maximum", gomaxprocs: 128, want: 256},
 		{name: "invalid clamps minimum", gomaxprocs: 0, want: 64},
 	}
 	for _, tt := range tests {
@@ -236,6 +237,13 @@ func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
 				t.Fatalf("adaptive worker count = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAdaptiveAsyncDispatchWorkerCountKeepsHotChannelBurstRoom(t *testing.T) {
+	workers := adaptiveAsyncDispatchWorkerCount(10)
+	if got, want := asyncDispatchQueueCapacityPerShard(workers), asyncDispatchQueuePerWorker; got != want {
+		t.Fatalf("default shard capacity = %d, want %d for hot-channel bursts", got, want)
 	}
 }
 
@@ -263,6 +271,77 @@ func TestRecordAsyncDispatchWaitIncludesSendClientMsgNo(t *testing.T) {
 	}
 	if events[0].Duration <= 0 {
 		t.Fatalf("duration = %s, want > 0", events[0].Duration)
+	}
+}
+
+func TestServerAsyncSendDispatchObserverTracksQueueWaitAndBatch(t *testing.T) {
+	observer := &recordingAsyncSendObserver{}
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			Observer: observer,
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	queue := newAsyncDispatchQueueWithCapacity(1, 4)
+	srv.asyncDispatch.Store(queue)
+	state := &sessionState{
+		server:         srv,
+		listener:       &listenerRuntime{eventProtocol: "wkproto"},
+		closedCh:       make(chan struct{}),
+		requestContext: context.Background(),
+	}
+
+	srv.dispatchSendFrameAsync(state, "", &frame.SendPacket{
+		ChannelID:   "c1",
+		ClientMsgNo: "m1",
+		Payload:     []byte("abc"),
+	})
+	queue.close()
+	srv.workerWG.Add(1)
+	srv.runAsyncDispatchWorker(queue.shards[0].tasks)
+
+	queueEvents := observer.queueEvents()
+	if len(queueEvents) < 2 {
+		t.Fatalf("queue events = %d, want enqueue and dequeue observations", len(queueEvents))
+	}
+	if got, want := queueEvents[0].Depth, 1; got != want {
+		t.Fatalf("enqueue queue depth = %d, want %d", got, want)
+	}
+	if got, want := queueEvents[0].Capacity, 4; got != want {
+		t.Fatalf("queue capacity = %d, want %d", got, want)
+	}
+	if got, want := queueEvents[len(queueEvents)-1].Depth, 0; got != want {
+		t.Fatalf("dequeue queue depth = %d, want %d", got, want)
+	}
+
+	batches := observer.batchEvents()
+	if len(batches) != 1 {
+		t.Fatalf("batch events = %d, want 1", len(batches))
+	}
+	if got, want := batches[0].Records, 1; got != want {
+		t.Fatalf("batch records = %d, want %d", got, want)
+	}
+	if got, want := batches[0].Bytes, 3; got != want {
+		t.Fatalf("batch bytes = %d, want %d", got, want)
+	}
+	if batches[0].Wait <= 0 {
+		t.Fatalf("batch wait = %s, want > 0", batches[0].Wait)
+	}
+
+	waits := observer.waitEvents()
+	if len(waits) != 1 {
+		t.Fatalf("dispatch wait events = %d, want 1", len(waits))
+	}
+	if got, want := waits[0].Protocol, "wkproto"; got != want {
+		t.Fatalf("wait protocol = %q, want %q", got, want)
+	}
+	if waits[0].Duration <= 0 {
+		t.Fatalf("dispatch wait = %s, want > 0", waits[0].Duration)
 	}
 }
 
@@ -593,6 +672,53 @@ func (s *recordingSendTraceSink) snapshot() []sendtrace.Event {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]sendtrace.Event(nil), s.events...)
+}
+
+type recordingAsyncSendObserver struct {
+	mu      sync.Mutex
+	queues  []gatewaytypes.AsyncSendQueueEvent
+	batches []gatewaytypes.AsyncSendBatchEvent
+	waits   []gatewaytypes.AsyncSendDispatchWaitEvent
+}
+
+func (o *recordingAsyncSendObserver) OnConnectionOpen(gatewaytypes.ConnectionEvent)  {}
+func (o *recordingAsyncSendObserver) OnConnectionClose(gatewaytypes.ConnectionEvent) {}
+func (o *recordingAsyncSendObserver) OnAuth(gatewaytypes.AuthEvent)                  {}
+func (o *recordingAsyncSendObserver) OnFrameIn(gatewaytypes.FrameEvent)              {}
+func (o *recordingAsyncSendObserver) OnFrameOut(gatewaytypes.FrameEvent)             {}
+func (o *recordingAsyncSendObserver) OnFrameHandled(gatewaytypes.FrameHandleEvent)   {}
+func (o *recordingAsyncSendObserver) OnAsyncSendQueue(event gatewaytypes.AsyncSendQueueEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.queues = append(o.queues, event)
+}
+func (o *recordingAsyncSendObserver) OnAsyncSendBatch(event gatewaytypes.AsyncSendBatchEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.batches = append(o.batches, event)
+}
+func (o *recordingAsyncSendObserver) OnAsyncSendDispatchWait(event gatewaytypes.AsyncSendDispatchWaitEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.waits = append(o.waits, event)
+}
+
+func (o *recordingAsyncSendObserver) queueEvents() []gatewaytypes.AsyncSendQueueEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.AsyncSendQueueEvent(nil), o.queues...)
+}
+
+func (o *recordingAsyncSendObserver) batchEvents() []gatewaytypes.AsyncSendBatchEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.AsyncSendBatchEvent(nil), o.batches...)
+}
+
+func (o *recordingAsyncSendObserver) waitEvents() []gatewaytypes.AsyncSendDispatchWaitEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.AsyncSendDispatchWaitEvent(nil), o.waits...)
 }
 
 func (h *countingAsyncFrameHandler) OnListenerError(string, error) {}

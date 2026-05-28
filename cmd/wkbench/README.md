@@ -16,6 +16,7 @@ go run ./cmd/wkbench <command> [flags]
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
 | `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
+| `capacity hot-channel` | Searches maximum stable ingress QPS for one fixed group channel with configurable sender fan-in. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -109,6 +110,25 @@ wkbench capacity send \
   --duration 30s \
   --group-members 10
 ```
+
+To isolate one hot logical channel, use `capacity hot-channel`. It prepares one
+group channel and spreads sends across the configured online sender set:
+
+```bash
+wkbench capacity hot-channel \
+  --api http://127.0.0.1:5001 \
+  --gateway 127.0.0.1:5100 \
+  --senders 64 \
+  --start-qps 1000 \
+  --max-qps 50000 \
+  --duration 30s \
+  --stable-p99 200ms
+```
+
+`capacity hot-channel` is intended for `SEND -> SENDACK` hot-write capacity.
+Timed run windows stop scheduling new messages when the window expires, so
+overloaded attempts show lower actual QPS instead of silently extending the
+measured run to drain the whole offered schedule.
 
 ## Compose Development Simulator
 

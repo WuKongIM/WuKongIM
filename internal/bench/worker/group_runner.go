@@ -169,6 +169,7 @@ func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, c
 			VerifyRecvMode:         bundle.traffic.Verify.Recv.Mode,
 			RecvSampleSize:         bundle.traffic.Verify.Recv.SampleSizePerMessage,
 			RecvAck:                bundle.traffic.RecvAck,
+			SenderPick:             bundle.traffic.SenderPick,
 			GlobalRate:             bundle.traffic.RatePerChannel,
 			LocalRate:              benchworkload.GroupLocalRate(bundle.traffic.RatePerChannel, bundle.profile.TrafficPartitionCount, bundle.profile.OwnedTrafficPartitions),
 			MaxConcurrency:         bundle.traffic.Concurrency,

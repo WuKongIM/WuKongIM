@@ -14,18 +14,20 @@ SendBatch(items)
   -> validate authenticated sender, channel, payload, and phase-1 send mode
   -> authorize send
   -> allocate message IDs for durable gateway-origin sends
-  -> clone payloads
   -> split adjacent sends by canonical channel
+  -> clone payloads at the appender boundary
   -> append each active segment through Appender.AppendBatch
-  -> submit committed-message events after successful append
+     (omit result payloads when no committed sink is configured)
+  -> submit committed-message events after successful append when a sink is configured
   -> return item-aligned SendBatchItemResult values
 ```
 
 `Send(ctx, cmd)` delegates to `SendBatch` with one item.
 
-Append contexts are derived from active item deadlines and are not tied to a
-single client context cancellation. Items that are already canceled are filtered
-before append and get their own error result.
+Append contexts are derived from active item deadlines, including explicit
+batch item deadlines supplied by entry adapters, and are not tied to a single
+client context cancellation. Items that are already canceled are filtered before
+append and get their own error result.
 
 ## Import Boundary
 

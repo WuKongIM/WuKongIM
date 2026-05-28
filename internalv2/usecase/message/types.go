@@ -1,6 +1,9 @@
 package message
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Reason is the entry-agnostic result code for SEND.
 type Reason uint8
@@ -54,7 +57,7 @@ type SendCommand struct {
 	ChannelID string
 	// ChannelType is the protocol channel category.
 	ChannelType uint8
-	// Payload is the message body. The usecase clones it before append.
+	// Payload is the message body. The usecase treats it as immutable and clones it at the append boundary.
 	Payload []byte
 	// NoPersist requests transient delivery; phase 1 returns ReasonUnsupported.
 	NoPersist bool
@@ -82,6 +85,8 @@ type SendResult struct {
 type SendBatchItem struct {
 	// Context is the per-send request context.
 	Context context.Context
+	// Deadline bounds durable append for this item without replacing Context.
+	Deadline time.Time
 	// Command is the SEND command.
 	Command SendCommand
 }
@@ -120,6 +125,8 @@ type AppendBatchRequest struct {
 	Messages []Message
 	// CommitMode controls the durability requirement for this append.
 	CommitMode CommitMode
+	// OmitResultPayload lets appenders skip payloads in successful item results when callers only need id and sequence.
+	OmitResultPayload bool
 }
 
 // AppendBatchResult returns item-aligned append outcomes.

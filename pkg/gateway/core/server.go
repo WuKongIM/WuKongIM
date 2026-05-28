@@ -28,13 +28,13 @@ var (
 
 const (
 	asyncDispatchQueuePerWorker = 1024
-	asyncDispatchWorkersPerCPU  = 64
+	asyncDispatchWorkersPerCPU  = 8
 	minAsyncDispatchWorkers     = 64
-	maxAsyncDispatchWorkers     = 1024
+	maxAsyncDispatchWorkers     = 256
 	// asyncDispatchMinQueuePerWorker keeps enough burst room for one default SEND micro-batch per shard.
 	asyncDispatchMinQueuePerWorker = 128
 	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
-	asyncDispatchMaxBufferedTasks = maxAsyncDispatchWorkers * asyncDispatchMinQueuePerWorker
+	asyncDispatchMaxBufferedTasks = 128 * 1024
 )
 
 type Server struct {
@@ -575,8 +575,10 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 
 	queue := s.asyncDispatcher()
 	if queue != nil && queue.submitSend(state, replyToken, send) {
+		s.observeAsyncSendQueue(queue)
 		return
 	}
+	s.observeAsyncSendQueue(queue)
 	state.close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
 }
 
@@ -806,6 +808,7 @@ func (s *Server) startAsyncDispatcher() {
 	for i := range queue.shards {
 		go s.runAsyncDispatchWorker(queue.shards[i].tasks)
 	}
+	s.observeAsyncSendQueue(queue)
 }
 
 func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
@@ -817,11 +820,13 @@ func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
 		if !ok {
 			return
 		}
+		s.observeAsyncSendDequeued(batch)
+		s.observeAsyncSendBatch(batch)
 		if s.dispatchSendBatch(batch) {
 			continue
 		}
 		for _, task := range batch {
-			recordAsyncDispatchWait(task)
+			s.recordAsyncDispatchWait(task)
 			if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
 				s.handleHandlerError(task.state, err)
 			}
@@ -851,7 +856,7 @@ func (s *Server) dispatchSendBatch(batch []asyncDispatchTask) bool {
 	}
 
 	for _, task := range batch {
-		recordAsyncDispatchWait(task)
+		s.recordAsyncDispatchWait(task)
 	}
 	start := time.Now()
 	handled, err := s.dispatcher.sendBatch(items)
@@ -936,6 +941,7 @@ type asyncDispatchTask struct {
 	replyToken string
 	frame      frame.Frame
 	enqueuedAt time.Time
+	queue      *asyncDispatchQueue
 }
 
 type asyncSendBatchLimits struct {
@@ -1070,28 +1076,31 @@ func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
 	return len(send.Payload)
 }
 
-func recordAsyncDispatchWait(task asyncDispatchTask) {
-	if !sendtrace.Enabled() {
-		return
-	}
+func recordAsyncDispatchWait(task asyncDispatchTask) time.Duration {
 	send, ok := task.frame.(*frame.SendPacket)
 	if !ok || task.enqueuedAt.IsZero() {
-		return
+		return 0
 	}
 	now := time.Now()
-	sendtrace.Record(sendtrace.Event{
-		Stage:       sendtrace.StageGatewayAsyncDispatchWait,
-		At:          task.enqueuedAt,
-		Duration:    sendtrace.Elapsed(task.enqueuedAt, now),
-		ClientMsgNo: send.ClientMsgNo,
-	})
+	elapsed := sendtrace.Elapsed(task.enqueuedAt, now)
+	if sendtrace.Enabled() {
+		sendtrace.Record(sendtrace.Event{
+			Stage:       sendtrace.StageGatewayAsyncDispatchWait,
+			At:          task.enqueuedAt,
+			Duration:    elapsed,
+			ClientMsgNo: send.ClientMsgNo,
+		})
+	}
+	return elapsed
 }
 
 // asyncDispatchQueue shards SEND work by routing key to avoid a single shared hot queue.
 type asyncDispatchQueue struct {
-	mu     sync.RWMutex
-	shards []asyncDispatchShard
-	closed bool
+	mu       sync.RWMutex
+	shards   []asyncDispatchShard
+	capacity int
+	queued   atomic.Int64
+	closed   bool
 }
 
 type asyncDispatchShard struct {
@@ -1124,7 +1133,7 @@ func newAsyncDispatchQueueWithCapacity(shards, capacityPerShard int) *asyncDispa
 	if capacityPerShard <= 0 {
 		capacityPerShard = asyncDispatchQueuePerWorker
 	}
-	queue := &asyncDispatchQueue{shards: make([]asyncDispatchShard, shards)}
+	queue := &asyncDispatchQueue{shards: make([]asyncDispatchShard, shards), capacity: shards * capacityPerShard}
 	for i := range queue.shards {
 		queue.shards[i].tasks = make(chan asyncDispatchTask, capacityPerShard)
 	}
@@ -1149,13 +1158,44 @@ func (q *asyncDispatchQueue) submitSend(state *sessionState, replyToken string, 
 		replyToken: replyToken,
 		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
 		enqueuedAt: time.Now(),
+		queue:      q,
 	}
 	select {
 	case shard.tasks <- task:
+		q.queued.Add(1)
 		return true
 	default:
 		return false
 	}
+}
+
+func (q *asyncDispatchQueue) consume(count int) {
+	if q == nil || count <= 0 {
+		return
+	}
+	remaining := q.queued.Add(-int64(count))
+	if remaining >= 0 {
+		return
+	}
+	q.queued.Add(-remaining)
+}
+
+func (q *asyncDispatchQueue) depth() int {
+	if q == nil {
+		return 0
+	}
+	depth := q.queued.Load()
+	if depth < 0 {
+		return 0
+	}
+	return int(depth)
+}
+
+func (q *asyncDispatchQueue) totalCapacity() int {
+	if q == nil {
+		return 0
+	}
+	return q.capacity
 }
 
 func stateOwnsDecodedFrames(state *sessionState) bool {
@@ -1500,6 +1540,89 @@ func (s *Server) observeFrameHandled(state *sessionState, f frame.Frame, dur tim
 	})
 }
 
+func (s *Server) recordAsyncDispatchWait(task asyncDispatchTask) {
+	dur := recordAsyncDispatchWait(task)
+	if dur <= 0 {
+		return
+	}
+	observer := s.asyncSendObserver()
+	if observer == nil {
+		return
+	}
+	observer.OnAsyncSendDispatchWait(gatewaytypes.AsyncSendDispatchWaitEvent{
+		ConnectionEvent: connectionEventForState(task.state),
+		Duration:        dur,
+	})
+}
+
+func (s *Server) observeAsyncSendDequeued(batch []asyncDispatchTask) {
+	queue := asyncSendBatchQueue(batch)
+	if queue == nil {
+		return
+	}
+	queue.consume(len(batch))
+	s.observeAsyncSendQueue(queue)
+}
+
+func (s *Server) observeAsyncSendQueue(queue *asyncDispatchQueue) {
+	observer := s.asyncSendObserver()
+	if observer == nil || queue == nil {
+		return
+	}
+	observer.OnAsyncSendQueue(gatewaytypes.AsyncSendQueueEvent{
+		Depth:    queue.depth(),
+		Capacity: queue.totalCapacity(),
+	})
+}
+
+func (s *Server) observeAsyncSendBatch(batch []asyncDispatchTask) {
+	observer := s.asyncSendObserver()
+	if observer == nil || len(batch) == 0 {
+		return
+	}
+	records := 0
+	bytes := 0
+	var first time.Time
+	for _, task := range batch {
+		if task.enqueuedAt.IsZero() {
+			continue
+		}
+		if first.IsZero() || task.enqueuedAt.Before(first) {
+			first = task.enqueuedAt
+		}
+		records++
+		bytes += asyncDispatchTaskByteCount(task)
+	}
+	if records == 0 || first.IsZero() {
+		return
+	}
+	observer.OnAsyncSendBatch(gatewaytypes.AsyncSendBatchEvent{
+		Records: records,
+		Bytes:   bytes,
+		Wait:    time.Since(first),
+	})
+}
+
+func (s *Server) asyncSendObserver() gatewaytypes.AsyncSendObserver {
+	if s == nil || s.options.Observer == nil {
+		return nil
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.AsyncSendObserver)
+	if !ok {
+		return nil
+	}
+	return observer
+}
+
+func asyncSendBatchQueue(batch []asyncDispatchTask) *asyncDispatchQueue {
+	for _, task := range batch {
+		if task.queue != nil {
+			return task.queue
+		}
+	}
+	return nil
+}
+
 func connectionEventForState(state *sessionState) gatewaytypes.ConnectionEvent {
 	if state == nil || state.listener == nil {
 		return gatewaytypes.ConnectionEvent{}
@@ -1513,9 +1636,10 @@ func connectionEventForState(state *sessionState) gatewaytypes.ConnectionEvent {
 		protocol = connectionEventProtocol(state.listener.options.Network)
 	}
 	return gatewaytypes.ConnectionEvent{
-		Listener: state.listener.options.Name,
-		Network:  network,
-		Protocol: protocol,
+		Listener:    state.listener.options.Name,
+		Network:     network,
+		Protocol:    protocol,
+		CloseReason: state.closeReason(),
 	}
 }
 

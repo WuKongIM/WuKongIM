@@ -1237,6 +1237,7 @@ func TestObserverReceivesGatewayLifecycleEvents(t *testing.T) {
 	waitFor(t, func() bool { return observer.closeCount() == 1 })
 
 	require.Equal(t, "tcp", observer.opens[0].Protocol)
+	require.Equal(t, gateway.CloseReasonPeerClosed, observer.closes[0].CloseReason)
 	require.Equal(t, "ok", observer.auths[0].Status)
 	require.Equal(t, "SEND", observer.inbound[0].FrameType)
 	require.Equal(t, 5, observer.inbound[0].Bytes)

@@ -30,6 +30,9 @@ WK_CLUSTER_HASH_SLOT_COUNT=256
 WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=false
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
+# ChannelV2 reactor partitions used by the wukongimv2 append runtime. 0 derives
+# a CPU-aware default from GOMAXPROCS with a minimum of 4.
+WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 # Limits active local channel runtimes on this node. 0 preserves unlimited legacy behavior;
 # set a positive per-node budget to fail closed before channel runtime goroutines grow unbounded.
 WK_CLUSTER_MAX_CHANNELS=0
@@ -256,11 +259,13 @@ WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
 WK_HEALTH_DEBUG_ENABLE=false
 
-# Optional: SEND worker count; non-positive uses an adaptive IO-wait-aware default.
+# Optional: SEND worker count; non-positive uses a CPU-scaled adaptive default.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
+# Optional: expose /debug/pprof on the API listener for controlled performance runs.
+# WK_PPROF_ENABLE=false
 # Optional: SEND micro-batch collection. Negative wait disables waiting; non-positive bounds use defaults.
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=500us
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=128
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=512
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=524288
 # Optional: enable token authentication when verifier hooks are available.
 # WK_GATEWAY_TOKEN_AUTH_ON=false
@@ -268,7 +273,7 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR=true
 # WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES=1048576
 # WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES=1048576
-# Optional: gnet transport tuning. Zero values keep gnet defaults and preserve current listener behavior.
+# Optional: gnet transport tuning. wukongimv2 derives a CPU-aware event-loop count when omitted or set to 0.
 # WK_GATEWAY_GNET_MULTICORE=false
 # WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
 # WK_GATEWAY_GNET_REUSE_PORT=false

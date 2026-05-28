@@ -158,10 +158,31 @@ func TestOnFrameMapsMessageErrorsToSendackReasons(t *testing.T) {
 	}
 }
 
+func TestOnFramePingPacketWritesPong(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
+
+	err := handler.OnFrame(coregateway.Context{Session: sess, ReplyToken: "ping-1", RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+	if len(metas) != 1 || metas[0].ReplyToken != "ping-1" {
+		t.Fatalf("pong reply token metas = %#v, want ping-1", metas)
+	}
+}
+
 func TestOnFrameUnknownFrameReturnsErrUnsupportedFrame(t *testing.T) {
 	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
 
-	err := handler.OnFrame(coregateway.Context{RequestContext: context.Background()}, &frame.PingPacket{})
+	err := handler.OnFrame(coregateway.Context{RequestContext: context.Background()}, &frame.PongPacket{})
 	if !errors.Is(err, ErrUnsupportedFrame) {
 		t.Fatalf("OnFrame() error = %v, want %v", err, ErrUnsupportedFrame)
 	}
@@ -215,6 +236,73 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 	if got := metas[1].ReplyToken; got != "reply-2" {
 		t.Fatalf("second reply token = %q, want reply-2", got)
+	}
+}
+
+func TestOnSendBatchPassesSharedDeadlineWithoutReplacingRequestContext(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	reqCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}},
+			{Result: message.SendResult{MessageID: 2, MessageSeq: 2, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Minute})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: reqCtx},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: reqCtx},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if got := len(usecase.batchItems); got != 2 {
+		t.Fatalf("batch items = %d, want 2", got)
+	}
+	if usecase.batchItems[0].Context != reqCtx || usecase.batchItems[1].Context != reqCtx {
+		t.Fatalf("batch request context was replaced")
+	}
+	if usecase.batchItems[0].Deadline.IsZero() || !usecase.batchItems[0].Deadline.Equal(usecase.batchItems[1].Deadline) {
+		t.Fatalf("batch deadlines = %v and %v, want one shared non-zero deadline", usecase.batchItems[0].Deadline, usecase.batchItems[1].Deadline)
+	}
+}
+
+func TestOnSendBatchReusesFramePayloadUntilMessageBoundary(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	payload := []byte("one")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: payload},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if got := len(usecase.batchItems); got != 1 {
+		t.Fatalf("batch items = %d, want 1", got)
+	}
+	if len(usecase.batchItems[0].Command.Payload) == 0 || &usecase.batchItems[0].Command.Payload[0] != &payload[0] {
+		t.Fatalf("batch command payload was cloned before message append boundary")
 	}
 }
 

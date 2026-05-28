@@ -52,19 +52,62 @@ func runScheduledMessagesByKey(ctx context.Context, totalMessages int, interval 
 	sem := make(chan struct{}, maxConcurrency)
 	keyLimiter := newScheduledMessageKeyLimiter()
 	var wg sync.WaitGroup
+	var stopAt time.Time
+	if interval > 0 {
+		stopAt = time.Now().Add(interval * time.Duration(totalMessages))
+	}
 	for offset := 0; offset < totalMessages; offset++ {
 		if err := firstError(); err != nil {
 			wg.Wait()
 			return err
 		}
-		select {
-		case sem <- struct{}{}:
-		case <-runCtx.Done():
-			wg.Wait()
-			if err := firstError(); err != nil {
-				return err
+		if !stopAt.IsZero() {
+			remaining := time.Until(stopAt)
+			if remaining <= 0 {
+				wg.Wait()
+				if err := firstError(); err != nil {
+					return err
+				}
+				return ctx.Err()
 			}
-			return runCtx.Err()
+			timer := time.NewTimer(remaining)
+			select {
+			case sem <- struct{}{}:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+			case <-timer.C:
+				wg.Wait()
+				if err := firstError(); err != nil {
+					return err
+				}
+				return ctx.Err()
+			case <-runCtx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				wg.Wait()
+				if err := firstError(); err != nil {
+					return err
+				}
+				return runCtx.Err()
+			}
+		} else {
+			select {
+			case sem <- struct{}{}:
+			case <-runCtx.Done():
+				wg.Wait()
+				if err := firstError(); err != nil {
+					return err
+				}
+				return runCtx.Err()
+			}
 		}
 		wg.Add(1)
 		offset := offset

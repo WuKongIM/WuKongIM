@@ -28,9 +28,6 @@ func New(opts Options) *App {
 	if opts.Authorizer == nil {
 		opts.Authorizer = allowAllAuthorizer{}
 	}
-	if opts.Committed == nil {
-		opts.Committed = noopCommittedSink{}
-	}
 	return &App{
 		appender:   opts.Appender,
 		messageID:  opts.MessageID,

@@ -19,6 +19,8 @@ const (
 	defaultGroupClientPrefix     = "bench-msg"
 	groupPreparedBarrierName     = "channel_prepared"
 	verifyRecvModeSampled        = "sampled"
+	groupSenderPickFirstOnline   = "first_online"
+	groupSenderPickRoundRobin    = "round_robin"
 	maxGroupChannelBatchSize     = 1000
 	maxGroupSubscriberBatchSize  = 1000
 	maxGroupSubscriberBatchBytes = 64 * 1024
@@ -114,6 +116,8 @@ type GroupConfig struct {
 	RecvSampleSize int
 	// RecvAck controls whether verified recipients send receive acknowledgments.
 	RecvAck bool
+	// SenderPick selects the online member used as sender for each message.
+	SenderPick string
 	// GlobalRate is the configured per-channel rate before split partitioning.
 	GlobalRate model.Rate
 	// LocalRate is the worker-local effective rate.
@@ -228,8 +232,12 @@ func NewGroupWorkload(cfg GroupConfig, clients map[string]PersonClient) (*GroupW
 	cfg.TrafficName = strings.TrimSpace(cfg.TrafficName)
 	cfg.ClientMsgPrefix = strings.TrimSpace(cfg.ClientMsgPrefix)
 	cfg.VerifyRecvMode = strings.TrimSpace(cfg.VerifyRecvMode)
+	cfg.SenderPick = strings.TrimSpace(cfg.SenderPick)
 	if cfg.ClientMsgPrefix == "" {
 		cfg.ClientMsgPrefix = defaultGroupClientPrefix
+	}
+	if cfg.SenderPick == "" {
+		cfg.SenderPick = groupSenderPickFirstOnline
 	}
 	if cfg.Metrics == nil {
 		cfg.Metrics = metrics.NewRegistry()
@@ -328,10 +336,8 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	if w.cfg.MaxConcurrency > 1 {
 		return runScheduledMessagesByKey(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(localOffset int) string {
 			ch := w.channels[localOffset%len(w.channels)]
-			if len(ch.OnlineMembers) == 0 {
-				return ""
-			}
-			return ch.OnlineMembers[0]
+			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
+			return w.senderUID(ch, messageIndex)
 		}, func(ctx context.Context, localOffset int) error {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
@@ -374,7 +380,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		w.recordError("group_send_error", err)
 		return err
 	}
-	senderUID := ch.OnlineMembers[0]
+	senderUID := w.senderUID(ch, messageIndex)
 	sender := w.clients[senderUID]
 	payload := w.buildPayload(phase, channelIndex, messageIndex)
 	clientSeq := uint64(messageIndex)
@@ -445,6 +451,22 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		w.metrics.ObserveLatency("group_recv_latency_seconds", nil, time.Since(recvStart))
 	}
 	return nil
+}
+
+func (w *GroupWorkload) senderUID(ch GroupChannel, messageIndex int) string {
+	if len(ch.OnlineMembers) == 0 {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(w.cfg.SenderPick)) {
+	case groupSenderPickRoundRobin:
+		idx := messageIndex % len(ch.OnlineMembers)
+		if idx < 0 {
+			idx += len(ch.OnlineMembers)
+		}
+		return ch.OnlineMembers[idx]
+	default:
+		return ch.OnlineMembers[0]
+	}
 }
 
 func (w *GroupWorkload) sendMetricLabels(phase string) metrics.Labels {

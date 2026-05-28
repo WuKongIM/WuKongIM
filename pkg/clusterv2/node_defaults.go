@@ -69,6 +69,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			LocalNode:    channelv2.NodeID(n.cfg.NodeID),
 			ReactorCount: n.cfg.Channel.ReactorCount,
 			MailboxSize:  n.cfg.Channel.MailboxSize,
+			Observer:     n.cfg.Channel.Observer,
 			Store:        storeFactory,
 			Transport:    transport,
 			MetaSource:   n.defaultChannelMetaSource(),

@@ -118,6 +118,8 @@ type Context struct {
 
 `SendBatchHandler` 是可选 SEND 微批 hook。实现方必须按 `items` 顺序写回对应 sendack；未实现时 `core` 自动退回逐帧 `OnFrame`，协议语义不变。
 
+`AsyncSendObserver` 是可选观测扩展。实现方可以在不改变 `Observer` 基础接口的情况下接收 SEND async 队列深度、批处理大小/等待时间、以及单帧入队到分发的等待时间；这些事件用于 Prometheus 指标，不承载业务逻辑。
+
 ### 4.4 扩展接口
 
 ```go
@@ -226,7 +228,7 @@ OnData:
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
   ⑦ 认证完成后的业务 frame:
      - 记录 OnFrameIn
-     - SEND: 浅拷贝 packet 元数据后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，优先调用 `SendBatchHandler.OnSendBatch`
+     - SEND: 浅拷贝 packet 元数据后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
        - shard 较多时按总缓冲槽位上限动态降低单 shard 容量，避免 worker 数扩张导致启动期常驻内存线性放大
      - SEND 微批只作为入口批处理 hint；个人频道归一化、权限检查和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
      - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`

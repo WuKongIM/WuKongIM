@@ -462,7 +462,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	}
 	waiters := make([]machine.AppendBatchWaiter, 0, len(batch.requests))
 	for _, req := range batch.requests {
-		waiters = append(waiters, machine.AppendBatchWaiter{OpID: req.opID, CommitMode: req.commitMode, Records: req.records})
+		waiters = append(waiters, machine.AppendBatchWaiter{OpID: req.opID, CommitMode: req.commitMode, OmitResultPayload: req.req.OmitResultPayload, Records: req.records})
 	}
 	decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{BatchOpID: batch.batchOpID, Waiters: waiters})
 	if decision.Err != nil {

@@ -113,3 +113,82 @@ func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
 		t.Fatalf("unexpected bounded errors: first=%q last=%q", agg.Errors[0].Message, agg.Errors[31].Message)
 	}
 }
+
+func TestParsePrometheusTextAndAnalyzeWukongIMV2GatewayPressure(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+# HELP wukongim_gateway_async_send_queue_depth queued SEND frames
+wukongim_gateway_async_send_queue_depth{node_id="1",node_name="node-1"} 0
+wukongim_gateway_async_send_queue_capacity{node_id="1",node_name="node-1"} 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.01"} 0
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.05"} 0
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.1"} 0
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="+Inf"} 0
+wukongim_channelv2_reactor_mailbox_depth{node_id="1",node_name="node-1",reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store_append"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth{node_id="1",node_name="node-1"} 70
+wukongim_gateway_async_send_queue_capacity{node_id="1",node_name="node-1"} 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.01"} 10
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.05"} 80
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="0.1"} 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_id="1",node_name="node-1",protocol="wkproto",le="+Inf"} 100
+wukongim_channelv2_reactor_mailbox_depth{node_id="1",node_name="node-1",reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store_append"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckGateway {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckGateway, report)
+	}
+	if report.GatewayQueueRatio != 0.7 {
+		t.Fatalf("gateway queue ratio = %v, want 0.7", report.GatewayQueueRatio)
+	}
+	if report.GatewayDispatchWaitP99Seconds <= 0 {
+		t.Fatalf("gateway dispatch p99 = %v, want > 0", report.GatewayDispatchWaitP99Seconds)
+	}
+}
+
+func TestAnalyzeWukongIMV2PrometheusClassifiesChannelV2Pressure(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 0
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 0
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 9
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 3
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 10
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 100
+wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 100
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	}
+	if report.ChannelV2ReactorMailboxDepthMax != 9 {
+		t.Fatalf("reactor mailbox depth = %v, want 9", report.ChannelV2ReactorMailboxDepthMax)
+	}
+	if report.ChannelV2WorkerQueueDepthMax != 3 {
+		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
+	}
+}

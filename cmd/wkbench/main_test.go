@@ -64,7 +64,7 @@ func TestRunCapacityRequiresSubcommand(t *testing.T) {
 	if code != exitConfig {
 		t.Fatalf("expected config exit code, got %d", code)
 	}
-	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send>") {
+	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send|hot-channel>") {
 		t.Fatalf("expected capacity usage, got %q", stderr.String())
 	}
 }
@@ -79,6 +79,88 @@ func TestRunCapacitySendRequiresAPI(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--api is required") {
 		t.Fatalf("expected api error, got %q", stderr.String())
+	}
+}
+
+func TestRunCapacityHotChannelRequiresAPI(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity", "hot-channel"}, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "--api is required") {
+		t.Fatalf("expected api error, got %q", stderr.String())
+	}
+}
+
+func TestParseCapacityHotChannelConfig(t *testing.T) {
+	var stderr bytes.Buffer
+
+	cfg, code := parseCapacityHotChannelConfig([]string{
+		"--api", "http://127.0.0.1:5001",
+		"--gateway", "127.0.0.1:5100",
+		"--senders", "32",
+		"--start-qps", "1000",
+		"--max-qps", "2000",
+	}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected parse success, got code %d stderr %q", code, stderr.String())
+	}
+	if got := strings.Join(cfg.APIAddrs, ","); got != "http://127.0.0.1:5001" {
+		t.Fatalf("api addrs = %q", got)
+	}
+	if got := strings.Join(cfg.GatewayTCPAddrs, ","); got != "127.0.0.1:5100" {
+		t.Fatalf("gateway addrs = %q", got)
+	}
+	if cfg.Senders != 32 {
+		t.Fatalf("senders = %d, want 32", cfg.Senders)
+	}
+	if cfg.StartQPS != 1000 || cfg.MaxQPS != 2000 {
+		t.Fatalf("qps range = %v..%v, want 1000..2000", cfg.StartQPS, cfg.MaxQPS)
+	}
+}
+
+func TestMetricsClassifyReportsGatewayPressureFromPrometheusSnapshots(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	if err := os.WriteFile(before, []byte(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="0.01"} 0
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="0.05"} 0
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 0
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+`), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(`
+wukongim_gateway_async_send_queue_depth 70
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="0.01"} 10
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="0.05"} 100
+wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+`), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "classification: gateway_dispatch") {
+		t.Fatalf("expected gateway classification, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "gateway_queue_ratio: 0.700") {
+		t.Fatalf("expected queue ratio in output, got %q", stderr.String())
 	}
 }
 

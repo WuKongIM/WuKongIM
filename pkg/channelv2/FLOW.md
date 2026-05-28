@@ -75,6 +75,10 @@ sequenceDiagram
 
 Leader reactors keep a small configurable recent-record suffix cache for durable append records. Follower `Pull` requests that are covered by this suffix can complete from memory; older requests still use `TaskStoreReadLog`, and the leader may append a cache-covered suffix to the store prefix when doing so does not create gaps. The cache is cleared by metadata fences or role changes and is only a performance optimization.
 
+Append callers may set `OmitResultPayload` when they only need assigned message
+ids and sequences; the leader then avoids cloning payload bytes into successful
+append replies.
+
 ## Channel Runtime Lifecycle Model
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.
