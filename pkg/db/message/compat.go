@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/commit"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
@@ -43,6 +44,7 @@ type Engine struct {
 	engine    *engine.DB
 	stores    map[channel.ChannelKey]*ChannelStore
 	commitCfg CommitCoordinatorConfig
+	committer *commit.Coordinator
 }
 
 // ChannelStore adapts the new typed ChannelLog to the legacy channel store API.
@@ -75,10 +77,13 @@ func Open(path string) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg := effectiveCommitCoordinatorConfig(CommitCoordinatorConfig{})
 	return &Engine{
-		db:     NewDB(eng),
-		engine: eng,
-		stores: make(map[channel.ChannelKey]*ChannelStore),
+		db:        NewDB(eng),
+		engine:    eng,
+		stores:    make(map[channel.ChannelKey]*ChannelStore),
+		commitCfg: cfg,
+		committer: commit.NewCoordinator(eng, commitCoordinatorConfig(cfg)),
 	}, nil
 }
 
@@ -87,9 +92,19 @@ func (e *Engine) ConfigureCommitCoordinator(cfg CommitCoordinatorConfig) {
 	if e == nil {
 		return
 	}
+	cfg = effectiveCommitCoordinatorConfig(cfg)
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.commitCfg = effectiveCommitCoordinatorConfig(cfg)
+	old := e.committer
+	e.commitCfg = cfg
+	if e.engine != nil {
+		e.committer = commit.NewCoordinator(e.engine, commitCoordinatorConfig(cfg))
+	} else {
+		e.committer = nil
+	}
+	e.mu.Unlock()
+	if old != nil {
+		old.Close()
+	}
 }
 
 // CommitCoordinatorConfig returns the effective legacy commit coordinator settings.
@@ -109,10 +124,15 @@ func (e *Engine) Close() error {
 	}
 	e.mu.Lock()
 	eng := e.engine
+	committer := e.committer
 	e.engine = nil
 	e.db = nil
 	e.stores = nil
+	e.committer = nil
 	e.mu.Unlock()
+	if committer != nil {
+		committer.Close()
+	}
 	if eng == nil {
 		return nil
 	}
@@ -188,6 +208,26 @@ func effectiveCommitCoordinatorConfig(cfg CommitCoordinatorConfig) CommitCoordin
 		cfg.QueueSize = defaultCommitCoordinatorQueueSize
 	}
 	return cfg
+}
+
+func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
+	cfg = effectiveCommitCoordinatorConfig(cfg)
+	return commit.Config{
+		FlushWindow: cfg.FlushWindow,
+		QueueSize:   cfg.QueueSize,
+		MaxRequests: cfg.MaxRequests,
+		MaxRecords:  cfg.MaxRecords,
+		MaxBytes:    cfg.MaxBytes,
+	}
+}
+
+func (e *Engine) commitCoordinator() *commit.Coordinator {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.committer
 }
 
 func (s *ChannelStore) validate() error {
@@ -1065,8 +1105,42 @@ func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, 
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	if committer := s.engine.commitCoordinator(); committer != nil {
+		return s.commitRowsWithCoordinator(ctx, committer, rows, checkpoint, point, nextLEO)
+	}
 	batch := s.log.db.engine.NewBatch()
 	defer batch.Close()
+	if err := s.stageCommitRows(batch, rows, checkpoint, point); err != nil {
+		return err
+	}
+	if err := batch.Commit(true); err != nil {
+		return toChannelError(err)
+	}
+	s.publishCommittedRows(rows, nextLEO)
+	return nil
+}
+
+func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64) error {
+	err := committer.Submit(ctx, commit.Request{
+		Lane:      commit.Lane{Name: "message-append", Priority: commit.PriorityHigh},
+		Partition: string(s.key),
+		Records:   len(rows),
+		Bytes:     messageRowsBytes(rows),
+		Build: func(batch *engine.Batch) error {
+			return s.stageCommitRows(batch, rows, checkpoint, point)
+		},
+		Publish: func() error {
+			s.publishCommittedRows(rows, nextLEO)
+			return nil
+		},
+	})
+	if err != nil {
+		return toChannelError(err)
+	}
+	return nil
+}
+
+func (s *ChannelStore) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint) error {
 	if err := s.log.stageMessageRows(batch, rows); err != nil {
 		return toChannelError(err)
 	}
@@ -1083,14 +1157,22 @@ func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, 
 	if err := s.log.stageCatalog(batch); err != nil {
 		return toChannelError(err)
 	}
-	if err := batch.Commit(true); err != nil {
-		return toChannelError(err)
-	}
+	return nil
+}
+
+func (s *ChannelStore) publishCommittedRows(rows []messageRow, nextLEO uint64) {
 	if len(rows) > 0 {
 		s.log.leo.Store(nextLEO)
 		s.log.loaded.Store(true)
 	}
-	return nil
+}
+
+func messageRowsBytes(rows []messageRow) int {
+	total := 0
+	for _, row := range rows {
+		total += len(row.Payload)
+	}
+	return total
 }
 
 func (s *ChannelStore) shouldAppendEpochPoint(ctx context.Context, point channel.EpochPoint) (bool, error) {
