@@ -107,6 +107,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
+		"WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false",
 		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
 		"WK_BENCH_API_ENABLE=true",
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
@@ -150,6 +151,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.ReactorCount != 12 {
 		t.Fatalf("Channel.ReactorCount = %d, want 12", cfg.Cluster.Channel.ReactorCount)
+	}
+	if !cfg.Cluster.Storage.CommitNoSync {
+		t.Fatalf("Storage.CommitNoSync = false, want true when WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
 	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -209,6 +213,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "env-node"))
 	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7002")
 	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", "false")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", "256")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
@@ -236,6 +241,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.ReactorCount != 6 {
 		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Cluster.Channel.ReactorCount)
+	}
+	if !cfg.Cluster.Storage.CommitNoSync {
+		t.Fatalf("Storage.CommitNoSync = false, want env override")
 	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -299,6 +307,7 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
+		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},

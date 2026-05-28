@@ -35,6 +35,8 @@ type CommitCoordinatorConfig struct {
 	MaxRecords int
 	// MaxBytes caps approximate payload bytes per physical commit when positive.
 	MaxBytes int
+	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
+	NoSync bool
 }
 
 // Engine is the compatibility entry point used by existing channel callers.
@@ -218,6 +220,7 @@ func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
 		MaxRequests: cfg.MaxRequests,
 		MaxRecords:  cfg.MaxRecords,
 		MaxBytes:    cfg.MaxBytes,
+		NoSync:      cfg.NoSync,
 	}
 }
 

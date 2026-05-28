@@ -336,3 +336,24 @@ Classification:
 Decision:
 - Treat 2.8M offered / 56,966 actual QPS / 0 errors as the best clean result from this run.
 - Treat 3.0M offered / 55,787 actual QPS / 256 send timeouts as the first clear failure point.
+
+## 2026-05-29 wukongimv2 Single-Node Cluster 1000-Channel NoSync Check
+
+Environment:
+- Local `cmd/wukongimv2` single-node cluster from `scripts/start-wukongimv2-single-node.sh`, clean `data/wukongimv2-node-1`, metrics and pprof enabled, `WK_CLUSTER_CHANNEL_REACTOR_COUNT=32`, gateway async SEND workers 128.
+- One variable changed from the durable-sync run: `WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false`, which skips physical fsync for grouped channel appends.
+- Workload: custom `wkbench run`, 1000 fixed group channels, 4096 online users, 10 members per channel, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, 10s warmup, 15s measured window.
+
+Evidence:
+- The run completed 150,000 run-phase sends in 15s with 0 connect/sendack errors.
+- Run-phase actual throughput was 10,000 QPS; run-phase SENDACK p50 was 2.32ms, p95 3.20ms, p99 3.84ms, and max 24.34ms.
+- Warmup p99 was 58.78ms.
+- Metrics classification reported `no_observed_queue_pressure`, gateway dispatch wait p99 about 4.97ms, and ChannelV2 append p99 about 4.97ms.
+
+Classification:
+- Category: the previous 1000-channel p99 ceiling was dominated by synchronous physical fsync/group-commit durability, not CPU saturation or gateway queue capacity.
+- Confidence: high. The no-sync control removed the blocking durable fsync boundary and immediately cleared the 10k QPS / 400ms p99 target.
+
+Decision:
+- Keep durable sync as the default.
+- Expose `WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false` as an explicit benchmark/performance mode for controlled environments that accept loss of latest acknowledged messages on process or host crash.

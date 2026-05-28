@@ -34,3 +34,11 @@ func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 2, HW: 8}, current)
 }
+
+func TestNewMessageDBFactoryWithOptionsConfiguresCommitNoSync(t *testing.T) {
+	factory := NewMessageDBFactoryWithOptions(t.TempDir(), MessageDBFactoryOptions{CommitNoSync: true})
+	t.Cleanup(func() { _ = factory.Close() })
+
+	require.NotNil(t, factory.engine)
+	require.True(t, factory.engine.CommitCoordinatorConfig().NoSync)
+}

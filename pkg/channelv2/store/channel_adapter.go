@@ -20,13 +20,33 @@ type MessageDBFactory struct {
 	checkpointLocks map[ch.ChannelKey]*sync.Mutex
 }
 
+// MessageDBFactoryOptions configures the message DB adapter.
+type MessageDBFactoryOptions struct {
+	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
+	CommitNoSync bool
+}
+
 // NewMessageDBFactory opens a message DB engine behind the v2 adapter.
 func NewMessageDBFactory(path string) *MessageDBFactory {
+	return NewMessageDBFactoryWithOptions(path, MessageDBFactoryOptions{})
+}
+
+// NewMessageDBFactoryWithOptions opens a message DB engine behind the v2 adapter.
+func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *MessageDBFactory {
 	engine, err := messagedb.Open(path)
 	if err != nil {
 		return &MessageDBFactory{}
 	}
+	engine.ConfigureCommitCoordinator(messagedb.CommitCoordinatorConfig{NoSync: opts.CommitNoSync})
 	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
+}
+
+// CommitCoordinatorConfig returns the effective message DB commit coordinator settings.
+func (f *MessageDBFactory) CommitCoordinatorConfig() messagedb.CommitCoordinatorConfig {
+	if f == nil || f.engine == nil {
+		return messagedb.CommitCoordinatorConfig{}
+	}
+	return f.engine.CommitCoordinatorConfig()
 }
 
 // ChannelStore returns an adapter for one message DB channel store.
