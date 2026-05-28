@@ -36,13 +36,6 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		return ch.AppendBatchResult{}, err
 	}
 	defer releaseAppend()
-	loaded, err := c.group.HasChannelState(ctx, key)
-	if err != nil {
-		return ch.AppendBatchResult{}, err
-	}
-	if !loaded {
-		return ch.AppendBatchResult{}, ch.ErrChannelNotFound
-	}
 	opID := c.group.NextOpID()
 	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
 	if err != nil {
