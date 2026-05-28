@@ -50,6 +50,55 @@ func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	}
 }
 
+func TestStartWaitsForClusterWriteReadinessBeforeGateway(t *testing.T) {
+	calls := make([]string, 0, 3)
+	cluster := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterv2.Snapshot{
+			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {Leader: 1, Peers: []uint64{1}},
+		},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if got := joinCalls(calls); got != "cluster.start,cluster.route,gateway.start" {
+		t.Fatalf("calls = %s, want cluster.start,cluster.route,gateway.start", got)
+	}
+}
+
+func TestClusterWriteReadinessFailureStopsClusterBeforeGateway(t *testing.T) {
+	calls := make([]string, 0, 2)
+	cluster := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterv2.Snapshot{
+			{RoutesReady: false, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
+		},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := New(Config{Cluster: clusterv2.Config{Timeouts: clusterv2.TimeoutConfig{Start: time.Millisecond}}}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = app.Start(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "cluster write readiness") {
+		t.Fatalf("Start() error = %v, want cluster write readiness error", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,cluster.stop" {
+		t.Fatalf("calls = %s, want cluster.start,cluster.stop", got)
+	}
+}
+
 func TestStopOrderIsGatewayThenCluster(t *testing.T) {
 	calls := make([]string, 0, 4)
 	cluster := &fakeCluster{calls: &calls}
@@ -158,6 +207,30 @@ func (f *fakeCluster) Stop(context.Context) error {
 		*f.calls = append(*f.calls, "cluster.stop")
 	}
 	return f.stopErr
+}
+
+type fakeWriteReadyCluster struct {
+	fakeCluster
+	snapshots []clusterv2.Snapshot
+	routes    map[uint16]clusterv2.Route
+}
+
+func (f *fakeWriteReadyCluster) Snapshot() clusterv2.Snapshot {
+	if len(f.snapshots) == 0 {
+		return clusterv2.Snapshot{}
+	}
+	return f.snapshots[0]
+}
+
+func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, "cluster.route")
+	}
+	route, ok := f.routes[hashSlot]
+	if !ok {
+		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+	}
+	return route, nil
 }
 
 type fakeGateway struct {

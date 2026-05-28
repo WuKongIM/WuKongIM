@@ -73,6 +73,80 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	}
 }
 
+func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
+	cfg := singleNodeClusterAppConfig(t)
+	channelID := channelv2.ChannelID{ID: "room-default-meta", Type: 1}
+	app, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+	node, ok := app.cluster.(*clusterv2.Node)
+	if !ok {
+		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+	}
+	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+
+	first := sendDefaultMetaSmokePacket(t, app, channelID, 1, "client-default-meta-1")
+	if first.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("first sendack reason = %v, want %v", first.ReasonCode, frame.ReasonSuccess)
+	}
+	if first.MessageID != int64(uint64(cfg.NodeID<<48)+1) {
+		t.Fatalf("first message id = %d, want %d", first.MessageID, uint64(cfg.NodeID<<48)+1)
+	}
+	if first.MessageSeq != 1 {
+		t.Fatalf("first message seq = %d, want 1", first.MessageSeq)
+	}
+
+	second := sendDefaultMetaSmokePacket(t, app, channelID, 2, "client-default-meta-2")
+	if second.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("second sendack reason = %v, want %v", second.ReasonCode, frame.ReasonSuccess)
+	}
+	if second.MessageID != int64(uint64(cfg.NodeID<<48)+2) {
+		t.Fatalf("second message id = %d, want %d", second.MessageID, uint64(cfg.NodeID<<48)+2)
+	}
+	if second.MessageSeq != 2 {
+		t.Fatalf("second message seq = %d, want 2", second.MessageSeq)
+	}
+}
+
+func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelv2.ChannelID, clientSeq uint64, clientMsgNo string) *frame.SendackPacket {
+	t.Helper()
+	writes := &sendackSmokeSessionWrites{}
+	sess := newSendackSmokeSession(writes)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	sess.SetValue(coregateway.SessionValueProtocolVersion, uint8(frame.LatestVersion))
+	send := &frame.SendPacket{
+		ClientSeq:   clientSeq,
+		ClientMsgNo: clientMsgNo,
+		ChannelID:   channelID.ID,
+		ChannelType: channelID.Type,
+		Payload:     []byte("hello through default metadata"),
+	}
+	if err := app.Handler().OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, send); err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	ack := writes.requireOnlySendack(t)
+	if ack.ClientSeq != send.ClientSeq || ack.ClientMsgNo != send.ClientMsgNo {
+		t.Fatalf("sendack client mapping = seq:%d msgNo:%q, want seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo, send.ClientSeq, send.ClientMsgNo)
+	}
+	return ack
+}
+
 func singleNodeClusterAppConfig(t *testing.T) Config {
 	t.Helper()
 	nodeID := uint64(1)
