@@ -52,6 +52,7 @@
 
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
+  wukongimv2/            internalv2 独立验证入口，用于迁移期单节点集群 SEND -> SENDACK 骨架验证
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
