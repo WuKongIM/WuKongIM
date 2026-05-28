@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -56,6 +59,34 @@ func TestAppendBatchRequiresLoadedChannelState(t *testing.T) {
 	_, err = cluster.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: meta.ID, Messages: []ch.Message{{Payload: []byte("hello")}}})
 	require.ErrorIs(t, err, ch.ErrChannelNotFound)
 	require.Equal(t, int32(0), resolver.calls.Load())
+}
+
+func TestAppendBatchAvoidsPreAppendLoadedStateProbe(t *testing.T) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, "append.go", nil, 0)
+	require.NoError(t, err)
+
+	var appendBatch *ast.FuncDecl
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Name.Name == "AppendBatch" {
+			appendBatch = fn
+			break
+		}
+	}
+	require.NotNil(t, appendBatch)
+
+	var foundStateProbe bool
+	ast.Inspect(appendBatch.Body, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if ok && selector.Sel.Name == "HasChannelState" {
+			foundStateProbe = true
+			return false
+		}
+		return true
+	})
+
+	require.False(t, foundStateProbe, "AppendBatch should submit append directly; loaded-state probes add one reactor roundtrip per message")
 }
 
 func TestAppendUsesExistingReactorStateWithoutResolvingMeta(t *testing.T) {
