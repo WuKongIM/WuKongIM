@@ -96,6 +96,63 @@ func TestCoordinatorFlushWindowBatchesConcurrentRequests(t *testing.T) {
 	}
 }
 
+func TestCoordinatorObservesCommitBatch(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Second,
+		QueueSize:   8,
+		MaxRequests: 2,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	var commits atomic.Int64
+	c.SetCommitFunc(func(batch *engine.Batch) error {
+		commits.Add(1)
+		return batch.Commit(false)
+	})
+
+	var wg sync.WaitGroup
+	for _, req := range []struct {
+		key     string
+		records int
+		bytes   int
+	}{
+		{key: "k1", records: 1, bytes: 10},
+		{key: "k2", records: 2, bytes: 20},
+	} {
+		req := req
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := c.Submit(context.Background(), commit.Request{
+				Records: req.records,
+				Bytes:   req.bytes,
+				Build:   func(batch *engine.Batch) error { return batch.Set([]byte(req.key), []byte("v")) },
+			})
+			if err != nil {
+				t.Errorf("Submit(%s): %v", req.key, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if commits.Load() != 1 {
+		t.Fatalf("commits = %d, want 1", commits.Load())
+	}
+	event := observer.onlyBatch(t)
+	if event.Requests != 2 || event.Records != 3 || event.Bytes != 30 {
+		t.Fatalf("observed batch = %#v, want 2 requests, 3 records, 30 bytes", event)
+	}
+	if event.CommitDuration <= 0 || event.TotalDuration <= 0 {
+		t.Fatalf("observed durations = %#v, want positive commit and total durations", event)
+	}
+	if len(observer.depthsSnapshot()) == 0 {
+		t.Fatal("queue depth was not observed")
+	}
+}
+
 func TestCoordinatorCloseRejectsSubmit(t *testing.T) {
 	db := openTestDB(t)
 	c := commit.NewCoordinator(db, commit.Config{FlushWindow: time.Millisecond, QueueSize: 8})
@@ -114,4 +171,38 @@ func openTestDB(t *testing.T) *engine.DB {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return db
+}
+
+type recordingObserver struct {
+	mu      sync.Mutex
+	batches []commit.BatchEvent
+	depths  []int
+}
+
+func (o *recordingObserver) SetQueueDepth(depth int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.depths = append(o.depths, depth)
+}
+
+func (o *recordingObserver) ObserveBatch(event commit.BatchEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.batches = append(o.batches, event)
+}
+
+func (o *recordingObserver) onlyBatch(t *testing.T) commit.BatchEvent {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.batches) != 1 {
+		t.Fatalf("observed batches = %d, want 1", len(o.batches))
+	}
+	return o.batches[0]
+}
+
+func (o *recordingObserver) depthsSnapshot() []int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]int(nil), o.depths...)
 }

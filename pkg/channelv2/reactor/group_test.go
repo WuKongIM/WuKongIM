@@ -128,6 +128,27 @@ func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
 	require.Equal(t, fence, events[0].Worker.Fence)
 }
 
+func TestDefaultWorkerPoolsUseExtraStoreAppendWorkers(t *testing.T) {
+	pools := defaultWorkerPools(Config{ReactorCount: 32, MailboxSize: 16})
+
+	require.Equal(t, 64, pools.StoreAppend.Workers)
+	require.Equal(t, 32, pools.StoreRead.Workers)
+	require.Equal(t, 32, pools.StoreApply.Workers)
+	require.Equal(t, 32, pools.RPC.Workers)
+}
+
+func TestDefaultWorkerPoolsPreserveExplicitStoreAppendWorkers(t *testing.T) {
+	pools := defaultWorkerPools(Config{
+		ReactorCount: 32,
+		MailboxSize:  16,
+		WorkerPools: worker.PoolsConfig{
+			StoreAppend: worker.PoolConfig{Workers: 7},
+		},
+	})
+
+	require.Equal(t, 7, pools.StoreAppend.Workers)
+}
+
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {
 	meta := testMeta("completion-backpressure", 1, 1)
 	g := newUnstartedTestGroup(t, 1, 1)

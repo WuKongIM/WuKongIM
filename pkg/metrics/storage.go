@@ -1,6 +1,10 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var storageStores = []string{
 	"meta",
@@ -11,7 +15,24 @@ var storageStores = []string{
 }
 
 type StorageMetrics struct {
-	diskUsageBytes *prometheus.GaugeVec
+	diskUsageBytes      *prometheus.GaugeVec
+	commitQueueDepth    *prometheus.GaugeVec
+	commitBatchRecords  *prometheus.HistogramVec
+	commitBatchBytes    *prometheus.HistogramVec
+	commitBatchRequests *prometheus.HistogramVec
+	commitBatchDuration *prometheus.HistogramVec
+}
+
+// StorageCommitBatchObservation describes one grouped storage commit attempt.
+type StorageCommitBatchObservation struct {
+	Requests        int
+	Records         int
+	Bytes           int
+	CollectDuration time.Duration
+	BuildDuration   time.Duration
+	CommitDuration  time.Duration
+	PublishDuration time.Duration
+	TotalDuration   time.Duration
 }
 
 func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels) *StorageMetrics {
@@ -21,9 +42,45 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Disk usage by storage subsystem in bytes.",
 			ConstLabels: labels,
 		}, []string{"store"}),
+		commitQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_commit_queue_depth",
+			Help:        "Number of logical requests waiting in a grouped storage commit queue.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		commitBatchRequests: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_storage_commit_batch_requests",
+			Help:        "Number of logical requests collected into each grouped storage commit.",
+			ConstLabels: labels,
+			Buckets:     gatewayAsyncSendBatchRecordBuckets,
+		}, []string{"store"}),
+		commitBatchRecords: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_storage_commit_batch_records",
+			Help:        "Number of logical records collected into each grouped storage commit.",
+			ConstLabels: labels,
+			Buckets:     gatewayAsyncSendBatchRecordBuckets,
+		}, []string{"store"}),
+		commitBatchBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_storage_commit_batch_bytes",
+			Help:        "Approximate payload bytes collected into each grouped storage commit.",
+			ConstLabels: labels,
+			Buckets:     gatewayAsyncSendBatchByteBuckets,
+		}, []string{"store"}),
+		commitBatchDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_storage_commit_batch_duration_seconds",
+			Help:        "Grouped storage commit stage latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"store", "stage", "result"}),
 	}
 
-	registry.MustRegister(m.diskUsageBytes)
+	registry.MustRegister(
+		m.diskUsageBytes,
+		m.commitQueueDepth,
+		m.commitBatchRequests,
+		m.commitBatchRecords,
+		m.commitBatchBytes,
+		m.commitBatchDuration,
+	)
 
 	for _, store := range storageStores {
 		m.diskUsageBytes.WithLabelValues(store).Set(0)
@@ -48,4 +105,34 @@ func (m *StorageMetrics) SetDiskUsage(usageByStore map[string]int64) {
 		}
 		m.diskUsageBytes.WithLabelValues(store).Set(float64(size))
 	}
+}
+
+func (m *StorageMetrics) SetCommitQueueDepth(store string, depth int) {
+	if m == nil {
+		return
+	}
+	if store == "" {
+		store = "unknown"
+	}
+	m.commitQueueDepth.WithLabelValues(store).Set(float64(depth))
+}
+
+func (m *StorageMetrics) ObserveCommitBatch(store string, result string, obs StorageCommitBatchObservation) {
+	if m == nil {
+		return
+	}
+	if store == "" {
+		store = "unknown"
+	}
+	if result == "" {
+		result = "unknown"
+	}
+	m.commitBatchRequests.WithLabelValues(store).Observe(float64(obs.Requests))
+	m.commitBatchRecords.WithLabelValues(store).Observe(float64(obs.Records))
+	m.commitBatchBytes.WithLabelValues(store).Observe(float64(obs.Bytes))
+	m.commitBatchDuration.WithLabelValues(store, "collect", result).Observe(obs.CollectDuration.Seconds())
+	m.commitBatchDuration.WithLabelValues(store, "build", result).Observe(obs.BuildDuration.Seconds())
+	m.commitBatchDuration.WithLabelValues(store, "commit", result).Observe(obs.CommitDuration.Seconds())
+	m.commitBatchDuration.WithLabelValues(store, "publish", result).Observe(obs.PublishDuration.Seconds())
+	m.commitBatchDuration.WithLabelValues(store, "total", result).Observe(obs.TotalDuration.Seconds())
 }

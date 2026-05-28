@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 func TestNodeProposeDelegatesToService(t *testing.T) {
@@ -78,6 +79,26 @@ func TestNodeDefaultChannelsUseConfiguredCommitNoSync(t *testing.T) {
 	}
 	if !node.defaultChannelStore.CommitCoordinatorConfig().NoSync {
 		t.Fatal("default channel store commit NoSync = false, want configured true")
+	}
+}
+
+func TestNodeDefaultChannelsUseConfiguredCommitObserver(t *testing.T) {
+	cfg := validNodeConfig(t)
+	observer := recordingCommitCoordinatorObserver{}
+	cfg.Storage.CommitObserver = observer
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	if node.defaultChannelStore == nil {
+		t.Fatal("defaultChannelStore = nil, want default store")
+	}
+	if got := node.defaultChannelStore.CommitCoordinatorConfig().Observer; got != observer {
+		t.Fatalf("default channel store commit observer = %#v, want configured observer", got)
 	}
 }
 
@@ -188,6 +209,13 @@ func TestNodeStopDiscardsDefaultChannelsForRestart(t *testing.T) {
 	if node.defaultChannelStore != nil {
 		t.Fatal("default channel store retained after Stop, want discarded")
 	}
+}
+
+type recordingCommitCoordinatorObserver struct{}
+
+func (recordingCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(int) {}
+
+func (recordingCommitCoordinatorObserver) ObserveCommitCoordinatorBatch(messagedb.CommitCoordinatorBatchEvent) {
 }
 
 func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {

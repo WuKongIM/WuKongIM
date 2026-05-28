@@ -36,6 +36,36 @@ type Lane struct {
 	Priority Priority
 }
 
+// BatchEvent describes one physical commit attempt produced by the coordinator.
+type BatchEvent struct {
+	// Requests is the number of logical requests grouped into the physical commit.
+	Requests int
+	// Records is the total logical record count in the grouped requests.
+	Records int
+	// Bytes is the approximate payload byte count in the grouped requests.
+	Bytes int
+	// CollectDuration is the time spent collecting adjacent requests.
+	CollectDuration time.Duration
+	// BuildDuration is the time spent staging all request mutations into the batch.
+	BuildDuration time.Duration
+	// CommitDuration is the time spent in the physical engine commit.
+	CommitDuration time.Duration
+	// PublishDuration is the time spent publishing committed state to callers.
+	PublishDuration time.Duration
+	// TotalDuration is the sum of collect, build, commit, and publish durations.
+	TotalDuration time.Duration
+	// Err is set when build, commit, publish, or close failed the batch.
+	Err error
+}
+
+// Observer receives low-cardinality coordinator runtime measurements.
+type Observer interface {
+	// SetQueueDepth reports the current logical commit queue depth.
+	SetQueueDepth(depth int)
+	// ObserveBatch reports one grouped physical commit attempt.
+	ObserveBatch(event BatchEvent)
+}
+
 // Config controls group commit behavior.
 type Config struct {
 	// FlushWindow is the maximum time spent collecting adjacent requests.
@@ -50,6 +80,8 @@ type Config struct {
 	MaxBytes int
 	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
 	NoSync bool
+	// Observer receives grouped commit batch and queue-depth measurements.
+	Observer Observer
 }
 
 // Request is one logical durable mutation.
@@ -135,6 +167,7 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) error {
 	select {
 	case c.requests <- pending:
 		c.acceptMu.RUnlock()
+		c.observeQueueDepth()
 	case <-ctx.Done():
 		c.acceptMu.RUnlock()
 		return ctx.Err()
@@ -179,8 +212,9 @@ func (c *Coordinator) run() {
 		if !ok {
 			return
 		}
+		collectStarted := time.Now()
 		batch := c.collect(req)
-		c.commit(batch)
+		c.commit(batch, time.Since(collectStarted))
 	}
 }
 
@@ -191,6 +225,7 @@ func (c *Coordinator) nextRequest() (pendingRequest, bool) {
 		copy(c.deferred, c.deferred[1:])
 		c.deferred = c.deferred[:len(c.deferred)-1]
 		c.mu.Unlock()
+		c.observeQueueDepth()
 		return req, true
 	}
 	c.mu.Unlock()
@@ -200,6 +235,7 @@ func (c *Coordinator) nextRequest() (pendingRequest, bool) {
 		c.failQueued()
 		return pendingRequest{}, false
 	case req := <-c.requests:
+		c.observeQueueDepth()
 		return req, true
 	}
 }
@@ -253,41 +289,95 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 	}
 }
 
-func (c *Coordinator) commit(reqs requestBatch) {
+func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {
+	requests, records, bytes := reqs.stats()
 	if reqs.closed {
+		c.observeBatch(BatchEvent{
+			Requests:        requests,
+			Records:         records,
+			Bytes:           bytes,
+			CollectDuration: collectDuration,
+			TotalDuration:   collectDuration,
+			Err:             ErrClosed,
+		})
 		reqs.completeAll(ErrClosed)
 		return
 	}
 	batch := c.db.NewBatch()
 	defer batch.Close()
+	buildStarted := time.Now()
 	for _, req := range reqs.requests {
 		if err := req.Build(batch); err != nil {
+			buildDuration := time.Since(buildStarted)
+			c.observeBatch(BatchEvent{
+				Requests:        requests,
+				Records:         records,
+				Bytes:           bytes,
+				CollectDuration: collectDuration,
+				BuildDuration:   buildDuration,
+				TotalDuration:   collectDuration + buildDuration,
+				Err:             err,
+			})
 			reqs.completeAll(err)
 			return
 		}
 	}
+	buildDuration := time.Since(buildStarted)
 	c.mu.Lock()
 	commitFunc := c.commitFunc
 	c.mu.Unlock()
+	commitStarted := time.Now()
 	if err := commitFunc(batch); err != nil {
+		commitDuration := time.Since(commitStarted)
+		c.observeBatch(BatchEvent{
+			Requests:        requests,
+			Records:         records,
+			Bytes:           bytes,
+			CollectDuration: collectDuration,
+			BuildDuration:   buildDuration,
+			CommitDuration:  commitDuration,
+			TotalDuration:   collectDuration + buildDuration + commitDuration,
+			Err:             err,
+		})
 		reqs.completeAll(err)
 		return
 	}
-	for _, req := range reqs.requests {
+	commitDuration := time.Since(commitStarted)
+	publishStarted := time.Now()
+	var publishErr error
+	publishResults := make([]error, len(reqs.requests))
+	for i, req := range reqs.requests {
 		if req.Publish != nil {
 			if err := req.Publish(); err != nil {
-				req.done <- err
-				continue
+				if publishErr == nil {
+					publishErr = err
+				}
+				publishResults[i] = err
 			}
 		}
-		req.done <- nil
+	}
+	publishDuration := time.Since(publishStarted)
+	c.observeBatch(BatchEvent{
+		Requests:        requests,
+		Records:         records,
+		Bytes:           bytes,
+		CollectDuration: collectDuration,
+		BuildDuration:   buildDuration,
+		CommitDuration:  commitDuration,
+		PublishDuration: publishDuration,
+		TotalDuration:   collectDuration + buildDuration + commitDuration + publishDuration,
+		Err:             publishErr,
+	})
+	for i, req := range reqs.requests {
+		req.done <- publishResults[i]
 	}
 }
 
 func (c *Coordinator) deferRequest(req pendingRequest) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.deferred = append(c.deferred, req)
+	c.mu.Unlock()
+	c.observeQueueDepth()
 }
 
 func (c *Coordinator) failQueued() {
@@ -296,9 +386,28 @@ func (c *Coordinator) failQueued() {
 		case req := <-c.requests:
 			req.done <- ErrClosed
 		default:
+			c.observeQueueDepth()
 			return
 		}
 	}
+}
+
+func (c *Coordinator) observeQueueDepth() {
+	if c == nil || c.cfg.Observer == nil {
+		return
+	}
+	c.mu.Lock()
+	depth := len(c.deferred)
+	c.mu.Unlock()
+	depth += len(c.requests)
+	c.cfg.Observer.SetQueueDepth(depth)
+}
+
+func (c *Coordinator) observeBatch(event BatchEvent) {
+	if c == nil || c.cfg.Observer == nil {
+		return
+	}
+	c.cfg.Observer.ObserveBatch(event)
 }
 
 func (c *Coordinator) wouldExceed(batch requestBatch, req pendingRequest) bool {

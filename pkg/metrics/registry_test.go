@@ -497,6 +497,51 @@ func TestStorageMetricsTrackDiskUsageByStore(t *testing.T) {
 	}
 }
 
+func TestStorageMetricsTrackCommitCoordinator(t *testing.T) {
+	reg := New(14, "node-14")
+
+	reg.Storage.SetCommitQueueDepth("message", 7)
+	reg.Storage.ObserveCommitBatch("message", "ok", StorageCommitBatchObservation{
+		Requests:        2,
+		Records:         3,
+		Bytes:           30,
+		CollectDuration: 1 * time.Millisecond,
+		BuildDuration:   2 * time.Millisecond,
+		CommitDuration:  3 * time.Millisecond,
+		PublishDuration: 4 * time.Millisecond,
+		TotalDuration:   10 * time.Millisecond,
+	})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	queueDepth := requireMetricFamily(t, families, "wukongim_storage_commit_queue_depth")
+	require.Len(t, queueDepth.GetMetric(), 1)
+	requireMetricLabels(t, queueDepth.GetMetric()[0], map[string]string{
+		"node_id":   "14",
+		"node_name": "node-14",
+		"store":     "message",
+	})
+	require.Equal(t, float64(7), queueDepth.GetMetric()[0].GetGauge().GetValue())
+
+	requests := requireMetricFamily(t, families, "wukongim_storage_commit_batch_requests")
+	require.Len(t, requests.GetMetric(), 1)
+	requireMetricLabels(t, requests.GetMetric()[0], map[string]string{"store": "message"})
+
+	records := requireMetricFamily(t, families, "wukongim_storage_commit_batch_records")
+	require.Len(t, records.GetMetric(), 1)
+	requireMetricLabels(t, records.GetMetric()[0], map[string]string{"store": "message"})
+
+	bytes := requireMetricFamily(t, families, "wukongim_storage_commit_batch_bytes")
+	require.Len(t, bytes.GetMetric(), 1)
+	requireMetricLabels(t, bytes.GetMetric()[0], map[string]string{"store": "message"})
+
+	duration := requireMetricFamily(t, families, "wukongim_storage_commit_batch_duration_seconds")
+	require.Len(t, duration.GetMetric(), 5)
+	commitDuration := findMetricByLabels(t, duration, map[string]string{"store": "message", "stage": "commit", "result": "ok"})
+	require.NotNil(t, commitDuration.GetHistogram())
+}
+
 func TestRegistryExposesMessageMetrics(t *testing.T) {
 	reg := New(1, "n1")
 	reg.Message.ObserveMetaRefresh("cache_hit", 3*time.Millisecond)

@@ -24,6 +24,8 @@ type MessageDBFactory struct {
 type MessageDBFactoryOptions struct {
 	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
 	CommitNoSync bool
+	// CommitObserver receives message DB group-commit measurements.
+	CommitObserver messagedb.CommitCoordinatorObserver
 }
 
 // NewMessageDBFactory opens a message DB engine behind the v2 adapter.
@@ -37,7 +39,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 	if err != nil {
 		return &MessageDBFactory{}
 	}
-	engine.ConfigureCommitCoordinator(messagedb.CommitCoordinatorConfig{NoSync: opts.CommitNoSync})
+	engine.ConfigureCommitCoordinator(messagedb.CommitCoordinatorConfig{NoSync: opts.CommitNoSync, Observer: opts.CommitObserver})
 	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
 }
 
