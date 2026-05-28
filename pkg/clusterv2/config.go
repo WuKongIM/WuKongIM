@@ -26,6 +26,8 @@ type Config struct {
 	Slots SlotConfig
 	// Channel contains ChannelV2 service configuration.
 	Channel ChannelConfig
+	// Storage contains node-local storage tuning.
+	Storage StorageConfig
 	// Timeouts contains lifecycle timeout budgets.
 	Timeouts TimeoutConfig
 }
@@ -82,6 +84,12 @@ type ChannelConfig struct {
 	TickInterval time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
 	Observer reactor.Observer
+}
+
+// StorageConfig contains node-local store tuning for clusterv2-owned runtimes.
+type StorageConfig struct {
+	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
+	CommitNoSync bool
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.

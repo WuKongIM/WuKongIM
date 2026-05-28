@@ -33,6 +33,7 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
+	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
 	"WK_API_LISTEN_ADDR",
 	"WK_BENCH_API_ENABLE",
 	"WK_BENCH_API_MAX_BATCH_SIZE",
@@ -215,6 +216,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_REACTOR_COUNT: value must be >= 0")
 		}
 		cfg.Cluster.Channel.ReactorCount = reactorCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"); raw != "" {
+		syncCommit, err := parseBool("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Storage.CommitNoSync = !syncCommit
 	}
 	cfg.API.ListenAddr = configValue(values, "WK_API_LISTEN_ADDR")
 	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")

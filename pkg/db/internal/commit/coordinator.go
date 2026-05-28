@@ -48,6 +48,8 @@ type Config struct {
 	MaxRecords int
 	// MaxBytes caps approximate payload bytes per physical commit when positive.
 	MaxBytes int
+	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
+	NoSync bool
 }
 
 // Request is one logical durable mutation.
@@ -99,7 +101,8 @@ func NewCoordinator(db *engine.DB, cfg Config) *Coordinator {
 		stopCh:   make(chan struct{}),
 		doneCh:   make(chan struct{}),
 	}
-	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(true) }
+	syncPhysical := !cfg.NoSync
+	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(syncPhysical) }
 	go c.run()
 	return c
 }
