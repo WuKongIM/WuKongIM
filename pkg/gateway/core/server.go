@@ -29,7 +29,7 @@ var (
 const (
 	asyncDispatchQueuePerWorker = 1024
 	asyncDispatchWorkersPerCPU  = 8
-	minAsyncDispatchWorkers     = 64
+	minAsyncDispatchWorkers     = 128
 	maxAsyncDispatchWorkers     = 256
 	// asyncDispatchMinQueuePerWorker keeps enough burst room for one default SEND micro-batch per shard.
 	asyncDispatchMinQueuePerWorker = 128
