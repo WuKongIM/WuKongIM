@@ -3,7 +3,9 @@ package message
 import (
 	"context"
 	"encoding/binary"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -112,6 +114,47 @@ func TestCompatCommittedCursorAndRetentionState(t *testing.T) {
 	}
 }
 
+func TestCompatChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{FlushWindow: 2 * time.Second, MaxRequests: 2})
+
+	storeA := engine.ForChannel(channel.ChannelKey("coordinator-a:1"), channel.ChannelID{ID: "coordinator-a", Type: 1})
+	storeB := engine.ForChannel(channel.ChannelKey("coordinator-b:1"), channel.ChannelID{ID: "coordinator-b", Type: 1})
+
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := storeA.Append([]channel.Record{compatTestRecord(t, 1001, "coordinator-a", "client-a")})
+		errs <- err
+	}()
+
+	select {
+	case err := <-errs:
+		t.Fatalf("first append completed before a second channel could join the commit batch: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := storeB.Append([]channel.Record{compatTestRecord(t, 1002, "coordinator-b", "client-b")})
+		errs <- err
+	}()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Append() error = %v", err)
+		}
+	}
+}
+
 func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	t.Helper()
 	payload := make([]byte, 0, channel.DurableMessageHeaderSize+64)
@@ -131,6 +174,20 @@ func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	payload = appendCompatTestString(payload, msg.FromUID)
 	payload = appendCompatTestBytes(payload, msg.Payload)
 	return payload
+}
+
+func compatTestRecord(t *testing.T, messageID uint64, channelID string, clientMsgNo string) channel.Record {
+	t.Helper()
+	msg := channel.Message{
+		MessageID:   messageID,
+		ClientMsgNo: clientMsgNo,
+		ChannelID:   channelID,
+		ChannelType: 1,
+		FromUID:     "u1",
+		Payload:     []byte("payload"),
+	}
+	payload := encodeCompatTestMessage(t, msg)
+	return channel.Record{ID: messageID, Payload: payload, SizeBytes: len(payload)}
 }
 
 func appendCompatTestString(dst []byte, value string) []byte {
