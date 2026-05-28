@@ -37,6 +37,38 @@ type CommitCoordinatorConfig struct {
 	MaxBytes int
 	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
 	NoSync bool
+	// Observer receives cross-channel group-commit queue and batch measurements.
+	Observer CommitCoordinatorObserver
+}
+
+// CommitCoordinatorBatchEvent describes one physical message DB commit attempt.
+type CommitCoordinatorBatchEvent struct {
+	// Requests is the number of logical channel append requests in the commit.
+	Requests int
+	// Records is the total logical message record count in the commit.
+	Records int
+	// Bytes is the approximate payload byte count in the commit.
+	Bytes int
+	// CollectDuration is the time spent collecting adjacent requests.
+	CollectDuration time.Duration
+	// BuildDuration is the time spent staging all request mutations into the batch.
+	BuildDuration time.Duration
+	// CommitDuration is the time spent in the physical storage commit.
+	CommitDuration time.Duration
+	// PublishDuration is the time spent publishing committed state to callers.
+	PublishDuration time.Duration
+	// TotalDuration is the sum of collect, build, commit, and publish durations.
+	TotalDuration time.Duration
+	// Err is set when build, commit, publish, or close failed the batch.
+	Err error
+}
+
+// CommitCoordinatorObserver receives low-cardinality message DB group-commit measurements.
+type CommitCoordinatorObserver interface {
+	// SetCommitCoordinatorQueueDepth reports the current logical commit queue depth.
+	SetCommitCoordinatorQueueDepth(depth int)
+	// ObserveCommitCoordinatorBatch reports one grouped physical commit attempt.
+	ObserveCommitCoordinatorBatch(event CommitCoordinatorBatchEvent)
 }
 
 // Engine is the compatibility entry point used by existing channel callers.
@@ -221,7 +253,43 @@ func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
 		MaxRecords:  cfg.MaxRecords,
 		MaxBytes:    cfg.MaxBytes,
 		NoSync:      cfg.NoSync,
+		Observer:    commitCoordinatorObserver(cfg.Observer),
 	}
+}
+
+func commitCoordinatorObserver(observer CommitCoordinatorObserver) commit.Observer {
+	if observer == nil {
+		return nil
+	}
+	return commitObserverAdapter{observer: observer}
+}
+
+type commitObserverAdapter struct {
+	observer CommitCoordinatorObserver
+}
+
+func (a commitObserverAdapter) SetQueueDepth(depth int) {
+	if a.observer == nil {
+		return
+	}
+	a.observer.SetCommitCoordinatorQueueDepth(depth)
+}
+
+func (a commitObserverAdapter) ObserveBatch(event commit.BatchEvent) {
+	if a.observer == nil {
+		return
+	}
+	a.observer.ObserveCommitCoordinatorBatch(CommitCoordinatorBatchEvent{
+		Requests:        event.Requests,
+		Records:         event.Records,
+		Bytes:           event.Bytes,
+		CollectDuration: event.CollectDuration,
+		BuildDuration:   event.BuildDuration,
+		CommitDuration:  event.CommitDuration,
+		PublishDuration: event.PublishDuration,
+		TotalDuration:   event.TotalDuration,
+		Err:             event.Err,
+	})
 }
 
 func (e *Engine) commitCoordinator() *commit.Coordinator {

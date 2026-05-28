@@ -6,6 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 )
@@ -18,7 +19,12 @@ type channelV2MetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type storageCommitMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type multiChannelV2Observer []reactor.Observer
+type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
 	if o.metrics == nil {
@@ -123,6 +129,33 @@ func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err 
 	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d)
 }
 
+func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Storage.SetCommitQueueDepth("message", depth)
+}
+
+func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if event.Err != nil {
+		result = "err"
+	}
+	o.metrics.Storage.ObserveCommitBatch("message", result, obsmetrics.StorageCommitBatchObservation{
+		Requests:        event.Requests,
+		Records:         event.Records,
+		Bytes:           event.Bytes,
+		CollectDuration: event.CollectDuration,
+		BuildDuration:   event.BuildDuration,
+		CommitDuration:  event.CommitDuration,
+		PublishDuration: event.PublishDuration,
+		TotalDuration:   event.TotalDuration,
+	})
+}
+
 func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer {
 	if first == nil {
 		return second
@@ -131,6 +164,16 @@ func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer 
 		return first
 	}
 	return multiChannelV2Observer{first, second}
+}
+
+func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiCommitCoordinatorObserver{first, second}
 }
 
 func (o multiChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
@@ -160,6 +203,18 @@ func (o multiChannelV2Observer) ObserveAppendLatency(mode ch.CommitMode, d time.
 func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	for _, observer := range o {
 		observer.ObserveWorkerResult(kind, err, d)
+	}
+}
+
+func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	for _, observer := range o {
+		observer.SetCommitCoordinatorQueueDepth(depth)
+	}
+}
+
+func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	for _, observer := range o {
+		observer.ObserveCommitCoordinatorBatch(event)
 	}
 }
 
@@ -203,3 +258,5 @@ var _ accessgateway.Observer = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
+var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}

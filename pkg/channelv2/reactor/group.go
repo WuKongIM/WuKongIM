@@ -13,6 +13,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
+const defaultStoreAppendWorkerMultiplier = 2
+
 // Config wires a group of channel-keyed reactors.
 type Config struct {
 	// LocalNode is the node id used when applying channel metadata.
@@ -320,9 +322,10 @@ func eventPriority(kind EventKind) Priority {
 
 func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	workers := max(1, cfg.ReactorCount)
+	storeAppendWorkers := workers * defaultStoreAppendWorkerMultiplier
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
-	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", workers, queueSize)
+	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", storeAppendWorkers, queueSize)
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, "channelv2-store-read", workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, "channelv2-store-apply", workers, queueSize)
 	pools.RPC = defaultPoolConfig(pools.RPC, "channelv2-rpc", workers, queueSize)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
 const minDefaultChannelReactorCount = 4
@@ -90,6 +91,8 @@ type ChannelConfig struct {
 type StorageConfig struct {
 	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
 	CommitNoSync bool
+	// CommitObserver receives message DB group-commit measurements.
+	CommitObserver messagedb.CommitCoordinatorObserver
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.

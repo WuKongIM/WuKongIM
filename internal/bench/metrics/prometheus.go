@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	WukongIMV2BottleneckGateway    = "gateway_dispatch"
-	WukongIMV2BottleneckChannelV2  = "channelv2_append"
-	WukongIMV2BottleneckMixed      = "mixed_backpressure"
-	WukongIMV2BottleneckUnobserved = "no_observed_queue_pressure"
+	WukongIMV2BottleneckGateway       = "gateway_dispatch"
+	WukongIMV2BottleneckChannelV2     = "channelv2_append"
+	WukongIMV2BottleneckStorageCommit = "storage_commit"
+	WukongIMV2BottleneckMixed         = "mixed_backpressure"
+	WukongIMV2BottleneckUnobserved    = "no_observed_queue_pressure"
 )
 
 const (
@@ -55,6 +56,11 @@ type WukongIMV2Attribution struct {
 	ChannelV2AppendP99Seconds       float64
 	ChannelV2WorkerTaskP99Seconds   float64
 	ChannelV2AppendBatchRecordsP50  float64
+	StorageCommitQueueDepthMax      float64
+	StorageCommitBatchRequestsP50   float64
+	StorageCommitBatchRecordsP50    float64
+	StorageCommitP99Seconds         float64
+	StorageCommitTotalP99Seconds    float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -189,6 +195,11 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
+	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
+	report.StorageCommitBatchRequestsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_requests")
+	report.StorageCommitBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_records")
+	report.StorageCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "commit"})
+	report.StorageCommitTotalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "total"})
 
 	gatewayPressure := false
 	if report.GatewayQueueRatio >= wukongIMV2GatewayQueuePressureRatio {
@@ -218,11 +229,27 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		report.Reasons = append(report.Reasons, "ChannelV2 worker task p99 is high")
 	}
 
+	storagePressure := false
+	if report.StorageCommitQueueDepthMax > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage commit queue has pending requests")
+	}
+	if report.StorageCommitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage physical commit p99 is high")
+	}
+	if report.StorageCommitTotalP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage grouped commit total p99 is high")
+	}
+
 	switch {
-	case gatewayPressure && channelPressure:
+	case gatewayPressure && (channelPressure || storagePressure):
 		report.Classification = WukongIMV2BottleneckMixed
 	case gatewayPressure:
 		report.Classification = WukongIMV2BottleneckGateway
+	case storagePressure:
+		report.Classification = WukongIMV2BottleneckStorageCommit
 	case channelPressure:
 		report.Classification = WukongIMV2BottleneckChannelV2
 	}
@@ -250,8 +277,12 @@ type histogramBucket struct {
 }
 
 func histogramQuantileDelta(q float64, before, after PrometheusSnapshot, family string) (float64, bool) {
-	beforeBuckets := before.histogramBuckets(family)
-	afterBuckets := after.histogramBuckets(family)
+	return histogramQuantileDeltaMatching(q, before, after, family, nil)
+}
+
+func histogramQuantileDeltaMatching(q float64, before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {
+	beforeBuckets := before.histogramBucketsMatching(family, labels)
+	afterBuckets := after.histogramBucketsMatching(family, labels)
 	if len(afterBuckets) == 0 {
 		return 0, false
 	}
@@ -267,11 +298,14 @@ func histogramQuantileDelta(q float64, before, after PrometheusSnapshot, family 
 	return histogramQuantile(q, buckets)
 }
 
-func (s PrometheusSnapshot) histogramBuckets(family string) map[float64]float64 {
+func (s PrometheusSnapshot) histogramBucketsMatching(family string, labels map[string]string) map[float64]float64 {
 	out := map[float64]float64{}
 	bucketName := family + "_bucket"
 	for _, sample := range s.Samples {
 		if sample.Name != bucketName {
+			continue
+		}
+		if !prometheusLabelsMatch(sample.Labels, labels) {
 			continue
 		}
 		rawLE := sample.Labels["le"]
@@ -282,6 +316,15 @@ func (s PrometheusSnapshot) histogramBuckets(family string) map[float64]float64 
 		out[le] += sample.Value
 	}
 	return out
+}
+
+func prometheusLabelsMatch(got map[string]string, want map[string]string) bool {
+	for key, value := range want {
+		if got[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 func parsePrometheusLE(raw string) (float64, error) {

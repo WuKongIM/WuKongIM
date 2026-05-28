@@ -129,6 +129,11 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_worker_queue_depth_max: %.0f\n", report.ChannelV2WorkerQueueDepthMax)
 	fmt.Fprintf(w, "channelv2_append_p99_seconds: %.6f\n", report.ChannelV2AppendP99Seconds)
 	fmt.Fprintf(w, "channelv2_worker_task_p99_seconds: %.6f\n", report.ChannelV2WorkerTaskP99Seconds)
+	fmt.Fprintf(w, "storage_commit_queue_depth_max: %.0f\n", report.StorageCommitQueueDepthMax)
+	fmt.Fprintf(w, "storage_commit_batch_requests_p50: %.3f\n", report.StorageCommitBatchRequestsP50)
+	fmt.Fprintf(w, "storage_commit_batch_records_p50: %.3f\n", report.StorageCommitBatchRecordsP50)
+	fmt.Fprintf(w, "storage_commit_p99_seconds: %.6f\n", report.StorageCommitP99Seconds)
+	fmt.Fprintf(w, "storage_commit_total_p99_seconds: %.6f\n", report.StorageCommitTotalP99Seconds)
 	if len(report.Reasons) == 0 {
 		return
 	}

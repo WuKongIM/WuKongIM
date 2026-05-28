@@ -192,3 +192,52 @@ wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"}
 		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
 	}
 }
+
+func TestAnalyzeWukongIMV2PrometheusClassifiesStorageCommitPressure(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_storage_commit_queue_depth{store="message"} 0
+wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 0
+wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 0
+wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 0
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.01"} 0
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.05"} 0
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="+Inf"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_storage_commit_queue_depth{store="message"} 5
+wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 10
+wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 100
+wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 100
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.01"} 10
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.05"} 100
+wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="+Inf"} 100
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckStorageCommit {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckStorageCommit, report)
+	}
+	if report.StorageCommitQueueDepthMax != 5 {
+		t.Fatalf("storage commit queue depth = %v, want 5", report.StorageCommitQueueDepthMax)
+	}
+	if report.StorageCommitP99Seconds <= 0 {
+		t.Fatalf("storage commit p99 = %v, want > 0", report.StorageCommitP99Seconds)
+	}
+	if report.StorageCommitBatchRecordsP50 <= 0 {
+		t.Fatalf("storage commit batch records p50 = %v, want > 0", report.StorageCommitBatchRecordsP50)
+	}
+}

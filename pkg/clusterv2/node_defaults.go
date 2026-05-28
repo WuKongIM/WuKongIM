@@ -61,7 +61,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	createdDefaultChannels := false
 	if n.channels == nil {
 		storeFactory := channelstore.NewMessageDBFactoryWithOptions(n.defaultChannelStorePath(), channelstore.MessageDBFactoryOptions{
-			CommitNoSync: n.cfg.Storage.CommitNoSync,
+			CommitNoSync:   n.cfg.Storage.CommitNoSync,
+			CommitObserver: n.cfg.Storage.CommitObserver,
 		})
 		var transport *channels.TransportClient
 		if n.transportClient != nil {
