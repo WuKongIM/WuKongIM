@@ -52,9 +52,10 @@ func runScheduledMessagesByKey(ctx context.Context, totalMessages int, interval 
 	sem := make(chan struct{}, maxConcurrency)
 	keyLimiter := newScheduledMessageKeyLimiter()
 	var wg sync.WaitGroup
+	startAt := time.Now()
 	var stopAt time.Time
 	if interval > 0 {
-		stopAt = time.Now().Add(interval * time.Duration(totalMessages))
+		stopAt = startAt.Add(interval * time.Duration(totalMessages))
 	}
 	for offset := 0; offset < totalMessages; offset++ {
 		if err := firstError(); err != nil {
@@ -62,41 +63,38 @@ func runScheduledMessagesByKey(ctx context.Context, totalMessages int, interval 
 			return err
 		}
 		if !stopAt.IsZero() {
-			remaining := time.Until(stopAt)
-			if remaining <= 0 {
+			dueAt := startAt.Add(interval * time.Duration(offset))
+			if wait := time.Until(dueAt); wait > 0 {
+				if err := sleepContext(runCtx, wait); err != nil {
+					cancel()
+					wg.Wait()
+					if first := firstError(); first != nil {
+						return first
+					}
+					return err
+				}
+			}
+			if !time.Now().Before(stopAt) {
 				wg.Wait()
 				if err := firstError(); err != nil {
 					return err
 				}
 				return ctx.Err()
 			}
-			timer := time.NewTimer(remaining)
-			select {
-			case sem <- struct{}{}:
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
+			acquired, err := acquireScheduledMessageSlot(runCtx, sem, stopAt)
+			if err != nil {
+				wg.Wait()
+				if first := firstError(); first != nil {
+					return first
 				}
-			case <-timer.C:
+				return err
+			}
+			if !acquired {
 				wg.Wait()
 				if err := firstError(); err != nil {
 					return err
 				}
 				return ctx.Err()
-			case <-runCtx.Done():
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				wg.Wait()
-				if err := firstError(); err != nil {
-					return err
-				}
-				return runCtx.Err()
 			}
 		} else {
 			select {
@@ -122,22 +120,44 @@ func runScheduledMessagesByKey(ctx context.Context, totalMessages int, interval 
 			defer releaseKey()
 			recordError(send(runCtx, offset))
 		}()
-		if interval > 0 {
-			if err := sleepContext(runCtx, interval); err != nil {
-				cancel()
-				wg.Wait()
-				if first := firstError(); first != nil {
-					return first
-				}
-				return err
-			}
-		}
 	}
 	wg.Wait()
 	if err := firstError(); err != nil {
 		return err
 	}
 	return ctx.Err()
+}
+
+func acquireScheduledMessageSlot(ctx context.Context, sem chan<- struct{}, stopAt time.Time) (bool, error) {
+	if stopAt.IsZero() {
+		select {
+		case sem <- struct{}{}:
+			return true, nil
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
+	}
+	remaining := time.Until(stopAt)
+	if remaining <= 0 {
+		return false, nil
+	}
+	timer := time.NewTimer(remaining)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+	select {
+	case sem <- struct{}{}:
+		return true, nil
+	case <-timer.C:
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
 }
 
 type scheduledMessageKeyLimiter struct {
