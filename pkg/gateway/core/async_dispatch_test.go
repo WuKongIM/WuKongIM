@@ -226,10 +226,10 @@ func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
 		gomaxprocs int
 		want       int
 	}{
-		{name: "low clamps to minimum", gomaxprocs: 1, want: 64},
-		{name: "scales by cpu", gomaxprocs: 10, want: 80},
+		{name: "low clamps to minimum", gomaxprocs: 1, want: 128},
+		{name: "scales by cpu", gomaxprocs: 10, want: 128},
 		{name: "high caps maximum", gomaxprocs: 128, want: 256},
-		{name: "invalid clamps minimum", gomaxprocs: 0, want: 64},
+		{name: "invalid clamps minimum", gomaxprocs: 0, want: 128},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
