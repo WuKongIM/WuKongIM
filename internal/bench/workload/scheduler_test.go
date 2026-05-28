@@ -95,3 +95,33 @@ func TestRunScheduledMessagesStopsSchedulingWhenWindowExpires(t *testing.T) {
 	require.Equal(t, 1, len(started))
 	require.Equal(t, 0, <-started)
 }
+
+func TestRunScheduledMessagesCatchesUpAfterBlockedDispatch(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	started := make(chan int, 4)
+	err := runScheduledMessages(ctx, 4, 10*time.Millisecond, 1, func(ctx context.Context, offset int) error {
+		started <- offset
+		if offset == 0 {
+			select {
+			case <-time.After(30 * time.Millisecond):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	close(started)
+	require.ElementsMatch(t, []int{0, 1, 2, 3}, drainStartedOffsets(started))
+}
+
+func drainStartedOffsets(started <-chan int) []int {
+	offsets := make([]int, 0)
+	for offset := range started {
+		offsets = append(offsets, offset)
+	}
+	return offsets
+}
