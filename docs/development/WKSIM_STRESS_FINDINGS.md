@@ -276,3 +276,63 @@ Decision:
 - No code change in this cycle. A regression test would have to assert an exact transient 30s client read timeout, which is not a focused server defect.
 - Keep `smoke-default`, `sampled-correctness`, and clean `group-fanout 1/s concurrency 256` as the current verification set.
 - If this recurs, collect diagnostics around the exact sendack timeout window and test one startup variable only, preferably longer warmup or delayed measured-run start, before changing service config or code.
+
+## 2026-05-28 wukongimv2 Single Hot Channel Triage
+
+Environment:
+- Local `cmd/wukongimv2` single-node cluster, one WKProto TCP listener, metrics enabled, clean temp data directory.
+- Workload: one group channel, 128-byte payloads, SEND -> SENDACK only, 256-512 connected sender clients.
+
+Evidence:
+- With the old adaptive gateway async SEND default on a 10-GOMAXPROCS host, the server started 640 SEND shards and exposed only about 205 buffered SEND slots for the single hot channel shard. A 12k QPS run hit `async_dispatch_queue_full` and closed one session.
+- Setting worker count to 64 raised per-shard capacity to 1024 and removed queue-full closes.
+- After changing the adaptive default to 8 shards per GOMAXPROCS, minimum 64 and maximum 256, the same host used 80 shards and total queue capacity 81920.
+- New default results: 12k target reached 11962.90 QPS, 0 errors, p99 20.16ms; 18k target reached 17929.55 QPS, 0 errors, p99 67.33ms; 24k target with 512 clients reached 20420.49 QPS, 0 errors, p99 173.89ms; 30k target did not increase throughput.
+
+Classification:
+- Category: gateway dispatch shard sizing caused hot-channel queue headroom loss before channelv2 saturated.
+- Confidence: high for the queue-full symptom. At the higher plateau, remaining pressure is mixed gateway dispatch wait and channelv2 append/worker latency.
+
+Decision:
+- Default gateway async SEND worker sizing should preserve hot-channel burst room instead of scaling to hundreds of shards on small hosts.
+- Keep Prometheus close-reason and async SEND queue metrics as the primary attribution surface for this class of issue.
+
+## 2026-05-28 wukongimv2 wkbench Single Person Channel Check
+
+Environment:
+- Local `cmd/wukongimv2` single-node cluster from the current dirty worktree, clean temp data directory, metrics and pprof enabled.
+- Workload: one generated person channel, two connected users, 128-byte payloads, SEND -> SENDACK only, receive verification disabled.
+
+Evidence:
+- 10 QPS smoke passed with 0 connect/sendack errors.
+- Offered 50, 100, and 150 QPS completed within the configured 10s run window with 0 errors.
+- Offered 155, 160, 175, and 200 QPS still returned successful reports, but worker latency sums exceeded the 10s run window, so the effective single-sender throughput flattened near 146-150 QPS.
+- Offered 300 QPS failed with one client read timeout, `sendack_error_rate=0.000333`, and a coordinator wait timeout while the worker drained queued work.
+- Metrics classifier reported no observed gateway or channelv2 queue pressure at capture time; the limiting behavior was the wkbench single-sender schedule/sendack model for this scenario.
+
+Decision:
+- Current measured single person-channel SEND -> SENDACK capacity is about 150 QPS for this single-sender workload.
+- `wkbench` should add a hot-channel capacity mode that keeps one logical channel fixed, supports configurable sender fan-in, stops at the measured window instead of draining all scheduled messages, and reports backlog/undelivered scheduled messages.
+
+## 2026-05-28 wukongimv2 wkbench Hot Channel Check
+
+Environment:
+- Local `cmd/wukongimv2` single-node cluster from the current dirty worktree, clean temp data directory, metrics and pprof enabled.
+- Workload: one generated group channel, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, `wkbench capacity hot-channel`.
+- Evidence: ignored run directory `tmp/wkbench-hot-channel/20260528-231605`.
+
+Evidence:
+- Baseline 64 senders at 100 offered QPS passed with 96.40 actual QPS, 0 errors, and p99 9.49ms.
+- With strict `min-actual-ratio=0.95`, 500 offered QPS failed on actual ratio only; actual was 445.30 QPS, 0 errors, p99 13.94ms, and no observed queue pressure.
+- Raising sender fan-in from 64 to 256 did not improve the low-offered actual-ratio shape, so subsequent probes treated actual QPS as the primary capacity signal.
+- High offered probes with 256 senders passed with 0 errors through 2.8M offered QPS; the best clean point reached 56,966.20 actual QPS with p99 19.90ms.
+- 2.9M offered reported worker_failed with 0 send errors and 56,713.80 actual QPS; 3.0M and 3.2M offered produced SENDACK read timeouts.
+- Metrics attribution near the boundary reported ChannelV2 append/worker p99 around 20-23ms and gateway queue depth near zero.
+
+Classification:
+- Category: current local hot-channel SEND -> SENDACK zero-error boundary is about 57k actual QPS for this single-process wkbench and single-node wukongimv2 setup.
+- Confidence: medium. The boundary is reproducible enough for local guidance, but the workload has large scheduled backlog at extreme offered rates, so multi-worker wkbench should be used before treating this as the server-only ceiling.
+
+Decision:
+- Treat 2.8M offered / 56,966 actual QPS / 0 errors as the best clean result from this run.
+- Treat 3.0M offered / 55,787 actual QPS / 256 send timeouts as the first clear failure point.

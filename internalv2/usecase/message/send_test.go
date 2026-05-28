@@ -98,6 +98,152 @@ func TestSendBatchSplitsAdjacentChannelSegments(t *testing.T) {
 	}
 }
 
+func TestSplitSegmentsReusesPreparedBackingArray(t *testing.T) {
+	items := []preparedSend{
+		{cmd: SendCommand{ChannelID: "a", ChannelType: 1}},
+		{cmd: SendCommand{ChannelID: "a", ChannelType: 1}},
+		{cmd: SendCommand{ChannelID: "b", ChannelType: 1}},
+		{cmd: SendCommand{ChannelID: "b", ChannelType: 1}},
+	}
+
+	segments := splitSegments(items)
+	if got, want := len(segments), 2; got != want {
+		t.Fatalf("segments = %d, want %d", got, want)
+	}
+	if &segments[0].items[0] != &items[0] || &segments[0].items[1] != &items[1] {
+		t.Fatalf("first segment does not reuse prepared backing array")
+	}
+	if &segments[1].items[0] != &items[2] || &segments[1].items[1] != &items[3] {
+		t.Fatalf("second segment does not reuse prepared backing array")
+	}
+}
+
+func TestActiveSegmentItemsReusesSegmentWhenNoneCanceled(t *testing.T) {
+	results := make([]SendBatchItemResult, 2)
+	items := []preparedSend{
+		{index: 0, ctx: context.Background()},
+		{index: 1, ctx: context.Background()},
+	}
+
+	active := activeSegmentItems(segment{items: items}, results)
+	if len(active) != len(items) {
+		t.Fatalf("active items = %d, want %d", len(active), len(items))
+	}
+	if &active[0] != &items[0] || &active[1] != &items[1] {
+		t.Fatalf("active items did not reuse segment backing array")
+	}
+}
+
+func TestPrepareReusesCommandPayloadUntilAppendBoundary(t *testing.T) {
+	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 1}})
+	payload := []byte("hello")
+
+	prepared, done := app.prepare(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room",
+		ChannelType: 1,
+		Payload:     payload,
+	})
+	if done {
+		t.Fatalf("prepare returned done=true, want prepared command")
+	}
+	if len(prepared.cmd.Payload) == 0 || &prepared.cmd.Payload[0] != &payload[0] {
+		t.Fatalf("prepared payload was cloned before append boundary")
+	}
+}
+
+func TestAppendSegmentClonesPayloadForAppenderBoundary(t *testing.T) {
+	payload := []byte("hello")
+	appender := &mutatingAppender{}
+	app := New(Options{Appender: appender})
+
+	results := make([]SendBatchItemResult, 1)
+	app.appendSegment(segment{
+		channel: ChannelID{ID: "room", Type: 1},
+		items: []preparedSend{{
+			index: 0,
+			ctx:   context.Background(),
+			cmd: SendCommand{
+				MessageID:   1,
+				ChannelID:   "room",
+				ChannelType: 1,
+				FromUID:     "u1",
+				Payload:     payload,
+			},
+		}},
+	}, results)
+
+	if got := string(payload); got != "hello" {
+		t.Fatalf("source payload = %q, want append boundary clone to protect command payload", got)
+	}
+	if results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("result reason = %v, want success", results[0].Result.Reason)
+	}
+}
+
+func TestNewLeavesCommittedSinkNilWhenNotConfigured(t *testing.T) {
+	app := New(Options{Appender: &recordingAppender{}})
+	if app.committed != nil {
+		t.Fatalf("committed sink = %T, want nil when not configured", app.committed)
+	}
+}
+
+func TestAppendSegmentOmitsResultPayloadWhenNoCommittedSink(t *testing.T) {
+	appender := &recordingAppender{}
+	app := New(Options{Appender: appender})
+	results := make([]SendBatchItemResult, 1)
+
+	app.appendSegment(segment{
+		channel: ChannelID{ID: "room", Type: 1},
+		items: []preparedSend{{
+			index: 0,
+			ctx:   context.Background(),
+			cmd: SendCommand{
+				MessageID:   1,
+				ChannelID:   "room",
+				ChannelType: 1,
+				FromUID:     "u1",
+				Payload:     []byte("payload"),
+			},
+		}},
+	}, results)
+
+	if got := len(appender.requests); got != 1 {
+		t.Fatalf("append requests = %d, want 1", got)
+	}
+	if !appender.requests[0].OmitResultPayload {
+		t.Fatalf("OmitResultPayload = false, want true without committed sink")
+	}
+}
+
+func TestAppendSegmentKeepsResultPayloadWhenCommittedSinkConfigured(t *testing.T) {
+	appender := &recordingAppender{}
+	app := New(Options{Appender: appender, Committed: recordingCommitted{}})
+	results := make([]SendBatchItemResult, 1)
+
+	app.appendSegment(segment{
+		channel: ChannelID{ID: "room", Type: 1},
+		items: []preparedSend{{
+			index: 0,
+			ctx:   context.Background(),
+			cmd: SendCommand{
+				MessageID:   1,
+				ChannelID:   "room",
+				ChannelType: 1,
+				FromUID:     "u1",
+				Payload:     []byte("payload"),
+			},
+		}},
+	}, results)
+
+	if got := len(appender.requests); got != 1 {
+		t.Fatalf("append requests = %d, want 1", got)
+	}
+	if appender.requests[0].OmitResultPayload {
+		t.Fatalf("OmitResultPayload = true, want false with committed sink")
+	}
+}
+
 func TestSendBatchMapsAppendItemErrorsToReasons(t *testing.T) {
 	appender := &recordingAppender{itemErrs: []error{nil, ErrRouteNotReady}}
 	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}})
@@ -198,6 +344,26 @@ func TestSegmentContextUsesEarliestItemDeadline(t *testing.T) {
 	}
 }
 
+func TestSegmentContextUsesExplicitBatchItemDeadline(t *testing.T) {
+	late := time.Now().Add(time.Hour)
+	early := time.Now().Add(time.Minute)
+	lateCtx, lateCancel := context.WithDeadline(context.Background(), late)
+	defer lateCancel()
+
+	ctx, cancel := segmentContext([]preparedSend{
+		{ctx: lateCtx, deadline: early},
+	})
+	defer cancel()
+
+	got, ok := ctx.Deadline()
+	if !ok {
+		t.Fatalf("segment context missing deadline")
+	}
+	if !got.Equal(early) {
+		t.Fatalf("segment deadline = %v, want explicit item deadline %v", got, early)
+	}
+}
+
 func TestCommittedSinkErrorDoesNotChangeSendResult(t *testing.T) {
 	observer := &recordingObserver{}
 	app := New(Options{
@@ -255,6 +421,20 @@ func (a *recordingAppender) AppendBatch(_ context.Context, req AppendBatchReques
 	return AppendBatchResult{Items: items}, nil
 }
 
+type mutatingAppender struct{}
+
+func (a *mutatingAppender) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	items := make([]AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		if len(req.Messages[i].Payload) > 0 {
+			req.Messages[i].Payload[0] = 'H'
+		}
+		msg.MessageSeq = uint64(i + 1)
+		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
+	}
+	return AppendBatchResult{Items: items}, nil
+}
+
 type contextCapturingAppender struct {
 	onAppend                    func()
 	ctxCanceledAfterFirstCancel bool
@@ -293,6 +473,12 @@ type failingCommitted struct{ err error }
 
 func (f failingCommitted) Submit(context.Context, messageevents.MessageCommitted) error {
 	return f.err
+}
+
+type recordingCommitted struct{}
+
+func (recordingCommitted) Submit(context.Context, messageevents.MessageCommitted) error {
+	return nil
 }
 
 type recordingObserver struct{ committedErrors int }

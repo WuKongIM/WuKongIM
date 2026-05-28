@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,39 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 		binding.TCPWKProto("tcp-wkproto", "0.0.0.0:5100"),
 		binding.WSMux("ws-gateway", "0.0.0.0:5200"),
 	})
+	wantLoops := adaptiveGatewayGnetEventLoops(runtime.GOMAXPROCS(0))
+	if cfg.Gateway.Transport.Gnet.NumEventLoop != wantLoops {
+		t.Fatalf("Gnet.NumEventLoop = %d, want adaptive %d", cfg.Gateway.Transport.Gnet.NumEventLoop, wantLoops)
+	}
+	if wantLoops > 1 && !cfg.Gateway.Transport.Gnet.Multicore {
+		t.Fatalf("Gnet.Multicore = false, want true for %d event loops", wantLoops)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 512 {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 512", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
+	}
+}
+
+func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {
+	tests := []struct {
+		name       string
+		gomaxprocs int
+		want       int
+	}{
+		{name: "invalid clamps to one", gomaxprocs: 0, want: 1},
+		{name: "small server keeps one", gomaxprocs: 2, want: 1},
+		{name: "medium server uses half", gomaxprocs: 6, want: 3},
+		{name: "larger server caps at four", gomaxprocs: 16, want: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := adaptiveGatewayGnetEventLoops(tt.gomaxprocs); got != tt.want {
+				t.Fatalf("adaptiveGatewayGnetEventLoops(%d) = %d, want %d", tt.gomaxprocs, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestLoadConfigDefaultPathSearch(t *testing.T) {
@@ -72,6 +106,22 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_INITIAL_SLOT_COUNT=3",
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
+		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
+		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
+		"WK_BENCH_API_ENABLE=true",
+		"WK_BENCH_API_MAX_BATCH_SIZE=123",
+		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
+		"WK_METRICS_ENABLE=true",
+		"WK_PPROF_ENABLE=true",
+		"WK_EXTERNAL_TCPADDR=127.0.0.1:5142",
+		"WK_EXTERNAL_WSADDR=ws://127.0.0.1:5242",
+		"WK_EXTERNAL_WSSADDR=wss://127.0.0.1:5342",
+		"WK_GATEWAY_GNET_MULTICORE=true",
+		"WK_GATEWAY_GNET_NUM_EVENT_LOOP=4",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=128",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=750us",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=64",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=262144",
 		"WK_GATEWAY_SEND_TIMEOUT=5s",
 	)
 
@@ -98,8 +148,50 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Cluster.Slots.ReplicaCount != 1 {
 		t.Fatalf("ReplicaCount = %d", cfg.Cluster.Slots.ReplicaCount)
 	}
+	if cfg.Cluster.Channel.ReactorCount != 12 {
+		t.Fatalf("Channel.ReactorCount = %d, want 12", cfg.Cluster.Channel.ReactorCount)
+	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if cfg.API.ListenAddr != "127.0.0.1:5042" {
+		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
+	}
+	if !cfg.Bench.APIEnabled {
+		t.Fatalf("Bench.APIEnabled = false, want true")
+	}
+	if cfg.Bench.APIMaxBatchSize != 123 {
+		t.Fatalf("Bench.APIMaxBatchSize = %d, want 123", cfg.Bench.APIMaxBatchSize)
+	}
+	if cfg.Bench.APIMaxPayloadBytes != 456789 {
+		t.Fatalf("Bench.APIMaxPayloadBytes = %d, want 456789", cfg.Bench.APIMaxPayloadBytes)
+	}
+	if !cfg.Observability.MetricsEnabled {
+		t.Fatalf("Observability.MetricsEnabled = false, want true")
+	}
+	if !cfg.Observability.PProfEnabled {
+		t.Fatalf("Observability.PProfEnabled = false, want true")
+	}
+	if cfg.API.ExternalTCPAddr != "127.0.0.1:5142" || cfg.API.ExternalWSAddr != "ws://127.0.0.1:5242" || cfg.API.ExternalWSSAddr != "wss://127.0.0.1:5342" {
+		t.Fatalf("external gateway addrs = %#v", cfg.API)
+	}
+	if !cfg.Gateway.Transport.Gnet.Multicore {
+		t.Fatalf("Gnet.Multicore = false, want true")
+	}
+	if cfg.Gateway.Transport.Gnet.NumEventLoop != 4 {
+		t.Fatalf("Gnet.NumEventLoop = %d, want 4", cfg.Gateway.Transport.Gnet.NumEventLoop)
+	}
+	if cfg.Gateway.Session.AsyncSendDispatchWorkers != 128 {
+		t.Fatalf("AsyncSendDispatchWorkers = %d, want 128", cfg.Gateway.Session.AsyncSendDispatchWorkers)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxWait != 750*time.Microsecond {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want 750us", cfg.Gateway.Session.AsyncSendBatchMaxWait)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 64 {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 64", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxBytes != 262144 {
+		t.Fatalf("AsyncSendBatchMaxBytes = %d, want 262144", cfg.Gateway.Session.AsyncSendBatchMaxBytes)
 	}
 }
 
@@ -116,7 +208,17 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_NODE_ID", "2")
 	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "env-node"))
 	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7002")
+	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
+	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
+	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", "256")
+	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
+	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", "96")
+	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", "131072")
 	t.Setenv("WK_GATEWAY_SEND_TIMEOUT", "2s")
+	t.Setenv("WK_API_LISTEN_ADDR", "127.0.0.1:5002")
+	t.Setenv("WK_BENCH_API_ENABLE", "true")
+	t.Setenv("WK_METRICS_ENABLE", "true")
+	t.Setenv("WK_PPROF_ENABLE", "true")
 
 	cfg, err := loadConfig([]string{"-config", path})
 	if err != nil {
@@ -132,8 +234,38 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Cluster.ListenAddr != "127.0.0.1:7002" {
 		t.Fatalf("ListenAddr = %q", cfg.Cluster.ListenAddr)
 	}
+	if cfg.Cluster.Channel.ReactorCount != 6 {
+		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Cluster.Channel.ReactorCount)
+	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if cfg.Gateway.Transport.Gnet.NumEventLoop != 5 {
+		t.Fatalf("Gnet.NumEventLoop = %d, want 5", cfg.Gateway.Transport.Gnet.NumEventLoop)
+	}
+	if cfg.Gateway.Session.AsyncSendDispatchWorkers != 256 {
+		t.Fatalf("AsyncSendDispatchWorkers = %d, want 256", cfg.Gateway.Session.AsyncSendDispatchWorkers)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 96 {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 96", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
+	}
+	if cfg.Gateway.Session.AsyncSendBatchMaxBytes != 131072 {
+		t.Fatalf("AsyncSendBatchMaxBytes = %d, want 131072", cfg.Gateway.Session.AsyncSendBatchMaxBytes)
+	}
+	if cfg.API.ListenAddr != "127.0.0.1:5002" {
+		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
+	}
+	if !cfg.Bench.APIEnabled {
+		t.Fatalf("Bench.APIEnabled = false, want true")
+	}
+	if !cfg.Observability.MetricsEnabled {
+		t.Fatalf("Observability.MetricsEnabled = false, want true")
+	}
+	if !cfg.Observability.PProfEnabled {
+		t.Fatalf("Observability.PProfEnabled = false, want true")
 	}
 }
 
@@ -166,8 +298,20 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 	}{
 		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
+		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
+		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
+		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},
+		{name: "async dispatch workers", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS"},
+		{name: "async batch wait", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=soon", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"},
+		{name: "async batch records", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS"},
+		{name: "async batch bytes", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=large", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES"},
 		{name: "send timeout", line: "WK_GATEWAY_SEND_TIMEOUT=soon", wantKey: "WK_GATEWAY_SEND_TIMEOUT"},
+		{name: "bench api enable", line: "WK_BENCH_API_ENABLE=maybe", wantKey: "WK_BENCH_API_ENABLE"},
+		{name: "bench api max batch size", line: "WK_BENCH_API_MAX_BATCH_SIZE=many", wantKey: "WK_BENCH_API_MAX_BATCH_SIZE"},
+		{name: "bench api max payload bytes", line: "WK_BENCH_API_MAX_PAYLOAD_BYTES=large", wantKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES"},
+		{name: "metrics enable", line: "WK_METRICS_ENABLE=maybe", wantKey: "WK_METRICS_ENABLE"},
+		{name: "pprof enable", line: "WK_PPROF_ENABLE=maybe", wantKey: "WK_PPROF_ENABLE"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

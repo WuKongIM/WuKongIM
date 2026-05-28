@@ -35,8 +35,18 @@ func TestEvaluateAttemptClassifiesPassAndFailureReasons(t *testing.T) {
 
 	require.True(t, got.Passed)
 	require.Equal(t, 100.0, got.ActualQPS)
+	require.Equal(t, uint64(100), got.ScheduledMessages)
+	require.Equal(t, uint64(100), got.SendSuccess)
+	require.Equal(t, uint64(0), got.BacklogMessages)
 	require.Equal(t, 30*time.Millisecond, got.SendackP99)
 
+	attempt.OfferedQPS = 200
+	got = EvaluateAttempt(cfg, attempt, rep)
+	require.Equal(t, uint64(200), got.ScheduledMessages)
+	require.Equal(t, uint64(100), got.SendSuccess)
+	require.Equal(t, uint64(100), got.BacklogMessages)
+
+	attempt.OfferedQPS = 100
 	cfg.StableP99 = time.Millisecond
 	got = EvaluateAttempt(cfg, attempt, rep)
 	require.False(t, got.Passed)

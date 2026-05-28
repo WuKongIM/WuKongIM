@@ -2,6 +2,8 @@
 
 `wkdb` is a read-only offline inspection CLI for one WuKongIM node data directory.
 
+Full operations guide: [docs/wiki/operations/wkdb-readonly-cli.md](../../docs/wiki/operations/wkdb-readonly-cli.md)
+
 Examples:
 
 ```bash

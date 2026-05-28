@@ -3,6 +3,7 @@ package capacity
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -130,19 +131,43 @@ func stopWorker(ctx context.Context, w model.Worker) error {
 // EvaluateAttempt classifies one coordinator report against capacity criteria.
 func EvaluateAttempt(cfg Config, attempt Attempt, rep report.Report) AttemptResult {
 	send := report.SendRunSummaryFromMetrics(rep.Metrics, cfg.Duration)
+	scheduled := scheduledMessagesForAttempt(attempt, cfg.Duration)
 	out := AttemptResult{
-		Attempt:          attempt,
-		ActualQPS:        send.IngressQPS,
-		SendackP50:       send.SendackP50,
-		SendackP95:       send.SendackP95,
-		SendackP99:       send.SendackP99,
-		SendackErrorRate: rep.Summary.SendackErrorRate,
-		ConnectErrorRate: rep.Summary.ConnectErrorRate,
-		WorkerFailed:     rep.Summary.WorkerFailed,
-		ReportDir:        rep.Scenario.Run.ReportDir,
+		Attempt:           attempt,
+		ActualQPS:         send.IngressQPS,
+		ScheduledMessages: scheduled,
+		SendSuccess:       send.SendSuccess,
+		SendErrors:        send.SendErrors,
+		BacklogMessages:   backlogMessages(scheduled, send.SendSuccess, send.SendErrors),
+		SendackP50:        send.SendackP50,
+		SendackP95:        send.SendackP95,
+		SendackP99:        send.SendackP99,
+		SendackErrorRate:  rep.Summary.SendackErrorRate,
+		ConnectErrorRate:  rep.Summary.ConnectErrorRate,
+		WorkerFailed:      rep.Summary.WorkerFailed,
+		ReportDir:         rep.Scenario.Run.ReportDir,
 	}
 	out.Passed, out.FailureReason = attemptPassStatus(cfg, attempt, out)
 	return out
+}
+
+func scheduledMessagesForAttempt(attempt Attempt, duration time.Duration) uint64 {
+	if attempt.OfferedQPS <= 0 || duration <= 0 || math.IsNaN(attempt.OfferedQPS) || math.IsInf(attempt.OfferedQPS, 0) {
+		return 0
+	}
+	scheduled := math.Round(attempt.OfferedQPS * duration.Seconds())
+	if scheduled <= 0 {
+		return 0
+	}
+	return uint64(scheduled)
+}
+
+func backlogMessages(scheduled, success, errors uint64) uint64 {
+	observed := success + errors
+	if observed >= scheduled {
+		return 0
+	}
+	return scheduled - observed
 }
 
 func attemptPassStatus(cfg Config, attempt Attempt, result AttemptResult) (bool, string) {

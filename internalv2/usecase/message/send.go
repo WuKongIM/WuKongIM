@@ -29,6 +29,7 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		next, done := a.prepare(ctx, item.Command)
 		next.index = i
 		next.ctx = ctx
+		next.deadline = item.Deadline
 		if done {
 			results[i] = SendBatchItemResult{Result: next.result, Err: next.err}
 			continue
@@ -42,11 +43,12 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 }
 
 type preparedSend struct {
-	index  int
-	ctx    context.Context
-	cmd    SendCommand
-	result SendResult
-	err    error
+	index    int
+	ctx      context.Context
+	deadline time.Time
+	cmd      SendCommand
+	result   SendResult
+	err      error
 }
 
 func (a *App) prepare(ctx context.Context, cmd SendCommand) (preparedSend, bool) {
@@ -82,7 +84,7 @@ func (a *App) prepare(ctx context.Context, cmd SendCommand) (preparedSend, bool)
 		}
 		cmd.MessageID = a.messageID.Next()
 	}
-	return preparedSend{cmd: cloneCommand(cmd)}, false
+	return preparedSend{cmd: cmd}, false
 }
 
 type segment struct {
@@ -91,34 +93,35 @@ type segment struct {
 }
 
 func splitSegments(items []preparedSend) []segment {
-	out := make([]segment, 0, len(items))
-	for _, item := range items {
-		channel := ChannelID{ID: item.cmd.ChannelID, Type: item.cmd.ChannelType}
-		if len(out) > 0 && out[len(out)-1].channel == channel {
-			out[len(out)-1].items = append(out[len(out)-1].items, item)
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]segment, 0, 1)
+	start := 0
+	current := ChannelID{ID: items[0].cmd.ChannelID, Type: items[0].cmd.ChannelType}
+	for i := 1; i < len(items); i++ {
+		channel := ChannelID{ID: items[i].cmd.ChannelID, Type: items[i].cmd.ChannelType}
+		if channel == current {
 			continue
 		}
-		out = append(out, segment{channel: channel, items: []preparedSend{item}})
+		out = append(out, segment{channel: current, items: items[start:i]})
+		start = i
+		current = channel
 	}
+	out = append(out, segment{channel: current, items: items[start:]})
 	return out
 }
 
 func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
-	active := make([]preparedSend, 0, len(segment.items))
-	for _, item := range segment.items {
-		if err := item.ctx.Err(); err != nil {
-			results[item.index] = SendBatchItemResult{Err: err}
-			continue
-		}
-		active = append(active, item)
-	}
+	active := activeSegmentItems(segment, results)
 	if len(active) == 0 {
 		return
 	}
 	req := AppendBatchRequest{
-		ChannelID:  segment.channel,
-		Messages:   make([]Message, 0, len(active)),
-		CommitMode: CommitModeQuorum,
+		ChannelID:         segment.channel,
+		Messages:          make([]Message, 0, len(active)),
+		CommitMode:        CommitModeQuorum,
+		OmitResultPayload: a == nil || a.committed == nil,
 	}
 	for _, item := range active {
 		req.Messages = append(req.Messages, Message{
@@ -155,17 +158,47 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 	}
 }
 
+func activeSegmentItems(segment segment, results []SendBatchItemResult) []preparedSend {
+	for i, item := range segment.items {
+		if item.ctx == nil {
+			continue
+		}
+		if err := item.ctx.Err(); err != nil {
+			results[item.index] = SendBatchItemResult{Err: err}
+			active := make([]preparedSend, 0, len(segment.items)-1)
+			active = append(active, segment.items[:i]...)
+			for _, candidate := range segment.items[i+1:] {
+				if candidate.ctx != nil {
+					if err := candidate.ctx.Err(); err != nil {
+						results[candidate.index] = SendBatchItemResult{Err: err}
+						continue
+					}
+				}
+				active = append(active, candidate)
+			}
+			return active
+		}
+	}
+	return segment.items
+}
+
 func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) {
 	var earliest time.Time
 	hasDeadline := false
-	for _, item := range items {
-		deadline, ok := item.ctx.Deadline()
-		if !ok {
-			continue
+	recordDeadline := func(deadline time.Time, ok bool) {
+		if !ok || deadline.IsZero() {
+			return
 		}
 		if !hasDeadline || deadline.Before(earliest) {
 			earliest = deadline
 			hasDeadline = true
+		}
+	}
+	for _, item := range items {
+		recordDeadline(item.deadline, !item.deadline.IsZero())
+		if item.ctx != nil {
+			deadline, ok := item.ctx.Deadline()
+			recordDeadline(deadline, ok)
 		}
 	}
 	if hasDeadline {
@@ -201,11 +234,6 @@ func reasonForAppendError(err error) Reason {
 	default:
 		return ReasonSystemError
 	}
-}
-
-func cloneCommand(cmd SendCommand) SendCommand {
-	cmd.Payload = cloneBytes(cmd.Payload)
-	return cmd
 }
 
 func cloneAppendRequest(req AppendBatchRequest) AppendBatchRequest {

@@ -85,7 +85,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 		records = append(records, cloned...)
 		waiterOpIDs = append(waiterOpIDs, waiter.OpID)
 		waiterRecordCounts = append(waiterRecordCounts, len(cloned))
-		s.PendingAppends[waiter.OpID] = &AppendWaiter{OpID: waiter.OpID, CommitMode: mode, Records: cloned}
+		s.PendingAppends[waiter.OpID] = &AppendWaiter{OpID: waiter.OpID, CommitMode: mode, OmitResultPayload: waiter.OmitResultPayload, Records: cloned}
 		s.appendPendingAppendOrder(waiter.OpID)
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
@@ -212,11 +212,25 @@ func (s *ChannelState) assignInflightRecordsToWaiters(inflight *AppendOp) {
 		if end > len(inflight.Records) {
 			end = len(inflight.Records)
 		}
-		waiter.Records = cloneRecords(inflight.Records[next:end])
+		source := inflight.Records[next:end]
+		if len(waiter.Records) == len(source) {
+			assignStoredRecordMetadata(waiter.Records, source)
+		} else {
+			waiter.Records = cloneRecords(source)
+		}
 		if len(waiter.Records) > 0 {
 			waiter.Target = waiter.Records[len(waiter.Records)-1].Index
 		}
 		next = end
+	}
+}
+
+func assignStoredRecordMetadata(target, source []ch.Record) {
+	for i := range source {
+		target[i].ID = source[i].ID
+		target[i].Index = source[i].Index
+		target[i].Epoch = source[i].Epoch
+		target[i].SizeBytes = source[i].SizeBytes
 	}
 }
 
@@ -240,7 +254,7 @@ func (s *ChannelState) completeAppendWaiters(order []ch.OpID) Decision {
 		if waiter.CommitMode == ch.CommitModeQuorum && s.HW < waiter.Target {
 			continue
 		}
-		items := appendItemsForRecords(s.ID, waiter.Records)
+		items := appendItemsForRecords(s.ID, waiter.Records, waiter.OmitResultPayload)
 		reply := Reply{Kind: ReplyKindAppend, OpID: opID, AppendItems: items}
 		if len(items) > 0 {
 			reply.Append = items[0]
@@ -298,10 +312,13 @@ func (s *ChannelState) removePendingAppendOrder(opIDs []ch.OpID) {
 	s.PendingAppendOrder = kept
 }
 
-func appendItemsForRecords(id ch.ChannelID, records []ch.Record) []ch.AppendBatchItemResult {
+func appendItemsForRecords(id ch.ChannelID, records []ch.Record, omitPayload bool) []ch.AppendBatchItemResult {
 	items := make([]ch.AppendBatchItemResult, len(records))
 	for i, record := range records {
-		msg := ch.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type, Payload: cloneBytes(record.Payload)}
+		msg := ch.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type}
+		if !omitPayload {
+			msg.Payload = cloneBytes(record.Payload)
+		}
 		items[i] = ch.AppendBatchItemResult{MessageID: record.ID, MessageSeq: record.Index, Message: msg}
 	}
 	return items

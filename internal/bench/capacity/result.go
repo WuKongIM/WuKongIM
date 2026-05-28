@@ -56,7 +56,7 @@ func WriteResult(dir string, result Result) error {
 // SummaryMarkdown renders a deterministic capacity summary.
 func SummaryMarkdown(result Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# wkbench capacity send\n\n")
+	fmt.Fprintf(&b, "# wkbench capacity %s\n\n", capacityCommandName(result))
 	fmt.Fprintf(&b, "- status: %s\n", result.Status)
 	fmt.Fprintf(&b, "- profile: %s\n", result.Profile)
 	fmt.Fprintf(&b, "- max_stable_qps: %.2f\n", result.MaxStableQPS)
@@ -69,7 +69,7 @@ func SummaryMarkdown(result Result) string {
 		if attempt.Passed {
 			status = "pass"
 		}
-		fmt.Fprintf(&b, "- %.2f qps: %s actual=%.2f p50=%s p95=%s p99=%s", attempt.Attempt.OfferedQPS, status, attempt.ActualQPS, formatDuration(attempt.SendackP50), formatDuration(attempt.SendackP95), formatDuration(attempt.SendackP99))
+		fmt.Fprintf(&b, "- %.2f qps: %s actual=%.2f scheduled=%d success=%d errors=%d backlog=%d p50=%s p95=%s p99=%s", attempt.Attempt.OfferedQPS, status, attempt.ActualQPS, attempt.ScheduledMessages, attempt.SendSuccess, attempt.SendErrors, attempt.BacklogMessages, formatDuration(attempt.SendackP50), formatDuration(attempt.SendackP95), formatDuration(attempt.SendackP99))
 		if attempt.FailureReason != "" {
 			fmt.Fprintf(&b, " reason=%s", attempt.FailureReason)
 		}
@@ -81,14 +81,14 @@ func SummaryMarkdown(result Result) string {
 // ConsoleSummary renders concise terminal output for capacity results.
 func ConsoleSummary(result Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "wkbench capacity send\n\n")
+	fmt.Fprintf(&b, "wkbench capacity %s\n\n", capacityCommandName(result))
 	fmt.Fprintf(&b, "attempts:\n")
 	for _, attempt := range result.Attempts {
 		status := "fail"
 		if attempt.Passed {
 			status = "pass"
 		}
-		fmt.Fprintf(&b, "  %.0f qps\t%s\tactual=%.2f\tp50=%s\tp95=%s\tp99=%s", attempt.Attempt.OfferedQPS, status, attempt.ActualQPS, formatDuration(attempt.SendackP50), formatDuration(attempt.SendackP95), formatDuration(attempt.SendackP99))
+		fmt.Fprintf(&b, "  %.0f qps\t%s\tactual=%.2f\tscheduled=%d\tsuccess=%d\terrors=%d\tbacklog=%d\tp50=%s\tp95=%s\tp99=%s", attempt.Attempt.OfferedQPS, status, attempt.ActualQPS, attempt.ScheduledMessages, attempt.SendSuccess, attempt.SendErrors, attempt.BacklogMessages, formatDuration(attempt.SendackP50), formatDuration(attempt.SendackP95), formatDuration(attempt.SendackP99))
 		if attempt.FailureReason != "" {
 			fmt.Fprintf(&b, "\treason=%s", attempt.FailureReason)
 		}
@@ -104,6 +104,13 @@ func ConsoleSummary(result Result) string {
 		fmt.Fprintf(&b, "  report: %s\n", result.ReportDir)
 	}
 	return b.String()
+}
+
+func capacityCommandName(result Result) string {
+	if strings.TrimSpace(result.Profile) == "hot-channel" {
+		return "hot-channel"
+	}
+	return "send"
 }
 
 func formatDuration(d time.Duration) string {

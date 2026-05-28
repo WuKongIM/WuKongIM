@@ -105,6 +105,8 @@ Node.AppendChannel / AppendChannelBatch
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted.
 
+When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
+
 ## Non-Goals For V1
 
 - Do not replace or modify `pkg/cluster`.

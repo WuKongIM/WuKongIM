@@ -50,6 +50,45 @@ func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	}
 }
 
+func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
+	calls := make([]string, 0, 3)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if got := joinCalls(calls); got != "cluster.start,api.start,gateway.start" {
+		t.Fatalf("calls = %s, want cluster.start,api.start,gateway.start", got)
+	}
+}
+
+func TestGatewayStartFailureStopsAPIThenCluster(t *testing.T) {
+	gatewayErr := errors.New("gateway start failed")
+	calls := make([]string, 0, 5)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls, startErr: gatewayErr}
+	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = app.Start(context.Background())
+	if !errors.Is(err, gatewayErr) {
+		t.Fatalf("Start() error = %v, want gateway error", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,api.start,gateway.start,api.stop,cluster.stop" {
+		t.Fatalf("calls = %s, want cluster.start,api.start,gateway.start,api.stop,cluster.stop", got)
+	}
+}
+
 func TestStartWaitsForClusterWriteReadinessBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 3)
 	cluster := &fakeWriteReadyCluster{
@@ -117,6 +156,28 @@ func TestStopOrderIsGatewayThenCluster(t *testing.T) {
 
 	if got := joinCalls(calls); got != "cluster.start,gateway.start,gateway.stop,cluster.stop" {
 		t.Fatalf("calls = %s, want cluster.start,gateway.start,gateway.stop,cluster.stop", got)
+	}
+}
+
+func TestStopOrderIncludesAPIBeforeCluster(t *testing.T) {
+	calls := make([]string, 0, 6)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	if got := joinCalls(calls); got != "cluster.start,api.start,gateway.start,gateway.stop,api.stop,cluster.stop" {
+		t.Fatalf("calls = %s, want cluster.start,api.start,gateway.start,gateway.stop,api.stop,cluster.stop", got)
 	}
 }
 
@@ -246,6 +307,22 @@ func (f *fakeGateway) Start() error {
 
 func (f *fakeGateway) Stop() error {
 	*f.calls = append(*f.calls, "gateway.stop")
+	return f.stopErr
+}
+
+type fakeAPI struct {
+	calls    *[]string
+	startErr error
+	stopErr  error
+}
+
+func (f *fakeAPI) Start() error {
+	*f.calls = append(*f.calls, "api.start")
+	return f.startErr
+}
+
+func (f *fakeAPI) Stop(context.Context) error {
+	*f.calls = append(*f.calls, "api.stop")
 	return f.stopErr
 }
 

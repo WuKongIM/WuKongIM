@@ -73,3 +73,35 @@ func TestBuildScenarioUsesValidHeartbeat(t *testing.T) {
 	require.Greater(t, s.Online.Heartbeat.Interval, time.Duration(0))
 	require.Greater(t, s.Online.Heartbeat.Timeout, time.Duration(0))
 }
+
+func TestBuildHotChannelScenarioKeepsOneGroupChannelWithSenderFanIn(t *testing.T) {
+	cfg := DefaultHotChannelConfig()
+	cfg.Config.APIAddrs = []string{"http://127.0.0.1:15001"}
+	cfg.Senders = 16
+	cfg.Duration = time.Minute
+	cfg.Warmup = time.Second
+	cfg.Cooldown = time.Second
+
+	s := BuildHotChannelScenario(cfg, Attempt{Index: 3, OfferedQPS: 1200})
+
+	require.Equal(t, "wkbench/v1", s.Version)
+	require.Contains(t, s.Run.ID, "capacity-hot-channel")
+	require.Equal(t, time.Minute, s.Run.Duration)
+	require.Equal(t, 16, s.Online.TotalUsers)
+	require.Len(t, s.Channels.Profiles, 1)
+	profile := s.Channels.Profiles[0]
+	require.Equal(t, "hot-group", profile.Name)
+	require.Equal(t, model.ChannelTypeGroup, profile.ChannelType)
+	require.Equal(t, 1, profile.Count)
+	require.Equal(t, 16, profile.Members.Count)
+	require.Equal(t, "disallowed", profile.Members.Overlap)
+	require.Equal(t, 1.0, profile.Online.MemberRatio)
+	require.Len(t, s.Messages.Traffic, 1)
+	traffic := s.Messages.Traffic[0]
+	require.Equal(t, "hot-group-send", traffic.Name)
+	require.Equal(t, "hot-group", traffic.ChannelRef)
+	require.Equal(t, 1200.0, traffic.RatePerChannel.PerSecond)
+	require.Equal(t, "round_robin", traffic.SenderPick)
+	require.Equal(t, "none", traffic.Verify.Recv.Mode)
+	require.GreaterOrEqual(t, traffic.Concurrency, 16)
+}

@@ -95,6 +95,8 @@ type AppendBatchWaiter struct {
 	OpID ch.OpID
 	// CommitMode controls whether this waiter completes after local or quorum commit.
 	CommitMode ch.CommitMode
+	// OmitResultPayload skips payload cloning in successful append replies.
+	OmitResultPayload bool
 	// Records are the client records contributed by this waiter.
 	Records []ch.Record
 }
@@ -109,10 +111,11 @@ type AppendBatchCommand struct {
 
 // AppendWaiter tracks one append request waiting for local or quorum commit.
 type AppendWaiter struct {
-	OpID       ch.OpID
-	Target     uint64
-	CommitMode ch.CommitMode
-	Records    []ch.Record
+	OpID              ch.OpID
+	Target            uint64
+	CommitMode        ch.CommitMode
+	OmitResultPayload bool
+	Records           []ch.Record
 }
 
 // AppendOp is the currently durable in-flight append batch for one channel.

@@ -38,3 +38,20 @@ func TestConfigValidateRejectsInvalidProfile(t *testing.T) {
 
 	require.ErrorContains(t, cfg.Validate(), "profile")
 }
+
+func TestDefaultHotChannelConfig(t *testing.T) {
+	cfg := DefaultHotChannelConfig()
+
+	require.Equal(t, ProfileGroup, cfg.Profile)
+	require.Equal(t, 16, cfg.Senders)
+	require.Equal(t, "./tmp/wkbench-hot-channel", cfg.ReportDir)
+	require.Equal(t, 50000.0, cfg.MaxQPS)
+}
+
+func TestHotChannelConfigValidateRequiresSenderFanIn(t *testing.T) {
+	cfg := DefaultHotChannelConfig()
+	cfg.APIAddrs = []string{"http://127.0.0.1:15001"}
+	cfg.Senders = 0
+
+	require.ErrorContains(t, cfg.Validate(), "senders")
+}

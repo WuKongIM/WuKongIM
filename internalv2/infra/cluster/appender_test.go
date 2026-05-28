@@ -44,8 +44,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	appender := NewChannelAppender(node)
 
 	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
-		CommitMode: message.CommitModeQuorum,
+		ChannelID:         message.ChannelID{ID: "room", Type: 1},
+		CommitMode:        message.CommitModeQuorum,
+		OmitResultPayload: true,
 		Messages: []message.Message{
 			{
 				MessageID:   10,
@@ -79,6 +80,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	}
 	if req.CommitMode != channelv2.CommitModeQuorum {
 		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelv2.CommitModeQuorum)
+	}
+	if !req.OmitResultPayload {
+		t.Fatalf("OmitResultPayload = false, want true")
 	}
 	if len(req.Messages) != 2 {
 		t.Fatalf("len(Messages) = %d, want 2", len(req.Messages))

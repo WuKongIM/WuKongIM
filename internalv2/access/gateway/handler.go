@@ -67,11 +67,14 @@ func (h *Handler) OnSessionClose(coregateway.Context) error { return nil }
 func (h *Handler) OnSessionError(coregateway.Context, error) {}
 
 func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
-	pkt, ok := f.(*frame.SendPacket)
-	if !ok {
+	switch pkt := f.(type) {
+	case *frame.PingPacket:
+		return ctx.WriteFrame(&frame.PongPacket{})
+	case *frame.SendPacket:
+		return h.handleSend(&ctx, pkt)
+	default:
 		return ErrUnsupportedFrame
 	}
-	return h.handleSend(&ctx, pkt)
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {

@@ -44,9 +44,3 @@ type allowAllAuthorizer struct{}
 func (allowAllAuthorizer) AuthorizeSend(context.Context, SendCommand) (Decision, error) {
 	return Decision{Allowed: true, Reason: ReasonSuccess}, nil
 }
-
-type noopCommittedSink struct{}
-
-func (noopCommittedSink) Submit(context.Context, messageevents.MessageCommitted) error {
-	return nil
-}

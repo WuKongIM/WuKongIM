@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -17,12 +18,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	results := make([]message.SendResult, len(items))
 	validIndexes := make([]int, 0, len(items))
 	validItems := make([]message.SendBatchItem, 0, len(items))
-	cancels := make([]context.CancelFunc, 0, len(items))
-	defer func() {
-		for _, cancel := range cancels {
-			cancel()
-		}
-	}()
+	deadline := time.Now().Add(h.sendTimeout)
 
 	for i, item := range items {
 		contexts[i] = item.Context
@@ -30,7 +26,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			contexts[i].ReplyToken = item.ReplyToken
 		}
 		ctx := &contexts[i]
-		cmd, err := mapSendCommand(ctx, item.Frame)
+		cmd, err := mapSendCommandForBatch(ctx, item.Frame)
 		if err != nil {
 			if errors.Is(err, ErrUnauthenticatedSession) {
 				results[i].Reason = message.ReasonAuthFail
@@ -42,10 +38,8 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			results[i].Reason = message.ReasonSystemError
 			continue
 		}
-		reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
-		cancels = append(cancels, cancel)
 		validIndexes = append(validIndexes, i)
-		validItems = append(validItems, message.SendBatchItem{Context: reqCtx, Command: cmd})
+		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
 	}
 
 	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
@@ -63,7 +57,9 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	} else {
 		for j, index := range validIndexes {
 			item := validItems[j]
-			results[index] = h.sendOne(item.Context, item.Command)
+			reqCtx, cancel := context.WithDeadline(item.Context, item.Deadline)
+			results[index] = h.sendOne(reqCtx, item.Command)
+			cancel()
 		}
 	}
 

@@ -24,6 +24,24 @@ func TestAppendStoredAdvancesLEOAndCompletesSingleNodeQuorum(t *testing.T) {
 	require.Equal(t, uint64(1), decision.Replies[0].Append.MessageSeq)
 }
 
+func TestAppendStoredCanOmitReplyPayload(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	decision := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 1,
+		Waiters: []AppendBatchWaiter{{
+			OpID:              1,
+			CommitMode:        ch.CommitModeQuorum,
+			OmitResultPayload: true,
+			Records:           []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}},
+		}},
+	})
+	require.Len(t, decision.Tasks, 1)
+	decision = state.ApplyAppendStored(AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: 1, LastOffset: 1})
+	require.Len(t, decision.Replies, 1)
+	require.Equal(t, uint64(1), decision.Replies[0].Append.MessageSeq)
+	require.Empty(t, decision.Replies[0].Append.Message.Payload)
+}
+
 func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
 	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})
@@ -33,6 +51,24 @@ func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	require.Equal(t, uint64(1), state.HW)
 	require.Len(t, decision.Replies, 1)
 	require.Empty(t, state.PendingAppendOrder)
+}
+
+func TestAppendStoredUpdatesPendingWaiterOffsetsInPlace(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2}, []ch.NodeID{1, 2}, 2)
+	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})
+	require.Len(t, decision.Tasks, 1)
+	waiter := state.PendingAppends[1]
+	require.NotNil(t, waiter)
+	beforePayload := &waiter.Records[0].Payload[0]
+
+	decision = state.ApplyAppendStored(AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: 7, LastOffset: 7})
+
+	require.Empty(t, decision.Replies)
+	waiter = state.PendingAppends[1]
+	require.NotNil(t, waiter)
+	require.Equal(t, uint64(7), waiter.Records[0].Index)
+	require.Equal(t, state.Epoch, waiter.Records[0].Epoch)
+	require.Same(t, beforePayload, &waiter.Records[0].Payload[0])
 }
 
 func TestFollowerAckDoesNotRegressProgressOrHW(t *testing.T) {

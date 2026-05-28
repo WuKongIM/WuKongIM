@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/devsim"
+	benchmetrics "github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 )
@@ -38,7 +39,7 @@ func run(args []string) int {
 
 func runWithStderr(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|capacity|report>")
+		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|capacity|metrics|report>")
 		return exitConfig
 	}
 	switch args[0] {
@@ -54,6 +55,8 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		return runDevSim(args[1:], stderr)
 	case "capacity":
 		return runCapacity(args[1:], stderr)
+	case "metrics":
+		return runMetrics(args[1:], stderr)
 	case "report":
 		fmt.Fprintf(stderr, "%s is not implemented yet\n", args[0])
 		return exitInternal
@@ -63,16 +66,90 @@ func runWithStderr(args []string, stderr io.Writer) int {
 	}
 }
 
+func runMetrics(args []string, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: wkbench metrics <classify>")
+		return exitConfig
+	}
+	switch args[0] {
+	case "classify":
+		return runMetricsClassify(args[1:], stderr)
+	default:
+		fmt.Fprintln(stderr, "usage: wkbench metrics <classify>")
+		return exitConfig
+	}
+}
+
+func runMetricsClassify(args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("metrics classify", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var beforePath string
+	var afterPath string
+	fs.StringVar(&beforePath, "before", "", "Prometheus text snapshot before the measured window")
+	fs.StringVar(&afterPath, "after", "", "Prometheus text snapshot after the measured window")
+	if err := fs.Parse(args); err != nil {
+		return exitConfig
+	}
+	if strings.TrimSpace(beforePath) == "" || strings.TrimSpace(afterPath) == "" {
+		fmt.Fprintln(stderr, "--before and --after are required")
+		return exitConfig
+	}
+	before, err := readPrometheusSnapshot(beforePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "read before snapshot failed: %v\n", err)
+		return exitConfig
+	}
+	after, err := readPrometheusSnapshot(afterPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "read after snapshot failed: %v\n", err)
+		return exitConfig
+	}
+	printWukongIMV2Attribution(stderr, benchmetrics.AnalyzeWukongIMV2Prometheus(before, after))
+	return 0
+}
+
+func readPrometheusSnapshot(path string) (benchmetrics.PrometheusSnapshot, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return benchmetrics.PrometheusSnapshot{}, err
+	}
+	defer file.Close()
+	return benchmetrics.ParsePrometheusText(file)
+}
+
+func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attribution) {
+	fmt.Fprintln(w, "# wukongimv2 metrics attribution")
+	fmt.Fprintf(w, "classification: %s\n", report.Classification)
+	fmt.Fprintf(w, "gateway_queue_depth: %.0f\n", report.GatewayQueueDepth)
+	fmt.Fprintf(w, "gateway_queue_capacity: %.0f\n", report.GatewayQueueCapacity)
+	fmt.Fprintf(w, "gateway_queue_ratio: %.3f\n", report.GatewayQueueRatio)
+	fmt.Fprintf(w, "gateway_dispatch_wait_p99_seconds: %.6f\n", report.GatewayDispatchWaitP99Seconds)
+	fmt.Fprintf(w, "gateway_batch_records_p50: %.3f\n", report.GatewayBatchRecordsP50)
+	fmt.Fprintf(w, "channelv2_reactor_mailbox_depth_max: %.0f\n", report.ChannelV2ReactorMailboxDepthMax)
+	fmt.Fprintf(w, "channelv2_worker_queue_depth_max: %.0f\n", report.ChannelV2WorkerQueueDepthMax)
+	fmt.Fprintf(w, "channelv2_append_p99_seconds: %.6f\n", report.ChannelV2AppendP99Seconds)
+	fmt.Fprintf(w, "channelv2_worker_task_p99_seconds: %.6f\n", report.ChannelV2WorkerTaskP99Seconds)
+	if len(report.Reasons) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "reasons:")
+	for _, reason := range report.Reasons {
+		fmt.Fprintf(w, "- %s\n", reason)
+	}
+}
+
 func runCapacity(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send>")
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel>")
 		return exitConfig
 	}
 	switch args[0] {
 	case "send":
 		return runCapacitySend(args[1:], stderr)
+	case "hot-channel":
+		return runCapacityHotChannel(args[1:], stderr)
 	default:
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send>")
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel>")
 		return exitConfig
 	}
 }
@@ -88,6 +165,29 @@ func runCapacitySend(args []string, stderr io.Writer) int {
 		return exitPreflight
 	}
 	result, err := capacity.NewRunner(cfg, discovered).Run(context.Background())
+	if writeErr := capacity.WriteResult(result.ReportDir, result); writeErr != nil {
+		fmt.Fprintf(stderr, "capacity report write failed: %v\n", writeErr)
+		return exitInternal
+	}
+	fmt.Fprint(stderr, capacity.ConsoleSummary(result))
+	if err != nil {
+		fmt.Fprintf(stderr, "capacity run failed: %v\n", err)
+		return exitWorker
+	}
+	return result.ExitCode()
+}
+
+func runCapacityHotChannel(args []string, stderr io.Writer) int {
+	cfg, code := parseCapacityHotChannelConfig(args, stderr)
+	if code != 0 {
+		return code
+	}
+	discovered, err := capacity.DiscoverTarget(context.Background(), cfg.Config)
+	if err != nil {
+		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
+		return exitPreflight
+	}
+	result, err := capacity.NewHotChannelRunner(cfg, discovered).Run(context.Background())
 	if writeErr := capacity.WriteResult(result.ReportDir, result); writeErr != nil {
 		fmt.Fprintf(stderr, "capacity report write failed: %v\n", writeErr)
 		return exitInternal
@@ -136,6 +236,45 @@ func parseCapacitySendConfig(args []string, stderr io.Writer) (capacity.Config, 
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
 		return capacity.Config{}, exitConfig
+	}
+	return cfg, 0
+}
+
+func parseCapacityHotChannelConfig(args []string, stderr io.Writer) (capacity.HotChannelConfig, int) {
+	cfg := capacity.DefaultHotChannelConfig()
+	fs := flag.NewFlagSet("capacity hot-channel", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var apiCSV string
+	var gatewayCSV string
+	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
+	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
+	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
+	fs.IntVar(&cfg.Senders, "senders", cfg.Senders, "number of online senders fanning into the one hot group channel")
+	fs.Float64Var(&cfg.StartQPS, "start-qps", cfg.StartQPS, "first offered ingress QPS")
+	fs.Float64Var(&cfg.MaxQPS, "max-qps", cfg.MaxQPS, "maximum offered ingress QPS")
+	fs.Float64Var(&cfg.StepFactor, "step-factor", cfg.StepFactor, "ramp multiplier after passing attempts")
+	fs.DurationVar(&cfg.Duration, "duration", cfg.Duration, "measured run duration per attempt")
+	fs.DurationVar(&cfg.Warmup, "warmup", cfg.Warmup, "warmup duration per attempt")
+	fs.DurationVar(&cfg.Cooldown, "cooldown", cfg.Cooldown, "cooldown duration per attempt")
+	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
+	fs.Float64Var(&cfg.MinActualRatio, "min-actual-ratio", cfg.MinActualRatio, "minimum actual/offered QPS ratio")
+	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
+	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
+	fs.BoolVar(&cfg.BinarySearch, "binary-search", cfg.BinarySearch, "enable binary search after first failed ramp attempt")
+	fs.Float64Var(&cfg.BinarySearchMinDeltaRatio, "binary-search-min-delta-ratio", cfg.BinarySearchMinDeltaRatio, "binary search stop ratio")
+	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "capacity report output directory")
+	if err := fs.Parse(args); err != nil {
+		return capacity.HotChannelConfig{}, exitConfig
+	}
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		fmt.Fprintln(stderr, "--api is required")
+		return capacity.HotChannelConfig{}, exitConfig
+	}
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return capacity.HotChannelConfig{}, exitConfig
 	}
 	return cfg, 0
 }

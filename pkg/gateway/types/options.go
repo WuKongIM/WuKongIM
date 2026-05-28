@@ -51,7 +51,7 @@ type SessionOptions struct {
 	MaxInboundBytes  int
 	MaxOutboundBytes int
 	IdleTimeout      time.Duration
-	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use an IO-wait-aware adaptive default.
+	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use a CPU-scaled adaptive default.
 	AsyncSendDispatchWorkers int
 	// AsyncSendBatchMaxWait bounds how long a SEND shard waits to collect adjacent frames.
 	AsyncSendBatchMaxWait time.Duration
@@ -63,8 +63,8 @@ type SessionOptions struct {
 }
 
 const (
-	defaultAsyncSendBatchMaxWait    = 500 * time.Microsecond
-	defaultAsyncSendBatchMaxRecords = 128
+	defaultAsyncSendBatchMaxWait    = time.Millisecond
+	defaultAsyncSendBatchMaxRecords = 512
 	defaultAsyncSendBatchMaxBytes   = 512 * 1024
 )
 
