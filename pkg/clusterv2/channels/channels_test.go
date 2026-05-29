@@ -115,6 +115,23 @@ func TestSlotMetaSourceCreatesMissingRuntimeMeta(t *testing.T) {
 	}
 }
 
+func TestSlotMetaSourceReturnsCreatedMetaWhenLocalReadLagsAfterWrite(t *testing.T) {
+	id := ch.ChannelID{ID: "ensure-create-lagging-read", Type: 1}
+	store := &laggingRuntimeMetaStore{}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{DefaultReplicas: []ch.NodeID{2, 1}, DefaultMinISR: 1})
+
+	meta, err := source.EnsureChannelMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("EnsureChannelMeta() error = %v", err)
+	}
+	if store.upserts != 1 {
+		t.Fatalf("upserts = %d, want one create", store.upserts)
+	}
+	if meta.ID != id || meta.Leader != 2 || meta.Epoch != 1 || meta.LeaderEpoch != 1 {
+		t.Fatalf("created meta = %#v, want deterministic initial meta", meta)
+	}
+}
+
 func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
 	id := ch.ChannelID{ID: "ensure-placement", Type: 1}
 	reader := &runtimeMetaReaderFake{err: metadb.ErrNotFound}
@@ -443,6 +460,19 @@ func (f *runtimeMetaReaderFake) UpsertChannelRuntimeMeta(_ context.Context, meta
 	f.upserts++
 	f.err = nil
 	f.meta = metadb.NormalizeChannelRuntimeMeta(meta)
+	return nil
+}
+
+type laggingRuntimeMetaStore struct {
+	upserts int
+}
+
+func (f *laggingRuntimeMetaStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+}
+
+func (f *laggingRuntimeMetaStore) UpsertChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) error {
+	f.upserts++
 	return nil
 }
 

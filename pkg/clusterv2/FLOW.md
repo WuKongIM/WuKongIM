@@ -92,7 +92,7 @@ Node.AppendChannel / AppendChannelBatch
   -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
       -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
       -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
-      -> reread final authoritative ChannelRuntimeMeta and project it to ChannelV2 Meta
+      -> reread final authoritative ChannelRuntimeMeta when local Slot state has caught up; otherwise return the deterministic initial Meta after a successful write
       -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
       -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
   -> local reactor and store worker pools
