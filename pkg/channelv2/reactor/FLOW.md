@@ -10,6 +10,12 @@ fenced worker completions.
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
 
+Loaded channel runtimes store lifecycle state in `channelRuntimeLifecycle`.
+That state owns runtime stop, checkpoint, leader-visible follower, and pull-hint
+inflight bookkeeping. During the lifecycle-controller migration,
+`runtimeLifecycle` remains as the old pure transition adapter for selected
+decisions, not as the runtime state owner.
+
 ## Event Domains
 
 The mailbox uses one concrete `Event` envelope for performance. Handlers are
@@ -62,7 +68,8 @@ remote follower Pull RPC
 `handleLeaderPull` serves follower pull requests on the local leader. It
 validates the current role, channel id, epoch, leader epoch, follower replica,
 and range. Empty caught-up responses may pace the follower or offer
-`PullControlStop` when idle eviction guards pass.
+`PullControlStop` when idle eviction guards pass. Leader-visible follower state
+used by these guards lives under `channelRuntimeLifecycle`.
 
 ```text
 remote follower stopped Ack RPC
@@ -75,7 +82,9 @@ remote follower stopped Ack RPC
 
 Ordinary follower progress is accepted from `PullRequest.AckOffset` before the
 leader serves the requested range. Stopped ACKs must stay on the standalone ACK
-RPC and must match the current activity version and leader LEO.
+RPC and must match the current activity version and leader LEO. Accepted stopped
+ACK state, including zero-version stopped ACKs, is recorded in
+`channelRuntimeLifecycle`.
 
 ## Follower-Side Replication
 

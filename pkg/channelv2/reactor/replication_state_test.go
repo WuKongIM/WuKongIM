@@ -1972,6 +1972,43 @@ func TestLeaderStoppedAckRejectsMismatchedOfferedVersion(t *testing.T) {
 	require.Equal(t, uint64(3), rc.state.HW)
 }
 
+func TestLeaderZeroVersionStoppedAckRecordsStoppedFollower(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := testMeta("leader-zero-stopped-ack", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
+	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
+	rc.lifecycle.version = 0
+	r.syncLeaderFollowers(rc)
+
+	future := NewFuture()
+	r.handleLeaderAck(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Future: future,
+		Ack: transport.AckRequest{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			Follower:        2,
+			MatchOffset:     rc.state.LEO,
+			ActivityVersion: 0,
+			Stopped:         true,
+		},
+	})
+
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.True(t, rc.lifecycle.followers[2].stoppedZero)
+	require.True(t, runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).AllFollowersStopped())
+}
+
 func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}

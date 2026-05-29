@@ -9,7 +9,6 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -117,12 +116,6 @@ type runtimeChannel struct {
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64
 	lifecycleDueVersion   uint64
-}
-
-type pullHintInflight struct {
-	follower        ch.NodeID
-	activityVersion uint64
-	reason          transport.PullHintReason
 }
 
 type pullWaiter struct {
