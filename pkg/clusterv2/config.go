@@ -83,6 +83,10 @@ type ChannelConfig struct {
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the ChannelV2 runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the ChannelV2 runtime default.
+	FollowerRecoveryProbeJitter time.Duration
 	// TickInterval controls how often Node-owned loops call ChannelV2 Tick.
 	TickInterval time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
@@ -172,6 +176,12 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MaxChannels < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.FollowerRecoveryProbeInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.FollowerRecoveryProbeJitter < 0 {
 		return ErrInvalidConfig
 	}
 	if err := c.validateControl(); err != nil {

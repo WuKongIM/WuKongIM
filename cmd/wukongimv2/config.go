@@ -37,6 +37,9 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
+	"WK_CLUSTER_MAX_CHANNELS",
+	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
+	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
 	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
 	"WK_API_LISTEN_ADDR",
 	"WK_BENCH_API_ENABLE",
@@ -241,6 +244,36 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_REACTOR_COUNT: value must be >= 0")
 		}
 		cfg.Cluster.Channel.ReactorCount = reactorCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
+		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxChannels < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_MAX_CHANNELS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.MaxChannels = maxChannels
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL: value must be >= 0")
+		}
+		cfg.Cluster.Channel.FollowerRecoveryProbeInterval = interval
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"); raw != "" {
+		jitter, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if jitter < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER: value must be >= 0")
+		}
+		cfg.Cluster.Channel.FollowerRecoveryProbeJitter = jitter
 	}
 	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"); raw != "" {
 		syncCommit, err := parseBool("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", raw)

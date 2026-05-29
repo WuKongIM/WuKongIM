@@ -107,6 +107,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
+		"WK_CLUSTER_MAX_CHANNELS=10000",
+		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=60s",
+		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=30s",
 		"WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false",
 		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
 		"WK_BENCH_API_ENABLE=true",
@@ -151,6 +154,15 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.ReactorCount != 12 {
 		t.Fatalf("Channel.ReactorCount = %d, want 12", cfg.Cluster.Channel.ReactorCount)
+	}
+	if cfg.Cluster.Channel.MaxChannels != 10000 {
+		t.Fatalf("Channel.MaxChannels = %d, want 10000", cfg.Cluster.Channel.MaxChannels)
+	}
+	if cfg.Cluster.Channel.FollowerRecoveryProbeInterval != 60*time.Second {
+		t.Fatalf("Channel.FollowerRecoveryProbeInterval = %s, want 60s", cfg.Cluster.Channel.FollowerRecoveryProbeInterval)
+	}
+	if cfg.Cluster.Channel.FollowerRecoveryProbeJitter != 30*time.Second {
+		t.Fatalf("Channel.FollowerRecoveryProbeJitter = %s, want 30s", cfg.Cluster.Channel.FollowerRecoveryProbeJitter)
 	}
 	if !cfg.Cluster.Storage.CommitNoSync {
 		t.Fatalf("Storage.CommitNoSync = false, want true when WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
@@ -438,6 +450,9 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
+		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=many", wantKey: "WK_CLUSTER_MAX_CHANNELS"},
+		{name: "follower recovery probe interval", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"},
+		{name: "follower recovery probe jitter", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"},
 		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
@@ -480,6 +495,46 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantKey) {
 				t.Fatalf("loadConfig() error = %v, want key %s", err, tc.wantKey)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsNegativeChannelV2Limits(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_CLUSTER_MAX_CHANNELS=-1",
+	)
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil || !strings.Contains(err.Error(), "WK_CLUSTER_MAX_CHANNELS") {
+		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_MAX_CHANNELS validation", err)
+	}
+}
+
+func TestLoadConfigRejectsNegativeChannelV2RecoveryProbeDurations(t *testing.T) {
+	cases := []struct {
+		name    string
+		line    string
+		wantKey string
+	}{
+		{name: "interval", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=-1s", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"},
+		{name: "jitter", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=-1s", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			unsetLoadConfigEnv(t)
+			dir := t.TempDir()
+			path := filepath.Join(dir, "wukongim.conf")
+			lines := append(requiredConfigLines(dir), tc.line)
+			writeConf(t, path, lines...)
+			_, err := loadConfig([]string{"-config", path})
+			if err == nil || !strings.Contains(err.Error(), tc.wantKey) {
+				t.Fatalf("loadConfig() error = %v, want %s validation", err, tc.wantKey)
 			}
 		})
 	}
