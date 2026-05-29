@@ -265,6 +265,52 @@ func TestPlanLeaderLifecycleStartsCheckpointAfterFollowersStopped(t *testing.T) 
 	require.Contains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
 }
 
+func TestPlanLeaderLifecycleStartsCheckpointWhenRetryDue(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
+	lc.stage = lifecycleLeaderCheckpointing
+	lc.checkpoint.retryAt = now
+	view := RuntimeView{
+		Role:            ch.RoleLeader,
+		Status:          ch.StatusActive,
+		LEO:             3,
+		HW:              3,
+		ActivityVersion: 3,
+		IdleSince:       now.Add(-time.Minute),
+		PendingWork:     PendingWorkView{LifecycleRetry: true},
+		Followers: []FollowerView{
+			{Node: 2, Match: 3, Stopped: true, StopAckVersion: 3},
+		},
+	}
+
+	actions := planLeaderLifecycle(lc, view, now, time.Second)
+
+	require.Contains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
+}
+
+func TestPlanLeaderLifecycleDoesNotStartCheckpointBeforeRetryDue(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
+	lc.stage = lifecycleLeaderCheckpointing
+	lc.checkpoint.retryAt = now.Add(time.Second)
+	view := RuntimeView{
+		Role:            ch.RoleLeader,
+		Status:          ch.StatusActive,
+		LEO:             3,
+		HW:              3,
+		ActivityVersion: 3,
+		IdleSince:       now.Add(-time.Minute),
+		PendingWork:     PendingWorkView{LifecycleRetry: true},
+		Followers: []FollowerView{
+			{Node: 2, Match: 3, Stopped: true, StopAckVersion: 3},
+		},
+	}
+
+	actions := planLeaderLifecycle(lc, view, now, time.Second)
+
+	require.NotContains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
+}
+
 func TestPlanFinalLeaderEvictionRespectsAppendFence(t *testing.T) {
 	now := time.Unix(100, 0)
 	view := RuntimeView{

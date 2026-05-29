@@ -156,7 +156,10 @@ func (v RuntimeView) CanOfferFollowerStop(now time.Time, idleAfter time.Duration
 }
 
 func (v RuntimeView) HasPendingWork() bool {
-	p := v.PendingWork
+	return v.PendingWork.hasPendingWork()
+}
+
+func (p PendingWorkView) hasPendingWork() bool {
 	return p.Waiters != 0 ||
 		p.PullWaiters != 0 ||
 		p.AppendQueued != 0 ||
@@ -200,10 +203,15 @@ func planLeaderLifecycle(lc channelRuntimeLifecycle, view RuntimeView, now time.
 	if view.Role != ch.RoleLeader || view.Status != ch.StatusActive || view.HW < view.LEO || !view.IdleExpired(now, idleAfter) {
 		return nil
 	}
-	if !view.AllFollowersStopped() || view.HasPendingWork() {
+	retryDue := !lc.checkpoint.retryAt.IsZero() && !now.Before(lc.checkpoint.retryAt)
+	if !lc.checkpoint.retryAt.IsZero() && !retryDue {
 		return nil
 	}
-	if !lc.checkpoint.retryAt.IsZero() && now.Before(lc.checkpoint.retryAt) {
+	pending := view.PendingWork
+	if retryDue {
+		pending.LifecycleRetry = false
+	}
+	if !view.AllFollowersStopped() || pending.hasPendingWork() {
 		return nil
 	}
 	if lc.finalCheck.inflight {
