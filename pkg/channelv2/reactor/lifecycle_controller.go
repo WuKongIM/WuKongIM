@@ -281,10 +281,11 @@ func (lc *channelRuntimeLifecycle) finishPullHint(opID ch.OpID) (lifecyclePullHi
 	}
 	delete(lc.pullHintInflight, opID)
 	follower := lc.followers[inflight.follower]
-	if follower != nil && follower.hint.inflight && follower.hint.opID == opID {
-		follower.hint.inflight = false
-		follower.hint.opID = 0
+	if follower == nil || !follower.hint.inflight || follower.hint.opID != opID {
+		return lifecyclePullHintInflight{}, false
 	}
+	follower.hint.inflight = false
+	follower.hint.opID = 0
 	return inflight, true
 }
 
