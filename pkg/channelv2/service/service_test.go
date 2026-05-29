@@ -337,7 +337,7 @@ func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	}
 }
 
-func TestHandleAckAdvancesHWAndCompletesQuorumAppend(t *testing.T) {
+func TestHandleAckRejectsOrdinaryAckWithoutCompletingQuorumAppend(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
 	require.NoError(t, err)
@@ -357,9 +357,11 @@ func TestHandleAckAdvancesHWAndCompletesQuorumAppend(t *testing.T) {
 	}
 	require.NoError(t, svc.ApplyMeta(meta))
 
+	appendCtx, appendCancel := context.WithCancel(context.Background())
+	defer appendCancel()
 	appendDone := make(chan serviceAppendOutcome, 1)
 	go func() {
-		res, err := svc.Append(context.Background(), ch.AppendRequest{
+		res, err := svc.Append(appendCtx, ch.AppendRequest{
 			ChannelID: meta.ID,
 			Message:   ch.Message{MessageID: 10, Payload: []byte("hello")},
 		})
@@ -376,25 +378,32 @@ func TestHandleAckAdvancesHWAndCompletesQuorumAppend(t *testing.T) {
 		return awaitServiceTick(t, svc, meta.Key, time.Now())
 	}, time.Second, time.Millisecond)
 
-	require.NoError(t, svc.HandleAck(context.Background(), transport.AckRequest{
+	err = svc.HandleAck(context.Background(), transport.AckRequest{
 		ChannelKey:  meta.Key,
 		Epoch:       meta.Epoch,
 		LeaderEpoch: meta.LeaderEpoch,
 		Follower:    2,
 		MatchOffset: 1,
-	}))
+	})
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
 
 	select {
 	case outcome := <-appendDone:
-		require.NoError(t, outcome.err)
-		require.Equal(t, uint64(1), outcome.result.MessageSeq)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for quorum append")
+		t.Fatalf("append completed after unsupported ordinary ack: result=%+v err=%v", outcome.result, outcome.err)
+	default:
 	}
 
-	messages := readServiceStoreMessages(t, factory, meta, 1)
-	require.Len(t, messages, 1)
-	require.Equal(t, uint64(1), messages[0].MessageSeq)
+	appendCancel()
+	require.Eventually(t, func() bool {
+		awaitServiceTick(t, svc, meta.Key, time.Now())
+		select {
+		case outcome := <-appendDone:
+			require.ErrorIs(t, outcome.err, context.Canceled)
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
 }
 
 func TestAppendBatchContextCancelAfterAdmissionCleansQueuedWaiter(t *testing.T) {

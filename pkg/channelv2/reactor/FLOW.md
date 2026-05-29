@@ -55,7 +55,7 @@ inflight bookkeeping. The controller receives small lifecycle events and returns
 reactor-owned actions; store and RPC work still goes through worker pools.
 
 Follower hot-path replication remains separate in `replicationState`: pull,
-apply, ordinary ACK retry, park delay, backoff, and leader hints are not stored
+apply, park delay, backoff, and leader hints are not stored
 as lifecycle phases. Lifecycle guards read these transient fields through
 `RuntimeView.PendingWork` so stop control and eviction are blocked while hot-path
 work is pending.
@@ -133,7 +133,6 @@ leader PullHint or legacy Notify
 
 ```text
 tickFollowerReplication
-  -> retry pending stopped or compatibility ACK before new pulls
   -> apply a pending pull before new pulls
   -> checkpoint and send stopped ACK after accepted stop control
   -> honor retry backoff and leader-provided park delay
@@ -141,9 +140,9 @@ tickFollowerReplication
 ```
 
 The follower keeps at most one pull RPC, one pending pull response, one store
-apply, and one stopped or compatibility ACK RPC in flight. Ordinary durable
-progress after store apply schedules the next pull immediately so the follower's
-latest local LEO is piggybacked as `AckOffset`.
+apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
+apply schedules the next pull immediately so the follower's latest local LEO is
+piggybacked as `AckOffset`.
 
 ## Worker Completion Routing
 

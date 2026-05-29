@@ -212,15 +212,9 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		return time.Time{}, false
 	}
 	replication := rc.replication
-	if replication.ackInflight || replication.pullInflight || replication.applyOpID != 0 ||
+	if replication.pullInflight || replication.applyOpID != 0 ||
 		rc.lifecycle.checkpoint.inflight || rc.lifecycle.stoppedAck.inflight {
 		return time.Time{}, false
-	}
-	if replication.pendingAck {
-		if !replication.nextAckAt.IsZero() {
-			return replication.nextAckAt, true
-		}
-		return now, true
 	}
 	if rc.lifecycle.stage == lifecycleFollowerReadyToEvict {
 		if !rc.lifecycle.finalCheck.retryAt.IsZero() {

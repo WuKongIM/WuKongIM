@@ -253,7 +253,6 @@ func TestRuntimeViewFollowerStopBlockedByPendingHotPathWork(t *testing.T) {
 		{name: "apply inflight", work: PendingWorkView{ApplyInflight: true}},
 		{name: "apply blocked", work: PendingWorkView{ApplyBlocked: true}},
 		{name: "ack inflight", work: PendingWorkView{AckInflight: true}},
-		{name: "pending ack", work: PendingWorkView{PendingAck: true}},
 		{name: "pull inflight", work: PendingWorkView{PullInflight: true}},
 		{name: "checkpoint inflight", work: PendingWorkView{CheckpointInflight: true}},
 	}

@@ -102,7 +102,6 @@ type PendingWorkView struct {
 	MachineAppendPending bool
 	PullInflight         bool
 	AckInflight          bool
-	PendingAck           bool
 	PendingPull          bool
 	ApplyBlocked         bool
 	ApplyInflight        bool
@@ -177,7 +176,6 @@ func (p PendingWorkView) hasPendingWork() bool {
 		p.MachineAppendPending ||
 		p.PullInflight ||
 		p.AckInflight ||
-		p.PendingAck ||
 		p.PendingPull ||
 		p.ApplyBlocked ||
 		p.ApplyInflight ||
@@ -197,7 +195,6 @@ func (v RuntimeView) followerStopBlocked() bool {
 	p := v.PendingWork
 	return p.PullInflight ||
 		p.AckInflight ||
-		p.PendingAck ||
 		p.PendingPull ||
 		p.ApplyBlocked ||
 		p.ApplyInflight ||

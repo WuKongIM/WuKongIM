@@ -15,20 +15,6 @@ type replicationState struct {
 	// pullOpID fences the currently running pull RPC.
 	pullOpID ch.OpID
 
-	// ackInflight records whether one follower ACK RPC is currently running.
-	ackInflight bool
-	// ackOpID fences the currently running ACK RPC.
-	ackOpID ch.OpID
-	// ackMatch is the exact match offset carried by the inflight ACK.
-	ackMatch uint64
-
-	// pendingAck means an ACK should be retried before issuing another pull.
-	pendingAck bool
-	// pendingAckMatch is the stable match offset reused by ACK retries.
-	pendingAckMatch uint64
-	// nextAckAt is the earliest retry time after ACK backpressure or errors.
-	nextAckAt time.Time
-
 	// dirty marks the follower as needing immediate replication work.
 	dirty bool
 	// parked records whether the follower is intentionally waiting for the leader-provided pull delay.
@@ -88,30 +74,6 @@ func (s *replicationState) applyPullResult(result worker.Result, current ch.Fenc
 		s.lastError = result.Err
 		return true
 	}
-	s.lastError = nil
-	return true
-}
-
-// applyAckResult applies only the currently fenced ACK result and keeps the failed match offset for retry.
-func (s *replicationState) applyAckResult(result worker.Result, current ch.Fence, _ time.Time) bool {
-	if result.Fence.ChannelKey != current.ChannelKey || result.Fence.Generation != current.Generation || result.Fence.Epoch != current.Epoch || result.Fence.LeaderEpoch != current.LeaderEpoch || result.Fence.OpID != current.OpID {
-		return false
-	}
-	if !s.ackInflight || s.ackOpID != current.OpID {
-		return false
-	}
-	match := s.ackMatch
-	s.ackInflight = false
-	s.ackOpID = 0
-	s.ackMatch = 0
-	if result.Err != nil {
-		s.pendingAck = true
-		s.pendingAckMatch = match
-		s.lastError = result.Err
-		return true
-	}
-	s.pendingAck = false
-	s.pendingAckMatch = 0
 	s.lastError = nil
 	return true
 }

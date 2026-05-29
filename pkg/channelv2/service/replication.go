@@ -22,7 +22,7 @@ func (c *cluster) HandlePull(ctx context.Context, req transport.PullRequest) (tr
 	return result.Pull, nil
 }
 
-// HandleAck serves a follower progress ACK on the local leader.
+// HandleAck serves a stopped-follower lifecycle ACK on the local leader.
 func (c *cluster) HandleAck(ctx context.Context, req transport.AckRequest) error {
 	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventAck, Key: req.ChannelKey, Ack: req})
 	if err != nil {
