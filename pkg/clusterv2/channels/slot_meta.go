@@ -71,6 +71,12 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	}
 	meta, err = s.readRuntimeMeta(ctx, id)
 	if err != nil {
+		if errors.Is(err, metadb.ErrNotFound) {
+			// Remote Slot proposals can commit before this node's local Slot
+			// follower has applied the new row. The initial metadata is
+			// deterministic for a route snapshot, so the caller can proceed.
+			return projectRuntimeMeta(candidate), nil
+		}
 		return ch.Meta{}, err
 	}
 	return projectRuntimeMeta(meta), nil
