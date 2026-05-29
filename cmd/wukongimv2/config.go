@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/app"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 )
@@ -29,6 +31,8 @@ var supportedConfigKeys = []string{
 	"WK_NODE_ID",
 	"WK_NODE_DATA_DIR",
 	"WK_CLUSTER_LISTEN_ADDR",
+	"WK_CLUSTER_ID",
+	"WK_CLUSTER_NODES",
 	"WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
@@ -57,6 +61,14 @@ const (
 	defaultBenchAPIMaxBatchSize    = 10000
 	defaultBenchAPIMaxPayloadBytes = 10 * 1024 * 1024
 )
+
+// clusterNodeConfig describes one static clusterv2 node from WK_CLUSTER_NODES.
+type clusterNodeConfig struct {
+	// ID is the stable cluster node identity.
+	ID uint64 `json:"id"`
+	// Addr is the node-to-node clusterv2 RPC address advertised to peers.
+	Addr string `json:"addr"`
+}
 
 // loadConfig reads the minimal wukongimv2 configuration from args, files, and env.
 func loadConfig(args []string) (app.Config, error) {
@@ -185,6 +197,19 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		return app.Config{}, err
 	}
 	cfg.Cluster.ListenAddr = listenAddr
+
+	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
+	if raw := configValue(values, "WK_CLUSTER_NODES"); raw != "" {
+		nodes, err := parseClusterNodes(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Control.Voters = clusterVoters(nodes)
+		cfg.Cluster.Control.AllowBootstrap = true
+		if cfg.Cluster.Control.ClusterID == "" {
+			cfg.Cluster.Control.ClusterID = deriveStaticClusterID(nodes)
+		}
+	}
 
 	if raw := configValue(values, "WK_CLUSTER_INITIAL_SLOT_COUNT"); raw != "" {
 		initialSlotCount, err := parseUint32("WK_CLUSTER_INITIAL_SLOT_COUNT", raw)
@@ -369,6 +394,37 @@ func parseListeners(raw string) ([]gateway.ListenerOptions, error) {
 		return nil, fmt.Errorf("parse WK_GATEWAY_LISTENERS as JSON: %w", err)
 	}
 	return listeners, nil
+}
+
+func parseClusterNodes(raw string) ([]clusterNodeConfig, error) {
+	var nodes []clusterNodeConfig
+	if err := json.Unmarshal([]byte(raw), &nodes); err != nil {
+		return nil, fmt.Errorf("parse WK_CLUSTER_NODES as JSON: %w", err)
+	}
+	return nodes, nil
+}
+
+func clusterVoters(nodes []clusterNodeConfig) []clusterv2.ControlVoter {
+	voters := make([]clusterv2.ControlVoter, 0, len(nodes))
+	for _, node := range nodes {
+		voters = append(voters, clusterv2.ControlVoter{NodeID: node.ID, Addr: strings.TrimSpace(node.Addr)})
+	}
+	return voters
+}
+
+func deriveStaticClusterID(nodes []clusterNodeConfig) string {
+	ids := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		if node.ID != 0 {
+			ids = append(ids, node.ID)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, strconv.FormatUint(id, 10))
+	}
+	return "wk-clusterv2-static-" + strings.Join(parts, "-")
 }
 
 func parseUint64(key, raw string) (uint64, error) {

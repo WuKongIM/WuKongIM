@@ -10,7 +10,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
@@ -250,6 +252,80 @@ func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
 	}
 }
 
+func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
+	addrs := []string{freeSendackSmokeTCPAddr(t), freeSendackSmokeTCPAddr(t), freeSendackSmokeTCPAddr(t)}
+	voters := []clusterv2.ControlVoter{
+		{NodeID: 1, Addr: addrs[0]},
+		{NodeID: 2, Addr: addrs[1]},
+		{NodeID: 3, Addr: addrs[2]},
+	}
+	apps := make([]*App, 0, len(voters))
+	for _, voter := range voters {
+		cfg := Config{
+			NodeID:  voter.NodeID,
+			DataDir: t.TempDir(),
+			Cluster: clusterv2.Config{
+				NodeID:     voter.NodeID,
+				ListenAddr: voter.Addr,
+				DataDir:    t.TempDir(),
+				Control: clusterv2.ControlConfig{
+					ClusterID:      "internalv2-app-static-three",
+					Voters:         voters,
+					AllowBootstrap: true,
+				},
+				Slots: clusterv2.SlotConfig{
+					InitialSlotCount: 1,
+					HashSlotCount:    4,
+					ReplicaCount:     3,
+				},
+				Channel:  clusterv2.ChannelConfig{TickInterval: time.Millisecond},
+				Timeouts: clusterv2.TimeoutConfig{Start: 5 * time.Second},
+			},
+		}
+		app, err := New(cfg)
+		if err != nil {
+			t.Fatalf("New(node=%d) error = %v", voter.NodeID, err)
+		}
+		apps = append(apps, app)
+	}
+
+	startCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	errs := make(chan error, len(apps))
+	for _, app := range apps {
+		app := app
+		go func() { errs <- app.Start(startCtx) }()
+		t.Cleanup(func() {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stopCancel()
+			_ = app.Stop(stopCtx)
+		})
+	}
+	for range apps {
+		if err := <-errs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	nodes := make([]*clusterv2.Node, 0, len(apps))
+	for _, app := range apps {
+		node, ok := app.cluster.(*clusterv2.Node)
+		if !ok {
+			t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+		}
+		nodes = append(nodes, node)
+	}
+	waitAppClusterSnapshotsConverge(t, nodes)
+
+	ack := sendDefaultMetaSmokePacket(t, apps[0], channelv2.ChannelID{ID: "room-static-three", Type: 1}, 1, "client-static-three-1")
+	if ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("sendack reason = %v, want %v", ack.ReasonCode, frame.ReasonSuccess)
+	}
+	if ack.MessageSeq != 1 {
+		t.Fatalf("sendack message seq = %d, want 1", ack.MessageSeq)
+	}
+}
+
 type fakeCluster struct {
 	calls    *[]string
 	startErr error
@@ -328,6 +404,46 @@ func (f *fakeAPI) Stop(context.Context) error {
 
 func joinCalls(calls []string) string {
 	return strings.Join(calls, ",")
+}
+
+func waitAppClusterSnapshotsConverge(t *testing.T, nodes []*clusterv2.Node) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var last []clusterv2.Snapshot
+	for time.Now().Before(deadline) {
+		snapshots := make([]clusterv2.Snapshot, 0, len(nodes))
+		for _, node := range nodes {
+			snapshots = append(snapshots, node.Snapshot())
+		}
+		last = snapshots
+		if appClusterSnapshotsConverged(snapshots) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("cluster snapshots did not converge: %#v", last)
+}
+
+func appClusterSnapshotsConverged(snapshots []clusterv2.Snapshot) bool {
+	if len(snapshots) == 0 {
+		return false
+	}
+	want := snapshots[0]
+	if want.StateRevision == 0 || !want.RoutesReady || !want.SlotsReady || !want.ChannelsReady || want.ControllerLead == 0 {
+		return false
+	}
+	for _, snapshot := range snapshots[1:] {
+		if snapshot.StateRevision != want.StateRevision ||
+			snapshot.SlotCount != want.SlotCount ||
+			snapshot.HashSlotCount != want.HashSlotCount ||
+			snapshot.ControllerLead != want.ControllerLead ||
+			!snapshot.RoutesReady ||
+			!snapshot.SlotsReady ||
+			!snapshot.ChannelsReady {
+			return false
+		}
+	}
+	return true
 }
 
 type blockingCluster struct {

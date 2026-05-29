@@ -155,6 +155,7 @@ docker/
   sim/                   可选 wkbench dev-sim 模拟器配置与使用说明
 
 scripts/                 仓库辅助脚本
+  wukongimv2/            wukongimv2 本地启动脚本使用的真实配置文件
 
 test/
   e2e/                   真实二进制黑盒 e2e 测试与子进程 harness

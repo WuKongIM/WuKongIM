@@ -35,25 +35,17 @@ func TestManagerBootstrapsOwnerWithEmptyState(t *testing.T) {
 	}
 }
 
-func TestManagerNonOwnerWaitsWithoutBootstrapEvidence(t *testing.T) {
+func TestManagerAssignedPeerBootstrapsWithEmptyState(t *testing.T) {
 	runtime := newFakeRuntime()
 	manager := newTestManager(2, runtime, fakeStorageFactory(fakeStorage{}))
 	if err := manager.Ensure(context.Background(), Assignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1}); err != nil {
 		t.Fatalf("Ensure() error = %v", err)
 	}
-	if runtime.bootstrapCalls != 0 || runtime.openCalls != 0 {
-		t.Fatalf("bootstrap=%d open=%d, want no action", runtime.bootstrapCalls, runtime.openCalls)
+	if runtime.bootstrapCalls != 1 || runtime.openCalls != 0 {
+		t.Fatalf("bootstrap=%d open=%d, want bootstrap=1 open=0", runtime.bootstrapCalls, runtime.openCalls)
 	}
-}
-
-func TestManagerNonOwnerOpensAfterBootstrapEvidence(t *testing.T) {
-	runtime := newFakeRuntime()
-	manager := newTestManager(2, runtime, fakeStorageFactory(fakeStorage{}))
-	if err := manager.Ensure(context.Background(), Assignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1, Bootstrapped: true}); err != nil {
-		t.Fatalf("Ensure() error = %v", err)
-	}
-	if runtime.openCalls != 1 || runtime.bootstrapCalls != 0 {
-		t.Fatalf("open=%d bootstrap=%d, want open=1 bootstrap=0", runtime.openCalls, runtime.bootstrapCalls)
+	if got, want := runtime.lastVoters, []multiraft.NodeID{1, 2, 3}; !equalNodeIDs(got, want) {
+		t.Fatalf("bootstrap voters = %#v, want %#v", got, want)
 	}
 }
 
@@ -151,6 +143,18 @@ func (fakeStateMachine) Apply(context.Context, multiraft.Command) ([]byte, error
 func (fakeStateMachine) Restore(context.Context, multiraft.Snapshot) error        { return nil }
 func (fakeStateMachine) Snapshot(context.Context) (multiraft.Snapshot, error) {
 	return multiraft.Snapshot{}, nil
+}
+
+func equalNodeIDs(a, b []multiraft.NodeID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 var _ = errors.Is

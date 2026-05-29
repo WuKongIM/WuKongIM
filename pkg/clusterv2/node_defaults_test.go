@@ -102,6 +102,28 @@ func TestNodeDefaultChannelsUseConfiguredCommitObserver(t *testing.T) {
 	}
 }
 
+func TestDefaultChannelMinISRUsesSlotReplicaMajority(t *testing.T) {
+	tests := []struct {
+		name     string
+		replicas uint16
+		want     int
+	}{
+		{name: "unset", replicas: 0, want: 1},
+		{name: "single replica", replicas: 1, want: 1},
+		{name: "two replicas", replicas: 2, want: 2},
+		{name: "three replicas", replicas: 3, want: 2},
+		{name: "four replicas", replicas: 4, want: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := &Node{cfg: Config{Slots: SlotConfig{ReplicaCount: tt.replicas}}}
+			if got := node.defaultChannelMinISR(); got != tt.want {
+				t.Fatalf("defaultChannelMinISR() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 	cfg := validNodeConfig(t)
 	cfg.Channel.TickInterval = time.Millisecond

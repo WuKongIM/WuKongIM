@@ -199,6 +199,75 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 }
 
+func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=2",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-2"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7000",
+		"WK_CLUSTER_ID=dev-three",
+		"WK_CLUSTER_INITIAL_SLOT_COUNT=2",
+		"WK_CLUSTER_HASH_SLOT_COUNT=32",
+		"WK_CLUSTER_SLOT_REPLICA_N=3",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"wk-node1:7000"},{"id":2,"addr":"wk-node2:7000"},{"id":3,"addr":"wk-node3:7000"}]`,
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if cfg.Cluster.Control.ClusterID != "dev-three" {
+		t.Fatalf("Control.ClusterID = %q, want dev-three", cfg.Cluster.Control.ClusterID)
+	}
+	if !cfg.Cluster.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = false, want true for static multi-node bootstrap")
+	}
+	wantVoters := []struct {
+		id   uint64
+		addr string
+	}{
+		{id: 1, addr: "wk-node1:7000"},
+		{id: 2, addr: "wk-node2:7000"},
+		{id: 3, addr: "wk-node3:7000"},
+	}
+	if len(cfg.Cluster.Control.Voters) != len(wantVoters) {
+		t.Fatalf("Control.Voters len = %d, want %d: %#v", len(cfg.Cluster.Control.Voters), len(wantVoters), cfg.Cluster.Control.Voters)
+	}
+	for i, want := range wantVoters {
+		got := cfg.Cluster.Control.Voters[i]
+		if got.NodeID != want.id || got.Addr != want.addr {
+			t.Fatalf("Control.Voters[%d] = %#v, want id=%d addr=%q", i, got, want.id, want.addr)
+		}
+	}
+	if cfg.Cluster.Slots.ReplicaCount != 3 {
+		t.Fatalf("Slots.ReplicaCount = %d, want 3", cfg.Cluster.Slots.ReplicaCount)
+	}
+}
+
+func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		`WK_CLUSTER_NODES=[{"id":3,"addr":"127.0.0.1:7003"},{"id":1,"addr":"127.0.0.1:7001"},{"id":2,"addr":"127.0.0.1:7002"}]`,
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if cfg.Cluster.Control.ClusterID != "wk-clusterv2-static-1-2-3" {
+		t.Fatalf("Control.ClusterID = %q", cfg.Cluster.Control.ClusterID)
+	}
+}
+
 func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
@@ -298,6 +367,68 @@ func TestLoadConfigJSONListeners(t *testing.T) {
 	})
 }
 
+func TestLoadConfigExampleFile(t *testing.T) {
+	unsetLoadConfigEnv(t)
+
+	cfg, err := loadConfig([]string{"-config", "wukongimv2.conf.example"})
+	if err != nil {
+		t.Fatalf("loadConfig(example) error = %v", err)
+	}
+
+	if cfg.NodeID != 1 || cfg.Cluster.NodeID != 1 {
+		t.Fatalf("NodeID = %d/%d, want 1", cfg.NodeID, cfg.Cluster.NodeID)
+	}
+	if cfg.Cluster.ListenAddr != "127.0.0.1:7001" {
+		t.Fatalf("Cluster.ListenAddr = %q", cfg.Cluster.ListenAddr)
+	}
+	if cfg.Cluster.Control.ClusterID != "wukongimv2-single" {
+		t.Fatalf("Control.ClusterID = %q", cfg.Cluster.Control.ClusterID)
+	}
+	if cfg.API.ListenAddr != "127.0.0.1:5001" {
+		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
+	}
+	if !cfg.Bench.APIEnabled {
+		t.Fatalf("Bench.APIEnabled = false, want true")
+	}
+	if !cfg.Observability.MetricsEnabled {
+		t.Fatalf("Observability.MetricsEnabled = false, want true")
+	}
+}
+
+func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
+	unsetLoadConfigEnv(t)
+
+	files := []string{
+		"wukongimv2-node1.conf.example",
+		"wukongimv2-node2.conf.example",
+		"wukongimv2-node3.conf.example",
+	}
+	for i, file := range files {
+		t.Run(file, func(t *testing.T) {
+			cfg, err := loadConfig([]string{"-config", file})
+			if err != nil {
+				t.Fatalf("loadConfig(%s) error = %v", file, err)
+			}
+			wantNodeID := uint64(i + 1)
+			if cfg.NodeID != wantNodeID || cfg.Cluster.NodeID != wantNodeID {
+				t.Fatalf("NodeID = %d/%d, want %d", cfg.NodeID, cfg.Cluster.NodeID, wantNodeID)
+			}
+			if cfg.Cluster.Control.ClusterID != "wukongimv2-dev-three" {
+				t.Fatalf("Control.ClusterID = %q", cfg.Cluster.Control.ClusterID)
+			}
+			if len(cfg.Cluster.Control.Voters) != 3 {
+				t.Fatalf("Control.Voters len = %d, want 3", len(cfg.Cluster.Control.Voters))
+			}
+			if cfg.Cluster.Slots.ReplicaCount != 3 {
+				t.Fatalf("Slots.ReplicaCount = %d, want 3", cfg.Cluster.Slots.ReplicaCount)
+			}
+			if len(cfg.Gateway.Listeners) != 2 {
+				t.Fatalf("Gateway.Listeners len = %d, want 2", len(cfg.Gateway.Listeners))
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsBadValues(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -308,6 +439,7 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
 		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
+		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},

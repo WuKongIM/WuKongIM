@@ -2,15 +2,53 @@
 
 `cmd/wukongimv2` is the standalone verification entry for `internalv2/app`.
 
-During phase 1, it only validates the single-node cluster `SEND -> SENDACK`
-skeleton. It reuses existing `WK_` configuration keys and is a migration-period
-verification entry, not a complete production replacement for `cmd/wukongim`.
+During phase 1, it validates the `SEND -> SENDACK` skeleton on single-node
+clusters and static multi-node clusters. It reuses existing `WK_` configuration
+keys where possible and is a migration-period verification entry, not a
+complete production replacement for `cmd/wukongim`.
 
 Run it with an explicit config file:
 
 ```sh
-go run ./cmd/wukongimv2 -config ./wukongim.conf
+go run ./cmd/wukongimv2 -config ./scripts/wukongimv2/wukongimv2.conf
 ```
+
+The runnable local config lives beside the helper scripts under
+`scripts/wukongimv2/` and only includes keys currently parsed by this
+standalone entry.
+
+For a local single-node cluster, use the helper script:
+
+```sh
+scripts/start-wukongimv2-single-node.sh --clean
+```
+
+The script builds `cmd/wukongimv2`, starts the single-node cluster config,
+waits for `/readyz`, and keeps the node running until Ctrl+C. Logs are written
+under `data/wukongimv2-single-node-logs/`.
+
+For a local static three-node cluster, the fastest path is the helper script:
+
+```sh
+scripts/start-wukongimv2-three-nodes.sh --clean
+```
+
+The script builds `cmd/wukongimv2`, starts all three nodes, waits for `/readyz`,
+and keeps the cluster running until Ctrl+C. Per-node logs are written under
+`data/wukongimv2-three-node-logs/`.
+
+To start the same configs manually, run these commands from three terminals:
+
+```sh
+go run ./cmd/wukongimv2 -config ./scripts/wukongimv2/wukongimv2-node1.conf
+go run ./cmd/wukongimv2 -config ./scripts/wukongimv2/wukongimv2-node2.conf
+go run ./cmd/wukongimv2 -config ./scripts/wukongimv2/wukongimv2-node3.conf
+```
+
+All nodes in a static cluster must share `WK_CLUSTER_ID` and
+`WK_CLUSTER_NODES`. Each node keeps its own `WK_NODE_ID`,
+`WK_NODE_DATA_DIR`, `WK_CLUSTER_LISTEN_ADDR`, API listener, and gateway
+listener ports.
 
 For `wkbench capacity send --profile person` runs, configure:
 

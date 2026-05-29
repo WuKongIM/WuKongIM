@@ -68,3 +68,4 @@ docker/dev-observability/
 docs/development/perf-runs/
 tmp/
 node_modules/
+data/

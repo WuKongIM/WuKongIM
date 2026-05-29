@@ -8,7 +8,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
@@ -40,7 +39,7 @@ func TestClusterV2ThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
-	applyChannelMetaToAll(t, nodes, defaultThreeNodeChannelMeta(channelID))
+	waitRouteKeyLeaderReady(t, nodes[0], channelID.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -67,7 +66,7 @@ func TestClusterV2ThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
-	applyChannelMetaToAll(t, nodes, defaultThreeNodeChannelMeta(channelID))
+	route := waitRouteKeyLeaderReady(t, nodes[0], channelID.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -80,7 +79,8 @@ func TestClusterV2ThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T)
 		t.Fatalf("AppendChannel(default channels) error = %v", err)
 	}
 
-	requireChannelMessage(t, nodes[1], channelID, res.MessageSeq, 1002, []byte("follower-fetch"))
+	follower := firstNonLeaderNode(t, nodes, route.Leader)
+	requireChannelMessage(t, follower, channelID, res.MessageSeq, 1002, []byte("follower-fetch"))
 }
 
 func newDefaultSingleNode(t testing.TB) *Node {
@@ -180,31 +180,26 @@ func waitRouteLeader(t testing.TB, node *Node, hashSlot uint16, want uint64) {
 	})
 }
 
-func applyChannelMetaToAll(t testing.TB, nodes []*Node, meta channelv2.Meta) {
+func waitRouteKeyLeaderReady(t testing.TB, node *Node, key string) Route {
 	t.Helper()
-	for _, node := range nodes {
-		svc, ok := node.channels.(*channels.Service)
-		if !ok {
-			t.Fatalf("default channels(node=%d) type = %T, want *channels.Service", node.NodeID(), node.channels)
-		}
-		if err := svc.ApplyMeta(meta); err != nil {
-			t.Fatalf("ApplyMeta(node=%d) error = %v", node.NodeID(), err)
-		}
-	}
+	var route Route
+	waitUntil(t.(*testing.T), func() bool {
+		var err error
+		route, err = node.RouteKey(key)
+		return err == nil && route.Leader != 0
+	})
+	return route
 }
 
-func defaultThreeNodeChannelMeta(id channelv2.ChannelID) channelv2.Meta {
-	return channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(id),
-		ID:          id,
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channelv2.NodeID{1, 2, 3},
-		ISR:         []channelv2.NodeID{1, 2, 3},
-		MinISR:      2,
-		Status:      channelv2.StatusActive,
+func firstNonLeaderNode(t testing.TB, nodes []*Node, leader uint64) *Node {
+	t.Helper()
+	for _, node := range nodes {
+		if node.NodeID() != leader {
+			return node
+		}
 	}
+	t.Fatalf("no follower node found for leader %d", leader)
+	return nil
 }
 
 func requireChannelMessage(t testing.TB, node *Node, id channelv2.ChannelID, seq uint64, messageID uint64, payload []byte) {

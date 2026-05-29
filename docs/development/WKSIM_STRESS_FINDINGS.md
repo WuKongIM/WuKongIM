@@ -337,6 +337,124 @@ Decision:
 - Treat 2.8M offered / 56,966 actual QPS / 0 errors as the best clean result from this run.
 - Treat 3.0M offered / 55,787 actual QPS / 256 send timeouts as the first clear failure point.
 
+## 2026-05-29 wukongimv2 Three-Node Node1 Single-Ingress Capacity Check
+
+Environment:
+- Local static three-node `cmd/wukongimv2` cluster from the current dirty worktree, clean `data/wukongimv2-three-nodes`, node1 API/gateway only, metrics enabled, and pprof disabled for the valid run.
+- Topology used one physical cluster slot with 16 hash slots and replica factor 3, so ChannelV2 leader append work was concentrated on node1 while node2/node3 handled follower apply traffic.
+- Workload: `wkbench capacity send`, `person` profile, 128-byte payloads, 1/s per generated person channel, SEND -> SENDACK only, receive verification disabled, 8s warmup, 20s measured window.
+- Success gates: 0 connect errors, 0 sendack errors, actual/offered ratio at least 0.95, and SENDACK p99 at most 200ms.
+
+Evidence:
+- Highest stable point: 187.5 offered QPS, 178.5 actual QPS, 0 errors, p99 189.49ms.
+- First failed point: 193.75 offered QPS, 162.4 actual QPS, 0 errors, p99 438.93ms, backlog 627.
+- Gateway async SEND did not fill its queue, but dispatch wait still reached p99 99ms.
+- ChannelV2 quorum append reached p99 165ms on node1.
+- The valid capacity window showed almost no useful batching: gateway batch average 1.07 records, ChannelV2 append batch average 1.0 record.
+- Durable store stages were visible on every message: node1 leader store append averaged 22.9ms with p99 74.6ms, while node2/node3 follower store apply averaged about 24ms with p99 around 73-79ms.
+
+Classification:
+- Category: ChannelV2 quorum durable append bottleneck amplified by one-slot leader placement on node1 and per-record sync writes.
+- Confidence: high that this was not a wkbench CPU bottleneck, send error path, or gateway queue-full case. Confidence is medium-high for the placement/quorum attribution until a valid replica-count or leader-placement control experiment is run.
+
+Decision:
+- No code change in this cycle.
+- Do not use the pprof rerun as capacity evidence; it failed during warmup and added profiling overhead.
+- Do not use the `WK_CLUSTER_SLOT_REPLICA_N=1` env-only three-node rerun as capacity evidence; that topology failed readiness with no slot leader.
+- Next clean experiment should isolate one variable: balanced ChannelV2 leader placement across multiple physical slots, or a valid one-replica/one-node cluster comparison to measure the local durable append ceiling without quorum follower apply.
+
+## 2026-05-29 wukongimv2 Three-Node Node1 Hot Channel Capacity Check
+
+Environment:
+- Local static three-node `cmd/wukongimv2` cluster from the current dirty worktree, clean `data/wukongimv2-three-nodes`, node1 API/gateway only, metrics enabled, and pprof disabled.
+- Workload: `wkbench capacity hot-channel`, one fixed group channel, SEND -> SENDACK only, receive verification disabled, 15s measured window for capacity probes.
+
+Evidence:
+- 100 QPS baseline with 256 senders passed with 95.4 actual QPS, 0 errors, and p99 75.9ms.
+- With the default strict `actual/offered >= 0.95` gate, 500 offered QPS failed on ratio only: 447.55 actual QPS, 0 errors, p99 76.1ms.
+- Relaxing the ratio gate to measure actual hot-channel throughput, 256 senders reached 7,161 actual QPS at 200k offered, 0 errors, and p99 83.4ms, with large scheduled backlog.
+- Increasing sender fan-in to 1024 raised the best clean actual throughput to about 10.37k QPS: 20k offered reached 10,369.4 actual QPS, 0 errors, p99 149.0ms; a 30k confirmation reached 10,337.8 actual QPS, 0 errors, p99 145.9ms.
+- The 1024-sender search first failed above the clean boundary at 82.5k offered with 8,390.2 actual QPS, `worker_failed`, and 1024 SENDACK read timeouts.
+- Metrics showed no gateway queue fill. Node1 gateway dispatch wait p99 was about 98-100ms with gateway batch p50 around 300 records; ChannelV2 worker task p99 was about 24ms, and the append leader metrics appeared on a non-ingress node for this channel.
+
+Classification:
+- Category: current `wkbench capacity hot-channel` single-worker, single-channel effective clean throughput is about 10.3k actual QPS on the three-node node1-ingress setup.
+- Confidence: medium-high for the observed `wkbench` result. The service was not CPU-saturated and the run had large scheduled backlog at high offered rates, so this should not be treated as a server-only upper bound without a multi-worker or improved hot-channel generator.
+
+Decision:
+- Treat 10.3k actual QPS with 0 errors and p99 under 150ms as the current clean single-channel `wkbench` result for this setup.
+- Treat 82.5k offered with 1024 read timeouts as the first clear failing offered point for the 1024-sender run.
+- A stricter max-stable offered-QPS number is misleading for hot-channel because the ratio gate fails before service errors at low offered rates, while relaxed high-offered runs accumulate large backlog.
+
+## 2026-05-29 wukongimv2 Three-Node Node1 Ten-Channel Capacity Check
+
+Environment:
+- Local static three-node `cmd/wukongimv2` cluster from the current dirty worktree, clean `data/wukongimv2-three-nodes` per confirmation round, node1 API/gateway only, metrics enabled, and pprof disabled.
+- Workload: custom `wkbench run`, 10 fixed group channels, 1024 online users shared across the 10 channels with `members.overlap: allowed`, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, 5s warmup, 15s measured window.
+- Success gates: worker exit 0, 0 connect/sendack errors, and run-phase SENDACK p99 at most 200ms.
+
+Evidence:
+- Baseline 1k offered QPS passed with about 832 actual QPS, 0 errors, and run p99 116ms.
+- Clean refinement passed at 20k offered / 4,432.6 actual QPS / p99 158ms, 30k offered / 5,799.7 actual QPS / p99 178ms, and 35k offered / 6,651.1 actual QPS / p99 179ms.
+- One clean pass reached 50k offered / 11,903.5 actual QPS / p99 149ms, but this was not reproducible; a later clean 50k attempt failed the p99 gate with 6,313.9 actual QPS and p99 528ms.
+- The final confirmation stack passed 40k offered / 6,820.8 actual QPS / p99 199ms and 45k offered / 7,493.1 actual QPS / p99 194ms.
+- The final confirmation stack failed at 48k offered during warmup with `ReasonSystemError`; earlier high points also failed via p99 over 200ms, SENDACK read timeout, or `ReasonSystemError`.
+- Metrics from the final confirmation reported no gateway queue fill, node1 gateway dispatch wait p99 about 157ms, node2 ChannelV2 append p99 about 201ms, and ChannelV2 worker task p99 around 46-68ms.
+
+Classification:
+- Category: current conservative 10-channel clean capacity is about 7.5k actual QPS on this three-node node1-ingress setup.
+- Confidence: medium. The 10-channel workload is more variable than the single-channel run; 45k offered passed in the final clean confirmation, while higher offered points were not stable.
+
+Decision:
+- Treat 45k offered / 7,493 actual QPS / 0 errors / p99 194ms as the conservative highest stable point from this run.
+- Do not treat the single 50k offered / 11,903 actual QPS pass as a stable capacity number until it is reproduced in a clean stack.
+- The next useful experiment is either repeated 45k/48k confirmation or a multi-worker generator to separate benchmark-client scheduling variance from server-side ChannelV2 backpressure.
+
+## 2026-05-29 wukongimv2 Three-Node 1000-Channel Retest
+
+Environment:
+- Local static three-node `cmd/wukongimv2` cluster from commit `4d1e4f53`, clean node data, metrics and pprof enabled, durable sync enabled, 3 physical Slots, 96 hash slots, 32 ChannelV2 reactors, and 256 gateway async SEND workers.
+- Workload: custom `wkbench run`, 1000 fixed group channels, 4096 online users shared across channels with `members.overlap: allowed`, 10 members per channel, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, 5s warmup, 15s measured window.
+- Success gates: worker exit 0, 0 connect/sendack errors, and run-phase SENDACK p99 at most 400ms.
+
+Evidence:
+- Baseline passed at 1000 offered / 1000 actual QPS / p99 108ms and 2000 offered / 2000 actual QPS / p99 114ms.
+- Refinement passed at 2400 offered / 2280.9 actual QPS / p99 246ms, 2480 offered / 2409.7 actual QPS / p99 298ms, 2490 offered / 2421.6 actual QPS / p99 228ms, and repeat 2500 offered / 2455.9 actual QPS / p99 208ms.
+- One earlier 2500 offered attempt failed with 17 SENDACK errors, so the boundary remains somewhat variable.
+- Overload points showed throughput collapse or p99 breach: 2800 offered / 1861.1 actual QPS / p99 634ms and 3000 offered / 1537.7 actual QPS / p99 526ms.
+- Best-pass `rpc_pull` counter rates were about 6.4k/s on node1, 7.6k/s on node2, and 4.0k/s on node3 during the 2500 repeat.
+
+Classification:
+- Category: current clean three-node 1000 fixed group-channel capacity is about 2.45k actual QPS with the 400ms p99 gate.
+- Confidence: medium. The repeated 2500 run passed, but a prior 2500 attempt failed and higher offered rates degrade quickly.
+
+Decision:
+- Treat 2500 offered / 2456 actual QPS / 0 errors / run p99 208ms as the current best observed stable point from this retest.
+- Treat 2800 offered / 1861 actual QPS / run p99 634ms as the first clear p99-overloaded point.
+
+## 2026-05-29 wukongimv2 Single-Node Cluster 1000-Channel Capacity Check
+
+Environment:
+- Local `cmd/wukongimv2` single-node cluster started by `scripts/start-wukongimv2-single-node.sh`, clean `data/wukongimv2-node-1` per confirmation round, metrics enabled, and pprof disabled.
+- Workload: custom `wkbench run`, 1000 fixed group channels, 1024 online users shared across channels with `members.overlap: allowed`, 10 members per channel, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, 10s warmup, 15s measured window.
+- Success gates: worker exit 0, 0 connect/sendack errors, and run-phase SENDACK p99 at most 400ms.
+
+Evidence:
+- Coarse run showed throughput flattening around 1.2k actual QPS once offered load exceeded about 2k QPS; p99 rose above the 400ms gate at higher offers.
+- Final clean confirmation passed 1200 offered / 969.9 actual QPS / p99 114ms, 1300 offered / 1057.9 actual QPS / p99 26ms, 1400 offered / 1133.6 actual QPS / p99 67ms, and 1500 offered / 1194.3 actual QPS / p99 389ms.
+- Final clean confirmation exceeded the p99 gate at 1600 offered / 1205.2 actual QPS / p99 634ms; 1700 and 1800 offered also exceeded the p99 gate.
+- Metrics from the final confirmation reported no gateway queue fill, gateway dispatch wait p99 about 240ms, ChannelV2 append p99 about 82ms, and ChannelV2 worker task p99 about 24ms.
+- Node logs did not show panic, fatal, timeout, `ReasonSystemError`, or gateway queue-full markers during the final confirmation window.
+
+Classification:
+- Category: current 1000 fixed group-channel clean capacity is about 1.2k actual QPS on this single-node cluster with the 400ms p99 gate.
+- Confidence: medium-high for this local `wkbench` result. The offered QPS boundary is sensitive to scheduling and latency variance, but the final clean confirmation bracketed 1500 pass and 1600 fail under the requested p99 gate.
+
+Decision:
+- Treat 1500 offered / 1194 actual QPS / 0 errors / run p99 389ms as the current highest stable point for this setup.
+- Treat 1600 offered / 1205 actual QPS / run p99 634ms as the first failing point under the 400ms p99 gate.
+- The abandoned 10000-channel probe is not used as the answer for this run; it showed cold-channel warmup and scheduling overhead, then the target was narrowed to 1000 channels.
+
 ## 2026-05-29 wukongimv2 Single-Node Cluster 1000-Channel NoSync Check
 
 Environment:

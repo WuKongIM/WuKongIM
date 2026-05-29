@@ -5,7 +5,8 @@
 `internalv2/app` is the only composition root for the new skeleton. It wires
 phase-1 config, `pkg/clusterv2`, the message usecase, the gateway handler, the
 optional HTTP API runtime, the optional Prometheus metrics registry, and the
-optional gateway runtime.
+optional gateway runtime. The phase-1 runtime supports single-node clusters and
+static multi-node clusters for the `SEND -> SENDACK` write path.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
