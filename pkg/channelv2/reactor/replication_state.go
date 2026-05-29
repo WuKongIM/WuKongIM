@@ -23,6 +23,8 @@ type replicationState struct {
 	parked bool
 	// recoveryProbe records whether nextPullAt is a parked-follower recovery probe.
 	recoveryProbe bool
+	// recoveryProbeInflight records whether the current pull RPC is a recovery probe.
+	recoveryProbeInflight bool
 	// nextPullAt is the earliest time a new pull may be submitted.
 	nextPullAt time.Time
 	// nextPullAfter is the leader-provided delay from the latest empty pull response.

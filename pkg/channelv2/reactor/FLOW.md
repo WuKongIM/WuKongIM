@@ -144,6 +144,11 @@ apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
 apply schedules the next pull immediately so the follower's latest local LEO is
 piggybacked as `AckOffset`.
 
+Caught-up followers park after empty pulls to avoid idle polling storms. A
+leader `PullHint` with a newer `LeaderLEO` unparks the follower immediately,
+while parked followers also schedule deterministic recovery probes so a missed
+hint cannot leave a runtime asleep forever.
+
 ## Worker Completion Routing
 
 ```text

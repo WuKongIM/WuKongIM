@@ -269,6 +269,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 		return false
 	}
 	role := rc.state.Role
+	wasParkedFollower := role == ch.RoleFollower && rc.replication.parked
 	r.clearAppendCancelContexts(rc)
 	r.clearPullCancelChannel(rc)
 	if err := rc.store.Close(); err != nil {
@@ -276,6 +277,9 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	}
 	delete(r.channels, key)
 	r.observeChannelRuntimeEvicted(key, role)
+	if wasParkedFollower {
+		r.observeFollowerParkedCount(r.countParkedFollowers())
+	}
 	r.observeRuntimeCounts()
 	return true
 }

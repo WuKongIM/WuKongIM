@@ -346,6 +346,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	wasParked := rc.replication.parked
 	fencePendingState := existing != nil && metadataWouldFenceState(rc.state, event.Meta)
 	if fencePendingState {
 		if err := rc.state.ValidateMeta(event.Meta); err != nil {
@@ -388,6 +389,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		}
 	}
 	if decision.Err == nil {
+		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		r.observeRuntimeCounts()
 	}
 	event.Future.Complete(Result{Err: decision.Err})

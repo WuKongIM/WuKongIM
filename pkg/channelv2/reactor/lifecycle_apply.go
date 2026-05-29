@@ -147,7 +147,9 @@ func (r *Reactor) applyStoppedAckDone(rc *runtimeChannel, event lifecycleEvent, 
 			rc.lifecycle.cancelFollowerStop()
 			rc.replication.backoff = 0
 			rc.replication.lastError = event.err
+			wasParked := rc.replication.parked
 			rc.replication.markDirty(now)
+			r.observeFollowerParkedCountIfChanged(wasParked, rc)
 			r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
 			return
 		}

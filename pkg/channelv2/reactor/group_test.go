@@ -302,13 +302,15 @@ func newUnstartedTestGroup(t *testing.T, reactorCount int, mailboxSize int) *Gro
 }
 
 type captureObserver struct {
-	mu            sync.Mutex
-	appendBatches int
-	workerResults int
-	pullHintSent  int
-	pullHintDrop  int
-	followerStop  int
-	runtimeEvict  int
+	mu             sync.Mutex
+	appendBatches  int
+	workerResults  int
+	pullHintSent   int
+	pullHintDrop   int
+	followerStop   int
+	runtimeEvict   int
+	followerParked int
+	recoveryProbes map[string]int
 }
 
 func (o *captureObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
@@ -355,6 +357,23 @@ func (o *captureObserver) ObserveFollowerStopped(key ch.ChannelKey, follower ch.
 	o.followerStop++
 }
 
+func (o *captureObserver) SetFollowerParkedCount(reactorID int, count int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.followerParked = count
+}
+
+func (o *captureObserver) ObserveFollowerRecoveryProbe(result string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.recoveryProbes == nil {
+		o.recoveryProbes = make(map[string]int)
+	}
+	o.recoveryProbes[result]++
+}
+
+func (o *captureObserver) ObservePull(result string, empty bool) {}
+
 func (o *captureObserver) AppendBatches() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -389,4 +408,16 @@ func (o *captureObserver) RuntimeEvicted() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.runtimeEvict
+}
+
+func (o *captureObserver) FollowerParked() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.followerParked
+}
+
+func (o *captureObserver) RecoveryProbes(result string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.recoveryProbes[result]
 }

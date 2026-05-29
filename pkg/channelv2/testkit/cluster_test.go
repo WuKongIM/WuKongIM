@@ -142,20 +142,22 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 		factory := store.NewMemoryFactory()
 		observer := &testkitObserver{}
 		cluster, err := service.New(service.Config{
-			LocalNode:                   nodeID,
-			Store:                       factory,
-			ReactorCount:                1,
-			Transport:                   network.Client(),
-			MetaResolver:                resolver,
-			Observer:                    observer,
-			ReplicationIdlePollInterval: time.Millisecond,
-			IdleSlowdownAfter:           time.Millisecond,
-			IdleEvictAfter:              5 * time.Millisecond,
-			IdlePullMinInterval:         time.Millisecond,
-			IdlePullMaxInterval:         time.Millisecond,
-			IdleEvictCheckInterval:      time.Millisecond,
-			PullHintRetryInterval:       time.Millisecond,
-			AppendBatchMaxRecords:       1,
+			LocalNode:                     nodeID,
+			Store:                         factory,
+			ReactorCount:                  1,
+			Transport:                     network.Client(),
+			MetaResolver:                  resolver,
+			Observer:                      observer,
+			ReplicationIdlePollInterval:   time.Millisecond,
+			IdleSlowdownAfter:             time.Millisecond,
+			IdleEvictAfter:                5 * time.Millisecond,
+			IdlePullMinInterval:           time.Millisecond,
+			IdlePullMaxInterval:           time.Millisecond,
+			IdleEvictCheckInterval:        time.Millisecond,
+			PullHintRetryInterval:         time.Millisecond,
+			FollowerRecoveryProbeInterval: time.Millisecond,
+			FollowerRecoveryProbeJitter:   time.Millisecond,
+			AppendBatchMaxRecords:         1,
 		})
 		require.NoError(t, err)
 		defer cluster.Close()

@@ -42,7 +42,12 @@ func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
 }
 
 func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
+	recoveryProbe := rc.replication.recoveryProbe && !rc.replication.nextPullAt.IsZero() && !now.Before(rc.replication.nextPullAt)
 	if r.cfg.Pools == nil {
+		if recoveryProbe {
+			r.observeRecoveryProbe("err")
+		}
+		// Keep recoveryProbe armed so the backoff retry is still classified as a recovery probe.
 		r.backoffPull(rc, ch.ErrInvalidConfig, now)
 		return
 	}
@@ -59,12 +64,23 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		MaxBytes:    r.cfg.PullMaxBytes,
 	}
 	if err := r.submitRPCPull(context.Background(), rc.state.Leader, fence, req); err != nil {
+		if recoveryProbe {
+			r.observeRecoveryProbe("err")
+		}
+		// Keep recoveryProbe armed so the backoff retry is still classified as a recovery probe.
 		r.backoffPull(rc, err, now)
 		return
 	}
 	rc.replication.pullInflight = true
 	rc.replication.pullOpID = opID
 	rc.replication.dirty = false
+	if recoveryProbe {
+		rc.replication.recoveryProbe = false
+		rc.replication.recoveryProbeInflight = true
+		r.observeRecoveryProbe("submitted")
+	} else {
+		rc.replication.recoveryProbeInflight = false
+	}
 }
 
 func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
@@ -202,6 +218,10 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	}
 	if req.LeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0
+		if rc.replication.parked && rc.replication.recoveryProbe && rc.replication.nextPullAt.IsZero() {
+			rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
+			r.observeFollowerParkedCount(r.countParkedFollowers())
+		}
 		if event.Future != nil {
 			event.Future.Complete(Result{})
 		}
@@ -210,9 +230,9 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	if req.LeaderLEO > rc.replication.hintedLeaderLEO {
 		rc.replication.hintedLeaderLEO = req.LeaderLEO
 	}
-	rc.replication.parked = false
-	rc.replication.nextPullAfter = 0
-	rc.replication.markDirty(now)
+	wasParked := rc.replication.parked
+	rc.replication.clearParkedForHint(now)
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.tickFollowerReplication(rc, now)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
@@ -239,7 +259,9 @@ func (r *Reactor) handleLegacyFollowerNotify(event Event) {
 		return
 	}
 	now := time.Now()
+	wasParked := rc.replication.parked
 	rc.replication.markDirty(now)
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.tickFollowerReplication(rc, now)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
@@ -255,25 +277,45 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	if !rc.replication.applyPullResult(result, current, time.Now()) {
 		return
 	}
+	recoveryProbe := rc.replication.recoveryProbeInflight
+	rc.replication.recoveryProbeInflight = false
 	now := time.Now()
 	defer r.scheduleReplicationFromState(rc, now)
 	if result.Err != nil {
+		r.observePull("err", false)
+		if recoveryProbe {
+			r.observeRecoveryProbe("err")
+		}
 		r.backoffPull(rc, result.Err, now)
 		return
 	}
 	if result.RPCPull == nil {
+		r.observePull("err", false)
+		if recoveryProbe {
+			r.observeRecoveryProbe("err")
+		}
 		r.backoffPull(rc, ch.ErrInvalidConfig, now)
 		return
 	}
 	resp := result.RPCPull.Response
 	if resp.ChannelKey != rc.state.Key || resp.Epoch != rc.state.Epoch || resp.LeaderEpoch != rc.state.LeaderEpoch {
+		r.observePull("err", false)
+		if recoveryProbe {
+			r.observeRecoveryProbe("err")
+		}
 		r.backoffPull(rc, ch.ErrStaleMeta, now)
 		return
+	}
+	r.observePull("ok", len(resp.Records) == 0)
+	if recoveryProbe {
+		r.observeRecoveryProbe("ok")
 	}
 	rc.replication.lastLeaderHW = resp.LeaderHW
 	rc.replication.backoff = 0
 	if resp.Control == transport.PullControlStop && resp.ActivityVersion < rc.replication.lastActivityVersion {
+		wasParked := rc.replication.parked
 		rc.replication.markDirty(now)
+		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		r.tickFollowerReplication(rc, now)
 		return
 	}
@@ -293,22 +335,19 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 			r.scheduleEmptyLaggingPullRetry(rc, now)
 			return
 		}
-		rc.replication.dirty = false
-		delay := resp.NextPullAfter
-		if delay <= 0 {
-			delay = r.cfg.ReplicationIdlePollInterval
-		}
-		rc.replication.parked = delay > 0
-		rc.replication.nextPullAfter = delay
-		rc.replication.nextPullAt = now.Add(delay)
+		wasParked := rc.replication.parked
+		rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
+		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		return
 	}
+	wasParked := rc.replication.parked
 	rc.replication.parked = false
 	rc.replication.nextPullAfter = 0
 	rc.replication.pendingPull = &resp
 	rc.replication.applyBlocked = false
 	rc.replication.applyRetryAt = time.Time{}
 	rc.replication.applyOpID = 0
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.trySubmitPendingApply(rc, now)
 }
 
@@ -317,10 +356,29 @@ func (r *Reactor) scheduleEmptyLaggingPullRetry(rc *runtimeChannel, now time.Tim
 	if delay <= 0 {
 		delay = time.Millisecond
 	}
+	wasParked := rc.replication.parked
 	rc.replication.dirty = true
 	rc.replication.parked = false
 	rc.replication.nextPullAfter = delay
 	rc.replication.nextPullAt = now.Add(delay)
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
+}
+
+func (r *Reactor) countParkedFollowers() int {
+	count := 0
+	for _, rc := range r.channels {
+		if rc != nil && rc.state != nil && rc.state.Role == ch.RoleFollower && rc.replication.parked {
+			count++
+		}
+	}
+	return count
+}
+
+func (r *Reactor) observeFollowerParkedCountIfChanged(wasParked bool, rc *runtimeChannel) {
+	if rc == nil || wasParked == rc.replication.parked {
+		return
+	}
+	r.observeFollowerParkedCount(r.countParkedFollowers())
 }
 
 func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.PullResponse, now time.Time) {
@@ -336,16 +394,20 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 		view.HW >= resp.LeaderHW
 	if !canAccept {
 		rc.lifecycle.cancelFollowerStop()
+		wasParked := rc.replication.parked
 		rc.replication.markDirty(now)
+		r.observeFollowerParkedCountIfChanged(wasParked, rc)
 		r.scheduleReplicationFromState(rc, now)
 		return
 	}
 	rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
 	rc.lifecycle.acceptFollowerStop(resp.ActivityVersion, resp.LeaderLEO, resp.LeaderHW)
+	wasParked := rc.replication.parked
 	rc.replication.parked = false
 	rc.replication.dirty = false
 	rc.replication.nextPullAt = time.Time{}
 	rc.replication.nextPullAfter = 0
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionStartFollowerStopCheckpoint}}, now)
 }
 
@@ -384,7 +446,9 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	rc.replication.applyRetryAt = time.Time{}
 	rc.replication.backoff = 0
 	rc.replication.lastError = nil
+	wasParked := rc.replication.parked
 	rc.replication.markDirty(now)
+	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	rc.replication.nextPullAt = now
 }
 

@@ -33,6 +33,145 @@ func TestFollowerRecoveryProbeDelaySaturatesOverflow(t *testing.T) {
 	require.Equal(t, time.Duration(1<<63-1), delay)
 }
 
+func TestFollowerParksAfterEmptyCaughtUpPull(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("park")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    0,
+		LeaderLEO:   0,
+		Control:     transport.PullControlContinue,
+	})
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, MailboxSize: 16, Store: factory, Pools: pools,
+		FollowerRecoveryProbeInterval: time.Minute,
+		FollowerRecoveryProbeJitter:   0,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+
+	r.tickFollowerReplication(rc, time.Now())
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+
+	require.True(t, rc.replication.parked)
+	require.False(t, rc.replication.dirty)
+	require.True(t, rc.replication.recoveryProbe)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+}
+
+func TestRecoveryProbeSubmitFailureObserved(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("recovery-probe-submit-failure")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, Observer: obs,
+		ReplicationMinBackoff:         time.Millisecond,
+		ReplicationMaxBackoff:         time.Millisecond,
+		FollowerRecoveryProbeInterval: time.Minute,
+		FollowerRecoveryProbeJitter:   time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	now := time.Now()
+	rc.replication.parkWithRecovery(meta.Key, now.Add(-2*time.Minute), time.Minute, 0)
+	rc.replication.nextPullAt = now.Add(-time.Millisecond)
+
+	r.tickFollowerReplication(rc, now)
+
+	require.Equal(t, 1, obs.RecoveryProbes("err"))
+	require.True(t, rc.replication.recoveryProbe)
+	require.False(t, rc.replication.pullInflight)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+}
+
+func TestFollowerParkedCountUpdatesWhenRecordsArrive(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("parked-count-records")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
+	r.observeFollowerParkedCount(r.countParkedFollowers())
+	require.Equal(t, 1, obs.FollowerParked())
+
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    1,
+			LeaderLEO:   1,
+			Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+		}},
+	})
+
+	require.Equal(t, 0, obs.FollowerParked())
+}
+
+func TestFollowerParkedCountUpdatesWhenMetadataLeavesFollower(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("parked-count-meta")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
+	r.observeFollowerParkedCount(r.countParkedFollowers())
+	require.Equal(t, 1, obs.FollowerParked())
+
+	leaderMeta := meta
+	leaderMeta.Leader = 2
+	leaderMeta.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, leaderMeta))
+
+	require.Equal(t, 0, obs.FollowerParked())
+}
+
+func TestFollowerParkedCountUpdatesWhenRuntimeEvicted(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("parked-count-evict")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
+	r.observeFollowerParkedCount(r.countParkedFollowers())
+	require.Equal(t, 1, obs.FollowerParked())
+
+	require.True(t, r.evictRuntimeChannel(meta.Key, rc, "test"))
+
+	require.Equal(t, 0, obs.FollowerParked())
+}
+
+func TestParkedFollowerWakesOnValidPullHint(t *testing.T) {
+	r, rc := newFollowerReplicationTestRuntime(t)
+	now := time.Now()
+	rc.replication.parkWithRecovery(rc.state.Key, now, time.Minute, 0)
+	r.handleFollowerPullHint(Event{Kind: EventPullHint, Key: rc.state.Key, PullHint: transport.PullHintRequest{
+		ChannelKey: rc.state.Key, ChannelID: rc.state.ID, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch,
+		Leader: rc.state.Leader, LeaderLEO: rc.state.LEO + 1, ActivityVersion: 1,
+	}, Future: NewFuture()})
+	require.False(t, rc.replication.parked)
+	require.True(t, rc.replication.dirty)
+	require.False(t, rc.replication.recoveryProbe)
+}
+
 func TestLeaderPullDelayUsesIdleAgeWithoutCoolingPhase(t *testing.T) {
 	r := NewReactor(ReactorConfig{
 		LocalNode:                   1,
@@ -849,8 +988,9 @@ func TestFollowerStaleEmptyPullWithoutLeaderLEOAheadParks(t *testing.T) {
 
 	require.False(t, rc.replication.dirty)
 	require.True(t, rc.replication.parked)
+	require.True(t, rc.replication.recoveryProbe)
 	require.False(t, rc.replication.nextPullAt.IsZero())
-	require.True(t, rc.replication.nextPullAt.After(time.Now().Add(30*time.Minute)))
+	require.True(t, rc.replication.nextPullAt.Before(time.Now().Add(2*time.Minute)))
 }
 
 func TestFollowerIgnoresCaughtUpPullHint(t *testing.T) {
@@ -3143,6 +3283,17 @@ func appendQuorumEvent(meta ch.Meta, id uint64, payload string) Event {
 func followerTestMeta(id string) ch.Meta {
 	channelID := ch.ChannelID{ID: id, Type: 1}
 	return ch.Meta{Key: ch.ChannelKeyForID(channelID), ID: channelID, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+}
+
+func newFollowerReplicationTestRuntime(t *testing.T) (*Reactor, *runtimeChannel) {
+	t.Helper()
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("parked-follower-runtime")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	return r, rc
 }
 
 func completeLeaderCheckpointAndDue(t *testing.T, r *Reactor, checkpoint worker.Result) {
