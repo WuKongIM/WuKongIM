@@ -115,8 +115,17 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 	}
 	store := defaultChannelRuntimeMetaStore{node: n}
 	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
-		Placement: channels.NewSlotPlacementResolver(n.router, 1),
+		Placement: channels.NewSlotPlacementResolver(n.router, n.defaultChannelMinISR()),
 	})
+}
+
+// defaultChannelMinISR returns the write quorum for newly placed ChannelV2 logs.
+func (n *Node) defaultChannelMinISR() int {
+	replicas := 1
+	if n != nil && n.cfg.Slots.ReplicaCount > 0 {
+		replicas = int(n.cfg.Slots.ReplicaCount)
+	}
+	return replicas/2 + 1
 }
 
 // defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.

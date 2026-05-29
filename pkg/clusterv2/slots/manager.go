@@ -70,13 +70,7 @@ func (m *Manager) Ensure(ctx context.Context, assignment Assignment) error {
 	if !raft.IsEmptyHardState(initial.HardState) {
 		return m.runtime.OpenSlot(ctx, opts)
 	}
-	if BootstrapOwner(assignment) == m.localNode {
-		return m.runtime.BootstrapSlot(ctx, multiraft.BootstrapSlotRequest{Slot: opts, Voters: nodeIDs(assignment.DesiredPeers)})
-	}
-	if assignment.Bootstrapped {
-		return m.runtime.OpenSlot(ctx, opts)
-	}
-	return nil
+	return m.runtime.BootstrapSlot(ctx, multiraft.BootstrapSlotRequest{Slot: opts, Voters: nodeIDs(assignment.DesiredPeers)})
 }
 
 // IsUnassigned reports whether Ensure observed slotID as not assigned to this node.

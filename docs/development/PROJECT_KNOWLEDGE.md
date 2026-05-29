@@ -6,6 +6,7 @@
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass clusterv2 semantics.
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
+- Runnable `wukongimv2` helper-script configs live under `scripts/wukongimv2/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND metrics with ChannelV2 reactor/worker metrics. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 
 ## Channel Runtime
