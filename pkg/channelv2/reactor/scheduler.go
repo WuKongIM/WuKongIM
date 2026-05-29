@@ -276,26 +276,26 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 			due = candidate
 		}
 	}
-	if !rc.lifecycle.CheckpointInflight && !rc.lifecycle.CheckpointRetryAt.IsZero() {
-		if now.Before(rc.lifecycle.CheckpointRetryAt) {
-			add(rc.lifecycle.CheckpointRetryAt)
+	if !rc.lifecycle.checkpoint.inflight && !rc.lifecycle.checkpoint.retryAt.IsZero() {
+		if now.Before(rc.lifecycle.checkpoint.retryAt) {
+			add(rc.lifecycle.checkpoint.retryAt)
 		} else {
-			rc.lifecycle.CheckpointRetryAt = time.Time{}
+			rc.lifecycle.checkpoint.retryAt = time.Time{}
 		}
 	}
-	if rc.lifecycle.CheckpointReady &&
-		!rc.lifecycle.CheckpointReadyQueued &&
-		rc.lifecycle.CheckpointRetryAt.IsZero() &&
+	if rc.lifecycle.finalCheck.inflight &&
+		!rc.lifecycle.finalCheck.queued &&
+		rc.lifecycle.checkpoint.retryAt.IsZero() &&
 		rc.state.HW >= rc.state.LEO &&
 		r.allFollowersStopped(rc) &&
 		!r.hasPendingRuntimeWork(rc) {
 		add(now)
 	}
-	for _, follower := range rc.followers {
-		if follower == nil || follower.HintInflight {
+	for _, follower := range rc.lifecycle.followers {
+		if follower == nil || follower.hint.inflight {
 			continue
 		}
-		add(follower.HintRetryAt)
+		add(follower.hint.retryAt)
 	}
 	idleSince := leaderIdleSince(rc)
 	if !idleSince.IsZero() {
@@ -304,7 +304,7 @@ func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time
 		}
 		if now.Before(idleSince.Add(r.cfg.IdleEvictAfter)) {
 			add(idleSince.Add(r.cfg.IdleEvictAfter))
-		} else if !rc.lifecycle.CheckpointInflight {
+		} else if !rc.lifecycle.checkpoint.inflight {
 			add(now.Add(r.cfg.IdleEvictCheckInterval))
 		}
 	}

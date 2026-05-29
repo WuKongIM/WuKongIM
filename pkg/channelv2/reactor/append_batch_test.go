@@ -540,8 +540,8 @@ func TestLeaderActivityVersionTracksDurableLEO(t *testing.T) {
 	require.NoError(t, result.Err)
 
 	rc := r.channels[meta.Key]
-	require.Equal(t, rc.state.LEO, rc.lifecycle.ActivityVersion)
-	require.NotZero(t, rc.lifecycle.LastAppendAt)
+	require.Equal(t, rc.state.LEO, rc.lifecycle.version)
+	require.NotZero(t, rc.lifecycle.lastAppendAt)
 }
 
 func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing.T) {
@@ -558,11 +558,11 @@ func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing
 
 	rc := r.channels[meta.Key]
 	now := time.Now()
-	rc.followers[2].Parked = true
-	rc.followers[2].LastPullAt = now
-	rc.followers[3].LastPullAt = now
-	rc.followers[4].Stopped = true
-	rc.followers[4].LastPullAt = now
+	rc.lifecycle.followers[2].parked = true
+	rc.lifecycle.followers[2].lastPullAt = now
+	rc.lifecycle.followers[3].lastPullAt = now
+	rc.lifecycle.followers[4].stoppedVersion = 1
+	rc.lifecycle.followers[4].lastPullAt = now
 
 	result := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, result.Err)
@@ -570,10 +570,10 @@ func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing
 	require.Eventually(t, func() bool {
 		return tr.pullHintTargets() == "2,4,5"
 	}, time.Second, time.Millisecond)
-	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
-	require.Equal(t, uint64(0), rc.followers[3].LastHintVersion)
-	require.Equal(t, uint64(1), rc.followers[4].LastHintVersion)
-	require.Equal(t, uint64(1), rc.followers[5].LastHintVersion)
+	require.Equal(t, uint64(1), rc.lifecycle.followers[2].lastHintVersion)
+	require.Equal(t, uint64(0), rc.lifecycle.followers[3].lastHintVersion)
+	require.Equal(t, uint64(1), rc.lifecycle.followers[4].lastHintVersion)
+	require.Equal(t, uint64(1), rc.lifecycle.followers[5].lastHintVersion)
 
 	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Hour), Future: NewFuture()})
 	require.Equal(t, "2,4,5", tr.pullHintTargets())
@@ -593,19 +593,19 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	rc := r.channels[meta.Key]
-	rc.followers[2].Parked = true
+	rc.lifecycle.followers[2].parked = true
 
 	result := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, result.Err)
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
-	require.NotZero(t, rc.followers[2].HintRetryAt)
-	require.False(t, rc.followers[2].HintInflight)
+	require.NotZero(t, rc.lifecycle.followers[2].hint.retryAt)
+	require.False(t, rc.lifecycle.followers[2].hint.inflight)
 	droppedAttempts := tr.pullHintCount(2)
-	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
-	require.Less(t, rc.followers[2].Match, rc.state.LEO)
+	require.Equal(t, uint64(1), rc.lifecycle.followers[2].lastHintVersion)
+	require.Less(t, rc.lifecycle.followers[2].match, rc.state.LEO)
 
 	tr.setDrop(2, false)
-	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: rc.followers[2].HintRetryAt.Add(time.Millisecond), Future: NewFuture()})
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: rc.lifecycle.followers[2].hint.retryAt.Add(time.Millisecond), Future: NewFuture()})
 	require.Eventually(t, func() bool {
 		return tr.pullHintCount(2) > droppedAttempts
 	}, time.Second, time.Millisecond)
@@ -625,19 +625,19 @@ func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) 
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	rc := r.channels[meta.Key]
-	rc.followers[2].Parked = true
+	rc.lifecycle.followers[2].parked = true
 
 	first := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, first.Err)
 	require.Eventually(t, func() bool {
 		return tr.pullHintCount(2) == 1
 	}, time.Second, time.Millisecond)
-	require.True(t, rc.followers[2].HintInflight)
+	require.True(t, rc.lifecycle.followers[2].hint.inflight)
 	require.Equal(t, uint64(1), tr.lastPullHintVersion(2))
 
 	second := appendDirect(t, r, sink, meta, 2, "b")
 	require.NoError(t, second.Err)
-	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
+	require.Equal(t, uint64(2), rc.lifecycle.version)
 	require.Equal(t, 1, tr.pullHintCount(2))
 
 	tr.unblockPullHints()
@@ -645,8 +645,8 @@ func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) 
 	require.Eventually(t, func() bool {
 		return tr.hasPullHintVersion(2, 2)
 	}, time.Second, time.Millisecond)
-	require.Equal(t, uint64(2), rc.followers[2].LastHintVersion)
-	require.Zero(t, rc.followers[2].PendingHintVersion)
+	require.Equal(t, uint64(2), rc.lifecycle.followers[2].lastHintVersion)
+	require.Zero(t, rc.lifecycle.followers[2].pendingHintVersion)
 }
 
 func TestPullHintInflightAppendSchedulesCurrentVersionRetryAfterOldError(t *testing.T) {
@@ -663,14 +663,14 @@ func TestPullHintInflightAppendSchedulesCurrentVersionRetryAfterOldError(t *test
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	rc := r.channels[meta.Key]
-	rc.followers[2].Parked = true
+	rc.lifecycle.followers[2].parked = true
 
 	first := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, first.Err)
 	require.Eventually(t, func() bool {
 		return tr.pullHintCount(2) == 1
 	}, time.Second, time.Millisecond)
-	require.True(t, rc.followers[2].HintInflight)
+	require.True(t, rc.lifecycle.followers[2].hint.inflight)
 
 	second := appendDirect(t, r, sink, meta, 2, "b")
 	require.NoError(t, second.Err)
@@ -678,12 +678,12 @@ func TestPullHintInflightAppendSchedulesCurrentVersionRetryAfterOldError(t *test
 	tr.unblockPullHints()
 
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
-	require.False(t, rc.followers[2].HintInflight)
-	require.NotZero(t, rc.followers[2].HintRetryAt)
-	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
-	require.Equal(t, uint64(2), rc.followers[2].PendingHintVersion)
-	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
-	require.Less(t, rc.followers[2].Match, rc.state.LEO)
+	require.False(t, rc.lifecycle.followers[2].hint.inflight)
+	require.NotZero(t, rc.lifecycle.followers[2].hint.retryAt)
+	require.Equal(t, uint64(1), rc.lifecycle.followers[2].lastHintVersion)
+	require.Equal(t, uint64(2), rc.lifecycle.followers[2].pendingHintVersion)
+	require.Equal(t, uint64(2), rc.lifecycle.version)
+	require.Less(t, rc.lifecycle.followers[2].match, rc.state.LEO)
 }
 
 func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
@@ -721,16 +721,16 @@ func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
 			require.NoError(t, applyMetaDirect(t, r, meta))
 
 			rc := r.channels[meta.Key]
-			rc.followers[2].Parked = true
+			rc.lifecycle.followers[2].parked = true
 			result := appendDirect(t, r, sink, meta, 1, "a")
 			require.NoError(t, result.Err)
 			require.Eventually(t, func() bool {
 				return tr.pullHintCount(2) == 1
 			}, time.Second, time.Millisecond)
-			require.True(t, rc.followers[2].HintInflight)
-			require.Len(t, rc.pullHintInflight, 1)
+			require.True(t, rc.lifecycle.followers[2].hint.inflight)
+			require.Len(t, rc.lifecycle.pullHintInflight, 1)
 			var staleOpID ch.OpID
-			for opID := range rc.pullHintInflight {
+			for opID := range rc.lifecycle.pullHintInflight {
 				staleOpID = opID
 			}
 			require.NotZero(t, staleOpID)
@@ -738,14 +738,14 @@ func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
 			refreshed := tt.refresh(meta)
 			require.NoError(t, applyMetaDirect(t, r, refreshed))
 			rc = r.channels[meta.Key]
-			require.Empty(t, rc.pullHintInflight)
-			require.NotNil(t, rc.followers[2])
-			rc.followers[2].Parked = true
-			rc.followers[2].HintInflight = true
-			rc.followers[2].LastHintVersion = 99
-			rc.followers[2].PendingHintVersion = 99
-			rc.pullHintInflight = map[ch.OpID]pullHintInflight{
-				staleOpID: {follower: 2, activityVersion: 99, reason: transport.PullHintReasonAppend},
+			require.Empty(t, rc.lifecycle.pullHintInflight)
+			require.NotNil(t, rc.lifecycle.followers[2])
+			rc.lifecycle.followers[2].parked = true
+			rc.lifecycle.followers[2].hint.inflight = true
+			rc.lifecycle.followers[2].lastHintVersion = 99
+			rc.lifecycle.followers[2].pendingHintVersion = 99
+			rc.lifecycle.pullHintInflight = map[ch.OpID]lifecyclePullHintInflight{
+				staleOpID: {follower: 2, version: 99, reason: transport.PullHintReasonAppend},
 			}
 
 			tr.unblockPullHints()
@@ -754,10 +754,10 @@ func TestMetadataRefreshIgnoresStalePullHintResult(t *testing.T) {
 			require.Equal(t, meta.LeaderEpoch, stale.Fence.LeaderEpoch)
 			r.handleRPCPullHintResult(stale)
 
-			require.True(t, rc.followers[2].HintInflight)
-			require.Equal(t, uint64(99), rc.followers[2].LastHintVersion)
-			require.Equal(t, uint64(99), rc.followers[2].PendingHintVersion)
-			require.Contains(t, rc.pullHintInflight, staleOpID)
+			require.True(t, rc.lifecycle.followers[2].hint.inflight)
+			require.Equal(t, uint64(99), rc.lifecycle.followers[2].lastHintVersion)
+			require.Equal(t, uint64(99), rc.lifecycle.followers[2].pendingHintVersion)
+			require.Contains(t, rc.lifecycle.pullHintInflight, staleOpID)
 		})
 	}
 }
@@ -776,8 +776,8 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	rc.state.HW = 1
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
-	rc.lifecycle.ActivityVersion = 3
-	require.NotNil(t, rc.followers[2])
+	rc.lifecycle.version = 3
+	require.NotNil(t, rc.lifecycle.followers[2])
 	staleFuture := NewFuture()
 	r.handleLeaderAck(Event{
 		Kind:   EventAck,
@@ -792,8 +792,7 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
-	require.False(t, rc.followers[2].Stopped)
-	require.Zero(t, rc.followers[2].StopAckVersion)
+	require.Zero(t, rc.lifecycle.followers[2].stoppedVersion)
 
 	laggingFuture := NewFuture()
 	r.handleLeaderAck(Event{
@@ -809,8 +808,7 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
-	require.False(t, rc.followers[2].Stopped)
-	require.Zero(t, rc.followers[2].StopAckVersion)
+	require.Zero(t, rc.lifecycle.followers[2].stoppedVersion)
 
 	currentFuture := NewFuture()
 	r.handleLeaderAck(Event{
@@ -823,9 +821,9 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 		},
 	})
 	require.NoError(t, awaitFutureResult(t, currentFuture).Err)
-	require.True(t, rc.followers[2].Stopped)
-	require.Equal(t, uint64(3), rc.followers[2].StopAckVersion)
-	require.Equal(t, uint64(3), rc.followers[2].Match)
+	require.NotZero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.followers[2].stoppedVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.followers[2].match)
 	require.Equal(t, uint64(3), rc.state.Progress[2].Match)
 }
 
@@ -841,15 +839,14 @@ func TestAppendAfterStopOfferSendsPullHintWithoutWaitingForParkDelay(t *testing.
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.followers[2].LastPullAt = time.Now()
+	rc.lifecycle.followers[2].lastPullAt = time.Now()
 
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before stop offer").Err)
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
 	r.syncLeaderFollowers(rc)
-	rc.followers[2].Match = 1
-	rc.followers[2].LastPullAt = time.Now()
-	rc.followers[2].StopOffered = true
-	rc.followers[2].StopOfferedVersion = 1
+	rc.lifecycle.followers[2].match = 1
+	rc.lifecycle.followers[2].lastPullAt = time.Now()
+	rc.lifecycle.followers[2].stopOfferedVersion = 1
 	before := tr.pullHintCount(2)
 
 	require.NoError(t, appendDirect(t, r, sink, meta, 2, "reactivate stopping follower").Err)
@@ -858,9 +855,8 @@ func TestAppendAfterStopOfferSendsPullHintWithoutWaitingForParkDelay(t *testing.
 		return tr.pullHintCount(2) > before
 	}, time.Second, time.Millisecond)
 	require.Equal(t, uint64(2), tr.lastPullHintVersion(2))
-	require.False(t, rc.followers[2].StopOffered)
-	require.Zero(t, rc.followers[2].StopOfferedVersion)
-	require.True(t, rc.followers[2].LastPullAt.IsZero())
+	require.Zero(t, rc.lifecycle.followers[2].stopOfferedVersion)
+	require.True(t, rc.lifecycle.followers[2].lastPullAt.IsZero())
 }
 
 func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
@@ -878,8 +874,8 @@ func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 0
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 0
 	r.syncLeaderFollowers(rc)
 
 	pullFuture := NewFuture()
@@ -898,7 +894,7 @@ func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
 	pullResult := awaitFutureResult(t, pullFuture)
 	require.Equal(t, transport.PullControlStop, pullResult.Pull.Control)
 	require.Zero(t, pullResult.Pull.ActivityVersion)
-	require.False(t, rc.followers[2].LastPullAt.IsZero())
+	require.False(t, rc.lifecycle.followers[2].lastPullAt.IsZero())
 
 	result := appendDirect(t, r, sink, meta, 1, "reactivate zero stop offer")
 	require.NoError(t, result.Err)
@@ -907,8 +903,8 @@ func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
 		return tr.pullHintCount(2) == 1
 	}, time.Second, time.Millisecond)
 	require.Equal(t, uint64(1), tr.lastPullHintVersion(2))
-	require.False(t, rc.followers[2].StopOffered)
-	require.True(t, rc.followers[2].LastPullAt.IsZero())
+	require.Zero(t, rc.lifecycle.followers[2].stopOfferedVersion)
+	require.True(t, rc.lifecycle.followers[2].lastPullAt.IsZero())
 }
 
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {

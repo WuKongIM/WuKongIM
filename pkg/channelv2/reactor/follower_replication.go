@@ -218,7 +218,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	now := time.Now()
 	if req.ActivityVersion > rc.replication.lastActivityVersion {
 		rc.replication.cancelStopping()
-		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleReplicating
+		rc.lifecycle.stage = lifecycleLive
 		rc.replication.lastActivityVersion = req.ActivityVersion
 	}
 	if req.LeaderLEO <= rc.state.LEO {
@@ -349,7 +349,8 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 		return
 	}
 	view := runtimeViewFromChannel(rc, now, AppendFenceView{})
-	decision := rc.runtimeLifecycle.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
+	lifecycle := runtimeLifecycleFromController(rc.lifecycle)
+	decision := lifecycle.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
 		Kind:            FollowerLifecycleStopOffered,
 		Now:             now,
 		LeaderLEO:       resp.LeaderLEO,
@@ -440,7 +441,7 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	}
 	rc.replication.backoff = 0
 	if ackStopped && rc.replication.deleteAfterStoppedAck && ackActivityVersion == rc.replication.stopActivityVersion {
-		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleStopAcking
+		rc.lifecycle.stage = lifecycleFollowerStoppedAcking
 		rc.replication.stopAcked = true
 		rc.replication.nextStopEvictAt = time.Time{}
 		if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {

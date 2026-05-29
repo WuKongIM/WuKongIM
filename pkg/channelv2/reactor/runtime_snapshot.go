@@ -21,18 +21,18 @@ func runtimeViewFromChannel(rc *runtimeChannel, now time.Time, appendFence Appen
 	view.Status = rc.state.Status
 	view.LEO = rc.state.LEO
 	view.HW = rc.state.HW
-	view.ActivityVersion = rc.lifecycle.ActivityVersion
+	view.ActivityVersion = rc.lifecycle.version
 	view.IdleSince = leaderIdleSince(rc)
-	for node, follower := range rc.followers {
+	for node, follower := range rc.lifecycle.followers {
 		if follower == nil {
 			continue
 		}
 		view.Followers = append(view.Followers, FollowerView{
 			Node:           node,
-			Match:          follower.Match,
-			Stopped:        follower.Stopped,
-			StopAckVersion: follower.StopAckVersion,
-			StopOffered:    follower.StopOffered,
+			Match:          follower.match,
+			Stopped:        follower.stopped(rc.lifecycle.version),
+			StopAckVersion: follower.stoppedVersion,
+			StopOffered:    follower.stopOffered(rc.lifecycle.version),
 		})
 	}
 	sort.Slice(view.Followers, func(i, j int) bool { return view.Followers[i].Node < view.Followers[j].Node })
@@ -63,8 +63,8 @@ func pendingWorkViewFromChannel(rc *runtimeChannel) PendingWorkView {
 		CheckpointInflight:   replication.checkpointInflight || replication.checkpointOpID != 0,
 		CheckpointRetry:      !replication.nextCheckpointAt.IsZero(),
 		AckRetry:             !replication.nextAckAt.IsZero(),
-		LifecycleCheckpoint:  rc.lifecycle.CheckpointInflight || rc.lifecycle.CheckpointOpID != 0,
-		LifecycleRetry:       !rc.lifecycle.CheckpointRetryAt.IsZero(),
+		LifecycleCheckpoint:  rc.lifecycle.checkpoint.inflight || rc.lifecycle.checkpoint.opID != 0,
+		LifecycleRetry:       !rc.lifecycle.checkpoint.retryAt.IsZero() || !rc.lifecycle.finalCheck.retryAt.IsZero(),
 	}
 	if rc.state != nil {
 		view.MachineAppendPending = rc.state.InflightAppend != nil || len(rc.state.PendingAppends) != 0

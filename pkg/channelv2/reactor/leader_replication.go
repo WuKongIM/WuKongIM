@@ -49,15 +49,15 @@ func (r *Reactor) handleLeaderPull(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if follower := rc.followers[event.Pull.Follower]; follower != nil {
-		follower.LastPullAt = now
-		follower.Parked = false
-		follower.Stopped = false
-		follower.NextExpectedPullAt = time.Time{}
+	if follower := rc.lifecycle.followers[event.Pull.Follower]; follower != nil {
+		follower.lastPullAt = now
+		follower.parked = false
+		follower.stoppedVersion = 0
+		follower.nextExpectedPullAt = time.Time{}
 		retireFollowerPullHints(rc, event.Pull.Follower)
 		match := event.Pull.NextOffset - 1
-		if event.Pull.NextOffset <= rc.state.LEO+1 && match > follower.Match {
-			follower.Match = match
+		if event.Pull.NextOffset <= rc.state.LEO+1 && match > follower.match {
+			follower.match = match
 		}
 	}
 	waiter := &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset, maxBytes: event.Pull.MaxBytes}
@@ -126,22 +126,21 @@ func (r *Reactor) handleLeaderAck(event Event) {
 	}
 	r.syncLeaderFollowers(rc)
 	if event.Ack.Stopped {
-		if event.Ack.ActivityVersion != rc.lifecycle.ActivityVersion || event.Ack.MatchOffset != rc.state.LEO {
+		if event.Ack.ActivityVersion != rc.lifecycle.version || event.Ack.MatchOffset != rc.state.LEO {
 			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 			return
 		}
-		if follower := rc.followers[event.Ack.Follower]; follower != nil {
-			if follower.StopOffered && follower.StopOfferedVersion != event.Ack.ActivityVersion {
+		if follower := rc.lifecycle.followers[event.Ack.Follower]; follower != nil {
+			if (follower.stopOfferedZero || follower.stopOfferedVersion != 0) && follower.stopOfferedVersion != event.Ack.ActivityVersion {
 				event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 				return
 			}
-			wasStopped := follower.Stopped && follower.StopAckVersion == event.Ack.ActivityVersion
-			follower.Stopped = true
-			follower.StopAckVersion = event.Ack.ActivityVersion
-			follower.Parked = false
+			wasStopped := follower.stoppedVersion != 0 && follower.stoppedVersion == event.Ack.ActivityVersion
+			follower.stoppedVersion = event.Ack.ActivityVersion
+			follower.parked = false
 			retireFollowerPullHints(rc, event.Ack.Follower)
-			if event.Ack.MatchOffset > follower.Match {
-				follower.Match = event.Ack.MatchOffset
+			if event.Ack.MatchOffset > follower.match {
+				follower.match = event.Ack.MatchOffset
 			}
 			if !wasStopped {
 				r.observeFollowerStopped(rc.state.Key, event.Ack.Follower, event.Ack.ActivityVersion)
@@ -156,10 +155,10 @@ func (r *Reactor) handleLeaderAck(event Event) {
 		return
 	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
-	if follower := rc.followers[event.Ack.Follower]; follower != nil && event.Ack.MatchOffset > follower.Match {
-		follower.Match = event.Ack.MatchOffset
+	if follower := rc.lifecycle.followers[event.Ack.Follower]; follower != nil && event.Ack.MatchOffset > follower.match {
+		follower.match = event.Ack.MatchOffset
 	}
-	if follower := rc.followers[event.Ack.Follower]; follower != nil && follower.Match >= rc.state.LEO {
+	if follower := rc.lifecycle.followers[event.Ack.Follower]; follower != nil && follower.match >= rc.state.LEO {
 		retireFollowerPullHints(rc, event.Ack.Follower)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
@@ -175,10 +174,10 @@ func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.Pul
 		return ch.ErrStaleMeta
 	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: req.Follower, MatchOffset: req.AckOffset})
-	if follower := rc.followers[req.Follower]; follower != nil && req.AckOffset > follower.Match {
-		follower.Match = req.AckOffset
+	if follower := rc.lifecycle.followers[req.Follower]; follower != nil && req.AckOffset > follower.match {
+		follower.match = req.AckOffset
 	}
-	if follower := rc.followers[req.Follower]; follower != nil && follower.Match >= rc.state.LEO {
+	if follower := rc.lifecycle.followers[req.Follower]; follower != nil && follower.match >= rc.state.LEO {
 		retireFollowerPullHints(rc, req.Follower)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
@@ -266,7 +265,7 @@ func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, fut
 	if future == nil {
 		return
 	}
-	version := rc.lifecycle.ActivityVersion
+	version := rc.lifecycle.version
 	if version == 0 {
 		version = rc.state.LEO
 	}
@@ -275,10 +274,10 @@ func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, fut
 	if len(records) == 0 {
 		r.syncLeaderFollowers(rc)
 		if r.leaderCanOfferStop(rc, now) && waiter.nextOffset == rc.state.LEO+1 {
-			if follower := rc.followers[waiter.follower]; follower != nil && follower.Match >= rc.state.LEO {
+			if follower := rc.lifecycle.followers[waiter.follower]; follower != nil && follower.match >= rc.state.LEO {
 				control = transport.PullControlStop
-				follower.StopOffered = true
-				follower.StopOfferedVersion = version
+				follower.stopOfferedVersion = version
+				follower.stopOfferedZero = version == 0
 			}
 		}
 		if control != transport.PullControlStop {
@@ -305,16 +304,16 @@ func (r *Reactor) updateLeaderPullFollowerState(rc *runtimeChannel, waiter *pull
 		return
 	}
 	r.syncLeaderFollowers(rc)
-	if follower := rc.followers[waiter.follower]; follower != nil {
+	if follower := rc.lifecycle.followers[waiter.follower]; follower != nil {
 		if len(records) == 0 && control != transport.PullControlStop {
-			follower.Parked = delay > 0
-			follower.NextExpectedPullAt = now.Add(delay)
+			follower.parked = delay > 0
+			follower.nextExpectedPullAt = now.Add(delay)
 		} else if control == transport.PullControlStop {
-			follower.Parked = false
-			follower.NextExpectedPullAt = time.Time{}
+			follower.parked = false
+			follower.nextExpectedPullAt = time.Time{}
 		} else {
-			follower.Parked = false
-			follower.NextExpectedPullAt = time.Time{}
+			follower.parked = false
+			follower.nextExpectedPullAt = time.Time{}
 		}
 	}
 }

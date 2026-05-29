@@ -109,14 +109,8 @@ type runtimeChannel struct {
 	appendTimings map[ch.OpID]appendTiming
 	// replication owns follower pull, apply, and ack scheduling state.
 	replication replicationState
-	// lifecycle tracks leader-owned activity and idle eviction state.
-	lifecycle channelLifecycle
-	// runtimeLifecycle tracks explicit leader/follower runtime eviction phases.
-	runtimeLifecycle runtimeLifecycle
-	// followers stores leader-owned runtime state for remote replicas.
-	followers map[ch.NodeID]*followerLifecycle
-	// pullHintInflight maps worker op ids back to followers waiting for completion.
-	pullHintInflight map[ch.OpID]pullHintInflight
+	// lifecycle owns runtime stop, checkpoint, hint, and eviction state.
+	lifecycle channelRuntimeLifecycle
 	// pullWaiters maps leader-side async pull op ids to request futures.
 	pullWaiters map[ch.OpID]*pullWaiter
 	// due versions fence stale scheduler entries after channel state changes.
@@ -376,8 +370,8 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			rc.replication.reset()
 		}
 		if rc.state.Role == ch.RoleLeader {
-			if rc.state.LEO > rc.lifecycle.ActivityVersion {
-				rc.lifecycle.ActivityVersion = rc.state.LEO
+			if rc.state.LEO > rc.lifecycle.version {
+				rc.lifecycle.version = rc.state.LEO
 			}
 			r.syncLeaderFollowers(rc)
 			if fencePendingState {
@@ -386,8 +380,8 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			r.scheduleLifecycleFromState(rc, time.Now())
 		} else {
 			rc.recentRecords.reset()
-			rc.followers = nil
-			rc.pullHintInflight = nil
+			rc.lifecycle.followers = nil
+			rc.lifecycle.pullHintInflight = nil
 			r.scheduleReplicationFromState(rc, time.Now())
 		}
 	}
@@ -399,14 +393,11 @@ func resetFollowerStopLifecycle(rc *runtimeChannel) {
 	if rc == nil {
 		return
 	}
-	for _, follower := range rc.followers {
+	for _, follower := range rc.lifecycle.followers {
 		if follower == nil {
 			continue
 		}
-		follower.Stopped = false
-		follower.StopAckVersion = 0
-		follower.StopOffered = false
-		follower.StopOfferedVersion = 0
+		follower.resetStop()
 	}
 }
 
@@ -437,14 +428,13 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
 	rc := &runtimeChannel{
-		state:            state,
-		store:            cs,
-		waiters:          make(map[ch.OpID]*Future),
-		pullWaiters:      make(map[ch.OpID]*pullWaiter),
-		appendTimings:    make(map[ch.OpID]appendTiming),
-		recentRecords:    newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes),
-		lifecycle:        channelLifecycle{LoadedAt: time.Now(), ActivityVersion: initial.LEO},
-		runtimeLifecycle: runtimeLifecycle{LeaderPhase: LeaderLifecycleServing, FollowerPhase: FollowerLifecycleReplicating},
+		state:         state,
+		store:         cs,
+		waiters:       make(map[ch.OpID]*Future),
+		pullWaiters:   make(map[ch.OpID]*pullWaiter),
+		appendTimings: make(map[ch.OpID]appendTiming),
+		recentRecords: newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes),
+		lifecycle:     newChannelRuntimeLifecycle(time.Now(), initial.LEO),
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -548,17 +538,14 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
 		rc.recentRecords.append(rc.appendInflightRecords(result.Fence.OpID))
 		r.markAppendActivity(rc, now)
-		rc.lifecycle.ActivityVersion = rc.state.LEO
+		rc.lifecycle.version = rc.state.LEO
 		r.syncFollowerMatches(rc)
-		for _, follower := range rc.followers {
-			if follower != nil && follower.Match < rc.state.LEO {
-				if follower.Stopped || follower.StopOffered {
-					follower.LastPullAt = time.Time{}
+		for _, follower := range rc.lifecycle.followers {
+			if follower != nil && follower.match < rc.state.LEO {
+				if follower.stoppedVersion != 0 || follower.stopOfferedVersion != 0 || follower.stopOfferedZero {
+					follower.lastPullAt = time.Time{}
 				}
-				follower.Stopped = false
-				follower.StopAckVersion = 0
-				follower.StopOffered = false
-				follower.StopOfferedVersion = 0
+				follower.resetStop()
 			}
 		}
 		r.sendPullHintsForAppend(rc, now)

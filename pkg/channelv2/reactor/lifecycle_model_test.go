@@ -51,7 +51,7 @@ func TestRuntimeViewFromChannelCapturesPendingWork(t *testing.T) {
 		pullWaiters:          map[ch.OpID]*pullWaiter{},
 		appendCancelContexts: map[ch.OpID]context.Context{},
 		appendTimings:        map[ch.OpID]appendTiming{},
-		lifecycle:            channelLifecycle{CheckpointInflight: true},
+		lifecycle:            channelRuntimeLifecycle{checkpoint: lifecycleEffect{inflight: true}},
 	}
 
 	view := runtimeViewFromChannel(rc, time.Now(), AppendFenceView{})
