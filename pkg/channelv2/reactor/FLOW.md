@@ -51,6 +51,8 @@ Maintenance
 remote follower Pull RPC
   -> Group.Submit(EventPull)
   -> handleLeaderPull
+  -> apply PullRequest.AckOffset when present
+  -> complete quorum append waiters when HW advances
   -> recent leader cache hit: completeLeaderPull
   -> cache miss: submitStoreReadLog
   -> handleStoreReadLogResult
@@ -63,16 +65,17 @@ and range. Empty caught-up responses may pace the follower or offer
 `PullControlStop` when idle eviction guards pass.
 
 ```text
-remote follower Ack RPC
+remote follower stopped Ack RPC
   -> Group.Submit(EventAck)
   -> handleLeaderAck
   -> ApplyFollowerAck
-  -> complete quorum append waiters when HW advances
   -> record stopped follower state for stopped ACKs
   -> schedule leader lifecycle
 ```
 
-Stopped ACKs must match the current activity version and leader LEO.
+Ordinary follower progress is accepted from `PullRequest.AckOffset` before the
+leader serves the requested range. Stopped ACKs must stay on the standalone ACK
+RPC and must match the current activity version and leader LEO.
 
 ## Follower-Side Replication
 
@@ -86,15 +89,17 @@ leader PullHint or legacy Notify
 
 ```text
 tickFollowerReplication
-  -> retry pending ACK before new pulls
+  -> retry pending stopped or compatibility ACK before new pulls
   -> apply a pending pull before new pulls
   -> checkpoint and send stopped ACK after accepted stop control
   -> honor retry backoff and leader-provided park delay
-  -> submit RPC Pull when eligible
+  -> submit RPC Pull with AckOffset when eligible
 ```
 
 The follower keeps at most one pull RPC, one pending pull response, one store
-apply, and one ACK RPC in flight.
+apply, and one stopped or compatibility ACK RPC in flight. Ordinary durable
+progress after store apply schedules the next pull immediately so the follower's
+latest local LEO is piggybacked as `AckOffset`.
 
 ## Worker Completion Routing
 
