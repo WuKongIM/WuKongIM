@@ -180,3 +180,36 @@ func (lc *channelRuntimeLifecycle) resetForMeta(now time.Time, version uint64) {
 		follower.nextExpectedPullAt = time.Time{}
 	}
 }
+
+// acceptFollowerStop records the accepted leader stop offer and arms checkpointing.
+func (lc *channelRuntimeLifecycle) acceptFollowerStop(version, leaderLEO, leaderHW uint64) {
+	lc.stage = lifecycleFollowerCheckpointing
+	lc.followerStop = followerStopState{
+		accepted:  true,
+		version:   version,
+		leaderLEO: leaderLEO,
+		leaderHW:  leaderHW,
+	}
+	lc.stoppedAck.reset()
+}
+
+// cancelFollowerStop clears follower-local stop progress after stale metadata or newer activity.
+func (lc *channelRuntimeLifecycle) cancelFollowerStop() {
+	if lc == nil {
+		return
+	}
+	lc.stage = lifecycleLive
+	lc.followerStop = followerStopState{}
+	lc.stoppedAck.reset()
+	if lc.checkpoint.version != lc.version {
+		lc.checkpoint.reset()
+	}
+}
+
+// followerStopVersion returns the accepted stop activity version, or zero when no stop is active.
+func (lc *channelRuntimeLifecycle) followerStopVersion() uint64 {
+	if lc == nil || !lc.followerStop.accepted {
+		return 0
+	}
+	return lc.followerStop.version
+}

@@ -106,7 +106,7 @@ func (r *Reactor) applyLifecycleAction(rc *runtimeChannel, action LifecycleActio
 		r.trySubmitStopCheckpoint(rc, now)
 	case LifecycleActionSendStoppedAck:
 		if rc != nil && rc.state != nil {
-			r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
+			r.trySubmitStoppedAck(rc, now)
 		}
 	case LifecycleActionScheduleReplication:
 		r.scheduleReplicationFromState(rc, now)
