@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -55,6 +56,8 @@ type Service struct {
 	metaSource ChannelMetaSource
 	ensurer    ChannelMetaEnsurer
 	forward    ForwardClient
+	metaCache  channelMetaCache
+	observer   any
 }
 
 // NewService creates a Service from cfg.
@@ -77,7 +80,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("channels: runtime must implement channelv2.Cluster and channelv2/transport.Server")
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward}, nil
+	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, observer: cfg.Observer}, nil
 }
 
 // Runtime returns the ChannelV2 public cluster surface.
@@ -91,10 +94,50 @@ func (s *Service) ApplyMeta(meta ch.Meta) error { return s.runtime.ApplyMeta(met
 
 // Append appends one message.
 func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
-	meta, ok, err := s.resolveAppendMeta(ctx, req.ChannelID)
+	res, err, usedCache := s.appendOnce(ctx, req)
+	if err == nil || !usedCache || !retryableMetaCacheError(err) {
+		return res, err
+	}
+	s.metaCache.invalidate(req.ChannelID)
+	s.observeMetaCache("invalidate")
+	return s.appendFresh(ctx, req)
+}
+
+// AppendBatch appends messages to one channel.
+func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	res, err, usedCache := s.appendBatchOnce(ctx, req)
+	if err == nil || !usedCache || !retryableMetaCacheError(err) {
+		return res, err
+	}
+	s.metaCache.invalidate(req.ChannelID)
+	s.observeMetaCache("invalidate")
+	return s.appendBatchFresh(ctx, req)
+}
+
+// Tick advances ChannelV2 background work.
+func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
+
+// Close closes the ChannelV2 runtime.
+func (s *Service) Close() error { return s.runtime.Close() }
+
+func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, bool) {
+	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
+	if err != nil {
+		return ch.AppendResult{}, err, usedCache
+	}
+	res, err := s.appendWithMeta(ctx, req, meta, ok)
+	return res, err, usedCache
+}
+
+func (s *Service) appendFresh(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
+	meta, ok, err := s.resolveAppendMetaFresh(ctx, req.ChannelID)
 	if err != nil {
 		return ch.AppendResult{}, err
 	}
+	return s.appendWithMeta(ctx, req, meta, ok)
+}
+
+func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta ch.Meta, ok bool) (ch.AppendResult, error) {
 	if ok {
 		if meta.Leader != 0 && meta.Leader != s.localNode {
 			if s.forward == nil {
@@ -109,12 +152,24 @@ func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendRe
 	return s.runtime.Append(ctx, req)
 }
 
-// AppendBatch appends messages to one channel.
-func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
-	meta, ok, err := s.resolveAppendMeta(ctx, req.ChannelID)
+func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error, bool) {
+	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
+	if err != nil {
+		return ch.AppendBatchResult{}, err, usedCache
+	}
+	res, err := s.appendBatchWithMeta(ctx, req, meta, ok)
+	return res, err, usedCache
+}
+
+func (s *Service) appendBatchFresh(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	meta, ok, err := s.resolveAppendMetaFresh(ctx, req.ChannelID)
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
+	return s.appendBatchWithMeta(ctx, req, meta, ok)
+}
+
+func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchRequest, meta ch.Meta, ok bool) (ch.AppendBatchResult, error) {
 	if ok {
 		if meta.Leader != 0 && meta.Leader != s.localNode {
 			if s.forward == nil {
@@ -129,11 +184,49 @@ func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	return s.runtime.AppendBatch(ctx, req)
 }
 
-// Tick advances ChannelV2 background work.
-func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
+func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, bool, error) {
+	if s == nil {
+		return ch.Meta{}, false, false, nil
+	}
+	if meta, ok := s.metaCache.get(id); ok {
+		s.observeMetaCache("hit")
+		return meta, true, true, nil
+	}
+	if s.ensurer != nil || s.metaSource != nil {
+		s.observeMetaCache("miss")
+	}
+	meta, ok, err := s.resolveAppendMetaFresh(ctx, id)
+	return meta, ok, ok && cacheableAppendMeta(id, meta), err
+}
 
-// Close closes the ChannelV2 runtime.
-func (s *Service) Close() error { return s.runtime.Close() }
+func (s *Service) resolveAppendMetaFresh(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {
+	meta, ok, err := s.resolveAppendMeta(ctx, id)
+	if err != nil || !ok {
+		return meta, ok, err
+	}
+	if cacheableAppendMeta(id, meta) {
+		s.metaCache.put(id, meta)
+	}
+	return meta, ok, nil
+}
+
+func retryableMetaCacheError(err error) bool {
+	return errors.Is(err, ch.ErrStaleMeta) ||
+		errors.Is(err, ch.ErrChannelNotFound) ||
+		errors.Is(err, ch.ErrNotLeader) ||
+		errors.Is(err, ch.ErrNotReady)
+}
+
+func (s *Service) observeMetaCache(result string) {
+	if s == nil || s.observer == nil {
+		return
+	}
+	observer, ok := s.observer.(MetaCacheObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveChannelMetaCache(result)
+}
 
 func (s *Service) resolveAppendMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {
 	if s == nil {

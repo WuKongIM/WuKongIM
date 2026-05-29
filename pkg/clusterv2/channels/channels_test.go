@@ -11,6 +11,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStaticMetaSourceResolvesAndDerivesKey(t *testing.T) {
@@ -295,6 +296,78 @@ func TestServiceAppliesResolvedMetaBeforeLocalAppendBatch(t *testing.T) {
 	}
 }
 
+func TestServiceUsesAppendMetaCacheAfterFirstResolve(t *testing.T) {
+	id := ch.ChannelID{ID: "cached", Type: 1}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	source := &countingMetaSource{meta: meta}
+	runtime := &fakeRuntime{appendRequireApply: true, appendBatch: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 1}}}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("hello")}}})
+		require.NoError(t, err)
+	}
+	require.Equal(t, 1, source.ensureCalls)
+}
+
+func TestServiceInvalidatesAppendMetaCacheAndRetriesOnce(t *testing.T) {
+	id := ch.ChannelID{ID: "stale", Type: 1}
+	stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	fresh := stale
+	fresh.LeaderEpoch = 2
+	source := &countingMetaSource{metas: []ch.Meta{stale, fresh}}
+	runtime := &staleOnceRuntime{result: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 2}}}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.NoError(t, err)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 2, runtime.appendCalls)
+}
+
+func TestServiceInvalidatesAppendMetaCacheOnRetryableErrors(t *testing.T) {
+	for _, retryErr := range []error{ch.ErrNotLeader, ch.ErrNotReady, ch.ErrChannelNotFound} {
+		t.Run(retryErr.Error(), func(t *testing.T) {
+			id := ch.ChannelID{ID: "retryable", Type: 1}
+			stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+			fresh := stale
+			fresh.LeaderEpoch = 2
+			source := &countingMetaSource{metas: []ch.Meta{stale, fresh}}
+			runtime := &retryableOnceRuntime{err: retryErr, result: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 3}}}}
+			svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+			require.NoError(t, err)
+
+			_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("warm")}}})
+			require.NoError(t, err)
+			_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("retry")}}})
+			require.NoError(t, err)
+			require.Equal(t, 2, source.ensureCalls)
+			require.Equal(t, 3, runtime.appendCalls)
+		})
+	}
+}
+
+func TestServiceDoesNotCacheInvalidAppendMeta(t *testing.T) {
+	id := ch.ChannelID{ID: "invalid-cache", Type: 1}
+	invalid := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, Status: ch.StatusActive}
+	valid := invalid
+	valid.MinISR = 1
+	source := &countingMetaSource{metas: []ch.Meta{invalid, valid}}
+	runtime := &validatingRuntime{result: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 4}}}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("bad")}}})
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("fixed")}}})
+	require.NoError(t, err)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 2, runtime.applyCalls)
+	require.Equal(t, 1, runtime.appendCalls)
+}
+
 func TestServiceForwardsAppendToResolvedLeader(t *testing.T) {
 	id := ch.ChannelID{ID: "forward-append", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
@@ -442,6 +515,124 @@ func (f *fakeRuntime) HandlePullHint(context.Context, channeltransport.PullHintR
 	return nil
 }
 func (f *fakeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error { return nil }
+
+type countingMetaSource struct {
+	meta        ch.Meta
+	metas       []ch.Meta
+	ensureCalls int
+}
+
+func (s *countingMetaSource) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	return s.EnsureChannelMeta(ctx, id)
+}
+
+func (s *countingMetaSource) EnsureChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error) {
+	s.ensureCalls++
+	if len(s.metas) > 0 {
+		index := s.ensureCalls - 1
+		if index >= len(s.metas) {
+			index = len(s.metas) - 1
+		}
+		return cloneMeta(s.metas[index]), nil
+	}
+	return cloneMeta(s.meta), nil
+}
+
+type staleOnceRuntime struct {
+	result      ch.AppendBatchResult
+	appendCalls int
+}
+
+func (r *staleOnceRuntime) ApplyMeta(ch.Meta) error { return nil }
+func (r *staleOnceRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, nil
+}
+func (r *staleOnceRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	r.appendCalls++
+	if r.appendCalls == 1 {
+		return ch.AppendBatchResult{}, ch.ErrStaleMeta
+	}
+	return r.result, nil
+}
+func (r *staleOnceRuntime) Tick(context.Context) error { return nil }
+func (r *staleOnceRuntime) Close() error               { return nil }
+func (r *staleOnceRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *staleOnceRuntime) HandleAck(context.Context, channeltransport.AckRequest) error { return nil }
+func (r *staleOnceRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *staleOnceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+
+type retryableOnceRuntime struct {
+	err         error
+	result      ch.AppendBatchResult
+	appendCalls int
+}
+
+func (r *retryableOnceRuntime) ApplyMeta(ch.Meta) error { return nil }
+func (r *retryableOnceRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, nil
+}
+func (r *retryableOnceRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	r.appendCalls++
+	if r.appendCalls == 2 {
+		return ch.AppendBatchResult{}, r.err
+	}
+	return r.result, nil
+}
+func (r *retryableOnceRuntime) Tick(context.Context) error { return nil }
+func (r *retryableOnceRuntime) Close() error               { return nil }
+func (r *retryableOnceRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *retryableOnceRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *retryableOnceRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *retryableOnceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+
+type validatingRuntime struct {
+	result      ch.AppendBatchResult
+	applyCalls  int
+	appendCalls int
+}
+
+func (r *validatingRuntime) ApplyMeta(meta ch.Meta) error {
+	r.applyCalls++
+	if meta.MinISR <= 0 || meta.MinISR > len(meta.ISR) {
+		return ch.ErrInvalidConfig
+	}
+	return nil
+}
+func (r *validatingRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, nil
+}
+func (r *validatingRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	r.appendCalls++
+	return r.result, nil
+}
+func (r *validatingRuntime) Tick(context.Context) error { return nil }
+func (r *validatingRuntime) Close() error               { return nil }
+func (r *validatingRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *validatingRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *validatingRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *validatingRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
 
 type runtimeMetaReaderFake struct {
 	meta    metadb.ChannelRuntimeMeta

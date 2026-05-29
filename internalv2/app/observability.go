@@ -6,6 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
+	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -25,11 +26,6 @@ type storageCommitMetricsObserver struct {
 
 type multiChannelV2Observer []reactor.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
-
-// channelV2MetaCacheObserver receives ChannelV2 metadata cache observations.
-type channelV2MetaCacheObserver interface {
-	ObserveChannelMetaCache(result string)
-}
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
 	if o.metrics == nil {
@@ -282,7 +278,7 @@ func (o multiChannelV2Observer) ObservePull(result string, empty bool) {
 
 func (o multiChannelV2Observer) ObserveChannelMetaCache(result string) {
 	for _, observer := range o {
-		metaCacheObserver, ok := observer.(channelV2MetaCacheObserver)
+		metaCacheObserver, ok := observer.(clusterv2channels.MetaCacheObserver)
 		if ok {
 			metaCacheObserver.ObserveChannelMetaCache(result)
 		}
@@ -371,10 +367,10 @@ var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
-var _ channelV2MetaCacheObserver = channelV2MetricsObserver{}
+var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
-var _ channelV2MetaCacheObserver = multiChannelV2Observer{}
+var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
