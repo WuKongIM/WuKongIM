@@ -234,6 +234,71 @@ func TestFollowerMetaFenceClearsAckState(t *testing.T) {
 	require.True(t, rc.replication.dirty)
 }
 
+func TestMetaFenceClearsFollowerStoppedAckAndAllowsPull(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("meta-fence-stopped-ack")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.acceptFollowerStop(3, 3, 3)
+	rc.lifecycle.stage = lifecycleFollowerStoppedAcking
+	rc.lifecycle.stoppedAck = lifecycleEffect{inflight: true, opID: 7, version: 3}
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, updated))
+
+	r.handleRPCAckResult(worker.Result{
+		Kind:  worker.TaskRPCAck,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation - 1, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+	})
+	require.Equal(t, lifecycleLive, rc.lifecycle.stage)
+	require.False(t, rc.lifecycle.followerStop.accepted)
+	require.False(t, rc.lifecycle.stoppedAck.active())
+
+	r.handleTick(Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0)})
+	pullResult := sink.awaitResultKind(t, worker.TaskRPCPull)
+	require.Equal(t, updated.LeaderEpoch, pullResult.Fence.LeaderEpoch)
+	require.Equal(t, updated.LeaderEpoch, net.LastPull().LeaderEpoch)
+}
+
+func TestMetaFenceClearsFollowerStopCheckpointAndAllowsPull(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("meta-fence-stop-checkpoint")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 3
+	rc.lifecycle.acceptFollowerStop(3, 3, 3)
+	rc.lifecycle.checkpoint = lifecycleEffect{inflight: true, opID: 8, version: 3}
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, updated))
+
+	require.Equal(t, lifecycleLive, rc.lifecycle.stage)
+	require.False(t, rc.lifecycle.followerStop.accepted)
+	require.False(t, rc.lifecycle.checkpoint.active())
+
+	r.handleTick(Event{Kind: EventTick, Key: updated.Key, TickNow: time.Unix(1, 0)})
+	pullResult := sink.awaitResultKind(t, worker.TaskRPCPull)
+	require.Equal(t, updated.LeaderEpoch, pullResult.Fence.LeaderEpoch)
+	require.Equal(t, updated.LeaderEpoch, net.LastPull().LeaderEpoch)
+}
+
 func TestFollowerPullErrorBacksOff(t *testing.T) {
 	net := newCapturingTransport()
 	net.SetPullError(ch.ErrNotReady)

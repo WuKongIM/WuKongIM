@@ -353,6 +353,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 	if decision.Err == nil {
 		if fencePendingState {
 			resetLeaderCheckpointLifecycle(rc)
+			rc.lifecycle.cancelFollowerStop()
 			rc.replication.reset()
 			rc.recentRecords.reset()
 			r.resetPullHintLifecycle(rc)
