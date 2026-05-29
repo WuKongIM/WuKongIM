@@ -52,6 +52,7 @@ func (r *Reactor) handleLeaderPull(event Event) {
 	if follower := rc.lifecycle.followers[event.Pull.Follower]; follower != nil {
 		follower.lastPullAt = now
 		follower.parked = false
+		follower.stoppedZero = false
 		follower.stoppedVersion = 0
 		follower.nextExpectedPullAt = time.Time{}
 		retireFollowerPullHints(rc, event.Pull.Follower)
@@ -135,7 +136,8 @@ func (r *Reactor) handleLeaderAck(event Event) {
 				event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 				return
 			}
-			wasStopped := follower.stoppedVersion != 0 && follower.stoppedVersion == event.Ack.ActivityVersion
+			wasStopped := follower.stopped(event.Ack.ActivityVersion)
+			follower.stoppedZero = event.Ack.ActivityVersion == 0
 			follower.stoppedVersion = event.Ack.ActivityVersion
 			follower.parked = false
 			retireFollowerPullHints(rc, event.Ack.Follower)

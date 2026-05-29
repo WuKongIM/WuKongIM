@@ -49,7 +49,9 @@ type lifecycleFollower struct {
 	// stopOfferedZero preserves stop offers made before a non-zero activity version exists.
 	stopOfferedZero    bool
 	stopOfferedVersion uint64
-	stoppedVersion     uint64
+	// stoppedZero preserves stopped ACKs accepted before a non-zero activity version exists.
+	stoppedZero    bool
+	stoppedVersion uint64
 }
 
 func (f lifecycleFollower) caughtUp(leo uint64) bool {
@@ -64,12 +66,16 @@ func (f lifecycleFollower) stopOffered(version uint64) bool {
 }
 
 func (f lifecycleFollower) stopped(version uint64) bool {
-	return version != 0 && f.stoppedVersion == version
+	if version == 0 {
+		return f.stoppedZero
+	}
+	return f.stoppedVersion == version
 }
 
 func (f *lifecycleFollower) resetStop() {
 	f.stopOfferedZero = false
 	f.stopOfferedVersion = 0
+	f.stoppedZero = false
 	f.stoppedVersion = 0
 }
 
