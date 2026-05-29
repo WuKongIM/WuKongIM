@@ -304,62 +304,6 @@ func (r *Reactor) handle(event Event) {
 	r.sweepPullCancellations()
 }
 
-func (r *Reactor) handleFollowerPullHint(event Event) {
-	rc, err := r.lookup(event.Key)
-	if err != nil {
-		if event.Future != nil {
-			event.Future.Complete(Result{Err: err})
-		}
-		return
-	}
-	req := event.PullHint
-	if req.ChannelKey != "" && req.ChannelKey != rc.state.Key {
-		err = ch.ErrStaleMeta
-	} else if req.ChannelID != (ch.ChannelID{}) && req.ChannelID != rc.state.ID {
-		err = ch.ErrStaleMeta
-	} else if rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive ||
-		req.Epoch != rc.state.Epoch || req.LeaderEpoch != rc.state.LeaderEpoch ||
-		req.Leader != rc.state.Leader || req.Leader == r.cfg.LocalNode ||
-		!rc.state.IsReplica(r.cfg.LocalNode) {
-		err = ch.ErrStaleMeta
-	}
-	if err != nil {
-		if event.Future != nil {
-			event.Future.Complete(Result{Err: err})
-		}
-		return
-	}
-	if req.ActivityVersion < rc.replication.lastActivityVersion {
-		if event.Future != nil {
-			event.Future.Complete(Result{})
-		}
-		return
-	}
-	now := time.Now()
-	if req.ActivityVersion > rc.replication.lastActivityVersion {
-		rc.replication.cancelStopping()
-		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleReplicating
-		rc.replication.lastActivityVersion = req.ActivityVersion
-	}
-	if req.LeaderLEO <= rc.state.LEO {
-		rc.replication.hintedLeaderLEO = 0
-		if event.Future != nil {
-			event.Future.Complete(Result{})
-		}
-		return
-	}
-	if req.LeaderLEO > rc.replication.hintedLeaderLEO {
-		rc.replication.hintedLeaderLEO = req.LeaderLEO
-	}
-	rc.replication.parked = false
-	rc.replication.nextPullAfter = 0
-	rc.replication.markDirty(now)
-	r.tickFollowerReplication(rc, now)
-	if event.Future != nil {
-		event.Future.Complete(Result{})
-	}
-}
-
 func (r *Reactor) handleTick(event Event) {
 	now := event.TickNow
 	if now.IsZero() {
