@@ -106,40 +106,32 @@ func (r *Reactor) handleLeaderAck(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	if !event.Ack.Stopped {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
 	if rc.state.Role != ch.RoleLeader || event.Ack.ChannelKey != rc.state.Key || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
-		if event.Ack.Stopped {
-			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
-			return
-		}
-		event.Future.Complete(Result{})
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
 	r.syncLeaderFollowers(rc)
-	if event.Ack.Stopped {
-		if event.Ack.ActivityVersion != rc.lifecycle.version || event.Ack.MatchOffset != rc.state.LEO {
-			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
-			return
-		}
-		accepted := rc.lifecycle.markFollowerStopped(event.Ack.Follower, event.Ack.ActivityVersion, event.Ack.MatchOffset)
-		if follower := rc.lifecycle.followers[event.Ack.Follower]; follower == nil || !follower.stopped(event.Ack.ActivityVersion) {
-			event.Future.Complete(Result{Err: ch.ErrStaleMeta})
-			return
-		}
-		if accepted {
-			r.observeFollowerStopped(rc.state.Key, event.Ack.Follower, event.Ack.ActivityVersion)
-		}
-		decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
-		r.completeReplies(rc, decision.Replies, nil)
-		now := time.Now()
-		r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventLeaderStoppedAck, now: now})
-		r.scheduleLifecycleFromState(rc, now)
-		event.Future.Complete(Result{})
+	if event.Ack.ActivityVersion != rc.lifecycle.version || event.Ack.MatchOffset != rc.state.LEO {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
+	accepted := rc.lifecycle.markFollowerStopped(event.Ack.Follower, event.Ack.ActivityVersion, event.Ack.MatchOffset)
+	if follower := rc.lifecycle.followers[event.Ack.Follower]; follower == nil || !follower.stopped(event.Ack.ActivityVersion) {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if accepted {
+		r.observeFollowerStopped(rc.state.Key, event.Ack.Follower, event.Ack.ActivityVersion)
+	}
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
-	rc.lifecycle.recordFollowerProgress(event.Ack.Follower, event.Ack.MatchOffset, rc.state.LEO)
 	r.completeReplies(rc, decision.Replies, nil)
-	r.scheduleLifecycleFromState(rc, time.Now())
+	now := time.Now()
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventLeaderStoppedAck, now: now})
+	r.scheduleLifecycleFromState(rc, now)
 	event.Future.Complete(Result{})
 }
 

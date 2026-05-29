@@ -207,33 +207,6 @@ func TestFollowerMetaFenceDropsPendingPullBeforeSchedulingNewEpoch(t *testing.T)
 	require.Equal(t, updated.LeaderEpoch, net.LastPull().LeaderEpoch)
 }
 
-func TestFollowerMetaFenceClearsAckState(t *testing.T) {
-	factory := store.NewMemoryFactory()
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
-	meta := followerTestMeta("ack-fence-reset")
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	rc := r.channels[meta.Key]
-	rc.replication = replicationState{
-		ackInflight:     true,
-		ackOpID:         3,
-		ackMatch:        7,
-		pendingAck:      true,
-		pendingAckMatch: 8,
-		nextAckAt:       time.Unix(1, 0).Add(time.Hour),
-	}
-
-	updated := meta
-	updated.LeaderEpoch++
-	require.NoError(t, applyMetaDirect(t, r, updated))
-
-	require.False(t, rc.replication.ackInflight)
-	require.Zero(t, rc.replication.ackOpID)
-	require.Zero(t, rc.replication.ackMatch)
-	require.False(t, rc.replication.pendingAck)
-	require.Zero(t, rc.replication.pendingAckMatch)
-	require.True(t, rc.replication.dirty)
-}
-
 func TestMetaFenceClearsFollowerStoppedAckAndAllowsPull(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
@@ -360,8 +333,6 @@ func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesAfterBackoff(t *
 	after := time.Now()
 
 	require.Equal(t, uint64(3), rc.state.HW)
-	require.False(t, rc.replication.ackInflight)
-	require.False(t, rc.replication.pendingAck)
 	require.False(t, rc.replication.nextPullAt.IsZero())
 	require.False(t, rc.replication.nextPullAt.Before(before.Add(20*time.Millisecond)))
 	require.True(t, rc.replication.nextPullAt.Before(after.Add(100*time.Millisecond)))
@@ -610,7 +581,6 @@ func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
 	firstAck := sink.awaitResultKind(t, worker.TaskRPCAck)
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: firstAck})
 	require.Contains(t, r.channels, meta.Key)
-	require.False(t, rc.replication.pendingAck)
 	require.Equal(t, lifecycleFollowerStoppedAcking, rc.lifecycle.stage)
 	require.False(t, rc.lifecycle.stoppedAck.retryAt.IsZero())
 
@@ -663,7 +633,6 @@ func TestStoppedAckStaleMetaCancelsStopAndPullsImmediately(t *testing.T) {
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
 	require.Contains(t, r.channels, meta.Key)
 	require.False(t, rc.lifecycle.followerStop.accepted)
-	require.False(t, rc.replication.pendingAck)
 	r.tickFollowerReplication(rc, time.Now())
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 	require.Equal(t, 1, net.AckCalls())
@@ -997,42 +966,6 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
 	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
-func TestFollowerAckResultResetsBackoff(t *testing.T) {
-	net := newCapturingTransport()
-	factory := store.NewMemoryFactory()
-	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
-	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
-	defer pools.Close()
-	meta := followerTestMeta("compat-ack-retry")
-	r := NewReactor(ReactorConfig{
-		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
-		ReplicationMinBackoff: time.Hour, ReplicationMaxBackoff: time.Hour,
-	})
-	require.NoError(t, applyMetaDirect(t, r, meta))
-	rc := r.channels[meta.Key]
-
-	net.SetAckError(ch.ErrNotReady)
-	rc.replication.pendingAck = true
-	rc.replication.pendingAckMatch = 1
-
-	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: time.Unix(1, 0)})
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCAck)})
-	require.Equal(t, 1, net.AckCalls())
-	require.True(t, rc.replication.pendingAck)
-	require.False(t, rc.replication.nextAckAt.IsZero())
-	nextAckAt := rc.replication.nextAckAt
-
-	net.SetAckError(nil)
-	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(-time.Millisecond)})
-	require.Equal(t, 1, net.AckCalls())
-	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: nextAckAt.Add(time.Millisecond)})
-	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskRPCAck)})
-	require.Equal(t, 2, net.AckCalls())
-	require.False(t, rc.replication.pendingAck)
-	require.Zero(t, rc.replication.backoff)
-	require.True(t, rc.replication.nextAckAt.IsZero())
-}
-
 func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("a")
@@ -1164,26 +1097,6 @@ func TestStaleRPCPullCompletionDoesNotClearNewerPullInflight(t *testing.T) {
 	require.False(t, applied)
 	require.True(t, state.pullInflight)
 	require.Equal(t, ch.OpID(2), state.pullOpID)
-}
-
-func TestStaleRPCAckCompletionDoesNotClearNewerAckInflight(t *testing.T) {
-	state := replicationState{ackInflight: true, ackOpID: 4, ackMatch: 9}
-	stale := worker.Result{Kind: worker.TaskRPCAck, Fence: ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 3}}
-	applied := state.applyAckResult(stale, ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: state.ackOpID}, time.Unix(1, 0))
-	require.False(t, applied)
-	require.True(t, state.ackInflight)
-	require.Equal(t, ch.OpID(4), state.ackOpID)
-	require.Equal(t, uint64(9), state.ackMatch)
-}
-
-func TestAckErrorRetryKeepsSameMatchOffset(t *testing.T) {
-	state := replicationState{ackInflight: true, ackOpID: 5, ackMatch: 9}
-	result := worker.Result{Kind: worker.TaskRPCAck, Fence: ch.Fence{ChannelKey: "1:a", Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 5}, Err: ch.ErrNotReady}
-	applied := state.applyAckResult(result, result.Fence, time.Unix(1, 0))
-	require.True(t, applied)
-	require.False(t, state.ackInflight)
-	require.True(t, state.pendingAck)
-	require.Equal(t, uint64(9), state.pendingAckMatch)
 }
 
 func TestLeaderPullUsesStoreReadLogWorkerWithoutBlockingReactor(t *testing.T) {
@@ -1935,7 +1848,7 @@ func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *test
 	require.Empty(t, rc.pullWaiters)
 }
 
-func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
+func TestLeaderRejectsOrdinaryAckAfterLeaderEpochBump(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
 	require.NoError(t, err)
@@ -1950,14 +1863,15 @@ func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
 	}
 	meta.LeaderEpoch = 2
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
-	require.NoError(t, awaitSubmit(g, meta.Key, staleAck))
+	err = awaitSubmit(g, meta.Key, staleAck)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
 
 	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-current-ack"))
 	require.NoError(t, err)
 	requireFuturePending(t, future)
 }
 
-func TestLeaderIgnoresAckFromUnknownFollower(t *testing.T) {
+func TestLeaderRejectsOrdinaryAckFromUnknownFollower(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
 	require.NoError(t, err)
@@ -1972,11 +1886,11 @@ func TestLeaderIgnoresAckFromUnknownFollower(t *testing.T) {
 	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: 1, LeaderEpoch: 1, Follower: 99, MatchOffset: 1}})
 	require.NoError(t, err)
 	_, err = ackFuture.Await(context.Background())
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
 	requireFuturePending(t, future)
 }
 
-func TestLeaderIgnoresAckWithMismatchedChannelKey(t *testing.T) {
+func TestLeaderRejectsOrdinaryAckWithMismatchedChannelKey(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
 	require.NoError(t, err)
@@ -1991,7 +1905,7 @@ func TestLeaderIgnoresAckWithMismatchedChannelKey(t *testing.T) {
 	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: "1:other", Epoch: 1, LeaderEpoch: 1, Follower: 2, MatchOffset: 1}})
 	require.NoError(t, err)
 	_, err = ackFuture.Await(context.Background())
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
 	requireFuturePending(t, future)
 }
 

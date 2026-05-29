@@ -14,15 +14,6 @@ func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	defer r.scheduleReplicationFromState(rc, now)
-	if rc.replication.pendingAck {
-		r.trySubmitPendingAck(rc, now)
-		if rc.replication.pendingAck || rc.replication.ackInflight {
-			return
-		}
-	}
-	if rc.replication.ackInflight {
-		return
-	}
 	if rc.lifecycle.stage == lifecycleFollowerReadyToEvict {
 		r.tryEvictStoppedFollower(rc, now)
 		return
@@ -80,10 +71,6 @@ func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
 	if rc.replication.pendingPull == nil || rc.replication.applyOpID != 0 {
 		return
 	}
-	if rc.replication.ackInflight || rc.replication.pendingAck {
-		rc.replication.applyBlocked = true
-		return
-	}
 	if rc.replication.applyBlocked && !rc.replication.applyRetryAt.IsZero() && now.Before(rc.replication.applyRetryAt) {
 		return
 	}
@@ -102,43 +89,6 @@ func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
 	rc.replication.applyOpID = opID
 	rc.replication.applyBlocked = false
 	rc.replication.applyRetryAt = time.Time{}
-}
-
-func (r *Reactor) trySubmitPendingAck(rc *runtimeChannel, now time.Time) {
-	if rc.replication.ackInflight || !rc.replication.pendingAck {
-		return
-	}
-	if !rc.replication.nextAckAt.IsZero() && now.Before(rc.replication.nextAckAt) {
-		return
-	}
-	r.submitAck(rc, rc.replication.pendingAckMatch, now)
-}
-
-func (r *Reactor) submitAck(rc *runtimeChannel, match uint64, now time.Time) bool {
-	if match == 0 {
-		return false
-	}
-	opID := r.nextOpID()
-	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
-	req := transport.AckRequest{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, Follower: r.cfg.LocalNode, MatchOffset: match, Stopped: false}
-	if err := r.submitRPCAck(context.Background(), rc.state.Leader, fence, req); err != nil {
-		rc.replication.pendingAck = true
-		rc.replication.pendingAckMatch = match
-		rc.replication.ackInflight = false
-		rc.replication.ackOpID = 0
-		rc.replication.ackMatch = 0
-		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
-		rc.replication.nextAckAt = now.Add(rc.replication.backoff)
-		rc.replication.lastError = err
-		return false
-	}
-	rc.replication.pendingAck = false
-	rc.replication.pendingAckMatch = 0
-	rc.replication.nextAckAt = time.Time{}
-	rc.replication.ackInflight = true
-	rc.replication.ackOpID = opID
-	rc.replication.ackMatch = match
-	return true
 }
 
 func (r *Reactor) trySubmitStopCheckpoint(rc *runtimeChannel, now time.Time) {
@@ -452,26 +402,6 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 		r.handleStoppedAckResult(rc, result)
 		return
 	}
-	current := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: rc.replication.ackOpID}
-	if !rc.replication.applyAckResult(result, current, time.Now()) {
-		return
-	}
-	now := time.Now()
-	if result.Err != nil {
-		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
-		rc.replication.nextAckAt = now.Add(rc.replication.backoff)
-		r.scheduleReplicationFromState(rc, now)
-		return
-	}
-	rc.replication.backoff = 0
-	rc.replication.dirty = false
-	if rc.replication.pendingPull != nil {
-		r.trySubmitPendingApply(rc, now)
-		r.scheduleReplicationFromState(rc, now)
-		return
-	}
-	rc.replication.nextPullAt = now
-	r.scheduleReplicationFromState(rc, now)
 }
 
 func (r *Reactor) handleStoppedAckResult(rc *runtimeChannel, result worker.Result) {
@@ -493,8 +423,6 @@ func (rc *runtimeChannel) canAcceptFollowerStop() bool {
 	}
 	replication := rc.replication
 	return !replication.pullInflight &&
-		!replication.ackInflight &&
-		!replication.pendingAck &&
 		replication.pendingPull == nil &&
 		!replication.applyBlocked &&
 		replication.applyOpID == 0 &&
