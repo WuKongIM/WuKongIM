@@ -46,6 +46,8 @@ type lifecycleFollower struct {
 	pendingHintVersion uint64
 	hint               lifecycleEffect
 	parked             bool
+	// stopOfferedZero preserves stop offers made before a non-zero activity version exists.
+	stopOfferedZero    bool
 	stopOfferedVersion uint64
 	stoppedVersion     uint64
 }
@@ -55,7 +57,10 @@ func (f lifecycleFollower) caughtUp(leo uint64) bool {
 }
 
 func (f lifecycleFollower) stopOffered(version uint64) bool {
-	return version != 0 && f.stopOfferedVersion == version
+	if version == 0 {
+		return f.stopOfferedZero
+	}
+	return f.stopOfferedVersion == version
 }
 
 func (f lifecycleFollower) stopped(version uint64) bool {
@@ -63,6 +68,7 @@ func (f lifecycleFollower) stopped(version uint64) bool {
 }
 
 func (f *lifecycleFollower) resetStop() {
+	f.stopOfferedZero = false
 	f.stopOfferedVersion = 0
 	f.stoppedVersion = 0
 }

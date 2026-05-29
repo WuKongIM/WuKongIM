@@ -7,54 +7,12 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 )
 
-// channelLifecycle tracks leader-owned activity and idle eviction state for one runtime channel.
-type channelLifecycle struct {
-	// LoadedAt records when runtime state was created without counting as Append activity.
-	LoadedAt        time.Time
-	LastAppendAt    time.Time
-	ActivityVersion uint64
-	// CheckpointInflight records a leader eviction checkpoint that must complete before runtime deletion.
-	CheckpointInflight bool
-	// CheckpointOpID fences the leader eviction checkpoint worker result.
-	CheckpointOpID ch.OpID
-	// CheckpointActivityVersion is the activity version that requested the leader checkpoint.
-	CheckpointActivityVersion uint64
-	// CheckpointReady records a completed leader checkpoint awaiting a normal-priority eviction recheck.
-	CheckpointReady bool
-	// CheckpointReadyActivityVersion fences the completed checkpoint to the activity that produced it.
-	CheckpointReadyActivityVersion uint64
-	// CheckpointReadyQueued records a normal-priority final eviction recheck already in the mailbox.
-	CheckpointReadyQueued bool
-	// CheckpointRetryAt is the next time to retry a failed or backpressured leader checkpoint.
-	CheckpointRetryAt time.Time
-}
-
-// followerLifecycle tracks leader-visible follower runtime state that is not part of the pure machine progress.
-type followerLifecycle struct {
-	Match              uint64
-	LastPullAt         time.Time
-	NextExpectedPullAt time.Time
-	LastHintVersion    uint64
-	PendingHintVersion uint64
-	HintInflight       bool
-	// HintInflightOpID fences the PullHint RPC currently allowed to clear HintInflight.
-	HintInflightOpID ch.OpID
-	HintRetryAt      time.Time
-	Parked           bool
-	Stopped          bool
-	StopAckVersion   uint64
-	// StopOffered records that PullControlStop was returned even when the activity version is zero.
-	StopOffered bool
-	// StopOfferedVersion records the activity version last returned with PullControlStop.
-	StopOfferedVersion uint64
-}
-
 func (r *Reactor) markAppendActivity(rc *runtimeChannel, now time.Time) {
 	if rc == nil {
 		return
 	}
-	rc.lifecycle.LastAppendAt = now
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
+	rc.lifecycle.lastAppendAt = now
+	rc.lifecycle.stage = lifecycleLive
 	r.scheduleLifecycleFromState(rc, now)
 }
 
@@ -62,8 +20,8 @@ func (r *Reactor) cancelLeaderEvictionForAppend(rc *runtimeChannel, now time.Tim
 	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader {
 		return
 	}
-	rc.lifecycle.LastAppendAt = now
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleServing
+	rc.lifecycle.lastAppendAt = now
+	rc.lifecycle.stage = lifecycleLive
 	resetLeaderCheckpointLifecycle(rc)
 	r.scheduleLifecycleFromState(rc, now)
 }
@@ -73,29 +31,29 @@ func resetLeaderCheckpointLifecycle(rc *runtimeChannel) {
 	if rc == nil {
 		return
 	}
-	rc.lifecycle.CheckpointInflight = false
-	rc.lifecycle.CheckpointOpID = 0
-	rc.lifecycle.CheckpointActivityVersion = 0
-	rc.lifecycle.CheckpointReady = false
-	rc.lifecycle.CheckpointReadyActivityVersion = 0
-	rc.lifecycle.CheckpointReadyQueued = false
-	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	rc.lifecycle.checkpoint.inflight = false
+	rc.lifecycle.checkpoint.opID = 0
+	rc.lifecycle.checkpoint.version = 0
+	rc.lifecycle.finalCheck.inflight = false
+	rc.lifecycle.finalCheck.version = 0
+	rc.lifecycle.finalCheck.queued = false
+	rc.lifecycle.checkpoint.retryAt = time.Time{}
 }
 
 func retireFollowerPullHints(rc *runtimeChannel, node ch.NodeID) {
 	if rc == nil {
 		return
 	}
-	for opID, inflight := range rc.pullHintInflight {
+	for opID, inflight := range rc.lifecycle.pullHintInflight {
 		if inflight.follower == node {
-			delete(rc.pullHintInflight, opID)
+			delete(rc.lifecycle.pullHintInflight, opID)
 		}
 	}
-	if follower := rc.followers[node]; follower != nil {
-		follower.HintInflight = false
-		follower.HintInflightOpID = 0
-		follower.PendingHintVersion = 0
-		follower.HintRetryAt = time.Time{}
+	if follower := rc.lifecycle.followers[node]; follower != nil {
+		follower.hint.inflight = false
+		follower.hint.opID = 0
+		follower.pendingHintVersion = 0
+		follower.hint.retryAt = time.Time{}
 	}
 }
 
@@ -104,12 +62,12 @@ func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
 		return
 	}
 	if rc.state == nil || rc.state.Role != ch.RoleLeader {
-		rc.followers = nil
-		rc.pullHintInflight = nil
+		rc.lifecycle.followers = nil
+		rc.lifecycle.pullHintInflight = nil
 		return
 	}
-	if rc.followers == nil {
-		rc.followers = make(map[ch.NodeID]*followerLifecycle)
+	if rc.lifecycle.followers == nil {
+		rc.lifecycle.followers = make(map[ch.NodeID]*lifecycleFollower)
 	}
 	current := make(map[ch.NodeID]struct{}, len(rc.state.Replicas))
 	for _, replica := range rc.state.Replicas {
@@ -118,19 +76,19 @@ func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
 		}
 		current[replica] = struct{}{}
 		progress := rc.state.Progress[replica]
-		follower := rc.followers[replica]
+		follower := rc.lifecycle.followers[replica]
 		if follower == nil {
-			follower = &followerLifecycle{Match: progress.Match}
-			rc.followers[replica] = follower
+			follower = &lifecycleFollower{match: progress.Match}
+			rc.lifecycle.followers[replica] = follower
 			continue
 		}
-		if progress.Match > follower.Match {
-			follower.Match = progress.Match
+		if progress.Match > follower.match {
+			follower.match = progress.Match
 		}
 	}
-	for node := range rc.followers {
+	for node := range rc.lifecycle.followers {
 		if _, ok := current[node]; !ok {
-			delete(rc.followers, node)
+			delete(rc.lifecycle.followers, node)
 		}
 	}
 }
@@ -140,10 +98,10 @@ func (r *Reactor) syncFollowerMatches(rc *runtimeChannel) {
 		return
 	}
 	r.syncLeaderFollowers(rc)
-	for node, follower := range rc.followers {
+	for node, follower := range rc.lifecycle.followers {
 		progress := rc.state.Progress[node]
-		if progress.Match > follower.Match {
-			follower.Match = progress.Match
+		if follower != nil && progress.Match > follower.match {
+			follower.match = progress.Match
 		}
 	}
 }
@@ -152,10 +110,7 @@ func leaderIdleSince(rc *runtimeChannel) time.Time {
 	if rc == nil {
 		return time.Time{}
 	}
-	if !rc.lifecycle.LastAppendAt.IsZero() {
-		return rc.lifecycle.LastAppendAt
-	}
-	return rc.lifecycle.LoadedAt
+	return rc.lifecycle.idleSince()
 }
 
 func (r *Reactor) currentAppendSubmitSeq(key ch.ChannelKey) uint64 {

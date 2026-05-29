@@ -20,16 +20,77 @@ func (r *Reactor) applyLifecycleDecision(rc *runtimeChannel, decision LifecycleD
 		return
 	}
 	if decision.LeaderPhase != 0 {
-		rc.runtimeLifecycle.LeaderPhase = decision.LeaderPhase
+		applyLeaderLifecyclePhase(&rc.lifecycle, decision.LeaderPhase)
 	}
 	if decision.FollowerPhase != 0 {
-		rc.runtimeLifecycle.FollowerPhase = decision.FollowerPhase
+		applyFollowerLifecyclePhase(&rc.lifecycle, decision.FollowerPhase)
 	}
 	for _, action := range decision.Actions {
 		r.applyLifecycleAction(rc, action, now)
 	}
 	if !decision.NextDue.IsZero() {
 		r.scheduleLifecycleDue(rc, decision.NextDue)
+	}
+}
+
+func runtimeLifecycleFromController(lc channelRuntimeLifecycle) runtimeLifecycle {
+	return runtimeLifecycle{
+		LeaderPhase:   leaderPhaseFromLifecycleStage(lc.stage),
+		FollowerPhase: followerPhaseFromLifecycleStage(lc.stage),
+	}
+}
+
+func applyLeaderLifecyclePhase(lc *channelRuntimeLifecycle, phase LeaderLifecyclePhase) {
+	if lc == nil {
+		return
+	}
+	switch phase {
+	case LeaderLifecycleServing:
+		lc.stage = lifecycleLive
+	case LeaderLifecycleStoppingFollowers:
+		lc.stage = lifecycleLeaderStoppingFollowers
+	case LeaderLifecycleCheckpointing:
+		lc.stage = lifecycleLeaderCheckpointing
+	case LeaderLifecycleFinalRecheck:
+		lc.stage = lifecycleLeaderReadyToEvict
+	}
+}
+
+func applyFollowerLifecyclePhase(lc *channelRuntimeLifecycle, phase FollowerLifecyclePhase) {
+	if lc == nil {
+		return
+	}
+	switch phase {
+	case FollowerLifecycleReplicating:
+		lc.stage = lifecycleLive
+	case FollowerLifecycleStopCheckpointing:
+		lc.stage = lifecycleFollowerCheckpointing
+	case FollowerLifecycleStopAcking:
+		lc.stage = lifecycleFollowerStoppedAcking
+	}
+}
+
+func leaderPhaseFromLifecycleStage(stage lifecycleStage) LeaderLifecyclePhase {
+	switch stage {
+	case lifecycleLeaderStoppingFollowers:
+		return LeaderLifecycleStoppingFollowers
+	case lifecycleLeaderCheckpointing:
+		return LeaderLifecycleCheckpointing
+	case lifecycleLeaderReadyToEvict:
+		return LeaderLifecycleFinalRecheck
+	default:
+		return LeaderLifecycleServing
+	}
+}
+
+func followerPhaseFromLifecycleStage(stage lifecycleStage) FollowerLifecyclePhase {
+	switch stage {
+	case lifecycleFollowerCheckpointing:
+		return FollowerLifecycleStopCheckpointing
+	case lifecycleFollowerStoppedAcking, lifecycleFollowerReadyToEvict:
+		return FollowerLifecycleStopAcking
+	default:
+		return FollowerLifecycleReplicating
 	}
 }
 
@@ -82,14 +143,14 @@ func (r *Reactor) startLeaderCheckpoint(rc *runtimeChannel, now time.Time) bool 
 	opID := r.nextOpID()
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
 	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.LEO}); err != nil {
-		rc.lifecycle.CheckpointRetryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
 		r.scheduleLifecycleFromState(rc, now)
 		return false
 	}
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = opID
-	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
-	rc.lifecycle.CheckpointRetryAt = time.Time{}
+	rc.lifecycle.stage = lifecycleLeaderCheckpointing
+	rc.lifecycle.checkpoint.inflight = true
+	rc.lifecycle.checkpoint.opID = opID
+	rc.lifecycle.checkpoint.version = rc.lifecycle.version
+	rc.lifecycle.checkpoint.retryAt = time.Time{}
 	return true
 }

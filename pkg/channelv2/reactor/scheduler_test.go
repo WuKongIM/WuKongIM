@@ -52,7 +52,7 @@ func TestDueSchedulerLifecycleTickDoesNotScanLoadedIdleLeaders(t *testing.T) {
 		require.NoError(t, applyMetaDirect(t, r, meta))
 		rc := r.channels[meta.Key]
 		require.NotNil(t, rc)
-		rc.lifecycle.LastAppendAt = now.Add(-2 * time.Second)
+		rc.lifecycle.lastAppendAt = now.Add(-2 * time.Second)
 		if i == loadedLeaders/2 {
 			dueKey = meta.Key
 			rc.lifecycleDueVersion++

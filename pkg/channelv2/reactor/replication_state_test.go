@@ -24,7 +24,7 @@ func TestLeaderPullDelayUsesIdleAgeWithoutCoolingPhase(t *testing.T) {
 		IdlePullMaxInterval:         8 * time.Millisecond,
 		ReplicationIdlePollInterval: time.Millisecond,
 	})
-	rc := &runtimeChannel{lifecycle: channelLifecycle{LoadedAt: time.Unix(0, 0)}}
+	rc := &runtimeChannel{lifecycle: channelRuntimeLifecycle{loadedAt: time.Unix(0, 0)}}
 
 	delay := r.leaderPullDelay(rc, time.Unix(3, 0))
 
@@ -367,7 +367,7 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 		}},
 	})
 
-	require.Equal(t, FollowerLifecycleStopCheckpointing, rc.runtimeLifecycle.FollowerPhase)
+	require.Equal(t, lifecycleFollowerCheckpointing, rc.lifecycle.stage)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
@@ -454,7 +454,7 @@ func TestFollowerStoppedAckStillUsesStandaloneAck(t *testing.T) {
 	rc.replication.deleteAfterStoppedAck = true
 	rc.replication.checkpointInflight = true
 	rc.replication.checkpointOpID = 7
-	rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleStopCheckpointing
+	rc.lifecycle.stage = lifecycleFollowerCheckpointing
 
 	r.handleStoreCheckpointResult(worker.Result{
 		Kind: worker.TaskStoreCheckpoint,
@@ -1370,12 +1370,12 @@ func TestLeaderPullDuplicateOpIDRejectsBeforeFollowerStateUpdates(t *testing.T) 
 
 	lastPullAt := time.Unix(10, 0)
 	nextExpectedPullAt := time.Unix(20, 0)
-	rc.followers[2] = &followerLifecycle{
-		Match:              0,
-		LastPullAt:         lastPullAt,
-		Parked:             true,
-		Stopped:            true,
-		NextExpectedPullAt: nextExpectedPullAt,
+	rc.lifecycle.followers[2] = &lifecycleFollower{
+		match:              0,
+		lastPullAt:         lastPullAt,
+		parked:             true,
+		stoppedVersion:     1,
+		nextExpectedPullAt: nextExpectedPullAt,
 	}
 	rc.pullWaiters = map[ch.OpID]*pullWaiter{
 		99: {future: NewFuture(), follower: 2, nextOffset: 1},
@@ -1398,11 +1398,11 @@ func TestLeaderPullDuplicateOpIDRejectsBeforeFollowerStateUpdates(t *testing.T) 
 	defer cancel()
 	_, err := future.Await(ctx)
 	require.ErrorIs(t, err, ch.ErrInvalidConfig)
-	require.Equal(t, lastPullAt, rc.followers[2].LastPullAt)
-	require.True(t, rc.followers[2].Parked)
-	require.True(t, rc.followers[2].Stopped)
-	require.Equal(t, nextExpectedPullAt, rc.followers[2].NextExpectedPullAt)
-	require.Equal(t, uint64(0), rc.followers[2].Match)
+	require.Equal(t, lastPullAt, rc.lifecycle.followers[2].lastPullAt)
+	require.True(t, rc.lifecycle.followers[2].parked)
+	require.NotZero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.Equal(t, nextExpectedPullAt, rc.lifecycle.followers[2].nextExpectedPullAt)
+	require.Equal(t, uint64(0), rc.lifecycle.followers[2].match)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
@@ -1526,8 +1526,8 @@ func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 
 	future := NewFuture()
@@ -1548,8 +1548,8 @@ func TestLeaderPullResponsePacesCaughtUpIdleFollower(t *testing.T) {
 	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
 	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
 	require.GreaterOrEqual(t, result.Pull.NextPullAfter, 10*time.Millisecond)
-	require.NotNil(t, rc.followers[2])
-	require.True(t, rc.followers[2].Parked)
+	require.NotNil(t, rc.lifecycle.followers[2])
+	require.True(t, rc.lifecycle.followers[2].parked)
 }
 
 func TestLeaderDoesNotOfferStopWhileNonISRFollowerLagging(t *testing.T) {
@@ -1569,8 +1569,8 @@ func TestLeaderDoesNotOfferStopWhileNonISRFollowerLagging(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[3] = machine.ReplicaProgress{Match: 2}
 	r.syncLeaderFollowers(rc)
@@ -1611,8 +1611,8 @@ func TestLeaderReturnsStopWhenAllReplicasCaughtUpAndIdle(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
 	r.syncLeaderFollowers(rc)
@@ -1635,8 +1635,8 @@ func TestLeaderReturnsStopWhenAllReplicasCaughtUpAndIdle(t *testing.T) {
 	require.Equal(t, transport.PullControlStop, result.Pull.Control)
 	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
 	require.Zero(t, result.Pull.NextPullAfter)
-	require.True(t, rc.followers[2].StopOffered)
-	require.Equal(t, uint64(3), rc.followers[2].StopOfferedVersion)
+	require.NotZero(t, rc.lifecycle.followers[2].stopOfferedVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.followers[2].stopOfferedVersion)
 }
 
 func TestLeaderDoesNotLetFuturePullOffsetFakeStopEligibility(t *testing.T) {
@@ -1656,8 +1656,8 @@ func TestLeaderDoesNotLetFuturePullOffsetFakeStopEligibility(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 2}
 	r.syncLeaderFollowers(rc)
 
@@ -1677,7 +1677,7 @@ func TestLeaderDoesNotLetFuturePullOffsetFakeStopEligibility(t *testing.T) {
 
 	result := awaitFutureResult(t, future)
 	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
-	require.Less(t, rc.followers[2].Match, rc.state.LEO)
+	require.Less(t, rc.lifecycle.followers[2].match, rc.state.LEO)
 }
 
 func TestLeaderPullResponsePacesFromReplicationIdlePollIntervalByDefault(t *testing.T) {
@@ -1698,8 +1698,8 @@ func TestLeaderPullResponsePacesFromReplicationIdlePollIntervalByDefault(t *test
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now()
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now()
+	rc.lifecycle.version = 3
 
 	future := NewFuture()
 	r.handleLeaderPull(Event{
@@ -1738,8 +1738,8 @@ func TestLeaderPullResponsePacesFromExplicitIdlePullMinInterval(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now()
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now()
+	rc.lifecycle.version = 3
 
 	future := NewFuture()
 	r.handleLeaderPull(Event{
@@ -1783,8 +1783,8 @@ func TestLeaderPullResponsePacesLaggingFollowerWithRecordsImmediately(t *testing
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
 
 	future := NewFuture()
@@ -1806,7 +1806,7 @@ func TestLeaderPullResponsePacesLaggingFollowerWithRecordsImmediately(t *testing
 	require.Equal(t, uint64(3), result.Pull.ActivityVersion)
 	require.Len(t, result.Pull.Records, 2)
 	require.Zero(t, result.Pull.NextPullAfter)
-	require.False(t, rc.followers[2].Parked)
+	require.False(t, rc.lifecycle.followers[2].parked)
 }
 
 func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *testing.T) {
@@ -1923,8 +1923,8 @@ func TestLeaderStoppedAckRejectsMatchAboveLEO(t *testing.T) {
 	rc.state.HW = 3
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	r.syncLeaderFollowers(rc)
 
 	future := NewFuture()
@@ -1934,9 +1934,8 @@ func TestLeaderStoppedAckRejectsMatchAboveLEO(t *testing.T) {
 	})
 	_, err := future.Await(context.Background())
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
-	require.False(t, rc.followers[2].Stopped)
-	require.Zero(t, rc.followers[2].StopAckVersion)
-	require.Equal(t, uint64(3), rc.followers[2].Match)
+	require.Zero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.followers[2].match)
 	require.Equal(t, uint64(3), rc.state.Progress[2].Match)
 	require.Equal(t, uint64(3), rc.state.HW)
 	require.Contains(t, r.channels, meta.Key)
@@ -1956,10 +1955,9 @@ func TestLeaderStoppedAckRejectsMismatchedOfferedVersion(t *testing.T) {
 	rc.state.HW = 3
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.version = 3
 	r.syncLeaderFollowers(rc)
-	rc.followers[2].StopOffered = true
-	rc.followers[2].StopOfferedVersion = 2
+	rc.lifecycle.followers[2].stopOfferedVersion = 2
 
 	future := NewFuture()
 	r.handleLeaderAck(Event{
@@ -1968,9 +1966,8 @@ func TestLeaderStoppedAckRejectsMismatchedOfferedVersion(t *testing.T) {
 	})
 	_, err := future.Await(context.Background())
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
-	require.False(t, rc.followers[2].Stopped)
-	require.Zero(t, rc.followers[2].StopAckVersion)
-	require.Equal(t, uint64(3), rc.followers[2].Match)
+	require.Zero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.followers[2].match)
 	require.Equal(t, uint64(3), rc.state.Progress[2].Match)
 	require.Equal(t, uint64(3), rc.state.HW)
 }
@@ -1992,8 +1989,8 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
 	r.syncLeaderFollowers(rc)
@@ -2013,7 +2010,7 @@ func TestLeaderEvictsOnlyAfterAllFollowersStoppedAck(t *testing.T) {
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 3, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
 	})
 	require.NoError(t, awaitFutureResult(t, secondFuture).Err)
-	require.Equal(t, LeaderLifecycleCheckpointing, rc.runtimeLifecycle.LeaderPhase)
+	require.Equal(t, lifecycleLeaderCheckpointing, rc.lifecycle.stage)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
@@ -2041,14 +2038,14 @@ func TestStoppedAckRetiresObsoletePullHintInflightAndAllowsLeaderEviction(t *tes
 	rc.state.HW = 3
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 3
 	r.syncLeaderFollowers(rc)
-	rc.followers[2].HintInflight = true
-	rc.followers[2].HintInflightOpID = 99
-	rc.followers[2].LastHintVersion = 3
-	rc.pullHintInflight = map[ch.OpID]pullHintInflight{
-		99: {follower: 2, activityVersion: 3, reason: transport.PullHintReasonAppend},
+	rc.lifecycle.followers[2].hint.inflight = true
+	rc.lifecycle.followers[2].hint.opID = 99
+	rc.lifecycle.followers[2].lastHintVersion = 3
+	rc.lifecycle.pullHintInflight = map[ch.OpID]lifecyclePullHintInflight{
+		99: {follower: 2, version: 3, reason: transport.PullHintReasonAppend},
 	}
 
 	future := NewFuture()
@@ -2060,8 +2057,8 @@ func TestStoppedAckRetiresObsoletePullHintInflightAndAllowsLeaderEviction(t *tes
 		},
 	})
 	require.NoError(t, awaitFutureResult(t, future).Err)
-	require.Empty(t, rc.pullHintInflight)
-	require.False(t, rc.followers[2].HintInflight)
+	require.Empty(t, rc.lifecycle.pullHintInflight)
+	require.False(t, rc.lifecycle.followers[2].hint.inflight)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
@@ -2076,13 +2073,13 @@ func TestOldPullHintCompletionDoesNotClearNewerHintInflight(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 4
-	rc.lifecycle.ActivityVersion = 4
-	rc.followers[2].HintInflight = true
-	rc.followers[2].HintInflightOpID = 12
-	rc.followers[2].LastHintVersion = 4
-	rc.pullHintInflight = map[ch.OpID]pullHintInflight{
-		11: {follower: 2, activityVersion: 3, reason: transport.PullHintReasonAppend},
-		12: {follower: 2, activityVersion: 4, reason: transport.PullHintReasonAppend},
+	rc.lifecycle.version = 4
+	rc.lifecycle.followers[2].hint.inflight = true
+	rc.lifecycle.followers[2].hint.opID = 12
+	rc.lifecycle.followers[2].lastHintVersion = 4
+	rc.lifecycle.pullHintInflight = map[ch.OpID]lifecyclePullHintInflight{
+		11: {follower: 2, version: 3, reason: transport.PullHintReasonAppend},
+		12: {follower: 2, version: 4, reason: transport.PullHintReasonAppend},
 	}
 
 	r.handleRPCPullHintResult(worker.Result{
@@ -2091,8 +2088,8 @@ func TestOldPullHintCompletionDoesNotClearNewerHintInflight(t *testing.T) {
 		RPCPullHint: &worker.RPCPullHintResult{},
 	})
 
-	require.True(t, rc.followers[2].HintInflight)
-	require.Contains(t, rc.pullHintInflight, ch.OpID(12))
+	require.True(t, rc.lifecycle.followers[2].hint.inflight)
+	require.Contains(t, rc.lifecycle.pullHintInflight, ch.OpID(12))
 }
 
 func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *testing.T) {
@@ -2115,8 +2112,8 @@ func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *test
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[3] = machine.ReplicaProgress{Match: 3}
-	rc.lifecycle.LastAppendAt = time.Now()
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.lastAppendAt = time.Now()
+	rc.lifecycle.version = 3
 	r.syncLeaderFollowers(rc)
 
 	for _, follower := range []ch.NodeID{2, 3} {
@@ -2130,15 +2127,15 @@ func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *test
 		})
 		require.NoError(t, awaitFutureResult(t, future).Err)
 	}
-	require.True(t, rc.followers[2].Stopped)
-	require.True(t, rc.followers[3].Stopped)
+	require.NotZero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.NotZero(t, rc.lifecycle.followers[3].stoppedVersion)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
 
 	fenced := meta
 	fenced.LeaderEpoch++
 	require.NoError(t, applyMetaDirect(t, r, fenced))
 
-	rc.lifecycle.LastAppendAt = time.Now().Add(-2 * time.Hour)
+	rc.lifecycle.lastAppendAt = time.Now().Add(-2 * time.Hour)
 	r.tickLeaderLifecycle(rc, time.Now())
 	require.Contains(t, r.channels, meta.Key)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
@@ -2190,7 +2187,7 @@ func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 	require.Equal(t, uint64(1), rc.state.LEO)
 	require.Equal(t, uint64(1), rc.state.HW)
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
@@ -2267,7 +2264,7 @@ func TestApplyMetaColdSingleNodeClusterLeaderCanEvictWithoutAppend(t *testing.T)
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	require.NotNil(t, rc)
-	require.Zero(t, rc.lifecycle.LastAppendAt)
+	require.Zero(t, rc.lifecycle.lastAppendAt)
 
 	r.tickLeaderLifecycle(rc, time.Now().Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
@@ -2292,12 +2289,12 @@ func TestLeaderCheckpointCompletionStaleAfterNewAppendDoesNotEvict(t *testing.T)
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before checkpoint").Err)
 	rc := r.channels[meta.Key]
-	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 
 	appendFuture := NewFuture()
 	r.handleAppend(appendEventWithFuture(meta, 2, "after checkpoint", appendFuture))
-	require.False(t, rc.lifecycle.CheckpointInflight)
+	require.False(t, rc.lifecycle.checkpoint.inflight)
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
 
@@ -2318,12 +2315,12 @@ func TestLeaderCheckpointCompletionDefersEvictionBehindQueuedAppend(t *testing.T
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = rc.state.LEO
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = 99
-	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = rc.state.LEO
+	rc.lifecycle.stage = lifecycleLeaderCheckpointing
+	rc.lifecycle.checkpoint.inflight = true
+	rc.lifecycle.checkpoint.opID = 99
+	rc.lifecycle.checkpoint.version = rc.lifecycle.version
 
 	appendFuture := NewFuture()
 	require.NoError(t, r.Submit(PriorityNormal, appendEventWithFuture(meta, 1, "queued append", appendFuture)))
@@ -2346,7 +2343,7 @@ func TestLeaderCheckpointCompletionDefersEvictionBehindQueuedAppend(t *testing.T
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
 	require.Contains(t, r.channels, meta.Key)
-	require.False(t, rc.lifecycle.CheckpointInflight)
+	require.False(t, rc.lifecycle.checkpoint.inflight)
 }
 
 func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *testing.T) {
@@ -2362,12 +2359,12 @@ func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *test
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = rc.state.LEO
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = 99
-	rc.lifecycle.CheckpointActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = rc.state.LEO
+	rc.lifecycle.stage = lifecycleLeaderCheckpointing
+	rc.lifecycle.checkpoint.inflight = true
+	rc.lifecycle.checkpoint.opID = 99
+	rc.lifecycle.checkpoint.version = rc.lifecycle.version
 
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: worker.Result{
 		Kind: worker.TaskStoreCheckpoint,
@@ -2377,7 +2374,7 @@ func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *test
 		},
 		StoreCheckpoint: &worker.StoreCheckpointResult{},
 	}})
-	require.True(t, rc.lifecycle.CheckpointReadyQueued)
+	require.True(t, rc.lifecycle.finalCheck.queued)
 
 	appendFuture := NewFuture()
 	require.NoError(t, r.Submit(PriorityNormal, appendEventWithFuture(meta, 1, "late append", appendFuture)))
@@ -2396,7 +2393,7 @@ func TestLeaderReadyEvictionDefersWhenAppendSubmitsAfterReadyEventQueued(t *test
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
 	require.Contains(t, r.channels, meta.Key)
-	require.False(t, rc.lifecycle.CheckpointReady)
+	require.False(t, rc.lifecycle.finalCheck.inflight)
 }
 
 func TestLeaderReadyEvictionDefersWhileAppendReservedBeforeSubmit(t *testing.T) {
@@ -2412,10 +2409,10 @@ func TestLeaderReadyEvictionDefersWhileAppendReservedBeforeSubmit(t *testing.T) 
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = rc.state.LEO
-	rc.lifecycle.CheckpointReady = true
-	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = rc.state.LEO
+	rc.lifecycle.finalCheck.inflight = true
+	rc.lifecycle.finalCheck.version = rc.lifecycle.version
 
 	release := r.reserveAppend(meta.Key)
 	r.submitLeaderEvictReady(rc, time.Now(), r.currentAppendSubmitSeq(meta.Key))
@@ -2452,9 +2449,9 @@ func TestLeaderReadyEvictionReservationRetryWaitsForInterval(t *testing.T) {
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.CheckpointReady = true
-	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.finalCheck.inflight = true
+	rc.lifecycle.finalCheck.version = rc.lifecycle.version
 
 	release := r.reserveAppend(meta.Key)
 	now := time.Now()
@@ -2463,7 +2460,7 @@ func TestLeaderReadyEvictionReservationRetryWaitsForInterval(t *testing.T) {
 	require.Len(t, events, 1)
 	r.handle(events[0])
 	require.Contains(t, r.channels, meta.Key)
-	retryAt := rc.lifecycle.CheckpointRetryAt
+	retryAt := rc.lifecycle.checkpoint.retryAt
 	require.False(t, retryAt.IsZero())
 
 	r.processDue(now.Add(time.Second))
@@ -2492,9 +2489,9 @@ func TestLeaderReadyEvictionIgnoresUnrelatedAppendReservation(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	require.NoError(t, applyMetaDirect(t, r, otherMeta))
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.CheckpointReady = true
-	rc.lifecycle.CheckpointReadyActivityVersion = rc.lifecycle.ActivityVersion
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.finalCheck.inflight = true
+	rc.lifecycle.finalCheck.version = rc.lifecycle.version
 
 	now := time.Now()
 	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(meta.Key))
@@ -2536,16 +2533,16 @@ func TestLeaderPromotionRefreshesActivityVersionFromDurableLEO(t *testing.T) {
 	require.NoError(t, err)
 	rc.state.LEO = 3
 	rc.state.HW = 3
-	require.Zero(t, rc.lifecycle.ActivityVersion)
+	require.Zero(t, rc.lifecycle.version)
 
 	promoted := meta
 	promoted.Leader = 1
 	promoted.LeaderEpoch = 2
 	require.NoError(t, applyMetaDirect(t, r, promoted))
 	require.Equal(t, ch.RoleLeader, rc.state.Role)
-	require.Equal(t, uint64(3), rc.lifecycle.ActivityVersion)
+	require.Equal(t, uint64(3), rc.lifecycle.version)
 
-	rc.lifecycle.LoadedAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.loadedAt = time.Now().Add(-time.Hour)
 	r.syncLeaderFollowers(rc)
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
 	r.syncLeaderFollowers(rc)
@@ -2625,8 +2622,8 @@ func TestLeaderPullCoveredByRecentCacheCompletesWithoutStoreRead(t *testing.T) {
 	require.Equal(t, uint64(1), result.Pull.Records[0].Index)
 	require.Equal(t, uint64(2), result.Pull.Records[1].Index)
 	rc := r.channels[meta.Key]
-	require.NotNil(t, rc.followers[2])
-	require.False(t, rc.followers[2].Parked)
+	require.NotNil(t, rc.lifecycle.followers[2])
+	require.False(t, rc.lifecycle.followers[2].parked)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
@@ -2651,8 +2648,8 @@ func TestLeaderPullCacheHitDoesNotOfferStopWithRecords(t *testing.T) {
 	require.NotNil(t, rc)
 	rc.state.HW = 1
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = rc.state.LEO
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = rc.state.LEO
 	r.syncLeaderFollowers(rc)
 
 	future := NewFuture()
@@ -2673,9 +2670,8 @@ func TestLeaderPullCacheHitDoesNotOfferStopWithRecords(t *testing.T) {
 	require.Len(t, result.Pull.Records, 1)
 	require.Equal(t, uint64(1), result.Pull.Records[0].Index)
 	require.Equal(t, transport.PullControlContinue, result.Pull.Control)
-	require.NotNil(t, rc.followers[2])
-	require.False(t, rc.followers[2].StopOffered)
-	require.Zero(t, rc.followers[2].StopOfferedVersion)
+	require.NotNil(t, rc.lifecycle.followers[2])
+	require.Zero(t, rc.lifecycle.followers[2].stopOfferedVersion)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
@@ -2695,8 +2691,8 @@ func TestLeaderPullCaughtUpCompletesEmptyWithoutStoreRead(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
 	rc := r.channels[meta.Key]
-	rc.lifecycle.LastAppendAt = time.Now().Add(-time.Hour)
-	rc.lifecycle.ActivityVersion = 1
+	rc.lifecycle.lastAppendAt = time.Now().Add(-time.Hour)
+	rc.lifecycle.version = 1
 
 	future := NewFuture()
 	r.handleLeaderPull(Event{
@@ -2717,8 +2713,8 @@ func TestLeaderPullCaughtUpCompletesEmptyWithoutStoreRead(t *testing.T) {
 	require.Equal(t, uint64(1), result.Pull.LeaderLEO)
 	require.Empty(t, result.Pull.Records)
 	require.Greater(t, result.Pull.NextPullAfter, time.Duration(0))
-	require.NotNil(t, rc.followers[2])
-	require.True(t, rc.followers[2].Parked)
+	require.NotNil(t, rc.lifecycle.followers[2])
+	require.True(t, rc.lifecycle.followers[2].parked)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
@@ -3018,20 +3014,20 @@ func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before fence").Err)
 	rc := r.channels[meta.Key]
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
-	require.True(t, rc.lifecycle.CheckpointInflight)
+	require.True(t, rc.lifecycle.checkpoint.inflight)
 
 	fenced := meta
 	fenced.LeaderEpoch++
 	require.NoError(t, applyMetaDirect(t, r, fenced))
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: staleCheckpoint})
 	require.Contains(t, r.channels, meta.Key)
-	require.False(t, rc.lifecycle.CheckpointInflight)
-	require.Zero(t, rc.lifecycle.CheckpointOpID)
-	require.Zero(t, rc.lifecycle.CheckpointActivityVersion)
+	require.False(t, rc.lifecycle.checkpoint.inflight)
+	require.Zero(t, rc.lifecycle.checkpoint.opID)
+	require.Zero(t, rc.lifecycle.checkpoint.version)
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(2*time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(2*time.Hour))
 	nextCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Equal(t, fenced.LeaderEpoch, nextCheckpoint.Fence.LeaderEpoch)
 	completeLeaderCheckpointAndDue(t, r, nextCheckpoint)
@@ -3051,32 +3047,30 @@ func TestNewAppendCancelsLeaderEvictionAndClearsStoppedFollowersNeedingData(t *t
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before eviction").Err)
 	rc := r.channels[meta.Key]
-	rc.lifecycle.ActivityVersion = 1
-	rc.runtimeLifecycle.LeaderPhase = LeaderLifecycleCheckpointing
-	rc.lifecycle.CheckpointInflight = true
-	rc.lifecycle.CheckpointOpID = 99
-	rc.lifecycle.CheckpointActivityVersion = 1
+	rc.lifecycle.version = 1
+	rc.lifecycle.stage = lifecycleLeaderCheckpointing
+	rc.lifecycle.checkpoint.inflight = true
+	rc.lifecycle.checkpoint.opID = 99
+	rc.lifecycle.checkpoint.version = 1
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 1}
 	rc.state.Progress[3] = machine.ReplicaProgress{Match: 1}
 	r.syncLeaderFollowers(rc)
-	rc.followers[2].Stopped = true
-	rc.followers[2].StopAckVersion = 1
-	rc.followers[3].Stopped = true
-	rc.followers[3].StopAckVersion = 1
+	rc.lifecycle.followers[2].stoppedVersion = 1
+	rc.lifecycle.followers[3].stoppedVersion = 1
 
 	appendFuture := NewFuture()
 	r.handleAppend(appendEventWithFuture(meta, 2, "reactivate followers", appendFuture))
-	require.False(t, rc.lifecycle.CheckpointInflight)
-	require.Zero(t, rc.lifecycle.CheckpointOpID)
-	require.Equal(t, LeaderLifecycleServing, rc.runtimeLifecycle.LeaderPhase)
+	require.False(t, rc.lifecycle.checkpoint.inflight)
+	require.Zero(t, rc.lifecycle.checkpoint.opID)
+	require.Equal(t, lifecycleLive, rc.lifecycle.stage)
 
 	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
 	require.NoError(t, awaitFutureResult(t, appendFuture).Err)
-	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
-	require.False(t, rc.followers[2].Stopped)
-	require.False(t, rc.followers[3].Stopped)
-	require.True(t, rc.followers[2].LastPullAt.IsZero())
-	require.True(t, rc.followers[3].LastPullAt.IsZero())
+	require.Equal(t, uint64(2), rc.lifecycle.version)
+	require.Zero(t, rc.lifecycle.followers[2].stoppedVersion)
+	require.Zero(t, rc.lifecycle.followers[3].stoppedVersion)
+	require.True(t, rc.lifecycle.followers[2].lastPullAt.IsZero())
+	require.True(t, rc.lifecycle.followers[3].lastPullAt.IsZero())
 }
 
 func appendQuorumEvent(meta ch.Meta, id uint64, payload string) Event {

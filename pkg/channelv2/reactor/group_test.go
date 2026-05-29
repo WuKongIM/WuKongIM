@@ -48,7 +48,7 @@ func TestObserverSeesPullHintSentAndDropped(t *testing.T) {
 	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs, AppendBatchMaxRecords: 1})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
-	rc.followers[2].Parked = true
+	rc.lifecycle.followers[2].parked = true
 
 	result := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, result.Err)
@@ -75,7 +75,7 @@ func TestObserverSeesFollowerStopped(t *testing.T) {
 	rc.state.HW = 3
 	rc.state.Progress[1] = machine.ReplicaProgress{Match: 3}
 	rc.state.Progress[2] = machine.ReplicaProgress{Match: 3}
-	rc.lifecycle.ActivityVersion = 3
+	rc.lifecycle.version = 3
 	r.syncLeaderFollowers(rc)
 
 	future := NewFuture()
@@ -106,7 +106,7 @@ func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
 	require.NoError(t, result.Err)
 	rc := r.channels[meta.Key]
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 
