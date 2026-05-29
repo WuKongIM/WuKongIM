@@ -15,7 +15,7 @@ func (r *Reactor) sendPullHintsForAppend(rc *runtimeChannel, now time.Time) {
 	}
 	r.syncFollowerMatches(rc)
 	for node, follower := range rc.lifecycle.followers {
-		if !r.followerNeedsImmediateProgress(rc, follower) {
+		if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) {
 			continue
 		}
 		r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonAppend, now)
@@ -32,7 +32,7 @@ func (r *Reactor) tickLeaderLifecycle(rc *runtimeChannel, now time.Time) {
 		if follower == nil || follower.hint.inflight || follower.hint.retryAt.IsZero() || now.Before(follower.hint.retryAt) {
 			continue
 		}
-		if !r.followerNeedsImmediateProgress(rc, follower) {
+		if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) {
 			follower.hint.retryAt = time.Time{}
 			continue
 		}
@@ -47,22 +47,10 @@ func (r *Reactor) resetPullHintLifecycle(rc *runtimeChannel) {
 	}
 	rc.lifecycle.pullHintInflight = nil
 	for _, follower := range rc.lifecycle.followers {
-		if follower == nil {
-			continue
+		if follower != nil {
+			follower.resetHint()
 		}
-		follower.lastHintVersion = 0
-		follower.pendingHintVersion = 0
-		follower.hint.inflight = false
-		follower.hint.opID = 0
-		follower.hint.retryAt = time.Time{}
 	}
-}
-
-func (r *Reactor) followerNeedsImmediateProgress(rc *runtimeChannel, follower *lifecycleFollower) bool {
-	if rc == nil || rc.state == nil || follower == nil || follower.match >= rc.state.LEO {
-		return false
-	}
-	return follower.parked || follower.stoppedVersion != 0 || follower.stopOfferedVersion != 0 || follower.stopOfferedZero || follower.lastPullAt.IsZero()
 }
 
 func (r *Reactor) leaderCanOfferStop(rc *runtimeChannel, now time.Time) bool {
@@ -230,15 +218,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
-	follower.hint.inflight = true
-	follower.hint.opID = opID
-	follower.hint.retryAt = time.Time{}
-	follower.lastHintVersion = version
-	follower.pendingHintVersion = 0
-	if rc.lifecycle.pullHintInflight == nil {
-		rc.lifecycle.pullHintInflight = make(map[ch.OpID]lifecyclePullHintInflight)
-	}
-	rc.lifecycle.pullHintInflight[opID] = lifecyclePullHintInflight{follower: node, version: version, reason: reason}
+	rc.lifecycle.beginPullHint(node, opID, version, reason)
 	r.observePullHintSent(rc.state.Key, node, reason)
 }
 
@@ -253,21 +233,17 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 		result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
 		return
 	}
-	inflight, ok := rc.lifecycle.pullHintInflight[result.Fence.OpID]
+	inflight, ok := rc.lifecycle.finishPullHint(result.Fence.OpID)
 	if !ok {
 		return
 	}
-	delete(rc.lifecycle.pullHintInflight, result.Fence.OpID)
 	follower := rc.lifecycle.followers[inflight.follower]
 	if follower == nil {
 		return
 	}
-	current := follower.hint.inflight && follower.hint.opID == result.Fence.OpID
-	if !current {
+	if follower.hint.inflight && follower.hint.opID != result.Fence.OpID {
 		return
 	}
-	follower.hint.inflight = false
-	follower.hint.opID = 0
 	now := time.Now()
 	if result.Err == nil {
 		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
@@ -275,7 +251,7 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 		return
 	}
 	r.observePullHintDropped(rc.state.Key, inflight.follower, result.Err)
-	if r.followerNeedsImmediateProgress(rc, follower) {
+	if rc.lifecycle.followerNeedsImmediateProgress(inflight.follower, rc.state.LEO) {
 		follower.pendingHintVersion = rc.lifecycle.version
 		follower.hint.retryAt = now.Add(r.cfg.PullHintRetryInterval)
 	}
@@ -286,7 +262,7 @@ func (r *Reactor) sendCurrentPullHintIfNeeded(rc *runtimeChannel, node ch.NodeID
 	if rc == nil || rc.state == nil || follower == nil || follower.lastHintVersion >= rc.lifecycle.version {
 		return
 	}
-	if !r.followerNeedsImmediateProgress(rc, follower) {
+	if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) {
 		follower.pendingHintVersion = 0
 		return
 	}
