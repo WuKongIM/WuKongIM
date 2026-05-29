@@ -168,6 +168,13 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveAppendLatency("local", 7*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("store_append", "ok", 11*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("rpc_pull", "ok", 13*time.Millisecond)
+	reg.ChannelV2.SetChannelRuntimeCount(2, "leader", 17)
+	reg.ChannelV2.ObserveChannelActivationRejected("max_channels")
+	reg.ChannelV2.SetFollowerParkedCount(2, 11)
+	reg.ChannelV2.ObserveFollowerRecoveryProbe("ok")
+	reg.ChannelV2.ObservePull("ok", true)
+	reg.ChannelV2.ObserveMetaCache("hit")
+	reg.ChannelV2.ObserveMetaCache("invalidate")
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -226,6 +233,66 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"result":    "ok",
 	})
 	require.Equal(t, float64(1), rpcPullTotal.GetMetric()[0].GetCounter().GetValue())
+
+	activeRuntimes := requireMetricFamily(t, families, "wukongim_channelv2_active_runtimes")
+	require.Len(t, activeRuntimes.GetMetric(), 1)
+	requireMetricLabels(t, activeRuntimes.GetMetric()[0], map[string]string{
+		"node_id":    "8",
+		"node_name":  "node-8",
+		"reactor_id": "2",
+		"role":       "leader",
+	})
+	require.Equal(t, float64(17), activeRuntimes.GetMetric()[0].GetGauge().GetValue())
+
+	activationRejected := requireMetricFamily(t, families, "wukongim_channelv2_activation_rejected_total")
+	require.Len(t, activationRejected.GetMetric(), 1)
+	requireMetricLabels(t, activationRejected.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "max_channels",
+	})
+	require.Equal(t, float64(1), activationRejected.GetMetric()[0].GetCounter().GetValue())
+
+	followerParked := requireMetricFamily(t, families, "wukongim_channelv2_follower_parked")
+	require.Len(t, followerParked.GetMetric(), 1)
+	requireMetricLabels(t, followerParked.GetMetric()[0], map[string]string{
+		"node_id":    "8",
+		"node_name":  "node-8",
+		"reactor_id": "2",
+	})
+	require.Equal(t, float64(11), followerParked.GetMetric()[0].GetGauge().GetValue())
+
+	recoveryProbe := requireMetricFamily(t, families, "wukongim_channelv2_recovery_probe_total")
+	require.Len(t, recoveryProbe.GetMetric(), 1)
+	requireMetricLabels(t, recoveryProbe.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "ok",
+	})
+	require.Equal(t, float64(1), recoveryProbe.GetMetric()[0].GetCounter().GetValue())
+
+	pullTotal := requireMetricFamily(t, families, "wukongim_channelv2_pull_total")
+	require.Len(t, pullTotal.GetMetric(), 1)
+	requireMetricLabels(t, pullTotal.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "ok",
+		"empty":     "true",
+	})
+	require.Equal(t, float64(1), pullTotal.GetMetric()[0].GetCounter().GetValue())
+
+	metaCache := requireMetricFamily(t, families, "wukongim_channelv2_meta_cache_total")
+	require.Len(t, metaCache.GetMetric(), 2)
+	findMetricByLabels(t, metaCache, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "hit",
+	})
+	findMetricByLabels(t, metaCache, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "invalidate",
+	})
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {

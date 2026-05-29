@@ -26,6 +26,11 @@ type storageCommitMetricsObserver struct {
 type multiChannelV2Observer []reactor.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
+// channelV2MetaCacheObserver receives ChannelV2 metadata cache observations.
+type channelV2MetaCacheObserver interface {
+	ObserveChannelMetaCache(result string)
+}
+
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
 	if o.metrics == nil {
 		return
@@ -102,6 +107,48 @@ func (o channelV2MetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	o.metrics.ChannelV2.SetWorkerQueueDepth(pool, depth)
+}
+
+func (o channelV2MetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetChannelRuntimeCount(reactorID, channelV2RoleLabel(role), count)
+}
+
+func (o channelV2MetricsObserver) ObserveChannelActivationRejected(reason string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveChannelActivationRejected(reason)
+}
+
+func (o channelV2MetricsObserver) SetFollowerParkedCount(reactorID int, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetFollowerParkedCount(reactorID, count)
+}
+
+func (o channelV2MetricsObserver) ObserveFollowerRecoveryProbe(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveFollowerRecoveryProbe(result)
+}
+
+func (o channelV2MetricsObserver) ObservePull(result string, empty bool) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePull(result, empty)
+}
+
+func (o channelV2MetricsObserver) ObserveChannelMetaCache(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveMetaCache(result)
 }
 
 func (o channelV2MetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
@@ -188,6 +235,60 @@ func (o multiChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
 	}
 }
 
+func (o multiChannelV2Observer) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+	for _, observer := range o {
+		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
+		if ok {
+			runtimeObserver.SetChannelRuntimeCount(reactorID, role, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveChannelActivationRejected(reason string) {
+	for _, observer := range o {
+		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
+		if ok {
+			runtimeObserver.ObserveChannelActivationRejected(reason)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetFollowerParkedCount(reactorID int, count int) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.SetFollowerParkedCount(reactorID, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveFollowerRecoveryProbe(result string) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.ObserveFollowerRecoveryProbe(result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePull(result string, empty bool) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.ObservePull(result, empty)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveChannelMetaCache(result string) {
+	for _, observer := range o {
+		metaCacheObserver, ok := observer.(channelV2MetaCacheObserver)
+		if ok {
+			metaCacheObserver.ObserveChannelMetaCache(result)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	for _, observer := range o {
 		observer.ObserveAppendBatch(records, bytes, wait)
@@ -254,9 +355,26 @@ func channelV2WorkerKindLabel(kind worker.TaskKind) string {
 	}
 }
 
+func channelV2RoleLabel(role ch.Role) string {
+	switch role {
+	case ch.RoleLeader:
+		return "leader"
+	case ch.RoleFollower:
+		return "follower"
+	default:
+		return "unknown"
+	}
+}
+
 var _ accessgateway.Observer = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
+var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
+var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
+var _ channelV2MetaCacheObserver = channelV2MetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
+var _ reactor.RuntimeObserver = multiChannelV2Observer{}
+var _ reactor.ReplicationObserver = multiChannelV2Observer{}
+var _ channelV2MetaCacheObserver = multiChannelV2Observer{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}

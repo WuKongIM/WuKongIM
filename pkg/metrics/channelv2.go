@@ -12,14 +12,20 @@ var channelV2AppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 6553
 var channelV2DurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
 
 type ChannelV2Metrics struct {
-	reactorMailboxDepth *prometheus.GaugeVec
-	workerQueueDepth    *prometheus.GaugeVec
-	appendBatchRecords  prometheus.Histogram
-	appendBatchBytes    prometheus.Histogram
-	appendBatchWait     prometheus.Histogram
-	appendDuration      *prometheus.HistogramVec
-	workerTaskDuration  *prometheus.HistogramVec
-	rpcPullTotal        *prometheus.CounterVec
+	reactorMailboxDepth     *prometheus.GaugeVec
+	workerQueueDepth        *prometheus.GaugeVec
+	activeRuntimes          *prometheus.GaugeVec
+	activationRejectedTotal *prometheus.CounterVec
+	followerParked          *prometheus.GaugeVec
+	recoveryProbeTotal      *prometheus.CounterVec
+	pullTotal               *prometheus.CounterVec
+	metaCacheTotal          *prometheus.CounterVec
+	appendBatchRecords      prometheus.Histogram
+	appendBatchBytes        prometheus.Histogram
+	appendBatchWait         prometheus.Histogram
+	appendDuration          *prometheus.HistogramVec
+	workerTaskDuration      *prometheus.HistogramVec
+	rpcPullTotal            *prometheus.CounterVec
 }
 
 func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelV2Metrics {
@@ -34,6 +40,36 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Number of pending tasks in each ChannelV2 worker pool.",
 			ConstLabels: labels,
 		}, []string{"pool"}),
+		activeRuntimes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_active_runtimes",
+			Help:        "Number of active ChannelV2 runtimes by reactor and local role.",
+			ConstLabels: labels,
+		}, []string{"reactor_id", "role"}),
+		activationRejectedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_activation_rejected_total",
+			Help:        "Total ChannelV2 runtime activation rejections by reason.",
+			ConstLabels: labels,
+		}, []string{"reason"}),
+		followerParked: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_follower_parked",
+			Help:        "Number of parked ChannelV2 follower runtimes by reactor.",
+			ConstLabels: labels,
+		}, []string{"reactor_id"}),
+		recoveryProbeTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_recovery_probe_total",
+			Help:        "Total ChannelV2 follower recovery probes by result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		pullTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_pull_total",
+			Help:        "Total ChannelV2 follower pulls by result and empty response status.",
+			ConstLabels: labels,
+		}, []string{"result", "empty"}),
+		metaCacheTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_meta_cache_total",
+			Help:        "Total ChannelV2 metadata cache events by result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
 		appendBatchRecords: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_append_batch_records",
 			Help:        "Number of records collected into each ChannelV2 append batch.",
@@ -74,6 +110,12 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 	registry.MustRegister(
 		m.reactorMailboxDepth,
 		m.workerQueueDepth,
+		m.activeRuntimes,
+		m.activationRejectedTotal,
+		m.followerParked,
+		m.recoveryProbeTotal,
+		m.pullTotal,
+		m.metaCacheTotal,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
 		m.appendBatchWait,
@@ -97,6 +139,48 @@ func (m *ChannelV2Metrics) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	m.workerQueueDepth.WithLabelValues(pool).Set(float64(depth))
+}
+
+func (m *ChannelV2Metrics) SetChannelRuntimeCount(reactorID int, role string, count int) {
+	if m == nil {
+		return
+	}
+	m.activeRuntimes.WithLabelValues(strconv.Itoa(reactorID), role).Set(float64(count))
+}
+
+func (m *ChannelV2Metrics) ObserveChannelActivationRejected(reason string) {
+	if m == nil {
+		return
+	}
+	m.activationRejectedTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *ChannelV2Metrics) SetFollowerParkedCount(reactorID int, count int) {
+	if m == nil {
+		return
+	}
+	m.followerParked.WithLabelValues(strconv.Itoa(reactorID)).Set(float64(count))
+}
+
+func (m *ChannelV2Metrics) ObserveFollowerRecoveryProbe(result string) {
+	if m == nil {
+		return
+	}
+	m.recoveryProbeTotal.WithLabelValues(result).Inc()
+}
+
+func (m *ChannelV2Metrics) ObservePull(result string, empty bool) {
+	if m == nil {
+		return
+	}
+	m.pullTotal.WithLabelValues(result, strconv.FormatBool(empty)).Inc()
+}
+
+func (m *ChannelV2Metrics) ObserveMetaCache(result string) {
+	if m == nil {
+		return
+	}
+	m.metaCacheTotal.WithLabelValues(result).Inc()
 }
 
 func (m *ChannelV2Metrics) ObserveAppendBatch(records int, bytes int, wait time.Duration) {

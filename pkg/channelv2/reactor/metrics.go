@@ -17,6 +17,19 @@ type Observer interface {
 	ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration)
 }
 
+// RuntimeObserver receives low-cardinality active-runtime metrics.
+type RuntimeObserver interface {
+	SetChannelRuntimeCount(reactorID int, role ch.Role, count int)
+	ObserveChannelActivationRejected(reason string)
+}
+
+// ReplicationObserver receives follower replication scheduling metrics.
+type ReplicationObserver interface {
+	SetFollowerParkedCount(reactorID int, count int)
+	ObserveFollowerRecoveryProbe(result string)
+	ObservePull(result string, empty bool)
+}
+
 // LifecycleObserver receives optional leader runtime lifecycle events.
 type LifecycleObserver interface {
 	ObserveChannelRuntimeLoaded(key ch.ChannelKey)
@@ -73,6 +86,36 @@ func (r *Reactor) observeAppendBatch(batch appendBatch, now time.Time) {
 
 func (r *Reactor) observeMailboxDepth(priority Priority) {
 	r.cfg.Observer.SetReactorMailboxDepth(r.cfg.ID, priorityName(priority), r.mailbox.Depth(priority))
+}
+
+func (r *Reactor) observeRuntimeCount(role ch.Role, count int) {
+	if observer, ok := r.cfg.Observer.(RuntimeObserver); ok {
+		observer.SetChannelRuntimeCount(r.cfg.ID, role, count)
+	}
+}
+
+func (r *Reactor) observeActivationRejected(reason string) {
+	if observer, ok := r.cfg.Observer.(RuntimeObserver); ok {
+		observer.ObserveChannelActivationRejected(reason)
+	}
+}
+
+func (r *Reactor) observeFollowerParkedCount(count int) {
+	if observer, ok := r.cfg.Observer.(ReplicationObserver); ok {
+		observer.SetFollowerParkedCount(r.cfg.ID, count)
+	}
+}
+
+func (r *Reactor) observeRecoveryProbe(result string) {
+	if observer, ok := r.cfg.Observer.(ReplicationObserver); ok {
+		observer.ObserveFollowerRecoveryProbe(result)
+	}
+}
+
+func (r *Reactor) observePull(result string, empty bool) {
+	if observer, ok := r.cfg.Observer.(ReplicationObserver); ok {
+		observer.ObservePull(result, empty)
+	}
 }
 
 func (r *Reactor) observeChannelRuntimeLoaded(key ch.ChannelKey) {
