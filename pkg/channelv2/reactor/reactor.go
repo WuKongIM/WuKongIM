@@ -35,7 +35,7 @@ type ReactorConfig struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration
@@ -340,6 +340,16 @@ func (r *Reactor) handlePullHint(event Event) {
 		rc.replication.cancelStopping()
 		rc.runtimeLifecycle.FollowerPhase = FollowerLifecycleReplicating
 		rc.replication.lastActivityVersion = req.ActivityVersion
+	}
+	if req.LeaderLEO <= rc.state.LEO {
+		rc.replication.hintedLeaderLEO = 0
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
+	if req.LeaderLEO > rc.replication.hintedLeaderLEO {
+		rc.replication.hintedLeaderLEO = req.LeaderLEO
 	}
 	rc.replication.parked = false
 	rc.replication.nextPullAfter = 0

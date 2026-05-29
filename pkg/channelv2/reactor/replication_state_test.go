@@ -260,12 +260,14 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	require.Equal(t, 1, net.PullCalls())
 }
 
-func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesImmediately(t *testing.T) {
+func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesAfterBackoff(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("empty-pull-hw")
 	r := NewReactor(ReactorConfig{
 		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
 		ReplicationIdlePollInterval: time.Hour,
+		ReplicationMinBackoff:       25 * time.Millisecond,
+		ReplicationMaxBackoff:       25 * time.Millisecond,
 	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
@@ -296,11 +298,11 @@ func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesImmediately(t *t
 	require.False(t, rc.replication.ackInflight)
 	require.False(t, rc.replication.pendingAck)
 	require.False(t, rc.replication.nextPullAt.IsZero())
-	require.False(t, rc.replication.nextPullAt.Before(before))
-	require.True(t, rc.replication.nextPullAt.Before(after.Add(time.Second)))
+	require.False(t, rc.replication.nextPullAt.Before(before.Add(20*time.Millisecond)))
+	require.True(t, rc.replication.nextPullAt.Before(after.Add(100*time.Millisecond)))
 }
 
-func TestFollowerEmptyPullWithLeaderLEOAheadAndZeroDelayRetriesImmediately(t *testing.T) {
+func TestFollowerEmptyPullWithLeaderLEOAheadAndZeroDelayRetriesAfterBackoff(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("empty-pull-zero-delay")
 	r := NewReactor(ReactorConfig{
@@ -689,9 +691,86 @@ func TestPullHintDuringInflightPullPreventsOldEmptyResponseParking(t *testing.T)
 		}},
 	})
 
-	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.Equal(t, 0, net.PullCalls())
 	require.False(t, rc.replication.parked)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: rc.replication.nextPullAt.Add(time.Millisecond), Future: NewFuture()})
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 	require.True(t, rc.replication.pullInflight)
+}
+
+func TestFollowerStaleEmptyPullWithoutLeaderLEOAheadParks(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("stale-empty-without-leader-ahead")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+	rc.replication.dirty = true
+	rc.replication.lastActivityVersion = 2
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        0,
+			LeaderLEO:       0,
+			ActivityVersion: 1,
+			NextPullAfter:   time.Hour,
+			Control:         transport.PullControlContinue,
+		}},
+	})
+
+	require.False(t, rc.replication.dirty)
+	require.True(t, rc.replication.parked)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.True(t, rc.replication.nextPullAt.After(time.Now().Add(30*time.Minute)))
+}
+
+func TestFollowerIgnoresCaughtUpPullHint(t *testing.T) {
+	net := newCapturingTransport()
+	meta := followerTestMeta("caught-up-hint")
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 5
+	rc.state.HW = 5
+	rc.replication.dirty = false
+	rc.replication.parked = true
+	rc.replication.nextPullAt = time.Now().Add(time.Hour)
+
+	future := NewFuture()
+	r.handlePullHint(Event{
+		Kind:   EventPullHint,
+		Key:    meta.Key,
+		Future: future,
+		PullHint: transport.PullHintRequest{
+			ChannelKey:      meta.Key,
+			ChannelID:       meta.ID,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			Leader:          meta.Leader,
+			LeaderLEO:       5,
+			ActivityVersion: 6,
+			Reason:          transport.PullHintReasonAppend,
+		},
+	})
+
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Equal(t, 0, net.PullCalls())
+	require.False(t, rc.replication.dirty)
+	require.True(t, rc.replication.parked)
 }
 
 func TestFollowerPullHintInterruptsParked(t *testing.T) {

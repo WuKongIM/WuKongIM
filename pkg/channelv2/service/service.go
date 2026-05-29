@@ -19,7 +19,7 @@ type Config struct {
 	Transport    transport.Client
 	// MetaResolver lazily loads authoritative metadata for PullHint follower activation.
 	MetaResolver ch.MetaResolver
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration

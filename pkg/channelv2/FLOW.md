@@ -108,6 +108,12 @@ Follower phases:
 - `StopAcking`: the checkpoint succeeded and the follower is sending or
   retrying the stopped ACK before unloading runtime state.
 
+Follower pull hints are only used to wake followers that still trail the hinted
+leader LEO. If an empty pull observes newer leader activity without records, the
+follower schedules a short retry instead of recursively pulling in the same
+reactor turn; this prevents stale hint bursts from turning into empty-pull
+storms under write pressure.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Unloaded

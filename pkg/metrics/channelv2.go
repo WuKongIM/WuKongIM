@@ -19,6 +19,7 @@ type ChannelV2Metrics struct {
 	appendBatchWait     prometheus.Histogram
 	appendDuration      *prometheus.HistogramVec
 	workerTaskDuration  *prometheus.HistogramVec
+	rpcPullTotal        *prometheus.CounterVec
 }
 
 func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelV2Metrics {
@@ -63,6 +64,11 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"kind", "result"}),
+		rpcPullTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_rpc_pull_total",
+			Help:        "Total ChannelV2 follower RPC pull tasks by result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -73,6 +79,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.appendBatchWait,
 		m.appendDuration,
 		m.workerTaskDuration,
+		m.rpcPullTotal,
 	)
 
 	return m
@@ -113,4 +120,7 @@ func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d tim
 		return
 	}
 	m.workerTaskDuration.WithLabelValues(kind, result).Observe(d.Seconds())
+	if kind == "rpc_pull" {
+		m.rpcPullTotal.WithLabelValues(result).Inc()
+	}
 }
