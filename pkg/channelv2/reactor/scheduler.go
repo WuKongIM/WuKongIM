@@ -149,12 +149,12 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 		if item.version != rc.replicationDueVersion {
 			return
 		}
-		r.tickReplication(rc, now)
+		r.tickFollowerReplication(rc, now)
 	case dueLifecycle:
 		if item.version != rc.lifecycleDueVersion {
 			return
 		}
-		r.tickLifecycle(rc, now)
+		r.tickLeaderLifecycle(rc, now)
 	}
 }
 

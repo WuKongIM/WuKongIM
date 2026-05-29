@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
+func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive {
 		return
 	}
@@ -183,9 +183,9 @@ func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
 	rc.replication.nextStopEvictAt = now.Add(r.cfg.IdleEvictCheckInterval)
 }
 
-// handleNotify accepts the legacy transport compatibility nudge and maps it to
+// handleLegacyFollowerNotify accepts the legacy transport compatibility nudge and maps it to
 // the current PullHint-driven follower resume path.
-func (r *Reactor) handleNotify(event Event) {
+func (r *Reactor) handleLegacyFollowerNotify(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
 		if event.Future != nil {
@@ -204,7 +204,7 @@ func (r *Reactor) handleNotify(event Event) {
 	}
 	now := time.Now()
 	rc.replication.markDirty(now)
-	r.tickReplication(rc, now)
+	r.tickFollowerReplication(rc, now)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -238,7 +238,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	rc.replication.backoff = 0
 	if resp.Control == transport.PullControlStop && resp.ActivityVersion < rc.replication.lastActivityVersion {
 		rc.replication.markDirty(now)
-		r.tickReplication(rc, now)
+		r.tickFollowerReplication(rc, now)
 		return
 	}
 	if resp.ActivityVersion > rc.replication.lastActivityVersion {
@@ -301,7 +301,7 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 	}, view, r.lifecycleConfig())
 	if !decisionHasAction(decision, LifecycleActionStartFollowerStopCheckpoint) {
 		rc.replication.markDirty(now)
-		r.tickReplication(rc, now)
+		r.tickFollowerReplication(rc, now)
 		return
 	}
 	rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
@@ -374,7 +374,7 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 			rc.replication.backoff = 0
 			rc.replication.lastError = result.Err
 			rc.replication.markDirty(now)
-			r.tickReplication(rc, now)
+			r.tickFollowerReplication(rc, now)
 			r.scheduleReplicationFromState(rc, now)
 			return
 		}
