@@ -7,6 +7,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,6 +71,52 @@ func TestLifecycleFollowerVersionPredicates(t *testing.T) {
 	require.False(t, follower.stopped(8))
 	require.True(t, follower.caughtUp(7))
 	require.False(t, follower.caughtUp(8))
+}
+
+func TestLifecycleControllerLeaderFollowerStopVersioning(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := newChannelRuntimeLifecycle(now, 3)
+	lc.followers[2] = &lifecycleFollower{match: 3}
+
+	lc.offerStop(2)
+
+	require.True(t, lc.followers[2].stopOffered(3))
+	require.False(t, lc.markFollowerStopped(2, 2, 3))
+	require.False(t, lc.followers[2].stopped(3))
+	require.True(t, lc.markFollowerStopped(2, 3, 3))
+	require.True(t, lc.followers[2].stopped(3))
+
+	lc.markAppend(now.Add(time.Second), 4)
+
+	require.False(t, lc.followers[2].stopOffered(4))
+	require.False(t, lc.followers[2].stopped(4))
+}
+
+func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := newChannelRuntimeLifecycle(now, 7)
+	lc.followers[2] = &lifecycleFollower{match: 3}
+
+	lc.recordFollowerPull(2, 4, 7, now)
+	require.False(t, lc.followerNeedsImmediateProgress(2, 7))
+
+	lc.followers[2].parked = true
+	require.True(t, lc.followerNeedsImmediateProgress(2, 7))
+
+	opID := ch.OpID(11)
+	lc.beginPullHint(2, opID, 7, transport.PullHintReasonAppend)
+	require.True(t, lc.followers[2].hint.inflight)
+	require.Equal(t, uint64(7), lc.followers[2].lastHintVersion)
+
+	inflight, ok := lc.finishPullHint(opID)
+	require.True(t, ok)
+	require.Equal(t, ch.NodeID(2), inflight.follower)
+	require.False(t, lc.followers[2].hint.inflight)
+
+	lc.beginPullHint(2, ch.OpID(12), 8, transport.PullHintReasonResume)
+	lc.retirePullHints(2)
+	require.Empty(t, lc.pullHintInflight)
+	require.False(t, lc.followers[2].hint.active())
 }
 
 func TestLifecycleZeroVersionStoppedAckVisibleInRuntimeView(t *testing.T) {

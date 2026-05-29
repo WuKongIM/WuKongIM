@@ -156,6 +156,156 @@ func (lc *channelRuntimeLifecycle) markAppend(now time.Time, version uint64) {
 	}
 }
 
+// offerStop records that the leader offered PullControlStop to a follower.
+func (lc *channelRuntimeLifecycle) offerStop(node ch.NodeID) {
+	if lc == nil {
+		return
+	}
+	follower := lc.followers[node]
+	if follower == nil {
+		return
+	}
+	follower.stopOfferedVersion = lc.version
+	follower.stopOfferedZero = lc.version == 0
+}
+
+// markFollowerStopped accepts a stopped ACK when it matches the current offer version.
+func (lc *channelRuntimeLifecycle) markFollowerStopped(node ch.NodeID, version, match uint64) bool {
+	if lc == nil || version != lc.version {
+		return false
+	}
+	follower := lc.followers[node]
+	if follower == nil {
+		return false
+	}
+	if (follower.stopOfferedZero || follower.stopOfferedVersion != 0) && !follower.stopOffered(version) {
+		return false
+	}
+	wasStopped := follower.stopped(version)
+	follower.stoppedZero = version == 0
+	follower.stoppedVersion = version
+	follower.parked = false
+	if match > follower.match {
+		follower.match = match
+	}
+	lc.retirePullHints(node)
+	return !wasStopped
+}
+
+// recordFollowerPull updates leader-visible state after observing a follower pull.
+func (lc *channelRuntimeLifecycle) recordFollowerPull(node ch.NodeID, nextOffset, leo uint64, now time.Time) {
+	if lc == nil {
+		return
+	}
+	follower := lc.followers[node]
+	if follower == nil {
+		return
+	}
+	follower.lastPullAt = now
+	follower.parked = false
+	follower.stoppedZero = false
+	follower.stoppedVersion = 0
+	follower.nextExpectedPullAt = time.Time{}
+	lc.retirePullHints(node)
+	if nextOffset == 0 || nextOffset > leo+1 {
+		return
+	}
+	match := nextOffset - 1
+	if match > follower.match {
+		follower.match = match
+	}
+}
+
+// recordFollowerProgress advances leader-visible follower progress from ACK state.
+func (lc *channelRuntimeLifecycle) recordFollowerProgress(node ch.NodeID, match, leaderLEO uint64) {
+	if lc == nil {
+		return
+	}
+	follower := lc.followers[node]
+	if follower == nil {
+		return
+	}
+	if match > follower.match {
+		follower.match = match
+	}
+	if follower.match >= leaderLEO {
+		lc.retirePullHints(node)
+	}
+}
+
+// followerNeedsImmediateProgress reports whether a trailing follower should be woken now.
+func (lc *channelRuntimeLifecycle) followerNeedsImmediateProgress(node ch.NodeID, leaderLEO uint64) bool {
+	if lc == nil {
+		return false
+	}
+	follower := lc.followers[node]
+	if follower == nil || follower.match >= leaderLEO {
+		return false
+	}
+	return follower.parked ||
+		follower.stoppedZero ||
+		follower.stoppedVersion != 0 ||
+		follower.stopOfferedZero ||
+		follower.stopOfferedVersion != 0 ||
+		follower.lastPullAt.IsZero()
+}
+
+// beginPullHint records an inflight PullHint worker operation.
+func (lc *channelRuntimeLifecycle) beginPullHint(node ch.NodeID, opID ch.OpID, version uint64, reason transport.PullHintReason) {
+	if lc == nil {
+		return
+	}
+	follower := lc.followers[node]
+	if follower == nil {
+		return
+	}
+	follower.hint.inflight = true
+	follower.hint.opID = opID
+	follower.hint.retryAt = time.Time{}
+	follower.lastHintVersion = version
+	follower.pendingHintVersion = 0
+	if lc.pullHintInflight == nil {
+		lc.pullHintInflight = make(map[ch.OpID]lifecyclePullHintInflight)
+	}
+	lc.pullHintInflight[opID] = lifecyclePullHintInflight{follower: node, version: version, reason: reason}
+}
+
+// finishPullHint retires a PullHint worker operation and clears current inflight state.
+func (lc *channelRuntimeLifecycle) finishPullHint(opID ch.OpID) (lifecyclePullHintInflight, bool) {
+	if lc == nil {
+		return lifecyclePullHintInflight{}, false
+	}
+	inflight, ok := lc.pullHintInflight[opID]
+	if !ok {
+		return lifecyclePullHintInflight{}, false
+	}
+	delete(lc.pullHintInflight, opID)
+	follower := lc.followers[inflight.follower]
+	if follower != nil && follower.hint.inflight && follower.hint.opID == opID {
+		follower.hint.inflight = false
+		follower.hint.opID = 0
+	}
+	return inflight, true
+}
+
+// retirePullHints clears obsolete PullHint state for a follower.
+func (lc *channelRuntimeLifecycle) retirePullHints(node ch.NodeID) {
+	if lc == nil {
+		return
+	}
+	for opID, inflight := range lc.pullHintInflight {
+		if inflight.follower == node {
+			delete(lc.pullHintInflight, opID)
+		}
+	}
+	if follower := lc.followers[node]; follower != nil {
+		follower.hint.inflight = false
+		follower.hint.opID = 0
+		follower.pendingHintVersion = 0
+		follower.hint.retryAt = time.Time{}
+	}
+}
+
 func (lc *channelRuntimeLifecycle) resetForMeta(now time.Time, version uint64) {
 	if lc == nil {
 		return

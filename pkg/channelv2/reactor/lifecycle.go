@@ -44,17 +44,7 @@ func retireFollowerPullHints(rc *runtimeChannel, node ch.NodeID) {
 	if rc == nil {
 		return
 	}
-	for opID, inflight := range rc.lifecycle.pullHintInflight {
-		if inflight.follower == node {
-			delete(rc.lifecycle.pullHintInflight, opID)
-		}
-	}
-	if follower := rc.lifecycle.followers[node]; follower != nil {
-		follower.hint.inflight = false
-		follower.hint.opID = 0
-		follower.pendingHintVersion = 0
-		follower.hint.retryAt = time.Time{}
-	}
+	rc.lifecycle.retirePullHints(node)
 }
 
 func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
