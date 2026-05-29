@@ -368,6 +368,9 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 	})
 
 	require.Equal(t, lifecycleFollowerCheckpointing, rc.lifecycle.stage)
+	require.True(t, rc.lifecycle.followerStop.accepted)
+	require.Equal(t, uint64(3), rc.lifecycle.followerStop.version)
+	require.True(t, rc.lifecycle.checkpoint.inflight)
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Contains(t, r.channels, meta.Key)
 
@@ -449,11 +452,10 @@ func TestFollowerStoppedAckStillUsesStandaloneAck(t *testing.T) {
 	rc := r.channels[meta.Key]
 	rc.state.LEO = 1
 	rc.state.HW = 1
-	rc.replication.stopping = true
-	rc.replication.stopActivityVersion = 1
-	rc.replication.deleteAfterStoppedAck = true
-	rc.replication.checkpointInflight = true
-	rc.replication.checkpointOpID = 7
+	rc.lifecycle.acceptFollowerStop(1, 1, 1)
+	rc.lifecycle.checkpoint.inflight = true
+	rc.lifecycle.checkpoint.opID = 7
+	rc.lifecycle.checkpoint.version = 1
 	rc.lifecycle.stage = lifecycleFollowerCheckpointing
 
 	r.handleStoreCheckpointResult(worker.Result{
@@ -543,7 +545,9 @@ func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
 	firstAck := sink.awaitResultKind(t, worker.TaskRPCAck)
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: firstAck})
 	require.Contains(t, r.channels, meta.Key)
-	require.True(t, rc.replication.pendingAck)
+	require.False(t, rc.replication.pendingAck)
+	require.Equal(t, lifecycleFollowerStoppedAcking, rc.lifecycle.stage)
+	require.False(t, rc.lifecycle.stoppedAck.retryAt.IsZero())
 
 	net.SetAckError(nil)
 	r.tickFollowerReplication(rc, time.Now().Add(time.Second))
@@ -593,8 +597,9 @@ func TestStoppedAckStaleMetaCancelsStopAndPullsImmediately(t *testing.T) {
 
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
 	require.Contains(t, r.channels, meta.Key)
-	require.False(t, rc.replication.stopping)
+	require.False(t, rc.lifecycle.followerStop.accepted)
 	require.False(t, rc.replication.pendingAck)
+	r.tickFollowerReplication(rc, time.Now())
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 	require.Equal(t, 1, net.AckCalls())
 }

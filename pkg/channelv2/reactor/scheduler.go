@@ -212,7 +212,8 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		return time.Time{}, false
 	}
 	replication := rc.replication
-	if replication.ackInflight || replication.pullInflight || replication.applyOpID != 0 || replication.checkpointInflight {
+	if replication.ackInflight || replication.pullInflight || replication.applyOpID != 0 ||
+		rc.lifecycle.checkpoint.inflight || rc.lifecycle.stoppedAck.inflight {
 		return time.Time{}, false
 	}
 	if replication.pendingAck {
@@ -221,15 +222,24 @@ func (r *Reactor) nextReplicationDue(rc *runtimeChannel, now time.Time) (time.Ti
 		}
 		return now, true
 	}
-	if replication.stopping {
-		if replication.stopAcked {
-			if !replication.nextStopEvictAt.IsZero() {
-				return replication.nextStopEvictAt, true
+	if rc.lifecycle.stage == lifecycleFollowerReadyToEvict {
+		if !rc.lifecycle.finalCheck.retryAt.IsZero() {
+			return rc.lifecycle.finalCheck.retryAt, true
+		}
+		return now, true
+	}
+	if rc.lifecycle.followerStop.accepted {
+		if rc.lifecycle.stage == lifecycleFollowerCheckpointing {
+			if !rc.lifecycle.checkpoint.retryAt.IsZero() {
+				return rc.lifecycle.checkpoint.retryAt, true
 			}
 			return now, true
 		}
-		if !replication.nextCheckpointAt.IsZero() {
-			return replication.nextCheckpointAt, true
+		if rc.lifecycle.stage == lifecycleFollowerStoppedAcking {
+			if !rc.lifecycle.stoppedAck.retryAt.IsZero() {
+				return rc.lifecycle.stoppedAck.retryAt, true
+			}
+			return now, true
 		}
 		return now, true
 	}

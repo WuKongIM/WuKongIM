@@ -305,32 +305,41 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		}
 		return
 	}
+	if rc.lifecycle.followerStop.accepted &&
+		rc.lifecycle.checkpoint.inflight &&
+		result.Fence.OpID == rc.lifecycle.checkpoint.opID &&
+		result.Fence.Generation == rc.state.Generation &&
+		result.Fence.Epoch == rc.state.Epoch &&
+		result.Fence.LeaderEpoch == rc.state.LeaderEpoch {
+		r.handleFollowerStopCheckpointResult(rc, result)
+		return
+	}
 	if rc.lifecycle.checkpoint.inflight && result.Fence.OpID == rc.lifecycle.checkpoint.opID {
 		r.handleLeaderCheckpointResult(rc, result)
 		return
 	}
-	if !rc.replication.stopping || !rc.replication.checkpointInflight || result.Fence.OpID != rc.replication.checkpointOpID {
-		return
-	}
-	rc.replication.checkpointInflight = false
-	rc.replication.checkpointOpID = 0
+}
+
+func (r *Reactor) handleFollowerStopCheckpointResult(rc *runtimeChannel, result worker.Result) {
 	now := time.Now()
-	err = result.Err
+	rc.lifecycle.checkpoint.inflight = false
+	rc.lifecycle.checkpoint.opID = 0
+	err := result.Err
 	if err == nil && result.StoreCheckpoint == nil {
 		err = ch.ErrInvalidConfig
 	}
 	if err != nil {
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
-		rc.replication.nextCheckpointAt = now.Add(rc.replication.backoff)
+		rc.lifecycle.checkpoint.retryAt = now.Add(rc.replication.backoff)
 		rc.replication.lastError = err
 		r.scheduleReplicationFromState(rc, now)
 		return
 	}
 	rc.replication.backoff = 0
-	rc.replication.nextCheckpointAt = time.Time{}
 	rc.replication.lastError = nil
+	rc.lifecycle.checkpoint.retryAt = time.Time{}
 	rc.lifecycle.stage = lifecycleFollowerStoppedAcking
-	r.submitAckPayload(rc, rc.state.LEO, true, rc.replication.stopActivityVersion, now)
+	r.trySubmitStoppedAck(rc, now)
 	r.scheduleReplicationFromState(rc, now)
 }
 
