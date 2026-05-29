@@ -124,6 +124,18 @@ follower schedules a short retry instead of recursively pulling in the same
 reactor turn; this prevents stale hint bursts from turning into empty-pull
 storms under write pressure.
 
+## 10k Live Channel Runtime Rules
+
+ChannelV2 can bound loaded local runtimes with `MaxChannels`. A limit of `0`
+keeps unlimited behavior. Capacity checks happen before opening a new
+channel-scoped store handle; metadata updates for already loaded runtimes remain
+allowed at capacity.
+
+Caught-up followers park instead of polling the leader on a short idle interval.
+The leader wakes followers with PullHint on new activity, while followers keep a
+low-frequency jittered recovery probe so a lost hint cannot leave a channel
+stale forever.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Unloaded
