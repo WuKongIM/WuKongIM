@@ -284,13 +284,13 @@ func (r *Reactor) handle(event Event) {
 	case EventCancelWaiter:
 		r.handleCancelWaiter(event)
 	case EventPull:
-		r.handlePull(event)
+		r.handleLeaderPull(event)
 	case EventAck:
-		r.handleAck(event)
+		r.handleLeaderAck(event)
 	case EventNotify:
-		r.handleNotify(event)
+		r.handleLegacyFollowerNotify(event)
 	case EventPullHint:
-		r.handlePullHint(event)
+		r.handleFollowerPullHint(event)
 	case EventLeaderEvictReady:
 		r.handleLeaderEvictReady(event)
 	case EventWorkerResult:
@@ -304,7 +304,7 @@ func (r *Reactor) handle(event Event) {
 	r.sweepPullCancellations()
 }
 
-func (r *Reactor) handlePullHint(event Event) {
+func (r *Reactor) handleFollowerPullHint(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
 		if event.Future != nil {
@@ -354,7 +354,7 @@ func (r *Reactor) handlePullHint(event Event) {
 	rc.replication.parked = false
 	rc.replication.nextPullAfter = 0
 	rc.replication.markDirty(now)
-	r.tickReplication(rc, now)
+	r.tickFollowerReplication(rc, now)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -388,8 +388,8 @@ func (r *Reactor) handleTick(event Event) {
 	if event.Key != "" {
 		if rc := r.channels[event.Key]; rc != nil {
 			r.tryFlushAppend(rc, now)
-			r.tickReplication(rc, now)
-			r.tickLifecycle(rc, now)
+			r.tickFollowerReplication(rc, now)
+			r.tickLeaderLifecycle(rc, now)
 		}
 	}
 	if event.Future != nil {
@@ -681,7 +681,7 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 	}
 }
 
-func (r *Reactor) handlePull(event Event) {
+func (r *Reactor) handleLeaderPull(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
@@ -777,7 +777,7 @@ func leaderPullReadRange(rc *runtimeChannel, nextOffset uint64) (maxOffset uint6
 	return rc.state.LEO, false
 }
 
-func (r *Reactor) handleAck(event Event) {
+func (r *Reactor) handleLeaderAck(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})

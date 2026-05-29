@@ -79,7 +79,7 @@ func TestObserverSeesFollowerStopped(t *testing.T) {
 	r.syncLeaderFollowers(rc)
 
 	future := NewFuture()
-	r.handleAck(Event{
+	r.handleLeaderAck(Event{
 		Kind: EventAck, Key: meta.Key, Future: future,
 		Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, MatchOffset: 3, ActivityVersion: 3, Stopped: true},
 	})
@@ -106,7 +106,7 @@ func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
 	require.NoError(t, result.Err)
 	rc := r.channels[meta.Key]
 
-	r.tickLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
+	r.tickLeaderLifecycle(rc, rc.lifecycle.LastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 

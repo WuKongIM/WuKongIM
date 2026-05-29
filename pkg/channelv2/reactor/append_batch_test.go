@@ -779,7 +779,7 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	rc.lifecycle.ActivityVersion = 3
 	require.NotNil(t, rc.followers[2])
 	staleFuture := NewFuture()
-	r.handleAck(Event{
+	r.handleLeaderAck(Event{
 		Kind:   EventAck,
 		Key:    meta.Key,
 		Future: staleFuture,
@@ -796,7 +796,7 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	require.Zero(t, rc.followers[2].StopAckVersion)
 
 	laggingFuture := NewFuture()
-	r.handleAck(Event{
+	r.handleLeaderAck(Event{
 		Kind:   EventAck,
 		Key:    meta.Key,
 		Future: laggingFuture,
@@ -813,7 +813,7 @@ func TestLeaderStoppedAckRequiresCurrentActivityVersionAndMatchAtLEO(t *testing.
 	require.Zero(t, rc.followers[2].StopAckVersion)
 
 	currentFuture := NewFuture()
-	r.handleAck(Event{
+	r.handleLeaderAck(Event{
 		Kind:   EventAck,
 		Key:    meta.Key,
 		Future: currentFuture,
@@ -883,7 +883,7 @@ func TestAppendAfterZeroVersionStopOfferSendsPullHintImmediately(t *testing.T) {
 	r.syncLeaderFollowers(rc)
 
 	pullFuture := NewFuture()
-	r.handlePull(Event{
+	r.handleLeaderPull(Event{
 		Kind:    EventPull,
 		Key:     meta.Key,
 		Future:  pullFuture,
