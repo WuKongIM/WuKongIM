@@ -12,9 +12,8 @@ single node is a single-node cluster, not a bypass around replication logic.
 
 Loaded channel runtimes store lifecycle state in `channelRuntimeLifecycle`.
 That state owns runtime stop, checkpoint, leader-visible follower, and pull-hint
-inflight bookkeeping. During the lifecycle-controller migration,
-`runtimeLifecycle` remains as the old pure transition adapter for selected
-decisions, not as the runtime state owner.
+inflight bookkeeping. Lifecycle events are planned through small controller
+actions and applied by the owning reactor.
 
 ## Event Domains
 

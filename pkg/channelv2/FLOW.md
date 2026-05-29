@@ -85,10 +85,9 @@ append replies.
 `Unloaded` is represented by absence from the owning reactor's `channels` map.
 Loaded runtimes hold `machine.ChannelState`, `appendQueue`, `replicationState`,
 and `channelRuntimeLifecycle`. The runtime lifecycle owns stop, checkpoint,
-leader-visible follower, and pull-hint inflight state for the loaded channel.
-During the lifecycle-controller migration, `runtimeLifecycle` remains only as
-the old pure transition adapter used by selected decisions; it is not the
-runtime state owner. Metadata reload is not a long-lived phase: accepted
+leader-visible follower, and pull-hint inflight state for the loaded channel,
+with lifecycle events planned through controller-owned actions. Metadata reload
+is not a long-lived phase: accepted
 metadata fence changes fail stale waiters, reset transient
 lifecycle/replication state, apply the new `Meta`, and then choose the leader
 or follower runtime path from local role.

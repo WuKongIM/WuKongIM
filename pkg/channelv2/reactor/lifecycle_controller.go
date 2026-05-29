@@ -20,6 +20,228 @@ const (
 	lifecycleFollowerReadyToEvict
 )
 
+// lifecycleEventKind identifies one runtime lifecycle input.
+type lifecycleEventKind uint8
+
+const (
+	lifecycleEventMetaFence lifecycleEventKind = iota + 1
+	lifecycleEventAppendAdmitted
+	lifecycleEventAppendStored
+	lifecycleEventIdleTick
+	lifecycleEventLeaderStoppedAck
+	lifecycleEventFollowerStopControl
+	lifecycleEventStoreCheckpointDone
+	lifecycleEventStoppedAckDone
+	lifecycleEventFinalEvictReady
+	lifecycleEventPullHintDone
+)
+
+// lifecycleEvent carries the small amount of data needed by lifecycle planners.
+type lifecycleEvent struct {
+	kind              lifecycleEventKind
+	now               time.Time
+	err               error
+	activityVersion   uint64
+	appendSeqObserved uint64
+}
+
+// lifecycleActionKind identifies one reactor side effect requested by lifecycle planning.
+type lifecycleActionKind uint8
+
+const (
+	lifecycleActionScheduleLifecycle lifecycleActionKind = iota + 1
+	lifecycleActionScheduleReplication
+	lifecycleActionStartFollowerStopCheckpoint
+	lifecycleActionSendStoppedAck
+	lifecycleActionStartLeaderCheckpoint
+	lifecycleActionQueueLeaderFinalRecheck
+	lifecycleActionEvictRuntime
+)
+
+// lifecycleAction is a reactor-owned side effect chosen by pure lifecycle planning.
+type lifecycleAction struct {
+	kind      lifecycleActionKind
+	due       time.Time
+	appendSeq uint64
+}
+
+// RuntimeView is an immutable snapshot used by pure lifecycle guards.
+type RuntimeView struct {
+	Key             ch.ChannelKey
+	Role            ch.Role
+	Status          ch.Status
+	LEO             uint64
+	HW              uint64
+	ActivityVersion uint64
+	IdleSince       time.Time
+	PendingWork     PendingWorkView
+	Followers       []FollowerView
+	AppendFence     AppendFenceView
+}
+
+// FollowerView is the leader-visible lifecycle state for one follower.
+type FollowerView struct {
+	Node           ch.NodeID
+	Match          uint64
+	Stopped        bool
+	StopAckVersion uint64
+	StopOffered    bool
+}
+
+// PendingWorkView summarizes transient runtime work that blocks eviction.
+type PendingWorkView struct {
+	Waiters              int
+	PullWaiters          int
+	AppendQueued         int
+	AppendQueueBlocked   bool
+	AppendInflight       bool
+	AppendStoreBlocked   bool
+	AppendRetryScheduled bool
+	AppendCancelContexts int
+	AppendTimings        int
+	MachineAppendPending bool
+	PullInflight         bool
+	AckInflight          bool
+	PendingAck           bool
+	PendingPull          bool
+	ApplyBlocked         bool
+	ApplyInflight        bool
+	CheckpointInflight   bool
+	CheckpointRetry      bool
+	AckRetry             bool
+	LifecycleCheckpoint  bool
+	LifecycleRetry       bool
+}
+
+// AppendFenceView summarizes append submission state used by final leader eviction.
+type AppendFenceView struct {
+	Reservations      uint64
+	SubmitSeq         uint64
+	ObservedSubmitSeq uint64
+}
+
+func (v RuntimeView) AllFollowersCaughtUp() bool {
+	for _, follower := range v.Followers {
+		if follower.Match < v.LEO {
+			return false
+		}
+	}
+	return true
+}
+
+func (v RuntimeView) AllFollowersStopped() bool {
+	for _, follower := range v.Followers {
+		if !follower.Stopped || follower.StopAckVersion != v.ActivityVersion || follower.Match < v.LEO {
+			return false
+		}
+	}
+	return true
+}
+
+func (v RuntimeView) IdleExpired(now time.Time, idleAfter time.Duration) bool {
+	if v.IdleSince.IsZero() || idleAfter <= 0 {
+		return false
+	}
+	return !now.Before(v.IdleSince.Add(idleAfter))
+}
+
+func (v RuntimeView) CanOfferFollowerStop(now time.Time, idleAfter time.Duration) bool {
+	if v.Role != ch.RoleLeader || v.Status != ch.StatusActive {
+		return false
+	}
+	if v.HW < v.LEO || !v.IdleExpired(now, idleAfter) || v.HasPendingWork() {
+		return false
+	}
+	return v.AllFollowersCaughtUp()
+}
+
+func (v RuntimeView) HasPendingWork() bool {
+	p := v.PendingWork
+	return p.Waiters != 0 ||
+		p.PullWaiters != 0 ||
+		p.AppendQueued != 0 ||
+		p.AppendQueueBlocked ||
+		p.AppendInflight ||
+		p.AppendStoreBlocked ||
+		p.AppendRetryScheduled ||
+		p.AppendCancelContexts != 0 ||
+		p.AppendTimings != 0 ||
+		p.MachineAppendPending ||
+		p.PullInflight ||
+		p.AckInflight ||
+		p.PendingAck ||
+		p.PendingPull ||
+		p.ApplyBlocked ||
+		p.ApplyInflight ||
+		p.CheckpointInflight ||
+		p.CheckpointRetry ||
+		p.AckRetry ||
+		p.LifecycleCheckpoint ||
+		p.LifecycleRetry
+}
+
+func (v RuntimeView) SafeToEvict() bool {
+	return !v.HasPendingWork()
+}
+
+func (v RuntimeView) followerStopBlocked() bool {
+	p := v.PendingWork
+	return p.PullInflight ||
+		p.AckInflight ||
+		p.PendingAck ||
+		p.PendingPull ||
+		p.ApplyBlocked ||
+		p.ApplyInflight ||
+		p.CheckpointInflight
+}
+
+// planLeaderLifecycle chooses leader checkpoint/recheck work from an immutable runtime view.
+func planLeaderLifecycle(lc channelRuntimeLifecycle, view RuntimeView, now time.Time, idleAfter time.Duration) []lifecycleAction {
+	if view.Role != ch.RoleLeader || view.Status != ch.StatusActive || view.HW < view.LEO || !view.IdleExpired(now, idleAfter) {
+		return nil
+	}
+	if !view.AllFollowersStopped() || view.HasPendingWork() {
+		return nil
+	}
+	if !lc.checkpoint.retryAt.IsZero() && now.Before(lc.checkpoint.retryAt) {
+		return nil
+	}
+	if lc.finalCheck.inflight {
+		if lc.finalCheck.version == lc.version && !lc.finalCheck.queued {
+			return []lifecycleAction{{kind: lifecycleActionQueueLeaderFinalRecheck}}
+		}
+		return nil
+	}
+	if lc.checkpoint.inflight {
+		return nil
+	}
+	return []lifecycleAction{{kind: lifecycleActionStartLeaderCheckpoint}}
+}
+
+// planFinalLeaderEviction chooses the final leader eviction effect after append fencing.
+func planFinalLeaderEviction(view RuntimeView, now time.Time, retryInterval time.Duration) []lifecycleAction {
+	if view.Role != ch.RoleLeader || view.Status != ch.StatusActive {
+		return nil
+	}
+	if view.AppendFence.Reservations > 0 {
+		return []lifecycleAction{{kind: lifecycleActionScheduleLifecycle, due: retryDue(now, retryInterval)}}
+	}
+	if view.AppendFence.ObservedSubmitSeq != view.AppendFence.SubmitSeq {
+		return []lifecycleAction{{kind: lifecycleActionQueueLeaderFinalRecheck, appendSeq: view.AppendFence.SubmitSeq}}
+	}
+	if view.HW >= view.LEO && view.AllFollowersStopped() && view.SafeToEvict() {
+		return []lifecycleAction{{kind: lifecycleActionEvictRuntime}}
+	}
+	return []lifecycleAction{{kind: lifecycleActionScheduleLifecycle}}
+}
+
+func retryDue(now time.Time, interval time.Duration) time.Time {
+	if interval <= 0 {
+		return now
+	}
+	return now.Add(interval)
+}
+
 // lifecycleEffect fences one asynchronous lifecycle side effect.
 type lifecycleEffect struct {
 	inflight bool

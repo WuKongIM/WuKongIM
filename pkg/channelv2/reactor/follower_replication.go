@@ -2,7 +2,6 @@ package reactor
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -379,15 +378,13 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 		return
 	}
 	view := runtimeViewFromChannel(rc, now, AppendFenceView{})
-	lifecycle := runtimeLifecycleFromController(rc.lifecycle)
-	decision := lifecycle.OnFollowerLifecycleEvent(FollowerLifecycleEvent{
-		Kind:            FollowerLifecycleStopOffered,
-		Now:             now,
-		LeaderLEO:       resp.LeaderLEO,
-		LeaderHW:        resp.LeaderHW,
-		ActivityVersion: resp.ActivityVersion,
-	}, view, r.lifecycleConfig())
-	if !decisionHasAction(decision, LifecycleActionStartFollowerStopCheckpoint) {
+	canAccept := view.Role == ch.RoleFollower &&
+		view.Status == ch.StatusActive &&
+		!view.followerStopBlocked() &&
+		rc.canAcceptFollowerStop() &&
+		view.LEO >= resp.LeaderLEO &&
+		view.HW >= resp.LeaderHW
+	if !canAccept {
 		rc.lifecycle.cancelFollowerStop()
 		rc.replication.markDirty(now)
 		r.scheduleReplicationFromState(rc, now)
@@ -399,7 +396,7 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 	rc.replication.dirty = false
 	rc.replication.nextPullAt = time.Time{}
 	rc.replication.nextPullAfter = 0
-	r.trySubmitStopCheckpoint(rc, now)
+	r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionStartFollowerStopCheckpoint}}, now)
 }
 
 func (r *Reactor) handleStoreApplyResult(result worker.Result) {
@@ -479,35 +476,7 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 
 func (r *Reactor) handleStoppedAckResult(rc *runtimeChannel, result worker.Result) {
 	now := time.Now()
-	version := rc.lifecycle.stoppedAck.version
-	rc.lifecycle.stoppedAck.inflight = false
-	rc.lifecycle.stoppedAck.opID = 0
-	if result.Err != nil {
-		if errors.Is(result.Err, ch.ErrStaleMeta) {
-			rc.lifecycle.cancelFollowerStop()
-			rc.replication.backoff = 0
-			rc.replication.lastError = result.Err
-			rc.replication.markDirty(now)
-			r.scheduleReplicationFromState(rc, now)
-			return
-		}
-		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
-		rc.lifecycle.stoppedAck.retryAt = now.Add(rc.replication.backoff)
-		rc.lifecycle.stoppedAck.version = version
-		rc.replication.lastError = result.Err
-		r.scheduleReplicationFromState(rc, now)
-		return
-	}
-	rc.replication.backoff = 0
-	rc.replication.lastError = nil
-	rc.lifecycle.stoppedAck.retryAt = time.Time{}
-	rc.lifecycle.stage = lifecycleFollowerReadyToEvict
-	if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
-		rc.lifecycle.finalCheck.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleReplicationFromState(rc, now)
-		return
-	}
-	r.clearAppendSubmitState(rc.state.Key)
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventStoppedAckDone, now: now, err: result.Err})
 }
 
 func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {

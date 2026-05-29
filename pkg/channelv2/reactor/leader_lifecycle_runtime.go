@@ -38,7 +38,7 @@ func (r *Reactor) tickLeaderLifecycle(rc *runtimeChannel, now time.Time) {
 		}
 		r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonResume, now)
 	}
-	r.tryEvictLeader(rc, now)
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventIdleTick, now: now})
 }
 
 func (r *Reactor) resetPullHintLifecycle(rc *runtimeChannel) {
@@ -85,44 +85,6 @@ func (r *Reactor) hasPendingRuntimeWork(rc *runtimeChannel) bool {
 	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).HasPendingWork()
 }
 
-func (r *Reactor) tryEvictLeader(rc *runtimeChannel, now time.Time) {
-	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || rc.state.Status != ch.StatusActive {
-		return
-	}
-	if !r.leaderIdleExpired(rc, now) || rc.state.HW < rc.state.LEO {
-		return
-	}
-	if !r.allFollowersStopped(rc) {
-		return
-	}
-	if r.hasPendingRuntimeWork(rc) {
-		return
-	}
-	if !rc.lifecycle.checkpoint.retryAt.IsZero() {
-		if now.Before(rc.lifecycle.checkpoint.retryAt) {
-			return
-		}
-		rc.lifecycle.checkpoint.retryAt = time.Time{}
-	}
-	if rc.lifecycle.finalCheck.inflight {
-		if rc.lifecycle.finalCheck.version != rc.lifecycle.version {
-			rc.lifecycle.finalCheck.inflight = false
-			rc.lifecycle.finalCheck.version = 0
-			rc.lifecycle.finalCheck.queued = false
-			return
-		}
-		r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
-		return
-	}
-	if rc.lifecycle.checkpoint.inflight {
-		return
-	}
-	if !rc.lifecycle.checkpoint.retryAt.IsZero() && now.Before(rc.lifecycle.checkpoint.retryAt) {
-		return
-	}
-	r.startLeaderCheckpoint(rc, now)
-}
-
 func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appendSeq uint64) {
 	if r == nil || rc == nil || rc.state == nil || rc.lifecycle.finalCheck.queued {
 		return
@@ -144,39 +106,7 @@ func (r *Reactor) handleLeaderEvictReady(event Event) {
 		return
 	}
 	rc.lifecycle.finalCheck.queued = false
-	if !rc.lifecycle.finalCheck.inflight || rc.lifecycle.finalCheck.version != rc.lifecycle.version {
-		return
-	}
-	now := time.Now()
-	rc.lifecycle.stage = lifecycleLeaderReadyToEvict
-	if rc.state.HW < rc.state.LEO || !r.allFollowersStopped(rc) || r.hasPendingRuntimeWork(rc) {
-		r.scheduleLifecycleFromState(rc, now)
-		return
-	}
-	r.submitMu.Lock()
-	if r.appendReservations[event.Key] > 0 {
-		r.submitMu.Unlock()
-		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleLifecycleFromState(rc, now)
-		return
-	}
-	appendSeq := r.appendSubmitSeqs[event.Key]
-	if appendSeq != event.LeaderEvictAppendSeq {
-		r.submitMu.Unlock()
-		r.submitLeaderEvictReady(rc, now, appendSeq)
-		return
-	}
-	evicted := r.evictRuntimeChannel(rc.state.Key, rc, "leader idle checkpoint")
-	if evicted {
-		r.clearAppendSubmitStateLocked(event.Key)
-	}
-	r.submitMu.Unlock()
-	if !evicted {
-		rc.lifecycle.finalCheck.inflight = false
-		rc.lifecycle.finalCheck.version = 0
-		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleLifecycleFromState(rc, now)
-	}
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventFinalEvictReady, now: time.Now(), appendSeqObserved: event.LeaderEvictAppendSeq})
 }
 
 func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower *lifecycleFollower, reason transport.PullHintReason, now time.Time) {
@@ -304,19 +234,7 @@ func (r *Reactor) handleFollowerStopCheckpointResult(rc *runtimeChannel, result 
 	if err == nil && result.StoreCheckpoint == nil {
 		err = ch.ErrInvalidConfig
 	}
-	if err != nil {
-		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
-		rc.lifecycle.checkpoint.retryAt = now.Add(rc.replication.backoff)
-		rc.replication.lastError = err
-		r.scheduleReplicationFromState(rc, now)
-		return
-	}
-	rc.replication.backoff = 0
-	rc.replication.lastError = nil
-	rc.lifecycle.checkpoint.retryAt = time.Time{}
-	rc.lifecycle.stage = lifecycleFollowerStoppedAcking
-	r.trySubmitStoppedAck(rc, now)
-	r.scheduleReplicationFromState(rc, now)
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventStoreCheckpointDone, now: now, err: err})
 }
 
 func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker.Result) {
@@ -336,22 +254,8 @@ func (r *Reactor) handleLeaderCheckpointResult(rc *runtimeChannel, result worker
 		err = ch.ErrInvalidConfig
 	}
 	if err != nil {
-		rc.lifecycle.stage = lifecycleLeaderCheckpointing
-		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
-		r.scheduleLifecycleFromState(rc, now)
+		r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventStoreCheckpointDone, now: now, err: err, activityVersion: activityVersion})
 		return
 	}
-	rc.lifecycle.checkpoint.retryAt = time.Time{}
-	if activityVersion != rc.lifecycle.version ||
-		rc.state.Role != ch.RoleLeader ||
-		rc.state.HW < rc.state.LEO ||
-		!r.allFollowersStopped(rc) ||
-		r.hasPendingRuntimeWork(rc) {
-		r.scheduleLifecycleFromState(rc, now)
-		return
-	}
-	rc.lifecycle.stage = lifecycleLeaderReadyToEvict
-	rc.lifecycle.finalCheck.inflight = true
-	rc.lifecycle.finalCheck.version = activityVersion
-	r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventStoreCheckpointDone, now: now, activityVersion: activityVersion})
 }
