@@ -41,6 +41,11 @@
 
 Implementation must stage only files touched by this plan. Existing unrelated working tree changes must stay unstaged.
 
+When running Go commands from this isolated worktree, prefix them with
+`GOWORK=off`. The parent directory has a `go.work` file that does not include
+this linked worktree, so unprefixed `go test` commands can resolve the wrong
+workspace.
+
 ---
 
 ### Task 1: Add Reactor Flow Documentation
