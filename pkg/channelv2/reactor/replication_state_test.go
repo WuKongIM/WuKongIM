@@ -604,6 +604,28 @@ func TestStoppedAckStaleMetaCancelsStopAndPullsImmediately(t *testing.T) {
 	require.Equal(t, 1, net.AckCalls())
 }
 
+func TestStaleFenceStoppedAckCompletionDoesNotAdvanceLifecycle(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("stale-stopped-ack-fence")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.acceptFollowerStop(3, 3, 3)
+	rc.lifecycle.stage = lifecycleFollowerStoppedAcking
+	rc.lifecycle.stoppedAck = lifecycleEffect{inflight: true, opID: 7, version: 3}
+
+	r.handleRPCAckResult(worker.Result{
+		Kind:  worker.TaskRPCAck,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation + 1, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+	})
+
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, lifecycleFollowerStoppedAcking, rc.lifecycle.stage)
+	require.True(t, rc.lifecycle.stoppedAck.inflight)
+	require.Equal(t, ch.OpID(7), rc.lifecycle.stoppedAck.opID)
+	require.True(t, rc.lifecycle.followerStop.accepted)
+}
+
 func TestFollowerStopRejectedWhenLocalLEOBelowLeaderLEO(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()

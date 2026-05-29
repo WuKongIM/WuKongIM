@@ -47,6 +47,20 @@ func TestLifecycleControllerResetForMetaClearsEffects(t *testing.T) {
 	require.False(t, lc.followers[2].hint.active())
 }
 
+func TestLifecycleCancelFollowerStopClearsActiveCheckpoint(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 3)
+	lc.acceptFollowerStop(3, 3, 3)
+	lc.checkpoint = lifecycleEffect{inflight: true, opID: 11, version: 3}
+	lc.stoppedAck = lifecycleEffect{inflight: true, opID: 12, version: 3}
+
+	lc.cancelFollowerStop()
+
+	require.Equal(t, lifecycleLive, lc.stage)
+	require.False(t, lc.followerStop.accepted)
+	require.False(t, lc.checkpoint.active())
+	require.False(t, lc.stoppedAck.active())
+}
+
 func TestLifecycleFollowerVersionPredicates(t *testing.T) {
 	follower := lifecycleFollower{match: 7, stopOfferedVersion: 9, stoppedVersion: 9}
 
