@@ -301,7 +301,7 @@ func (r *Reactor) handleTick(event Event) {
 		if rc := r.channels[event.Key]; rc != nil {
 			r.tryFlushAppend(rc, now)
 			r.tickFollowerReplication(rc, now)
-			r.tickLeaderLifecycle(rc, now)
+			r.tickLifecycleController(rc, now)
 		}
 	}
 	if event.Future != nil {

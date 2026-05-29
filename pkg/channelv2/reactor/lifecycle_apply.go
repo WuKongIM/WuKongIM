@@ -27,7 +27,7 @@ func (r *Reactor) driveLifecycle(rc *runtimeChannel, event lifecycleEvent) {
 		if rc.lifecycle.stage == lifecycleLive && view.CanOfferFollowerStop(now, r.cfg.IdleEvictAfter) {
 			rc.lifecycle.stage = lifecycleLeaderStoppingFollowers
 		}
-		r.applyLifecycleActions(rc, planLeaderLifecycle(rc.lifecycle, view, now, r.cfg.IdleEvictAfter), now)
+		r.applyLifecycleActions(rc, planLeaderCheckpointEviction(rc.lifecycle, view, now, r.cfg.IdleEvictAfter), now)
 	case lifecycleEventStoreCheckpointDone:
 		r.applyStoreCheckpointDone(rc, event, now)
 	case lifecycleEventStoppedAckDone:

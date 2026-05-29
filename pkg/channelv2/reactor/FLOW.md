@@ -10,11 +10,6 @@ fenced worker completions.
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
 
-Loaded channel runtimes store lifecycle state in `channelRuntimeLifecycle`.
-That state owns runtime stop, checkpoint, leader-visible follower, and pull-hint
-inflight bookkeeping. Lifecycle events are planned through small controller
-actions and applied by the owning reactor.
-
 ## Event Domains
 
 The mailbox uses one concrete `Event` envelope for performance. Handlers are
@@ -49,6 +44,47 @@ Maintenance
   dueReplication
   dueLifecycle
 ```
+
+## Lifecycle Controller
+
+Each loaded runtime has exactly one `channelRuntimeLifecycle`, written by the
+owning reactor. It owns lifecycle stage, activity version, idle time, leader
+checkpoint effect, follower stop checkpoint effect, stopped ACK effect, leader
+final eviction recheck, leader-visible follower stop state, and pull-hint
+inflight bookkeeping. The controller receives small lifecycle events and returns
+reactor-owned actions; store and RPC work still goes through worker pools.
+
+Follower hot-path replication remains separate in `replicationState`: pull,
+apply, ordinary ACK retry, park delay, backoff, and leader hints are not stored
+as lifecycle phases. Lifecycle guards read these transient fields through
+`RuntimeView.PendingWork` so stop control and eviction are blocked while hot-path
+work is pending.
+
+Leader idle eviction flows as:
+
+```text
+idle expired and no pending work
+  -> offer PullControlStop to caught-up followers
+  -> accept stopped ACKs for the current activity version
+  -> checkpoint leader store state
+  -> queue normal-priority final recheck
+  -> evict only after append reservations, submit sequence, pending work, HW,
+     LEO, and stopped-follower guards still pass
+```
+
+Follower stop flows as:
+
+```text
+PullControlStop accepted after local LEO/HW caught up
+  -> checkpoint local store state
+  -> send stopped ACK for the accepted activity version
+  -> evict local runtime after the ACK succeeds
+```
+
+Every asynchronous lifecycle completion is fenced by channel key, generation,
+epoch, leader epoch, and op id before it can advance controller state. Metadata
+fences and newer activity reset stale lifecycle effects, so delayed worker
+results cannot stop or evict a newer runtime incarnation.
 
 ## Leader-Side Replication
 

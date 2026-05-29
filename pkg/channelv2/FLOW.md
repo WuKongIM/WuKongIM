@@ -84,33 +84,39 @@ append replies.
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.
 Loaded runtimes hold `machine.ChannelState`, `appendQueue`, `replicationState`,
-and `channelRuntimeLifecycle`. The runtime lifecycle owns stop, checkpoint,
-leader-visible follower, and pull-hint inflight state for the loaded channel,
-with lifecycle events planned through controller-owned actions. Metadata reload
-is not a long-lived phase: accepted
-metadata fence changes fail stale waiters, reset transient
-lifecycle/replication state, apply the new `Meta`, and then choose the leader
-or follower runtime path from local role.
+and `channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single
+controller for stop, checkpoint, stopped ACK, final eviction, leader-visible
+follower stop state, and pull-hint inflight state for that loaded runtime.
+Ordinary follower replication state stays in `replicationState` and only
+exposes a summarized `RuntimeView` to lifecycle guards.
+
+Metadata reload is not a long-lived lifecycle stage. Accepted metadata fence
+changes fail stale waiters, reset transient lifecycle/replication state, apply
+the new `Meta`, and then choose the leader or follower runtime path from local
+role.
 
 Leader phases:
 
-- `Serving`: normal hot or idle leader runtime. Idle slowdown is derived from
-  idle age and `leaderPullDelay`; it is not stored as a lifecycle phase.
-- `StoppingFollowers`: the leader is idle-expired and waits for caught-up
-  followers to pull at `LEO+1` so it can return `PullControlStop`.
-- `Checkpointing`: all followers stopped for the current activity version and
-  the leader checkpoint is in flight or retrying.
-- `FinalRecheck`: the checkpoint finished and a normal-priority recheck fences
-  leader eviction behind same-channel append reservations and submit sequence
+- `Live`: normal hot or idle leader runtime. Idle slowdown is derived from idle
+  age and `leaderPullDelay`; it is not stored as a separate stage.
+- `LeaderStoppingFollowers`: the leader is idle-expired, has no pending work,
+  and offers stop control only after followers are caught up.
+- `LeaderCheckpointing`: all followers stopped for the current activity version
+  and the leader checkpoint is in flight or retrying.
+- `LeaderReadyToEvict`: the checkpoint finished and a normal-priority recheck
+  fences eviction behind same-channel append reservations and submit sequence
   changes.
 
 Follower phases:
 
-- `Replicating`: ordinary pull, apply, piggyback ACK, park, and retry behavior.
-- `StopCheckpointing`: the follower accepted `PullControlStop` after local
+- `Live`: ordinary pull, apply, piggyback ACK, park, and retry behavior remains
+  in the follower hot path.
+- `FollowerCheckpointing`: the follower accepted `PullControlStop` after local
   LEO/HW caught up and is checkpointing before the stopped ACK.
-- `StopAcking`: the checkpoint succeeded and the follower is sending or
-  retrying the stopped ACK before unloading runtime state.
+- `FollowerStoppedAcking`: the checkpoint succeeded and the follower is sending
+  or retrying the stopped ACK before unloading runtime state.
+- `FollowerReadyToEvict`: the stopped ACK succeeded and the local runtime can be
+  evicted.
 
 Follower pull hints are only used to wake followers that still trail the hinted
 leader LEO. If an empty pull observes newer leader activity without records, the
@@ -145,5 +151,7 @@ stateDiagram-v2
 
 Lifecycle decisions are expressed as reactor-owned actions such as starting a
 checkpoint, scheduling lifecycle retry, queuing leader final recheck, sending a
-stopped ACK, or evicting runtime. Store and transport I/O still run through the
-existing worker pools; the lifecycle model only decides what should happen next.
+stopped ACK, or evicting runtime. Worker completions are fenced by channel key,
+generation, epoch, leader epoch, and op id before controller state is advanced.
+Store and transport I/O still run through the existing worker pools; the
+controller only decides what should happen next.

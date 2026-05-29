@@ -2265,7 +2265,7 @@ func TestLeaderStoppedAckFenceBumpRequiresCurrentFenceAcksBeforeEviction(t *test
 	require.NoError(t, applyMetaDirect(t, r, fenced))
 
 	rc.lifecycle.lastAppendAt = time.Now().Add(-2 * time.Hour)
-	r.tickLeaderLifecycle(rc, time.Now())
+	r.tickLifecycleController(rc, time.Now())
 	require.Contains(t, r.channels, meta.Key)
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
 
@@ -2316,7 +2316,7 @@ func TestSingleNodeClusterLeaderEvictsAfterIdleCheckpoint(t *testing.T) {
 	require.Equal(t, uint64(1), rc.state.LEO)
 	require.Equal(t, uint64(1), rc.state.HW)
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
+	r.tickLifecycleController(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
@@ -2395,7 +2395,7 @@ func TestApplyMetaColdSingleNodeClusterLeaderCanEvictWithoutAppend(t *testing.T)
 	require.NotNil(t, rc)
 	require.Zero(t, rc.lifecycle.lastAppendAt)
 
-	r.tickLeaderLifecycle(rc, time.Now().Add(time.Hour))
+	r.tickLifecycleController(rc, time.Now().Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 	require.NotContains(t, r.channels, meta.Key)
@@ -2418,7 +2418,7 @@ func TestLeaderCheckpointCompletionStaleAfterNewAppendDoesNotEvict(t *testing.T)
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before checkpoint").Err)
 	rc := r.channels[meta.Key]
-	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
+	r.tickLifecycleController(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 
 	appendFuture := NewFuture()
@@ -3143,7 +3143,7 @@ func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
 	require.NoError(t, appendDirect(t, r, sink, meta, 1, "before fence").Err)
 	rc := r.channels[meta.Key]
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
+	r.tickLifecycleController(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	staleCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.True(t, rc.lifecycle.checkpoint.inflight)
 
@@ -3156,7 +3156,7 @@ func TestLeaderCheckpointFenceResetAllowsFutureEviction(t *testing.T) {
 	require.Zero(t, rc.lifecycle.checkpoint.opID)
 	require.Zero(t, rc.lifecycle.checkpoint.version)
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(2*time.Hour))
+	r.tickLifecycleController(rc, rc.lifecycle.lastAppendAt.Add(2*time.Hour))
 	nextCheckpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	require.Equal(t, fenced.LeaderEpoch, nextCheckpoint.Fence.LeaderEpoch)
 	completeLeaderCheckpointAndDue(t, r, nextCheckpoint)
