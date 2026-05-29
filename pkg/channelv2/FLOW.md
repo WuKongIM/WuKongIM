@@ -128,25 +128,24 @@ storms under write pressure.
 stateDiagram-v2
     [*] --> Unloaded
     Unloaded --> Loaded: ApplyMeta or PullHint lazy activation / load store state
-    Loaded --> LeaderServing: local role = leader
-    Loaded --> FollowerReplicating: local role = follower
+    Loaded --> Live: local role = leader or follower
 
-    LeaderServing --> LeaderStoppingFollowers: idle expired && HW == LEO && followers caught up
-    LeaderStoppingFollowers --> LeaderServing: append or metadata fence
+    Live --> LeaderStoppingFollowers: leader idle expired && HW == LEO && followers caught up
+    LeaderStoppingFollowers --> Live: append or metadata fence
     LeaderStoppingFollowers --> LeaderCheckpointing: all followers stopped at ActivityVersion
-    LeaderCheckpointing --> LeaderServing: append or metadata fence
-    LeaderCheckpointing --> LeaderFinalRecheck: checkpoint done and guards still pass
-    LeaderFinalRecheck --> LeaderServing: append reservation or submit sequence change
-    LeaderFinalRecheck --> Unloaded: no pending work / evict runtime
+    LeaderCheckpointing --> Live: append or metadata fence
+    LeaderCheckpointing --> LeaderReadyToEvict: checkpoint done and guards still pass
+    LeaderReadyToEvict --> Live: append reservation or submit sequence change
+    LeaderReadyToEvict --> Unloaded: no pending work / evict runtime
 
-    FollowerReplicating --> FollowerStopCheckpointing: PullControlStop && local LEO/HW caught up
-    FollowerStopCheckpointing --> FollowerReplicating: newer PullHint or metadata fence
-    FollowerStopCheckpointing --> FollowerStopAcking: checkpoint done
-    FollowerStopAcking --> FollowerReplicating: stale stopped ACK metadata
-    FollowerStopAcking --> Unloaded: stopped ACK succeeds / evict runtime
+    Live --> FollowerCheckpointing: PullControlStop && local LEO/HW caught up
+    FollowerCheckpointing --> Live: newer PullHint or metadata fence
+    FollowerCheckpointing --> FollowerStoppedAcking: checkpoint done
+    FollowerStoppedAcking --> Live: stale stopped ACK metadata
+    FollowerStoppedAcking --> FollowerReadyToEvict: stopped ACK succeeds
+    FollowerReadyToEvict --> Unloaded: evict runtime
 
-    LeaderServing --> Unloaded: Close
-    FollowerReplicating --> Unloaded: Close
+    Live --> Unloaded: Close
 ```
 
 Lifecycle decisions are expressed as reactor-owned actions such as starting a
