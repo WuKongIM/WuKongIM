@@ -70,6 +70,10 @@ type Config struct {
 	IdleEvictCheckInterval time.Duration
 	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
 	PullHintRetryInterval time.Duration
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
+	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight reactor and worker metrics; nil uses a no-op observer.
 	Observer Observer
 }
@@ -110,28 +114,30 @@ func NewGroup(cfg Config) (*Group, error) {
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
 			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
-			MaxChannels:                  reactorChannelBudget(cfg.MaxChannels, cfg.ReactorCount, i),
-			MaxChannelsEnabled:           cfg.MaxChannels > 0,
-			AppendBatchMaxRecords:        cfg.AppendBatchMaxRecords,
-			AppendBatchMaxBytes:          cfg.AppendBatchMaxBytes,
-			AppendBatchMaxWait:           cfg.AppendBatchMaxWait,
-			AppendQueueMaxRequests:       cfg.AppendQueueMaxRequests,
-			AppendQueueMaxBytes:          cfg.AppendQueueMaxBytes,
-			AppendStoreRetryBackoff:      cfg.AppendStoreRetryBackoff,
-			ReplicationIdlePollInterval:  cfg.ReplicationIdlePollInterval,
-			ReplicationMinBackoff:        cfg.ReplicationMinBackoff,
-			ReplicationMaxBackoff:        cfg.ReplicationMaxBackoff,
-			PullMaxBytes:                 cfg.PullMaxBytes,
-			LeaderRecentRecordCacheSize:  cfg.LeaderRecentRecordCacheSize,
-			LeaderRecentRecordCacheBytes: cfg.LeaderRecentRecordCacheBytes,
-			IdleSlowdownAfter:            cfg.IdleSlowdownAfter,
-			IdleEvictAfter:               cfg.IdleEvictAfter,
-			IdlePullMinInterval:          cfg.IdlePullMinInterval,
-			IdlePullMaxInterval:          cfg.IdlePullMaxInterval,
-			IdleEvictCheckInterval:       cfg.IdleEvictCheckInterval,
-			PullHintRetryInterval:        cfg.PullHintRetryInterval,
-			Observer:                     cfg.Observer,
-			NextOpID:                     g.NextOpID,
+			MaxChannels:                   reactorChannelBudget(cfg.MaxChannels, cfg.ReactorCount, i),
+			MaxChannelsEnabled:            cfg.MaxChannels > 0,
+			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
+			AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,
+			AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
+			AppendQueueMaxRequests:        cfg.AppendQueueMaxRequests,
+			AppendQueueMaxBytes:           cfg.AppendQueueMaxBytes,
+			AppendStoreRetryBackoff:       cfg.AppendStoreRetryBackoff,
+			ReplicationIdlePollInterval:   cfg.ReplicationIdlePollInterval,
+			ReplicationMinBackoff:         cfg.ReplicationMinBackoff,
+			ReplicationMaxBackoff:         cfg.ReplicationMaxBackoff,
+			PullMaxBytes:                  cfg.PullMaxBytes,
+			LeaderRecentRecordCacheSize:   cfg.LeaderRecentRecordCacheSize,
+			LeaderRecentRecordCacheBytes:  cfg.LeaderRecentRecordCacheBytes,
+			IdleSlowdownAfter:             cfg.IdleSlowdownAfter,
+			IdleEvictAfter:                cfg.IdleEvictAfter,
+			IdlePullMinInterval:           cfg.IdlePullMinInterval,
+			IdlePullMaxInterval:           cfg.IdlePullMaxInterval,
+			IdleEvictCheckInterval:        cfg.IdleEvictCheckInterval,
+			PullHintRetryInterval:         cfg.PullHintRetryInterval,
+			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
+			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+			Observer:                      cfg.Observer,
+			NextOpID:                      g.NextOpID,
 		})
 		g.reactors[i] = r
 		r.start()
@@ -198,6 +204,18 @@ func defaultConfig(cfg Config) Config {
 	}
 	if cfg.PullHintRetryInterval <= 0 {
 		cfg.PullHintRetryInterval = time.Second
+	}
+	if cfg.FollowerRecoveryProbeInterval < 0 {
+		cfg.FollowerRecoveryProbeInterval = 0
+	}
+	if cfg.FollowerRecoveryProbeInterval == 0 {
+		cfg.FollowerRecoveryProbeInterval = time.Minute
+	}
+	if cfg.FollowerRecoveryProbeJitter < 0 {
+		cfg.FollowerRecoveryProbeJitter = 0
+	}
+	if cfg.FollowerRecoveryProbeJitter == 0 {
+		cfg.FollowerRecoveryProbeJitter = 30 * time.Second
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg

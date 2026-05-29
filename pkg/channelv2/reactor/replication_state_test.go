@@ -15,6 +15,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDefaultConfigSetsFollowerRecoveryProbe(t *testing.T) {
+	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory()})
+	require.Equal(t, time.Minute, cfg.FollowerRecoveryProbeInterval)
+	require.Equal(t, 30*time.Second, cfg.FollowerRecoveryProbeJitter)
+}
+
+func TestFollowerRecoveryProbeDelayIsDeterministicAndBounded(t *testing.T) {
+	delay := followerRecoveryProbeDelay(ch.ChannelKey("1:room"), time.Minute, 30*time.Second)
+	require.GreaterOrEqual(t, delay, time.Minute)
+	require.LessOrEqual(t, delay, 90*time.Second)
+	require.Equal(t, delay, followerRecoveryProbeDelay(ch.ChannelKey("1:room"), time.Minute, 30*time.Second))
+}
+
+func TestFollowerRecoveryProbeDelaySaturatesOverflow(t *testing.T) {
+	delay := followerRecoveryProbeDelay(ch.ChannelKey("1:room"), time.Duration(1<<63-2), 30*time.Second)
+	require.Equal(t, time.Duration(1<<63-1), delay)
+}
+
 func TestLeaderPullDelayUsesIdleAgeWithoutCoolingPhase(t *testing.T) {
 	r := NewReactor(ReactorConfig{
 		LocalNode:                   1,

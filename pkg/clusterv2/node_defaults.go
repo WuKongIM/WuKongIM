@@ -69,14 +69,16 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			transport = channels.NewTransportClient(n.transportClient)
 		}
 		service, err := channels.NewService(channels.Config{
-			LocalNode:    channelv2.NodeID(n.cfg.NodeID),
-			ReactorCount: n.cfg.Channel.ReactorCount,
-			MailboxSize:  n.cfg.Channel.MailboxSize,
-			MaxChannels:  n.cfg.Channel.MaxChannels,
-			Observer:     n.cfg.Channel.Observer,
-			Store:        storeFactory,
-			Transport:    transport,
-			MetaSource:   n.defaultChannelMetaSource(),
+			LocalNode:                     channelv2.NodeID(n.cfg.NodeID),
+			ReactorCount:                  n.cfg.Channel.ReactorCount,
+			MailboxSize:                   n.cfg.Channel.MailboxSize,
+			MaxChannels:                   n.cfg.Channel.MaxChannels,
+			FollowerRecoveryProbeInterval: n.cfg.Channel.FollowerRecoveryProbeInterval,
+			FollowerRecoveryProbeJitter:   n.cfg.Channel.FollowerRecoveryProbeJitter,
+			Observer:                      n.cfg.Channel.Observer,
+			Store:                         storeFactory,
+			Transport:                     transport,
+			MetaSource:                    n.defaultChannelMetaSource(),
 		})
 		if err != nil {
 			_ = storeFactory.Close()

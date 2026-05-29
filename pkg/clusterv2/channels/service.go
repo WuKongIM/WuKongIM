@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -37,6 +38,10 @@ type Config struct {
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
+	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
 	Observer reactor.Observer
 	// Store opens ChannelV2 stores when constructing Runtime.
@@ -69,7 +74,18 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	if runtime == nil {
-		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource, Observer: cfg.Observer})
+		cluster, err := channelservice.New(channelservice.Config{
+			LocalNode:                     cfg.LocalNode,
+			ReactorCount:                  cfg.ReactorCount,
+			MailboxSize:                   cfg.MailboxSize,
+			MaxChannels:                   cfg.MaxChannels,
+			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
+			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+			Store:                         cfg.Store,
+			Transport:                     cfg.Transport,
+			MetaResolver:                  cfg.MetaSource,
+			Observer:                      cfg.Observer,
+		})
 		if err != nil {
 			return nil, err
 		}

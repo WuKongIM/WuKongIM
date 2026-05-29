@@ -1,6 +1,8 @@
 package reactor
 
 import (
+	"hash/fnv"
+	"math"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -19,6 +21,8 @@ type replicationState struct {
 	dirty bool
 	// parked records whether the follower is intentionally waiting for the leader-provided pull delay.
 	parked bool
+	// recoveryProbe records whether nextPullAt is a parked-follower recovery probe.
+	recoveryProbe bool
 	// nextPullAt is the earliest time a new pull may be submitted.
 	nextPullAt time.Time
 	// nextPullAfter is the leader-provided delay from the latest empty pull response.
@@ -51,8 +55,28 @@ func (s *replicationState) markDirty(now time.Time) {
 	}
 	s.dirty = true
 	s.parked = false
+	s.recoveryProbe = false
 	s.nextPullAt = time.Time{}
 	s.nextPullAfter = 0
+}
+
+// parkWithRecovery parks the follower and schedules a deterministic recovery probe when enabled.
+func (s *replicationState) parkWithRecovery(key ch.ChannelKey, now time.Time, interval time.Duration, jitter time.Duration) {
+	s.dirty = false
+	s.parked = true
+	s.nextPullAfter = 0
+	s.recoveryProbe = false
+	s.nextPullAt = time.Time{}
+	if interval > 0 {
+		s.recoveryProbe = true
+		s.nextPullAt = now.Add(followerRecoveryProbeDelay(key, interval, jitter))
+	}
+}
+
+// clearParkedForHint makes a parked follower eligible for immediate PullHint-driven work.
+func (s *replicationState) clearParkedForHint(now time.Time) {
+	s.markDirty(now)
+	s.recoveryProbe = false
 }
 
 // reset clears follower-only replication state when metadata moves away from an active follower role.
@@ -100,4 +124,20 @@ func nextReplicationBackoff(current, minBackoff, maxBackoff time.Duration) time.
 		next = maxBackoff
 	}
 	return next
+}
+
+func followerRecoveryProbeDelay(key ch.ChannelKey, interval time.Duration, jitter time.Duration) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	if jitter <= 0 {
+		return interval
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(key))
+	extra := time.Duration(h.Sum64() % uint64(jitter+1))
+	if interval > time.Duration(math.MaxInt64)-extra {
+		return time.Duration(math.MaxInt64)
+	}
+	return interval + extra
 }

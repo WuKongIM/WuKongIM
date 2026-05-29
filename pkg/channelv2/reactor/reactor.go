@@ -62,6 +62,10 @@ type ReactorConfig struct {
 	IdleEvictCheckInterval time.Duration
 	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
 	PullHintRetryInterval time.Duration
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
+	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight reactor metrics; nil uses a no-op observer.
 	Observer Observer
 	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.

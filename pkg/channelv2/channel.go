@@ -56,6 +56,10 @@ type Config struct {
 	IdleEvictCheckInterval time.Duration
 	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
 	PullHintRetryInterval time.Duration
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
+	FollowerRecoveryProbeJitter time.Duration
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.

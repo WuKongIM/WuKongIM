@@ -45,6 +45,10 @@ type Config struct {
 	IdleEvictCheckInterval time.Duration
 	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
 	PullHintRetryInterval time.Duration
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
+	FollowerRecoveryProbeJitter time.Duration
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
 	AppendBatchMaxRecords int
 	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
@@ -77,25 +81,27 @@ func New(cfg Config) (ch.Cluster, error) {
 	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,
-		AppendBatchMaxRecords:        cfg.AppendBatchMaxRecords,
-		AppendBatchMaxBytes:          cfg.AppendBatchMaxBytes,
-		AppendBatchMaxWait:           cfg.AppendBatchMaxWait,
-		AppendQueueMaxRequests:       cfg.AppendQueueMaxRequests,
-		AppendQueueMaxBytes:          cfg.AppendQueueMaxBytes,
-		AppendStoreRetryBackoff:      cfg.AppendStoreRetryBackoff,
-		ReplicationIdlePollInterval:  cfg.ReplicationIdlePollInterval,
-		ReplicationMinBackoff:        cfg.ReplicationMinBackoff,
-		ReplicationMaxBackoff:        cfg.ReplicationMaxBackoff,
-		PullMaxBytes:                 cfg.PullMaxBytes,
-		LeaderRecentRecordCacheSize:  cfg.LeaderRecentRecordCacheSize,
-		LeaderRecentRecordCacheBytes: cfg.LeaderRecentRecordCacheBytes,
-		IdleSlowdownAfter:            cfg.IdleSlowdownAfter,
-		IdleEvictAfter:               cfg.IdleEvictAfter,
-		IdlePullMinInterval:          cfg.IdlePullMinInterval,
-		IdlePullMaxInterval:          cfg.IdlePullMaxInterval,
-		IdleEvictCheckInterval:       cfg.IdleEvictCheckInterval,
-		PullHintRetryInterval:        cfg.PullHintRetryInterval,
-		Observer:                     cfg.Observer,
+		AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
+		AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,
+		AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
+		AppendQueueMaxRequests:        cfg.AppendQueueMaxRequests,
+		AppendQueueMaxBytes:           cfg.AppendQueueMaxBytes,
+		AppendStoreRetryBackoff:       cfg.AppendStoreRetryBackoff,
+		ReplicationIdlePollInterval:   cfg.ReplicationIdlePollInterval,
+		ReplicationMinBackoff:         cfg.ReplicationMinBackoff,
+		ReplicationMaxBackoff:         cfg.ReplicationMaxBackoff,
+		PullMaxBytes:                  cfg.PullMaxBytes,
+		LeaderRecentRecordCacheSize:   cfg.LeaderRecentRecordCacheSize,
+		LeaderRecentRecordCacheBytes:  cfg.LeaderRecentRecordCacheBytes,
+		IdleSlowdownAfter:             cfg.IdleSlowdownAfter,
+		IdleEvictAfter:                cfg.IdleEvictAfter,
+		IdlePullMinInterval:           cfg.IdlePullMinInterval,
+		IdlePullMaxInterval:           cfg.IdlePullMaxInterval,
+		IdleEvictCheckInterval:        cfg.IdleEvictCheckInterval,
+		PullHintRetryInterval:         cfg.PullHintRetryInterval,
+		FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
+		FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+		Observer:                      cfg.Observer,
 	})
 	if err != nil {
 		return nil, err

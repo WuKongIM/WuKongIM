@@ -433,6 +433,18 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 	if cfg.PullHintRetryInterval <= 0 {
 		cfg.PullHintRetryInterval = time.Second
 	}
+	if cfg.FollowerRecoveryProbeInterval < 0 {
+		cfg.FollowerRecoveryProbeInterval = 0
+	}
+	if cfg.FollowerRecoveryProbeInterval == 0 {
+		cfg.FollowerRecoveryProbeInterval = time.Minute
+	}
+	if cfg.FollowerRecoveryProbeJitter < 0 {
+		cfg.FollowerRecoveryProbeJitter = 0
+	}
+	if cfg.FollowerRecoveryProbeJitter == 0 {
+		cfg.FollowerRecoveryProbeJitter = 30 * time.Second
+	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
 }
