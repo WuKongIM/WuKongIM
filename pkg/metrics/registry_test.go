@@ -167,6 +167,7 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveAppendBatch(16, 1024, 3*time.Millisecond)
 	reg.ChannelV2.ObserveAppendLatency("local", 7*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("store_append", "ok", 11*time.Millisecond)
+	reg.ChannelV2.ObserveWorkerResult("rpc_pull", "ok", 13*time.Millisecond)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -203,13 +204,28 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	})
 
 	workerDuration := requireMetricFamily(t, families, "wukongim_channelv2_worker_task_duration_seconds")
-	require.Len(t, workerDuration.GetMetric(), 1)
-	requireMetricLabels(t, workerDuration.GetMetric()[0], map[string]string{
+	require.Len(t, workerDuration.GetMetric(), 2)
+	findMetricByLabels(t, workerDuration, map[string]string{
 		"node_id":   "8",
 		"node_name": "node-8",
 		"kind":      "store_append",
 		"result":    "ok",
 	})
+	findMetricByLabels(t, workerDuration, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"kind":      "rpc_pull",
+		"result":    "ok",
+	})
+
+	rpcPullTotal := requireMetricFamily(t, families, "wukongim_channelv2_rpc_pull_total")
+	require.Len(t, rpcPullTotal.GetMetric(), 1)
+	requireMetricLabels(t, rpcPullTotal.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "ok",
+	})
+	require.Equal(t, float64(1), rpcPullTotal.GetMetric()[0].GetCounter().GetValue())
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {

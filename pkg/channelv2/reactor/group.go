@@ -13,7 +13,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-const defaultStoreAppendWorkerMultiplier = 2
+const (
+	defaultStoreAppendWorkerMultiplier = 2
+	defaultReplicationIdlePollInterval = 250 * time.Millisecond
+)
 
 // Config wires a group of channel-keyed reactors.
 type Config struct {
@@ -41,7 +44,7 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration
@@ -152,7 +155,7 @@ func defaultConfig(cfg Config) Config {
 		cfg.AppendStoreRetryBackoff = time.Millisecond
 	}
 	if cfg.ReplicationIdlePollInterval <= 0 {
-		cfg.ReplicationIdlePollInterval = 10 * time.Millisecond
+		cfg.ReplicationIdlePollInterval = defaultReplicationIdlePollInterval
 	}
 	if cfg.ReplicationMinBackoff <= 0 {
 		cfg.ReplicationMinBackoff = time.Millisecond

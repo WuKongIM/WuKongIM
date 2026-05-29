@@ -389,7 +389,7 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 		cfg.AppendStoreRetryBackoff = time.Millisecond
 	}
 	if cfg.ReplicationIdlePollInterval <= 0 {
-		cfg.ReplicationIdlePollInterval = 10 * time.Millisecond
+		cfg.ReplicationIdlePollInterval = defaultReplicationIdlePollInterval
 	}
 	if cfg.ReplicationMinBackoff <= 0 {
 		cfg.ReplicationMinBackoff = time.Millisecond

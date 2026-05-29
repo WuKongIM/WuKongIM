@@ -54,7 +54,7 @@ type Config struct {
 	IdleEvictCheckInterval time.Duration
 	// PullHintRetryInterval is the retry interval for best-effort PullHint while a follower still needs progress.
 	PullHintRetryInterval time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration

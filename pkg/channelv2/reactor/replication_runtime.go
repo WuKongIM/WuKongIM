@@ -250,11 +250,14 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	if len(resp.Records) == 0 {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
-		if rc.replication.dirty || resp.LeaderLEO > rc.state.LEO || resp.ActivityVersion < rc.replication.lastActivityVersion {
-			rc.replication.markDirty(now)
-			r.tickReplication(rc, now)
+		if rc.replication.hintedLeaderLEO <= rc.state.LEO {
+			rc.replication.hintedLeaderLEO = 0
+		}
+		if resp.LeaderLEO > rc.state.LEO || rc.replication.hintedLeaderLEO > rc.state.LEO {
+			r.scheduleEmptyLaggingPullRetry(rc, now)
 			return
 		}
+		rc.replication.dirty = false
 		delay := resp.NextPullAfter
 		if delay <= 0 {
 			delay = r.cfg.ReplicationIdlePollInterval
@@ -271,6 +274,17 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	rc.replication.applyRetryAt = time.Time{}
 	rc.replication.applyOpID = 0
 	r.trySubmitPendingApply(rc, now)
+}
+
+func (r *Reactor) scheduleEmptyLaggingPullRetry(rc *runtimeChannel, now time.Time) {
+	delay := r.cfg.ReplicationMinBackoff
+	if delay <= 0 {
+		delay = time.Millisecond
+	}
+	rc.replication.dirty = true
+	rc.replication.parked = false
+	rc.replication.nextPullAfter = delay
+	rc.replication.nextPullAt = now.Add(delay)
 }
 
 func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.PullResponse, now time.Time) {
@@ -328,6 +342,9 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	}
 	rc.state.LEO = result.StoreApply.LEO
 	rc.state.HW = minUint64(rc.state.LEO, rc.replication.lastLeaderHW)
+	if rc.replication.hintedLeaderLEO <= rc.state.LEO {
+		rc.replication.hintedLeaderLEO = 0
+	}
 	rc.replication.pendingPull = nil
 	rc.replication.applyBlocked = false
 	rc.replication.applyRetryAt = time.Time{}

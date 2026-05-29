@@ -64,6 +64,8 @@ type replicationState struct {
 	nextPullAfter time.Duration
 	// lastActivityVersion is the latest accepted leader activity version.
 	lastActivityVersion uint64
+	// hintedLeaderLEO is the highest leader LEO observed in accepted PullHint requests.
+	hintedLeaderLEO uint64
 	// backoff is the current exponential retry delay.
 	backoff time.Duration
 	// lastLeaderHW is the leader commit frontier from the latest accepted pull.

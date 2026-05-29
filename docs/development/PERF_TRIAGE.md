@@ -234,6 +234,7 @@ ChannelV2 append pressure:
 ```promql
 sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
 sum by (pool) (wukongim_channelv2_worker_queue_depth)
+sum by (result) (rate(wukongim_channelv2_rpc_pull_total[1m]))
 histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_worker_task_duration_seconds_bucket[1m])))
 histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
