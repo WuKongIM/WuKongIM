@@ -476,6 +476,8 @@ func (c *Coordinator) prepareOwners(plan model.Plan) []model.Worker {
 func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase) time.Duration {
 	timeout := c.cfg.PollTimeout
 	switch phase {
+	case PhaseConnect:
+		timeout += connectScheduleDuration(scenario)
 	case PhaseWarmup:
 		timeout += positiveDuration(scenario.Run.Warmup)
 	case PhaseRun:
@@ -484,6 +486,15 @@ func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase) tim
 		timeout += positiveDuration(scenario.Run.Cooldown)
 	}
 	return timeout
+}
+
+func connectScheduleDuration(scenario model.Scenario) time.Duration {
+	totalUsers := scenario.Online.TotalUsers
+	rate := scenario.Online.ConnectRate.PerSecond
+	if totalUsers <= 0 || rate <= 0 {
+		return 0
+	}
+	return time.Duration(float64(totalUsers) / rate * float64(time.Second))
 }
 
 func positiveDuration(d time.Duration) time.Duration {

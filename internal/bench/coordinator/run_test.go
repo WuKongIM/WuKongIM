@@ -483,6 +483,27 @@ func TestCoordinatorPollTimeoutIncludesScenarioPhaseDurations(t *testing.T) {
 	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
 }
 
+func TestCoordinatorPollTimeoutIncludesConnectSchedule(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].CompletePhaseAfter(PhaseConnect, 12*time.Millisecond)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Online.TotalUsers = 10
+	scenario.Online.ConnectRate = model.Rate{PerSecond: 1000}
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.True(t, workers[0].SawPhaseAttempt(PhaseWarmup))
+}
+
 func TestCoordinatorFailsWhenWorkerStatusReportsPhaseError(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].FailPhaseAfterAccept(PhaseConnect, "connect exploded")
