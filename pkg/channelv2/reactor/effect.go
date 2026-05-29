@@ -151,6 +151,9 @@ func (rc *runtimeChannel) addWaiter(opID ch.OpID, future *Future) error {
 	if rc == nil || future == nil {
 		return nil
 	}
+	if rc.waiters == nil {
+		rc.waiters = make(map[ch.OpID]*Future)
+	}
 	if _, ok := rc.waiters[opID]; ok {
 		return ch.ErrInvalidConfig
 	}

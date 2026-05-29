@@ -56,13 +56,16 @@ func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
 		rc.lifecycle.pullHintInflight = nil
 		return
 	}
-	if rc.lifecycle.followers == nil {
-		rc.lifecycle.followers = make(map[ch.NodeID]*lifecycleFollower)
-	}
-	current := make(map[ch.NodeID]struct{}, len(rc.state.Replicas))
+	var current map[ch.NodeID]struct{}
 	for _, replica := range rc.state.Replicas {
 		if replica == r.cfg.LocalNode {
 			continue
+		}
+		if current == nil {
+			current = make(map[ch.NodeID]struct{}, len(rc.state.Replicas)-1)
+		}
+		if rc.lifecycle.followers == nil {
+			rc.lifecycle.followers = make(map[ch.NodeID]*lifecycleFollower)
 		}
 		current[replica] = struct{}{}
 		progress := rc.state.Progress[replica]
@@ -75,6 +78,11 @@ func (r *Reactor) syncLeaderFollowers(rc *runtimeChannel) {
 		if progress.Match > follower.match {
 			follower.match = progress.Match
 		}
+	}
+	if len(current) == 0 {
+		rc.lifecycle.followers = nil
+		rc.lifecycle.pullHintInflight = nil
+		return
 	}
 	for node := range rc.lifecycle.followers {
 		if _, ok := current[node]; !ok {

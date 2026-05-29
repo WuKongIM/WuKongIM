@@ -73,10 +73,17 @@ func TestLifecycleFollowerVersionPredicates(t *testing.T) {
 	require.False(t, follower.caughtUp(8))
 }
 
+func addLifecycleFollower(lc *channelRuntimeLifecycle, node ch.NodeID, follower *lifecycleFollower) {
+	if lc.followers == nil {
+		lc.followers = make(map[ch.NodeID]*lifecycleFollower)
+	}
+	lc.followers[node] = follower
+}
+
 func TestLifecycleControllerLeaderFollowerStopVersioning(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now, 3)
-	lc.followers[2] = &lifecycleFollower{match: 3}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
 
 	lc.offerStop(2)
 
@@ -94,7 +101,7 @@ func TestLifecycleControllerLeaderFollowerStopVersioning(t *testing.T) {
 
 func TestLifecycleControllerMarkFollowerStoppedSemantics(t *testing.T) {
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 5)
-	lc.followers[2] = &lifecycleFollower{match: 5}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 5})
 
 	require.True(t, lc.markFollowerStopped(2, 5, 5))
 	require.False(t, lc.markFollowerStopped(2, 5, 5))
@@ -107,7 +114,7 @@ func TestLifecycleControllerMarkFollowerStoppedSemantics(t *testing.T) {
 
 func TestLifecycleControllerZeroVersionStopCompatibility(t *testing.T) {
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 0)
-	lc.followers[2] = &lifecycleFollower{match: 0}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 0})
 
 	lc.offerStop(2)
 	require.True(t, lc.followers[2].stopOffered(0))
@@ -118,7 +125,7 @@ func TestLifecycleControllerZeroVersionStopCompatibility(t *testing.T) {
 
 func TestLifecycleControllerUnofferedStoppedAckCompatibility(t *testing.T) {
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 3)
-	lc.followers[2] = &lifecycleFollower{match: 3}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
 
 	require.True(t, lc.markFollowerStopped(2, 3, 3))
 	require.True(t, lc.followers[2].stopped(3))
@@ -126,7 +133,7 @@ func TestLifecycleControllerUnofferedStoppedAckCompatibility(t *testing.T) {
 
 func TestLifecycleControllerRecordFollowerProgressRetiresHintsWhenCaughtUp(t *testing.T) {
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 7)
-	lc.followers[2] = &lifecycleFollower{match: 3}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
 	lc.beginPullHint(2, ch.OpID(11), 7, transport.PullHintReasonAppend)
 
 	lc.recordFollowerProgress(2, 7, 7)
@@ -139,7 +146,7 @@ func TestLifecycleControllerRecordFollowerProgressRetiresHintsWhenCaughtUp(t *te
 func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now, 7)
-	lc.followers[2] = &lifecycleFollower{match: 3}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
 
 	lc.recordFollowerPull(2, 4, 7, now)
 	require.False(t, lc.followerNeedsImmediateProgress(2, 7))
@@ -165,7 +172,7 @@ func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
 
 func TestLifecycleControllerStalePullHintCompletionReturnsNotCurrent(t *testing.T) {
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 7)
-	lc.followers[2] = &lifecycleFollower{match: 3}
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
 	lc.pullHintInflight = map[ch.OpID]lifecyclePullHintInflight{
 		11: {follower: 2, version: 7, reason: transport.PullHintReasonAppend},
 		12: {follower: 2, version: 8, reason: transport.PullHintReasonResume},

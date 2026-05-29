@@ -354,10 +354,9 @@ type channelRuntimeLifecycle struct {
 
 func newChannelRuntimeLifecycle(now time.Time, version uint64) channelRuntimeLifecycle {
 	return channelRuntimeLifecycle{
-		stage:     lifecycleLive,
-		loadedAt:  now,
-		version:   version,
-		followers: make(map[ch.NodeID]*lifecycleFollower),
+		stage:    lifecycleLive,
+		loadedAt: now,
+		version:  version,
 	}
 }
 

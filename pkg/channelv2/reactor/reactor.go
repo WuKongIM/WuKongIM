@@ -441,9 +441,6 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	rc := &runtimeChannel{
 		state:         state,
 		store:         cs,
-		waiters:       make(map[ch.OpID]*Future),
-		pullWaiters:   make(map[ch.OpID]*pullWaiter),
-		appendTimings: make(map[ch.OpID]appendTiming),
 		recentRecords: newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes),
 		lifecycle:     newChannelRuntimeLifecycle(time.Now(), initial.LEO),
 		appendQ: newAppendQueue(appendQueueConfig{
@@ -543,6 +540,9 @@ func (r *Reactor) handleAppend(event Event) {
 		return
 	}
 	r.cancelLeaderEvictionForAppend(rc, admittedAt)
+	if rc.appendTimings == nil {
+		rc.appendTimings = make(map[ch.OpID]appendTiming)
+	}
 	rc.appendTimings[event.OpID] = appendTiming{mode: mode, enqueuedAt: req.enqueuedAt}
 	r.registerAppendCancelContext(rc, event.OpID, event.Context)
 	r.tryFlushAppend(rc, admittedAt)

@@ -82,6 +82,22 @@ func TestGroupAllowsExistingChannelMetaUpdateAtCapacity(t *testing.T) {
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 }
 
+func TestEnsureChannelKeepsIdleRuntimeMapsLazy(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	id := ch.ChannelID{ID: "lazy", Type: 1}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	f := NewFuture()
+	r.handleApplyMeta(Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta, Future: f})
+	_, err := f.Await(context.Background())
+	require.NoError(t, err)
+	rc := r.channels[meta.Key]
+	require.Nil(t, rc.waiters)
+	require.Nil(t, rc.pullWaiters)
+	require.Nil(t, rc.appendTimings)
+	require.Nil(t, rc.appendCancelContexts)
+	require.Nil(t, rc.lifecycle.followers)
+}
+
 func channelIDForReactorIndex(t *testing.T, router Router, index int) ch.ChannelID {
 	t.Helper()
 	for i := 0; i < 10000; i++ {
