@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -31,6 +32,66 @@ func TestObserverSeesAppendBatchAndWorkerResult(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return obs.AppendBatches() > 0 && obs.WorkerResults() > 0
 	}, time.Second, time.Millisecond)
+}
+
+func TestGroupRejectsNewChannelWhenMaxChannelsReached(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, MaxChannels: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	first := ch.ChannelID{ID: "one", Type: 1}
+	firstMeta := ch.Meta{Key: ch.ChannelKeyForID(first), ID: first, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, firstMeta.Key, Event{Kind: EventApplyMeta, Key: firstMeta.Key, Meta: firstMeta}))
+
+	second := ch.ChannelID{ID: "two", Type: 1}
+	secondMeta := ch.Meta{Key: ch.ChannelKeyForID(second), ID: second, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	err = awaitSubmit(g, secondMeta.Key, Event{Kind: EventApplyMeta, Key: secondMeta.Key, Meta: secondMeta})
+	require.ErrorIs(t, err, ch.ErrTooManyChannels)
+}
+
+func TestGroupRejectsNewChannelWhenSplitBudgetIsZero(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	const reactorCount = 4
+	router, err := NewRouter(reactorCount)
+	require.NoError(t, err)
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: reactorCount, MailboxSize: 16, Store: factory, MaxChannels: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	first := channelIDForReactorIndex(t, router, 0)
+	firstMeta := ch.Meta{Key: ch.ChannelKeyForID(first), ID: first, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, firstMeta.Key, Event{Kind: EventApplyMeta, Key: firstMeta.Key, Meta: firstMeta}))
+
+	second := channelIDForReactorIndex(t, router, 1)
+	secondMeta := ch.Meta{Key: ch.ChannelKeyForID(second), ID: second, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	err = awaitSubmit(g, secondMeta.Key, Event{Kind: EventApplyMeta, Key: secondMeta.Key, Meta: secondMeta})
+	require.ErrorIs(t, err, ch.ErrTooManyChannels)
+}
+
+func TestGroupAllowsExistingChannelMetaUpdateAtCapacity(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, MaxChannels: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	id := ch.ChannelID{ID: "one", Type: 1}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	meta.LeaderEpoch = 2
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+}
+
+func channelIDForReactorIndex(t *testing.T, router Router, index int) ch.ChannelID {
+	t.Helper()
+	for i := 0; i < 10000; i++ {
+		id := ch.ChannelID{ID: fmt.Sprintf("split-budget-%d-%d", index, i), Type: 1}
+		if router.PickIndex(ch.ChannelKeyForID(id)) == index {
+			return id
+		}
+	}
+	t.Fatalf("no channel id found for reactor index %d", index)
+	return ch.ChannelID{}
 }
 
 func TestObserverSeesPullHintSentAndDropped(t *testing.T) {

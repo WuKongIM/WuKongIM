@@ -22,6 +22,10 @@ type ReactorConfig struct {
 	Pools     *worker.Pools
 	// MailboxSize bounds each priority queue in this reactor.
 	MailboxSize int
+	// MaxChannels bounds loaded runtimes owned by this reactor when MaxChannelsEnabled is true.
+	MaxChannels int
+	// MaxChannelsEnabled distinguishes an explicit zero-capacity partition from unlimited operation.
+	MaxChannelsEnabled bool
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
 	AppendBatchMaxRecords int
 	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
@@ -379,6 +383,9 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			r.scheduleReplicationFromState(rc, time.Now())
 		}
 	}
+	if decision.Err == nil {
+		r.observeRuntimeCounts()
+	}
 	event.Future.Complete(Result{Err: decision.Err})
 }
 
@@ -407,6 +414,10 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	}
 	if rc := r.channels[key]; rc != nil {
 		return rc, nil
+	}
+	if r.cfg.MaxChannelsEnabled && len(r.channels) >= r.cfg.MaxChannels {
+		r.observeActivationRejected("max_channels")
+		return nil, ch.ErrTooManyChannels
 	}
 	cs, err := r.cfg.Store.ChannelStore(key, meta.ID)
 	if err != nil {
@@ -440,6 +451,27 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	r.channels[key] = rc
 	r.observeChannelRuntimeLoaded(key)
 	return rc, nil
+}
+
+func (r *Reactor) observeRuntimeCounts() {
+	if r == nil {
+		return
+	}
+	leaders := 0
+	followers := 0
+	for _, rc := range r.channels {
+		if rc == nil || rc.state == nil {
+			continue
+		}
+		switch rc.state.Role {
+		case ch.RoleLeader:
+			leaders++
+		case ch.RoleFollower:
+			followers++
+		}
+	}
+	r.observeRuntimeCount(ch.RoleLeader, leaders)
+	r.observeRuntimeCount(ch.RoleFollower, followers)
 }
 
 func (r *Reactor) lookup(key ch.ChannelKey) (*runtimeChannel, error) {

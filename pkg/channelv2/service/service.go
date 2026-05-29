@@ -15,8 +15,10 @@ type Config struct {
 	LocalNode    ch.NodeID
 	ReactorCount int
 	MailboxSize  int
-	Store        store.Factory
-	Transport    transport.Client
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	MaxChannels int
+	Store       store.Factory
+	Transport   transport.Client
 	// MetaResolver lazily loads authoritative metadata for PullHint follower activation.
 	MetaResolver ch.MetaResolver
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
@@ -74,7 +76,7 @@ func New(cfg Config) (ch.Cluster, error) {
 		return nil, ch.ErrInvalidConfig
 	}
 	group, err := reactor.NewGroup(reactor.Config{
-		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport,
+		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,
 		AppendBatchMaxRecords:        cfg.AppendBatchMaxRecords,
 		AppendBatchMaxBytes:          cfg.AppendBatchMaxBytes,
 		AppendBatchMaxWait:           cfg.AppendBatchMaxWait,

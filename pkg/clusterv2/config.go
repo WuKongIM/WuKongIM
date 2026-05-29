@@ -81,6 +81,8 @@ type ChannelConfig struct {
 	ReactorCount int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
+	MaxChannels int
 	// TickInterval controls how often Node-owned loops call ChannelV2 Tick.
 	TickInterval time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
@@ -167,6 +169,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MailboxSize < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.MaxChannels < 0 {
 		return ErrInvalidConfig
 	}
 	if err := c.validateControl(); err != nil {

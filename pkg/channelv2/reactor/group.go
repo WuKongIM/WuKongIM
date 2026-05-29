@@ -26,6 +26,8 @@ type Config struct {
 	ReactorCount int
 	// MailboxSize bounds each priority queue inside every reactor.
 	MailboxSize int
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	MaxChannels int
 	// Store opens channel-scoped stores for reactors and blocking workers.
 	Store store.Factory
 	// Transport sends channel replication RPCs from blocking workers.
@@ -108,6 +110,8 @@ func NewGroup(cfg Config) (*Group, error) {
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
 			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
+			MaxChannels:                  reactorChannelBudget(cfg.MaxChannels, cfg.ReactorCount, i),
+			MaxChannelsEnabled:           cfg.MaxChannels > 0,
 			AppendBatchMaxRecords:        cfg.AppendBatchMaxRecords,
 			AppendBatchMaxBytes:          cfg.AppendBatchMaxBytes,
 			AppendBatchMaxWait:           cfg.AppendBatchMaxWait,
@@ -197,6 +201,18 @@ func defaultConfig(cfg Config) Config {
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
+}
+
+func reactorChannelBudget(total int, reactors int, index int) int {
+	if total <= 0 || reactors <= 0 {
+		return 0
+	}
+	base := total / reactors
+	rem := total % reactors
+	if index < rem {
+		return base + 1
+	}
+	return base
 }
 
 // Submit routes an event to the owning reactor and returns its future.

@@ -24,8 +24,10 @@ type Config struct {
 	LocalNode    NodeID
 	ReactorCount int
 	MailboxSize  int
-	Store        any
-	Transport    any
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	MaxChannels int
+	Store       any
+	Transport   any
 	// MetaResolver lazily loads metadata for PullHint follower activation.
 	MetaResolver any
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.

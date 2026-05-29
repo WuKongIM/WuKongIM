@@ -34,6 +34,8 @@ type Config struct {
 	ReactorCount int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
+	MaxChannels int
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
 	Observer reactor.Observer
 	// Store opens ChannelV2 stores when constructing Runtime.
@@ -64,7 +66,7 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	if runtime == nil {
-		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource, Observer: cfg.Observer})
+		cluster, err := channelservice.New(channelservice.Config{LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport, MetaResolver: cfg.MetaSource, Observer: cfg.Observer})
 		if err != nil {
 			return nil, err
 		}

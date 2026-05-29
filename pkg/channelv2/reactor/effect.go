@@ -276,6 +276,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	}
 	delete(r.channels, key)
 	r.observeChannelRuntimeEvicted(key, role)
+	r.observeRuntimeCounts()
 	return true
 }
 
@@ -367,6 +368,9 @@ func metadataWouldFenceState(state *machine.ChannelState, meta ch.Meta) bool {
 }
 
 func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
+	if cfg.MaxChannels > 0 {
+		cfg.MaxChannelsEnabled = true
+	}
 	if cfg.MailboxSize <= 0 {
 		cfg.MailboxSize = 1024
 	}
