@@ -201,9 +201,7 @@ func (lc *channelRuntimeLifecycle) cancelFollowerStop() {
 	lc.stage = lifecycleLive
 	lc.followerStop = followerStopState{}
 	lc.stoppedAck.reset()
-	if lc.checkpoint.version != lc.version {
-		lc.checkpoint.reset()
-	}
+	lc.checkpoint.reset()
 }
 
 // followerStopVersion returns the accepted stop activity version, or zero when no stop is active.

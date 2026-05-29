@@ -62,7 +62,7 @@ func pendingWorkViewFromChannel(rc *runtimeChannel) PendingWorkView {
 		ApplyInflight:        replication.applyOpID != 0,
 		CheckpointInflight:   rc.lifecycle.stage == lifecycleFollowerCheckpointing && rc.lifecycle.checkpoint.inflight,
 		CheckpointRetry:      rc.lifecycle.stage == lifecycleFollowerCheckpointing && !rc.lifecycle.checkpoint.retryAt.IsZero(),
-		AckRetry:             !replication.nextAckAt.IsZero(),
+		AckRetry:             !replication.nextAckAt.IsZero() || !rc.lifecycle.stoppedAck.retryAt.IsZero(),
 		LifecycleCheckpoint:  rc.lifecycle.checkpoint.inflight || rc.lifecycle.checkpoint.opID != 0,
 		LifecycleRetry:       !rc.lifecycle.checkpoint.retryAt.IsZero() || !rc.lifecycle.finalCheck.retryAt.IsZero(),
 	}

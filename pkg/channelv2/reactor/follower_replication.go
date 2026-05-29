@@ -446,7 +446,12 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 	if err != nil {
 		return
 	}
-	if rc.lifecycle.stoppedAck.inflight && result.Fence.OpID == rc.lifecycle.stoppedAck.opID {
+	if rc.lifecycle.stoppedAck.inflight &&
+		result.Fence.ChannelKey == rc.state.Key &&
+		result.Fence.Generation == rc.state.Generation &&
+		result.Fence.Epoch == rc.state.Epoch &&
+		result.Fence.LeaderEpoch == rc.state.LeaderEpoch &&
+		result.Fence.OpID == rc.lifecycle.stoppedAck.opID {
 		r.handleStoppedAckResult(rc, result)
 		return
 	}

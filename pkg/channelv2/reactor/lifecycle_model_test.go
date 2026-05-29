@@ -61,6 +61,19 @@ func TestRuntimeViewFromChannelCapturesPendingWork(t *testing.T) {
 	require.True(t, view.HasPendingWork())
 }
 
+func TestRuntimeViewFromChannelCapturesStoppedAckRetry(t *testing.T) {
+	state := machine.NewChannelState(ch.ChannelKey("1:stopped-ack-retry"), 1, 1)
+	rc := &runtimeChannel{
+		state:     state,
+		lifecycle: channelRuntimeLifecycle{stoppedAck: lifecycleEffect{retryAt: time.Unix(200, 0)}},
+	}
+
+	view := runtimeViewFromChannel(rc, time.Now(), AppendFenceView{})
+
+	require.True(t, view.PendingWork.AckRetry)
+	require.True(t, view.HasPendingWork())
+}
+
 func TestLeaderLifecycleTickStartsCheckpointAfterFollowersStopped(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := runtimeLifecycle{LeaderPhase: LeaderLifecycleStoppingFollowers}
