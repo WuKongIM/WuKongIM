@@ -33,7 +33,9 @@ type PullRequest struct {
 	LeaderEpoch uint64
 	Follower    ch.NodeID
 	NextOffset  uint64
-	MaxBytes    int
+	// AckOffset is the highest offset the follower has durably applied before this pull.
+	AckOffset uint64
+	MaxBytes  int
 }
 
 // PullResponse returns leader records and the leader committed frontier.

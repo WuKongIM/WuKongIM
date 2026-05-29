@@ -209,20 +209,18 @@ func TestThreeNodeClusterCatchesUpAfterTemporaryPullDrop(t *testing.T) {
 	h.WaitCommitted(t, 2, meta.ID, 1, time.Second)
 }
 
-func TestThreeNodeClusterCatchesUpAfterTemporaryAckDrop(t *testing.T) {
+func TestThreeNodeClusterHotPathPiggybacksAckInPull(t *testing.T) {
 	h := NewClusterHarness(t, []ch.NodeID{1, 2, 3})
 	defer h.Close()
 	meta := ch.Meta{Key: ch.ChannelKey("1:a"), ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive}
 	h.ApplyMetaToAll(meta)
 
 	h.Network.SetDropAck(1, true)
-	done := startAppend(t, h, 1, meta.ID, []byte("ack-drop"))
-	requireDropObserved(t, h, done, func() int { return h.Network.DroppedAcks(1) }, time.Second)
-
-	h.Network.SetDropAck(1, false)
+	done := startAppend(t, h, 1, meta.ID, []byte("pull-ack"))
 	res := waitAppendResult(t, h, done, time.Second)
 	require.Equal(t, uint64(1), res.MessageSeq)
 	h.WaitCommitted(t, 2, meta.ID, 1, time.Second)
+	require.Equal(t, 0, h.Network.DroppedAcks(1))
 }
 
 type appendOutcome struct {
