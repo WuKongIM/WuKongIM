@@ -92,6 +92,50 @@ func TestLifecycleControllerLeaderFollowerStopVersioning(t *testing.T) {
 	require.False(t, lc.followers[2].stopped(4))
 }
 
+func TestLifecycleControllerMarkFollowerStoppedSemantics(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 5)
+	lc.followers[2] = &lifecycleFollower{match: 5}
+
+	require.True(t, lc.markFollowerStopped(2, 5, 5))
+	require.False(t, lc.markFollowerStopped(2, 5, 5))
+	require.True(t, lc.followers[2].stopped(5))
+
+	lc.offerStop(2)
+	require.False(t, lc.markFollowerStopped(2, 4, 5))
+	require.False(t, lc.followers[2].stopped(4))
+}
+
+func TestLifecycleControllerZeroVersionStopCompatibility(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 0)
+	lc.followers[2] = &lifecycleFollower{match: 0}
+
+	lc.offerStop(2)
+	require.True(t, lc.followers[2].stopOffered(0))
+	require.True(t, lc.markFollowerStopped(2, 0, 0))
+	require.True(t, lc.followers[2].stopped(0))
+	require.True(t, lc.followers[2].stoppedZero)
+}
+
+func TestLifecycleControllerUnofferedStoppedAckCompatibility(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 3)
+	lc.followers[2] = &lifecycleFollower{match: 3}
+
+	require.True(t, lc.markFollowerStopped(2, 3, 3))
+	require.True(t, lc.followers[2].stopped(3))
+}
+
+func TestLifecycleControllerRecordFollowerProgressRetiresHintsWhenCaughtUp(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 7)
+	lc.followers[2] = &lifecycleFollower{match: 3}
+	lc.beginPullHint(2, ch.OpID(11), 7, transport.PullHintReasonAppend)
+
+	lc.recordFollowerProgress(2, 7, 7)
+
+	require.Equal(t, uint64(7), lc.followers[2].match)
+	require.Empty(t, lc.pullHintInflight)
+	require.False(t, lc.followers[2].hint.active())
+}
+
 func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now, 7)
@@ -117,6 +161,31 @@ func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
 	lc.retirePullHints(2)
 	require.Empty(t, lc.pullHintInflight)
 	require.False(t, lc.followers[2].hint.active())
+}
+
+func TestLifecycleControllerStalePullHintCompletionReturnsNotCurrent(t *testing.T) {
+	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 7)
+	lc.followers[2] = &lifecycleFollower{match: 3}
+	lc.pullHintInflight = map[ch.OpID]lifecyclePullHintInflight{
+		11: {follower: 2, version: 7, reason: transport.PullHintReasonAppend},
+		12: {follower: 2, version: 8, reason: transport.PullHintReasonResume},
+	}
+
+	inflight, ok := lc.finishPullHint(11)
+	require.False(t, ok)
+	require.Equal(t, lifecyclePullHintInflight{}, inflight)
+	require.NotContains(t, lc.pullHintInflight, ch.OpID(11))
+	require.Contains(t, lc.pullHintInflight, ch.OpID(12))
+	require.False(t, lc.followers[2].hint.active())
+
+	lc.pullHintInflight[11] = lifecyclePullHintInflight{follower: 2, version: 7, reason: transport.PullHintReasonAppend}
+	lc.followers[2].hint.inflight = true
+	lc.followers[2].hint.opID = 12
+	inflight, ok = lc.finishPullHint(11)
+	require.False(t, ok)
+	require.Equal(t, lifecyclePullHintInflight{}, inflight)
+	require.True(t, lc.followers[2].hint.inflight)
+	require.Equal(t, ch.OpID(12), lc.followers[2].hint.opID)
 }
 
 func TestLifecycleZeroVersionStoppedAckVisibleInRuntimeView(t *testing.T) {
