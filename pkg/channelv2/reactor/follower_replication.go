@@ -59,6 +59,7 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		LeaderEpoch: rc.state.LeaderEpoch,
 		Follower:    r.cfg.LocalNode,
 		NextOffset:  rc.state.LEO + 1,
+		AckOffset:   rc.state.LEO,
 		MaxBytes:    r.cfg.PullMaxBytes,
 	}
 	if err := r.submitRPCPull(context.Background(), rc.state.Leader, fence, req); err != nil {
@@ -406,10 +407,8 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	rc.replication.applyRetryAt = time.Time{}
 	rc.replication.backoff = 0
 	rc.replication.lastError = nil
-	rc.replication.dirty = true
-	if !r.submitAck(rc, rc.state.LEO, now) {
-		return
-	}
+	rc.replication.markDirty(now)
+	rc.replication.nextPullAt = now
 }
 
 func (r *Reactor) handleRPCAckResult(result worker.Result) {

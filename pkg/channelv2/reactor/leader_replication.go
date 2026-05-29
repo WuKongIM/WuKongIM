@@ -45,6 +45,10 @@ func (r *Reactor) handleLeaderPull(event Event) {
 	}
 	now := time.Now()
 	r.syncLeaderFollowers(rc)
+	if err := r.applyLeaderPullAckOffset(rc, event.Pull); err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
 	if follower := rc.followers[event.Pull.Follower]; follower != nil {
 		follower.LastPullAt = now
 		follower.Parked = false
@@ -161,6 +165,24 @@ func (r *Reactor) handleLeaderAck(event Event) {
 	r.completeReplies(rc, decision.Replies, nil)
 	r.scheduleLifecycleFromState(rc, time.Now())
 	event.Future.Complete(Result{})
+}
+
+func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.PullRequest) error {
+	if req.AckOffset == 0 {
+		return nil
+	}
+	if req.AckOffset > rc.state.LEO {
+		return ch.ErrStaleMeta
+	}
+	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: req.Follower, MatchOffset: req.AckOffset})
+	if follower := rc.followers[req.Follower]; follower != nil && req.AckOffset > follower.Match {
+		follower.Match = req.AckOffset
+	}
+	if follower := rc.followers[req.Follower]; follower != nil && follower.Match >= rc.state.LEO {
+		retireFollowerPullHints(rc, req.Follower)
+	}
+	r.completeReplies(rc, decision.Replies, nil)
+	return nil
 }
 
 func (r *Reactor) mergeLeaderPullCacheSuffix(rc *runtimeChannel, waiter *pullWaiter, records []ch.Record) []ch.Record {
