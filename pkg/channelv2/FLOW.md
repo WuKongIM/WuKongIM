@@ -52,8 +52,9 @@ sequenceDiagram
             Reactor->>Workers: TaskRPCPullHint(lagging followers)
             Workers-->>Follower: PullHint
             loop until leader HW covers appended records
-                Follower->>Workers: TaskRPCPull(leader, local LEO + 1)
+                Follower->>Workers: TaskRPCPull(leader, local LEO + 1, AckOffset = local LEO)
                 Workers->>Reactor: EventPull
+                Reactor->>Reactor: apply AckOffset and advance HW
                 alt requested offsets covered by leader recent-record cache
                     Reactor-->>Follower: PullResponse(records, leader HW, leader LEO)
                 else cache miss or older prefix needed
@@ -63,9 +64,7 @@ sequenceDiagram
                 end
                 Follower->>Workers: TaskStoreApply(records)
                 Workers-->>Follower: apply result
-                Follower->>Workers: TaskRPCAck(match offset)
-                Workers->>Reactor: EventAck
-                Reactor->>Reactor: AdvanceHW
+                Follower->>Follower: schedule immediate next Pull carrying new AckOffset
             end
             Reactor-->>Service: complete quorum future
             Service-->>Caller: AppendResult / AppendBatchResult
@@ -74,6 +73,8 @@ sequenceDiagram
 ```
 
 Leader reactors keep a small configurable recent-record suffix cache for durable append records. Follower `Pull` requests that are covered by this suffix can complete from memory; older requests still use `TaskStoreReadLog`, and the leader may append a cache-covered suffix to the store prefix when doing so does not create gaps. The cache is cleared by metadata fences or role changes and is only a performance optimization.
+
+Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains for stopped-follower lifecycle confirmation and compatibility retry state, not for the hot replication path.
 
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
@@ -102,7 +103,7 @@ Leader phases:
 
 Follower phases:
 
-- `Replicating`: ordinary pull, apply, ACK, park, and retry behavior.
+- `Replicating`: ordinary pull, apply, piggyback ACK, park, and retry behavior.
 - `StopCheckpointing`: the follower accepted `PullControlStop` after local
   LEO/HW caught up and is checkpointing before the stopped ACK.
 - `StopAcking`: the checkpoint succeeded and the follower is sending or
