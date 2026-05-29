@@ -22,7 +22,7 @@ func (r *Reactor) sendPullHintsForAppend(rc *runtimeChannel, now time.Time) {
 	}
 }
 
-func (r *Reactor) tickLeaderLifecycle(rc *runtimeChannel, now time.Time) {
+func (r *Reactor) tickLifecycleController(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader {
 		return
 	}

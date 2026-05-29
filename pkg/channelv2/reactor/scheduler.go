@@ -154,7 +154,7 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 		if item.version != rc.lifecycleDueVersion {
 			return
 		}
-		r.tickLeaderLifecycle(rc, now)
+		r.tickLifecycleController(rc, now)
 	}
 }
 

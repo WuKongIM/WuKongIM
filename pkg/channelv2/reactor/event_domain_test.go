@@ -10,7 +10,7 @@ func TestEventDomainHandlerNames(t *testing.T) {
 	_ = r.handleFollowerPullHint
 	_ = r.handleLegacyFollowerNotify
 	_ = r.tickFollowerReplication
-	_ = r.tickLeaderLifecycle
+	_ = r.tickLifecycleController
 	_ = r.driveLifecycle
 	_ = r.handleWorkerResult
 }

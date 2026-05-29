@@ -120,6 +120,7 @@ type AppendFenceView struct {
 	ObservedSubmitSeq uint64
 }
 
+// AllFollowersCaughtUp reports whether every follower has reached the leader LEO.
 func (v RuntimeView) AllFollowersCaughtUp() bool {
 	for _, follower := range v.Followers {
 		if follower.Match < v.LEO {
@@ -129,6 +130,7 @@ func (v RuntimeView) AllFollowersCaughtUp() bool {
 	return true
 }
 
+// AllFollowersStopped reports whether every follower stopped for this activity version.
 func (v RuntimeView) AllFollowersStopped() bool {
 	for _, follower := range v.Followers {
 		if !follower.Stopped || follower.StopAckVersion != v.ActivityVersion || follower.Match < v.LEO {
@@ -138,6 +140,7 @@ func (v RuntimeView) AllFollowersStopped() bool {
 	return true
 }
 
+// IdleExpired reports whether the runtime has been idle for at least idleAfter.
 func (v RuntimeView) IdleExpired(now time.Time, idleAfter time.Duration) bool {
 	if v.IdleSince.IsZero() || idleAfter <= 0 {
 		return false
@@ -145,6 +148,7 @@ func (v RuntimeView) IdleExpired(now time.Time, idleAfter time.Duration) bool {
 	return !now.Before(v.IdleSince.Add(idleAfter))
 }
 
+// CanOfferFollowerStop reports whether the leader may offer stop control to followers.
 func (v RuntimeView) CanOfferFollowerStop(now time.Time, idleAfter time.Duration) bool {
 	if v.Role != ch.RoleLeader || v.Status != ch.StatusActive {
 		return false
@@ -155,6 +159,7 @@ func (v RuntimeView) CanOfferFollowerStop(now time.Time, idleAfter time.Duration
 	return v.AllFollowersCaughtUp()
 }
 
+// HasPendingWork reports whether transient runtime work still blocks lifecycle progress.
 func (v RuntimeView) HasPendingWork() bool {
 	return v.PendingWork.hasPendingWork()
 }
@@ -183,6 +188,7 @@ func (p PendingWorkView) hasPendingWork() bool {
 		p.LifecycleRetry
 }
 
+// SafeToEvict reports whether the runtime has no pending work left before eviction.
 func (v RuntimeView) SafeToEvict() bool {
 	return !v.HasPendingWork()
 }
@@ -198,8 +204,8 @@ func (v RuntimeView) followerStopBlocked() bool {
 		p.CheckpointInflight
 }
 
-// planLeaderLifecycle chooses leader checkpoint/recheck work from an immutable runtime view.
-func planLeaderLifecycle(lc channelRuntimeLifecycle, view RuntimeView, now time.Time, idleAfter time.Duration) []lifecycleAction {
+// planLeaderCheckpointEviction chooses leader checkpoint/recheck work from an immutable runtime view.
+func planLeaderCheckpointEviction(lc channelRuntimeLifecycle, view RuntimeView, now time.Time, idleAfter time.Duration) []lifecycleAction {
 	if view.Role != ch.RoleLeader || view.Status != ch.StatusActive || view.HW < view.LEO || !view.IdleExpired(now, idleAfter) {
 		return nil
 	}

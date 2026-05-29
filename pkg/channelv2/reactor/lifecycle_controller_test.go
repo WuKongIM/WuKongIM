@@ -244,7 +244,32 @@ func TestLifecycleSyncLeaderFollowersAddsUpdatesAndRemovesReplicas(t *testing.T)
 	require.Nil(t, rc.lifecycle.followers[3])
 }
 
-func TestPlanLeaderLifecycleStartsCheckpointAfterFollowersStopped(t *testing.T) {
+func TestRuntimeViewFollowerStopBlockedByPendingHotPathWork(t *testing.T) {
+	tests := []struct {
+		name string
+		work PendingWorkView
+	}{
+		{name: "pending pull", work: PendingWorkView{PendingPull: true}},
+		{name: "apply inflight", work: PendingWorkView{ApplyInflight: true}},
+		{name: "apply blocked", work: PendingWorkView{ApplyBlocked: true}},
+		{name: "ack inflight", work: PendingWorkView{AckInflight: true}},
+		{name: "pending ack", work: PendingWorkView{PendingAck: true}},
+		{name: "pull inflight", work: PendingWorkView{PullInflight: true}},
+		{name: "checkpoint inflight", work: PendingWorkView{CheckpointInflight: true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			view := RuntimeView{PendingWork: tt.work}
+
+			require.True(t, view.followerStopBlocked())
+		})
+	}
+
+	require.False(t, RuntimeView{}.followerStopBlocked())
+}
+
+func TestPlanLeaderCheckpointEvictionStartsCheckpointAfterFollowersStopped(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
 	lc.stage = lifecycleLeaderStoppingFollowers
@@ -260,12 +285,12 @@ func TestPlanLeaderLifecycleStartsCheckpointAfterFollowersStopped(t *testing.T) 
 		},
 	}
 
-	actions := planLeaderLifecycle(lc, view, now, time.Second)
+	actions := planLeaderCheckpointEviction(lc, view, now, time.Second)
 
 	require.Contains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
 }
 
-func TestPlanLeaderLifecycleStartsCheckpointWhenRetryDue(t *testing.T) {
+func TestPlanLeaderCheckpointEvictionStartsCheckpointWhenRetryDue(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
 	lc.stage = lifecycleLeaderCheckpointing
@@ -283,12 +308,12 @@ func TestPlanLeaderLifecycleStartsCheckpointWhenRetryDue(t *testing.T) {
 		},
 	}
 
-	actions := planLeaderLifecycle(lc, view, now, time.Second)
+	actions := planLeaderCheckpointEviction(lc, view, now, time.Second)
 
 	require.Contains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
 }
 
-func TestPlanLeaderLifecycleDoesNotStartCheckpointBeforeRetryDue(t *testing.T) {
+func TestPlanLeaderCheckpointEvictionDoesNotStartCheckpointBeforeRetryDue(t *testing.T) {
 	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
 	lc.stage = lifecycleLeaderCheckpointing
@@ -306,7 +331,7 @@ func TestPlanLeaderLifecycleDoesNotStartCheckpointBeforeRetryDue(t *testing.T) {
 		},
 	}
 
-	actions := planLeaderLifecycle(lc, view, now, time.Second)
+	actions := planLeaderCheckpointEviction(lc, view, now, time.Second)
 
 	require.NotContains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
 }

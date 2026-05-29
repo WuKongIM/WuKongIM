@@ -106,7 +106,7 @@ func TestObserverSeesChannelRuntimeEvicted(t *testing.T) {
 	require.NoError(t, result.Err)
 	rc := r.channels[meta.Key]
 
-	r.tickLeaderLifecycle(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
+	r.tickLifecycleController(rc, rc.lifecycle.lastAppendAt.Add(time.Hour))
 	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
 	completeLeaderCheckpointAndDue(t, r, checkpoint)
 
