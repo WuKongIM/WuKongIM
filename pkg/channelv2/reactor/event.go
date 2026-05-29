@@ -13,9 +13,11 @@ import (
 type EventKind uint8
 
 const (
+	// Control events manage metadata, runtime lookup, cancellation, and close.
 	EventApplyMeta EventKind = iota + 1
 	// EventCheckState asks the owning reactor whether it has channel state loaded.
 	EventCheckState
+	// EventAppend is the client write event handled by the local leader.
 	EventAppend
 	// EventWorkerResult carries a blocking worker completion back to its reactor.
 	EventWorkerResult
@@ -23,10 +25,13 @@ const (
 	EventTick
 	// EventCancelWaiter cooperatively cancels a previously admitted waiter.
 	EventCancelWaiter
+	// EventPull is an inbound follower pull handled by the local leader.
 	EventPull
+	// EventAck is an inbound follower progress report handled by the local leader.
 	EventAck
 	// EventNotify accepts legacy transport compatibility nudges.
 	EventNotify
+	// EventPullHint wakes a local follower after leader progress.
 	EventPullHint
 	// EventLeaderEvictReady performs the final normal-priority leader eviction recheck.
 	EventLeaderEvictReady
