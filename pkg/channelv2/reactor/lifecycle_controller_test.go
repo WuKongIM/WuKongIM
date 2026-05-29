@@ -58,6 +58,31 @@ func TestLifecycleFollowerVersionPredicates(t *testing.T) {
 	require.False(t, follower.caughtUp(8))
 }
 
+func TestLifecycleZeroVersionStoppedAckVisibleInRuntimeView(t *testing.T) {
+	follower := lifecycleFollower{match: 3, stoppedZero: true}
+	require.True(t, follower.stopped(0))
+
+	state := machine.NewChannelState(ch.ChannelKey("1:zero-stopped"), 1, 1)
+	state.Role = ch.RoleLeader
+	state.Status = ch.StatusActive
+	state.LEO = 3
+	state.HW = 3
+	rc := &runtimeChannel{
+		state: state,
+		lifecycle: channelRuntimeLifecycle{
+			stage:     lifecycleLive,
+			version:   0,
+			followers: map[ch.NodeID]*lifecycleFollower{2: &follower},
+		},
+	}
+
+	view := runtimeViewFromChannel(rc, time.Now(), AppendFenceView{})
+
+	require.Len(t, view.Followers, 1)
+	require.True(t, view.Followers[0].Stopped)
+	require.True(t, view.AllFollowersStopped())
+}
+
 func TestLifecycleSyncLeaderFollowersAddsUpdatesAndRemovesReplicas(t *testing.T) {
 	meta := ch.Meta{
 		Key:         "1:lifecycle-sync",
