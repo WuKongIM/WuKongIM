@@ -131,7 +131,7 @@ func (r *Reactor) handleLeaderAck(event Event) {
 		decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
 		r.completeReplies(rc, decision.Replies, nil)
 		now := time.Now()
-		r.tryEvictLeader(rc, now)
+		r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventLeaderStoppedAck, now: now})
 		r.scheduleLifecycleFromState(rc, now)
 		event.Future.Complete(Result{})
 		return

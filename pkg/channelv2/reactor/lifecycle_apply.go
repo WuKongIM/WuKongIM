@@ -2,129 +2,73 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 )
 
-func (r *Reactor) lifecycleConfig() LifecycleConfig {
-	return LifecycleConfig{
-		IdleEvictAfter:         r.cfg.IdleEvictAfter,
-		IdleEvictCheckInterval: r.cfg.IdleEvictCheckInterval,
-		PullHintRetryInterval:  r.cfg.PullHintRetryInterval,
-	}
-}
-
-func (r *Reactor) applyLifecycleDecision(rc *runtimeChannel, decision LifecycleDecision, now time.Time) {
-	if r == nil || rc == nil {
+// driveLifecycle translates one lifecycle event into controller actions and applies them.
+func (r *Reactor) driveLifecycle(rc *runtimeChannel, event lifecycleEvent) {
+	if r == nil || rc == nil || rc.state == nil {
 		return
 	}
-	if decision.LeaderPhase != 0 {
-		applyLeaderLifecyclePhase(&rc.lifecycle, decision.LeaderPhase)
+	now := event.now
+	if now.IsZero() {
+		now = time.Now()
 	}
-	if decision.FollowerPhase != 0 {
-		applyFollowerLifecyclePhase(&rc.lifecycle, decision.FollowerPhase)
-	}
-	for _, action := range decision.Actions {
-		r.applyLifecycleAction(rc, action, now)
-	}
-	if !decision.NextDue.IsZero() {
-		r.scheduleLifecycleDue(rc, decision.NextDue)
-	}
-}
-
-func runtimeLifecycleFromController(lc channelRuntimeLifecycle) runtimeLifecycle {
-	return runtimeLifecycle{
-		LeaderPhase:   leaderPhaseFromLifecycleStage(lc.stage),
-		FollowerPhase: followerPhaseFromLifecycleStage(lc.stage),
-	}
-}
-
-func applyLeaderLifecyclePhase(lc *channelRuntimeLifecycle, phase LeaderLifecyclePhase) {
-	if lc == nil {
-		return
-	}
-	switch phase {
-	case LeaderLifecycleServing:
-		lc.stage = lifecycleLive
-	case LeaderLifecycleStoppingFollowers:
-		lc.stage = lifecycleLeaderStoppingFollowers
-	case LeaderLifecycleCheckpointing:
-		lc.stage = lifecycleLeaderCheckpointing
-	case LeaderLifecycleFinalRecheck:
-		lc.stage = lifecycleLeaderReadyToEvict
-	}
-}
-
-func applyFollowerLifecyclePhase(lc *channelRuntimeLifecycle, phase FollowerLifecyclePhase) {
-	if lc == nil {
-		return
-	}
-	switch phase {
-	case FollowerLifecycleReplicating:
-		lc.stage = lifecycleLive
-	case FollowerLifecycleStopCheckpointing:
-		lc.stage = lifecycleFollowerCheckpointing
-	case FollowerLifecycleStopAcking:
-		lc.stage = lifecycleFollowerStoppedAcking
-	}
-}
-
-func leaderPhaseFromLifecycleStage(stage lifecycleStage) LeaderLifecyclePhase {
-	switch stage {
-	case lifecycleLeaderStoppingFollowers:
-		return LeaderLifecycleStoppingFollowers
-	case lifecycleLeaderCheckpointing:
-		return LeaderLifecycleCheckpointing
-	case lifecycleLeaderReadyToEvict:
-		return LeaderLifecycleFinalRecheck
-	default:
-		return LeaderLifecycleServing
-	}
-}
-
-func followerPhaseFromLifecycleStage(stage lifecycleStage) FollowerLifecyclePhase {
-	switch stage {
-	case lifecycleFollowerCheckpointing:
-		return FollowerLifecycleStopCheckpointing
-	case lifecycleFollowerStoppedAcking, lifecycleFollowerReadyToEvict:
-		return FollowerLifecycleStopAcking
-	default:
-		return FollowerLifecycleReplicating
-	}
-}
-
-func (r *Reactor) applyLifecycleAction(rc *runtimeChannel, action LifecycleAction, now time.Time) {
-	switch action.Kind {
-	case LifecycleActionStartLeaderCheckpoint:
-		r.startLeaderCheckpoint(rc, now)
-	case LifecycleActionQueueLeaderFinalRecheck:
-		if rc != nil && rc.state != nil {
-			r.submitLeaderEvictReady(rc, now, r.currentAppendSubmitSeq(rc.state.Key))
+	switch event.kind {
+	case lifecycleEventIdleTick, lifecycleEventLeaderStoppedAck:
+		r.syncFollowerMatches(rc)
+		if rc.lifecycle.finalCheck.inflight && rc.lifecycle.finalCheck.version != rc.lifecycle.version {
+			rc.lifecycle.finalCheck.reset()
 		}
-	case LifecycleActionStartFollowerStopCheckpoint:
-		r.trySubmitStopCheckpoint(rc, now)
-	case LifecycleActionSendStoppedAck:
-		if rc != nil && rc.state != nil {
+		view := runtimeViewFromChannel(rc, now, AppendFenceView{})
+		if rc.lifecycle.stage == lifecycleLive && view.CanOfferFollowerStop(now, r.cfg.IdleEvictAfter) {
+			rc.lifecycle.stage = lifecycleLeaderStoppingFollowers
+		}
+		r.applyLifecycleActions(rc, planLeaderLifecycle(rc.lifecycle, view, now, r.cfg.IdleEvictAfter), now)
+	case lifecycleEventStoreCheckpointDone:
+		r.applyStoreCheckpointDone(rc, event, now)
+	case lifecycleEventStoppedAckDone:
+		r.applyStoppedAckDone(rc, event, now)
+	case lifecycleEventFinalEvictReady:
+		r.applyFinalLeaderEviction(rc, event, now)
+	case lifecycleEventAppendAdmitted, lifecycleEventAppendStored, lifecycleEventMetaFence:
+		resetLeaderCheckpointLifecycle(rc)
+	case lifecycleEventFollowerStopControl, lifecycleEventPullHintDone:
+	}
+}
+
+// applyLifecycleActions executes reactor-owned effects selected by lifecycle planning.
+func (r *Reactor) applyLifecycleActions(rc *runtimeChannel, actions []lifecycleAction, now time.Time) {
+	for _, action := range actions {
+		switch action.kind {
+		case lifecycleActionStartLeaderCheckpoint:
+			r.startLeaderCheckpoint(rc, now)
+		case lifecycleActionQueueLeaderFinalRecheck:
+			appendSeq := action.appendSeq
+			if appendSeq == 0 && rc != nil && rc.state != nil {
+				appendSeq = r.currentAppendSubmitSeq(rc.state.Key)
+			}
+			r.submitLeaderEvictReady(rc, now, appendSeq)
+		case lifecycleActionStartFollowerStopCheckpoint:
+			r.trySubmitStopCheckpoint(rc, now)
+		case lifecycleActionSendStoppedAck:
 			r.trySubmitStoppedAck(rc, now)
-		}
-	case LifecycleActionScheduleReplication:
-		r.scheduleReplicationFromState(rc, now)
-	case LifecycleActionEvictRuntime:
-		if rc != nil && rc.state != nil {
-			key := rc.state.Key
-			if r.evictRuntimeChannel(key, rc, "lifecycle decision") {
-				r.clearAppendSubmitState(key)
+		case lifecycleActionScheduleReplication:
+			r.scheduleReplicationFromState(rc, now)
+		case lifecycleActionScheduleLifecycle:
+			if action.due.IsZero() {
+				r.scheduleLifecycleFromState(rc, now)
+			} else {
+				r.scheduleLifecycleDue(rc, action.due)
+			}
+		case lifecycleActionEvictRuntime:
+			if rc != nil && rc.state != nil && r.evictRuntimeChannel(rc.state.Key, rc, "lifecycle decision") {
+				r.clearAppendSubmitState(rc.state.Key)
 			}
 		}
-	case LifecycleActionResetEviction:
-		resetLeaderCheckpointLifecycle(rc)
-	case LifecycleActionScheduleLifecycle:
-		due := action.Due
-		if due.IsZero() {
-			due = now
-		}
-		r.scheduleLifecycleDue(rc, due)
 	}
 }
 
@@ -153,4 +97,127 @@ func (r *Reactor) startLeaderCheckpoint(rc *runtimeChannel, now time.Time) bool 
 	rc.lifecycle.checkpoint.version = rc.lifecycle.version
 	rc.lifecycle.checkpoint.retryAt = time.Time{}
 	return true
+}
+
+func (r *Reactor) applyStoreCheckpointDone(rc *runtimeChannel, event lifecycleEvent, now time.Time) {
+	if rc.lifecycle.followerStop.accepted {
+		if event.err != nil {
+			rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
+			rc.lifecycle.checkpoint.retryAt = now.Add(rc.replication.backoff)
+			rc.replication.lastError = event.err
+			r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
+			return
+		}
+		rc.replication.backoff = 0
+		rc.replication.lastError = nil
+		rc.lifecycle.checkpoint.retryAt = time.Time{}
+		rc.lifecycle.stage = lifecycleFollowerStoppedAcking
+		r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionSendStoppedAck}, {kind: lifecycleActionScheduleReplication}}, now)
+		return
+	}
+	if event.err != nil {
+		rc.lifecycle.stage = lifecycleLeaderCheckpointing
+		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleLifecycle, due: rc.lifecycle.checkpoint.retryAt}}, now)
+		return
+	}
+	rc.lifecycle.checkpoint.retryAt = time.Time{}
+	if event.activityVersion != rc.lifecycle.version {
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
+	r.syncFollowerMatches(rc)
+	view := runtimeViewFromChannel(rc, now, AppendFenceView{})
+	if rc.state.Role != ch.RoleLeader || rc.state.HW < rc.state.LEO || !view.AllFollowersStopped() || view.HasPendingWork() {
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
+	rc.lifecycle.stage = lifecycleLeaderReadyToEvict
+	rc.lifecycle.finalCheck.inflight = true
+	rc.lifecycle.finalCheck.version = event.activityVersion
+	r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionQueueLeaderFinalRecheck}}, now)
+}
+
+func (r *Reactor) applyStoppedAckDone(rc *runtimeChannel, event lifecycleEvent, now time.Time) {
+	version := rc.lifecycle.stoppedAck.version
+	rc.lifecycle.stoppedAck.inflight = false
+	rc.lifecycle.stoppedAck.opID = 0
+	if event.err != nil {
+		if errors.Is(event.err, ch.ErrStaleMeta) {
+			rc.lifecycle.cancelFollowerStop()
+			rc.replication.backoff = 0
+			rc.replication.lastError = event.err
+			rc.replication.markDirty(now)
+			r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
+			return
+		}
+		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
+		rc.lifecycle.stoppedAck.retryAt = now.Add(rc.replication.backoff)
+		rc.lifecycle.stoppedAck.version = version
+		rc.replication.lastError = event.err
+		r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
+		return
+	}
+	rc.replication.backoff = 0
+	rc.replication.lastError = nil
+	rc.lifecycle.stoppedAck.retryAt = time.Time{}
+	rc.lifecycle.stage = lifecycleFollowerReadyToEvict
+	if !r.evictRuntimeChannel(rc.state.Key, rc, "stopped ack") {
+		rc.lifecycle.finalCheck.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+		r.applyLifecycleActions(rc, []lifecycleAction{{kind: lifecycleActionScheduleReplication}}, now)
+		return
+	}
+	r.clearAppendSubmitState(rc.state.Key)
+}
+
+// applyFinalLeaderEviction fences append submissions while checking and evicting an idle leader.
+func (r *Reactor) applyFinalLeaderEviction(rc *runtimeChannel, event lifecycleEvent, now time.Time) {
+	if r == nil || rc == nil || rc.state == nil || !rc.lifecycle.finalCheck.inflight || rc.lifecycle.finalCheck.version != rc.lifecycle.version {
+		return
+	}
+	rc.lifecycle.stage = lifecycleLeaderReadyToEvict
+	r.syncFollowerMatches(rc)
+
+	key := rc.state.Key
+	r.submitMu.Lock()
+	appendSeq := r.appendSubmitSeqs[key]
+	appendFence := AppendFenceView{
+		Reservations:      uint64(r.appendReservations[key]),
+		SubmitSeq:         appendSeq,
+		ObservedSubmitSeq: event.appendSeqObserved,
+	}
+	view := runtimeViewFromChannel(rc, now, appendFence)
+	actions := planFinalLeaderEviction(view, now, r.cfg.IdleEvictCheckInterval)
+	for _, action := range actions {
+		switch action.kind {
+		case lifecycleActionEvictRuntime:
+			evicted := r.evictRuntimeChannel(key, rc, "leader idle checkpoint")
+			if evicted {
+				r.clearAppendSubmitStateLocked(key)
+				r.submitMu.Unlock()
+				return
+			}
+			rc.lifecycle.finalCheck.inflight = false
+			rc.lifecycle.finalCheck.version = 0
+			rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
+			r.submitMu.Unlock()
+			r.scheduleLifecycleFromState(rc, now)
+			return
+		case lifecycleActionQueueLeaderFinalRecheck:
+			if action.appendSeq != 0 {
+				appendSeq = action.appendSeq
+			}
+			r.submitMu.Unlock()
+			r.submitLeaderEvictReady(rc, now, appendSeq)
+			return
+		case lifecycleActionScheduleLifecycle:
+			if !action.due.IsZero() {
+				rc.lifecycle.checkpoint.retryAt = action.due
+			}
+			r.submitMu.Unlock()
+			r.scheduleLifecycleFromState(rc, now)
+			return
+		}
+	}
+	r.submitMu.Unlock()
 }

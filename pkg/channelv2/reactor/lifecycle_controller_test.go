@@ -243,3 +243,60 @@ func TestLifecycleSyncLeaderFollowersAddsUpdatesAndRemovesReplicas(t *testing.T)
 	require.NotNil(t, rc.lifecycle.followers[2])
 	require.Nil(t, rc.lifecycle.followers[3])
 }
+
+func TestPlanLeaderLifecycleStartsCheckpointAfterFollowersStopped(t *testing.T) {
+	now := time.Unix(100, 0)
+	lc := newChannelRuntimeLifecycle(now.Add(-time.Minute), 3)
+	lc.stage = lifecycleLeaderStoppingFollowers
+	view := RuntimeView{
+		Role:            ch.RoleLeader,
+		Status:          ch.StatusActive,
+		LEO:             3,
+		HW:              3,
+		ActivityVersion: 3,
+		IdleSince:       now.Add(-time.Minute),
+		Followers: []FollowerView{
+			{Node: 2, Match: 3, Stopped: true, StopAckVersion: 3},
+		},
+	}
+
+	actions := planLeaderLifecycle(lc, view, now, time.Second)
+
+	require.Contains(t, lifecycleActionKinds(actions), lifecycleActionStartLeaderCheckpoint)
+}
+
+func TestPlanFinalLeaderEvictionRespectsAppendFence(t *testing.T) {
+	now := time.Unix(100, 0)
+	view := RuntimeView{
+		Role:            ch.RoleLeader,
+		Status:          ch.StatusActive,
+		LEO:             3,
+		HW:              3,
+		ActivityVersion: 3,
+		Followers: []FollowerView{
+			{Node: 2, Match: 3, Stopped: true, StopAckVersion: 3},
+		},
+		AppendFence: AppendFenceView{Reservations: 1, SubmitSeq: 7},
+	}
+
+	actions := planFinalLeaderEviction(view, now, 5*time.Second)
+
+	require.Equal(t, []lifecycleActionKind{lifecycleActionScheduleLifecycle}, lifecycleActionKinds(actions))
+	require.Equal(t, now.Add(5*time.Second), actions[0].due)
+
+	view.AppendFence = AppendFenceView{SubmitSeq: 8, ObservedSubmitSeq: 7}
+	actions = planFinalLeaderEviction(view, now, 5*time.Second)
+	require.Equal(t, []lifecycleActionKind{lifecycleActionQueueLeaderFinalRecheck}, lifecycleActionKinds(actions))
+
+	view.AppendFence = AppendFenceView{SubmitSeq: 8, ObservedSubmitSeq: 8}
+	actions = planFinalLeaderEviction(view, now, 5*time.Second)
+	require.Equal(t, []lifecycleActionKind{lifecycleActionEvictRuntime}, lifecycleActionKinds(actions))
+}
+
+func lifecycleActionKinds(actions []lifecycleAction) []lifecycleActionKind {
+	kinds := make([]lifecycleActionKind, 0, len(actions))
+	for _, action := range actions {
+		kinds = append(kinds, action.kind)
+	}
+	return kinds
+}

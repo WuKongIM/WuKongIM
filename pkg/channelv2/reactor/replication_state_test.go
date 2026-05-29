@@ -2704,7 +2704,7 @@ func TestLeaderPromotionRefreshesActivityVersionFromDurableLEO(t *testing.T) {
 	})
 	require.NoError(t, awaitFutureResult(t, ackFuture).Err)
 
-	r.tryEvictLeader(rc, time.Now())
+	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventIdleTick, now: time.Now()})
 	r.handleLeaderCheckpointResult(rc, sink.awaitResultKind(t, worker.TaskStoreCheckpoint))
 	events := r.mailbox.DrainInto(nil, defaultReactorDrain)
 	require.Len(t, events, 1)
