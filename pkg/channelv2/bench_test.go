@@ -68,6 +68,101 @@ func BenchmarkAppendThreeNodeManyChannelsAsync(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func BenchmarkThreeNodeTenThousandChannelsIdle(b *testing.B) {
+	h := testkit.NewClusterHarness(b, []ch.NodeID{1, 2, 3})
+	defer h.Close()
+	const channelCount = 10000
+	ids := make([]ch.ChannelID, channelCount)
+	for i := 0; i < channelCount; i++ {
+		meta := benchMetaThreeNode(fmt.Sprintf("live-10k-%05d", i))
+		h.ApplyMetaToAll(meta)
+		ids[i] = meta.ID
+	}
+	ctx := context.Background()
+	for i, id := range ids {
+		_, err := h.Nodes[1].Append(ctx, ch.AppendRequest{
+			ChannelID:  id,
+			CommitMode: ch.CommitModeQuorum,
+			Message: ch.Message{
+				MessageID:   uint64(i + 1),
+				ChannelID:   id.ID,
+				ChannelType: id.Type,
+				Payload:     benchPayload,
+			},
+		})
+		if err != nil {
+			b.Fatalf("warm channel %d: %v", i, err)
+		}
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := h.Nodes[1].Tick(ctx); err != nil {
+			b.Fatal(err)
+		}
+		if err := h.Nodes[2].Tick(ctx); err != nil {
+			b.Fatal(err)
+		}
+		if err := h.Nodes[3].Tick(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkThreeNodeTenThousandChannelsSparseTraffic(b *testing.B) {
+	h := testkit.NewClusterHarness(b, []ch.NodeID{1, 2, 3})
+	defer h.Close()
+	const channelCount = 10000
+	const activeCount = 500
+	ids := make([]ch.ChannelID, channelCount)
+	for i := 0; i < channelCount; i++ {
+		meta := benchMetaThreeNode(fmt.Sprintf("sparse-10k-%05d", i))
+		h.ApplyMetaToAll(meta)
+		ids[i] = meta.ID
+	}
+	ctx := context.Background()
+	for i := 0; i < activeCount; i++ {
+		_, err := h.Nodes[1].Append(ctx, ch.AppendRequest{
+			ChannelID:  ids[i],
+			CommitMode: ch.CommitModeQuorum,
+			Message:    ch.Message{MessageID: uint64(i + 1), ChannelID: ids[i].ID, ChannelType: ids[i].Type, Payload: benchPayload},
+		})
+		if err != nil {
+			b.Fatalf("warm active channel %d: %v", i, err)
+		}
+	}
+	var seq atomic.Uint64
+	var failed atomic.Bool
+	var errOnce sync.Once
+	var firstErr error
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if failed.Load() {
+				return
+			}
+			n := seq.Add(1)
+			id := ids[int(n-1)%activeCount]
+			_, err := h.Nodes[1].Append(ctx, ch.AppendRequest{
+				ChannelID:  id,
+				CommitMode: ch.CommitModeQuorum,
+				Message:    ch.Message{MessageID: 1000000 + n, ChannelID: id.ID, ChannelType: id.Type, Payload: benchPayload},
+			})
+			if err != nil {
+				errOnce.Do(func() {
+					firstErr = err
+					failed.Store(true)
+				})
+				return
+			}
+		}
+	})
+	if firstErr != nil {
+		b.Fatal(firstErr)
+	}
+}
+
 func BenchmarkAppendMessageDBStoreAdapterAsync(b *testing.B) {
 	factory := store.NewMessageDBFactory(b.TempDir())
 	b.Cleanup(func() { _ = factory.Close() })
