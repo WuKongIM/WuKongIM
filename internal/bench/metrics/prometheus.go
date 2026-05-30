@@ -65,6 +65,8 @@ type WukongIMV2Attribution struct {
 	ChannelV2MetaSlotReadP99Seconds                float64
 	ChannelV2MetaCreateBuildP99Seconds             float64
 	ChannelV2MetaCreateProposeP99Seconds           float64
+	ChannelV2MetaCreateProposeLocalP99Seconds      float64
+	ChannelV2MetaCreateProposeForwardP99Seconds    float64
 	ChannelV2MetaCreateSlotProposeSubmitP99Seconds float64
 	ChannelV2MetaCreateSlotProposeWaitP99Seconds   float64
 	ChannelV2MetaCreateWriteP99Seconds             float64
@@ -223,6 +225,8 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2MetaSlotReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_slot_read"})
 	report.ChannelV2MetaCreateBuildP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_build"})
 	report.ChannelV2MetaCreateProposeP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose"})
+	report.ChannelV2MetaCreateProposeLocalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_local"})
+	report.ChannelV2MetaCreateProposeForwardP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_forward"})
 	report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_submit"})
 	report.ChannelV2MetaCreateSlotProposeWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_wait"})
 	report.ChannelV2MetaCreateWriteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_write"})
@@ -289,6 +293,14 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2MetaCreateProposeP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose p99 is high")
+	}
+	if report.ChannelV2MetaCreateProposeLocalP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose local p99 is high")
+	}
+	if report.ChannelV2MetaCreateProposeForwardP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose forward p99 is high")
 	}
 	if report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

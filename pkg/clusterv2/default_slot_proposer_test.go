@@ -12,7 +12,7 @@ import (
 func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
 	runtime := &recordingSlotRuntime{future: recordingSlotFuture{}}
 	observer := &recordingAppendStageObserver{}
-	ctx := withDefaultSlotProposeStageObserver(context.Background(), observer)
+	ctx := propose.WithStageObserver(context.Background(), observer)
 
 	err := defaultSlotProposer{runtime: runtime}.Propose(ctx, 7, propose.EncodePayload(11, []byte("cmd")))
 	if err != nil {

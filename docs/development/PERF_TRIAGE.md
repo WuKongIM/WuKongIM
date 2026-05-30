@@ -66,6 +66,8 @@ For cold ChannelV2 activation attribution, first compare the per-node
 `channelv2_meta_resolve_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,
 `channelv2_meta_create_propose_p99_seconds`,
+`channelv2_meta_create_propose_local_p99_seconds`,
+`channelv2_meta_create_propose_forward_p99_seconds`,
 `channelv2_meta_create_slot_propose_submit_p99_seconds`,
 `channelv2_meta_create_slot_propose_wait_p99_seconds`,
 `channelv2_meta_apply_p99_seconds`, and
@@ -284,6 +286,8 @@ Interpretation matrix:
 | `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
 | `channelv2_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
 | `channelv2_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |
+| `channelv2_meta_create_propose_local_p99_seconds` rises | local Slot proposal bottleneck at origin | local Slot submit/wait split |
+| `channelv2_meta_create_propose_forward_p99_seconds` rises | remote Slot leader forwarding bottleneck at origin | node RPC forward path and leader-side Slot wait |
 | `channelv2_meta_create_slot_propose_submit_p99_seconds` rises | Slot runtime submit bottleneck | Multi-Raft proposal enqueue/scheduler pressure |
 | `channelv2_meta_create_slot_propose_wait_p99_seconds` rises | Slot proposal wait bottleneck | Raft commit, apply, metadata FSM batch, Pebble commit |
 | `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | ChannelV2 runtime ensure/load, store open, mailbox/worker pressure |

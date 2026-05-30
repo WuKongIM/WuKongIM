@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 )
@@ -35,6 +36,18 @@ func TestServiceProposeLocalLeader(t *testing.T) {
 	}
 }
 
+func TestServiceProposeLocalLeaderObservesStage(t *testing.T) {
+	observer := &recordingStageObserver{}
+	slots := &fakeSlots{local: true}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 2, SlotID: 10, Leader: 1}}, Slots: slots})
+
+	err := svc.Propose(WithStageObserver(context.Background(), observer), Request{Key: "u1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	requireStage(t, observer.events, "meta_create_propose_local", "ok")
+}
+
 func TestServiceProposeRemoteLeader(t *testing.T) {
 	forward := &fakeForward{}
 	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
@@ -44,6 +57,18 @@ func TestServiceProposeRemoteLeader(t *testing.T) {
 	if forward.calls != 1 || forward.nodeID != 2 || forward.req.SlotID != 11 || forward.req.HashSlot != 3 {
 		t.Fatalf("forward = %#v, want one call to node 2 slot 11 hash 3", forward)
 	}
+}
+
+func TestServiceProposeRemoteLeaderObservesStage(t *testing.T) {
+	observer := &recordingStageObserver{}
+	forward := &fakeForward{}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	err := svc.Propose(WithStageObserver(context.Background(), observer), Request{Key: "u1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	requireStage(t, observer.events, "meta_create_propose_forward", "ok")
 }
 
 func TestServiceProposeRemoteNotLeader(t *testing.T) {
@@ -112,4 +137,27 @@ func (f *fakeForward) ForwardPropose(_ context.Context, nodeID uint64, req Forwa
 	f.nodeID = nodeID
 	f.req = req
 	return f.err
+}
+
+type recordingStageObserver struct {
+	events []recordedStage
+}
+
+func (o *recordingStageObserver) ObserveChannelAppendStage(stage string, result string, _ time.Duration) {
+	o.events = append(o.events, recordedStage{stage: stage, result: result})
+}
+
+type recordedStage struct {
+	stage  string
+	result string
+}
+
+func requireStage(t *testing.T, events []recordedStage, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("stage %s/%s not observed in %#v", stage, result, events)
 }

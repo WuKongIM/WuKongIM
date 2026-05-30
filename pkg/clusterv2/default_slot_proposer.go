@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -50,13 +49,13 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 	}
 	started := time.Now()
 	future, err := p.runtime.Propose(ctx, multiraft.SlotID(slotID), multiraftPayload(hashSlot, command))
-	observeDefaultSlotProposeStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
+	propose.ObserveStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
 	if err != nil {
 		return mapMultiraftProposeError(err)
 	}
 	started = time.Now()
 	_, err = future.Wait(ctx)
-	observeDefaultSlotProposeStage(ctx, defaultSlotStageMetaCreateWait, err, time.Since(started))
+	propose.ObserveStage(ctx, defaultSlotStageMetaCreateWait, err, time.Since(started))
 	return mapMultiraftProposeError(err)
 }
 
@@ -77,37 +76,3 @@ func mapMultiraftProposeError(err error) error {
 }
 
 var _ propose.SlotRuntime = defaultSlotProposer{}
-
-type defaultSlotProposeStageContextKey struct{}
-
-type defaultSlotProposeStageObserver struct {
-	observer channels.AppendStageObserver
-}
-
-func withDefaultSlotProposeStageObserver(ctx context.Context, observer channels.AppendStageObserver) context.Context {
-	if observer == nil {
-		return ctx
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return context.WithValue(ctx, defaultSlotProposeStageContextKey{}, defaultSlotProposeStageObserver{observer: observer})
-}
-
-func observeDefaultSlotProposeStage(ctx context.Context, stage string, err error, d time.Duration) {
-	if ctx == nil {
-		return
-	}
-	observed, _ := ctx.Value(defaultSlotProposeStageContextKey{}).(defaultSlotProposeStageObserver)
-	if observed.observer == nil {
-		return
-	}
-	if d < 0 {
-		d = 0
-	}
-	result := "ok"
-	if err != nil {
-		result = "err"
-	}
-	observed.observer.ObserveChannelAppendStage(stage, result, d)
-}

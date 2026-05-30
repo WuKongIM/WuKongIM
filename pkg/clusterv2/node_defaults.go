@@ -164,7 +164,7 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 	if s.node == nil {
 		return ErrNotStarted
 	}
-	ctx = withDefaultSlotProposeStageObserver(ctx, s.observer)
+	ctx = propose.WithStageObserver(ctx, s.observer)
 	return s.node.Propose(ctx, ProposeRequest{
 		Key:     meta.ChannelID,
 		Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(meta),

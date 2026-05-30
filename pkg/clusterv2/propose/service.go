@@ -3,8 +3,14 @@ package propose
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+)
+
+const (
+	stageMetaCreateProposeLocal   = "meta_create_propose_local"
+	stageMetaCreateProposeForward = "meta_create_propose_forward"
 )
 
 // Config wires a Service.
@@ -46,12 +52,18 @@ func (s *Service) Propose(ctx context.Context, req Request) error {
 	}
 	payload := EncodePayload(route.HashSlot, req.Command)
 	if route.Leader == s.localNode || s.slots.IsLocalLeader(route.SlotID) {
-		return s.slots.Propose(ctx, route.SlotID, payload)
+		started := time.Now()
+		err = s.slots.Propose(ctx, route.SlotID, payload)
+		ObserveStage(ctx, stageMetaCreateProposeLocal, err, time.Since(started))
+		return err
 	}
 	if s.forward == nil {
 		return fmt.Errorf("%w: missing forward client", ErrInvalidRequest)
 	}
-	return s.forward.ForwardPropose(ctx, route.Leader, ForwardRequest{SlotID: route.SlotID, HashSlot: route.HashSlot, Payload: payload})
+	started := time.Now()
+	err = s.forward.ForwardPropose(ctx, route.Leader, ForwardRequest{SlotID: route.SlotID, HashSlot: route.HashSlot, Payload: payload})
+	ObserveStage(ctx, stageMetaCreateProposeForward, err, time.Since(started))
+	return err
 }
 
 func (s *Service) route(req Request) (routing.Route, error) {
