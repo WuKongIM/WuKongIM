@@ -85,6 +85,63 @@ func TestWukongIMV2ThreeNodeActivateScriptCollectsServerProcessResources(t *test
 	}
 }
 
+func TestWukongIMV2ThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--channels", "10",
+		"--users", "10",
+		"--activation-window", "1s",
+		"--hold", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_RESOURCE_SAMPLE_INTERVAL=0",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	for _, rel := range []string{
+		"metrics/127_0_0_1_5011-classify.txt",
+		"metrics/127_0_0_1_5012-classify.txt",
+		"metrics/127_0_0_1_5013-classify.txt",
+	} {
+		text := readFile(t, filepath.Join(outDir, rel))
+		if !strings.Contains(text, "classification: fake") {
+			t.Fatalf("classification file %s missing fake output:\n%s", rel, text)
+		}
+	}
+
+	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
+	for _, want := range []string{
+		"metrics classify --before " + filepath.Join(outDir, "metrics", "127_0_0_1_5011-before.prom") + " --after " + filepath.Join(outDir, "metrics", "127_0_0_1_5011-after.prom"),
+		"metrics classify --before " + filepath.Join(outDir, "metrics", "127_0_0_1_5012-before.prom") + " --after " + filepath.Join(outDir, "metrics", "127_0_0_1_5012-after.prom"),
+		"metrics classify --before " + filepath.Join(outDir, "metrics", "127_0_0_1_5013-before.prom") + " --after " + filepath.Join(outDir, "metrics", "127_0_0_1_5013-after.prom"),
+	} {
+		if !strings.Contains(wkbenchCalls, want) {
+			t.Fatalf("wkbench calls missing %q:\n%s", want, wkbenchCalls)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	if !strings.Contains(topSummary, "- metrics_classification: metrics/*-classify.txt") {
+		t.Fatalf("top-level summary should point to metrics classification evidence:\n%s", topSummary)
+	}
+}
+
 func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	root := repoRoot(t)
 	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-1000ch.sh"))
@@ -214,6 +271,11 @@ func writeFakeActivateWkbench(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
+printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
+  echo 'classification: fake'
+  exit 0
+fi
 report_dir=""
 while [[ $# -gt 0 ]]; do
   case "$1" in

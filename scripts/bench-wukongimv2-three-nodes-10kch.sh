@@ -318,6 +318,27 @@ scrape_metrics() {
   done
 }
 
+classify_metrics() {
+  local metrics_dir="$OUT_DIR/metrics"
+  mkdir -p "$metrics_dir"
+  local addr id before after out
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    out="$metrics_dir/${id}-classify.txt"
+    if [[ ! -f "$before" || ! -f "$after" ]]; then
+      {
+        echo "metrics classify skipped: missing before/after snapshots"
+        echo "before: $before"
+        echo "after: $after"
+      } >"$out"
+      continue
+    fi
+    "$WK_BENCH_BIN" metrics classify --before "$before" --after "$after" >"$out" 2>&1 || true
+  done
+}
+
 capture_pprof() {
   local phase="$1"
   local pprof_dir="$OUT_DIR/pprof/$phase"
@@ -558,6 +579,7 @@ write_summary() {
 - start_plan: start-plan.txt
 - config: config/
 - metrics: metrics/
+- metrics_classification: metrics/*-classify.txt
 - pprof: pprof/
 - resources: resources/
 - logs: logs/
@@ -618,6 +640,7 @@ main() {
   sample_server_resources after
   write_server_resource_summary
   scrape_metrics after
+  classify_metrics
   capture_pprof after
   collect_node_logs after
   write_summary "$status"

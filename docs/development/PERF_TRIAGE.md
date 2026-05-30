@@ -52,6 +52,7 @@ defaults to a 10,000-group-channel cardinality run, enables metrics and pprof,
 and stores evidence under
 `docs/development/perf-runs/<timestamp>-three-node-activate-10kch/`. It records
 node configs, startup plan, logs, before/after Prometheus snapshots,
+per-node `wkbench metrics classify` attribution files under `metrics/`,
 goroutine/heap pprof data, server process CPU/memory samples under
 `resources/`, the wkbench activation report, console output, and a top-level
 `summary.md`. The server resource sampler writes

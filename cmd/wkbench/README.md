@@ -160,8 +160,8 @@ latency SLA rather than live-channel cardinality.
 
 For local `cmd/wukongimv2` three-node runs, prefer
 `scripts/bench-wukongimv2-three-nodes-10kch.sh`. It wraps this command and
-collects node logs, Prometheus snapshots, pprof, and server process CPU/memory
-samples under `resources/`.
+collects node logs, Prometheus snapshots plus per-node classification files,
+pprof, and server process CPU/memory samples under `resources/`.
 
 ## Compose Development Simulator
 
