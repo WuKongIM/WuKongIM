@@ -163,10 +163,16 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 		r.bumpAppendSubmitSeqLocked(event.Key)
 		err := r.mailbox.Submit(priority, event)
 		r.submitMu.Unlock()
+		if err == nil && r.completeIfClosed(event) {
+			return ch.ErrClosed
+		}
 		r.observeMailboxDepth(priority)
 		return err
 	}
 	err := r.mailbox.Submit(priority, event)
+	if err == nil && r.completeIfClosed(event) {
+		return ch.ErrClosed
+	}
 	r.observeMailboxDepth(priority)
 	return err
 }
@@ -183,10 +189,25 @@ func (r *Reactor) SubmitCompletion(event Event) error {
 	}
 	select {
 	case r.mailbox.high <- event:
+		if r.completeIfClosed(event) {
+			return ch.ErrClosed
+		}
 		r.observeMailboxDepth(PriorityHigh)
 		return nil
 	case <-r.stop:
 		return ch.ErrClosed
+	}
+}
+
+func (r *Reactor) completeIfClosed(event Event) bool {
+	select {
+	case <-r.stop:
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: ch.ErrClosed})
+		}
+		return true
+	default:
+		return false
 	}
 }
 
@@ -203,6 +224,7 @@ func (r *Reactor) loop() {
 	defer func() {
 		stopTimer(idleTimer)
 		r.failPendingWaiters(ch.ErrClosed)
+		r.failQueuedEvents(ch.ErrClosed)
 		close(r.done)
 	}()
 	for {
@@ -340,6 +362,23 @@ func (r *Reactor) failPendingWaiters(err error) {
 		r.failWaiters(rc, err)
 		r.clearAppendCancelContexts(rc)
 		r.clearPullCancelChannel(rc)
+	}
+}
+
+func (r *Reactor) failQueuedEvents(err error) {
+	if r == nil || r.mailbox == nil {
+		return
+	}
+	for {
+		events := r.mailbox.Drain(defaultReactorDrain)
+		if len(events) == 0 {
+			return
+		}
+		for _, event := range events {
+			if event.Future != nil {
+				event.Future.Complete(Result{Err: err})
+			}
+		}
 	}
 }
 

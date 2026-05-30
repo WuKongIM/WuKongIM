@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,33 +13,25 @@ import (
 
 func TestRuntimeSnapshotCountsLeaderFollowerAndParked(t *testing.T) {
 	factory := store.NewMemoryFactory()
-	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory})
-	require.NoError(t, err)
-	defer g.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
 
 	leaderMeta := testMeta("runtime-snapshot-leader", 2, 2)
 	followerMeta := testMeta("runtime-snapshot-follower", 2, 1)
-	require.NoError(t, awaitSubmit(g, leaderMeta.Key, Event{Kind: EventApplyMeta, Key: leaderMeta.Key, Meta: leaderMeta}))
-	require.NoError(t, awaitSubmit(g, followerMeta.Key, Event{Kind: EventApplyMeta, Key: followerMeta.Key, Meta: followerMeta}))
+	require.NoError(t, applyMetaDirect(t, r, leaderMeta))
+	require.NoError(t, applyMetaDirect(t, r, followerMeta))
 
-	rc := g.reactors[0].channels[followerMeta.Key]
+	rc := r.channels[followerMeta.Key]
 	require.NotNil(t, rc)
 	rc.replication.parkWithRecovery(followerMeta.Key, time.Now(), time.Minute, 0)
-	g.reactors[0].activationRejectedTotal = 3
+	r.activationRejectedTotal = 3
 
-	snapshot, err := g.RuntimeSnapshot(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, ch.NodeID(2), snapshot.NodeID)
-	require.Equal(t, 2, snapshot.ActiveTotal)
-	require.Equal(t, 1, snapshot.ActiveLeader)
-	require.Equal(t, 1, snapshot.ActiveFollower)
-	require.Equal(t, 1, snapshot.FollowerParked)
-	require.Equal(t, uint64(3), snapshot.ActivationRejectedTotal)
-	require.Len(t, snapshot.Reactors, 1)
-	require.Equal(t, 1, snapshot.Reactors[0].Leader)
-	require.Equal(t, 1, snapshot.Reactors[0].Follower)
-	require.Equal(t, 1, snapshot.Reactors[0].Parked)
-	require.Len(t, snapshot.WorkerQueues, 4)
+	future := NewFuture()
+	r.handleRuntimeSnapshot(Event{Kind: EventRuntimeSnapshot, Future: future})
+	result := awaitFutureResult(t, future)
+	require.Equal(t, 1, result.RuntimeSnapshot.Leader)
+	require.Equal(t, 1, result.RuntimeSnapshot.Follower)
+	require.Equal(t, 1, result.RuntimeSnapshot.Parked)
+	require.Equal(t, uint64(3), result.RuntimeActivationRejectedTotal)
 }
 
 func TestRuntimeProbeReportsLoadedAndMissingChannels(t *testing.T) {
@@ -63,16 +56,14 @@ func TestRuntimeProbeReportsLoadedAndMissingChannels(t *testing.T) {
 
 func TestRuntimeEvictEvictsSafeRuntimeAndSkipsBusyRuntime(t *testing.T) {
 	factory := store.NewMemoryFactory()
-	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
-	require.NoError(t, err)
-	defer g.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
 
 	safeMeta := testMeta("runtime-evict-safe", 1, 1)
 	busyMeta := testMeta("runtime-evict-busy", 1, 1)
-	require.NoError(t, awaitSubmit(g, safeMeta.Key, Event{Kind: EventApplyMeta, Key: safeMeta.Key, Meta: safeMeta}))
-	require.NoError(t, awaitSubmit(g, busyMeta.Key, Event{Kind: EventApplyMeta, Key: busyMeta.Key, Meta: busyMeta}))
+	require.NoError(t, applyMetaDirect(t, r, safeMeta))
+	require.NoError(t, applyMetaDirect(t, r, busyMeta))
 
-	busy := g.reactors[0].channels[busyMeta.Key]
+	busy := r.channels[busyMeta.Key]
 	require.NotNil(t, busy)
 	if busy.waiters == nil {
 		busy.waiters = make(map[ch.OpID]*Future)
@@ -80,12 +71,91 @@ func TestRuntimeEvictEvictsSafeRuntimeAndSkipsBusyRuntime(t *testing.T) {
 	busy.waiters[1] = NewFuture()
 	missingID := ch.ChannelID{ID: "runtime-evict-missing", Type: 1}
 
-	result, err := g.RuntimeEvict(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{safeMeta.ID, busyMeta.ID, missingID}})
-	require.NoError(t, err)
+	future := NewFuture()
+	r.handleRuntimeEvict(Event{Kind: EventRuntimeEvict, RuntimeChannelIDs: []ch.ChannelID{safeMeta.ID, busyMeta.ID, missingID}, Future: future})
+	result := awaitFutureResult(t, future).RuntimeEvict
 	require.Equal(t, 3, result.Requested)
 	require.Equal(t, 1, result.Evicted)
 	require.Equal(t, 1, result.SkippedBusy)
 	require.Equal(t, 1, result.Missing)
-	require.Nil(t, g.reactors[0].channels[safeMeta.Key])
-	require.NotNil(t, g.reactors[0].channels[busyMeta.Key])
+	require.Nil(t, r.channels[safeMeta.Key])
+	require.NotNil(t, r.channels[busyMeta.Key])
+}
+
+func TestRuntimeProbeSpansMultipleReactorsAndPreservesMissingOrder(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	const reactorCount = 2
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: reactorCount, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	leaderID := channelIDForReactorIndex(t, g.router, 0)
+	followerID := channelIDForReactorIndex(t, g.router, 1)
+	missingFirst := ch.ChannelID{ID: "runtime-probe-missing-first", Type: 1}
+	missingSecond := ch.ChannelID{ID: "runtime-probe-missing-second", Type: 1}
+	leaderMeta := testMeta(leaderID.ID, 1, 1)
+	leaderMeta.ID = leaderID
+	leaderMeta.Key = ch.ChannelKeyForID(leaderID)
+	followerMeta := testMeta(followerID.ID, 1, 2)
+	followerMeta.ID = followerID
+	followerMeta.Key = ch.ChannelKeyForID(followerID)
+	require.NoError(t, awaitSubmit(g, leaderMeta.Key, Event{Kind: EventApplyMeta, Key: leaderMeta.Key, Meta: leaderMeta}))
+	require.NoError(t, awaitSubmit(g, followerMeta.Key, Event{Kind: EventApplyMeta, Key: followerMeta.Key, Meta: followerMeta}))
+
+	result, err := g.RuntimeProbe(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{missingFirst, followerID, missingSecond, leaderID}})
+	require.NoError(t, err)
+	require.Equal(t, 4, result.Checked)
+	require.Equal(t, 1, result.LoadedLeader)
+	require.Equal(t, 1, result.LoadedFollower)
+	require.Equal(t, []ch.ChannelID{missingFirst, missingSecond}, result.Missing)
+}
+
+func TestRuntimeEvictReturnsPartialResultWhenLaterSubmitFails(t *testing.T) {
+	const reactorCount = 2
+	g := newUnstartedTestGroup(t, reactorCount, 1)
+	evictID := channelIDForReactorIndex(t, g.router, 0)
+	blockedID := channelIDForReactorIndex(t, g.router, 1)
+	evictMeta := testMeta(evictID.ID, 1, 1)
+	evictMeta.ID = evictID
+	evictMeta.Key = ch.ChannelKeyForID(evictID)
+	require.NoError(t, applyMetaDirect(t, g.reactors[0], evictMeta))
+	require.NoError(t, g.reactors[1].Submit(PriorityNormal, Event{Kind: EventRuntimeProbe, Future: NewFuture()}))
+
+	g.reactors[0].start()
+	defer g.reactors[0].Close()
+
+	result, err := g.RuntimeEvict(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{evictID, blockedID}})
+	require.ErrorIs(t, err, ch.ErrBackpressured)
+	require.Equal(t, 2, result.Requested)
+	require.Equal(t, 1, result.Evicted)
+}
+
+func TestRuntimeMethodsReturnErrClosedForNilAndClosedGroup(t *testing.T) {
+	var nilGroup *Group
+	_, err := nilGroup.RuntimeSnapshot(context.Background())
+	require.ErrorIs(t, err, ch.ErrClosed)
+	_, err = nilGroup.RuntimeProbe(context.Background(), ch.RuntimeSelector{})
+	require.ErrorIs(t, err, ch.ErrClosed)
+	_, err = nilGroup.RuntimeEvict(context.Background(), ch.RuntimeSelector{})
+	require.ErrorIs(t, err, ch.ErrClosed)
+
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: store.NewMemoryFactory()})
+	require.NoError(t, err)
+	require.NoError(t, g.Close())
+	_, err = g.RuntimeSnapshot(context.Background())
+	require.ErrorIs(t, err, ch.ErrClosed)
+	_, err = g.RuntimeProbe(context.Background(), ch.RuntimeSelector{})
+	require.ErrorIs(t, err, ch.ErrClosed)
+	_, err = g.RuntimeEvict(context.Background(), ch.RuntimeSelector{})
+	require.ErrorIs(t, err, ch.ErrClosed)
+}
+
+func TestReactorCompletesQueuedFuturesOnExit(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	future := NewFuture()
+	require.NoError(t, r.mailbox.Submit(PriorityNormal, Event{Kind: EventRuntimeProbe, Future: future}))
+
+	r.failQueuedEvents(ch.ErrClosed)
+	_, err := future.Await(context.Background())
+	require.True(t, errors.Is(err, ch.ErrClosed))
 }

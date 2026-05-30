@@ -53,25 +53,34 @@ func (g *Group) RuntimeProbe(ctx context.Context, selector ch.RuntimeSelector) (
 		ctx = context.Background()
 	}
 	ids := append([]ch.ChannelID(nil), selector.ChannelIDs...)
-	result := ch.RuntimeProbeResult{Checked: len(ids)}
+	result := ch.RuntimeProbeResult{}
 	if len(ids) == 0 {
 		return result, nil
 	}
-	futures, err := g.submitRuntimeSelected(ctx, EventRuntimeProbe, ids)
-	if err != nil {
-		return ch.RuntimeProbeResult{}, err
-	}
-	for _, future := range futures {
+	submissions, submitErr := g.submitRuntimeSelected(ctx, EventRuntimeProbe, ids)
+	missingCounts := make(map[ch.ChannelID]int)
+	for _, submission := range submissions {
+		future := submission.future
 		reactorResult, err := future.Await(ctx)
 		if err != nil {
 			return ch.RuntimeProbeResult{}, err
 		}
 		probe := reactorResult.RuntimeProbe
+		result.Checked += probe.Checked
 		result.LoadedLeader += probe.LoadedLeader
 		result.LoadedFollower += probe.LoadedFollower
-		result.Missing = append(result.Missing, probe.Missing...)
+		for _, missing := range probe.Missing {
+			missingCounts[missing]++
+		}
 	}
-	return result, nil
+	for _, id := range ids {
+		if missingCounts[id] == 0 {
+			continue
+		}
+		result.Missing = append(result.Missing, id)
+		missingCounts[id]--
+	}
+	return result, submitErr
 }
 
 // RuntimeEvict evicts selected safe channel runtimes on their owning reactors.
@@ -87,11 +96,9 @@ func (g *Group) RuntimeEvict(ctx context.Context, selector ch.RuntimeSelector) (
 	if len(ids) == 0 {
 		return result, nil
 	}
-	futures, err := g.submitRuntimeSelected(ctx, EventRuntimeEvict, ids)
-	if err != nil {
-		return ch.RuntimeEvictResult{}, err
-	}
-	for _, future := range futures {
+	submissions, submitErr := g.submitRuntimeSelected(ctx, EventRuntimeEvict, ids)
+	for _, submission := range submissions {
+		future := submission.future
 		reactorResult, err := future.Await(ctx)
 		if err != nil {
 			return ch.RuntimeEvictResult{}, err
@@ -101,28 +108,35 @@ func (g *Group) RuntimeEvict(ctx context.Context, selector ch.RuntimeSelector) (
 		result.SkippedBusy += evict.SkippedBusy
 		result.Missing += evict.Missing
 	}
-	return result, nil
+	return result, submitErr
 }
 
-func (g *Group) submitRuntimeSelected(ctx context.Context, kind EventKind, ids []ch.ChannelID) ([]*Future, error) {
-	byReactor := make(map[int][]ch.ChannelID)
+type runtimeSubmission struct {
+	future *Future
+}
+
+func (g *Group) submitRuntimeSelected(ctx context.Context, kind EventKind, ids []ch.ChannelID) ([]runtimeSubmission, error) {
+	byReactor := make([][]ch.ChannelID, len(g.reactors))
 	for _, id := range ids {
 		index := g.router.PickIndex(ch.ChannelKeyForID(id))
 		byReactor[index] = append(byReactor[index], id)
 	}
-	futures := make([]*Future, 0, len(byReactor))
+	submissions := make([]runtimeSubmission, 0, len(byReactor))
 	for index, selected := range byReactor {
+		if len(selected) == 0 {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return submissions, err
 		}
 		future := NewFuture()
 		event := Event{Kind: kind, RuntimeChannelIDs: append([]ch.ChannelID(nil), selected...), Future: future}
 		if err := g.reactors[index].Submit(eventPriority(kind), event); err != nil {
-			return nil, err
+			return submissions, err
 		}
-		futures = append(futures, future)
+		submissions = append(submissions, runtimeSubmission{future: future})
 	}
-	return futures, nil
+	return submissions, nil
 }
 
 func runtimeWorkerQueues(pools *worker.Pools) []ch.RuntimeWorkerQueue {
