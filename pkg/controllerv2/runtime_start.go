@@ -27,6 +27,7 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		RaftDir:        filepath.Join(r.cfg.StateDir, "raft"),
 		StateMachine:   sm,
 		Transport:      transport,
+		Observer:       r.cfg.RaftObserver,
 		TickInterval:   r.cfg.TickInterval,
 	})
 	if err != nil {

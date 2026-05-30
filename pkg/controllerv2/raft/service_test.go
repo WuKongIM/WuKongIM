@@ -271,6 +271,23 @@ func TestSlowApplyDoesNotBlockStep(t *testing.T) {
 	require.NoError(t, <-resultCh)
 }
 
+func TestStepObservesQueueDepthAndEnqueueLatency(t *testing.T) {
+	observer := &stepObserver{}
+	service := &Service{
+		cfg:     Config{NodeID: 1, Observer: observer},
+		started: true,
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
+		stepCh:  make(chan raftpb.Message, 2),
+	}
+
+	require.NoError(t, service.Step(context.Background(), raftpb.Message{To: 1, Type: raftpb.MsgHeartbeat}))
+
+	require.Equal(t, 1, observer.depth)
+	require.Equal(t, 2, observer.capacity)
+	require.Equal(t, []string{"ok"}, observer.results)
+}
+
 func TestMemoryRaftTransportSendDoesNotBlockWhenPeerStepQueueFull(t *testing.T) {
 	transport := newMemoryRaftTransport()
 	stopCh := make(chan struct{})
@@ -438,6 +455,21 @@ func (c *testRaftCluster) waitForRevision(t *testing.T, revision uint64) []state
 type memoryRaftTransport struct {
 	mu       sync.RWMutex
 	services map[uint64]*Service
+}
+
+type stepObserver struct {
+	depth    int
+	capacity int
+	results  []string
+}
+
+func (o *stepObserver) SetStepQueueDepth(depth int, capacity int) {
+	o.depth = depth
+	o.capacity = capacity
+}
+
+func (o *stepObserver) ObserveStepEnqueue(result string, _ time.Duration) {
+	o.results = append(o.results, result)
 }
 
 func newMemoryRaftTransport() *memoryRaftTransport {

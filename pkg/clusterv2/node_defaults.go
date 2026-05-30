@@ -31,6 +31,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			HashSlotCount:    n.cfg.Slots.HashSlotCount,
 			ReplicaCount:     n.cfg.Slots.ReplicaCount,
 			RaftTransport:    control.NewRaftTransport(n.transportClient),
+			RaftObserver:     n.cfg.Control.RaftObserver,
 			SyncPeers:        control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
 		})
 		if err != nil {

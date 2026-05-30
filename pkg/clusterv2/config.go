@@ -45,6 +45,14 @@ type ControlConfig struct {
 	Voters []ControlVoter
 	// AllowBootstrap permits this node to initialize an empty ControllerV2 Raft log.
 	AllowBootstrap bool
+	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	RaftObserver ControllerRaftObserver
+}
+
+// ControllerRaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
+type ControllerRaftObserver interface {
+	SetStepQueueDepth(depth int, capacity int)
+	ObserveStepEnqueue(result string, d time.Duration)
 }
 
 // ControlRole declares how this node participates in ControllerV2.

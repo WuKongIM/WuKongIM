@@ -54,6 +54,8 @@ type RuntimeConfig struct {
 	TickInterval time.Duration
 	// RaftTransport sends ControllerV2 Raft messages.
 	RaftTransport cv2.Transport
+	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	RaftObserver cv2.RaftObserver
 	// SyncClient mirrors ControllerV2 state for non-voter nodes.
 	SyncClient *cv2.SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
@@ -90,6 +92,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		ReplicaCount:     cfg.ReplicaCount,
 		TickInterval:     cfg.TickInterval,
 		RaftTransport:    cfg.RaftTransport,
+		RaftObserver:     cfg.RaftObserver,
 		SyncClient:       cfg.SyncClient,
 		SyncPeers:        cfg.SyncPeers,
 		Now:              cfg.Now,

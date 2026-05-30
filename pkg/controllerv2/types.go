@@ -81,6 +81,8 @@ const (
 )
 
 type (
+	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
+	RaftObserver = raft.Observer
 	// GetStateRequest asks a Controller leader for a full cluster-state snapshot.
 	GetStateRequest = cv2sync.GetStateRequest
 	// GetStateResponse carries a full state file payload or sync status.
@@ -157,6 +159,8 @@ type RuntimeConfig struct {
 	TickInterval time.Duration
 	// RaftTransport sends ControllerV2 Raft messages.
 	RaftTransport Transport
+	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	RaftObserver RaftObserver
 	// SyncClient mirrors ControllerV2 state for non-voter nodes.
 	SyncClient *SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.

@@ -23,6 +23,9 @@ type ControllerMetrics struct {
 	nodesSuspect     prometheus.Gauge
 	nodesDead        prometheus.Gauge
 	slotLeaderSkew   prometheus.Gauge
+	raftStepDepth    prometheus.Gauge
+	raftStepCapacity prometheus.Gauge
+	raftStepEnqueue  *prometheus.HistogramVec
 }
 
 func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ControllerMetrics {
@@ -78,6 +81,22 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Max-minus-min Slot leader count skew across active data nodes.",
 			ConstLabels: labels,
 		}),
+		raftStepDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_raft_step_queue_depth",
+			Help:        "Number of pending inbound ControllerV2 Raft Step messages.",
+			ConstLabels: labels,
+		}),
+		raftStepCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_raft_step_queue_capacity",
+			Help:        "Capacity of the inbound ControllerV2 Raft Step message queue.",
+			ConstLabels: labels,
+		}),
+		raftStepEnqueue: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_controller_raft_step_enqueue_duration_seconds",
+			Help:        "Elapsed time to enqueue an inbound ControllerV2 Raft Step message.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -91,6 +110,9 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.nodesSuspect,
 		m.nodesDead,
 		m.slotLeaderSkew,
+		m.raftStepDepth,
+		m.raftStepCapacity,
+		m.raftStepEnqueue,
 	)
 
 	for _, kind := range controllerTaskKinds {
@@ -161,4 +183,19 @@ func (m *ControllerMetrics) SetSlotLeaderSkew(skew int) {
 		return
 	}
 	m.slotLeaderSkew.Set(float64(skew))
+}
+
+func (m *ControllerMetrics) SetControllerRaftStepQueue(depth int, capacity int) {
+	if m == nil {
+		return
+	}
+	m.raftStepDepth.Set(float64(depth))
+	m.raftStepCapacity.Set(float64(capacity))
+}
+
+func (m *ControllerMetrics) ObserveControllerRaftStepEnqueue(result string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.raftStepEnqueue.WithLabelValues(result).Observe(d.Seconds())
 }

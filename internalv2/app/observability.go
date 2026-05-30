@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -20,11 +21,16 @@ type channelV2MetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type controllerRaftMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type storageCommitMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
 type multiChannelV2Observer []reactor.Observer
+type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -179,6 +185,20 @@ func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err 
 	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d)
 }
 
+func (o controllerRaftMetricsObserver) SetStepQueueDepth(depth int, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetControllerRaftStepQueue(depth, capacity)
+}
+
+func (o controllerRaftMetricsObserver) ObserveStepEnqueue(result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerRaftStepEnqueue(result, d)
+}
+
 func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
 	if o.metrics == nil {
 		return
@@ -214,6 +234,16 @@ func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer 
 		return first
 	}
 	return multiChannelV2Observer{first, second}
+}
+
+func combineControllerRaftObservers(first, second cv2raft.Observer) cv2raft.Observer {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiControllerRaftObserver{first, second}
 }
 
 func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
@@ -319,6 +349,18 @@ func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err er
 	}
 }
 
+func (o multiControllerRaftObserver) SetStepQueueDepth(depth int, capacity int) {
+	for _, observer := range o {
+		observer.SetStepQueueDepth(depth, capacity)
+	}
+}
+
+func (o multiControllerRaftObserver) ObserveStepEnqueue(result string, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveStepEnqueue(result, d)
+	}
+}
+
 func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
 	for _, observer := range o {
 		observer.SetCommitCoordinatorQueueDepth(depth)
@@ -385,10 +427,12 @@ var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
+var _ cv2raft.Observer = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
+var _ cv2raft.Observer = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}

@@ -474,6 +474,8 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	reg.Controller.ObserveDecision("repair", 18*time.Millisecond)
 	reg.Controller.ObserveTaskCompleted("repair", "ok")
 	reg.Controller.ObserveMigrationCompleted("ok")
+	reg.Controller.SetControllerRaftStepQueue(7, 1024)
+	reg.Controller.ObserveControllerRaftStepEnqueue("ok", 3*time.Millisecond)
 	reg.Controller.SetNodeCounts(2, 1, 1)
 	reg.Controller.SetTaskActive(map[string]int{
 		"repair":    2,
@@ -526,6 +528,18 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 		}
 	}
 	require.True(t, foundOK, "ok migration counter should be present")
+
+	stepDepth := requireMetricFamily(t, families, "wukongim_controller_raft_step_queue_depth")
+	require.Len(t, stepDepth.GetMetric(), 1)
+	require.Equal(t, float64(7), stepDepth.GetMetric()[0].GetGauge().GetValue())
+
+	stepCapacity := requireMetricFamily(t, families, "wukongim_controller_raft_step_queue_capacity")
+	require.Len(t, stepCapacity.GetMetric(), 1)
+	require.Equal(t, float64(1024), stepCapacity.GetMetric()[0].GetGauge().GetValue())
+
+	stepEnqueue := requireMetricFamily(t, families, "wukongim_controller_raft_step_enqueue_duration_seconds")
+	require.Len(t, stepEnqueue.GetMetric(), 1)
+	requireMetricLabels(t, stepEnqueue.GetMetric()[0], map[string]string{"result": "ok"})
 }
 
 func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {

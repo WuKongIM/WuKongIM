@@ -259,16 +259,42 @@ func (s *Service) Step(ctx context.Context, msg raftpb.Message) error {
 	doneCh := s.doneCh
 	s.mu.Unlock()
 
+	started := time.Now()
 	select {
 	case stepCh <- msg:
+		s.observeStepQueue(stepCh)
+		s.observeStepEnqueue("ok", time.Since(started))
 		return nil
 	case <-ctx.Done():
+		s.observeStepQueue(stepCh)
+		s.observeStepEnqueue("err", time.Since(started))
 		return ctx.Err()
 	case <-doneCh:
+		s.observeStepQueue(stepCh)
+		s.observeStepEnqueue("err", time.Since(started))
 		return s.currentError()
 	case <-stopCh:
+		s.observeStepQueue(stepCh)
+		s.observeStepEnqueue("err", time.Since(started))
 		return ErrStopped
 	}
+}
+
+func (s *Service) observeStepQueue(stepCh chan raftpb.Message) {
+	if s == nil || s.cfg.Observer == nil || stepCh == nil {
+		return
+	}
+	s.cfg.Observer.SetStepQueueDepth(len(stepCh), cap(stepCh))
+}
+
+func (s *Service) observeStepEnqueue(result string, d time.Duration) {
+	if s == nil || s.cfg.Observer == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	s.cfg.Observer.ObserveStepEnqueue(result, d)
 }
 
 // LeaderID returns the leader currently known to this service.

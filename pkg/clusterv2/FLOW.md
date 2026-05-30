@@ -57,6 +57,10 @@ Start(ctx)
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
+`Config.Control.RaftObserver` is passed through to the default ControllerV2
+runtime so composition roots can expose Controller Raft ingress queue metrics
+without changing control-plane semantics.
+
 ## Stop Flow
 
 ```text

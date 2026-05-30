@@ -22,6 +22,10 @@ The root `pkg/controllerv2` package is the external facade. Callers should depen
 | `raft` | Controller Raft wrapper, WAL-backed log storage, scheduled apply, snapshots, and compaction. |
 | `server` | Thin composition facade for tests and future integration. |
 
+Runtime composition may provide a `RaftObserver` to record queue and enqueue
+latency telemetry from the Controller Raft ingress path. The observer is
+read-only and must not affect Raft stepping, WAL persistence, or apply order.
+
 ## Reading Guide
 
 Start at the root facade when reading production behavior:

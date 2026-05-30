@@ -40,6 +40,12 @@ type Transport interface {
 	Send([]raftpb.Message)
 }
 
+// Observer receives low-cardinality ControllerV2 Raft runtime metrics.
+type Observer interface {
+	SetStepQueueDepth(depth int, capacity int)
+	ObserveStepEnqueue(result string, d time.Duration)
+}
+
 type stateMachine interface {
 	Load(context.Context) error
 	Reset()
@@ -63,6 +69,8 @@ type Config struct {
 	StateMachine stateMachine
 	// Transport delivers outbound Raft protocol messages to peer services.
 	Transport Transport
+	// Observer receives local Raft queue metrics.
+	Observer Observer
 	// TickInterval controls the wall-clock interval between Raft ticks; zero uses the default.
 	TickInterval time.Duration
 	// MaxApplyBatchEntries limits how many committed command entries one FSM batch may contain.
