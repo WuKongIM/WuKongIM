@@ -28,6 +28,9 @@ type slotReconciler interface {
 type channelService interface {
 	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
+	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
+	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
 	Tick(context.Context) error
 	Close() error
 }

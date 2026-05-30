@@ -161,8 +161,18 @@ func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelv2.Chann
 }
 
 type nodeChannelRuntime struct {
-	appendCalls int
-	closeCalls  int
+	snapshot channelv2.RuntimeSnapshot
+	probe    channelv2.RuntimeProbeResult
+	evict    channelv2.RuntimeEvictResult
+
+	lastProbe channelv2.RuntimeSelector
+	lastEvict channelv2.RuntimeSelector
+
+	appendCalls   int
+	closeCalls    int
+	snapshotCalls int
+	probeCalls    int
+	evictCalls    int
 }
 
 func (r *nodeChannelRuntime) ApplyMeta(channelv2.Meta) error { return nil }
@@ -177,6 +187,20 @@ func (r *nodeChannelRuntime) Tick(context.Context) error { return nil }
 func (r *nodeChannelRuntime) Close() error {
 	r.closeCalls++
 	return nil
+}
+func (r *nodeChannelRuntime) RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
+	r.snapshotCalls++
+	return r.snapshot, nil
+}
+func (r *nodeChannelRuntime) RuntimeProbe(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+	r.probeCalls++
+	r.lastProbe = selector
+	return r.probe, nil
+}
+func (r *nodeChannelRuntime) RuntimeEvict(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+	r.evictCalls++
+	r.lastEvict = selector
+	return r.evict, nil
 }
 func (r *nodeChannelRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
 	return channeltransport.PullResponse{}, nil
