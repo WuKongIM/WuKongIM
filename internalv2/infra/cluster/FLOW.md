@@ -20,6 +20,8 @@ Payloads are cloned in both directions unless the message usecase marks result
 payloads as unnecessary for SENDACK-only flows. Commit mode and typed errors are
 mapped at this boundary so the message usecase stays cluster-agnostic.
 
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
 ## Error Mapping
 
 ```text

@@ -29,6 +29,8 @@ If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real
 send path available.
 
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
 The effective cluster node ID is also the message ID seed. `Config.Cluster.NodeID`
 wins when set; top-level `Config.NodeID` is only the fallback.
 
