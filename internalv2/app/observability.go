@@ -174,6 +174,13 @@ func (o channelV2MetricsObserver) ObserveChannelAppendStage(stage string, result
 	o.metrics.ChannelV2.ObserveAppendStage(stage, result, d)
 }
 
+func (o channelV2MetricsObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendWaitStage(stage, channelV2CommitModeLabel(mode), result, d)
+}
+
 func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	if o.metrics == nil {
 		return
@@ -339,6 +346,15 @@ func (o multiChannelV2Observer) ObserveChannelAppendStage(stage string, result s
 		appendStageObserver, ok := observer.(clusterv2channels.AppendStageObserver)
 		if ok {
 			appendStageObserver.ObserveChannelAppendStage(stage, result, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+	for _, observer := range o {
+		appendWaitObserver, ok := observer.(reactor.AppendWaitStageObserver)
+		if ok {
+			appendWaitObserver.ObserveAppendWaitStage(stage, mode, result, d)
 		}
 	}
 }

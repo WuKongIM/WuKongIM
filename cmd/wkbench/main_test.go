@@ -329,6 +329,12 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	if !strings.Contains(stderr.String(), "channelv2_append_batch_wait_p99_seconds:") {
 		t.Fatalf("expected channel append batch wait metric in output, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "channelv2_append_store_wait_p99_seconds:") {
+		t.Fatalf("expected channel append store wait metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_append_post_store_commit_wait_p99_seconds:") {
+		t.Fatalf("expected channel append post-store commit wait metric in output, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "channelv2_meta_slot_read_p99_seconds:") {
 		t.Fatalf("expected channel meta breakdown metric in output, got %q", stderr.String())
 	}

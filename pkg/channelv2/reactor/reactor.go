@@ -587,7 +587,8 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	if err != nil {
 		return
 	}
-	current := rc.appendInflight != nil && rc.appendInflight.batchOpID == result.Fence.OpID
+	batch := rc.appendInflight
+	current := batch != nil && batch.batchOpID == result.Fence.OpID
 	appendErr := result.Err
 	stored := machine.AppendStoredResult{Fence: result.Fence, Err: appendErr}
 	if result.StoreAppend == nil {
@@ -599,8 +600,11 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		stored.LastOffset = result.StoreAppend.LastOffset
 	}
 	oldLEO := rc.state.LEO
-	decision := rc.state.ApplyAppendStored(stored)
 	now := time.Now()
+	if current {
+		r.observeAppendStoreCompleted(rc, *batch, now, stored.Err)
+	}
+	decision := rc.state.ApplyAppendStored(stored)
 	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
 		rc.recentRecords.append(rc.appendInflightRecords(result.Fence.OpID))
 		r.markAppendActivity(rc, now)

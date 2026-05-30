@@ -1259,3 +1259,46 @@ func awaitFutureError(t *testing.T, future *Future) error {
 	_, err := future.Await(ctx)
 	return err
 }
+
+type appendWaitStageEvent struct {
+	stage  string
+	mode   ch.CommitMode
+	result string
+}
+
+type appendWaitStageObserver struct {
+	captureObserver
+	mu     sync.Mutex
+	events []appendWaitStageEvent
+}
+
+func (o *appendWaitStageObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, appendWaitStageEvent{stage: stage, mode: mode, result: result})
+}
+
+func (o *appendWaitStageObserver) Events() []appendWaitStageEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]appendWaitStageEvent(nil), o.events...)
+}
+
+func requireAppendWaitStage(t *testing.T, events []appendWaitStageEvent, stage string, mode ch.CommitMode, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.mode == mode && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("append wait stage %s/%v/%s not observed in %#v", stage, mode, result, events)
+}
+
+func requireNoAppendWaitStage(t *testing.T, events []appendWaitStageEvent, stage string, mode ch.CommitMode, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.mode == mode && event.result == result {
+			t.Fatalf("append wait stage %s/%v/%s should not have been observed in %#v", stage, mode, result, events)
+		}
+	}
+}

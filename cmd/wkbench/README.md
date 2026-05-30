@@ -187,13 +187,16 @@ plus ChannelV2 cold-activation stage p99s:
 `channelv2_runtime_append_submit_p99_seconds`, and
 `channelv2_runtime_append_wait_p99_seconds`,
 `channelv2_append_batch_wait_p99_seconds`, and
-`channelv2_append_batch_records_p50`. Use them to separate control-plane
+`channelv2_append_batch_records_p50`,
+`channelv2_append_store_wait_p99_seconds`, and
+`channelv2_append_post_store_commit_wait_p99_seconds`. Use them to separate control-plane
 Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
 metadata local vs forwarded proposals, Slot metadata proposal submit, Slot
 metadata proposal wait, Slot scheduler/control wait, Raft commit wait, FSM apply,
 FSM Pebble commit, MarkApplied persistence, final rereads, runtime create/apply,
 append admission, reactor mailbox submit, append future wait, and append
-batching behavior before looking at pprof.
+batching behavior, durable append wait, and post-store local/quorum commit wait
+before looking at pprof.
 
 ## Compose Development Simulator
 

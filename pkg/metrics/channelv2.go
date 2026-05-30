@@ -25,6 +25,7 @@ type ChannelV2Metrics struct {
 	appendBatchWait         prometheus.Histogram
 	appendDuration          *prometheus.HistogramVec
 	appendStageDuration     *prometheus.HistogramVec
+	appendWaitStageDuration *prometheus.HistogramVec
 	workerTaskDuration      *prometheus.HistogramVec
 	rpcPullTotal            *prometheus.CounterVec
 }
@@ -101,6 +102,12 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"stage", "result"}),
+		appendWaitStageDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_append_wait_stage_duration_seconds",
+			Help:        "ChannelV2 admitted append future wait sub-stage latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     channelV2DurationBuckets,
+		}, []string{"stage", "commit_mode", "result"}),
 		workerTaskDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_worker_task_duration_seconds",
 			Help:        "ChannelV2 worker task latency in seconds.",
@@ -128,6 +135,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.appendBatchWait,
 		m.appendDuration,
 		m.appendStageDuration,
+		m.appendWaitStageDuration,
 		m.workerTaskDuration,
 		m.rpcPullTotal,
 	)
@@ -212,6 +220,13 @@ func (m *ChannelV2Metrics) ObserveAppendStage(stage string, result string, d tim
 		return
 	}
 	m.appendStageDuration.WithLabelValues(stage, result).Observe(d.Seconds())
+}
+
+func (m *ChannelV2Metrics) ObserveAppendWaitStage(stage string, commitMode string, result string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.appendWaitStageDuration.WithLabelValues(stage, commitMode, result).Observe(d.Seconds())
 }
 
 func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d time.Duration) {

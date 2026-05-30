@@ -156,6 +156,8 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_runtime_append_wait_p99_seconds: %.6f\n", report.ChannelV2RuntimeAppendWaitP99Seconds)
 	fmt.Fprintf(w, "channelv2_append_batch_wait_p99_seconds: %.6f\n", report.ChannelV2AppendBatchWaitP99Seconds)
 	fmt.Fprintf(w, "channelv2_append_batch_records_p50: %.3f\n", report.ChannelV2AppendBatchRecordsP50)
+	fmt.Fprintf(w, "channelv2_append_store_wait_p99_seconds: %.6f\n", report.ChannelV2AppendStoreWaitP99Seconds)
+	fmt.Fprintf(w, "channelv2_append_post_store_commit_wait_p99_seconds: %.6f\n", report.ChannelV2AppendPostStoreCommitWaitP99Seconds)
 	fmt.Fprintf(w, "channelv2_worker_task_p99_seconds: %.6f\n", report.ChannelV2WorkerTaskP99Seconds)
 	fmt.Fprintf(w, "storage_commit_queue_depth_max: %.0f\n", report.StorageCommitQueueDepthMax)
 	fmt.Fprintf(w, "storage_commit_batch_requests_p50: %.3f\n", report.StorageCommitBatchRequestsP50)

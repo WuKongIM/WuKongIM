@@ -131,7 +131,7 @@ func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, i
 				if len(batch.Items) == 0 && reply.Append.MessageSeq > 0 {
 					batch.Items = []ch.AppendBatchItemResult{reply.Append}
 				}
-				r.observeAppendComplete(rc, reply.OpID)
+				r.observeAppendComplete(rc, reply.OpID, reply.Err)
 				future.Complete(Result{AppendBatch: batch, Err: reply.Err})
 				completed = true
 			}
@@ -141,7 +141,7 @@ func (r *Reactor) completeReplies(rc *runtimeChannel, replies []machine.Reply, i
 }
 
 func (r *Reactor) completeAppendFuture(rc *runtimeChannel, opID ch.OpID, future *Future, result Result) {
-	r.observeAppendComplete(rc, opID)
+	r.observeAppendComplete(rc, opID, result.Err)
 	if future != nil {
 		future.Complete(result)
 	}
@@ -512,6 +512,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		r.failAppendBatch(rc, batch, err)
 		return
 	}
+	r.markAppendStoreSubmitted(rc, batch, now)
 	rc.appendInflight = &batch
 	rc.appendStoreBlocked = false
 	rc.appendRetryAt = time.Time{}

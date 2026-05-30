@@ -84,7 +84,9 @@ For cold ChannelV2 activation attribution, first compare the per-node
 `channelv2_runtime_append_submit_p99_seconds`, and
 `channelv2_runtime_append_wait_p99_seconds`,
 `channelv2_append_batch_wait_p99_seconds`, and
-`channelv2_append_batch_records_p50` values before using pprof to inspect
+`channelv2_append_batch_records_p50`,
+`channelv2_append_store_wait_p99_seconds`, and
+`channelv2_append_post_store_commit_wait_p99_seconds` values before using pprof to inspect
 the hot path. In the default Slot-backed writer, `meta_create_propose` includes the
 Slot proposal and wait-for-apply path; the Slot submit/wait sub-stages split
 that default path at the Multi-Raft future boundary, then split future wait into
@@ -92,7 +94,8 @@ local scheduler/control wait, Raft commit wait, FSM apply, FSM Pebble commit,
 and MarkApplied persistence. `runtime_append` remains the aggregate ChannelV2
 append facade time; its sub-stages split append reservation, reactor mailbox
 submit, and admitted future wait. Append batch wait and record metrics show
-whether that admitted future wait is mostly batching delay.
+whether that admitted future wait is mostly batching delay; append store and
+post-store commit waits split durable append from local/quorum completion.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -319,6 +322,8 @@ Interpretation matrix:
 | `channelv2_runtime_append_submit_p99_seconds` rises | reactor mailbox admission bottleneck | mailbox capacity, reactor scheduling, event queue pressure |
 | `channelv2_runtime_append_wait_p99_seconds` rises | admitted append future bottleneck | append batching wait, store append, quorum replication, worker result handling |
 | `channelv2_append_batch_wait_p99_seconds` rises | append batching delay | append batch max wait, batch formation, per-reactor channel distribution |
+| `channelv2_append_store_wait_p99_seconds` rises | durable append wait | store append worker queue/run time, message DB group commit, fsync/storage latency |
+| `channelv2_append_post_store_commit_wait_p99_seconds` rises | post-store commit wait | follower pull/apply cadence, AckOffset handling, HW advancement, quorum completion |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |

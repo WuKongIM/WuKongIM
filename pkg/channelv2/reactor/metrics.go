@@ -17,6 +17,11 @@ type Observer interface {
 	ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration)
 }
 
+// AppendWaitStageObserver receives optional append future wait sub-stage metrics.
+type AppendWaitStageObserver interface {
+	ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration)
+}
+
 // RuntimeObserver receives low-cardinality active-runtime metrics.
 type RuntimeObserver interface {
 	SetChannelRuntimeCount(reactorID int, role ch.Role, count int)
@@ -60,17 +65,68 @@ func defaultObserver(observer Observer) Observer {
 	return observer
 }
 
-func (r *Reactor) observeAppendComplete(rc *runtimeChannel, opID ch.OpID) {
+func (r *Reactor) observeAppendComplete(rc *runtimeChannel, opID ch.OpID, err error) {
 	timing, ok := rc.appendTimings[opID]
 	if !ok {
 		return
 	}
 	delete(rc.appendTimings, opID)
-	wait := time.Since(timing.enqueuedAt)
+	completedAt := time.Now()
+	if !timing.storeCompletedAt.IsZero() {
+		r.observeAppendWaitStage("post_store_commit_wait", timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeCompletedAt))
+	}
+	wait := completedAt.Sub(timing.enqueuedAt)
 	if wait < 0 {
 		wait = 0
 	}
 	r.cfg.Observer.ObserveAppendLatency(timing.mode, wait)
+}
+
+func (r *Reactor) markAppendStoreSubmitted(rc *runtimeChannel, batch appendBatch, submittedAt time.Time) {
+	if r == nil || rc == nil {
+		return
+	}
+	for _, req := range batch.requests {
+		timing, ok := rc.appendTimings[req.opID]
+		if !ok {
+			continue
+		}
+		timing.storeSubmittedAt = submittedAt
+		rc.appendTimings[req.opID] = timing
+	}
+}
+
+func (r *Reactor) observeAppendStoreCompleted(rc *runtimeChannel, batch appendBatch, completedAt time.Time, err error) {
+	if r == nil || rc == nil {
+		return
+	}
+	for _, req := range batch.requests {
+		timing, ok := rc.appendTimings[req.opID]
+		if !ok || timing.storeSubmittedAt.IsZero() {
+			continue
+		}
+		r.observeAppendWaitStage("store_append_wait", timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeSubmittedAt))
+		if err == nil {
+			timing.storeCompletedAt = completedAt
+			rc.appendTimings[req.opID] = timing
+		}
+	}
+}
+
+func (r *Reactor) observeAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	if observer, ok := r.cfg.Observer.(AppendWaitStageObserver); ok {
+		observer.ObserveAppendWaitStage(stage, mode, result, d)
+	}
+}
+
+func appendWaitResult(err error) string {
+	if err != nil {
+		return "err"
+	}
+	return "ok"
 }
 
 func (r *Reactor) observeAppendBatch(batch appendBatch, now time.Time) {

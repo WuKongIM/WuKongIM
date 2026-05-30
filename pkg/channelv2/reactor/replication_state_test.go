@@ -1574,6 +1574,7 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
 	pools := newDirectTestPools(t, factory, sink)
 	defer pools.Close()
+	obs := &appendWaitStageObserver{}
 
 	meta := ch.Meta{
 		Key:         "1:pull-ack-complete",
@@ -1586,7 +1587,7 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 		MinISR:      2,
 		Status:      ch.StatusActive,
 	}
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, Observer: obs})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	appendFuture := NewFuture()
@@ -1608,6 +1609,8 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	})
 	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreAppend)})
 	requireFuturePending(t, appendFuture)
+	requireAppendWaitStage(t, obs.Events(), "store_append_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
 
 	pullFuture := NewFuture()
 	r.handleLeaderPull(Event{
@@ -1634,6 +1637,7 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	require.NoError(t, appendResult.Err)
 	require.Len(t, appendResult.AppendBatch.Items, 1)
 	require.Equal(t, uint64(1), appendResult.AppendBatch.Items[0].MessageSeq)
+	requireAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
 	rc := r.channels[meta.Key]
 	require.Equal(t, uint64(1), rc.state.HW)
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)

@@ -52,8 +52,10 @@ type appendRequest struct {
 }
 
 type appendTiming struct {
-	mode       ch.CommitMode
-	enqueuedAt time.Time
+	mode             ch.CommitMode
+	enqueuedAt       time.Time
+	storeSubmittedAt time.Time
+	storeCompletedAt time.Time
 }
 
 // appendBatch is one durable store append assembled from queued requests.

@@ -165,6 +165,13 @@ TaskRPCPullHint      -> leader pull-hint completion
 Worker completions are accepted only when their channel key, generation, epoch,
 leader epoch, and operation id match the current runtime state.
 
+Append waiter metrics split the admitted future after service submission:
+`store_append_wait` measures append flush submission through fenced durable store
+completion, and `post_store_commit_wait` measures durable store completion
+through local/quorum waiter completion. For quorum appends, the latter includes
+follower pull/apply progress, AckOffset handling, HW advancement, and final
+future completion.
+
 ## Bench Runtime Events
 
 Runtime snapshot, probe, and evict requests enter reactors as mailbox events.

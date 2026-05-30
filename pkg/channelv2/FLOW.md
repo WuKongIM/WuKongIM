@@ -49,7 +49,9 @@ sequenceDiagram
 
         alt CommitModeLocal
             Reactor-->>Service: complete future after local durable append
-            Note over Service,Reactor: runtime_append_wait observes future wait
+            Note over Reactor,Workers: store_append_wait observes flush-to-store result
+            Note over Reactor: post_store_commit_wait is near-zero after local durable append
+            Note over Service,Reactor: runtime_append_wait observes total future wait
             Service-->>Caller: AppendResult / AppendBatchResult
         else CommitModeQuorum
             Reactor->>Workers: TaskRPCPullHint(lagging followers)
@@ -70,7 +72,8 @@ sequenceDiagram
                 Follower->>Follower: schedule immediate next Pull carrying new AckOffset
             end
             Reactor-->>Service: complete quorum future
-            Note over Service,Reactor: runtime_append_wait observes quorum future wait
+            Note over Reactor: post_store_commit_wait observes store-result-to-HW coverage
+            Note over Service,Reactor: runtime_append_wait observes total quorum future wait
             Service-->>Caller: AppendResult / AppendBatchResult
         end
     end
@@ -88,6 +91,9 @@ The clusterv2-facing append stage metric keeps `runtime_append` as the aggregate
 facade call and also records service sub-stages: `runtime_append_reserve_wait`
 for per-channel append admission, `runtime_append_submit` for reactor mailbox
 submission, and `runtime_append_wait` for the future wait after admission.
+Inside that admitted future, `store_append_wait` covers append flush submission
+through durable store completion, while `post_store_commit_wait` covers durable
+store completion through local/quorum waiter completion.
 
 ## Channel Runtime Lifecycle Model
 
