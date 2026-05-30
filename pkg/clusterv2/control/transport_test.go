@@ -89,6 +89,42 @@ func TestRaftTransportUsesOneWaySend(t *testing.T) {
 	}
 }
 
+func TestRaftHandlerDoesNotBlockIndefinitelyWhenStepperBackpressures(t *testing.T) {
+	stepper := &blockingRaftStepper{entered: make(chan struct{})}
+	payload, err := EncodeRaftBatch([]raftpb.Message{{From: 2, To: 1, Type: raftpb.MsgHeartbeatResp, Term: 4}})
+	if err != nil {
+		t.Fatalf("EncodeRaftBatch() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := NewRaftHandler(stepper).HandleRPC(ctx, payload)
+		done <- err
+	}()
+
+	select {
+	case <-stepper.entered:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for stepper")
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("HandleRPC() error = %v", err)
+		}
+	case <-time.After(defaultControlRPCTimeout + 100*time.Millisecond):
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+		}
+		t.Fatal("Raft handler blocked indefinitely on backpressured Step")
+	}
+}
+
 func TestStateSyncClientCallsRemoteEndpoint(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	server := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
@@ -173,4 +209,15 @@ func (m *blockingRaftMessenger) Send(ctx context.Context, _ uint64, _ uint8, _ [
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+type blockingRaftStepper struct {
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (s *blockingRaftStepper) Step(ctx context.Context, _ raftpb.Message) error {
+	s.once.Do(func() { close(s.entered) })
+	<-ctx.Done()
+	return ctx.Err()
 }

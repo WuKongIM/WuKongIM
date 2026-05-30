@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -59,6 +60,10 @@ func (t *RaftTransport) sendBatch(nodeID uint64, payload []byte) {
 
 // NewRaftHandler creates an RPC handler that steps decoded ControllerV2 Raft messages.
 func NewRaftHandler(stepper raftStepper) clusternet.Handler {
+	return newRaftHandler(stepper, defaultControlRPCTimeout)
+}
+
+func newRaftHandler(stepper raftStepper, stepTimeout time.Duration) clusternet.Handler {
 	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		messages, err := DecodeRaftBatch(payload)
 		if err != nil {
@@ -68,12 +73,28 @@ func NewRaftHandler(stepper raftStepper) clusternet.Handler {
 			if stepper == nil {
 				continue
 			}
-			if err := stepper.Step(ctx, msg); err != nil {
+			if err := stepWithTimeout(ctx, stepper, msg, stepTimeout); err != nil {
 				return nil, err
 			}
 		}
 		return nil, nil
 	})
+}
+
+func stepWithTimeout(ctx context.Context, stepper raftStepper, msg raftpb.Message, timeout time.Duration) error {
+	if timeout <= 0 {
+		return stepper.Step(ctx, msg)
+	}
+	stepCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	err := stepper.Step(stepCtx, msg)
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		// Raft transport is allowed to drop messages; dropping here prevents
+		// one-way RPC notify goroutines from piling up behind a saturated local
+		// Step queue.
+		return nil
+	}
+	return err
 }
 
 // StateSyncEndpoint adapts clusterv2 RPC to controllerv2/sync.Endpoint.
