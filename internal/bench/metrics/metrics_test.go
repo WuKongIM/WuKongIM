@@ -227,6 +227,12 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_build
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="0.01"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="0.05"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="+Inf"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.01"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.05"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="+Inf"} 0
@@ -249,6 +255,12 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_build
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="0.01"} 10
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="0.05"} 100
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_propose",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="0.01"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_submit",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="0.01"} 10
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_propose_wait",result="ok",le="+Inf"} 100
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.01"} 10
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.05"} 100
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="+Inf"} 100
@@ -264,7 +276,7 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",
 	if report.Classification != WukongIMV2BottleneckChannelV2 {
 		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
 	}
-	if report.ChannelV2MetaSlotReadP99Seconds <= 0 || report.ChannelV2MetaCreateBuildP99Seconds <= 0 || report.ChannelV2MetaCreateProposeP99Seconds <= 0 || report.ChannelV2MetaCreateWriteP99Seconds <= 0 || report.ChannelV2MetaFinalReadP99Seconds <= 0 {
+	if report.ChannelV2MetaSlotReadP99Seconds <= 0 || report.ChannelV2MetaCreateBuildP99Seconds <= 0 || report.ChannelV2MetaCreateProposeP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeWaitP99Seconds <= 0 || report.ChannelV2MetaCreateWriteP99Seconds <= 0 || report.ChannelV2MetaFinalReadP99Seconds <= 0 {
 		t.Fatalf("channel meta breakdown p99s not parsed: %+v", report)
 	}
 }

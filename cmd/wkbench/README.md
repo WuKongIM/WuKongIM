@@ -169,12 +169,14 @@ plus ChannelV2 cold-activation stage p99s:
 `channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,
 `channelv2_meta_create_propose_p99_seconds`,
+`channelv2_meta_create_slot_propose_submit_p99_seconds`,
+`channelv2_meta_create_slot_propose_wait_p99_seconds`,
 `channelv2_meta_create_write_p99_seconds`,
 `channelv2_meta_final_read_p99_seconds`, `channelv2_meta_apply_p99_seconds`,
 and `channelv2_runtime_append_p99_seconds`. Use them to separate control-plane
 Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
-metadata proposal/write wait, final rereads, runtime create/apply, and append
-wait before looking at pprof.
+metadata proposal submit, Slot metadata proposal wait, final rereads, runtime
+create/apply, and append wait before looking at pprof.
 
 ## Compose Development Simulator
 

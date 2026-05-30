@@ -117,11 +117,11 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 	if n == nil || n.defaultSlotMetaDB == nil {
 		return nil
 	}
-	store := defaultChannelRuntimeMetaStore{node: n}
 	var observer channels.AppendStageObserver
 	if n.cfg.Channel.Observer != nil {
 		observer, _ = n.cfg.Channel.Observer.(channels.AppendStageObserver)
 	}
+	store := defaultChannelRuntimeMetaStore{node: n, observer: observer}
 	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
 		Placement: channels.NewSlotPlacementResolver(n.router, n.defaultChannelMinISR()),
 		Observer:  observer,
@@ -139,7 +139,8 @@ func (n *Node) defaultChannelMinISR() int {
 
 // defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.
 type defaultChannelRuntimeMetaStore struct {
-	node *Node
+	node     *Node
+	observer channels.AppendStageObserver
 }
 
 func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
@@ -163,6 +164,7 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 	if s.node == nil {
 		return ErrNotStarted
 	}
+	ctx = withDefaultSlotProposeStageObserver(ctx, s.observer)
 	return s.node.Propose(ctx, ProposeRequest{
 		Key:     meta.ChannelID,
 		Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(meta),
