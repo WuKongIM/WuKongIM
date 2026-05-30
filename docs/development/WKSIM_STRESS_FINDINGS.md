@@ -488,11 +488,12 @@ Evidence:
 - After bounding ControllerV2 Raft handler Step enqueue time, evidence `docs/development/perf-runs/20260530-195015-three-node-activate-10kch` again passed with 10,000 activated channels, 0 errors, 0 backlog, 10,000 active leaders, and SENDACK p99 1.936s.
 - Post-fix after snapshots showed all three nodes back at 543 goroutines and no long-lived goroutines blocked in `Service.Step`; node1 Step queue ended at 7/1024.
 - Follow-up evidence `docs/development/perf-runs/20260530-204811-three-node-activate-10kch` passed with SENDACK p99 1.901s. New ChannelV2 metadata breakdown showed `meta_slot_read` and `meta_final_read` p99 around 0.5ms, while `meta_create_write` p99 was about 0.81s to 0.86s across nodes.
+- Follow-up evidence `docs/development/perf-runs/20260530-212413-three-node-activate-10kch` at git `3e20ad1a` passed with 10,000 activated channels, 0 errors, 0 backlog, 10,000 active leaders, and SENDACK p99 1.396s. The deeper metadata split showed `meta_create_build` p99 at 0.5ms on all nodes, while `meta_create_propose` matched `meta_create_write` at about 0.49s; `meta_slot_read` and `meta_final_read` remained about 0.5ms. Server process samples stayed modest: max CPU 38.7%/12.9%/30.9% and max RSS 316MB/314MB/387MB for nodes 1/2/3.
 
 Classification:
 - Category: ControllerV2 Raft one-way notify backpressure could create unbounded receiver-side goroutine buildup during 10k cold channel activation.
-- Confidence: high for the goroutine buildup fix. The remaining SENDACK p99 is dominated by missing ChannelV2 metadata create/write, runtime append on local leaders, and storage commit tails rather than Slot metadata reads or final rereads.
+- Confidence: high for the goroutine buildup fix. The remaining SENDACK p99 is dominated by missing ChannelV2 metadata create/write proposal wait, runtime append on local leaders, and storage commit tails rather than Slot metadata reads, placement/build, or final rereads.
 
 Decision:
 - Bound ControllerV2 Raft receive-side Step enqueue time and rely on Raft retransmission when the local Step queue is saturated.
-- Keep the next optimization focused on missing ChannelRuntimeMeta create/write and ChannelV2 runtime append, not on increasing ControllerV2 Step queue capacity or optimizing Slot metadata read latency.
+- Keep the next optimization focused on splitting the Slot metadata proposal wait into submit, Raft/Future wait, metadata FSM apply, and Pebble commit time, plus the node-local ChannelV2 runtime append tail. Do not spend time on Slot metadata read latency or channel placement/build.
