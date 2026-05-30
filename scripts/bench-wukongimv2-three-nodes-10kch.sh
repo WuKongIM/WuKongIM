@@ -242,13 +242,19 @@ trap cleanup EXIT
 
 ensure_wkbench_binary() {
   if [[ -x "$WK_BENCH_BIN" ]]; then
-    return
+    local newer_source
+    newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"
+    if [[ -z "$newer_source" ]]; then
+      return
+    fi
+    log "rebuilding stale wkbench: $WK_BENCH_BIN"
+  else
+    log "building wkbench: $WK_BENCH_BIN"
   fi
-  log "building wkbench: $WK_BENCH_BIN"
   mkdir -p "$(dirname "$WK_BENCH_BIN")"
   (
     cd "$ROOT_DIR"
-    go build -o "$WK_BENCH_BIN" ./cmd/wkbench
+    GOWORK="${GOWORK:-off}" go build -o "$WK_BENCH_BIN" ./cmd/wkbench
   )
 }
 

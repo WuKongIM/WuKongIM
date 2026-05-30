@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWukongIMV2ThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
@@ -23,6 +24,51 @@ func TestWukongIMV2ThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Fatalf("10k activate script missing default %q", want)
 		}
+	}
+}
+
+func TestWukongIMV2ThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	wkbenchPath := filepath.Join(binDir, "wkbench")
+	writeFakeActivateWkbench(t, wkbenchPath, callsDir)
+	old := time.Unix(946684800, 0)
+	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
+		t.Fatal(err)
+	}
+	writeFakeActivateGoBuildWkbench(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--wkbench-bin", wkbenchPath,
+		"--channels", "10",
+		"--users", "10",
+		"--activation-window", "1s",
+		"--hold", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_RESOURCE_SAMPLE_INTERVAL=0",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+		t.Fatalf("stale wkbench binary should be rebuilt, calls:\n%s", goCalls)
+	}
+	classify := readFile(t, filepath.Join(outDir, "metrics", "127_0_0_1_5011-classify.txt"))
+	if !strings.Contains(classify, "classification: rebuilt") {
+		t.Fatalf("classification should use rebuilt wkbench binary:\n%s", classify)
 	}
 }
 
@@ -294,6 +340,65 @@ if [[ -n "$report_dir" ]]; then
   echo '# fake summary' > "$report_dir/summary.md"
 fi
 echo 'wkbench activate-channels'
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeActivateGoBuildWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" >> "` + callsDir + `/go.calls"
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$out" ]]; then
+  echo "missing -o" >&2
+  exit 2
+fi
+mkdir -p "$(dirname "$out")"
+cat > "$out" <<'WKFAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
+printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
+  echo 'classification: rebuilt'
+  exit 0
+fi
+report_dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --report-dir)
+      report_dir="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -n "$report_dir" ]]; then
+  mkdir -p "$report_dir"
+  echo '{"status":"passed"}' > "$report_dir/activation_report.json"
+  echo '# fake summary' > "$report_dir/summary.md"
+fi
+echo 'wkbench activate-channels'
+WKFAKE
+chmod +x "$out"
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
