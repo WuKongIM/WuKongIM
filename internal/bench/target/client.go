@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -80,6 +81,7 @@ func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, erro
 }
 
 // ChannelRuntimeSnapshots reads local runtime snapshots from every target API address.
+// When any target fails, it returns the successfully decoded snapshots with a non-nil error.
 func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.ChannelRuntimeQuery) ([]model.ChannelRuntimeSnapshot, error) {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
@@ -162,13 +164,36 @@ func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any)
 	}
 	var errs []string
 	for _, addr := range addrs {
-		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, out); err != nil {
+		attemptOut, err := freshDecodeTarget(out)
+		if err != nil {
+			return err
+		}
+		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, attemptOut); err != nil {
 			errs = append(errs, err.Error())
 			continue
 		}
+		copyDecodeTarget(out, attemptOut)
 		return nil
 	}
 	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
+}
+
+func freshDecodeTarget(out any) (any, error) {
+	if out == nil {
+		return nil, nil
+	}
+	value := reflect.ValueOf(out)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		return nil, fmt.Errorf("decode target must be a non-nil pointer")
+	}
+	return reflect.New(value.Elem().Type()).Interface(), nil
+}
+
+func copyDecodeTarget(out any, attemptOut any) {
+	if out == nil {
+		return
+	}
+	reflect.ValueOf(out).Elem().Set(reflect.ValueOf(attemptOut).Elem())
 }
 
 func (c *Client) doJSON(ctx context.Context, method, base, path string, body any, out any) error {

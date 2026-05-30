@@ -159,6 +159,33 @@ func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
 	require.Equal(t, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10}, got)
 }
 
+func TestClientProbeChannelRuntimeFallbackDoesNotKeepStaleDecodedFields(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"stale","checked":99,"node_id":"bad"}`))
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"node_id":2}`))
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.ProbeChannelRuntime(context.Background(), model.ChannelRuntimeProbeRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, model.ChannelRuntimeProbeResult{NodeID: 2}, got)
+}
+
 func TestClientEvictChannelRuntimePostsRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
