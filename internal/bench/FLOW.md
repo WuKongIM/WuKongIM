@@ -111,7 +111,9 @@ storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
 `append_batch_records`; admitted future wait metrics include
 `store_append_wait`, `post_store_commit_wait`,
 `quorum_follower_pull_wait`, `quorum_ack_offset_wait`,
-`quorum_hw_advance_wait`, and `quorum_final_complete_wait`. Metadata resolve
+`quorum_hw_advance_wait`, and `quorum_final_complete_wait`; follower replication
+metrics include `follower_pull_hint_to_submit`, `follower_pull_rpc`,
+`follower_store_apply`, and `follower_apply_to_ack_return`. Metadata resolve
 sub-stages include `meta_slot_read`, `meta_create_build`, `meta_create_propose`,
 `meta_create_propose_local`, `meta_create_propose_forward`,
 `meta_create_slot_propose_submit`, `meta_create_slot_propose_wait`,
@@ -124,7 +126,8 @@ Slot proposal submit, Slot future wait, Slot scheduler/control wait, Raft commit
 wait, FSM apply, FSM Pebble commit, MarkApplied persistence, final rereads,
 runtime create/apply, append admission, reactor mailbox submit, admitted future
 wait, append batching behavior, durable append wait, and post-store local/quorum
-commit wait.
+commit wait. The follower replication split localizes quorum tails after a
+leader has already durably stored an append.
 
 ## Worker Control Flow
 

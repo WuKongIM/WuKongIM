@@ -144,6 +144,14 @@ apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
 apply schedules the next pull immediately so the follower's latest local LEO is
 piggybacked as `AckOffset`.
 
+Follower replication stage metrics use `wukongim_channelv2_replication_stage_duration_seconds`
+with low-cardinality `stage/result` labels. `follower_pull_hint_to_submit`
+measures accepted PullHint wakeup through pull RPC submission,
+`follower_pull_rpc` measures pull RPC submission through accepted result,
+`follower_store_apply` measures follower store-apply submission through result,
+and `follower_apply_to_ack_return` measures successful apply through the return
+of the next pull carrying the new `AckOffset`.
+
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the

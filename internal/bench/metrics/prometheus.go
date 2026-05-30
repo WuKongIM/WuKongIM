@@ -88,6 +88,10 @@ type WukongIMV2Attribution struct {
 	ChannelV2AppendQuorumAckOffsetWaitP99Seconds    float64
 	ChannelV2AppendQuorumHWAdvanceWaitP99Seconds    float64
 	ChannelV2AppendQuorumFinalCompleteP99Seconds    float64
+	ChannelV2ReplicationPullHintToSubmitP99Seconds  float64
+	ChannelV2ReplicationPullRPCP99Seconds           float64
+	ChannelV2ReplicationStoreApplyP99Seconds        float64
+	ChannelV2ReplicationApplyToAckReturnP99Seconds  float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -263,6 +267,10 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
 	report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
 	report.ChannelV2AppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
+	report.ChannelV2ReplicationPullHintToSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_hint_to_submit"})
+	report.ChannelV2ReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
+	report.ChannelV2ReplicationStoreApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_store_apply"})
+	report.ChannelV2ReplicationApplyToAckReturnP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_apply_to_ack_return"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -415,6 +423,22 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2AppendQuorumFinalCompleteP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 quorum final completion wait p99 is high")
+	}
+	if report.ChannelV2ReplicationPullHintToSubmitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 follower PullHint-to-submit p99 is high")
+	}
+	if report.ChannelV2ReplicationPullRPCP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 follower pull RPC p99 is high")
+	}
+	if report.ChannelV2ReplicationStoreApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 follower store apply p99 is high")
+	}
+	if report.ChannelV2ReplicationApplyToAckReturnP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 follower apply-to-AckOffset-return p99 is high")
 	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

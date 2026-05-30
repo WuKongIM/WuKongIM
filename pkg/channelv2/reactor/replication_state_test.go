@@ -1124,6 +1124,52 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
 	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
+func TestFollowerReplicationStageMetricsTrackHintPullApplyAndAckReturn(t *testing.T) {
+	obs := &replicationStageObserver{}
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("replication-stages")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+		Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+	})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
+
+	r.handleFollowerPullHint(Event{Kind: EventPullHint, Key: meta.Key, PullHint: transport.PullHintRequest{
+		ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		Leader: meta.Leader, LeaderLEO: 1, ActivityVersion: 1, Reason: transport.PullHintReasonAppend,
+	}, Future: NewFuture()})
+	pullResult := sink.awaitResultKind(t, worker.TaskRPCPull)
+	r.handleRPCPullResult(pullResult)
+	applyResult := sink.awaitResultKind(t, worker.TaskStoreApply)
+	r.handleStoreApplyResult(applyResult)
+
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, LeaderHW: 1, LeaderLEO: 1,
+	})
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now()})
+	ackPullResult := sink.awaitResultKind(t, worker.TaskRPCPull)
+	require.Equal(t, uint64(1), net.LastPull().AckOffset)
+	r.handleRPCPullResult(ackPullResult)
+
+	events := obs.Events()
+	requireReplicationStage(t, events, "follower_pull_hint_to_submit", "ok")
+	requireReplicationStage(t, events, "follower_pull_rpc", "ok")
+	requireReplicationStage(t, events, "follower_store_apply", "ok")
+	requireReplicationStage(t, events, "follower_apply_to_ack_return", "ok")
+}
+
 func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("a")

@@ -146,6 +146,13 @@ func (o channelV2MetricsObserver) ObservePull(result string, empty bool) {
 	o.metrics.ChannelV2.ObservePull(result, empty)
 }
 
+func (o channelV2MetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveReplicationStage(stage, result, d)
+}
+
 func (o channelV2MetricsObserver) ObserveChannelMetaCache(result string) {
 	if o.metrics == nil {
 		return
@@ -320,6 +327,15 @@ func (o multiChannelV2Observer) ObservePull(result string, empty bool) {
 	}
 }
 
+func (o multiChannelV2Observer) ObserveReplicationStage(stage string, result string, d time.Duration) {
+	for _, observer := range o {
+		replicationStageObserver, ok := observer.(reactor.ReplicationStageObserver)
+		if ok {
+			replicationStageObserver.ObserveReplicationStage(stage, result, d)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveChannelMetaCache(result string) {
 	for _, observer := range o {
 		metaCacheObserver, ok := observer.(clusterv2channels.MetaCacheObserver)
@@ -441,12 +457,14 @@ var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
+var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
+var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}

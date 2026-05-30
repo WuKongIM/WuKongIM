@@ -84,6 +84,12 @@ Leader reactors keep a small configurable recent-record suffix cache for durable
 
 Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains only for stopped-follower lifecycle confirmation, not for the hot replication path.
 
+Follower-side replication stage metrics split PullHint wakeup, pull RPC wait,
+store apply wait, and apply-to-`AckOffset` return wait. These complement the
+leader-side quorum append wait stages: leader stages show when an append becomes
+quorum-covered, while follower stages show which follower step delayed that
+coverage.
+
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.

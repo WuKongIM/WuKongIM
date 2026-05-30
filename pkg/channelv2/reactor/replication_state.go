@@ -16,6 +16,10 @@ type replicationState struct {
 	pullInflight bool
 	// pullOpID fences the currently running pull RPC.
 	pullOpID ch.OpID
+	// pullSubmittedAt records when the current pull RPC was submitted.
+	pullSubmittedAt time.Time
+	// pullSubmittedAckOffset is the AckOffset carried by the current pull RPC.
+	pullSubmittedAckOffset uint64
 
 	// dirty marks the follower as needing immediate replication work.
 	dirty bool
@@ -33,6 +37,8 @@ type replicationState struct {
 	lastActivityVersion uint64
 	// hintedLeaderLEO is the highest leader LEO observed in accepted PullHint requests.
 	hintedLeaderLEO uint64
+	// hintedAt records when the current highest PullHint leader LEO was accepted.
+	hintedAt time.Time
 	// backoff is the current exponential retry delay.
 	backoff time.Duration
 	// lastLeaderHW is the leader commit frontier from the latest accepted pull.
@@ -48,6 +54,12 @@ type replicationState struct {
 	applyRetryAt time.Time
 	// applyOpID fences the currently running store-apply task.
 	applyOpID ch.OpID
+	// applySubmittedAt records when the current store-apply task was submitted.
+	applySubmittedAt time.Time
+	// ackReturnStartedAt records when a successful apply started waiting for an AckOffset return to the leader.
+	ackReturnStartedAt time.Time
+	// ackReturnOffset is the follower LEO that must be carried back to the leader.
+	ackReturnOffset uint64
 }
 
 // markDirty makes the follower eligible for immediate pull scheduling.

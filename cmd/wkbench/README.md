@@ -198,14 +198,20 @@ breakdown is reported as
 `channelv2_append_quorum_follower_pull_wait_p99_seconds`,
 `channelv2_append_quorum_ack_offset_wait_p99_seconds`,
 `channelv2_append_quorum_hw_advance_wait_p99_seconds`, and
-`channelv2_append_quorum_final_complete_p99_seconds`. Use them to separate control-plane
+`channelv2_append_quorum_final_complete_p99_seconds`. Follower replication
+breakdown is reported as
+`channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
+`channelv2_replication_follower_pull_rpc_p99_seconds`,
+`channelv2_replication_follower_store_apply_p99_seconds`, and
+`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. Use them to separate control-plane
 Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
 metadata local vs forwarded proposals, Slot metadata proposal submit, Slot
 metadata proposal wait, Slot scheduler/control wait, Raft commit wait, FSM apply,
 FSM Pebble commit, MarkApplied persistence, final rereads, runtime create/apply,
 append admission, reactor mailbox submit, append future wait, and append
 batching behavior, durable append wait, post-store local/quorum commit wait, and
-the follower pull/AckOffset/HW/final-completion split
+the follower pull/AckOffset/HW/final-completion split plus the follower-side
+hint/pull/apply/ack-return split
 before looking at pprof.
 
 ## Compose Development Simulator

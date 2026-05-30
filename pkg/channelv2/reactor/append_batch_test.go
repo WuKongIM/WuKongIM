@@ -1302,3 +1302,36 @@ func requireNoAppendWaitStage(t *testing.T, events []appendWaitStageEvent, stage
 		}
 	}
 }
+
+type replicationStageEvent struct {
+	stage  string
+	result string
+}
+
+type replicationStageObserver struct {
+	captureObserver
+	mu     sync.Mutex
+	events []replicationStageEvent
+}
+
+func (o *replicationStageObserver) ObserveReplicationStage(stage string, result string, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, replicationStageEvent{stage: stage, result: result})
+}
+
+func (o *replicationStageObserver) Events() []replicationStageEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]replicationStageEvent(nil), o.events...)
+}
+
+func requireReplicationStage(t *testing.T, events []replicationStageEvent, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("replication stage %s/%s not observed in %#v", stage, result, events)
+}

@@ -12,22 +12,23 @@ var channelV2AppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 6553
 var channelV2DurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
 
 type ChannelV2Metrics struct {
-	reactorMailboxDepth     *prometheus.GaugeVec
-	workerQueueDepth        *prometheus.GaugeVec
-	activeRuntimes          *prometheus.GaugeVec
-	activationRejectedTotal *prometheus.CounterVec
-	followerParked          *prometheus.GaugeVec
-	recoveryProbeTotal      *prometheus.CounterVec
-	pullTotal               *prometheus.CounterVec
-	metaCacheTotal          *prometheus.CounterVec
-	appendBatchRecords      prometheus.Histogram
-	appendBatchBytes        prometheus.Histogram
-	appendBatchWait         prometheus.Histogram
-	appendDuration          *prometheus.HistogramVec
-	appendStageDuration     *prometheus.HistogramVec
-	appendWaitStageDuration *prometheus.HistogramVec
-	workerTaskDuration      *prometheus.HistogramVec
-	rpcPullTotal            *prometheus.CounterVec
+	reactorMailboxDepth      *prometheus.GaugeVec
+	workerQueueDepth         *prometheus.GaugeVec
+	activeRuntimes           *prometheus.GaugeVec
+	activationRejectedTotal  *prometheus.CounterVec
+	followerParked           *prometheus.GaugeVec
+	recoveryProbeTotal       *prometheus.CounterVec
+	pullTotal                *prometheus.CounterVec
+	metaCacheTotal           *prometheus.CounterVec
+	appendBatchRecords       prometheus.Histogram
+	appendBatchBytes         prometheus.Histogram
+	appendBatchWait          prometheus.Histogram
+	appendDuration           *prometheus.HistogramVec
+	appendStageDuration      *prometheus.HistogramVec
+	appendWaitStageDuration  *prometheus.HistogramVec
+	replicationStageDuration *prometheus.HistogramVec
+	workerTaskDuration       *prometheus.HistogramVec
+	rpcPullTotal             *prometheus.CounterVec
 }
 
 func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelV2Metrics {
@@ -108,6 +109,12 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"stage", "commit_mode", "result"}),
+		replicationStageDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_replication_stage_duration_seconds",
+			Help:        "ChannelV2 follower replication stage latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     channelV2DurationBuckets,
+		}, []string{"stage", "result"}),
 		workerTaskDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_worker_task_duration_seconds",
 			Help:        "ChannelV2 worker task latency in seconds.",
@@ -136,6 +143,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.appendDuration,
 		m.appendStageDuration,
 		m.appendWaitStageDuration,
+		m.replicationStageDuration,
 		m.workerTaskDuration,
 		m.rpcPullTotal,
 	)
@@ -227,6 +235,13 @@ func (m *ChannelV2Metrics) ObserveAppendWaitStage(stage string, commitMode strin
 		return
 	}
 	m.appendWaitStageDuration.WithLabelValues(stage, commitMode, result).Observe(d.Seconds())
+}
+
+func (m *ChannelV2Metrics) ObserveReplicationStage(stage string, result string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.replicationStageDuration.WithLabelValues(stage, result).Observe(d.Seconds())
 }
 
 func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d time.Duration) {

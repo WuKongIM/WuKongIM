@@ -15,6 +15,10 @@ const (
 	appendWaitStageQuorumAckOffset     = "quorum_ack_offset_wait"
 	appendWaitStageQuorumHWAdvance     = "quorum_hw_advance_wait"
 	appendWaitStageQuorumFinalComplete = "quorum_final_complete_wait"
+	replicationStagePullHintToSubmit   = "follower_pull_hint_to_submit"
+	replicationStagePullRPC            = "follower_pull_rpc"
+	replicationStageStoreApply         = "follower_store_apply"
+	replicationStageApplyToAckReturn   = "follower_apply_to_ack_return"
 )
 
 // Observer receives lightweight runtime metrics from the reactor hot path.
@@ -42,6 +46,11 @@ type ReplicationObserver interface {
 	SetFollowerParkedCount(reactorID int, count int)
 	ObserveFollowerRecoveryProbe(result string)
 	ObservePull(result string, empty bool)
+}
+
+// ReplicationStageObserver receives optional follower replication stage metrics.
+type ReplicationStageObserver interface {
+	ObserveReplicationStage(stage string, result string, d time.Duration)
 }
 
 // LifecycleObserver receives optional leader runtime lifecycle events.
@@ -254,6 +263,15 @@ func (r *Reactor) observeRecoveryProbe(result string) {
 func (r *Reactor) observePull(result string, empty bool) {
 	if observer, ok := r.cfg.Observer.(ReplicationObserver); ok {
 		observer.ObservePull(result, empty)
+	}
+}
+
+func (r *Reactor) observeReplicationStage(stage string, result string, d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	if observer, ok := r.cfg.Observer.(ReplicationStageObserver); ok {
+		observer.ObserveReplicationStage(stage, result, d)
 	}
 }
 

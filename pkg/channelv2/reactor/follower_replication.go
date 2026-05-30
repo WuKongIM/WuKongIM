@@ -64,6 +64,9 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		MaxBytes:    r.cfg.PullMaxBytes,
 	}
 	if err := r.submitRPCPull(context.Background(), rc.state.Leader, fence, req); err != nil {
+		if !rc.replication.hintedAt.IsZero() && req.NextOffset <= rc.replication.hintedLeaderLEO {
+			r.observeReplicationStage(replicationStagePullHintToSubmit, "err", now.Sub(rc.replication.hintedAt))
+		}
 		if recoveryProbe {
 			r.observeRecoveryProbe("err")
 		}
@@ -73,7 +76,13 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	}
 	rc.replication.pullInflight = true
 	rc.replication.pullOpID = opID
+	rc.replication.pullSubmittedAt = now
+	rc.replication.pullSubmittedAckOffset = req.AckOffset
 	rc.replication.dirty = false
+	if !rc.replication.hintedAt.IsZero() && req.NextOffset <= rc.replication.hintedLeaderLEO {
+		r.observeReplicationStage(replicationStagePullHintToSubmit, "ok", now.Sub(rc.replication.hintedAt))
+		rc.replication.hintedAt = time.Time{}
+	}
 	if recoveryProbe {
 		rc.replication.recoveryProbe = false
 		rc.replication.recoveryProbeInflight = true
@@ -103,6 +112,7 @@ func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	rc.replication.applyOpID = opID
+	rc.replication.applySubmittedAt = now
 	rc.replication.applyBlocked = false
 	rc.replication.applyRetryAt = time.Time{}
 }
@@ -218,6 +228,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	}
 	if req.LeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0
+		rc.replication.hintedAt = time.Time{}
 		if rc.replication.parked && rc.replication.recoveryProbe && rc.replication.nextPullAt.IsZero() {
 			rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 			r.observeFollowerParkedCount(r.countParkedFollowers())
@@ -229,6 +240,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	}
 	if req.LeaderLEO > rc.replication.hintedLeaderLEO {
 		rc.replication.hintedLeaderLEO = req.LeaderLEO
+		rc.replication.hintedAt = now
 	}
 	wasParked := rc.replication.parked
 	rc.replication.clearParkedForHint(now)
@@ -273,15 +285,22 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	if err != nil {
 		return
 	}
+	now := time.Now()
+	pullSubmittedAt := rc.replication.pullSubmittedAt
+	pullSubmittedAckOffset := rc.replication.pullSubmittedAckOffset
+	ackReturnStartedAt := rc.replication.ackReturnStartedAt
+	ackReturnOffset := rc.replication.ackReturnOffset
 	current := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: rc.replication.pullOpID}
-	if !rc.replication.applyPullResult(result, current, time.Now()) {
+	if !rc.replication.applyPullResult(result, current, now) {
 		return
 	}
+	rc.replication.pullSubmittedAt = time.Time{}
+	rc.replication.pullSubmittedAckOffset = 0
 	recoveryProbe := rc.replication.recoveryProbeInflight
 	rc.replication.recoveryProbeInflight = false
-	now := time.Now()
 	defer r.scheduleReplicationFromState(rc, now)
 	if result.Err != nil {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
 		r.observePull("err", false)
 		if recoveryProbe {
 			r.observeRecoveryProbe("err")
@@ -290,6 +309,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		return
 	}
 	if result.RPCPull == nil {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
 		r.observePull("err", false)
 		if recoveryProbe {
 			r.observeRecoveryProbe("err")
@@ -299,6 +319,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	}
 	resp := result.RPCPull.Response
 	if resp.ChannelKey != rc.state.Key || resp.Epoch != rc.state.Epoch || resp.LeaderEpoch != rc.state.LeaderEpoch {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
 		r.observePull("err", false)
 		if recoveryProbe {
 			r.observeRecoveryProbe("err")
@@ -306,6 +327,8 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		r.backoffPull(rc, ch.ErrStaleMeta, now)
 		return
 	}
+	r.observeFollowerPullRPCWait(pullSubmittedAt, "ok", now)
+	r.observeFollowerAckReturnWait(rc, pullSubmittedAckOffset, ackReturnOffset, ackReturnStartedAt, now)
 	r.observePull("ok", len(resp.Records) == 0)
 	if recoveryProbe {
 		r.observeRecoveryProbe("ok")
@@ -330,6 +353,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		rc.state.HW = minUint64(rc.state.LEO, resp.LeaderHW)
 		if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 			rc.replication.hintedLeaderLEO = 0
+			rc.replication.hintedAt = time.Time{}
 		}
 		if resp.LeaderLEO > rc.state.LEO || rc.replication.hintedLeaderLEO > rc.state.LEO {
 			r.scheduleEmptyLaggingPullRetry(rc, now)
@@ -349,6 +373,29 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 	rc.replication.applyOpID = 0
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	r.trySubmitPendingApply(rc, now)
+}
+
+func (r *Reactor) observeFollowerPullRPCWait(submittedAt time.Time, result string, completedAt time.Time) {
+	if submittedAt.IsZero() {
+		return
+	}
+	r.observeReplicationStage(replicationStagePullRPC, result, completedAt.Sub(submittedAt))
+}
+
+func (r *Reactor) observeFollowerStoreApplyWait(submittedAt time.Time, result string, completedAt time.Time) {
+	if submittedAt.IsZero() {
+		return
+	}
+	r.observeReplicationStage(replicationStageStoreApply, result, completedAt.Sub(submittedAt))
+}
+
+func (r *Reactor) observeFollowerAckReturnWait(rc *runtimeChannel, submittedAckOffset uint64, ackReturnOffset uint64, startedAt time.Time, completedAt time.Time) {
+	if rc == nil || submittedAckOffset == 0 || ackReturnOffset == 0 || startedAt.IsZero() || submittedAckOffset < ackReturnOffset {
+		return
+	}
+	r.observeReplicationStage(replicationStageApplyToAckReturn, "ok", completedAt.Sub(startedAt))
+	rc.replication.ackReturnOffset = 0
+	rc.replication.ackReturnStartedAt = time.Time{}
 }
 
 func (r *Reactor) scheduleEmptyLaggingPullRetry(rc *runtimeChannel, now time.Time) {
@@ -421,8 +468,11 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	}
 	rc.replication.applyOpID = 0
 	now := time.Now()
+	applySubmittedAt := rc.replication.applySubmittedAt
+	rc.replication.applySubmittedAt = time.Time{}
 	defer r.scheduleReplicationFromState(rc, now)
 	if result.Err != nil {
+		r.observeFollowerStoreApplyWait(applySubmittedAt, "err", now)
 		rc.replication.applyBlocked = true
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.applyRetryAt = now.Add(rc.replication.backoff)
@@ -430,16 +480,23 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 		return
 	}
 	if result.StoreApply == nil {
+		r.observeFollowerStoreApplyWait(applySubmittedAt, "err", now)
 		rc.replication.applyBlocked = true
 		rc.replication.backoff = nextReplicationBackoff(rc.replication.backoff, r.cfg.ReplicationMinBackoff, r.cfg.ReplicationMaxBackoff)
 		rc.replication.applyRetryAt = now.Add(rc.replication.backoff)
 		rc.replication.lastError = ch.ErrInvalidConfig
 		return
 	}
+	r.observeFollowerStoreApplyWait(applySubmittedAt, "ok", now)
 	rc.state.LEO = result.StoreApply.LEO
 	rc.state.HW = minUint64(rc.state.LEO, rc.replication.lastLeaderHW)
 	if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0
+		rc.replication.hintedAt = time.Time{}
+	}
+	if rc.state.LEO > 0 {
+		rc.replication.ackReturnStartedAt = now
+		rc.replication.ackReturnOffset = rc.state.LEO
 	}
 	rc.replication.pendingPull = nil
 	rc.replication.applyBlocked = false

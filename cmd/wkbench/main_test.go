@@ -347,6 +347,18 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	if !strings.Contains(stderr.String(), "channelv2_append_quorum_final_complete_p99_seconds:") {
 		t.Fatalf("expected channel append quorum final complete metric in output, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "channelv2_replication_follower_pull_hint_to_submit_p99_seconds:") {
+		t.Fatalf("expected follower pull hint to submit metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_replication_follower_pull_rpc_p99_seconds:") {
+		t.Fatalf("expected follower pull RPC metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_replication_follower_store_apply_p99_seconds:") {
+		t.Fatalf("expected follower store apply metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_replication_follower_apply_to_ack_return_p99_seconds:") {
+		t.Fatalf("expected follower apply to AckOffset return metric in output, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "channelv2_meta_slot_read_p99_seconds:") {
 		t.Fatalf("expected channel meta breakdown metric in output, got %q", stderr.String())
 	}
