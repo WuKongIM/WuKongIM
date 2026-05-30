@@ -77,6 +77,17 @@ channel and sets the offered QPS as that channel's `rate_per_channel`. Its
 logical channel, and group traffic uses `sender_pick: round_robin` to spread
 sendack waits across those senders.
 
+## Capacity Activate-Channels Flow
+
+`capacity activate-channels` is a fixed-size evidence run, not a QPS search. It
+discovers an already-running target, verifies every target API node supports the
+ChannelV2 runtime snapshot and probe bench APIs, starts one temporary local
+worker, builds a group scenario whose run phase schedules exactly one SEND per
+generated channel, captures cold and active runtime snapshots, holds the cluster
+without new sends, probes generated channel ranges through the all-node runtime
+API, optionally evicts the generated runtime state, and writes
+`activation_report.json` plus `summary.md`.
+
 ## Worker Control Flow
 
 Workers expose a small HTTP control API:
