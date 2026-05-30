@@ -87,12 +87,17 @@ func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.Channe
 	}
 	path := "/bench/v1/channel-runtime/snapshot" + channelRuntimeQueryString(query)
 	snapshots := make([]model.ChannelRuntimeSnapshot, 0, len(addrs))
+	var errs []string
 	for _, addr := range addrs {
 		var out model.ChannelRuntimeSnapshot
 		if err := c.doJSON(ctx, http.MethodGet, addr, path, nil, &out); err != nil {
-			return nil, err
+			errs = append(errs, err.Error())
+			continue
 		}
 		snapshots = append(snapshots, out)
+	}
+	if len(errs) > 0 {
+		return snapshots, fmt.Errorf("one or more target api addresses failed: %s", strings.Join(errs, "; "))
 	}
 	return snapshots, nil
 }

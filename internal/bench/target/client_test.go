@@ -74,6 +74,7 @@ func TestClientCapacityTargetFallsBackAcrossAPIAddresses(t *testing.T) {
 func TestClientChannelRuntimeSnapshotsCallsEveryTarget(t *testing.T) {
 	seen := make([]string, 0, 2)
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
 		require.Equal(t, "run-a", r.URL.Query().Get("run_id"))
 		require.Equal(t, "activate-groups", r.URL.Query().Get("profile"))
@@ -85,6 +86,7 @@ func TestClientChannelRuntimeSnapshotsCallsEveryTarget(t *testing.T) {
 	}))
 	defer first.Close()
 	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
 		require.Equal(t, "run-a", r.URL.Query().Get("run_id"))
 		require.Equal(t, "activate-groups", r.URL.Query().Get("profile"))
@@ -105,6 +107,35 @@ func TestClientChannelRuntimeSnapshotsCallsEveryTarget(t *testing.T) {
 		{Version: "bench/v1", NodeID: 1, RunID: "run-a", Profile: "activate-groups"},
 		{Version: "bench/v1", NodeID: 2, RunID: "run-a", Profile: "activate-groups"},
 	}, got)
+}
+
+func TestClientChannelRuntimeSnapshotsTriesEveryTargetBeforeFailing(t *testing.T) {
+	firstHits := 0
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
+		firstHits++
+		http.Error(w, "snapshot unavailable", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+	secondHits := 0
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
+		secondHits++
+		writeJSON(t, w, model.ChannelRuntimeSnapshot{Version: "bench/v1", NodeID: 2})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.ChannelRuntimeSnapshots(context.Background(), model.ChannelRuntimeQuery{RunID: "run-a"})
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "one or more target api addresses failed")
+	require.ErrorContains(t, err, "503")
+	require.Equal(t, []model.ChannelRuntimeSnapshot{{Version: "bench/v1", NodeID: 2}}, got)
+	require.Equal(t, 1, firstHits)
+	require.Equal(t, 1, secondHits)
 }
 
 func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
