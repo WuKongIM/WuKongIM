@@ -8,6 +8,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -296,6 +297,22 @@ func TestServiceAppliesResolvedMetaBeforeLocalAppendBatch(t *testing.T) {
 	}
 }
 
+func TestServiceObservesAppendBatchStageDurations(t *testing.T) {
+	id := ch.ChannelID{ID: "observe-append-batch", Type: 1}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	observer := &appendStageObserver{}
+	runtime := &fakeRuntime{appendRequireApply: true, appendBatch: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 8}}}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: NewStaticMetaSource([]ch.Meta{meta}), Observer: observer})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.NoError(t, err)
+
+	requireAppendStage(t, observer.events, "meta_resolve", "ok")
+	requireAppendStage(t, observer.events, "meta_apply", "ok")
+	requireAppendStage(t, observer.events, "runtime_append", "ok")
+}
+
 func TestServiceUsesAppendMetaCacheAfterFirstResolve(t *testing.T) {
 	id := ch.ChannelID{ID: "cached", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
@@ -515,6 +532,36 @@ func (f *fakeRuntime) HandlePullHint(context.Context, channeltransport.PullHintR
 	return nil
 }
 func (f *fakeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error { return nil }
+
+type appendStageEvent struct {
+	stage  string
+	result string
+}
+
+type appendStageObserver struct {
+	events []appendStageEvent
+}
+
+func (o *appendStageObserver) SetReactorMailboxDepth(int, string, int) {}
+func (o *appendStageObserver) SetWorkerQueueDepth(string, int)         {}
+func (o *appendStageObserver) ObserveAppendBatch(int, int, time.Duration) {
+}
+func (o *appendStageObserver) ObserveAppendLatency(ch.CommitMode, time.Duration) {}
+func (o *appendStageObserver) ObserveWorkerResult(worker.TaskKind, error, time.Duration) {
+}
+func (o *appendStageObserver) ObserveChannelAppendStage(stage string, result string, _ time.Duration) {
+	o.events = append(o.events, appendStageEvent{stage: stage, result: result})
+}
+
+func requireAppendStage(t *testing.T, events []appendStageEvent, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("append stage %s/%s not observed in %#v", stage, result, events)
+}
 
 type countingMetaSource struct {
 	meta        ch.Meta

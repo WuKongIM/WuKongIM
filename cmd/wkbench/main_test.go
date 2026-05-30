@@ -289,6 +289,8 @@ wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkpr
 wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 0
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 0
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
@@ -300,6 +302,8 @@ wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkpr
 wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 100
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 100
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -315,6 +319,9 @@ wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
 	}
 	if !strings.Contains(stderr.String(), "gateway_queue_ratio: 0.700") {
 		t.Fatalf("expected queue ratio in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_meta_apply_p99_seconds:") {
+		t.Fatalf("expected channel stage metric in output, got %q", stderr.String())
 	}
 }
 

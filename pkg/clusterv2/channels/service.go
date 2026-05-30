@@ -18,6 +18,11 @@ type channelRuntime interface {
 	channeltransport.Server
 }
 
+// AppendStageObserver receives low-cardinality client append stage latencies.
+type AppendStageObserver interface {
+	ObserveChannelAppendStage(stage string, result string, d time.Duration)
+}
+
 // ForwardClient forwards client append calls to the authoritative channel leader.
 type ForwardClient interface {
 	// ForwardAppend forwards one append request to node.
@@ -137,7 +142,9 @@ func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 func (s *Service) Close() error { return s.runtime.Close() }
 
 func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, bool) {
+	started := time.Now()
 	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
+	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendResult{}, err, usedCache
 	}
@@ -146,7 +153,9 @@ func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.Appe
 }
 
 func (s *Service) appendFresh(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
+	started := time.Now()
 	meta, ok, err := s.resolveAppendMetaFresh(ctx, req.ChannelID)
+	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendResult{}, err
 	}
@@ -159,17 +168,28 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			if s.forward == nil {
 				return ch.AppendResult{}, ch.ErrNotLeader
 			}
-			return s.forward.ForwardAppend(ctx, meta.Leader, req)
+			started := time.Now()
+			res, err := s.forward.ForwardAppend(ctx, meta.Leader, req)
+			s.observeAppendStage("forward_append", err, time.Since(started))
+			return res, err
 		}
-		if err := s.runtime.ApplyMeta(meta); err != nil {
+		started := time.Now()
+		err := s.runtime.ApplyMeta(meta)
+		s.observeAppendStage("meta_apply", err, time.Since(started))
+		if err != nil {
 			return ch.AppendResult{}, err
 		}
 	}
-	return s.runtime.Append(ctx, req)
+	started := time.Now()
+	res, err := s.runtime.Append(ctx, req)
+	s.observeAppendStage("runtime_append", err, time.Since(started))
+	return res, err
 }
 
 func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error, bool) {
+	started := time.Now()
 	meta, ok, usedCache, err := s.resolveAppendMetaCached(ctx, req.ChannelID)
+	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err, usedCache
 	}
@@ -178,7 +198,9 @@ func (s *Service) appendBatchOnce(ctx context.Context, req ch.AppendBatchRequest
 }
 
 func (s *Service) appendBatchFresh(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	started := time.Now()
 	meta, ok, err := s.resolveAppendMetaFresh(ctx, req.ChannelID)
+	s.observeAppendStage("meta_resolve", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
@@ -191,13 +213,22 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			if s.forward == nil {
 				return ch.AppendBatchResult{}, ch.ErrNotLeader
 			}
-			return s.forward.ForwardAppendBatch(ctx, meta.Leader, req)
+			started := time.Now()
+			res, err := s.forward.ForwardAppendBatch(ctx, meta.Leader, req)
+			s.observeAppendStage("forward_append", err, time.Since(started))
+			return res, err
 		}
-		if err := s.runtime.ApplyMeta(meta); err != nil {
+		started := time.Now()
+		err := s.runtime.ApplyMeta(meta)
+		s.observeAppendStage("meta_apply", err, time.Since(started))
+		if err != nil {
 			return ch.AppendBatchResult{}, err
 		}
 	}
-	return s.runtime.AppendBatch(ctx, req)
+	started := time.Now()
+	res, err := s.runtime.AppendBatch(ctx, req)
+	s.observeAppendStage("runtime_append", err, time.Since(started))
+	return res, err
 }
 
 func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, bool, error) {
@@ -242,6 +273,24 @@ func (s *Service) observeMetaCache(result string) {
 		return
 	}
 	observer.ObserveChannelMetaCache(result)
+}
+
+func (s *Service) observeAppendStage(stage string, err error, d time.Duration) {
+	if s == nil || s.observer == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	observer, ok := s.observer.(AppendStageObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveChannelAppendStage(stage, result, d)
 }
 
 func (s *Service) resolveAppendMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {

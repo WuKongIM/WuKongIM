@@ -14,7 +14,7 @@
 - `workload`: reusable connection, person traffic, and group traffic executors.
 - `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, snapshot, token, channel, and subscriber APIs.
 - `wkproto`: benchmark WKProto client implementation.
-- `metrics`: worker-local counters, histograms, bounded error samples, and aggregation helpers.
+- `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
 
 ## Coordinator Run Flow
@@ -94,6 +94,13 @@ longer activation window so the result reflects live ChannelV2 runtime pressure
 instead of a pure login or burst-ingress test. Increase `--users`,
 `--connect-rate`, `--activation-concurrency`, or shorten `--activation-window`
 only when the experiment intentionally adds those pressure dimensions.
+
+When the three-node helper script captures before/after Prometheus snapshots,
+`wkbench metrics classify` reports gateway dispatch wait, ChannelV2 append and
+cold-activation stages, and storage commit p99s. ChannelV2 stage labels are
+fixed to `meta_resolve`, `meta_apply`, and `runtime_append` so the report stays
+low-cardinality while still separating control-plane metadata, runtime
+create/apply, and append wait.
 
 ## Worker Control Flow
 

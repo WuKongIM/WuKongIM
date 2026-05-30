@@ -46,21 +46,24 @@ type WukongIMV2Attribution struct {
 	// Reasons explains the evidence that produced the classification.
 	Reasons []string
 
-	GatewayQueueDepth               float64
-	GatewayQueueCapacity            float64
-	GatewayQueueRatio               float64
-	GatewayDispatchWaitP99Seconds   float64
-	GatewayBatchRecordsP50          float64
-	ChannelV2ReactorMailboxDepthMax float64
-	ChannelV2WorkerQueueDepthMax    float64
-	ChannelV2AppendP99Seconds       float64
-	ChannelV2WorkerTaskP99Seconds   float64
-	ChannelV2AppendBatchRecordsP50  float64
-	StorageCommitQueueDepthMax      float64
-	StorageCommitBatchRequestsP50   float64
-	StorageCommitBatchRecordsP50    float64
-	StorageCommitP99Seconds         float64
-	StorageCommitTotalP99Seconds    float64
+	GatewayQueueDepth                float64
+	GatewayQueueCapacity             float64
+	GatewayQueueRatio                float64
+	GatewayDispatchWaitP99Seconds    float64
+	GatewayBatchRecordsP50           float64
+	ChannelV2ReactorMailboxDepthMax  float64
+	ChannelV2WorkerQueueDepthMax     float64
+	ChannelV2AppendP99Seconds        float64
+	ChannelV2MetaResolveP99Seconds   float64
+	ChannelV2MetaApplyP99Seconds     float64
+	ChannelV2RuntimeAppendP99Seconds float64
+	ChannelV2WorkerTaskP99Seconds    float64
+	ChannelV2AppendBatchRecordsP50   float64
+	StorageCommitQueueDepthMax       float64
+	StorageCommitBatchRequestsP50    float64
+	StorageCommitBatchRecordsP50     float64
+	StorageCommitP99Seconds          float64
+	StorageCommitTotalP99Seconds     float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -193,6 +196,9 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2ReactorMailboxDepthMax, _ = after.maxGauge("wukongim_channelv2_reactor_mailbox_depth")
 	report.ChannelV2WorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
 	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
+	report.ChannelV2MetaResolveP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_resolve"})
+	report.ChannelV2MetaApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_apply"})
+	report.ChannelV2RuntimeAppendP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -223,6 +229,18 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2AppendP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append p99 is high")
+	}
+	if report.ChannelV2MetaResolveP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta resolve p99 is high")
+	}
+	if report.ChannelV2MetaApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta apply p99 is high")
+	}
+	if report.ChannelV2RuntimeAppendP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 runtime append p99 is high")
 	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

@@ -161,6 +161,13 @@ func (o channelV2MetricsObserver) ObserveAppendLatency(mode ch.CommitMode, d tim
 	o.metrics.ChannelV2.ObserveAppendLatency(channelV2CommitModeLabel(mode), d)
 }
 
+func (o channelV2MetricsObserver) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendStage(stage, result, d)
+}
+
 func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	if o.metrics == nil {
 		return
@@ -297,6 +304,15 @@ func (o multiChannelV2Observer) ObserveAppendLatency(mode ch.CommitMode, d time.
 	}
 }
 
+func (o multiChannelV2Observer) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
+	for _, observer := range o {
+		appendStageObserver, ok := observer.(clusterv2channels.AppendStageObserver)
+		if ok {
+			appendStageObserver.ObserveChannelAppendStage(stage, result, d)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	for _, observer := range o {
 		observer.ObserveWorkerResult(kind, err, d)
@@ -368,9 +384,11 @@ var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
+var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
+var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}

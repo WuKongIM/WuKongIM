@@ -166,6 +166,7 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.SetWorkerQueueDepth("store_append", 4)
 	reg.ChannelV2.ObserveAppendBatch(16, 1024, 3*time.Millisecond)
 	reg.ChannelV2.ObserveAppendLatency("local", 7*time.Millisecond)
+	reg.ChannelV2.ObserveAppendStage("meta_apply", "ok", 5*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("store_append", "ok", 11*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("rpc_pull", "ok", 13*time.Millisecond)
 	reg.ChannelV2.SetChannelRuntimeCount(2, "leader", 17)
@@ -208,6 +209,15 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"node_id":     "8",
 		"node_name":   "node-8",
 		"commit_mode": "local",
+	})
+
+	appendStage := requireMetricFamily(t, families, "wukongim_channelv2_append_stage_duration_seconds")
+	require.Len(t, appendStage.GetMetric(), 1)
+	requireMetricLabels(t, appendStage.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"stage":     "meta_apply",
+		"result":    "ok",
 	})
 
 	workerDuration := requireMetricFamily(t, families, "wukongim_channelv2_worker_task_duration_seconds")

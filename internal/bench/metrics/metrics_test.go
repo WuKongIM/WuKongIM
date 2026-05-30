@@ -164,6 +164,15 @@ wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 0
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 0
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="+Inf"} 0
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(before): %v", err)
@@ -176,6 +185,15 @@ wukongim_channelv2_worker_queue_depth{pool="store_append"} 3
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 10
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 100
 wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="0.01"} 20
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_resolve",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 5
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="0.01"} 10
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",result="ok",le="+Inf"} 100
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(after): %v", err)
@@ -190,6 +208,9 @@ wukongim_channelv2_append_duration_seconds_bucket{commit_mode="local",le="+Inf"}
 	}
 	if report.ChannelV2WorkerQueueDepthMax != 3 {
 		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
+	}
+	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 {
+		t.Fatalf("channel stage p99s not parsed: %+v", report)
 	}
 }
 

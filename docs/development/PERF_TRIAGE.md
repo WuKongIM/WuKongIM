@@ -62,6 +62,10 @@ online user pool is intentionally smaller than the channel count; raise
 `--users` and `--connect-rate` only when the experiment intentionally adds
 gateway connection pressure. The default `--stable-p99 2s` is a cold-activation
 guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
+For cold ChannelV2 activation attribution, first compare the per-node
+`channelv2_meta_resolve_p99_seconds`, `channelv2_meta_apply_p99_seconds`, and
+`channelv2_runtime_append_p99_seconds` values before using pprof to inspect the
+hot path.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -259,6 +263,7 @@ sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
 sum by (pool) (wukongim_channelv2_worker_queue_depth)
 sum by (result) (rate(wukongim_channelv2_rpc_pull_total[1m]))
 histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
+histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelv2_append_stage_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_worker_task_duration_seconds_bucket[1m])))
 histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
 ```
@@ -269,6 +274,9 @@ Interpretation matrix:
 | --- | --- | --- |
 | Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
 | Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
+| `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
+| `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | ChannelV2 runtime ensure/load, store open, mailbox/worker pressure |
+| `channelv2_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |
