@@ -99,6 +99,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchMaxBatchSize:    cfg.Bench.APIMaxBatchSize,
 			BenchMaxPayloadBytes: cfg.Bench.APIMaxPayloadBytes,
 			Gateway:              apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
+			BenchRuntime:         app.benchRuntimeController(),
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
 		})
@@ -168,6 +169,17 @@ func (a *App) gatewayObserver() gateway.Observer {
 		return nil
 	}
 	return gatewayMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) benchRuntimeController() accessapi.ChannelRuntimeBenchController {
+	if a == nil {
+		return nil
+	}
+	node, ok := a.cluster.(clusterinfra.ChannelRuntimeBenchNode)
+	if !ok {
+		return nil
+	}
+	return clusterinfra.NewChannelRuntimeBenchController(node)
 }
 
 func defaultClusterConfig(cfg Config) clusterv2.Config {

@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"sync"
@@ -10,6 +13,8 @@ import (
 	"time"
 	"unsafe"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -68,6 +73,51 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 
 	if got := joinCalls(calls); got != "cluster.start,api.start,gateway.start" {
 		t.Fatalf("calls = %s, want cluster.start,api.start,gateway.start", got)
+	}
+}
+
+func TestNewWiresBenchRuntimeControllerWhenClusterSupportsIt(t *testing.T) {
+	app, err := New(
+		Config{
+			API:   APIConfig{ListenAddr: "127.0.0.1:0"},
+			Bench: BenchConfig{APIEnabled: true},
+		},
+		WithCluster(&fakeRuntimeBenchCluster{}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/bench/v1/capabilities", nil)
+	rec := httptest.NewRecorder()
+	apiSrv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var caps struct {
+		Supports struct {
+			ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
+			ChannelRuntimeProbe    bool `json:"channel_runtime_probe"`
+			ChannelRuntimeEvict    bool `json:"channel_runtime_evict"`
+		} `json:"supports"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&caps); err != nil {
+		t.Fatalf("decode capabilities: %v", err)
+	}
+	if !caps.Supports.ChannelRuntimeSnapshot {
+		t.Fatalf("channel_runtime_snapshot = false, want true")
+	}
+	if !caps.Supports.ChannelRuntimeProbe {
+		t.Fatalf("channel_runtime_probe = false, want true")
+	}
+	if !caps.Supports.ChannelRuntimeEvict {
+		t.Fatalf("channel_runtime_evict = false, want true")
 	}
 }
 
@@ -344,6 +394,28 @@ func (f *fakeCluster) Stop(context.Context) error {
 		*f.calls = append(*f.calls, "cluster.stop")
 	}
 	return f.stopErr
+}
+
+var _ clusterinfra.ChannelRuntimeBenchNode = (*fakeRuntimeBenchCluster)(nil)
+
+type fakeRuntimeBenchCluster struct {
+	fakeCluster
+}
+
+func (f *fakeRuntimeBenchCluster) NodeID() uint64 {
+	return 1
+}
+
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
+	return channelv2.RuntimeSnapshot{NodeID: 1}, nil
+}
+
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+	return channelv2.RuntimeProbeResult{}, nil
+}
+
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+	return channelv2.RuntimeEvictResult{}, nil
 }
 
 type fakeWriteReadyCluster struct {
