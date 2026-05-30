@@ -71,6 +71,30 @@ func TestActivateChannelsSummaryMarkdownIncludesFailureReasons(t *testing.T) {
 	require.Equal(t, ExitNoStableAttempt, result.ExitCode())
 }
 
+func TestActivateChannelsSummaryMarkdownIncludesActiveNodeDistribution(t *testing.T) {
+	result := activateChannelsResultFixture(StatusFailed)
+	result.Evaluation.Passed = false
+	result.Evaluation.FailureReasons = []string{"active_leader_single_node"}
+	result.Evaluation.ActiveLeaderNodeCount = 1
+	result.Evaluation.ActiveLeaderMaxNodeID = 1
+	result.Evaluation.ActiveLeaderMaxNodeShare = 1.0
+	result.Evaluation.ActiveNodes = []ActivateChannelsNodeRuntime{
+		{NodeID: 1, ActiveTotal: 7500, ActiveLeader: 7500},
+		{NodeID: 2, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+		{NodeID: 3, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+	}
+
+	got := ActivateChannelsSummaryMarkdown(result)
+
+	require.Contains(t, got, "- active_leader_node_count: 1")
+	require.Contains(t, got, "- active_leader_max_node: 1")
+	require.Contains(t, got, "- active_leader_max_node_share: 1.000")
+	require.Contains(t, got, "## Active Runtime Distribution")
+	require.Contains(t, got, "| 1 | 7500 | 7500 | 0 | 0 |")
+	require.Contains(t, got, "| 2 | 7500 | 0 | 7500 | 7500 |")
+	require.Contains(t, got, "- active_leader_single_node")
+}
+
 func TestActivateChannelsSummaryMarkdownCapsProbeMissingSamples(t *testing.T) {
 	result := activateChannelsResultFixture(StatusFailed)
 	result.Evaluation.Passed = false
@@ -100,6 +124,7 @@ func TestActivateChannelsConsoleSummary(t *testing.T) {
 	require.Contains(t, got, "run_id: activate-test")
 	require.Contains(t, got, "channels: 10000")
 	require.Contains(t, got, "success=10000")
+	require.Contains(t, got, "leader_nodes=1")
 	require.Contains(t, got, "p99=30ms")
 	require.Contains(t, got, "report: /tmp/wkbench-activate")
 
@@ -123,14 +148,22 @@ func activateChannelsResultFixture(status Status) ActivateChannelsResult {
 		Status: status,
 		Config: activateChannelsReportConfigFromConfig(cfg),
 		Evaluation: ActivateChannelsEvaluation{
-			Passed:                  status == StatusPassed,
-			ActivationSuccess:       10000,
-			ActivationErrors:        0,
-			ActivationBacklog:       0,
-			SendackP50:              10 * time.Millisecond,
-			SendackP95:              20 * time.Millisecond,
-			SendackP99:              30 * time.Millisecond,
-			ActiveLeaderTotal:       10000,
+			Passed:                   status == StatusPassed,
+			ActivationSuccess:        10000,
+			ActivationErrors:         0,
+			ActivationBacklog:        0,
+			SendackP50:               10 * time.Millisecond,
+			SendackP95:               20 * time.Millisecond,
+			SendackP99:               30 * time.Millisecond,
+			ActiveLeaderTotal:        10000,
+			ActiveLeaderNodeCount:    1,
+			ActiveLeaderMaxNodeID:    1,
+			ActiveLeaderMaxNodeShare: 1.0,
+			ActiveNodes: []ActivateChannelsNodeRuntime{{
+				NodeID:       1,
+				ActiveTotal:  10000,
+				ActiveLeader: 10000,
+			}},
 			ActivationRejectedDelta: 0,
 			ProbeMissingAllNodes:    nil,
 		},

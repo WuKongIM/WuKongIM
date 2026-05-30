@@ -165,6 +165,10 @@ collects node logs, Prometheus snapshots plus per-node classification files,
 pprof, and server process CPU/memory samples under `resources/`. The referenced
 three-node configs use three initial physical Slots so cold channel metadata
 creation is distributed across the local cluster instead of one Slot Raft group.
+The activation report includes per-node active runtime distribution
+(`active_leader`, `active_follower`, and `follower_parked`); on multi-node
+targets, `active_leader_single_node` marks samples where all active leaders
+landed on one node instead of a distributed topology.
 
 The per-node classification files include ControllerV2 Raft Step queue pressure
 plus ChannelV2 cold-activation stage p99s:

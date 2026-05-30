@@ -117,6 +117,9 @@ func ActivateChannelsSummaryMarkdown(result ActivateChannelsResult) string {
 	fmt.Fprintf(&b, "- sendack_p95: %s\n", formatDuration(result.Evaluation.SendackP95))
 	fmt.Fprintf(&b, "- sendack_p99: %s\n", formatDuration(result.Evaluation.SendackP99))
 	fmt.Fprintf(&b, "- active_leader_total: %d\n", result.Evaluation.ActiveLeaderTotal)
+	fmt.Fprintf(&b, "- active_leader_node_count: %d\n", result.Evaluation.ActiveLeaderNodeCount)
+	fmt.Fprintf(&b, "- active_leader_max_node: %d\n", result.Evaluation.ActiveLeaderMaxNodeID)
+	fmt.Fprintf(&b, "- active_leader_max_node_share: %.3f\n", result.Evaluation.ActiveLeaderMaxNodeShare)
 	fmt.Fprintf(&b, "- activation_rejected_delta: %d\n", result.Evaluation.ActivationRejectedDelta)
 	fmt.Fprintf(&b, "- probe_missing_all_nodes_count: %d\n", len(result.Evaluation.ProbeMissingAllNodes))
 	if len(result.Evaluation.FailureReasons) > 0 {
@@ -136,6 +139,14 @@ func ActivateChannelsSummaryMarkdown(result ActivateChannelsResult) string {
 			fmt.Fprintf(&b, "- %s\n", channelID)
 		}
 	}
+	if len(result.Evaluation.ActiveNodes) > 0 {
+		fmt.Fprintf(&b, "\n## Active Runtime Distribution\n\n")
+		fmt.Fprintf(&b, "| node_id | active_total | active_leader | active_follower | follower_parked |\n")
+		fmt.Fprintf(&b, "| --- | ---: | ---: | ---: | ---: |\n")
+		for _, node := range result.Evaluation.ActiveNodes {
+			fmt.Fprintf(&b, "| %d | %d | %d | %d | %d |\n", node.NodeID, node.ActiveTotal, node.ActiveLeader, node.ActiveFollower, node.FollowerParked)
+		}
+	}
 	return b.String()
 }
 
@@ -149,11 +160,14 @@ func ActivateChannelsConsoleSummary(result ActivateChannelsResult) string {
 	fmt.Fprintf(&b, "  run_id: %s\n", result.Config.RunID)
 	fmt.Fprintf(&b, "  channels: %d\n", result.Config.Channels)
 	fmt.Fprintf(&b, "  users: %d\n", result.Config.Users)
-	fmt.Fprintf(&b, "  activation: success=%d errors=%d backlog=%d active_leader=%d rejected_delta=%d p50=%s p95=%s p99=%s\n",
+	fmt.Fprintf(&b, "  activation: success=%d errors=%d backlog=%d active_leader=%d leader_nodes=%d max_leader_node=%d max_leader_share=%.3f rejected_delta=%d p50=%s p95=%s p99=%s\n",
 		result.Evaluation.ActivationSuccess,
 		result.Evaluation.ActivationErrors,
 		result.Evaluation.ActivationBacklog,
 		result.Evaluation.ActiveLeaderTotal,
+		result.Evaluation.ActiveLeaderNodeCount,
+		result.Evaluation.ActiveLeaderMaxNodeID,
+		result.Evaluation.ActiveLeaderMaxNodeShare,
 		result.Evaluation.ActivationRejectedDelta,
 		formatDuration(result.Evaluation.SendackP50),
 		formatDuration(result.Evaluation.SendackP95),
@@ -194,6 +208,10 @@ func hasActivateChannelsEvaluation(eval ActivateChannelsEvaluation) bool {
 		eval.SendackP95 > 0 ||
 		eval.SendackP99 > 0 ||
 		eval.ActiveLeaderTotal > 0 ||
+		eval.ActiveLeaderNodeCount > 0 ||
+		eval.ActiveLeaderMaxNodeID > 0 ||
+		eval.ActiveLeaderMaxNodeShare > 0 ||
+		len(eval.ActiveNodes) > 0 ||
 		eval.ActivationRejectedDelta > 0 ||
 		len(eval.ProbeMissingAllNodes) > 0
 }

@@ -82,10 +82,32 @@ type ActivateChannelsEvaluation struct {
 	SendackP99 time.Duration `json:"sendack_p99"`
 	// ActiveLeaderTotal is the total active leader runtime count across target nodes.
 	ActiveLeaderTotal int `json:"active_leader_total"`
+	// ActiveLeaderNodeCount is the number of target nodes with at least one active leader runtime.
+	ActiveLeaderNodeCount int `json:"active_leader_node_count"`
+	// ActiveLeaderMaxNodeID is the node id with the largest active leader runtime count.
+	ActiveLeaderMaxNodeID uint64 `json:"active_leader_max_node_id,omitempty"`
+	// ActiveLeaderMaxNodeShare is the largest single-node share of active leader runtimes.
+	ActiveLeaderMaxNodeShare float64 `json:"active_leader_max_node_share"`
+	// ActiveNodes contains per-node active runtime distribution captured after activation.
+	ActiveNodes []ActivateChannelsNodeRuntime `json:"active_nodes,omitempty"`
 	// ActivationRejectedDelta is the increase in rejected activation requests during the run.
 	ActivationRejectedDelta uint64 `json:"activation_rejected_delta"`
 	// ProbeMissingAllNodes lists probed channels absent from every responding target node.
 	ProbeMissingAllNodes []string `json:"probe_missing_all_nodes,omitempty"`
+}
+
+// ActivateChannelsNodeRuntime summarizes one node's active ChannelV2 runtime distribution.
+type ActivateChannelsNodeRuntime struct {
+	// NodeID identifies the target node that produced the runtime snapshot.
+	NodeID uint64 `json:"node_id"`
+	// ActiveTotal is the node-local active runtime count.
+	ActiveTotal int `json:"active_total"`
+	// ActiveLeader is the node-local active leader runtime count.
+	ActiveLeader int `json:"active_leader"`
+	// ActiveFollower is the node-local active follower runtime count.
+	ActiveFollower int `json:"active_follower"`
+	// FollowerParked is the node-local parked follower runtime count.
+	FollowerParked int `json:"follower_parked"`
 }
 
 // ActivateChannelsRunner drives a fixed-size live-channel activation experiment.
@@ -356,19 +378,25 @@ func EvaluateActivateChannels(cfg ActivateChannelsConfig, rep report.Report, col
 	send := report.SendRunSummaryFromMetrics(rep.Metrics, cfg.ActivationWindow)
 	targetChannels := positiveUint64(cfg.Channels)
 	activeLeaderTotal := sumActiveLeader(active)
+	activeNodes := activeNodeRuntimeDistribution(active)
+	activeLeaderNodeCount, activeLeaderMaxNodeID, activeLeaderMaxNodeShare := activeLeaderDistribution(activeNodes)
 	rejectedDelta := activationRejectedDelta(cold, active)
 	missingEverywhere := probeMissingEverywhere(probes)
 
 	got := ActivateChannelsEvaluation{
-		ActivationSuccess:       send.SendSuccess,
-		ActivationErrors:        send.SendErrors,
-		ActivationBacklog:       activationBacklog(targetChannels, send.SendSuccess, send.SendErrors),
-		SendackP50:              send.SendackP50,
-		SendackP95:              send.SendackP95,
-		SendackP99:              send.SendackP99,
-		ActiveLeaderTotal:       activeLeaderTotal,
-		ActivationRejectedDelta: rejectedDelta,
-		ProbeMissingAllNodes:    missingEverywhere,
+		ActivationSuccess:        send.SendSuccess,
+		ActivationErrors:         send.SendErrors,
+		ActivationBacklog:        activationBacklog(targetChannels, send.SendSuccess, send.SendErrors),
+		SendackP50:               send.SendackP50,
+		SendackP95:               send.SendackP95,
+		SendackP99:               send.SendackP99,
+		ActiveLeaderTotal:        activeLeaderTotal,
+		ActiveLeaderNodeCount:    activeLeaderNodeCount,
+		ActiveLeaderMaxNodeID:    activeLeaderMaxNodeID,
+		ActiveLeaderMaxNodeShare: activeLeaderMaxNodeShare,
+		ActiveNodes:              activeNodes,
+		ActivationRejectedDelta:  rejectedDelta,
+		ProbeMissingAllNodes:     missingEverywhere,
 	}
 	if send.SendSuccess != targetChannels {
 		got.FailureReasons = append(got.FailureReasons, "activation_success_mismatch")
@@ -390,6 +418,9 @@ func EvaluateActivateChannels(cfg ActivateChannelsConfig, rep report.Report, col
 	}
 	if activeLeaderTotal < cfg.Channels {
 		got.FailureReasons = append(got.FailureReasons, "active_leader_below_channels")
+	}
+	if len(nonEmptyStrings(cfg.APIAddrs)) > 1 && activeLeaderTotal > 0 && activeLeaderNodeCount == 1 {
+		got.FailureReasons = append(got.FailureReasons, "active_leader_single_node")
 	}
 	if rejectedDelta > 0 {
 		got.FailureReasons = append(got.FailureReasons, "activation_rejected_delta")
@@ -432,6 +463,45 @@ func sumActiveLeader(snapshots []model.ChannelRuntimeSnapshot) int {
 		total += snapshot.ActiveLeader
 	}
 	return total
+}
+
+func activeNodeRuntimeDistribution(snapshots []model.ChannelRuntimeSnapshot) []ActivateChannelsNodeRuntime {
+	if len(snapshots) == 0 {
+		return nil
+	}
+	out := make([]ActivateChannelsNodeRuntime, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		out = append(out, ActivateChannelsNodeRuntime{
+			NodeID:         snapshot.NodeID,
+			ActiveTotal:    snapshot.ActiveTotal,
+			ActiveLeader:   snapshot.ActiveLeader,
+			ActiveFollower: snapshot.ActiveFollower,
+			FollowerParked: snapshot.FollowerParked,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].NodeID < out[j].NodeID
+	})
+	return out
+}
+
+func activeLeaderDistribution(nodes []ActivateChannelsNodeRuntime) (leaderNodeCount int, maxNodeID uint64, maxShare float64) {
+	total := 0
+	maxLeaders := 0
+	for _, node := range nodes {
+		if node.ActiveLeader > 0 {
+			leaderNodeCount++
+			total += node.ActiveLeader
+		}
+		if node.ActiveLeader > maxLeaders {
+			maxLeaders = node.ActiveLeader
+			maxNodeID = node.NodeID
+		}
+	}
+	if total > 0 {
+		maxShare = float64(maxLeaders) / float64(total)
+	}
+	return leaderNodeCount, maxNodeID, maxShare
 }
 
 func activationRejectedDelta(cold []model.ChannelRuntimeSnapshot, active []model.ChannelRuntimeSnapshot) uint64 {

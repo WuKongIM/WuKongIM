@@ -206,6 +206,41 @@ func TestEvaluateActivateChannelsFailsOnMissingLeaderCount(t *testing.T) {
 	require.Equal(t, 9999, got.ActiveLeaderTotal)
 }
 
+func TestEvaluateActivateChannelsFailsWhenMultiNodeLeadersConcentrateOnSingleNode(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	cfg.APIAddrs = []string{"http://node-1", "http://node-2", "http://node-3"}
+	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})
+	cold := []model.ChannelRuntimeSnapshot{
+		{NodeID: 1},
+		{NodeID: 2},
+		{NodeID: 3},
+	}
+	active := []model.ChannelRuntimeSnapshot{
+		{NodeID: 1, ActiveTotal: 7500, ActiveLeader: 7500},
+		{NodeID: 2, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+		{NodeID: 3, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+	}
+	probes := [][]model.ChannelRuntimeProbeResult{{
+		{NodeID: 1, Checked: 10000, LoadedLeader: 7500, Missing: []string{"missing-1"}},
+		{NodeID: 2, Checked: 10000, LoadedFollower: 7500, Missing: []string{"missing-1"}},
+		{NodeID: 3, Checked: 10000, LoadedFollower: 7500, Missing: []string{"missing-1"}},
+	}}
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "active_leader_single_node")
+	require.Equal(t, 7500, got.ActiveLeaderTotal)
+	require.Equal(t, 1, got.ActiveLeaderNodeCount)
+	require.Equal(t, uint64(1), got.ActiveLeaderMaxNodeID)
+	require.Equal(t, 1.0, got.ActiveLeaderMaxNodeShare)
+	require.Equal(t, []ActivateChannelsNodeRuntime{
+		{NodeID: 1, ActiveTotal: 7500, ActiveLeader: 7500},
+		{NodeID: 2, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+		{NodeID: 3, ActiveTotal: 7500, ActiveFollower: 7500, FollowerParked: 7500},
+	}, got.ActiveNodes)
+}
+
 func TestEvaluateActivateChannelsFailsOnActivationRejectedDelta(t *testing.T) {
 	cfg := activateChannelsEvalConfig()
 	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})

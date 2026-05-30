@@ -65,6 +65,9 @@ guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
 The local three-node configs use three initial physical Slots so the default
 10k-channel run exercises a distributed metadata path instead of one hot Slot
 Raft group.
+Treat `active_leader_single_node` as an invalid topology sample first: inspect
+the activation report's per-node active runtime distribution before using that
+run as capacity evidence.
 For cold ChannelV2 activation attribution, first compare the per-node
 `channelv2_meta_resolve_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,

@@ -88,6 +88,12 @@ without new sends, probes generated channel ranges through the all-node runtime
 API, optionally evicts the generated runtime state, and writes
 `activation_report.json` plus `summary.md`.
 
+The activation verdict also records per-node active runtime distribution from
+the active snapshot. On multi-node targets, a run with active leaders
+concentrated on exactly one node is marked with `active_leader_single_node` so
+bad startup or route placement samples are not treated as normal capacity
+evidence.
+
 The default shape is a channel-cardinality proof: 10,000 generated group
 channels, a reusable online user pool, bounded prepare/connect rates, and a
 longer activation window so the result reflects live ChannelV2 runtime pressure
