@@ -84,26 +84,6 @@ type ActivateChannelsEvaluation struct {
 	ProbeMissingAllNodes []string `json:"probe_missing_all_nodes,omitempty"`
 }
 
-// ActivateChannelsResult contains runtime evidence and the verdict for one activation run.
-type ActivateChannelsResult struct {
-	// Status is passed when the activation run satisfies every evidence check.
-	Status Status `json:"status"`
-	// Evaluation is the final activation-specific pass/fail verdict.
-	Evaluation ActivateChannelsEvaluation `json:"evaluation"`
-	// Cold contains pre-activation runtime snapshots.
-	Cold []model.ChannelRuntimeSnapshot `json:"cold_snapshots,omitempty"`
-	// Active contains post-activation runtime snapshots.
-	Active []model.ChannelRuntimeSnapshot `json:"active_snapshots,omitempty"`
-	// HoldSamples contains runtime snapshots captured during the post-activation hold.
-	HoldSamples [][]model.ChannelRuntimeSnapshot `json:"hold_samples,omitempty"`
-	// ProbeBatches contains all-node runtime probe results for generated channel ranges.
-	ProbeBatches [][]model.ChannelRuntimeProbeResult `json:"probe_batches,omitempty"`
-	// EvictBatches contains optional runtime eviction results.
-	EvictBatches [][]model.ChannelRuntimeEvictResult `json:"evict_batches,omitempty"`
-	// ReportDir is the directory where activation reports should be written.
-	ReportDir string `json:"report_dir,omitempty"`
-}
-
 // ActivateChannelsRunner drives a fixed-size live-channel activation experiment.
 type ActivateChannelsRunner struct {
 	cfg        ActivateChannelsConfig
@@ -151,7 +131,11 @@ func (r *ActivateChannelsRunner) Run(ctx context.Context) (ActivateChannelsResul
 		return ActivateChannelsResult{Status: StatusFailed}, fmt.Errorf("activate channels runner is required")
 	}
 	r.setDefaults()
-	result := ActivateChannelsResult{Status: StatusFailed, ReportDir: r.cfg.ReportDir}
+	result := ActivateChannelsResult{
+		Status:    StatusFailed,
+		Config:    activateChannelsReportConfigFromConfig(r.cfg),
+		ReportDir: r.cfg.ReportDir,
+	}
 	if err := r.cfg.Validate(); err != nil {
 		return result, err
 	}
