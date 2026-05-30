@@ -166,3 +166,10 @@ stopped ACK, or evicting runtime. Worker completions are fenced by channel key,
 generation, epoch, leader epoch, and op id before controller state is advanced.
 Store and transport I/O still run through the existing worker pools; the
 controller only decides what should happen next.
+
+## Bench Runtime Observation
+
+`RuntimeBench` exposes snapshot, probe, and safe eviction for controlled
+benchmark runs. Callers pass concrete `ChannelID` values; benchmark run/profile
+range expansion happens above `pkg/channelv2` so the runtime package does not
+depend on wkbench naming rules.

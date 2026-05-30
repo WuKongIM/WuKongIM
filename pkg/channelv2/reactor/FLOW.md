@@ -164,3 +164,11 @@ TaskRPCPullHint      -> leader pull-hint completion
 
 Worker completions are accepted only when their channel key, generation, epoch,
 leader epoch, and operation id match the current runtime state.
+
+## Bench Runtime Events
+
+Runtime snapshot, probe, and evict requests enter reactors as mailbox events.
+The owning reactor reads or evicts its local `channels` map, preserving the
+single-writer rule. Evict only removes loaded runtime state when
+`safeToEvictRuntime()` is true; it never deletes durable channel metadata or
+messages.
