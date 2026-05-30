@@ -17,6 +17,9 @@ GET  /debug/pprof/*                   (optional, when PProfEnabled is configured
 GET  /bench/v1/capabilities
 GET  /bench/v1/capacity-target
 GET  /bench/v1/snapshot
+GET  /bench/v1/channel-runtime/snapshot
+POST /bench/v1/channel-runtime/probe
+POST /bench/v1/channel-runtime/evict
 POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers

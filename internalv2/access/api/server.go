@@ -10,6 +10,8 @@ import (
 	"net/http/pprof"
 	"strings"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
 const versionV1 = "bench/v1"
@@ -27,6 +29,13 @@ type GatewayAddresses struct {
 	WSSAddr string `json:"wss_addr"`
 }
 
+// ChannelRuntimeBenchController exposes benchmark-only ChannelV2 runtime controls.
+type ChannelRuntimeBenchController interface {
+	Snapshot(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeSnapshot, error)
+	Probe(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error)
+	Evict(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeEvictResult, error)
+}
+
 // Options configures the minimal internalv2 HTTP API server.
 type Options struct {
 	// ListenAddr is the HTTP API listen address. An empty value makes Start fail.
@@ -41,6 +50,8 @@ type Options struct {
 	BenchMaxPayloadBytes int64
 	// Gateway contains the published gateway addresses returned by /bench/v1/capacity-target.
 	Gateway GatewayAddresses
+	// BenchRuntime controls benchmark-only ChannelV2 runtime diagnostics when configured.
+	BenchRuntime ChannelRuntimeBenchController
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -60,6 +71,7 @@ type Server struct {
 	benchMaxBatchSize    int
 	benchMaxPayloadBytes int64
 	gateway              GatewayAddresses
+	benchRuntime         ChannelRuntimeBenchController
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	counts               map[string]int
@@ -76,6 +88,7 @@ func New(opts Options) *Server {
 		benchMaxBatchSize:    opts.BenchMaxBatchSize,
 		benchMaxPayloadBytes: opts.BenchMaxPayloadBytes,
 		gateway:              opts.Gateway,
+		benchRuntime:         opts.BenchRuntime,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		counts:               map[string]int{},
@@ -170,6 +183,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/bench/v1/capabilities", s.method(http.MethodGet, s.handleBenchCapabilities))
 	s.mux.HandleFunc("/bench/v1/capacity-target", s.method(http.MethodGet, s.handleBenchCapacityTarget))
 	s.mux.HandleFunc("/bench/v1/snapshot", s.method(http.MethodGet, s.handleBenchSnapshot))
+	s.mux.HandleFunc("/bench/v1/channel-runtime/snapshot", s.method(http.MethodGet, s.handleBenchChannelRuntimeSnapshot))
+	s.mux.HandleFunc("/bench/v1/channel-runtime/probe", s.method(http.MethodPost, s.handleBenchChannelRuntimeProbe))
+	s.mux.HandleFunc("/bench/v1/channel-runtime/evict", s.method(http.MethodPost, s.handleBenchChannelRuntimeEvict))
 	s.mux.HandleFunc("/bench/v1/users/tokens", s.method(http.MethodPost, s.handleBenchTokens))
 	s.mux.HandleFunc("/bench/v1/channels", s.method(http.MethodPost, s.handleBenchChannels))
 	s.mux.HandleFunc("/bench/v1/channels/subscribers", s.method(http.MethodPost, s.handleBenchSubscribers))
@@ -222,11 +238,21 @@ type capabilitiesResponse struct {
 }
 
 type capabilitiesSupports struct {
-	UsersTokensBatch        bool     `json:"users_tokens_batch"`
-	ChannelsBatch           bool     `json:"channels_batch"`
-	ChannelSubscribersBatch bool     `json:"channel_subscribers_batch"`
-	Snapshot                bool     `json:"snapshot"`
-	ChannelTypes            []string `json:"channel_types"`
+	UsersTokensBatch        bool `json:"users_tokens_batch"`
+	ChannelsBatch           bool `json:"channels_batch"`
+	ChannelSubscribersBatch bool `json:"channel_subscribers_batch"`
+	Snapshot                bool `json:"snapshot"`
+	// ChannelRuntimeSnapshot indicates support for local ChannelV2 runtime snapshots.
+	ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
+	// ChannelRuntimeProbe indicates support for bounded ChannelV2 runtime probes.
+	ChannelRuntimeProbe bool `json:"channel_runtime_probe"`
+	// ChannelRuntimeEvict indicates support for bounded ChannelV2 runtime eviction.
+	ChannelRuntimeEvict bool `json:"channel_runtime_evict"`
+	// ChannelRuntimeFaults indicates support for runtime fault injection controls.
+	ChannelRuntimeFaults bool `json:"channel_runtime_faults"`
+	// ChannelRuntimeActivate indicates support for server-side diagnostic activation.
+	ChannelRuntimeActivate bool     `json:"channel_runtime_activate"`
+	ChannelTypes           []string `json:"channel_types"`
 }
 
 type capabilitiesLimits struct {
@@ -243,6 +269,11 @@ func (s *Server) handleBenchCapabilities(w http.ResponseWriter, _ *http.Request)
 			ChannelsBatch:           true,
 			ChannelSubscribersBatch: true,
 			Snapshot:                true,
+			ChannelRuntimeSnapshot:  s.benchRuntime != nil,
+			ChannelRuntimeProbe:     s.benchRuntime != nil,
+			ChannelRuntimeEvict:     s.benchRuntime != nil,
+			ChannelRuntimeFaults:    false,
+			ChannelRuntimeActivate:  false,
 			ChannelTypes:            []string{"group"},
 		},
 		Limits: capabilitiesLimits{

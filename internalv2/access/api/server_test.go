@@ -40,6 +40,9 @@ func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
 	if !caps.Supports.UsersTokensBatch || !caps.Supports.ChannelsBatch || !caps.Supports.ChannelSubscribersBatch || !caps.Supports.Snapshot {
 		t.Fatalf("capabilities supports = %+v, want all wkbench preparation features", caps.Supports)
 	}
+	if caps.Supports.ChannelRuntimeSnapshot || caps.Supports.ChannelRuntimeProbe || caps.Supports.ChannelRuntimeEvict || caps.Supports.ChannelRuntimeFaults || caps.Supports.ChannelRuntimeActivate {
+		t.Fatalf("channel runtime supports = %+v, want disabled without controller", caps.Supports)
+	}
 	if got, want := caps.Limits.MaxBatchSize, 10; got != want {
 		t.Fatalf("max_batch_size = %d, want %d", got, want)
 	}
