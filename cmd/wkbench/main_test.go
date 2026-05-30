@@ -335,6 +335,18 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	if !strings.Contains(stderr.String(), "channelv2_append_post_store_commit_wait_p99_seconds:") {
 		t.Fatalf("expected channel append post-store commit wait metric in output, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "channelv2_append_quorum_follower_pull_wait_p99_seconds:") {
+		t.Fatalf("expected channel append quorum follower pull wait metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_append_quorum_ack_offset_wait_p99_seconds:") {
+		t.Fatalf("expected channel append quorum ack offset wait metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_append_quorum_hw_advance_wait_p99_seconds:") {
+		t.Fatalf("expected channel append quorum HW advance wait metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_append_quorum_final_complete_p99_seconds:") {
+		t.Fatalf("expected channel append quorum final complete metric in output, got %q", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "channelv2_meta_slot_read_p99_seconds:") {
 		t.Fatalf("expected channel meta breakdown metric in output, got %q", stderr.String())
 	}

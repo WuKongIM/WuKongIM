@@ -8,6 +8,15 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
+const (
+	appendWaitStageStoreAppend         = "store_append_wait"
+	appendWaitStagePostStoreCommit     = "post_store_commit_wait"
+	appendWaitStageQuorumFollowerPull  = "quorum_follower_pull_wait"
+	appendWaitStageQuorumAckOffset     = "quorum_ack_offset_wait"
+	appendWaitStageQuorumHWAdvance     = "quorum_hw_advance_wait"
+	appendWaitStageQuorumFinalComplete = "quorum_final_complete_wait"
+)
+
 // Observer receives lightweight runtime metrics from the reactor hot path.
 type Observer interface {
 	SetReactorMailboxDepth(reactorID int, priority string, depth int)
@@ -72,8 +81,11 @@ func (r *Reactor) observeAppendComplete(rc *runtimeChannel, opID ch.OpID, err er
 	}
 	delete(rc.appendTimings, opID)
 	completedAt := time.Now()
+	if !timing.hwAdvancedAt.IsZero() {
+		r.observeAppendWaitStage(appendWaitStageQuorumFinalComplete, timing.mode, appendWaitResult(err), completedAt.Sub(timing.hwAdvancedAt))
+	}
 	if !timing.storeCompletedAt.IsZero() {
-		r.observeAppendWaitStage("post_store_commit_wait", timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeCompletedAt))
+		r.observeAppendWaitStage(appendWaitStagePostStoreCommit, timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeCompletedAt))
 	}
 	wait := completedAt.Sub(timing.enqueuedAt)
 	if wait < 0 {
@@ -96,21 +108,88 @@ func (r *Reactor) markAppendStoreSubmitted(rc *runtimeChannel, batch appendBatch
 	}
 }
 
-func (r *Reactor) observeAppendStoreCompleted(rc *runtimeChannel, batch appendBatch, completedAt time.Time, err error) {
+func (r *Reactor) observeAppendStoreCompleted(rc *runtimeChannel, batch appendBatch, completedAt time.Time, baseOffset uint64, err error) {
 	if r == nil || rc == nil {
 		return
 	}
+	nextOffset := baseOffset
 	for _, req := range batch.requests {
 		timing, ok := rc.appendTimings[req.opID]
-		if !ok || timing.storeSubmittedAt.IsZero() {
+		recordCount := len(req.records)
+		if !ok {
+			nextOffset += uint64(recordCount)
 			continue
 		}
-		r.observeAppendWaitStage("store_append_wait", timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeSubmittedAt))
+		if !timing.storeSubmittedAt.IsZero() {
+			r.observeAppendWaitStage(appendWaitStageStoreAppend, timing.mode, appendWaitResult(err), completedAt.Sub(timing.storeSubmittedAt))
+		}
 		if err == nil {
 			timing.storeCompletedAt = completedAt
+			if nextOffset > 0 && recordCount > 0 {
+				timing.targetOffset = nextOffset + uint64(recordCount) - 1
+			}
 			rc.appendTimings[req.opID] = timing
 		}
+		nextOffset += uint64(recordCount)
 	}
+}
+
+func (r *Reactor) markAppendFollowerPullServed(rc *runtimeChannel, records []ch.Record, servedAt time.Time) {
+	if r == nil || rc == nil || len(records) == 0 {
+		return
+	}
+	for opID, timing := range rc.appendTimings {
+		if !timing.tracksQuorumCommitWait() || !timing.followerPullServedAt.IsZero() || !recordsCoverOffset(records, timing.targetOffset) {
+			continue
+		}
+		timing.followerPullServedAt = servedAt
+		rc.appendTimings[opID] = timing
+		r.observeAppendWaitStage(appendWaitStageQuorumFollowerPull, timing.mode, "ok", servedAt.Sub(timing.storeCompletedAt))
+	}
+}
+
+func (r *Reactor) markAppendAckOffsetObserved(rc *runtimeChannel, ackOffset uint64, observedAt time.Time) {
+	if r == nil || rc == nil || ackOffset == 0 {
+		return
+	}
+	for opID, timing := range rc.appendTimings {
+		if !timing.tracksQuorumCommitWait() || !timing.ackOffsetObservedAt.IsZero() || ackOffset < timing.targetOffset {
+			continue
+		}
+		timing.ackOffsetObservedAt = observedAt
+		rc.appendTimings[opID] = timing
+		r.observeAppendWaitStage(appendWaitStageQuorumAckOffset, timing.mode, "ok", observedAt.Sub(timing.storeCompletedAt))
+	}
+}
+
+func (r *Reactor) markAppendHWAdvanced(rc *runtimeChannel, oldHW uint64, newHW uint64, advancedAt time.Time) {
+	if r == nil || rc == nil || newHW == 0 {
+		return
+	}
+	for opID, timing := range rc.appendTimings {
+		if !timing.tracksQuorumCommitWait() || !timing.hwAdvancedAt.IsZero() || oldHW >= timing.targetOffset || newHW < timing.targetOffset {
+			continue
+		}
+		timing.hwAdvancedAt = advancedAt
+		rc.appendTimings[opID] = timing
+		r.observeAppendWaitStage(appendWaitStageQuorumHWAdvance, timing.mode, "ok", advancedAt.Sub(timing.storeCompletedAt))
+	}
+}
+
+func (timing appendTiming) tracksQuorumCommitWait() bool {
+	return timing.mode == ch.CommitModeQuorum && !timing.storeCompletedAt.IsZero() && timing.targetOffset > 0
+}
+
+func recordsCoverOffset(records []ch.Record, offset uint64) bool {
+	if offset == 0 {
+		return false
+	}
+	for _, record := range records {
+		if record.Index == offset {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Reactor) observeAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {

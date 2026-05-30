@@ -127,9 +127,12 @@ func (r *Reactor) handleLeaderAck(event Event) {
 	if accepted {
 		r.observeFollowerStopped(rc.state.Key, event.Ack.Follower, event.Ack.ActivityVersion)
 	}
-	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
-	r.completeReplies(rc, decision.Replies, nil)
+	oldHW := rc.state.HW
 	now := time.Now()
+	r.markAppendAckOffsetObserved(rc, event.Ack.MatchOffset, now)
+	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
+	r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
+	r.completeReplies(rc, decision.Replies, nil)
 	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventLeaderStoppedAck, now: now})
 	r.scheduleLifecycleFromState(rc, now)
 	event.Future.Complete(Result{})
@@ -142,7 +145,11 @@ func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.Pul
 	if req.AckOffset > rc.state.LEO {
 		return ch.ErrStaleMeta
 	}
+	oldHW := rc.state.HW
+	now := time.Now()
+	r.markAppendAckOffsetObserved(rc, req.AckOffset, now)
 	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: req.Follower, MatchOffset: req.AckOffset})
+	r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
 	rc.lifecycle.recordFollowerProgress(req.Follower, req.AckOffset, rc.state.LEO)
 	r.completeReplies(rc, decision.Replies, nil)
 	return nil
@@ -247,6 +254,7 @@ func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, fut
 			delay = r.leaderPullDelay(rc, now)
 		}
 	}
+	r.markAppendFollowerPullServed(rc, records, now)
 	r.updateLeaderPullFollowerState(rc, waiter, records, control, delay, now)
 	future.Complete(Result{Pull: transport.PullResponse{
 		ChannelKey:      rc.state.Key,

@@ -73,6 +73,7 @@ sequenceDiagram
             end
             Reactor-->>Service: complete quorum future
             Note over Reactor: post_store_commit_wait observes store-result-to-HW coverage
+            Note over Reactor: quorum_* wait stages split follower pull, AckOffset, HW advance, and final completion
             Note over Service,Reactor: runtime_append_wait observes total quorum future wait
             Service-->>Caller: AppendResult / AppendBatchResult
         end
@@ -93,7 +94,9 @@ for per-channel append admission, `runtime_append_submit` for reactor mailbox
 submission, and `runtime_append_wait` for the future wait after admission.
 Inside that admitted future, `store_append_wait` covers append flush submission
 through durable store completion, while `post_store_commit_wait` covers durable
-store completion through local/quorum waiter completion.
+store completion through local/quorum waiter completion. Quorum post-store
+sub-stages further separate follower pull service, leader-side `AckOffset`
+observation, HW advancement, and final future completion.
 
 ## Channel Runtime Lifecycle Model
 

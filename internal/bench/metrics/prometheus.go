@@ -84,6 +84,10 @@ type WukongIMV2Attribution struct {
 	ChannelV2AppendBatchWaitP99Seconds              float64
 	ChannelV2AppendStoreWaitP99Seconds              float64
 	ChannelV2AppendPostStoreCommitWaitP99Seconds    float64
+	ChannelV2AppendQuorumFollowerPullWaitP99Seconds float64
+	ChannelV2AppendQuorumAckOffsetWaitP99Seconds    float64
+	ChannelV2AppendQuorumHWAdvanceWaitP99Seconds    float64
+	ChannelV2AppendQuorumFinalCompleteP99Seconds    float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -255,6 +259,10 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2AppendBatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_batch_wait_duration_seconds")
 	report.ChannelV2AppendStoreWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "store_append_wait"})
 	report.ChannelV2AppendPostStoreCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "post_store_commit_wait"})
+	report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_follower_pull_wait"})
+	report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
+	report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
+	report.ChannelV2AppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -391,6 +399,22 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2AppendPostStoreCommitWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append post-store commit wait p99 is high")
+	}
+	if report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 quorum follower pull wait p99 is high")
+	}
+	if report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 quorum ack offset wait p99 is high")
+	}
+	if report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 quorum HW advance wait p99 is high")
+	}
+	if report.ChannelV2AppendQuorumFinalCompleteP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 quorum final completion wait p99 is high")
 	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

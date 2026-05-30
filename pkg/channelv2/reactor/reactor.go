@@ -600,11 +600,15 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 		stored.LastOffset = result.StoreAppend.LastOffset
 	}
 	oldLEO := rc.state.LEO
+	oldHW := rc.state.HW
 	now := time.Now()
 	if current {
-		r.observeAppendStoreCompleted(rc, *batch, now, stored.Err)
+		r.observeAppendStoreCompleted(rc, *batch, now, stored.BaseOffset, stored.Err)
 	}
 	decision := rc.state.ApplyAppendStored(stored)
+	if stored.Err == nil {
+		r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
+	}
 	if stored.Err == nil && rc.state.Role == ch.RoleLeader && rc.state.LEO > oldLEO {
 		rc.recentRecords.append(rc.appendInflightRecords(result.Fence.OpID))
 		r.markAppendActivity(rc, now)

@@ -168,9 +168,12 @@ leader epoch, and operation id match the current runtime state.
 Append waiter metrics split the admitted future after service submission:
 `store_append_wait` measures append flush submission through fenced durable store
 completion, and `post_store_commit_wait` measures durable store completion
-through local/quorum waiter completion. For quorum appends, the latter includes
-follower pull/apply progress, AckOffset handling, HW advancement, and final
-future completion.
+through local/quorum waiter completion. For quorum appends, additional low-cardinality
+sub-stages split the post-store wait: `quorum_follower_pull_wait` observes when
+the leader first serves records covering the append target to a follower,
+`quorum_ack_offset_wait` observes when the leader receives an `AckOffset`
+covering the target, `quorum_hw_advance_wait` observes HW covering the target,
+and `quorum_final_complete_wait` observes HW coverage through future completion.
 
 ## Bench Runtime Events
 

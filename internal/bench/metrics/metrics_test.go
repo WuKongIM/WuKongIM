@@ -191,6 +191,18 @@ wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="store_append
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="0.1"} 0
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="0.5"} 0
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="0.1"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="0.5"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="0.1"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="0.5"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="0.1"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="0.5"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="0.1"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="0.5"} 0
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="+Inf"} 0
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(before): %v", err)
@@ -230,6 +242,18 @@ wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="store_append
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="0.1"} 5
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="0.5"} 100
 wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_commit_wait",commit_mode="quorum",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="0.1"} 40
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="0.5"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_follower_pull_wait",commit_mode="quorum",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="0.1"} 10
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="0.5"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_ack_offset_wait",commit_mode="quorum",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="0.1"} 20
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="0.5"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_hw_advance_wait",commit_mode="quorum",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="0.1"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="0.5"} 100
+wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="quorum_final_complete_wait",commit_mode="quorum",result="ok",le="+Inf"} 100
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(after): %v", err)
@@ -245,7 +269,7 @@ wukongim_channelv2_append_wait_stage_duration_seconds_bucket{stage="post_store_c
 	if report.ChannelV2WorkerQueueDepthMax != 3 {
 		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
 	}
-	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 || report.ChannelV2RuntimeAppendReserveWaitP99Seconds <= 0 || report.ChannelV2RuntimeAppendSubmitP99Seconds <= 0 || report.ChannelV2RuntimeAppendWaitP99Seconds <= 0 || report.ChannelV2AppendBatchWaitP99Seconds <= 0 || report.ChannelV2AppendStoreWaitP99Seconds <= 0 || report.ChannelV2AppendPostStoreCommitWaitP99Seconds <= 0 {
+	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 || report.ChannelV2RuntimeAppendReserveWaitP99Seconds <= 0 || report.ChannelV2RuntimeAppendSubmitP99Seconds <= 0 || report.ChannelV2RuntimeAppendWaitP99Seconds <= 0 || report.ChannelV2AppendBatchWaitP99Seconds <= 0 || report.ChannelV2AppendStoreWaitP99Seconds <= 0 || report.ChannelV2AppendPostStoreCommitWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumFinalCompleteP99Seconds <= 0 {
 		t.Fatalf("channel stage p99s not parsed: %+v", report)
 	}
 }

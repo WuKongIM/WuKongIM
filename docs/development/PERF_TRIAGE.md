@@ -98,7 +98,13 @@ and MarkApplied persistence. `runtime_append` remains the aggregate ChannelV2
 append facade time; its sub-stages split append reservation, reactor mailbox
 submit, and admitted future wait. Append batch wait and record metrics show
 whether that admitted future wait is mostly batching delay; append store and
-post-store commit waits split durable append from local/quorum completion.
+post-store commit waits split durable append from local/quorum completion. When
+post-store quorum wait rises, use
+`channelv2_append_quorum_follower_pull_wait_p99_seconds`,
+`channelv2_append_quorum_ack_offset_wait_p99_seconds`,
+`channelv2_append_quorum_hw_advance_wait_p99_seconds`, and
+`channelv2_append_quorum_final_complete_p99_seconds` to separate follower pull,
+leader AckOffset processing, HW advancement, and final waiter completion.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -297,6 +303,7 @@ sum by (pool) (wukongim_channelv2_worker_queue_depth)
 sum by (result) (rate(wukongim_channelv2_rpc_pull_total[1m]))
 histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelv2_append_stage_duration_seconds_bucket[1m])))
+histogram_quantile(0.99, sum by (le, stage, commit_mode, result) (rate(wukongim_channelv2_append_wait_stage_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_worker_task_duration_seconds_bucket[1m])))
 histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
 ```
@@ -327,6 +334,10 @@ Interpretation matrix:
 | `channelv2_append_batch_wait_p99_seconds` rises | append batching delay | append batch max wait, batch formation, per-reactor channel distribution |
 | `channelv2_append_store_wait_p99_seconds` rises | durable append wait | store append worker queue/run time, message DB group commit, fsync/storage latency |
 | `channelv2_append_post_store_commit_wait_p99_seconds` rises | post-store commit wait | follower pull/apply cadence, AckOffset handling, HW advancement, quorum completion |
+| `channelv2_append_quorum_follower_pull_wait_p99_seconds` rises | follower pull service wait | pull hints, follower parking/recovery probe, leader recent cache/store-read path |
+| `channelv2_append_quorum_ack_offset_wait_p99_seconds` rises | follower apply or ack return wait | follower store apply, immediate next pull, RPC path back to leader |
+| `channelv2_append_quorum_hw_advance_wait_p99_seconds` rises | leader HW advancement wait | follower match progress, ISR/MinISR rules, leader ack processing |
+| `channelv2_append_quorum_final_complete_p99_seconds` rises | waiter completion wait | reactor reply completion, future wakeup, caller-side blocked receive |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |

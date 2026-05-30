@@ -1611,6 +1611,7 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	requireFuturePending(t, appendFuture)
 	requireAppendWaitStage(t, obs.Events(), "store_append_wait", ch.CommitModeQuorum, "ok")
 	requireNoAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "quorum_follower_pull_wait", ch.CommitModeQuorum, "ok")
 
 	pullFuture := NewFuture()
 	r.handleLeaderPull(Event{
@@ -1624,19 +1625,50 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 			Epoch:       meta.Epoch,
 			LeaderEpoch: meta.LeaderEpoch,
 			Follower:    2,
-			NextOffset:  2,
-			AckOffset:   1,
+			NextOffset:  1,
 			MaxBytes:    1024,
 		},
 	})
 
 	pullResult := awaitFutureResult(t, pullFuture)
 	require.NoError(t, pullResult.Err)
-	require.Empty(t, pullResult.Pull.Records)
+	require.Len(t, pullResult.Pull.Records, 1)
+	require.Equal(t, uint64(1), pullResult.Pull.Records[0].Index)
+	requireFuturePending(t, appendFuture)
+	requireAppendWaitStage(t, obs.Events(), "quorum_follower_pull_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "quorum_ack_offset_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "quorum_hw_advance_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "quorum_final_complete_wait", ch.CommitModeQuorum, "ok")
+	requireNoAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
+
+	ackFuture := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:   EventPull,
+		Key:    meta.Key,
+		OpID:   3,
+		Future: ackFuture,
+		Pull: transport.PullRequest{
+			ChannelKey:  meta.Key,
+			ChannelID:   meta.ID,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Follower:    2,
+			NextOffset:  2,
+			AckOffset:   1,
+			MaxBytes:    1024,
+		},
+	})
+
+	ackResult := awaitFutureResult(t, ackFuture)
+	require.NoError(t, ackResult.Err)
+	require.Empty(t, ackResult.Pull.Records)
 	appendResult := awaitFutureResult(t, appendFuture)
 	require.NoError(t, appendResult.Err)
 	require.Len(t, appendResult.AppendBatch.Items, 1)
 	require.Equal(t, uint64(1), appendResult.AppendBatch.Items[0].MessageSeq)
+	requireAppendWaitStage(t, obs.Events(), "quorum_ack_offset_wait", ch.CommitModeQuorum, "ok")
+	requireAppendWaitStage(t, obs.Events(), "quorum_hw_advance_wait", ch.CommitModeQuorum, "ok")
+	requireAppendWaitStage(t, obs.Events(), "quorum_final_complete_wait", ch.CommitModeQuorum, "ok")
 	requireAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
 	rc := r.channels[meta.Key]
 	require.Equal(t, uint64(1), rc.state.HW)
