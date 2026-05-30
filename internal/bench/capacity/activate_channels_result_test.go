@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -31,10 +32,12 @@ func TestWriteActivateChannelsResultWritesArtifacts(t *testing.T) {
 	require.Equal(t, StatusPassed, decoded.Status)
 	require.Equal(t, "activate-test", decoded.Config.RunID)
 	require.Equal(t, 10000, decoded.Config.Channels)
-	require.Equal(t, 20000, decoded.Config.Users)
+	require.Equal(t, 1000, decoded.Config.Users)
 	require.Equal(t, 10, decoded.Config.GroupMembers)
-	require.Equal(t, 2000, decoded.Config.ActivationConcurrency)
-	require.Equal(t, 10*time.Second, decoded.Config.ActivationWindow)
+	require.Equal(t, 1000.0, decoded.Config.PrepareRatePerSecond)
+	require.Equal(t, 500.0, decoded.Config.ConnectRatePerSecond)
+	require.Equal(t, 512, decoded.Config.ActivationConcurrency)
+	require.Equal(t, 120*time.Second, decoded.Config.ActivationWindow)
 	require.Equal(t, 60*time.Second, decoded.Config.Hold)
 	require.Equal(t, 1000, decoded.Config.ProbeBatchSize)
 	require.False(t, decoded.Config.EvictAfter)
@@ -61,10 +64,28 @@ func TestActivateChannelsSummaryMarkdownIncludesFailureReasons(t *testing.T) {
 	require.Contains(t, got, "- activation_success: 10000")
 	require.Contains(t, got, "- activation_errors: 1")
 	require.Contains(t, got, "- active_leader_total: 10000")
+	require.Contains(t, got, "- probe_missing_all_nodes_count: 1")
 	require.Contains(t, got, "- activation_errors")
 	require.Contains(t, got, "- probe_missing_all_nodes")
 	require.Contains(t, got, "activate-groups-9")
 	require.Equal(t, ExitNoStableAttempt, result.ExitCode())
+}
+
+func TestActivateChannelsSummaryMarkdownCapsProbeMissingSamples(t *testing.T) {
+	result := activateChannelsResultFixture(StatusFailed)
+	result.Evaluation.Passed = false
+	result.Evaluation.FailureReasons = []string{"probe_missing_all_nodes"}
+	result.Evaluation.ProbeMissingAllNodes = make([]string, 40)
+	for i := range result.Evaluation.ProbeMissingAllNodes {
+		result.Evaluation.ProbeMissingAllNodes[i] = "activate-groups-" + strconv.Itoa(i)
+	}
+
+	got := ActivateChannelsSummaryMarkdown(result)
+
+	require.Contains(t, got, "- probe_missing_all_nodes_count: 40")
+	require.Contains(t, got, "Showing first 32 of 40")
+	require.Contains(t, got, "activate-groups-31")
+	require.NotContains(t, got, "activate-groups-32")
 }
 
 func TestActivateChannelsConsoleSummary(t *testing.T) {
@@ -89,10 +110,12 @@ func activateChannelsResultFixture(status Status) ActivateChannelsResult {
 	cfg := DefaultActivateChannelsConfig()
 	cfg.RunID = "activate-test"
 	cfg.Channels = 10000
-	cfg.Users = 20000
+	cfg.Users = 1000
 	cfg.GroupMembers = 10
-	cfg.ActivationConcurrency = 2000
-	cfg.ActivationWindow = 10 * time.Second
+	cfg.PrepareRatePerSecond = 1000
+	cfg.ConnectRatePerSecond = 500
+	cfg.ActivationConcurrency = 512
+	cfg.ActivationWindow = 120 * time.Second
 	cfg.Hold = 60 * time.Second
 	cfg.ProbeBatchSize = 1000
 	cfg.BenchToken = "secret-token"

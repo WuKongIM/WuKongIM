@@ -88,6 +88,13 @@ without new sends, probes generated channel ranges through the all-node runtime
 API, optionally evicts the generated runtime state, and writes
 `activation_report.json` plus `summary.md`.
 
+The default shape is a channel-cardinality proof: 10,000 generated group
+channels, a reusable online user pool, bounded prepare/connect rates, and a
+longer activation window so the result reflects live ChannelV2 runtime pressure
+instead of a pure login or burst-ingress test. Increase `--users`,
+`--connect-rate`, `--activation-concurrency`, or shorten `--activation-window`
+only when the experiment intentionally adds those pressure dimensions.
+
 ## Worker Control Flow
 
 Workers expose a small HTTP control API:

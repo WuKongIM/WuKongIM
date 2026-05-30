@@ -20,14 +20,16 @@ func TestDefaultActivateChannelsConfig(t *testing.T) {
 
 	require.Equal(t, "activate-channels-10k", cfg.RunID)
 	require.Equal(t, 10000, cfg.Channels)
-	require.Equal(t, 20000, cfg.Users)
+	require.Equal(t, 1000, cfg.Users)
 	require.Equal(t, 10, cfg.GroupMembers)
-	require.Equal(t, 2000, cfg.ActivationConcurrency)
-	require.Equal(t, 10*time.Second, cfg.ActivationWindow)
+	require.Equal(t, 1000.0, cfg.PrepareRatePerSecond)
+	require.Equal(t, 500.0, cfg.ConnectRatePerSecond)
+	require.Equal(t, 512, cfg.ActivationConcurrency)
+	require.Equal(t, 120*time.Second, cfg.ActivationWindow)
 	require.Equal(t, 60*time.Second, cfg.Hold)
 	require.Equal(t, 10*time.Second, cfg.HoldProbeInterval)
 	require.Equal(t, 1000, cfg.ProbeBatchSize)
-	require.Equal(t, 200*time.Millisecond, cfg.StableP99)
+	require.Equal(t, 2*time.Second, cfg.StableP99)
 	require.Equal(t, 0.0, cfg.MaxSendackErrorRate)
 	require.Equal(t, 0.0, cfg.MaxConnectErrorRate)
 	require.False(t, cfg.EvictAfter)
@@ -50,6 +52,10 @@ func TestActivateChannelsConfigValidate(t *testing.T) {
 		{name: "channels", mutate: func(c *ActivateChannelsConfig) { c.Channels = 0 }, want: "channels"},
 		{name: "users", mutate: func(c *ActivateChannelsConfig) { c.Users = 0 }, want: "users"},
 		{name: "group members", mutate: func(c *ActivateChannelsConfig) { c.GroupMembers = 0 }, want: "group-members"},
+		{name: "prepare rate negative", mutate: func(c *ActivateChannelsConfig) { c.PrepareRatePerSecond = -1 }, want: "prepare-rate"},
+		{name: "prepare rate nan", mutate: func(c *ActivateChannelsConfig) { c.PrepareRatePerSecond = math.NaN() }, want: "prepare-rate"},
+		{name: "connect rate negative", mutate: func(c *ActivateChannelsConfig) { c.ConnectRatePerSecond = -1 }, want: "connect-rate"},
+		{name: "connect rate inf", mutate: func(c *ActivateChannelsConfig) { c.ConnectRatePerSecond = math.Inf(1) }, want: "connect-rate"},
 		{name: "activation concurrency", mutate: func(c *ActivateChannelsConfig) { c.ActivationConcurrency = 0 }, want: "activation-concurrency"},
 		{name: "probe batch size", mutate: func(c *ActivateChannelsConfig) { c.ProbeBatchSize = 0 }, want: "probe-batch-size"},
 		{name: "users below group members", mutate: func(c *ActivateChannelsConfig) { c.Users = c.GroupMembers - 1 }, want: "users"},
@@ -96,9 +102,9 @@ func TestBuildActivateChannelsScenarioSchedulesOneSendPerChannel(t *testing.T) {
 	require.Equal(t, 0.0, scenario.Limits.Hard.MaxRecvVerifyErrorRate)
 	require.Equal(t, cfg.StableP99, scenario.Limits.Soft.MaxSendackP99)
 	require.Equal(t, 8, scenario.Prepare.Concurrency)
-	require.Equal(t, 1000.0, scenario.Prepare.RateLimit.PerSecond)
+	require.Equal(t, cfg.PrepareRatePerSecond, scenario.Prepare.RateLimit.PerSecond)
 	require.Equal(t, cfg.Users, scenario.Online.TotalUsers)
-	require.Equal(t, 1000.0, scenario.Online.ConnectRate.PerSecond)
+	require.Equal(t, cfg.ConnectRatePerSecond, scenario.Online.ConnectRate.PerSecond)
 	require.Equal(t, "round_robin", scenario.Online.GatewayBalance)
 	require.True(t, scenario.Online.Heartbeat.Enabled)
 	require.Equal(t, capacityHeartbeatInterval, scenario.Online.Heartbeat.Interval)
@@ -232,14 +238,14 @@ func TestEvaluateActivateChannelsFailsOnProbeMissingEverywhere(t *testing.T) {
 
 func TestEvaluateActivateChannelsFailsOnSendackP99(t *testing.T) {
 	cfg := activateChannelsEvalConfig()
-	rep := activateChannelsReport(10000, 0, 250*time.Millisecond, report.Summary{})
+	rep := activateChannelsReport(10000, 0, 2500*time.Millisecond, report.Summary{})
 	cold, active, probes := activateChannelsRuntimeEvidence()
 
 	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
 
 	require.False(t, got.Passed)
 	require.Contains(t, got.FailureReasons, "sendack_p99_exceeded")
-	require.Equal(t, 250*time.Millisecond, got.SendackP99)
+	require.Equal(t, 2500*time.Millisecond, got.SendackP99)
 }
 
 func TestActivateChannelsRunnerCapturesSnapshotsAndEvaluates(t *testing.T) {

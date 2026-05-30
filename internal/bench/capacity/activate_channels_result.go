@@ -11,6 +11,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
+const activateChannelsSummarySampleLimit = 32
+
 // ActivateChannelsReportConfig is the token-free config written to activation reports.
 type ActivateChannelsReportConfig struct {
 	// RunID is the stable benchmark run identifier.
@@ -21,6 +23,10 @@ type ActivateChannelsReportConfig struct {
 	Users int `json:"users"`
 	// GroupMembers is the number of members per generated group channel.
 	GroupMembers int `json:"group_members"`
+	// PrepareRatePerSecond is the bench API preparation rate limit.
+	PrepareRatePerSecond float64 `json:"prepare_rate_per_second"`
+	// ConnectRatePerSecond is the gateway connect attempt rate limit.
+	ConnectRatePerSecond float64 `json:"connect_rate_per_second"`
 	// ActivationConcurrency is the maximum in-flight send operation count.
 	ActivationConcurrency int `json:"activation_concurrency"`
 	// ActivationWindow is the time window used to schedule one send per channel.
@@ -95,6 +101,8 @@ func ActivateChannelsSummaryMarkdown(result ActivateChannelsResult) string {
 	fmt.Fprintf(&b, "- channels: %d\n", result.Config.Channels)
 	fmt.Fprintf(&b, "- users: %d\n", result.Config.Users)
 	fmt.Fprintf(&b, "- group_members: %d\n", result.Config.GroupMembers)
+	fmt.Fprintf(&b, "- prepare_rate_per_second: %.3f\n", result.Config.PrepareRatePerSecond)
+	fmt.Fprintf(&b, "- connect_rate_per_second: %.3f\n", result.Config.ConnectRatePerSecond)
 	fmt.Fprintf(&b, "- activation_concurrency: %d\n", result.Config.ActivationConcurrency)
 	fmt.Fprintf(&b, "- activation_window: %s\n", formatDuration(result.Config.ActivationWindow))
 	fmt.Fprintf(&b, "- hold: %s\n", formatDuration(result.Config.Hold))
@@ -110,6 +118,7 @@ func ActivateChannelsSummaryMarkdown(result ActivateChannelsResult) string {
 	fmt.Fprintf(&b, "- sendack_p99: %s\n", formatDuration(result.Evaluation.SendackP99))
 	fmt.Fprintf(&b, "- active_leader_total: %d\n", result.Evaluation.ActiveLeaderTotal)
 	fmt.Fprintf(&b, "- activation_rejected_delta: %d\n", result.Evaluation.ActivationRejectedDelta)
+	fmt.Fprintf(&b, "- probe_missing_all_nodes_count: %d\n", len(result.Evaluation.ProbeMissingAllNodes))
 	if len(result.Evaluation.FailureReasons) > 0 {
 		fmt.Fprintf(&b, "\n## Failure Reasons\n\n")
 		for _, reason := range result.Evaluation.FailureReasons {
@@ -118,7 +127,12 @@ func ActivateChannelsSummaryMarkdown(result ActivateChannelsResult) string {
 	}
 	if len(result.Evaluation.ProbeMissingAllNodes) > 0 {
 		fmt.Fprintf(&b, "\n## Probe Missing On All Nodes\n\n")
-		for _, channelID := range result.Evaluation.ProbeMissingAllNodes {
+		missing := result.Evaluation.ProbeMissingAllNodes
+		if len(missing) > activateChannelsSummarySampleLimit {
+			fmt.Fprintf(&b, "Showing first %d of %d. See activation_report.json for the full list.\n\n", activateChannelsSummarySampleLimit, len(missing))
+			missing = missing[:activateChannelsSummarySampleLimit]
+		}
+		for _, channelID := range missing {
 			fmt.Fprintf(&b, "- %s\n", channelID)
 		}
 	}
@@ -160,6 +174,8 @@ func activateChannelsReportConfigFromConfig(cfg ActivateChannelsConfig) Activate
 		Channels:              cfg.Channels,
 		Users:                 cfg.Users,
 		GroupMembers:          cfg.GroupMembers,
+		PrepareRatePerSecond:  cfg.PrepareRatePerSecond,
+		ConnectRatePerSecond:  cfg.ConnectRatePerSecond,
 		ActivationConcurrency: cfg.ActivationConcurrency,
 		ActivationWindow:      cfg.ActivationWindow,
 		Hold:                  cfg.Hold,

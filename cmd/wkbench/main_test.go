@@ -151,6 +151,8 @@ func TestParseCapacityActivateChannelsConfig(t *testing.T) {
 		"--channels", "1234",
 		"--users", "2345",
 		"--group-members", "12",
+		"--prepare-rate", "321",
+		"--connect-rate", "123",
 		"--activation-concurrency", "345",
 		"--activation-window", "3s",
 		"--hold", "4s",
@@ -177,6 +179,9 @@ func TestParseCapacityActivateChannelsConfig(t *testing.T) {
 	}
 	if cfg.Channels != 1234 || cfg.Users != 2345 || cfg.GroupMembers != 12 {
 		t.Fatalf("shape = channels %d users %d members %d", cfg.Channels, cfg.Users, cfg.GroupMembers)
+	}
+	if cfg.PrepareRatePerSecond != 321 || cfg.ConnectRatePerSecond != 123 {
+		t.Fatalf("rates = prepare %.3f connect %.3f", cfg.PrepareRatePerSecond, cfg.ConnectRatePerSecond)
 	}
 	if cfg.ActivationConcurrency != 345 || cfg.ActivationWindow != 3*time.Second {
 		t.Fatalf("activation = concurrency %d window %s", cfg.ActivationConcurrency, cfg.ActivationWindow)
@@ -214,6 +219,8 @@ func TestRunCapacityActivateChannelsUsesRunnerAndWritesReport(t *testing.T) {
 				Channels:              cfg.Channels,
 				Users:                 cfg.Users,
 				GroupMembers:          cfg.GroupMembers,
+				PrepareRatePerSecond:  cfg.PrepareRatePerSecond,
+				ConnectRatePerSecond:  cfg.ConnectRatePerSecond,
 				ActivationConcurrency: cfg.ActivationConcurrency,
 				ActivationWindow:      cfg.ActivationWindow,
 				Hold:                  cfg.Hold,

@@ -17,6 +17,7 @@ go run ./cmd/wkbench <command> [flags]
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
 | `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
 | `capacity hot-channel` | Searches maximum stable ingress QPS for one fixed group channel with configurable sender fan-in. |
+| `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes ChannelV2 runtime state. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -129,6 +130,33 @@ wkbench capacity hot-channel \
 Timed run windows stop scheduling new messages when the window expires, so
 overloaded attempts show lower actual QPS instead of silently extending the
 measured run to drain the whole offered schedule.
+
+## Capacity Activate Channels
+
+`capacity activate-channels` is the preferred proof for simultaneous live
+ChannelV2 channel cardinality. It prepares group metadata through the bench API,
+opens a bounded online user pool, sends exactly one WKProto group SEND per
+generated channel during the activation window, holds the cluster, then probes
+runtime state on every target API node.
+
+```bash
+wkbench capacity activate-channels \
+  --api http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013 \
+  --gateway 127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113 \
+  --channels 10000 \
+  --users 1000 \
+  --activation-window 120s \
+  --activation-concurrency 512 \
+  --stable-p99 2s \
+  --report-dir ./tmp/wkbench-activate-channels
+```
+
+The defaults focus on channel cardinality rather than connection-burst stress:
+10,000 group channels, 1,000 online users, `--connect-rate 500`, and a 120 second
+activation window. Raise `--users` or `--connect-rate` only when the experiment
+intentionally includes gateway connection pressure. Tighten `--stable-p99`, for
+example to `200ms`, when the run is meant to prove a strict cold-activation
+latency SLA rather than live-channel cardinality.
 
 ## Compose Development Simulator
 

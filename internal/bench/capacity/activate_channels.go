@@ -36,6 +36,10 @@ type ActivateChannelsConfig struct {
 	Users int
 	// GroupMembers is the number of members per generated group channel.
 	GroupMembers int
+	// PrepareRatePerSecond limits bench API data preparation operations per second.
+	PrepareRatePerSecond float64
+	// ConnectRatePerSecond limits gateway connect attempts per second.
+	ConnectRatePerSecond float64
 	// ActivationConcurrency is the maximum in-flight send operations during activation.
 	ActivationConcurrency int
 	// ActivationWindow is the active send window used to schedule one send per channel.
@@ -215,14 +219,16 @@ func DefaultActivateChannelsConfig() ActivateChannelsConfig {
 	return ActivateChannelsConfig{
 		RunID:                 "activate-channels-10k",
 		Channels:              10000,
-		Users:                 20000,
+		Users:                 1000,
 		GroupMembers:          10,
-		ActivationConcurrency: 2000,
-		ActivationWindow:      10 * time.Second,
+		PrepareRatePerSecond:  1000,
+		ConnectRatePerSecond:  500,
+		ActivationConcurrency: 512,
+		ActivationWindow:      120 * time.Second,
 		Hold:                  60 * time.Second,
 		HoldProbeInterval:     10 * time.Second,
 		ProbeBatchSize:        1000,
-		StableP99:             200 * time.Millisecond,
+		StableP99:             2 * time.Second,
 		MaxSendackErrorRate:   0,
 		MaxConnectErrorRate:   0,
 		ReportDir:             "./tmp/wkbench-activate-channels",
@@ -248,6 +254,12 @@ func (c ActivateChannelsConfig) Validate() error {
 	}
 	if c.Users < c.GroupMembers {
 		return fmt.Errorf("users must be greater than or equal to group-members")
+	}
+	if c.PrepareRatePerSecond < 0 || math.IsNaN(c.PrepareRatePerSecond) || math.IsInf(c.PrepareRatePerSecond, 0) {
+		return fmt.Errorf("prepare-rate must not be negative")
+	}
+	if c.ConnectRatePerSecond < 0 || math.IsNaN(c.ConnectRatePerSecond) || math.IsInf(c.ConnectRatePerSecond, 0) {
+		return fmt.Errorf("connect-rate must not be negative")
 	}
 	if c.ActivationConcurrency <= 0 {
 		return fmt.Errorf("activation-concurrency must be greater than zero")
@@ -298,7 +310,7 @@ func BuildActivateChannelsScenario(cfg ActivateChannelsConfig) model.Scenario {
 			},
 			Soft: model.SoftLimitsConfig{MaxSendackP99: cfg.StableP99},
 		},
-		Prepare: model.PrepareConfig{Concurrency: 8, RateLimit: model.Rate{PerSecond: 1000}},
+		Prepare: model.PrepareConfig{Concurrency: 8, RateLimit: model.Rate{PerSecond: cfg.PrepareRatePerSecond}},
 		Identity: model.IdentityConfig{
 			UIDPrefix:       "activate-u",
 			DevicePrefix:    "activate-d",
@@ -307,7 +319,7 @@ func BuildActivateChannelsScenario(cfg ActivateChannelsConfig) model.Scenario {
 		},
 		Online: model.OnlineConfig{
 			TotalUsers:     cfg.Users,
-			ConnectRate:    model.Rate{PerSecond: 1000},
+			ConnectRate:    model.Rate{PerSecond: cfg.ConnectRatePerSecond},
 			GatewayBalance: "round_robin",
 			Heartbeat: model.HeartbeatConfig{
 				Enabled:  true,

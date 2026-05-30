@@ -334,6 +334,8 @@ func parseCapacityActivateChannelsConfig(args []string, stderr io.Writer) (capac
 	fs.IntVar(&cfg.Channels, "channels", cfg.Channels, "number of group channels to activate")
 	fs.IntVar(&cfg.Users, "users", cfg.Users, "number of online users prepared for activation")
 	fs.IntVar(&cfg.GroupMembers, "group-members", cfg.GroupMembers, "members per generated group channel")
+	fs.Float64Var(&cfg.PrepareRatePerSecond, "prepare-rate", cfg.PrepareRatePerSecond, "bench API preparation rate limit per second; 0 means unlimited")
+	fs.Float64Var(&cfg.ConnectRatePerSecond, "connect-rate", cfg.ConnectRatePerSecond, "gateway connect attempt rate limit per second; 0 means unlimited")
 	fs.IntVar(&cfg.ActivationConcurrency, "activation-concurrency", cfg.ActivationConcurrency, "maximum in-flight SEND operations during activation")
 	fs.DurationVar(&cfg.ActivationWindow, "activation-window", cfg.ActivationWindow, "active window used to schedule one SEND per channel")
 	fs.DurationVar(&cfg.Hold, "hold", cfg.Hold, "post-activation observation duration")
