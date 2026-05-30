@@ -1,10 +1,14 @@
 package capacity
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
@@ -238,6 +242,255 @@ func TestEvaluateActivateChannelsFailsOnSendackP99(t *testing.T) {
 	require.Equal(t, 250*time.Millisecond, got.SendackP99)
 }
 
+func TestActivateChannelsRunnerCapturesSnapshotsAndEvaluates(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	cfg.Channels = 4
+	cfg.Users = 8
+	cfg.GroupMembers = 2
+	cfg.ActivationWindow = 10 * time.Millisecond
+	cfg.Hold = time.Nanosecond
+	cfg.HoldProbeInterval = time.Nanosecond
+	cfg.ProbeBatchSize = 2
+	cfg.StableP99 = time.Second
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	var calls []string
+	target := &fakeActivateChannelsTarget{
+		calls:              &calls,
+		capabilitiesByAddr: activateChannelsCapabilitiesByAddr(cfg.APIAddrs, true, true),
+		snapshots: [][]model.ChannelRuntimeSnapshot{
+			{{Version: "bench/v1", NodeID: 1, ActivationRejectedTotal: 1}},
+			{{Version: "bench/v1", NodeID: 1, ActiveLeader: 4, ActivationRejectedTotal: 1}},
+			{{Version: "bench/v1", NodeID: 1, ActiveLeader: 4, ActivationRejectedTotal: 1}},
+		},
+		probes: [][]model.ChannelRuntimeProbeResult{
+			{
+				{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2},
+				{Version: "bench/v1", NodeID: 2, Checked: 2, Missing: []string{"follower-not-loaded"}},
+			},
+			{
+				{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2},
+				{Version: "bench/v1", NodeID: 2, Checked: 2},
+			},
+		},
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(_ context.Context, scenario model.Scenario, workers []model.Worker, target model.Target) (coordinator.RunResult, error) {
+		calls = append(calls, "coordinator-run")
+		require.Equal(t, cfg.RunID, scenario.Run.ID)
+		require.Equal(t, cfg.Channels, scenario.Channels.Profiles[0].Count)
+		require.Equal(t, []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}, workers)
+		require.Equal(t, discovered.Target, target)
+		return coordinator.RunResult{
+			RunID:  cfg.RunID,
+			Status: coordinator.StatusCompleted,
+			Report: activateChannelsReport(uint64(cfg.Channels), 0, 30*time.Millisecond, report.Summary{}),
+		}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusPassed, got.Status)
+	require.True(t, got.Evaluation.Passed)
+	require.Equal(t, uint64(4), got.Evaluation.ActivationSuccess)
+	require.Len(t, got.Cold, 1)
+	require.Len(t, got.Active, 1)
+	require.Len(t, got.HoldSamples, 1)
+	require.Len(t, got.ProbeBatches, 2)
+	require.Empty(t, got.EvictBatches)
+	require.Equal(t, cfg.ReportDir, got.ReportDir)
+	require.Equal(t, []string{
+		"capabilities-all",
+		"snapshot:0-4",
+		"coordinator-run",
+		"snapshot:0-4",
+		"snapshot:0-4",
+		"probe:0-2",
+		"probe:2-4",
+	}, calls)
+	require.Equal(t, []model.ChannelRuntimeQuery{
+		activateChannelsRuntimeQuery(cfg, model.ChannelRuntimeRange{Start: 0, End: 4}),
+		activateChannelsRuntimeQuery(cfg, model.ChannelRuntimeRange{Start: 0, End: 4}),
+		activateChannelsRuntimeQuery(cfg, model.ChannelRuntimeRange{Start: 0, End: 4}),
+	}, target.snapshotQueries)
+	require.Equal(t, []model.ChannelRuntimeProbeRequest{
+		activateChannelsProbeRequest(cfg, model.ChannelRuntimeRange{Start: 0, End: 2}),
+		activateChannelsProbeRequest(cfg, model.ChannelRuntimeRange{Start: 2, End: 4}),
+	}, target.probeRequests)
+}
+
+func TestActivateChannelsRunnerFailsWhenCapabilitiesMissing(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	var calls []string
+	target := &fakeActivateChannelsTarget{
+		calls:              &calls,
+		capabilitiesByAddr: activateChannelsCapabilitiesByAddr(cfg.APIAddrs, true, false),
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error) {
+		t.Fatal("coordinator run must not be called when runtime probe capability is missing")
+		return coordinator.RunResult{}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "channel_runtime_probe")
+	require.Equal(t, StatusFailed, got.Status)
+	require.False(t, got.Evaluation.Passed)
+	require.Equal(t, []string{"capabilities-all"}, calls)
+}
+
+func TestActivateChannelsRunnerFailsWhenSecondNodeRuntimeProbeCapabilityMissing(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	cfg.APIAddrs = []string{"http://node-1", "http://node-2"}
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	var calls []string
+	target := &fakeActivateChannelsTarget{
+		calls: &calls,
+		capabilitiesByAddr: map[string]model.BenchCapabilities{
+			"http://node-1": activateChannelsCapabilities(true, true),
+			"http://node-2": activateChannelsCapabilities(true, false),
+		},
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error) {
+		t.Fatal("coordinator run must not be called when a target node lacks runtime probe capability")
+		return coordinator.RunResult{}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "http://node-2")
+	require.Contains(t, err.Error(), "channel_runtime_probe")
+	require.Equal(t, StatusFailed, got.Status)
+	require.False(t, got.Evaluation.Passed)
+	require.Equal(t, []string{"capabilities-all"}, calls)
+}
+
+func TestActivateChannelsRunnerFailsWhenEvictCapabilityMissing(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	cfg.EvictAfter = true
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	var calls []string
+	target := &fakeActivateChannelsTarget{
+		calls:              &calls,
+		capabilitiesByAddr: activateChannelsCapabilitiesByAddr(cfg.APIAddrs, true, true),
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error) {
+		t.Fatal("coordinator run must not be called when runtime evict capability is missing")
+		return coordinator.RunResult{}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "channel_runtime_evict")
+	require.Equal(t, StatusFailed, got.Status)
+	require.False(t, got.Evaluation.Passed)
+	require.Equal(t, []string{"capabilities-all"}, calls)
+}
+
+func TestActivateChannelsRunnerKeepsPartialProbeEvidence(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	cfg.Channels = 4
+	cfg.Users = 8
+	cfg.GroupMembers = 2
+	cfg.ActivationWindow = 10 * time.Millisecond
+	cfg.ProbeBatchSize = 2
+	cfg.StableP99 = time.Second
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	target := &fakeActivateChannelsTarget{
+		capabilitiesByAddr: activateChannelsCapabilitiesByAddr(cfg.APIAddrs, true, true),
+		snapshots: [][]model.ChannelRuntimeSnapshot{
+			{{Version: "bench/v1", NodeID: 1}},
+			{{Version: "bench/v1", NodeID: 1, ActiveLeader: 4}},
+		},
+		probes: [][]model.ChannelRuntimeProbeResult{{
+			{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2},
+		}},
+		probeErrs: []error{errors.New("node-2 probe failed")},
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error) {
+		return coordinator.RunResult{
+			RunID:  cfg.RunID,
+			Status: coordinator.StatusCompleted,
+			Report: activateChannelsReport(uint64(cfg.Channels), 0, 30*time.Millisecond, report.Summary{}),
+		}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "node-2 probe failed")
+	require.Equal(t, StatusFailed, got.Status)
+	require.Equal(t, [][]model.ChannelRuntimeProbeResult{{
+		{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2},
+	}}, got.ProbeBatches)
+}
+
+func TestActivateChannelsRunnerKeepsPartialEvictEvidenceAndFailsStatus(t *testing.T) {
+	cfg := activateChannelsRunnerConfig(t)
+	cfg.Channels = 4
+	cfg.Users = 8
+	cfg.GroupMembers = 2
+	cfg.ActivationWindow = 10 * time.Millisecond
+	cfg.ProbeBatchSize = 2
+	cfg.StableP99 = time.Second
+	cfg.EvictAfter = true
+	discovered := activateChannelsDiscoveredTarget(cfg)
+	target := &fakeActivateChannelsTarget{
+		capabilitiesByAddr: activateChannelsCapabilitiesWithEvictByAddr(cfg.APIAddrs, true, true, true),
+		snapshots: [][]model.ChannelRuntimeSnapshot{
+			{{Version: "bench/v1", NodeID: 1}},
+			{{Version: "bench/v1", NodeID: 1, ActiveLeader: 4}},
+		},
+		probes: [][]model.ChannelRuntimeProbeResult{
+			{{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2}},
+			{{Version: "bench/v1", NodeID: 1, Checked: 2, LoadedLeader: 2}},
+		},
+		evicts: [][]model.ChannelRuntimeEvictResult{{
+			{Version: "bench/v1", NodeID: 1, Requested: 2, Evicted: 2},
+		}},
+		evictErrs: []error{errors.New("node-2 evict failed")},
+	}
+	runner := NewActivateChannelsRunner(cfg, discovered)
+	runner.target = target
+	runner.base = &Runner{workers: []model.Worker{{ID: "fake-worker", Addr: "memory://worker", Weight: 1}}}
+	runner.run = func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error) {
+		return coordinator.RunResult{
+			RunID:  cfg.RunID,
+			Status: coordinator.StatusCompleted,
+			Report: activateChannelsReport(uint64(cfg.Channels), 0, 30*time.Millisecond, report.Summary{}),
+		}, nil
+	}
+
+	got, err := runner.Run(context.Background())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "node-2 evict failed")
+	require.Equal(t, StatusFailed, got.Status)
+	require.False(t, got.Evaluation.Passed)
+	require.Contains(t, got.Evaluation.FailureReasons, "evict_failed")
+	require.Equal(t, [][]model.ChannelRuntimeEvictResult{{
+		{Version: "bench/v1", NodeID: 1, Requested: 2, Evicted: 2},
+	}}, got.EvictBatches)
+}
+
 func activateChannelsEvalConfig() ActivateChannelsConfig {
 	cfg := DefaultActivateChannelsConfig()
 	cfg.APIAddrs = []string{"http://127.0.0.1:5011"}
@@ -272,4 +525,139 @@ func activateChannelsRuntimeEvidence() ([]model.ChannelRuntimeSnapshot, []model.
 		{NodeID: 2, Checked: 10000, Missing: []string{"some-follower-not-loaded"}},
 	}}
 	return cold, active, probes
+}
+
+func activateChannelsRunnerConfig(t *testing.T) ActivateChannelsConfig {
+	t.Helper()
+	cfg := DefaultActivateChannelsConfig()
+	cfg.APIAddrs = []string{"http://127.0.0.1:5011"}
+	cfg.GatewayTCPAddrs = []string{"127.0.0.1:5100"}
+	cfg.ReportDir = t.TempDir()
+	cfg.Hold = 0
+	return cfg
+}
+
+func activateChannelsDiscoveredTarget(cfg ActivateChannelsConfig) DiscoveredTarget {
+	return DiscoveredTarget{
+		Target: model.Target{
+			Name:    "activate-channels",
+			API:     model.TargetAPIConfig{Addrs: cfg.APIAddrs},
+			Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: cfg.GatewayTCPAddrs}},
+			BenchAPI: model.BenchAPIConfig{
+				Enabled: true,
+				Addrs:   cfg.APIAddrs,
+				Token:   cfg.BenchToken,
+			},
+		},
+	}
+}
+
+type fakeActivateChannelsTarget struct {
+	calls              *[]string
+	capabilities       model.BenchCapabilities
+	capabilitiesErr    error
+	capabilitiesByAddr map[string]model.BenchCapabilities
+	capabilitiesAllErr error
+	snapshots          [][]model.ChannelRuntimeSnapshot
+	snapshotErr        error
+	probes             [][]model.ChannelRuntimeProbeResult
+	probeErr           error
+	probeErrs          []error
+	evicts             [][]model.ChannelRuntimeEvictResult
+	evictErr           error
+	evictErrs          []error
+	snapshotQueries    []model.ChannelRuntimeQuery
+	probeRequests      []model.ChannelRuntimeProbeRequest
+	evictRequests      []model.ChannelRuntimeEvictRequest
+}
+
+func (f *fakeActivateChannelsTarget) Capabilities(context.Context) (model.BenchCapabilities, error) {
+	f.record("capabilities")
+	return f.capabilities, f.capabilitiesErr
+}
+
+func (f *fakeActivateChannelsTarget) CapabilitiesAll(context.Context) (map[string]model.BenchCapabilities, error) {
+	f.record("capabilities-all")
+	return f.capabilitiesByAddr, f.capabilitiesAllErr
+}
+
+func (f *fakeActivateChannelsTarget) ChannelRuntimeSnapshots(_ context.Context, query model.ChannelRuntimeQuery) ([]model.ChannelRuntimeSnapshot, error) {
+	f.record("snapshot:%d-%d", query.Range.Start, query.Range.End)
+	f.snapshotQueries = append(f.snapshotQueries, query)
+	if f.snapshotErr != nil {
+		return nil, f.snapshotErr
+	}
+	if len(f.snapshots) == 0 {
+		return nil, nil
+	}
+	out := f.snapshots[0]
+	f.snapshots = f.snapshots[1:]
+	return out, nil
+}
+
+func (f *fakeActivateChannelsTarget) ProbeChannelRuntimeAll(_ context.Context, req model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
+	f.record("probe:%d-%d", req.Range.Start, req.Range.End)
+	f.probeRequests = append(f.probeRequests, req)
+	err := f.probeErr
+	if len(f.probeErrs) > 0 {
+		err = f.probeErrs[0]
+		f.probeErrs = f.probeErrs[1:]
+	}
+	if len(f.probes) == 0 {
+		return nil, err
+	}
+	out := f.probes[0]
+	f.probes = f.probes[1:]
+	return out, err
+}
+
+func (f *fakeActivateChannelsTarget) EvictChannelRuntimeAll(_ context.Context, req model.ChannelRuntimeEvictRequest) ([]model.ChannelRuntimeEvictResult, error) {
+	f.record("evict:%d-%d", req.Range.Start, req.Range.End)
+	f.evictRequests = append(f.evictRequests, req)
+	err := f.evictErr
+	if len(f.evictErrs) > 0 {
+		err = f.evictErrs[0]
+		f.evictErrs = f.evictErrs[1:]
+	}
+	if len(f.evicts) == 0 {
+		return nil, err
+	}
+	out := f.evicts[0]
+	f.evicts = f.evicts[1:]
+	return out, err
+}
+
+func (f *fakeActivateChannelsTarget) record(format string, args ...any) {
+	if f.calls == nil {
+		return
+	}
+	*f.calls = append(*f.calls, fmt.Sprintf(format, args...))
+}
+
+func activateChannelsCapabilitiesByAddr(addrs []string, snapshot bool, probe bool) map[string]model.BenchCapabilities {
+	return activateChannelsCapabilitiesWithEvictByAddr(addrs, snapshot, probe, false)
+}
+
+func activateChannelsCapabilitiesWithEvictByAddr(addrs []string, snapshot bool, probe bool, evict bool) map[string]model.BenchCapabilities {
+	out := make(map[string]model.BenchCapabilities, len(addrs))
+	for _, addr := range addrs {
+		out[addr] = activateChannelsCapabilitiesWithEvict(snapshot, probe, evict)
+	}
+	return out
+}
+
+func activateChannelsCapabilities(snapshot bool, probe bool) model.BenchCapabilities {
+	return activateChannelsCapabilitiesWithEvict(snapshot, probe, false)
+}
+
+func activateChannelsCapabilitiesWithEvict(snapshot bool, probe bool, evict bool) model.BenchCapabilities {
+	return model.BenchCapabilities{
+		Enabled: true,
+		Version: "bench/v1",
+		Supports: model.BenchCapabilitiesSupports{
+			ChannelRuntimeSnapshot: snapshot,
+			ChannelRuntimeProbe:    probe,
+			ChannelRuntimeEvict:    evict,
+		},
+	}
 }

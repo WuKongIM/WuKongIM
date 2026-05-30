@@ -1,14 +1,18 @@
 package capacity
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
+	targetapi "github.com/WuKongIM/WuKongIM/internal/bench/target"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const (
@@ -78,6 +82,148 @@ type ActivateChannelsEvaluation struct {
 	ActivationRejectedDelta uint64 `json:"activation_rejected_delta"`
 	// ProbeMissingAllNodes lists probed channels absent from every responding target node.
 	ProbeMissingAllNodes []string `json:"probe_missing_all_nodes,omitempty"`
+}
+
+// ActivateChannelsResult contains runtime evidence and the verdict for one activation run.
+type ActivateChannelsResult struct {
+	// Status is passed when the activation run satisfies every evidence check.
+	Status Status `json:"status"`
+	// Evaluation is the final activation-specific pass/fail verdict.
+	Evaluation ActivateChannelsEvaluation `json:"evaluation"`
+	// Cold contains pre-activation runtime snapshots.
+	Cold []model.ChannelRuntimeSnapshot `json:"cold_snapshots,omitempty"`
+	// Active contains post-activation runtime snapshots.
+	Active []model.ChannelRuntimeSnapshot `json:"active_snapshots,omitempty"`
+	// HoldSamples contains runtime snapshots captured during the post-activation hold.
+	HoldSamples [][]model.ChannelRuntimeSnapshot `json:"hold_samples,omitempty"`
+	// ProbeBatches contains all-node runtime probe results for generated channel ranges.
+	ProbeBatches [][]model.ChannelRuntimeProbeResult `json:"probe_batches,omitempty"`
+	// EvictBatches contains optional runtime eviction results.
+	EvictBatches [][]model.ChannelRuntimeEvictResult `json:"evict_batches,omitempty"`
+	// ReportDir is the directory where activation reports should be written.
+	ReportDir string `json:"report_dir,omitempty"`
+}
+
+// ActivateChannelsRunner drives a fixed-size live-channel activation experiment.
+type ActivateChannelsRunner struct {
+	cfg        ActivateChannelsConfig
+	discovered DiscoveredTarget
+	base       *Runner
+	target     activateTargetClient
+	run        func(context.Context, model.Scenario, []model.Worker, model.Target) (coordinator.RunResult, error)
+	now        func() time.Time
+}
+
+type activateTargetClient interface {
+	Capabilities(context.Context) (model.BenchCapabilities, error)
+	ChannelRuntimeSnapshots(context.Context, model.ChannelRuntimeQuery) ([]model.ChannelRuntimeSnapshot, error)
+	ProbeChannelRuntimeAll(context.Context, model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error)
+	EvictChannelRuntimeAll(context.Context, model.ChannelRuntimeEvictRequest) ([]model.ChannelRuntimeEvictResult, error)
+}
+
+type activateTargetCapabilitiesAll interface {
+	CapabilitiesAll(context.Context) (map[string]model.BenchCapabilities, error)
+}
+
+type activateRunnerTarget struct {
+	cfg    targetapi.Config
+	client *targetapi.Client
+}
+
+// NewActivateChannelsRunner creates a runner using one temporary local worker by default.
+func NewActivateChannelsRunner(cfg ActivateChannelsConfig, discovered DiscoveredTarget) *ActivateChannelsRunner {
+	r := &ActivateChannelsRunner{
+		cfg:        cfg,
+		discovered: discovered,
+		base:       &Runner{discovered: discovered},
+		target:     newActivateRunnerTarget(cfg),
+		now:        time.Now,
+	}
+	r.run = func(ctx context.Context, scenario model.Scenario, workers []model.Worker, target model.Target) (coordinator.RunResult, error) {
+		return coordinator.New(coordinator.CoordinatorConfig{Workers: workers, Target: target}).Run(ctx, scenario)
+	}
+	return r
+}
+
+// Run executes the activation scenario and gathers runtime evidence.
+func (r *ActivateChannelsRunner) Run(ctx context.Context) (ActivateChannelsResult, error) {
+	if r == nil {
+		return ActivateChannelsResult{Status: StatusFailed}, fmt.Errorf("activate channels runner is required")
+	}
+	r.setDefaults()
+	result := ActivateChannelsResult{Status: StatusFailed, ReportDir: r.cfg.ReportDir}
+	if err := r.cfg.Validate(); err != nil {
+		return result, err
+	}
+	if err := r.validateCapabilities(ctx); err != nil {
+		result.Evaluation.FailureReasons = []string{"capabilities_missing"}
+		return result, err
+	}
+	startedWorker, err := r.ensureWorker()
+	if err != nil {
+		return result, err
+	}
+	if startedWorker {
+		defer r.base.close()
+	}
+
+	fullRange := model.ChannelRuntimeRange{Start: 0, End: r.cfg.Channels}
+	fullQuery := activateChannelsRuntimeQuery(r.cfg, fullRange)
+	cold, err := r.target.ChannelRuntimeSnapshots(ctx, fullQuery)
+	if err != nil {
+		result.Cold = cold
+		return result, err
+	}
+	result.Cold = cold
+
+	runResult, runErr := r.run(ctx, BuildActivateChannelsScenario(r.cfg), r.base.workers, r.discovered.Target)
+	if runErr != nil && !hasAttemptReport(runResult.Report) {
+		return result, runErr
+	}
+
+	active, err := r.target.ChannelRuntimeSnapshots(ctx, fullQuery)
+	if err != nil {
+		result.Active = active
+		return result, err
+	}
+	result.Active = active
+
+	holdSamples, err := r.holdSnapshots(ctx, fullQuery)
+	if err != nil {
+		result.HoldSamples = holdSamples
+		return result, err
+	}
+	result.HoldSamples = holdSamples
+
+	probes, err := r.probeBatches(ctx)
+	if err != nil {
+		result.ProbeBatches = probes
+		return result, err
+	}
+	result.ProbeBatches = probes
+
+	result.Evaluation = EvaluateActivateChannels(r.cfg, runResult.Report, cold, active, probes)
+	if runErr != nil && runResult.Status != coordinator.StatusHardLimitFailed {
+		reason := string(runResult.Status)
+		if reason == "" {
+			reason = "coordinator_failed"
+		}
+		addActivateChannelsFailure(&result.Evaluation, reason)
+	}
+	if result.Evaluation.Passed {
+		result.Status = StatusPassed
+	}
+
+	if r.cfg.EvictAfter {
+		evicts, err := r.evictBatches(ctx)
+		result.EvictBatches = evicts
+		if err != nil {
+			addActivateChannelsFailure(&result.Evaluation, "evict_failed")
+			result.Status = StatusFailed
+			return result, err
+		}
+	}
+	return result, nil
 }
 
 // DefaultActivateChannelsConfig returns defaults for a 10k group activation run.
@@ -353,4 +499,277 @@ func stringSet(values []string) map[string]struct{} {
 		out[value] = struct{}{}
 	}
 	return out
+}
+
+func (r *ActivateChannelsRunner) setDefaults() {
+	if r.base == nil {
+		r.base = &Runner{discovered: r.discovered}
+	}
+	if r.target == nil {
+		r.target = newActivateRunnerTarget(r.cfg)
+	}
+	if r.run == nil {
+		r.run = func(ctx context.Context, scenario model.Scenario, workers []model.Worker, target model.Target) (coordinator.RunResult, error) {
+			return coordinator.New(coordinator.CoordinatorConfig{Workers: workers, Target: target}).Run(ctx, scenario)
+		}
+	}
+	if r.now == nil {
+		r.now = time.Now
+	}
+}
+
+func (r *ActivateChannelsRunner) ensureWorker() (bool, error) {
+	if len(r.base.workers) > 0 {
+		return false, nil
+	}
+	started := r.base.server == nil
+	if err := r.base.startWorker(); err != nil {
+		return false, err
+	}
+	if len(r.base.workers) == 0 {
+		return false, fmt.Errorf("activate channels worker unavailable")
+	}
+	return started, nil
+}
+
+func newActivateRunnerTarget(cfg ActivateChannelsConfig) *activateRunnerTarget {
+	targetCfg := targetapi.Config{APIAddrs: cfg.APIAddrs, Token: cfg.BenchToken}
+	return &activateRunnerTarget{
+		cfg:    targetCfg,
+		client: targetapi.NewClient(targetCfg),
+	}
+}
+
+func (t *activateRunnerTarget) Capabilities(ctx context.Context) (model.BenchCapabilities, error) {
+	return t.client.Capabilities(ctx)
+}
+
+func (t *activateRunnerTarget) CapabilitiesAll(ctx context.Context) (map[string]model.BenchCapabilities, error) {
+	addrs := nonEmptyStrings(t.cfg.APIAddrs)
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no target api addresses configured")
+	}
+	out := make(map[string]model.BenchCapabilities, len(addrs))
+	for _, addr := range addrs {
+		caps, err := targetapi.NewClient(targetapi.Config{APIAddrs: []string{addr}, Token: t.cfg.Token, HTTPClient: t.cfg.HTTPClient}).Capabilities(ctx)
+		if err != nil {
+			return out, fmt.Errorf("target %s capabilities failed: %w", addr, err)
+		}
+		out[addr] = caps
+	}
+	return out, nil
+}
+
+func (t *activateRunnerTarget) ChannelRuntimeSnapshots(ctx context.Context, query model.ChannelRuntimeQuery) ([]model.ChannelRuntimeSnapshot, error) {
+	return t.client.ChannelRuntimeSnapshots(ctx, query)
+}
+
+func (t *activateRunnerTarget) ProbeChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
+	return t.client.ProbeChannelRuntimeAll(ctx, req)
+}
+
+func (t *activateRunnerTarget) EvictChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeEvictRequest) ([]model.ChannelRuntimeEvictResult, error) {
+	return t.client.EvictChannelRuntimeAll(ctx, req)
+}
+
+func (r *ActivateChannelsRunner) validateCapabilities(ctx context.Context) error {
+	if all, ok := r.target.(activateTargetCapabilitiesAll); ok {
+		capsByAddr, err := all.CapabilitiesAll(ctx)
+		if err != nil {
+			return err
+		}
+		return validateActivateChannelsCapabilitiesAll(r.cfg.APIAddrs, capsByAddr, r.cfg.EvictAfter)
+	}
+	caps, err := r.target.Capabilities(ctx)
+	if err != nil {
+		return err
+	}
+	return validateActivateChannelsCapabilitiesForAddr("", caps, r.cfg.EvictAfter)
+}
+
+func validateActivateChannelsCapabilitiesAll(apiAddrs []string, capsByAddr map[string]model.BenchCapabilities, requireEvict bool) error {
+	for _, addr := range nonEmptyStrings(apiAddrs) {
+		caps, ok := capsByAddr[addr]
+		if !ok {
+			return fmt.Errorf("target %s capabilities missing", addr)
+		}
+		if err := validateActivateChannelsCapabilitiesForAddr(addr, caps, requireEvict); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateActivateChannelsCapabilitiesForAddr(addr string, caps model.BenchCapabilities, requireEvict bool) error {
+	if err := validateActivateChannelsCapabilities(caps, requireEvict); err != nil {
+		if strings.TrimSpace(addr) == "" {
+			return err
+		}
+		return fmt.Errorf("target %s capabilities invalid: %w", addr, err)
+	}
+	return nil
+}
+
+func validateActivateChannelsCapabilities(caps model.BenchCapabilities, requireEvict bool) error {
+	if !caps.Enabled {
+		return fmt.Errorf("bench api is not enabled")
+	}
+	if caps.Version != "bench/v1" {
+		return fmt.Errorf("bench api version = %q, want bench/v1", caps.Version)
+	}
+	if !caps.Supports.ChannelRuntimeSnapshot {
+		return fmt.Errorf("bench api capability channel_runtime_snapshot is required")
+	}
+	if !caps.Supports.ChannelRuntimeProbe {
+		return fmt.Errorf("bench api capability channel_runtime_probe is required")
+	}
+	if requireEvict && !caps.Supports.ChannelRuntimeEvict {
+		return fmt.Errorf("bench api capability channel_runtime_evict is required")
+	}
+	return nil
+}
+
+func activateChannelsRuntimeQuery(cfg ActivateChannelsConfig, rng model.ChannelRuntimeRange) model.ChannelRuntimeQuery {
+	return model.ChannelRuntimeQuery{
+		RunID:       cfg.RunID,
+		Profile:     activateChannelsProfileName,
+		ChannelType: frame.ChannelTypeGroup,
+		Range:       rng,
+	}
+}
+
+func activateChannelsProbeRequest(cfg ActivateChannelsConfig, rng model.ChannelRuntimeRange) model.ChannelRuntimeProbeRequest {
+	return model.ChannelRuntimeProbeRequest{
+		RunID:       cfg.RunID,
+		Profile:     activateChannelsProfileName,
+		ChannelType: frame.ChannelTypeGroup,
+		Range:       rng,
+	}
+}
+
+func activateChannelsEvictRequest(cfg ActivateChannelsConfig, rng model.ChannelRuntimeRange) model.ChannelRuntimeEvictRequest {
+	return model.ChannelRuntimeEvictRequest{
+		RunID:       cfg.RunID,
+		Profile:     activateChannelsProfileName,
+		ChannelType: frame.ChannelTypeGroup,
+		Range:       rng,
+	}
+}
+
+func (r *ActivateChannelsRunner) holdSnapshots(ctx context.Context, query model.ChannelRuntimeQuery) ([][]model.ChannelRuntimeSnapshot, error) {
+	if r.cfg.Hold <= 0 {
+		return nil, nil
+	}
+	maxSamples := holdSampleCount(r.cfg.Hold, r.cfg.HoldProbeInterval)
+	samples := make([][]model.ChannelRuntimeSnapshot, 0, maxSamples)
+	deadline := r.now().Add(r.cfg.Hold)
+	for len(samples) < maxSamples {
+		remaining := deadline.Sub(r.now())
+		wait := r.cfg.HoldProbeInterval
+		if wait <= 0 {
+			wait = remaining
+		}
+		if remaining > 0 && wait > remaining {
+			wait = remaining
+		}
+		if wait > 0 {
+			if err := sleepContext(ctx, wait); err != nil {
+				return samples, err
+			}
+		} else if err := ctx.Err(); err != nil {
+			return samples, err
+		}
+		snapshot, err := r.target.ChannelRuntimeSnapshots(ctx, query)
+		if err != nil {
+			return samples, err
+		}
+		samples = append(samples, snapshot)
+		if !r.now().Before(deadline) {
+			break
+		}
+	}
+	return samples, nil
+}
+
+func holdSampleCount(hold time.Duration, interval time.Duration) int {
+	if hold <= 0 {
+		return 0
+	}
+	if interval <= 0 {
+		return 1
+	}
+	return int(math.Ceil(float64(hold) / float64(interval)))
+}
+
+func (r *ActivateChannelsRunner) probeBatches(ctx context.Context) ([][]model.ChannelRuntimeProbeResult, error) {
+	ranges := activateChannelsRuntimeRanges(r.cfg.Channels, r.cfg.ProbeBatchSize)
+	out := make([][]model.ChannelRuntimeProbeResult, 0, len(ranges))
+	for _, rng := range ranges {
+		result, err := r.target.ProbeChannelRuntimeAll(ctx, activateChannelsProbeRequest(r.cfg, rng))
+		if len(result) > 0 || err == nil {
+			out = append(out, result)
+		}
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+func (r *ActivateChannelsRunner) evictBatches(ctx context.Context) ([][]model.ChannelRuntimeEvictResult, error) {
+	ranges := activateChannelsRuntimeRanges(r.cfg.Channels, r.cfg.ProbeBatchSize)
+	out := make([][]model.ChannelRuntimeEvictResult, 0, len(ranges))
+	for _, rng := range ranges {
+		result, err := r.target.EvictChannelRuntimeAll(ctx, activateChannelsEvictRequest(r.cfg, rng))
+		if len(result) > 0 || err == nil {
+			out = append(out, result)
+		}
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+func activateChannelsRuntimeRanges(channels int, batchSize int) []model.ChannelRuntimeRange {
+	if channels <= 0 || batchSize <= 0 {
+		return nil
+	}
+	ranges := make([]model.ChannelRuntimeRange, 0, (channels+batchSize-1)/batchSize)
+	for start := 0; start < channels; start += batchSize {
+		end := start + batchSize
+		if end > channels {
+			end = channels
+		}
+		ranges = append(ranges, model.ChannelRuntimeRange{Start: start, End: end})
+	}
+	return ranges
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func addActivateChannelsFailure(eval *ActivateChannelsEvaluation, reason string) {
+	if eval == nil || reason == "" {
+		return
+	}
+	for _, existing := range eval.FailureReasons {
+		if existing == reason {
+			eval.Passed = len(eval.FailureReasons) == 0
+			return
+		}
+	}
+	eval.FailureReasons = append(eval.FailureReasons, reason)
+	eval.Passed = false
 }
