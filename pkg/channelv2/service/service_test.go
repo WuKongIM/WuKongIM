@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,6 +88,24 @@ func TestAppendBatchAvoidsPreAppendLoadedStateProbe(t *testing.T) {
 	})
 
 	require.False(t, foundStateProbe, "AppendBatch should submit append directly; loaded-state probes add one reactor roundtrip per message")
+}
+
+func TestAppendBatchObservesRuntimeAppendSubStages(t *testing.T) {
+	observer := &serviceAppendStageObserver{}
+	factory := store.NewMemoryFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, Observer: observer, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+
+	meta := ch.Meta{Key: ch.ChannelKey("1:runtime-stages"), ID: ch.ChannelID{ID: "runtime-stages", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+
+	_, err = clusterAPI.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: meta.ID, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.NoError(t, err)
+
+	requireServiceAppendStage(t, observer.events, "runtime_append_reserve_wait", "ok")
+	requireServiceAppendStage(t, observer.events, "runtime_append_submit", "ok")
+	requireServiceAppendStage(t, observer.events, "runtime_append_wait", "ok")
 }
 
 func TestAppendUsesExistingReactorStateWithoutResolvingMeta(t *testing.T) {
@@ -808,4 +827,37 @@ func (s *serviceBlockingReadLogStore) ReadLog(ctx context.Context, req store.Rea
 		return store.ReadLogResult{}, ctx.Err()
 	}
 	return s.ChannelStore.ReadLog(ctx, req)
+}
+
+type serviceAppendStageObserver struct {
+	events []serviceAppendStageEvent
+}
+
+func (o *serviceAppendStageObserver) SetReactorMailboxDepth(int, string, int) {}
+
+func (o *serviceAppendStageObserver) SetWorkerQueueDepth(string, int) {}
+
+func (o *serviceAppendStageObserver) ObserveAppendBatch(int, int, time.Duration) {}
+
+func (o *serviceAppendStageObserver) ObserveAppendLatency(ch.CommitMode, time.Duration) {}
+
+func (o *serviceAppendStageObserver) ObserveWorkerResult(worker.TaskKind, error, time.Duration) {}
+
+func (o *serviceAppendStageObserver) ObserveChannelAppendStage(stage string, result string, _ time.Duration) {
+	o.events = append(o.events, serviceAppendStageEvent{stage: stage, result: result})
+}
+
+type serviceAppendStageEvent struct {
+	stage  string
+	result string
+}
+
+func requireServiceAppendStage(t *testing.T, events []serviceAppendStageEvent, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("append stage %s/%s not observed in %#v", stage, result, events)
 }

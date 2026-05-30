@@ -11,6 +11,10 @@ import (
 // appendCancelCleanupTimeout bounds best-effort waiter cleanup after caller cancellation.
 const appendCancelCleanupTimeout = time.Second
 
+type appendStageObserver interface {
+	ObserveChannelAppendStage(stage string, result string, d time.Duration)
+}
+
 func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
 	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch})
 	if err != nil {
@@ -31,24 +35,31 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
+	started := time.Now()
 	releaseAppend, err := c.group.ReserveAppend(key)
+	c.observeAppendStage("runtime_append_reserve_wait", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
 	defer releaseAppend()
 	opID := c.group.NextOpID()
+	started = time.Now()
 	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
+	c.observeAppendStage("runtime_append_submit", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
+	started = time.Now()
 	select {
 	case <-future.Done():
 		result := future.Result()
+		c.observeAppendStage("runtime_append_wait", result.Err, time.Since(started))
 		if result.Err != nil {
 			return ch.AppendBatchResult{}, result.Err
 		}
 		return result.AppendBatch, nil
 	case <-ctx.Done():
+		c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
 		// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
 		cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
 		if err == nil {
@@ -61,4 +72,22 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		}
 		return ch.AppendBatchResult{}, ctx.Err()
 	}
+}
+
+func (c *cluster) observeAppendStage(stage string, err error, d time.Duration) {
+	if c == nil || c.observer == nil {
+		return
+	}
+	observer, ok := c.observer.(appendStageObserver)
+	if !ok {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	observer.ObserveChannelAppendStage(stage, result, d)
 }

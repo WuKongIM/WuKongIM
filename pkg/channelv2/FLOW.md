@@ -30,10 +30,12 @@ sequenceDiagram
 
     Caller->>Service: Append / AppendBatch
     Service->>Reactor: ReserveAppend(key) and HasChannelState(key)
+    Note over Service,Reactor: runtime_append_reserve_wait observes reservation delay
     alt channel runtime not loaded
         Service-->>Caller: ErrChannelNotFound
     end
     Service->>Reactor: submit append event
+    Note over Service,Reactor: runtime_append_submit observes mailbox admission
     Reactor->>Reactor: validate leader, epoch, capacity
     alt not leader, stale meta, or queue full
         Reactor-->>Service: complete future with typed error
@@ -47,6 +49,7 @@ sequenceDiagram
 
         alt CommitModeLocal
             Reactor-->>Service: complete future after local durable append
+            Note over Service,Reactor: runtime_append_wait observes future wait
             Service-->>Caller: AppendResult / AppendBatchResult
         else CommitModeQuorum
             Reactor->>Workers: TaskRPCPullHint(lagging followers)
@@ -67,6 +70,7 @@ sequenceDiagram
                 Follower->>Follower: schedule immediate next Pull carrying new AckOffset
             end
             Reactor-->>Service: complete quorum future
+            Note over Service,Reactor: runtime_append_wait observes quorum future wait
             Service-->>Caller: AppendResult / AppendBatchResult
         end
     end
@@ -79,6 +83,11 @@ Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a fo
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.
+
+The clusterv2-facing append stage metric keeps `runtime_append` as the aggregate
+facade call and also records service sub-stages: `runtime_append_reserve_wait`
+for per-channel append admission, `runtime_append_submit` for reactor mailbox
+submission, and `runtime_append_wait` for the future wait after admission.
 
 ## Channel Runtime Lifecycle Model
 
