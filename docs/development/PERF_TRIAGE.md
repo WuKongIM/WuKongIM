@@ -51,7 +51,8 @@ This wrapper starts nodes through `scripts/start-wukongimv2-three-nodes.sh`,
 defaults to 10,000 group channels, enables metrics and pprof, and stores
 evidence under `docs/development/perf-runs/<timestamp>-three-node-10kch/`.
 It records node configs, startup plan, logs, Prometheus snapshots, pprof
-goroutine/heap/CPU data, wkbench reports, and `summary.md`.
+goroutine/heap/CPU data, wkbench reports, `channelv2_metrics_summary.tsv`,
+and `summary.md`.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 

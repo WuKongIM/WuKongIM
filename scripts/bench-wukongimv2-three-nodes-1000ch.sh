@@ -585,6 +585,22 @@ rpc_pull_qps_summary() {
   done
 }
 
+channelv2_metrics_summary() {
+  local tag="$1"
+  local duration="$2"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/channelv2_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/channelv2-metrics-summary.awk"
+  local addr id before after
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    [[ -f "$before" && -f "$after" ]] || continue
+    awk -v tag="$tag" -v node="$id" -v duration="$duration" -f "$summarizer" "$before" "$after" >>"$out" || true
+  done
+}
+
 run_attempt() {
   local qps="$1"
   local tag report_dir exit_status duration
@@ -607,6 +623,7 @@ run_attempt() {
   scrape_metrics "$tag" after
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
+  channelv2_metrics_summary "$tag" "$duration"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
     printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
@@ -748,6 +765,7 @@ print_summary() {
   log "details:"
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
   printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
+  printf '  channelv2: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
   printf '  metrics: %s\n' "$OUT_DIR/metrics"
 }
@@ -777,6 +795,7 @@ write_evidence_summary() {
 - logs: logs/
 - reports: reports/
 - rpc_pull: rpc_pull_qps.tsv
+- channelv2_metrics: channelv2_metrics_summary.tsv
 - summary_tsv: summary.tsv
 
 ## Result
@@ -800,6 +819,9 @@ tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_e
 EOF
   cat >"$OUT_DIR/rpc_pull_qps.tsv" <<'EOF'
 tag	node	rpc_pull_delta	rpc_pull_qps
+EOF
+  cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
+tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms
 EOF
 
   local qps
