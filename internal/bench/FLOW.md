@@ -101,7 +101,8 @@ Step queue/enqueue pressure, ChannelV2 append and cold-activation stages, and
 storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; runtime append sub-stages include
 `runtime_append_reserve_wait`, `runtime_append_submit`, and
-`runtime_append_wait`. Metadata resolve sub-stages include
+`runtime_append_wait`; append batch metrics include `append_batch_wait` and
+`append_batch_records`. Metadata resolve sub-stages include
 `meta_slot_read`, `meta_create_build`, `meta_create_propose`,
 `meta_create_propose_local`, `meta_create_propose_forward`,
 `meta_create_slot_propose_submit`, `meta_create_slot_propose_wait`,
@@ -112,8 +113,8 @@ the report stays low-cardinality while still separating Slot metadata reads,
 missing metadata placement/build, origin-side local vs forwarded Slot proposals,
 Slot proposal submit, Slot future wait, Slot scheduler/control wait, Raft commit
 wait, FSM apply, FSM Pebble commit, MarkApplied persistence, final rereads,
-runtime create/apply, append admission, reactor mailbox submit, and append
-future wait.
+runtime create/apply, append admission, reactor mailbox submit, admitted future
+wait, and append batching behavior.
 
 ## Worker Control Flow
 

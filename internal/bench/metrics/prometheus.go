@@ -81,6 +81,7 @@ type WukongIMV2Attribution struct {
 	ChannelV2RuntimeAppendReserveWaitP99Seconds     float64
 	ChannelV2RuntimeAppendSubmitP99Seconds          float64
 	ChannelV2RuntimeAppendWaitP99Seconds            float64
+	ChannelV2AppendBatchWaitP99Seconds              float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -249,6 +250,7 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2RuntimeAppendReserveWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_reserve_wait"})
 	report.ChannelV2RuntimeAppendSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_submit"})
 	report.ChannelV2RuntimeAppendWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_wait"})
+	report.ChannelV2AppendBatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_batch_wait_duration_seconds")
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -373,6 +375,10 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2RuntimeAppendWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 runtime append future wait p99 is high")
+	}
+	if report.ChannelV2AppendBatchWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 append batch wait p99 is high")
 	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

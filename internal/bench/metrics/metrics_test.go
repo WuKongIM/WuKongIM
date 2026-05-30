@@ -182,6 +182,9 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_su
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="0.01"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="0.05"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="0.01"} 0
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="0.05"} 0
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="+Inf"} 0
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(before): %v", err)
@@ -212,6 +215,9 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_su
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="0.01"} 10
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="0.05"} 100
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wait",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="0.01"} 25
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="0.05"} 100
+wukongim_channelv2_append_batch_wait_duration_seconds_bucket{le="+Inf"} 100
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(after): %v", err)
@@ -227,7 +233,7 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append_wa
 	if report.ChannelV2WorkerQueueDepthMax != 3 {
 		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
 	}
-	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 || report.ChannelV2RuntimeAppendReserveWaitP99Seconds <= 0 || report.ChannelV2RuntimeAppendSubmitP99Seconds <= 0 || report.ChannelV2RuntimeAppendWaitP99Seconds <= 0 {
+	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 || report.ChannelV2RuntimeAppendReserveWaitP99Seconds <= 0 || report.ChannelV2RuntimeAppendSubmitP99Seconds <= 0 || report.ChannelV2RuntimeAppendWaitP99Seconds <= 0 || report.ChannelV2AppendBatchWaitP99Seconds <= 0 {
 		t.Fatalf("channel stage p99s not parsed: %+v", report)
 	}
 }
