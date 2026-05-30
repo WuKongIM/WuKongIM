@@ -3,10 +3,12 @@ package capacity
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 )
 
 const (
@@ -50,6 +52,32 @@ type ActivateChannelsConfig struct {
 	EvictAfter bool
 	// ReportDir is the directory where activation reports should be written.
 	ReportDir string
+}
+
+// ActivateChannelsEvaluation is the final verdict for one activation run.
+type ActivateChannelsEvaluation struct {
+	// Passed is true when every activation-specific success condition passed.
+	Passed bool `json:"passed"`
+	// FailureReasons lists stable machine-readable failed checks.
+	FailureReasons []string `json:"failure_reasons,omitempty"`
+	// ActivationSuccess is the successful run-phase sendack count.
+	ActivationSuccess uint64 `json:"activation_success"`
+	// ActivationErrors is the failed run-phase send/sendack count.
+	ActivationErrors uint64 `json:"activation_errors"`
+	// ActivationBacklog is the number of channels that did not reach a terminal send result.
+	ActivationBacklog uint64 `json:"activation_backlog"`
+	// SendackP50 is the maximum worker-local run-phase sendack p50 latency.
+	SendackP50 time.Duration `json:"sendack_p50"`
+	// SendackP95 is the maximum worker-local run-phase sendack p95 latency.
+	SendackP95 time.Duration `json:"sendack_p95"`
+	// SendackP99 is the maximum worker-local run-phase sendack p99 latency.
+	SendackP99 time.Duration `json:"sendack_p99"`
+	// ActiveLeaderTotal is the total active leader runtime count across target nodes.
+	ActiveLeaderTotal int `json:"active_leader_total"`
+	// ActivationRejectedDelta is the increase in rejected activation requests during the run.
+	ActivationRejectedDelta uint64 `json:"activation_rejected_delta"`
+	// ProbeMissingAllNodes lists probed channels absent from every responding target node.
+	ProbeMissingAllNodes []string `json:"probe_missing_all_nodes,omitempty"`
 }
 
 // DefaultActivateChannelsConfig returns defaults for a 10k group activation run.
@@ -181,9 +209,148 @@ func BuildActivateChannelsScenario(cfg ActivateChannelsConfig) model.Scenario {
 	}
 }
 
+// EvaluateActivateChannels classifies the activation run from send metrics and runtime evidence.
+func EvaluateActivateChannels(cfg ActivateChannelsConfig, rep report.Report, cold []model.ChannelRuntimeSnapshot, active []model.ChannelRuntimeSnapshot, probes [][]model.ChannelRuntimeProbeResult) ActivateChannelsEvaluation {
+	send := report.SendRunSummaryFromMetrics(rep.Metrics, cfg.ActivationWindow)
+	targetChannels := positiveUint64(cfg.Channels)
+	activeLeaderTotal := sumActiveLeader(active)
+	rejectedDelta := activationRejectedDelta(cold, active)
+	missingEverywhere := probeMissingEverywhere(probes)
+
+	got := ActivateChannelsEvaluation{
+		ActivationSuccess:       send.SendSuccess,
+		ActivationErrors:        send.SendErrors,
+		ActivationBacklog:       activationBacklog(targetChannels, send.SendSuccess, send.SendErrors),
+		SendackP50:              send.SendackP50,
+		SendackP95:              send.SendackP95,
+		SendackP99:              send.SendackP99,
+		ActiveLeaderTotal:       activeLeaderTotal,
+		ActivationRejectedDelta: rejectedDelta,
+		ProbeMissingAllNodes:    missingEverywhere,
+	}
+	if send.SendSuccess != targetChannels {
+		got.FailureReasons = append(got.FailureReasons, "activation_success_mismatch")
+	}
+	if send.SendErrors > 0 {
+		got.FailureReasons = append(got.FailureReasons, "activation_errors")
+	}
+	if rep.Summary.WorkerFailed > 0 {
+		got.FailureReasons = append(got.FailureReasons, "worker_failed")
+	}
+	if rep.Summary.ConnectErrorRate > cfg.MaxConnectErrorRate {
+		got.FailureReasons = append(got.FailureReasons, "connect_error_rate_exceeded")
+	}
+	if rep.Summary.SendackErrorRate > cfg.MaxSendackErrorRate {
+		got.FailureReasons = append(got.FailureReasons, "sendack_error_rate_exceeded")
+	}
+	if cfg.StableP99 > 0 && send.SendackP99 > cfg.StableP99 {
+		got.FailureReasons = append(got.FailureReasons, "sendack_p99_exceeded")
+	}
+	if activeLeaderTotal < cfg.Channels {
+		got.FailureReasons = append(got.FailureReasons, "active_leader_below_channels")
+	}
+	if rejectedDelta > 0 {
+		got.FailureReasons = append(got.FailureReasons, "activation_rejected_delta")
+	}
+	if len(missingEverywhere) > 0 {
+		got.FailureReasons = append(got.FailureReasons, "probe_missing_all_nodes")
+	}
+	got.Passed = len(got.FailureReasons) == 0
+	return got
+}
+
 func activateChannelsRatePerChannel(window time.Duration) float64 {
 	if window <= 0 {
 		return 0
 	}
 	return math.Nextafter(1.0/window.Seconds(), math.Inf(1))
+}
+
+func positiveUint64(value int) uint64 {
+	if value <= 0 {
+		return 0
+	}
+	return uint64(value)
+}
+
+func activationBacklog(channels, success, errors uint64) uint64 {
+	if success >= channels {
+		return 0
+	}
+	remaining := channels - success
+	if errors >= remaining {
+		return 0
+	}
+	return remaining - errors
+}
+
+func sumActiveLeader(snapshots []model.ChannelRuntimeSnapshot) int {
+	total := 0
+	for _, snapshot := range snapshots {
+		total += snapshot.ActiveLeader
+	}
+	return total
+}
+
+func activationRejectedDelta(cold []model.ChannelRuntimeSnapshot, active []model.ChannelRuntimeSnapshot) uint64 {
+	coldTotal := sumActivationRejected(cold)
+	activeTotal := sumActivationRejected(active)
+	if activeTotal <= coldTotal {
+		return 0
+	}
+	return activeTotal - coldTotal
+}
+
+func sumActivationRejected(snapshots []model.ChannelRuntimeSnapshot) uint64 {
+	var total uint64
+	for _, snapshot := range snapshots {
+		total += snapshot.ActivationRejectedTotal
+	}
+	return total
+}
+
+func probeMissingEverywhere(probes [][]model.ChannelRuntimeProbeResult) []string {
+	all := make(map[string]struct{})
+	for _, batch := range probes {
+		for channelID := range probeBatchMissingEverywhere(batch) {
+			all[channelID] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(all))
+	for channelID := range all {
+		out = append(out, channelID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func probeBatchMissingEverywhere(batch []model.ChannelRuntimeProbeResult) map[string]struct{} {
+	if len(batch) == 0 {
+		return nil
+	}
+	var intersection map[string]struct{}
+	for i, result := range batch {
+		current := stringSet(result.Missing)
+		if i == 0 {
+			intersection = current
+			continue
+		}
+		for channelID := range intersection {
+			if _, ok := current[channelID]; !ok {
+				delete(intersection, channelID)
+			}
+		}
+		if len(intersection) == 0 {
+			break
+		}
+	}
+	return intersection
+}
+
+func stringSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
 }

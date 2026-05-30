@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/stretchr/testify/require"
 )
 
@@ -146,4 +148,128 @@ func activationScheduledMessageCount(duration time.Duration, perSecond float64, 
 		return 1
 	}
 	return count
+}
+
+func TestEvaluateActivateChannelsPasses(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})
+	cold, active, probes := activateChannelsRuntimeEvidence()
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.True(t, got.Passed)
+	require.Empty(t, got.FailureReasons)
+	require.Equal(t, uint64(10000), got.ActivationSuccess)
+	require.Equal(t, uint64(0), got.ActivationErrors)
+	require.Equal(t, uint64(0), got.ActivationBacklog)
+	require.Equal(t, 10*time.Millisecond, got.SendackP50)
+	require.Equal(t, 20*time.Millisecond, got.SendackP95)
+	require.Equal(t, 30*time.Millisecond, got.SendackP99)
+	require.Equal(t, 10000, got.ActiveLeaderTotal)
+	require.Equal(t, uint64(0), got.ActivationRejectedDelta)
+	require.Empty(t, got.ProbeMissingAllNodes)
+}
+
+func TestEvaluateActivateChannelsFailsOnSendErrors(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 1, 30*time.Millisecond, report.Summary{})
+	cold, active, probes := activateChannelsRuntimeEvidence()
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "activation_errors")
+	require.Equal(t, uint64(1), got.ActivationErrors)
+	require.Equal(t, uint64(0), got.ActivationBacklog)
+}
+
+func TestEvaluateActivateChannelsFailsOnMissingLeaderCount(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})
+	cold, active, probes := activateChannelsRuntimeEvidence()
+	active[0].ActiveLeader = 9999
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "active_leader_below_channels")
+	require.Equal(t, 9999, got.ActiveLeaderTotal)
+}
+
+func TestEvaluateActivateChannelsFailsOnActivationRejectedDelta(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})
+	cold, active, probes := activateChannelsRuntimeEvidence()
+	active[0].ActivationRejectedTotal = 4
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "activation_rejected_delta")
+	require.Equal(t, uint64(1), got.ActivationRejectedDelta)
+}
+
+func TestEvaluateActivateChannelsFailsOnProbeMissingEverywhere(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 0, 30*time.Millisecond, report.Summary{})
+	cold, active, _ := activateChannelsRuntimeEvidence()
+	probes := [][]model.ChannelRuntimeProbeResult{{
+		{NodeID: 1, Checked: 2, Missing: []string{"ch-2", "ch-1"}},
+		{NodeID: 2, Checked: 2, Missing: []string{"ch-1", "ch-3"}},
+		{NodeID: 3, Checked: 2, Missing: []string{"ch-4", "ch-1"}},
+	}}
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "probe_missing_all_nodes")
+	require.Equal(t, []string{"ch-1"}, got.ProbeMissingAllNodes)
+}
+
+func TestEvaluateActivateChannelsFailsOnSendackP99(t *testing.T) {
+	cfg := activateChannelsEvalConfig()
+	rep := activateChannelsReport(10000, 0, 250*time.Millisecond, report.Summary{})
+	cold, active, probes := activateChannelsRuntimeEvidence()
+
+	got := EvaluateActivateChannels(cfg, rep, cold, active, probes)
+
+	require.False(t, got.Passed)
+	require.Contains(t, got.FailureReasons, "sendack_p99_exceeded")
+	require.Equal(t, 250*time.Millisecond, got.SendackP99)
+}
+
+func activateChannelsEvalConfig() ActivateChannelsConfig {
+	cfg := DefaultActivateChannelsConfig()
+	cfg.APIAddrs = []string{"http://127.0.0.1:5011"}
+	return cfg
+}
+
+func activateChannelsReport(success, errors uint64, p99 time.Duration, summary report.Summary) report.Report {
+	return report.Report{
+		Summary: summary,
+		Metrics: metrics.SnapshotData{
+			Counters: map[string]uint64{
+				"group_send_success_total{channel_type=group,phase=run,profile=activate-groups,traffic=activate-send}": success,
+				"group_send_error_total{channel_type=group,phase=run,profile=activate-groups,traffic=activate-send}":   errors,
+			},
+			Histograms: map[string]metrics.HistogramSummary{
+				"group_send_latency_seconds{channel_type=group,phase=run,profile=activate-groups,traffic=activate-send}": {
+					Count:      success,
+					P50Seconds: 0.010,
+					P95Seconds: 0.020,
+					P99Seconds: p99.Seconds(),
+				},
+			},
+		},
+	}
+}
+
+func activateChannelsRuntimeEvidence() ([]model.ChannelRuntimeSnapshot, []model.ChannelRuntimeSnapshot, [][]model.ChannelRuntimeProbeResult) {
+	cold := []model.ChannelRuntimeSnapshot{{NodeID: 1, ActivationRejectedTotal: 3}}
+	active := []model.ChannelRuntimeSnapshot{{NodeID: 1, ActiveLeader: 10000, ActivationRejectedTotal: 3}}
+	probes := [][]model.ChannelRuntimeProbeResult{{
+		{NodeID: 1, Checked: 10000, LoadedLeader: 10000},
+		{NodeID: 2, Checked: 10000, Missing: []string{"some-follower-not-loaded"}},
+	}}
+	return cold, active, probes
 }
