@@ -136,6 +136,8 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_append_p99_seconds: %.6f\n", report.ChannelV2AppendP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_resolve_p99_seconds: %.6f\n", report.ChannelV2MetaResolveP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_slot_read_p99_seconds: %.6f\n", report.ChannelV2MetaSlotReadP99Seconds)
+	fmt.Fprintf(w, "channelv2_meta_create_build_p99_seconds: %.6f\n", report.ChannelV2MetaCreateBuildP99Seconds)
+	fmt.Fprintf(w, "channelv2_meta_create_propose_p99_seconds: %.6f\n", report.ChannelV2MetaCreateProposeP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_create_write_p99_seconds: %.6f\n", report.ChannelV2MetaCreateWriteP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_final_read_p99_seconds: %.6f\n", report.ChannelV2MetaFinalReadP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_apply_p99_seconds: %.6f\n", report.ChannelV2MetaApplyP99Seconds)

@@ -11,9 +11,11 @@ import (
 )
 
 const (
-	channelMetaStageSlotRead    = "meta_slot_read"
-	channelMetaStageCreateWrite = "meta_create_write"
-	channelMetaStageFinalRead   = "meta_final_read"
+	channelMetaStageSlotRead      = "meta_slot_read"
+	channelMetaStageCreateBuild   = "meta_create_build"
+	channelMetaStageCreatePropose = "meta_create_propose"
+	channelMetaStageCreateWrite   = "meta_create_write"
+	channelMetaStageFinalRead     = "meta_final_read"
 )
 
 // SlotMetaSource resolves ChannelV2 metadata from Slot authoritative runtime metadata.
@@ -74,9 +76,13 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 		return ch.Meta{}, fmt.Errorf("%w: missing slot metadata writer", ch.ErrChannelNotFound)
 	}
 	started = time.Now()
+	buildStarted := time.Now()
 	candidate, err := s.initialRuntimeMeta(ctx, id)
+	s.observeMetaStage(channelMetaStageCreateBuild, metaStageResult(err), time.Since(buildStarted))
 	if err == nil {
+		proposeStarted := time.Now()
 		err = s.writer.UpsertChannelRuntimeMeta(ctx, candidate)
+		s.observeMetaStage(channelMetaStageCreatePropose, metaStageResult(err), time.Since(proposeStarted))
 	}
 	s.observeMetaStage(channelMetaStageCreateWrite, metaStageResult(err), time.Since(started))
 	if err != nil {

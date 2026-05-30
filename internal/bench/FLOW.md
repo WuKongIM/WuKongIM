@@ -100,9 +100,10 @@ When the three-node helper script captures before/after Prometheus snapshots,
 Step queue/enqueue pressure, ChannelV2 append and cold-activation stages, and
 storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; metadata resolve sub-stages include
-`meta_slot_read`, `meta_create_write`, and `meta_final_read` so the report stays
-low-cardinality while still separating Slot metadata reads, missing metadata
-writes, final rereads, runtime create/apply, and append wait.
+`meta_slot_read`, `meta_create_build`, `meta_create_propose`,
+`meta_create_write`, and `meta_final_read` so the report stays low-cardinality
+while still separating Slot metadata reads, missing metadata placement/build,
+Slot proposal/write wait, final rereads, runtime create/apply, and append wait.
 
 ## Worker Control Flow
 

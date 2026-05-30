@@ -326,6 +326,9 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	if !strings.Contains(stderr.String(), "channelv2_meta_slot_read_p99_seconds:") {
 		t.Fatalf("expected channel meta breakdown metric in output, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "channelv2_meta_create_propose_p99_seconds:") {
+		t.Fatalf("expected channel meta propose metric in output, got %q", stderr.String())
+	}
 }
 
 func TestMetricsClassifyReportsControllerRaftStepPressureFromPrometheusSnapshots(t *testing.T) {

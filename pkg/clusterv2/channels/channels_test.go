@@ -131,6 +131,8 @@ func TestSlotMetaSourceObservesEnsureMetaStageBreakdown(t *testing.T) {
 	require.NoError(t, err)
 
 	requireAppendStage(t, observer.events, "meta_slot_read", "miss")
+	requireAppendStage(t, observer.events, "meta_create_build", "ok")
+	requireAppendStage(t, observer.events, "meta_create_propose", "ok")
 	requireAppendStage(t, observer.events, "meta_create_write", "ok")
 	requireAppendStage(t, observer.events, "meta_final_read", "ok")
 }

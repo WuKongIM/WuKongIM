@@ -167,11 +167,14 @@ pprof, and server process CPU/memory samples under `resources/`.
 The per-node classification files include ControllerV2 Raft Step queue pressure
 plus ChannelV2 cold-activation stage p99s:
 `channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,
+`channelv2_meta_create_build_p99_seconds`,
+`channelv2_meta_create_propose_p99_seconds`,
 `channelv2_meta_create_write_p99_seconds`,
 `channelv2_meta_final_read_p99_seconds`, `channelv2_meta_apply_p99_seconds`,
 and `channelv2_runtime_append_p99_seconds`. Use them to separate control-plane
-Step backpressure, Slot metadata reads, missing metadata writes, final rereads,
-runtime create/apply, and append wait before looking at pprof.
+Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
+metadata proposal/write wait, final rereads, runtime create/apply, and append
+wait before looking at pprof.
 
 ## Compose Development Simulator
 

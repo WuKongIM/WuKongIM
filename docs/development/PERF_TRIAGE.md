@@ -63,9 +63,13 @@ online user pool is intentionally smaller than the channel count; raise
 gateway connection pressure. The default `--stable-p99 2s` is a cold-activation
 guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
 For cold ChannelV2 activation attribution, first compare the per-node
-`channelv2_meta_resolve_p99_seconds`, `channelv2_meta_apply_p99_seconds`, and
+`channelv2_meta_resolve_p99_seconds`,
+`channelv2_meta_create_build_p99_seconds`,
+`channelv2_meta_create_propose_p99_seconds`,
+`channelv2_meta_apply_p99_seconds`, and
 `channelv2_runtime_append_p99_seconds` values before using pprof to inspect the
-hot path.
+hot path. In the default Slot-backed writer, `meta_create_propose` includes the
+Slot proposal and wait-for-apply path.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -275,6 +279,8 @@ Interpretation matrix:
 | Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
 | Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
 | `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
+| `channelv2_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
+| `channelv2_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |
 | `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | ChannelV2 runtime ensure/load, store open, mailbox/worker pressure |
 | `channelv2_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
