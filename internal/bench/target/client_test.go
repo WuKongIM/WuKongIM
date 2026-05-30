@@ -39,6 +39,28 @@ func TestCapabilitiesTriesAPIAddrsInOrder(t *testing.T) {
 	require.Equal(t, "bench/v1", got.Version)
 }
 
+func TestClientCapabilitiesFallbackDoesNotKeepStaleDecodedFields(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/capabilities", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"enabled":true,"version":123}`))
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/capabilities", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"bench/v1"}`))
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.Capabilities(context.Background())
+
+	require.NoError(t, err)
+	require.False(t, got.Enabled)
+	require.Equal(t, "bench/v1", got.Version)
+}
+
 func TestClientCapacityTargetReadsGatewayAddresses(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/capacity-target", r.URL.Path)
@@ -159,6 +181,73 @@ func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
 	require.Equal(t, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10}, got)
 }
 
+func TestClientProbeChannelRuntimeAllCallsEveryTarget(t *testing.T) {
+	seen := make([]string, 0, 2)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		var req model.ChannelRuntimeProbeRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		seen = append(seen, "first")
+		writeJSON(t, w, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10, LoadedLeader: 4})
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		var req model.ChannelRuntimeProbeRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		seen = append(seen, "second")
+		writeJSON(t, w, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 2, Checked: 10, LoadedLeader: 6})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.ProbeChannelRuntimeAll(context.Background(), model.ChannelRuntimeProbeRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, seen)
+	require.Equal(t, []model.ChannelRuntimeProbeResult{
+		{Version: "bench/v1", NodeID: 1, Checked: 10, LoadedLeader: 4},
+		{Version: "bench/v1", NodeID: 2, Checked: 10, LoadedLeader: 6},
+	}, got)
+}
+
+func TestClientProbeChannelRuntimeAllReturnsSuccessfulResultsWhenTargetFails(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		http.Error(w, "probe unavailable", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		writeJSON(t, w, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 2, Checked: 10, LoadedLeader: 6})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.ProbeChannelRuntimeAll(context.Background(), model.ChannelRuntimeProbeRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "target api addresses failed")
+	require.ErrorContains(t, err, "503")
+	require.Equal(t, []model.ChannelRuntimeProbeResult{
+		{Version: "bench/v1", NodeID: 2, Checked: 10, LoadedLeader: 6},
+	}, got)
+}
+
 func TestClientProbeChannelRuntimeFallbackDoesNotKeepStaleDecodedFields(t *testing.T) {
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
@@ -205,6 +294,74 @@ func TestClientEvictChannelRuntimePostsRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 1, Requested: 10, Evicted: 10}, got)
+}
+
+func TestClientEvictChannelRuntimeAllCallsEveryTarget(t *testing.T) {
+	seen := make([]string, 0, 2)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
+		var req model.ChannelRuntimeEvictRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		seen = append(seen, "first")
+		writeJSON(t, w, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 1, Requested: 10, Evicted: 9})
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
+		var req model.ChannelRuntimeEvictRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		seen = append(seen, "second")
+		writeJSON(t, w, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 2, Requested: 10, Evicted: 10})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.EvictChannelRuntimeAll(context.Background(), model.ChannelRuntimeEvictRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, seen)
+	require.Equal(t, []model.ChannelRuntimeEvictResult{
+		{Version: "bench/v1", NodeID: 1, Requested: 10, Evicted: 9},
+		{Version: "bench/v1", NodeID: 2, Requested: 10, Evicted: 10},
+	}, got)
+}
+
+func TestClientEvictChannelRuntimeAllReturnsSuccessfulResultsWhenTargetDecodeFails(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"stale","requested":99,"node_id":"bad"}`))
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
+		writeJSON(t, w, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 2, Requested: 10, Evicted: 10})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.EvictChannelRuntimeAll(context.Background(), model.ChannelRuntimeEvictRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "target api addresses failed")
+	require.ErrorContains(t, err, "decode")
+	require.Equal(t, []model.ChannelRuntimeEvictResult{
+		{Version: "bench/v1", NodeID: 2, Requested: 10, Evicted: 10},
+	}, got)
 }
 
 func TestHealthAndReadyUseConfiguredAPIAddress(t *testing.T) {

@@ -113,6 +113,20 @@ func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRunti
 	return out, nil
 }
 
+// ProbeChannelRuntimeAll asks every configured target node to inspect selected generated channels.
+func (c *Client) ProbeChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
+	results := make([]model.ChannelRuntimeProbeResult, 0, len(c.addrs()))
+	err := c.postAll(func(addr string) error {
+		var out model.ChannelRuntimeProbeResult
+		if err := c.doJSON(ctx, http.MethodPost, addr, "/bench/v1/channel-runtime/probe", req, &out); err != nil {
+			return err
+		}
+		results = append(results, out)
+		return nil
+	})
+	return results, err
+}
+
 // EvictChannelRuntime posts a bounded local runtime eviction request.
 func (c *Client) EvictChannelRuntime(ctx context.Context, req model.ChannelRuntimeEvictRequest) (model.ChannelRuntimeEvictResult, error) {
 	var out model.ChannelRuntimeEvictResult
@@ -120,6 +134,37 @@ func (c *Client) EvictChannelRuntime(ctx context.Context, req model.ChannelRunti
 		return model.ChannelRuntimeEvictResult{}, err
 	}
 	return out, nil
+}
+
+// EvictChannelRuntimeAll asks every configured target node to evict selected generated runtime state.
+func (c *Client) EvictChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeEvictRequest) ([]model.ChannelRuntimeEvictResult, error) {
+	results := make([]model.ChannelRuntimeEvictResult, 0, len(c.addrs()))
+	err := c.postAll(func(addr string) error {
+		var out model.ChannelRuntimeEvictResult
+		if err := c.doJSON(ctx, http.MethodPost, addr, "/bench/v1/channel-runtime/evict", req, &out); err != nil {
+			return err
+		}
+		results = append(results, out)
+		return nil
+	})
+	return results, err
+}
+
+func (c *Client) postAll(call func(addr string) error) error {
+	addrs := c.addrs()
+	if len(addrs) == 0 {
+		return fmt.Errorf("no target api addresses configured")
+	}
+	var errs []string
+	for _, addr := range addrs {
+		if err := call(addr); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) != 0 {
+		return fmt.Errorf("target api addresses failed: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // UpsertTokens posts a spec-shaped batch user token request.
@@ -144,10 +189,15 @@ func (c *Client) getAny(ctx context.Context, path string, out any) error {
 	}
 	var errs []string
 	for _, addr := range addrs {
-		if err := c.doJSON(ctx, http.MethodGet, addr, path, nil, out); err != nil {
+		attemptOut, err := freshDecodeTarget(out)
+		if err != nil {
+			return err
+		}
+		if err := c.doJSON(ctx, http.MethodGet, addr, path, nil, attemptOut); err != nil {
 			errs = append(errs, err.Error())
 			continue
 		}
+		copyDecodeTarget(out, attemptOut)
 		return nil
 	}
 	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
