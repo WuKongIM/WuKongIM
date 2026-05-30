@@ -183,6 +183,7 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_err_count: %.0f\n", report.ChannelV2PullHintReceiveErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_state_check_err_count: %.0f\n", report.ChannelV2PullHintReceiveStateCheckErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_meta_resolve_err_count: %.0f\n", report.ChannelV2PullHintReceiveMetaResolveErrCount)
+	fmt.Fprintf(w, "channelv2_pull_hint_receive_meta_hint_ok_count: %.0f\n", report.ChannelV2PullHintReceiveMetaHintOKCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_meta_validate_err_count: %.0f\n", report.ChannelV2PullHintReceiveMetaValidateErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_meta_apply_err_count: %.0f\n", report.ChannelV2PullHintReceiveMetaApplyErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_receive_submit_err_count: %.0f\n", report.ChannelV2PullHintReceiveSubmitErrCount)

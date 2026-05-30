@@ -215,11 +215,14 @@ error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
 `channelv2_pull_hint_other_err_count`. Receiver-side PullHint stage errors are
 reported as counters such as
 `channelv2_pull_hint_receive_meta_resolve_err_count`,
+`channelv2_pull_hint_receive_meta_hint_ok_count`,
 `channelv2_pull_hint_receive_meta_validate_err_count`,
 `channelv2_pull_hint_receive_meta_apply_err_count`,
 `channelv2_pull_hint_receive_submit_err_count`,
 `channelv2_pull_hint_receive_await_err_count`, and
-`channelv2_pull_hint_receive_channel_not_found_err_count`. Use them to separate
+`channelv2_pull_hint_receive_channel_not_found_err_count`; `meta_hint` means the
+follower used leader-carried metadata while its local metadata read path was
+still catching up. Use these counters to separate
 control-plane Step backpressure, Slot metadata reads, missing metadata
 placement/build, Slot metadata local vs forwarded proposals, Slot metadata
 proposal submit, Slot metadata proposal wait, Slot scheduler/control wait, Raft

@@ -13,6 +13,7 @@ const (
 	pullHintReceiveStageStateCheck   = "state_check"
 	pullHintReceiveStageLoaded       = "loaded"
 	pullHintReceiveStageMetaResolve  = "meta_resolve"
+	pullHintReceiveStageMetaHint     = "meta_hint"
 	pullHintReceiveStageMetaValidate = "meta_validate"
 	pullHintReceiveStageMetaApply    = "meta_apply"
 	pullHintReceiveStageSubmit       = "submit"
@@ -92,11 +93,7 @@ func (c *cluster) ensurePullHintChannelState(ctx context.Context, req transport.
 		c.observePullHintReceived(req.Reason, pullHintReceiveStageLoaded, nil)
 		return nil
 	}
-	if c.metaResolver == nil {
-		c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaResolve, ch.ErrChannelNotFound)
-		return ch.ErrChannelNotFound
-	}
-	meta, err := c.metaResolver.ResolveChannelMeta(ctx, req.ChannelID)
+	meta, err := c.resolvePullHintMeta(ctx, req)
 	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaResolve, err)
 	if err != nil {
 		return err
@@ -117,6 +114,43 @@ func (c *cluster) ensurePullHintChannelState(ctx context.Context, req transport.
 	err = c.applyMeta(ctx, meta)
 	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaApply, err)
 	return err
+}
+
+func (c *cluster) resolvePullHintMeta(ctx context.Context, req transport.PullHintRequest) (ch.Meta, error) {
+	if c.metaResolver != nil {
+		meta, err := c.metaResolver.ResolveChannelMeta(ctx, req.ChannelID)
+		if err == nil || !errors.Is(err, ch.ErrChannelNotFound) {
+			return meta, err
+		}
+	}
+	meta, ok := pullHintRequestMeta(req)
+	if !ok {
+		return ch.Meta{}, ch.ErrChannelNotFound
+	}
+	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaHint, nil)
+	return meta, nil
+}
+
+func pullHintRequestMeta(req transport.PullHintRequest) (ch.Meta, bool) {
+	if req.ChannelKey == "" || req.ChannelID == (ch.ChannelID{}) || req.Epoch == 0 || req.LeaderEpoch == 0 ||
+		req.Leader == 0 || len(req.Replicas) == 0 || req.MinISR <= 0 || req.Status == 0 {
+		return ch.Meta{}, false
+	}
+	isr := append([]ch.NodeID(nil), req.ISR...)
+	if len(isr) == 0 {
+		isr = append([]ch.NodeID(nil), req.Replicas...)
+	}
+	return ch.Meta{
+		Key:         req.ChannelKey,
+		ID:          req.ChannelID,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Leader:      req.Leader,
+		Replicas:    append([]ch.NodeID(nil), req.Replicas...),
+		ISR:         isr,
+		MinISR:      req.MinISR,
+		Status:      req.Status,
+	}, true
 }
 
 func (c *cluster) observePullHintReceived(reason transport.PullHintReason, stage string, err error) {

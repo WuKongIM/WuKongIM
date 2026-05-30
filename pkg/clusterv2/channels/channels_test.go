@@ -235,6 +235,35 @@ func TestCodecRoundTripsPull(t *testing.T) {
 	}
 }
 
+func TestCodecRoundTripsPullHintMeta(t *testing.T) {
+	req := channeltransport.PullHintRequest{
+		ChannelKey:      "1:room",
+		ChannelID:       ch.ChannelID{ID: "room", Type: 1},
+		Epoch:           1,
+		LeaderEpoch:     2,
+		Leader:          1,
+		Replicas:        []ch.NodeID{1, 2, 3},
+		ISR:             []ch.NodeID{1, 2},
+		MinISR:          2,
+		Status:          ch.StatusActive,
+		LeaderLEO:       4,
+		ActivityVersion: 4,
+		Reason:          channeltransport.PullHintReasonAppend,
+	}
+	data, err := encodePullHintRequest(req)
+	if err != nil {
+		t.Fatalf("encodePullHintRequest() error = %v", err)
+	}
+	got, err := decodePullHintRequest(data)
+	if err != nil {
+		t.Fatalf("decodePullHintRequest() error = %v", err)
+	}
+	if got.ChannelKey != req.ChannelKey || got.MinISR != req.MinISR || got.Status != req.Status ||
+		!equalNodeIDs(got.Replicas, req.Replicas) || !equalNodeIDs(got.ISR, req.ISR) {
+		t.Fatalf("decoded = %#v, want %#v", got, req)
+	}
+}
+
 func TestTransportClientDispatchesPull(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	runtime := &fakeRuntime{pull: channeltransport.PullResponse{ChannelKey: "1:room", LeaderHW: 9}}

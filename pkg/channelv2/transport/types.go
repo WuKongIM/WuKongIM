@@ -100,6 +100,14 @@ type PullHintRequest struct {
 	LeaderEpoch uint64
 	// Leader is the node that should serve the next pull.
 	Leader ch.NodeID
+	// Replicas is the authoritative replica set observed by the leader.
+	Replicas []ch.NodeID
+	// ISR is the authoritative in-sync replica set observed by the leader.
+	ISR []ch.NodeID
+	// MinISR is the write quorum size observed by the leader.
+	MinISR int
+	// Status is the authoritative channel status observed by the leader.
+	Status ch.Status
 	// LeaderLEO is the leader log end offset when the hint was sent.
 	LeaderLEO uint64
 	// ActivityVersion fences stale hints after newer leader activity.

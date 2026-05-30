@@ -168,6 +168,7 @@ wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="timeout"}
 wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="remote_error"} 0
 wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 0
+wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result="ok",error="none"} 0
 `))
 	if err != nil {
@@ -185,6 +186,7 @@ wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="timeout"}
 wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="remote_error"} 8
 wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 6
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 9
+wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 11
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result="ok",error="none"} 10
 `))
 	if err != nil {
@@ -204,8 +206,11 @@ wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result=
 	if report.ChannelV2PullHintStaleMetaErrCount != 2 || report.ChannelV2PullHintNotReadyErrCount != 4 || report.ChannelV2PullHintChannelNotFoundErrCount != 5 || report.ChannelV2PullHintCanceledErrCount != 6 || report.ChannelV2PullHintTimeoutErrCount != 7 || report.ChannelV2PullHintRemoteErrCount != 8 || report.ChannelV2PullHintOtherErrCount != 6 {
 		t.Fatalf("error breakdown not parsed: %+v", report)
 	}
-	if report.ChannelV2PullHintReceiveOKCount != 10 || report.ChannelV2PullHintReceiveErrCount != 9 || report.ChannelV2PullHintReceiveMetaResolveErrCount != 9 || report.ChannelV2PullHintReceiveChannelNotFoundErrCount != 9 {
+	if report.ChannelV2PullHintReceiveOKCount != 21 || report.ChannelV2PullHintReceiveErrCount != 9 || report.ChannelV2PullHintReceiveMetaResolveErrCount != 9 || report.ChannelV2PullHintReceiveChannelNotFoundErrCount != 9 {
 		t.Fatalf("receive breakdown not parsed: %+v", report)
+	}
+	if report.ChannelV2PullHintReceiveMetaHintOKCount != 11 {
+		t.Fatalf("receive meta hint ok = %v, want 11", report.ChannelV2PullHintReceiveMetaHintOKCount)
 	}
 	if report.Classification != WukongIMV2BottleneckChannelV2 {
 		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)

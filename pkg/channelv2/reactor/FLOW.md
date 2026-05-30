@@ -158,6 +158,13 @@ submissions, `ok` counts completed PullHint RPCs, and `err` is classified by
 stable error classes such as `stale_meta`, `channel_not_found`, `not_ready`,
 `canceled`, `timeout`, `remote_error`, and `other`.
 
+Leader PullHint requests carry the current channel metadata summary
+(`Replicas`, `ISR`, `MinISR`, and `Status`) along with the usual epoch and leader
+fences. This lets an unloaded follower activate from a trusted leader hint when
+its local metadata read path has not caught up yet, while the receiver still
+validates the channel key, ID, epochs, leader, status, and local replica
+membership before applying metadata.
+
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the

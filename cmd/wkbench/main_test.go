@@ -387,6 +387,7 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_met
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"} 0
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="remote_error"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 1
+wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 2
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
@@ -397,6 +398,7 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_met
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"} 6
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="remote_error"} 7
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 9
+wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 13
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -430,6 +432,9 @@ wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",
 	}
 	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_channel_not_found_err_count: 8") {
 		t.Fatalf("expected PullHint receive channel not found err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_meta_hint_ok_count: 11") {
+		t.Fatalf("expected PullHint receive meta hint ok count in output, got %q", stderr.String())
 	}
 }
 

@@ -109,6 +109,7 @@ type WukongIMV2Attribution struct {
 	ChannelV2PullHintReceiveErrCount                float64
 	ChannelV2PullHintReceiveStateCheckErrCount      float64
 	ChannelV2PullHintReceiveMetaResolveErrCount     float64
+	ChannelV2PullHintReceiveMetaHintOKCount         float64
 	ChannelV2PullHintReceiveMetaValidateErrCount    float64
 	ChannelV2PullHintReceiveMetaApplyErrCount       float64
 	ChannelV2PullHintReceiveSubmitErrCount          float64
@@ -315,6 +316,7 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2PullHintReceiveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err"})
 	report.ChannelV2PullHintReceiveStateCheckErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "state_check", "result": "err"})
 	report.ChannelV2PullHintReceiveMetaResolveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_resolve", "result": "err"})
+	report.ChannelV2PullHintReceiveMetaHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_hint", "result": "ok"})
 	report.ChannelV2PullHintReceiveMetaValidateErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_validate", "result": "err"})
 	report.ChannelV2PullHintReceiveMetaApplyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_apply", "result": "err"})
 	report.ChannelV2PullHintReceiveSubmitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "submit", "result": "err"})

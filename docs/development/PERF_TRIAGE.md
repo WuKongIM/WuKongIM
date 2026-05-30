@@ -123,13 +123,16 @@ stage counts are much lower than follower apply counts, check
 path is slow. If leader-side PullHint errors are present, compare them with
 receiver-side stage counters such as
 `channelv2_pull_hint_receive_meta_resolve_err_count`,
+`channelv2_pull_hint_receive_meta_hint_ok_count`,
 `channelv2_pull_hint_receive_meta_validate_err_count`,
 `channelv2_pull_hint_receive_meta_apply_err_count`,
 `channelv2_pull_hint_receive_submit_err_count`,
 `channelv2_pull_hint_receive_await_err_count`, and
 `channelv2_pull_hint_receive_channel_not_found_err_count` to separate remote
 transport failures from follower metadata propagation, lazy activation, reactor
-admission, and follower future wait failures.
+admission, and follower future wait failures. A non-zero
+`channelv2_pull_hint_receive_meta_hint_ok_count` means followers successfully
+used leader-carried metadata while local metadata reads were still catching up.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
