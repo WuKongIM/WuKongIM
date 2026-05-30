@@ -113,7 +113,9 @@ storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
 `quorum_follower_pull_wait`, `quorum_ack_offset_wait`,
 `quorum_hw_advance_wait`, and `quorum_final_complete_wait`; follower replication
 metrics include `follower_pull_hint_to_submit`, `follower_pull_rpc`,
-`follower_store_apply`, and `follower_apply_to_ack_return`. Metadata resolve
+`follower_store_apply`, and `follower_apply_to_ack_return`; PullHint result
+counters include submitted, ok, total err, and stable error classes such as
+stale meta, channel not found, not ready, and other. Metadata resolve
 sub-stages include `meta_slot_read`, `meta_create_build`, `meta_create_propose`,
 `meta_create_propose_local`, `meta_create_propose_forward`,
 `meta_create_slot_propose_submit`, `meta_create_slot_propose_wait`,

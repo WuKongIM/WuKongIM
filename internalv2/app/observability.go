@@ -1,10 +1,12 @@
 package app
 
 import (
+	"errors"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
@@ -144,6 +146,13 @@ func (o channelV2MetricsObserver) ObservePull(result string, empty bool) {
 		return
 	}
 	o.metrics.ChannelV2.ObservePull(result, empty)
+}
+
+func (o channelV2MetricsObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePullHint(channelV2PullHintReasonLabel(reason), result, channelV2PullHintErrorLabel(err))
 }
 
 func (o channelV2MetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
@@ -327,6 +336,15 @@ func (o multiChannelV2Observer) ObservePull(result string, empty bool) {
 	}
 }
 
+func (o multiChannelV2Observer) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+	for _, observer := range o {
+		pullHintObserver, ok := observer.(reactor.PullHintResultObserver)
+		if ok {
+			pullHintObserver.ObservePullHintResult(reason, result, err)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	for _, observer := range o {
 		replicationStageObserver, ok := observer.(reactor.ReplicationStageObserver)
@@ -452,12 +470,45 @@ func channelV2RoleLabel(role ch.Role) string {
 	}
 }
 
+func channelV2PullHintReasonLabel(reason transport.PullHintReason) string {
+	switch reason {
+	case transport.PullHintReasonAppend:
+		return "append"
+	case transport.PullHintReasonResume:
+		return "resume"
+	default:
+		return "unknown"
+	}
+}
+
+func channelV2PullHintErrorLabel(err error) string {
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, ch.ErrNotReady):
+		return "not_ready"
+	case errors.Is(err, ch.ErrStaleMeta):
+		return "stale_meta"
+	case errors.Is(err, ch.ErrChannelNotFound):
+		return "channel_not_found"
+	case errors.Is(err, ch.ErrNotLeader):
+		return "not_leader"
+	case errors.Is(err, ch.ErrInvalidConfig):
+		return "invalid_config"
+	case errors.Is(err, ch.ErrClosed):
+		return "closed"
+	default:
+		return "other"
+	}
+}
+
 var _ accessgateway.Observer = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
+var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
@@ -465,6 +516,7 @@ var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
+var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}

@@ -583,13 +583,14 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	factory := newCountingStoreFactory()
 	tr := newTask3PullHintTransport()
 	tr.setDrop(2, true)
+	obs := &pullHintResultObserver{}
 	meta := testMeta("append-pull-hint-retry", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
 	meta.ISR = []ch.NodeID{1}
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
 	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
 	defer pools.Close()
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond, Observer: obs})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 
 	rc := r.channels[meta.Key]
@@ -597,7 +598,9 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 
 	result := appendDirect(t, r, sink, meta, 1, "a")
 	require.NoError(t, result.Err)
+	requirePullHintResult(t, obs.Events(), transport.PullHintReasonAppend, "submitted", nil)
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	requirePullHintResult(t, obs.Events(), transport.PullHintReasonAppend, "err", context.Canceled)
 	require.NotZero(t, rc.lifecycle.followers[2].hint.retryAt)
 	require.False(t, rc.lifecycle.followers[2].hint.inflight)
 	droppedAttempts := tr.pullHintCount(2)
@@ -609,6 +612,8 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return tr.pullHintCount(2) > droppedAttempts
 	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	requirePullHintResult(t, obs.Events(), transport.PullHintReasonResume, "ok", nil)
 }
 
 func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) {
@@ -1334,4 +1339,44 @@ func requireReplicationStage(t *testing.T, events []replicationStageEvent, stage
 		}
 	}
 	t.Fatalf("replication stage %s/%s not observed in %#v", stage, result, events)
+}
+
+type pullHintResultEvent struct {
+	reason transport.PullHintReason
+	result string
+	err    error
+}
+
+type pullHintResultObserver struct {
+	captureObserver
+	mu     sync.Mutex
+	events []pullHintResultEvent
+}
+
+func (o *pullHintResultObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, pullHintResultEvent{reason: reason, result: result, err: err})
+}
+
+func (o *pullHintResultObserver) Events() []pullHintResultEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]pullHintResultEvent(nil), o.events...)
+}
+
+func requirePullHintResult(t *testing.T, events []pullHintResultEvent, reason transport.PullHintReason, result string, wantErr error) {
+	t.Helper()
+	for _, event := range events {
+		if event.reason != reason || event.result != result {
+			continue
+		}
+		if wantErr == nil {
+			require.NoError(t, event.err)
+		} else {
+			require.ErrorIs(t, event.err, wantErr)
+		}
+		return
+	}
+	t.Fatalf("pull hint result %v/%s/%v not observed in %#v", reason, result, wantErr, events)
 }

@@ -90,6 +90,11 @@ leader-side quorum append wait stages: leader stages show when an append becomes
 quorum-covered, while follower stages show which follower step delayed that
 coverage.
 
+Leader-side PullHint result counters split submissions, successful RPC returns,
+and low-cardinality error classes. In 10k-channel runs, compare these counters
+with follower replication stage counts to distinguish slow accepted PullHints
+from missing or failed wakeups that fall back to recovery probes.
+
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.

@@ -155,6 +155,50 @@ wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store
 	}
 }
 
+func TestAnalyzeWukongIMV2PrometheusReportsChannelV2PullHintCounters(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 1
+wukongim_channelv2_pull_hint_total{reason="resume",result="submitted",error="none"} 2
+wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 1
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 1
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="not_ready"} 0
+wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="channel_not_found"} 0
+wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 6
+wukongim_channelv2_pull_hint_total{reason="resume",result="submitted",error="none"} 5
+wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 8
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 3
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="not_ready"} 4
+wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="channel_not_found"} 5
+wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 6
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.ChannelV2PullHintSubmittedCount != 8 {
+		t.Fatalf("submitted = %v, want 8", report.ChannelV2PullHintSubmittedCount)
+	}
+	if report.ChannelV2PullHintOKCount != 7 {
+		t.Fatalf("ok = %v, want 7", report.ChannelV2PullHintOKCount)
+	}
+	if report.ChannelV2PullHintErrCount != 17 {
+		t.Fatalf("err = %v, want 17", report.ChannelV2PullHintErrCount)
+	}
+	if report.ChannelV2PullHintStaleMetaErrCount != 2 || report.ChannelV2PullHintNotReadyErrCount != 4 || report.ChannelV2PullHintChannelNotFoundErrCount != 5 || report.ChannelV2PullHintOtherErrCount != 6 {
+		t.Fatalf("error breakdown not parsed: %+v", report)
+	}
+	if report.Classification != WukongIMV2BottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	}
+}
+
 func TestAnalyzeWukongIMV2PrometheusClassifiesChannelV2Pressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0

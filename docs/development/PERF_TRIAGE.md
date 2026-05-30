@@ -109,7 +109,15 @@ use `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
 `channelv2_replication_follower_pull_rpc_p99_seconds`,
 `channelv2_replication_follower_store_apply_p99_seconds`, and
 `channelv2_replication_follower_apply_to_ack_return_p99_seconds` to localize
-the follower-side step that delayed quorum coverage.
+the follower-side step that delayed quorum coverage. If those accepted PullHint
+stage counts are much lower than follower apply counts, check
+`channelv2_pull_hint_submitted_count`, `channelv2_pull_hint_ok_count`,
+`channelv2_pull_hint_err_count`, and the stable error-class counters such as
+`channelv2_pull_hint_stale_meta_err_count`,
+`channelv2_pull_hint_channel_not_found_err_count`,
+`channelv2_pull_hint_not_ready_err_count`, and
+`channelv2_pull_hint_other_err_count` before assuming the accepted PullHint hot
+path is slow.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -306,6 +314,7 @@ ChannelV2 append pressure:
 sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
 sum by (pool) (wukongim_channelv2_worker_queue_depth)
 sum by (result) (rate(wukongim_channelv2_rpc_pull_total[1m]))
+sum by (reason, result, error) (rate(wukongim_channelv2_pull_hint_total[1m]))
 histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelv2_append_stage_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, stage, commit_mode, result) (rate(wukongim_channelv2_append_wait_stage_duration_seconds_bucket[1m])))
@@ -348,6 +357,7 @@ Interpretation matrix:
 | `channelv2_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
 | `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, follower message DB commit latency |
 | `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower AckOffset return wait | immediate next pull scheduling, pull RPC back to leader, leader ack response path |
+| `channelv2_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |

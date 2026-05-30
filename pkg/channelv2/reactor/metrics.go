@@ -61,6 +61,11 @@ type LifecycleObserver interface {
 	ObservePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error)
 }
 
+// PullHintResultObserver receives optional leader PullHint result counters.
+type PullHintResultObserver interface {
+	ObservePullHintResult(reason transport.PullHintReason, result string, err error)
+}
+
 // FollowerLifecycleObserver receives optional follower lifecycle events without
 // requiring existing lifecycle observers to grow new methods.
 type FollowerLifecycleObserver interface {
@@ -296,6 +301,12 @@ func (r *Reactor) observePullHintSent(key ch.ChannelKey, follower ch.NodeID, rea
 func (r *Reactor) observePullHintDropped(key ch.ChannelKey, follower ch.NodeID, err error) {
 	if observer, ok := r.cfg.Observer.(LifecycleObserver); ok {
 		observer.ObservePullHintDropped(key, follower, err)
+	}
+}
+
+func (r *Reactor) observePullHintResult(reason transport.PullHintReason, result string, err error) {
+	if observer, ok := r.cfg.Observer.(PullHintResultObserver); ok {
+		observer.ObservePullHintResult(reason, result, err)
 	}
 }
 

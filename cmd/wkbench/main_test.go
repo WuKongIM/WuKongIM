@@ -376,6 +376,45 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	}
 }
 
+func TestMetricsClassifyReportsChannelV2PullHintCounters(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	if err := os.WriteFile(before, []byte(`
+wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 1
+wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 1
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 1
+`), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(`
+wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 4
+wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 3
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 5
+`), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_submitted_count: 3") {
+		t.Fatalf("expected PullHint submitted count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_ok_count: 2") {
+		t.Fatalf("expected PullHint ok count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_err_count: 4") {
+		t.Fatalf("expected PullHint err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_stale_meta_err_count: 4") {
+		t.Fatalf("expected PullHint stale meta err count in output, got %q", stderr.String())
+	}
+}
+
 func TestMetricsClassifyReportsControllerRaftStepPressureFromPrometheusSnapshots(t *testing.T) {
 	dir := t.TempDir()
 	before := filepath.Join(dir, "before.prom")

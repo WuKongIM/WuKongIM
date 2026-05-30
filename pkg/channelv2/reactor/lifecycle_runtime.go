@@ -144,11 +144,13 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 	if err := r.submitPullHint(context.Background(), node, fence, req); err != nil {
 		follower.hint.inflight = false
 		follower.hint.retryAt = now.Add(r.cfg.PullHintRetryInterval)
+		r.observePullHintResult(reason, "err", err)
 		r.observePullHintDropped(rc.state.Key, node, err)
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
 	rc.lifecycle.beginPullHint(node, opID, version, reason)
+	r.observePullHintResult(reason, "submitted", nil)
 	r.observePullHintSent(rc.state.Key, node, reason)
 }
 
@@ -176,10 +178,12 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 	}
 	now := time.Now()
 	if result.Err == nil {
+		r.observePullHintResult(inflight.reason, "ok", nil)
 		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
+	r.observePullHintResult(inflight.reason, "err", result.Err)
 	r.observePullHintDropped(rc.state.Key, inflight.follower, result.Err)
 	if rc.lifecycle.followerNeedsImmediateProgress(inflight.follower, rc.state.LEO) {
 		follower.pendingHintVersion = rc.lifecycle.version

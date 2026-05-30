@@ -203,7 +203,13 @@ breakdown is reported as
 `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
 `channelv2_replication_follower_pull_rpc_p99_seconds`,
 `channelv2_replication_follower_store_apply_p99_seconds`, and
-`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. Use them to separate control-plane
+`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. PullHint
+result counters are reported as `channelv2_pull_hint_submitted_count`,
+`channelv2_pull_hint_ok_count`, `channelv2_pull_hint_err_count`, and the stable
+error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
+`channelv2_pull_hint_channel_not_found_err_count`,
+`channelv2_pull_hint_not_ready_err_count`, and
+`channelv2_pull_hint_other_err_count`. Use them to separate control-plane
 Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
 metadata local vs forwarded proposals, Slot metadata proposal submit, Slot
 metadata proposal wait, Slot scheduler/control wait, Raft commit wait, FSM apply,
@@ -211,7 +217,7 @@ FSM Pebble commit, MarkApplied persistence, final rereads, runtime create/apply,
 append admission, reactor mailbox submit, append future wait, and append
 batching behavior, durable append wait, post-store local/quorum commit wait, and
 the follower pull/AckOffset/HW/final-completion split plus the follower-side
-hint/pull/apply/ack-return split
+hint/pull/apply/ack-return split and PullHint result/error structure
 before looking at pprof.
 
 ## Compose Development Simulator

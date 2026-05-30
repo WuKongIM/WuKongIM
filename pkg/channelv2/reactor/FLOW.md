@@ -152,6 +152,12 @@ measures accepted PullHint wakeup through pull RPC submission,
 and `follower_apply_to_ack_return` measures successful apply through the return
 of the next pull carrying the new `AckOffset`.
 
+Leader PullHint result counters use `wukongim_channelv2_pull_hint_total` with
+low-cardinality `reason/result/error` labels. `submitted` counts accepted worker
+submissions, `ok` counts completed PullHint RPCs, and `err` is classified by
+stable error classes such as `stale_meta`, `channel_not_found`, `not_ready`, and
+`other`.
+
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the

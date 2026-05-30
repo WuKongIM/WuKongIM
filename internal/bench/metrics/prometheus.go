@@ -92,6 +92,16 @@ type WukongIMV2Attribution struct {
 	ChannelV2ReplicationPullRPCP99Seconds           float64
 	ChannelV2ReplicationStoreApplyP99Seconds        float64
 	ChannelV2ReplicationApplyToAckReturnP99Seconds  float64
+	ChannelV2PullHintSubmittedCount                 float64
+	ChannelV2PullHintOKCount                        float64
+	ChannelV2PullHintErrCount                       float64
+	ChannelV2PullHintStaleMetaErrCount              float64
+	ChannelV2PullHintChannelNotFoundErrCount        float64
+	ChannelV2PullHintNotReadyErrCount               float64
+	ChannelV2PullHintNotLeaderErrCount              float64
+	ChannelV2PullHintInvalidConfigErrCount          float64
+	ChannelV2PullHintClosedErrCount                 float64
+	ChannelV2PullHintOtherErrCount                  float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -271,6 +281,16 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2ReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
 	report.ChannelV2ReplicationStoreApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_store_apply"})
 	report.ChannelV2ReplicationApplyToAckReturnP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_apply_to_ack_return"})
+	report.ChannelV2PullHintSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "submitted"})
+	report.ChannelV2PullHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "ok"})
+	report.ChannelV2PullHintErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err"})
+	report.ChannelV2PullHintStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelV2PullHintChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelV2PullHintNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelV2PullHintNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_leader"})
+	report.ChannelV2PullHintInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "invalid_config"})
+	report.ChannelV2PullHintClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "closed"})
+	report.ChannelV2PullHintOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "other"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -440,6 +460,31 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower apply-to-AckOffset-return p99 is high")
 	}
+	if report.ChannelV2PullHintErrCount > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint errors were observed")
+	}
+	if report.ChannelV2PullHintStaleMetaErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint stale_meta errors were observed")
+	}
+	if report.ChannelV2PullHintChannelNotFoundErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint channel_not_found errors were observed")
+	}
+	if report.ChannelV2PullHintNotReadyErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint not_ready errors were observed")
+	}
+	if report.ChannelV2PullHintNotLeaderErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint not_leader errors were observed")
+	}
+	if report.ChannelV2PullHintInvalidConfigErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint invalid_config errors were observed")
+	}
+	if report.ChannelV2PullHintClosedErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint closed errors were observed")
+	}
+	if report.ChannelV2PullHintOtherErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint other errors were observed")
+	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 worker task p99 is high")
@@ -512,6 +557,35 @@ func histogramCountDeltaMatching(before, after PrometheusSnapshot, family string
 		delta = 0
 	}
 	return delta, true
+}
+
+func counterDeltaMatching(before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {
+	beforeValue, _ := before.counterValueMatching(family, labels)
+	afterValue, ok := after.counterValueMatching(family, labels)
+	if !ok {
+		return 0, false
+	}
+	delta := afterValue - beforeValue
+	if delta < 0 {
+		delta = 0
+	}
+	return delta, true
+}
+
+func (s PrometheusSnapshot) counterValueMatching(family string, labels map[string]string) (float64, bool) {
+	found := false
+	var total float64
+	for _, sample := range s.Samples {
+		if sample.Name != family {
+			continue
+		}
+		if !prometheusLabelsMatch(sample.Labels, labels) {
+			continue
+		}
+		total += sample.Value
+		found = true
+	}
+	return total, found
 }
 
 func histogramQuantileDeltaMatching(q float64, before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {

@@ -19,6 +19,7 @@ type ChannelV2Metrics struct {
 	followerParked           *prometheus.GaugeVec
 	recoveryProbeTotal       *prometheus.CounterVec
 	pullTotal                *prometheus.CounterVec
+	pullHintTotal            *prometheus.CounterVec
 	metaCacheTotal           *prometheus.CounterVec
 	appendBatchRecords       prometheus.Histogram
 	appendBatchBytes         prometheus.Histogram
@@ -68,6 +69,11 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total ChannelV2 follower pulls by result and empty response status.",
 			ConstLabels: labels,
 		}, []string{"result", "empty"}),
+		pullHintTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_pull_hint_total",
+			Help:        "Total ChannelV2 pull hints by reason, result, and low-cardinality error class.",
+			ConstLabels: labels,
+		}, []string{"reason", "result", "error"}),
 		metaCacheTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_meta_cache_total",
 			Help:        "Total ChannelV2 metadata cache events by result.",
@@ -136,6 +142,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.followerParked,
 		m.recoveryProbeTotal,
 		m.pullTotal,
+		m.pullHintTotal,
 		m.metaCacheTotal,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
@@ -198,6 +205,13 @@ func (m *ChannelV2Metrics) ObservePull(result string, empty bool) {
 		return
 	}
 	m.pullTotal.WithLabelValues(result, strconv.FormatBool(empty)).Inc()
+}
+
+func (m *ChannelV2Metrics) ObservePullHint(reason string, result string, errorClass string) {
+	if m == nil {
+		return
+	}
+	m.pullHintTotal.WithLabelValues(reason, result, errorClass).Inc()
 }
 
 func (m *ChannelV2Metrics) ObserveMetaCache(result string) {
