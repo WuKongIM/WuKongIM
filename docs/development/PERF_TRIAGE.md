@@ -52,12 +52,15 @@ defaults to a 10,000-group-channel cardinality run, enables metrics and pprof,
 and stores evidence under
 `docs/development/perf-runs/<timestamp>-three-node-activate-10kch/`. It records
 node configs, startup plan, logs, before/after Prometheus snapshots,
-goroutine/heap pprof data, the wkbench activation report, console output, and a
-top-level `summary.md`. The default online user pool is intentionally smaller
-than the channel count; raise `--users` and `--connect-rate` only when the
-experiment intentionally adds gateway connection pressure. The default
-`--stable-p99 2s` is a cold-activation guardrail; pass a stricter value such as
-`200ms` when validating a latency SLA.
+goroutine/heap pprof data, server process CPU/memory samples under
+`resources/`, the wkbench activation report, console output, and a top-level
+`summary.md`. The server resource sampler writes
+`resources/server-process.jsonl` plus `resources/server-process-summary.tsv`;
+use `--resource-interval 0` to keep only before/after samples. The default
+online user pool is intentionally smaller than the channel count; raise
+`--users` and `--connect-rate` only when the experiment intentionally adds
+gateway connection pressure. The default `--stable-p99 2s` is a cold-activation
+guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 

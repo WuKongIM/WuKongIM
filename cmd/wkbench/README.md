@@ -158,6 +158,11 @@ intentionally includes gateway connection pressure. Tighten `--stable-p99`, for
 example to `200ms`, when the run is meant to prove a strict cold-activation
 latency SLA rather than live-channel cardinality.
 
+For local `cmd/wukongimv2` three-node runs, prefer
+`scripts/bench-wukongimv2-three-nodes-10kch.sh`. It wraps this command and
+collects node logs, Prometheus snapshots, pprof, and server process CPU/memory
+samples under `resources/`.
+
 ## Compose Development Simulator
 
 The Docker Compose development cluster can start an optional simulator service named `wk-sim`:

@@ -10,37 +10,78 @@ import (
 
 func TestWukongIMV2ThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 	root := repoRoot(t)
-	callsDir := t.TempDir()
-	baseScript := filepath.Join(t.TempDir(), "bench-base.sh")
-	writeFakeBenchBase(t, baseScript, callsDir)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-10kch.sh"))
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh", "--no-start", "--qps", "100")
+	for _, want := range []string{
+		`CHANNELS="${WK_BENCH_ACTIVATE_CHANNELS:-10000}"`,
+		`USERS="${WK_BENCH_ACTIVATE_USERS:-1000}"`,
+		`CONNECT_RATE="${WK_BENCH_ACTIVATE_CONNECT_RATE:-500}"`,
+		`ACTIVATION_WINDOW="${WK_BENCH_ACTIVATE_WINDOW:-120s}"`,
+		`STABLE_P99="${WK_BENCH_ACTIVATE_STABLE_P99:-2s}"`,
+		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("10k activate script missing default %q", want)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodeActivateScriptCollectsServerProcessResources(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--channels", "10",
+		"--users", "10",
+		"--activation-window", "1s",
+		"--hold", "0s",
+	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
-		"WK_BENCH_THREE_NODE_BASE_SCRIPT="+baseScript,
-		"WK_BENCH_THREE_NODE_TIMESTAMP=20260530-010203",
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_RESOURCE_SAMPLE_INTERVAL=0",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, output)
 	}
 
-	env := readFile(t, filepath.Join(callsDir, "env.txt"))
+	samples := readFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
 	for _, want := range []string{
-		"WK_BENCH_CHANNELS=10000",
-		"WK_BENCH_THREE_NODE_OUT_DIR=" + filepath.Join(root, "docs/development/perf-runs/20260530-010203-three-node-10kch"),
-		"WK_CLUSTER_MAX_CHANNELS=12000",
-		"WK_PPROF_ENABLE=true",
-		"WK_BENCH_PROFILE_SECONDS=10",
+		`"node":"node1"`,
+		`"pid":111`,
+		`"cpu_percent":12.500`,
+		`"rss_kb":123456`,
+		`"phase":"before"`,
+		`"phase":"after"`,
 	} {
-		if !strings.Contains(env, want) {
-			t.Fatalf("10k bench env missing %q:\n%s", want, env)
+		if !strings.Contains(samples, want) {
+			t.Fatalf("resource samples missing %q:\n%s", want, samples)
 		}
 	}
-
-	args := readFile(t, filepath.Join(callsDir, "args.txt"))
-	if !strings.Contains(args, "--no-start --qps 100") {
-		t.Fatalf("wrapper should pass through args, got:\n%s", args)
+	summary := readFile(t, filepath.Join(outDir, "resources", "server-process-summary.tsv"))
+	for _, want := range []string{
+		"node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb",
+		"node1\t111\t2\t12.500\t12.500\t1.200\t1.200\t123456\t789000",
+		"node2\t222\t2\t25.000\t25.000\t2.300\t2.300\t234567\t890000",
+		"node3\t333\t2\t3.500\t3.500\t0.700\t0.700\t345678\t901000",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("resource summary missing %q:\n%s", want, summary)
+		}
+	}
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	if !strings.Contains(topSummary, "- resources: resources/") {
+		t.Fatalf("top-level summary should point to resources evidence:\n%s", topSummary)
 	}
 }
 
@@ -161,6 +202,112 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/args.txt"
 env | LC_ALL=C sort | grep -E '^(WK_BENCH_|WK_CLUSTER_|WK_PPROF_)' > "` + callsDir + `/env.txt"
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeActivateWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
+report_dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --report-dir)
+      report_dir="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -n "$report_dir" ]]; then
+  mkdir -p "$report_dir"
+  echo '{"status":"passed"}' > "$report_dir/activation_report.json"
+  echo '# fake summary' > "$report_dir/summary.md"
+fi
+echo 'wkbench activate-channels'
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeActivateCurl(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/curl.calls"
+url="${@: -1}"
+case "$url" in
+  http://127.0.0.1:501*/readyz)
+    echo 'ok'
+    ;;
+  http://127.0.0.1:501*/metrics)
+    echo 'metric 1'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
+    echo 'goroutine profile'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/heap)
+    echo 'heap profile'
+    ;;
+  *)
+    echo "unexpected curl url: $url" >&2
+    exit 2
+    ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeActivatePgrep(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/pgrep.calls"
+case "$*" in
+  *wukongimv2-node1.conf*) echo 111 ;;
+  *wukongimv2-node2.conf*) echo 222 ;;
+  *wukongimv2-node3.conf*) echo 333 ;;
+  *) exit 1 ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeActivatePS(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/ps.calls"
+pid=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-p" ]]; then
+    pid="$2"
+    shift 2
+    continue
+  fi
+  shift
+done
+case "$pid" in
+  111) echo ' 12.5  1.2 123456 789000 00:10 /tmp/wukongimv2-node1' ;;
+  222) echo ' 25.0  2.3 234567 890000 00:20 /tmp/wukongimv2-node2' ;;
+  333) echo '  3.5  0.7 345678 901000 00:30 /tmp/wukongimv2-node3' ;;
+  *) exit 1 ;;
+esac
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

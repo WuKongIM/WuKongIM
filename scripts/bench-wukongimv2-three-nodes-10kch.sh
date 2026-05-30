@@ -25,8 +25,10 @@ PROBE_BATCH_SIZE="${WK_BENCH_ACTIVATE_PROBE_BATCH_SIZE:-1000}"
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
 METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"
+RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
 
 CLUSTER_PID=""
+RESOURCE_SAMPLER_PID=""
 
 usage() {
   cat <<'USAGE'
@@ -58,6 +60,7 @@ Options:
   --api LIST                  Comma-separated API base URLs.
   --gateway LIST              Comma-separated WKProto gateway addresses.
   --metrics LIST              Comma-separated metrics base URLs. Default: same as --api.
+  --resource-interval SECS    Server process CPU/memory sample interval. 0 disables periodic sampling. Default: 1.
   -h, --help                  Show this help.
 USAGE
 }
@@ -196,6 +199,11 @@ while [[ $# -gt 0 ]]; do
       METRICS_ADDRS="$2"
       shift 2
       ;;
+    --resource-interval)
+      [[ $# -ge 2 ]] || die '--resource-interval requires a value'
+      RESOURCE_SAMPLE_INTERVAL="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -214,6 +222,7 @@ require_positive_int '--probe-batch-size' "$PROBE_BATCH_SIZE"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_nonnegative_number '--prepare-rate' "$PREPARE_RATE"
 require_nonnegative_number '--connect-rate' "$CONNECT_RATE"
+require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
 
 declare -a API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$API_ADDRS" API_VALUES
@@ -221,6 +230,7 @@ split_csv "$GATEWAY_ADDRS" GATEWAY_VALUES
 split_csv "$METRICS_ADDRS" METRICS_VALUES
 
 cleanup() {
+  stop_server_resource_sampler
   if [[ -n "$CLUSTER_PID" ]]; then
     log "stopping three-node cluster pid=$CLUSTER_PID"
     kill "$CLUSTER_PID" >/dev/null 2>&1 || true
@@ -330,6 +340,169 @@ collect_node_logs() {
   fi
 }
 
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+server_pid_from_log() {
+  local node="$1"
+  local log_file="$OUT_DIR/cluster-start.log"
+  [[ -f "$log_file" ]] || return 1
+  awk -v node="node${node}" '
+    index($0, node " pid=") {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^pid=/) {
+          sub(/^pid=/, "", $i)
+          pid = $i
+        }
+      }
+    }
+    END {
+      if (pid != "") {
+        print pid
+      }
+    }
+  ' "$log_file"
+}
+
+server_pid_from_process_table() {
+  local node="$1"
+  local config="$ROOT_DIR/scripts/wukongimv2/wukongimv2-node${node}.conf"
+  pgrep -f "$config" 2>/dev/null | head -n 1 || true
+}
+
+server_pid_for_node() {
+  local node="$1"
+  local pid
+  pid="$(server_pid_from_log "$node" || true)"
+  if [[ -z "$pid" ]]; then
+    pid="$(server_pid_from_process_table "$node")"
+  fi
+  printf '%s' "$pid"
+}
+
+write_resource_error_sample() {
+  local phase="$1"
+  local node_name="$2"
+  local reason="$3"
+  local ts
+  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  mkdir -p "$OUT_DIR/resources"
+  printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":null,"error":"%s"}\n' \
+    "$ts" "$phase" "$node_name" "$(json_escape "$reason")" >>"$OUT_DIR/resources/server-process.jsonl"
+}
+
+sample_server_resources() {
+  local phase="$1"
+  local ts node node_name pid line cpu mem rss vsz elapsed command
+  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  mkdir -p "$OUT_DIR/resources"
+  for node in 1 2 3; do
+    node_name="node${node}"
+    pid="$(server_pid_for_node "$node")"
+    if [[ -z "$pid" ]]; then
+      write_resource_error_sample "$phase" "$node_name" "pid_not_found"
+      continue
+    fi
+    line="$(ps -p "$pid" -o pcpu= -o pmem= -o rss= -o vsz= -o etime= -o comm= 2>/dev/null || true)"
+    if [[ -z "${line//[[:space:]]/}" ]]; then
+      write_resource_error_sample "$phase" "$node_name" "ps_sample_unavailable"
+      continue
+    fi
+    read -r cpu mem rss vsz elapsed command <<<"$line"
+    printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":%s,"cpu_percent":%.3f,"mem_percent":%.3f,"rss_kb":%s,"vsz_kb":%s,"elapsed":"%s","command":"%s"}\n' \
+      "$ts" "$phase" "$node_name" "$pid" "$cpu" "$mem" "$rss" "$vsz" "$elapsed" "$(json_escape "$command")" \
+      >>"$OUT_DIR/resources/server-process.jsonl"
+  done
+}
+
+resource_periodic_sampling_enabled() {
+  awk -v interval="$RESOURCE_SAMPLE_INTERVAL" 'BEGIN { exit !(interval > 0) }'
+}
+
+start_server_resource_sampler() {
+  sample_server_resources before
+  if ! resource_periodic_sampling_enabled; then
+    return
+  fi
+  (
+    while true; do
+      sleep "$RESOURCE_SAMPLE_INTERVAL"
+      sample_server_resources interval
+    done
+  ) &
+  RESOURCE_SAMPLER_PID="$!"
+}
+
+stop_server_resource_sampler() {
+  if [[ -n "$RESOURCE_SAMPLER_PID" ]]; then
+    kill "$RESOURCE_SAMPLER_PID" >/dev/null 2>&1 || true
+    wait "$RESOURCE_SAMPLER_PID" 2>/dev/null || true
+    RESOURCE_SAMPLER_PID=""
+  fi
+}
+
+write_server_resource_summary() {
+  local samples="$OUT_DIR/resources/server-process.jsonl"
+  local summary="$OUT_DIR/resources/server-process-summary.tsv"
+  mkdir -p "$OUT_DIR/resources"
+  awk '
+    function json_number(key, line, pattern, rest) {
+      pattern = "\"" key "\":"
+      pos = index(line, pattern)
+      if (pos == 0) return ""
+      rest = substr(line, pos + length(pattern))
+      sub(/[,}].*/, "", rest)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", rest)
+      return rest
+    }
+    function json_string(key, line, pattern, rest) {
+      pattern = "\"" key "\":\""
+      pos = index(line, pattern)
+      if (pos == 0) return ""
+      rest = substr(line, pos + length(pattern))
+      sub(/".*/, "", rest)
+      return rest
+    }
+    BEGIN {
+      print "node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb"
+    }
+    {
+      node = json_string("node", $0)
+      pid = json_number("pid", $0)
+      if (node == "" || pid == "" || pid == "null") next
+      cpu = json_number("cpu_percent", $0) + 0
+      mem = json_number("mem_percent", $0) + 0
+      rss = json_number("rss_kb", $0) + 0
+      vsz = json_number("vsz_kb", $0) + 0
+      samples[node]++
+      last_pid[node] = pid
+      cpu_sum[node] += cpu
+      mem_sum[node] += mem
+      if (samples[node] == 1 || cpu > cpu_max[node]) cpu_max[node] = cpu
+      if (samples[node] == 1 || mem > mem_max[node]) mem_max[node] = mem
+      if (samples[node] == 1 || rss > rss_max[node]) rss_max[node] = rss
+      if (samples[node] == 1 || vsz > vsz_max[node]) vsz_max[node] = vsz
+    }
+    END {
+      for (i = 1; i <= 3; i++) {
+        node = "node" i
+        if (samples[node] == 0) continue
+        printf "%s\t%s\t%d\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+          node,
+          last_pid[node],
+          samples[node],
+          cpu_sum[node] / samples[node],
+          cpu_max[node],
+          mem_sum[node] / samples[node],
+          mem_max[node],
+          rss_max[node],
+          vsz_max[node]
+      }
+    }
+  ' "$samples" >"$summary"
+}
+
 write_metadata() {
   mkdir -p "$OUT_DIR/config"
   {
@@ -352,6 +525,7 @@ EVICT_AFTER=$EVICT_AFTER
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS
+RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
 START_SCRIPT=$START_SCRIPT
@@ -385,6 +559,7 @@ write_summary() {
 - config: config/
 - metrics: metrics/
 - pprof: pprof/
+- resources: resources/
 - logs: logs/
 - report: report/
 - console: wkbench-console.txt
@@ -434,10 +609,14 @@ main() {
   collect_node_logs before
   scrape_metrics before
   capture_pprof before
+  start_server_resource_sampler
 
   local status=0
   run_activation || status=$?
 
+  stop_server_resource_sampler
+  sample_server_resources after
+  write_server_resource_summary
   scrape_metrics after
   capture_pprof after
   collect_node_logs after
