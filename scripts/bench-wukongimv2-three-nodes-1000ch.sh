@@ -24,6 +24,7 @@ DURATION="${WK_BENCH_DURATION:-15s}"
 WARMUP="${WK_BENCH_WARMUP:-5s}"
 COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
+PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -55,6 +56,7 @@ Options:
   --warmup DURATION      Warmup duration. Default: 5s.
   --cooldown DURATION    Cooldown duration. Default: 2s.
   --stable-p99 DURATION  Soft p99 gate written into scenarios. Default: 400ms.
+  --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
@@ -186,6 +188,11 @@ while [[ $# -gt 0 ]]; do
       STABLE_P99="$2"
       shift 2
       ;;
+    --profile-seconds)
+      [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
+      PROFILE_SECONDS="$2"
+      shift 2
+      ;;
     --api)
       [[ $# -ge 2 ]] || die '--api requires a value'
       API_ADDRS="$2"
@@ -216,6 +223,7 @@ require_positive_int '--users' "$USERS"
 require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
+[[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
@@ -503,6 +511,42 @@ scrape_metrics() {
   done
 }
 
+scrape_metrics_snapshot() {
+  local phase="$1"
+  local metrics_dir="$OUT_DIR/metrics/cluster"
+  mkdir -p "$metrics_dir"
+  local addr id
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    curl -fsS "${addr%/}/metrics" >"$metrics_dir/${id}-${phase}.prom" || true
+  done
+}
+
+collect_node_logs() {
+  local phase="$1"
+  local dest="$OUT_DIR/logs/$phase"
+  mkdir -p "$dest"
+  cp "$ROOT_DIR"/data/wukongimv2-three-node-logs/node*.log "$dest/" 2>/dev/null || true
+  if [[ -f "$OUT_DIR/cluster-start.log" ]]; then
+    cp "$OUT_DIR/cluster-start.log" "$dest/cluster-start.log" 2>/dev/null || true
+  fi
+}
+
+capture_node_pprof() {
+  local phase="$1"
+  local pprof_dir="$OUT_DIR/pprof/$phase"
+  mkdir -p "$pprof_dir"
+  local addr id
+  for addr in "${API_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    curl -fsS "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
+    curl -fsS "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
+    if (( PROFILE_SECONDS > 0 )); then
+      curl -fsS "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true
+    fi
+  done
+}
+
 classify_metrics() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -616,8 +660,16 @@ START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
 START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
+PROFILE_SECONDS=$PROFILE_SECONDS
 EOF
-  cp "$ROOT_DIR"/data/wukongimv2-three-node-logs/node*.log "$OUT_DIR/logs/" 2>/dev/null || true
+  mkdir -p "$OUT_DIR/config"
+  cp "$ROOT_DIR"/scripts/wukongimv2/wukongimv2-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
+  if [[ -x "$START_SCRIPT" ]]; then
+    "$START_SCRIPT" --dry-run >"$OUT_DIR/start-plan.txt" 2>&1 || true
+  fi
+  collect_node_logs before
+  scrape_metrics_snapshot before
+  capture_node_pprof before
 }
 
 write_display_summary() {
@@ -691,12 +743,45 @@ write_display_summary() {
 
 print_summary() {
   write_display_summary
+  write_evidence_summary
   cat "$OUT_DIR/summary.txt"
   log "details:"
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
   printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
   printf '  metrics: %s\n' "$OUT_DIR/metrics"
+}
+
+write_evidence_summary() {
+  local best_line
+  best_line="$(tail -n 1 "$OUT_DIR/summary.txt" 2>/dev/null || true)"
+  cat >"$OUT_DIR/summary.md" <<EOF
+# Three-Node Bench Evidence
+
+## Scenario
+- workload: local wukongimv2 three-node wkbench group channels
+- channels: $CHANNELS
+- users: $USERS
+- group_members: $GROUP_MEMBERS
+- qps_list: $QPS_LIST
+- duration: $DURATION
+- clean_cluster: $CLEAN_CLUSTER
+
+## Evidence
+- git: git.txt
+- env: env.txt
+- start_plan: start-plan.txt
+- config: config/
+- metrics: metrics/
+- pprof: pprof/
+- logs: logs/
+- reports: reports/
+- rpc_pull: rpc_pull_qps.tsv
+- summary_tsv: summary.tsv
+
+## Result
+${best_line:-best pass: none}
+EOF
 }
 
 main() {
@@ -723,6 +808,9 @@ EOF
     run_attempt "$qps"
   done
 
+  collect_node_logs after
+  scrape_metrics_snapshot after
+  capture_node_pprof after
   print_summary
 }
 

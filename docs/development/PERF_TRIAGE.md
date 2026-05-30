@@ -40,6 +40,19 @@ Useful options:
 The script writes evidence first, then exits non-zero if final `/status` is not healthy or reports send/recv errors.
 The sampled `/status` timeline now includes both the configured steady-state online pool (`connected_users`) and the latest live online count (`active_users`), plus reconnect churn (`reconnected_users`) when the simulator repairs sessions.
 
+For `cmd/wukongimv2` local three-node ChannelV2 capacity runs, do not use the
+Compose dev-sim path. Use the local startup script wrapper:
+
+```bash
+scripts/bench-wukongimv2-three-nodes-10kch.sh
+```
+
+This wrapper starts nodes through `scripts/start-wukongimv2-three-nodes.sh`,
+defaults to 10,000 group channels, enables metrics and pprof, and stores
+evidence under `docs/development/perf-runs/<timestamp>-three-node-10kch/`.
+It records node configs, startup plan, logs, Prometheus snapshots, pprof
+goroutine/heap/CPU data, wkbench reports, and `summary.md`.
+
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
 - `logs/app/`: copied from node `app.log`.
