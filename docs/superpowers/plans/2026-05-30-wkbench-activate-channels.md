@@ -14,16 +14,19 @@
 
 Execute these in order. Each phase is intentionally small enough to review and commit on its own.
 
-1. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-01-api-contract.md`  
+1. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-01-api-contract.md`
    Shared JSON DTOs, target client methods, and internalv2 bench HTTP handlers with fake runtime controllers.
 
-2. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-02-runtime.md`  
-   ChannelV2 reactor/service snapshot, probe, and evict support; clusterv2 public facade; app adapter wiring.
+2. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-02-channelv2-runtime.md`
+   ChannelV2 root DTOs plus reactor/service snapshot, probe, and evict support.
 
-3. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-03-runner.md`  
+3. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-03-runtime-wiring.md`
+   clusterv2 public facade, internalv2 infra adapter, and app API wiring.
+
+4. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-04-runner.md`
    `internal/bench/capacity` activation config, scenario builder, runner, runtime evaluation, JSON/Markdown reports.
 
-4. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-04-cli-scripts.md`  
+5. `docs/superpowers/plans/2026-05-30-wkbench-activate-channels-05-cli-scripts.md`
    `cmd/wkbench capacity activate-channels`, local non-Compose three-node wrapper, docs, and final verification.
 
 ## Scope
