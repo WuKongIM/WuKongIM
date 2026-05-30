@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,6 +79,42 @@ func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, erro
 	return out, nil
 }
 
+// ChannelRuntimeSnapshots reads local runtime snapshots from every target API address.
+func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.ChannelRuntimeQuery) ([]model.ChannelRuntimeSnapshot, error) {
+	addrs := c.addrs()
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no target api addresses configured")
+	}
+	path := "/bench/v1/channel-runtime/snapshot" + channelRuntimeQueryString(query)
+	snapshots := make([]model.ChannelRuntimeSnapshot, 0, len(addrs))
+	for _, addr := range addrs {
+		var out model.ChannelRuntimeSnapshot
+		if err := c.doJSON(ctx, http.MethodGet, addr, path, nil, &out); err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, out)
+	}
+	return snapshots, nil
+}
+
+// ProbeChannelRuntime posts a bounded local runtime probe request.
+func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRuntimeProbeRequest) (model.ChannelRuntimeProbeResult, error) {
+	var out model.ChannelRuntimeProbeResult
+	if err := c.postAnyOut(ctx, "/bench/v1/channel-runtime/probe", req, &out); err != nil {
+		return model.ChannelRuntimeProbeResult{}, err
+	}
+	return out, nil
+}
+
+// EvictChannelRuntime posts a bounded local runtime eviction request.
+func (c *Client) EvictChannelRuntime(ctx context.Context, req model.ChannelRuntimeEvictRequest) (model.ChannelRuntimeEvictResult, error) {
+	var out model.ChannelRuntimeEvictResult
+	if err := c.postAnyOut(ctx, "/bench/v1/channel-runtime/evict", req, &out); err != nil {
+		return model.ChannelRuntimeEvictResult{}, err
+	}
+	return out, nil
+}
+
 // UpsertTokens posts a spec-shaped batch user token request.
 func (c *Client) UpsertTokens(ctx context.Context, req model.BatchTokensRequest) error {
 	return c.postAny(ctx, "/bench/v1/users/tokens", req)
@@ -109,13 +147,17 @@ func (c *Client) getAny(ctx context.Context, path string, out any) error {
 }
 
 func (c *Client) postAny(ctx context.Context, path string, body any) error {
+	return c.postAnyOut(ctx, path, body, nil)
+}
+
+func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
 		return fmt.Errorf("no target api addresses configured")
 	}
 	var errs []string
 	for _, addr := range addrs {
-		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, nil); err != nil {
+		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, out); err != nil {
 			errs = append(errs, err.Error())
 			continue
 		}
@@ -183,4 +225,27 @@ func statusError(method, url string, resp *http.Response) error {
 
 func joinURL(base, path string) string {
 	return strings.TrimRight(base, "/") + path
+}
+
+func channelRuntimeQueryString(query model.ChannelRuntimeQuery) string {
+	parts := make([]string, 0, 5)
+	if query.RunID != "" {
+		parts = append(parts, "run_id="+url.QueryEscape(query.RunID))
+	}
+	if query.Profile != "" {
+		parts = append(parts, "profile="+url.QueryEscape(query.Profile))
+	}
+	if query.ChannelType != 0 {
+		parts = append(parts, "channel_type="+strconv.Itoa(int(query.ChannelType)))
+	}
+	if query.Range.Start != 0 {
+		parts = append(parts, "start="+strconv.Itoa(query.Range.Start))
+	}
+	if query.Range.End != 0 {
+		parts = append(parts, "end="+strconv.Itoa(query.Range.End))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "?" + strings.Join(parts, "&")
 }

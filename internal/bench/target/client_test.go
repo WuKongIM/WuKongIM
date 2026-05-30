@@ -71,6 +71,84 @@ func TestClientCapacityTargetFallsBackAcrossAPIAddresses(t *testing.T) {
 	require.Equal(t, "127.0.0.1:15101", got.Gateway.TCPAddr)
 }
 
+func TestClientChannelRuntimeSnapshotsCallsEveryTarget(t *testing.T) {
+	seen := make([]string, 0, 2)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
+		require.Equal(t, "run-a", r.URL.Query().Get("run_id"))
+		require.Equal(t, "activate-groups", r.URL.Query().Get("profile"))
+		require.Empty(t, r.URL.Query().Get("channel_type"))
+		require.Empty(t, r.URL.Query().Get("start"))
+		require.Empty(t, r.URL.Query().Get("end"))
+		seen = append(seen, "first")
+		writeJSON(t, w, model.ChannelRuntimeSnapshot{Version: "bench/v1", NodeID: 1, RunID: "run-a", Profile: "activate-groups"})
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channel-runtime/snapshot", r.URL.Path)
+		require.Equal(t, "run-a", r.URL.Query().Get("run_id"))
+		require.Equal(t, "activate-groups", r.URL.Query().Get("profile"))
+		require.Empty(t, r.URL.Query().Get("channel_type"))
+		require.Empty(t, r.URL.Query().Get("start"))
+		require.Empty(t, r.URL.Query().Get("end"))
+		seen = append(seen, "second")
+		writeJSON(t, w, model.ChannelRuntimeSnapshot{Version: "bench/v1", NodeID: 2, RunID: "run-a", Profile: "activate-groups"})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.ChannelRuntimeSnapshots(context.Background(), model.ChannelRuntimeQuery{RunID: "run-a", Profile: "activate-groups"})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, seen)
+	require.Equal(t, []model.ChannelRuntimeSnapshot{
+		{Version: "bench/v1", NodeID: 1, RunID: "run-a", Profile: "activate-groups"},
+		{Version: "bench/v1", NodeID: 2, RunID: "run-a", Profile: "activate-groups"},
+	}, got)
+}
+
+func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		var req model.ChannelRuntimeProbeRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		writeJSON(t, w, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10})
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}})
+
+	got, err := client.ProbeChannelRuntime(context.Background(), model.ChannelRuntimeProbeRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10}, got)
+}
+
+func TestClientEvictChannelRuntimePostsRequest(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
+		var req model.ChannelRuntimeEvictRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, model.ChannelRuntimeRange{Start: 0, End: 10}, req.Range)
+		writeJSON(t, w, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 1, Requested: 10, Evicted: 10})
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}})
+
+	got, err := client.EvictChannelRuntime(context.Background(), model.ChannelRuntimeEvictRequest{
+		RunID:   "run-a",
+		Profile: "activate-groups",
+		Range:   model.ChannelRuntimeRange{Start: 0, End: 10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, model.ChannelRuntimeEvictResult{Version: "bench/v1", NodeID: 1, Requested: 10, Evicted: 10}, got)
+}
+
 func TestHealthAndReadyUseConfiguredAPIAddress(t *testing.T) {
 	seen := make(map[string]int)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
