@@ -163,16 +163,10 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 		r.bumpAppendSubmitSeqLocked(event.Key)
 		err := r.mailbox.Submit(priority, event)
 		r.submitMu.Unlock()
-		if err == nil && r.completeIfClosed(event) {
-			return ch.ErrClosed
-		}
 		r.observeMailboxDepth(priority)
 		return err
 	}
 	err := r.mailbox.Submit(priority, event)
-	if err == nil && r.completeIfClosed(event) {
-		return ch.ErrClosed
-	}
 	r.observeMailboxDepth(priority)
 	return err
 }
@@ -189,25 +183,10 @@ func (r *Reactor) SubmitCompletion(event Event) error {
 	}
 	select {
 	case r.mailbox.high <- event:
-		if r.completeIfClosed(event) {
-			return ch.ErrClosed
-		}
 		r.observeMailboxDepth(PriorityHigh)
 		return nil
 	case <-r.stop:
 		return ch.ErrClosed
-	}
-}
-
-func (r *Reactor) completeIfClosed(event Event) bool {
-	select {
-	case <-r.stop:
-		if event.Future != nil {
-			event.Future.Complete(Result{Err: ch.ErrClosed})
-		}
-		return true
-	default:
-		return false
 	}
 }
 
