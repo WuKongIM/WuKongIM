@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -363,6 +364,64 @@ func TestStateMachineApplyUpsertsAndDeletesChannelRuntimeMeta(t *testing.T) {
 	if !errors.Is(err, metadb.ErrNotFound) {
 		t.Fatalf("GetChannelRuntimeMeta() err = %v, want ErrNotFound", err)
 	}
+}
+
+func TestStateMachineApplyBatchObservesCommitStage(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	batchSM, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatal("state machine does not implement BatchStateMachine")
+	}
+	observer := &fsmProposalStageObserver{}
+
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:    "runtime-observed",
+		ChannelType:  1,
+		ChannelEpoch: 1,
+		LeaderEpoch:  1,
+		Leader:       1,
+		Replicas:     []uint64{1},
+		ISR:          []uint64{1},
+		MinISR:       1,
+		Status:       1,
+	}
+	_, err := batchSM.ApplyBatch(multiraft.WithProposalStageObserver(ctx, observer), []multiraft.Command{{
+		SlotID:   11,
+		HashSlot: 11,
+		Index:    1,
+		Term:     1,
+		Data:     EncodeUpsertChannelRuntimeMetaCommand(meta),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch() error = %v", err)
+	}
+
+	requireFSMProposalStage(t, observer.events, "meta_create_slot_fsm_commit", "ok")
+}
+
+type fsmProposalStageObserver struct {
+	events []fsmProposalStageEvent
+}
+
+func (o *fsmProposalStageObserver) ObserveProposalStage(stage string, result string, _ time.Duration) {
+	o.events = append(o.events, fsmProposalStageEvent{stage: stage, result: result})
+}
+
+type fsmProposalStageEvent struct {
+	stage  string
+	result string
+}
+
+func requireFSMProposalStage(t *testing.T, events []fsmProposalStageEvent, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("proposal stage %s/%s not observed in %#v", stage, result, events)
 }
 
 func TestStateMachineApplyUpsertChannelRuntimeMetaPreservesRetentionFields(t *testing.T) {

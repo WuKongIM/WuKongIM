@@ -8,7 +8,7 @@ import (
 )
 
 func TestEnsurePendingConfigCapacityPreservesTrackedFuture(t *testing.T) {
-	fut := newFuture()
+	fut := newFuture(nil)
 	g := &slot{
 		pendingConfigs: map[uint64]trackedFuture{
 			9: {future: fut, term: 4},

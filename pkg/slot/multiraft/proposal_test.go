@@ -23,7 +23,7 @@ func TestCountTrackedReadyEntriesIgnoresEmptyNormalEntries(t *testing.T) {
 }
 
 func TestEnsurePendingProposalCapacityPreservesTrackedFuture(t *testing.T) {
-	fut := newFuture()
+	fut := newFuture(nil)
 	g := &slot{
 		pendingProposals: map[uint64]trackedFuture{
 			7: {future: fut, term: 3},
@@ -54,6 +54,25 @@ func TestProposeWaitReturnsAfterLocalApply(t *testing.T) {
 	if string(res.Data) != "ok:set a=1" {
 		t.Fatalf("Wait().Data = %q", res.Data)
 	}
+}
+
+func TestProposeObservesWaitSubStages(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 1010)
+	observer := &proposalStageObserver{}
+
+	fut, err := rt.Propose(WithProposalStageObserver(context.Background(), observer), slotID, proposalString("set observed=1"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	requireProposalStage(t, observer.events, "meta_create_slot_control_wait", "ok")
+	requireProposalStage(t, observer.events, "meta_create_slot_raft_commit_wait", "ok")
+	requireProposalStage(t, observer.events, "meta_create_slot_fsm_apply", "ok")
+	requireProposalStage(t, observer.events, "meta_create_slot_mark_applied", "ok")
 }
 
 func TestReadyPipelinePersistsBeforeApply(t *testing.T) {
@@ -709,4 +728,27 @@ func assertStrictlyIncreasingIndexes(t *testing.T, results []Result) {
 				i-1, results[i-1].Index, i, results[i].Index)
 		}
 	}
+}
+
+type proposalStageObserver struct {
+	events []proposalStageEvent
+}
+
+func (o *proposalStageObserver) ObserveProposalStage(stage string, result string, _ time.Duration) {
+	o.events = append(o.events, proposalStageEvent{stage: stage, result: result})
+}
+
+type proposalStageEvent struct {
+	stage  string
+	result string
+}
+
+func requireProposalStage(t *testing.T, events []proposalStageEvent, stage string, result string) {
+	t.Helper()
+	for _, event := range events {
+		if event.stage == stage && event.result == result {
+			return
+		}
+	}
+	t.Fatalf("proposal stage %s/%s not observed in %#v", stage, result, events)
 }

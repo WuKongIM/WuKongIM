@@ -103,10 +103,14 @@ storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
 `meta_slot_read`, `meta_create_build`, `meta_create_propose`,
 `meta_create_propose_local`, `meta_create_propose_forward`,
 `meta_create_slot_propose_submit`, `meta_create_slot_propose_wait`,
-`meta_create_write`, and `meta_final_read` so the report stays low-cardinality
-while still separating Slot metadata reads, missing metadata placement/build,
-origin-side local vs forwarded Slot proposals, Slot proposal submit, Slot
-proposal wait, final rereads, runtime create/apply, and append wait.
+`meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`,
+`meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`,
+`meta_create_slot_mark_applied`, `meta_create_write`, and `meta_final_read` so
+the report stays low-cardinality while still separating Slot metadata reads,
+missing metadata placement/build, origin-side local vs forwarded Slot proposals,
+Slot proposal submit, Slot future wait, Slot scheduler/control wait, Raft commit
+wait, FSM apply, FSM Pebble commit, MarkApplied persistence, final rereads,
+runtime create/apply, and append wait.
 
 ## Worker Control Flow
 

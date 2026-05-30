@@ -70,11 +70,18 @@ For cold ChannelV2 activation attribution, first compare the per-node
 `channelv2_meta_create_propose_forward_p99_seconds`,
 `channelv2_meta_create_slot_propose_submit_p99_seconds`,
 `channelv2_meta_create_slot_propose_wait_p99_seconds`,
+`channelv2_meta_create_slot_control_wait_p99_seconds`,
+`channelv2_meta_create_slot_raft_commit_wait_p99_seconds`,
+`channelv2_meta_create_slot_fsm_apply_p99_seconds`,
+`channelv2_meta_create_slot_fsm_commit_p99_seconds`,
+`channelv2_meta_create_slot_mark_applied_p99_seconds`,
 `channelv2_meta_apply_p99_seconds`, and
 `channelv2_runtime_append_p99_seconds` values before using pprof to inspect the
 hot path. In the default Slot-backed writer, `meta_create_propose` includes the
 Slot proposal and wait-for-apply path; the Slot submit/wait sub-stages split
-that default path at the Multi-Raft future boundary.
+that default path at the Multi-Raft future boundary, then split future wait into
+local scheduler/control wait, Raft commit wait, FSM apply, FSM Pebble commit,
+and MarkApplied persistence.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
 
@@ -290,6 +297,11 @@ Interpretation matrix:
 | `channelv2_meta_create_propose_forward_p99_seconds` rises | remote Slot leader forwarding bottleneck at origin | node RPC forward path and leader-side Slot wait |
 | `channelv2_meta_create_slot_propose_submit_p99_seconds` rises | Slot runtime submit bottleneck | Multi-Raft proposal enqueue/scheduler pressure |
 | `channelv2_meta_create_slot_propose_wait_p99_seconds` rises | Slot proposal wait bottleneck | Raft commit, apply, metadata FSM batch, Pebble commit |
+| `channelv2_meta_create_slot_control_wait_p99_seconds` rises | Slot worker scheduling/control queue bottleneck | Multi-Raft worker scheduling, Slot control backlog |
+| `channelv2_meta_create_slot_raft_commit_wait_p99_seconds` rises | Raft commit wait bottleneck | Slot Raft append/replication/leader loop, follower ack latency |
+| `channelv2_meta_create_slot_fsm_apply_p99_seconds` rises | Slot FSM apply bottleneck | command decode/apply batch cost and nested FSM commit |
+| `channelv2_meta_create_slot_fsm_commit_p99_seconds` rises | metadata Pebble commit bottleneck | meta DB write batch, fsync/storage latency |
+| `channelv2_meta_create_slot_mark_applied_p99_seconds` rises | Slot applied-index persistence bottleneck | Raft log MarkApplied write path |
 | `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | ChannelV2 runtime ensure/load, store open, mailbox/worker pressure |
 | `channelv2_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |

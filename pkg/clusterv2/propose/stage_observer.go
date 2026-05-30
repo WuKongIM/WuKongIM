@@ -23,12 +23,18 @@ func WithStageObserver(ctx context.Context, observer StageObserver) context.Cont
 	return context.WithValue(ctx, stageObserverContextKey{}, observer)
 }
 
-// ObserveStage records one proposal stage when ctx carries a StageObserver.
-func ObserveStage(ctx context.Context, stage string, err error, d time.Duration) {
+// StageObserverFromContext returns the proposal stage observer attached to ctx.
+func StageObserverFromContext(ctx context.Context) StageObserver {
 	if ctx == nil {
-		return
+		return nil
 	}
 	observer, _ := ctx.Value(stageObserverContextKey{}).(StageObserver)
+	return observer
+}
+
+// ObserveStage records one proposal stage when ctx carries a StageObserver.
+func ObserveStage(ctx context.Context, stage string, err error, d time.Duration) {
+	observer := StageObserverFromContext(ctx)
 	if observer == nil {
 		return
 	}

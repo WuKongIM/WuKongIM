@@ -153,7 +153,7 @@ func (r *Runtime) Propose(ctx context.Context, slotID SlotID, data []byte) (Futu
 		return nil, ErrSlotNotFound
 	}
 
-	fut := newFuture()
+	fut := newFuture(proposalStageObserversFromContext(ctx))
 	if err := g.enqueueControl(controlAction{
 		kind:   controlPropose,
 		data:   append([]byte(nil), data...),
@@ -177,7 +177,7 @@ func (r *Runtime) ChangeConfig(ctx context.Context, slotID SlotID, change Config
 		return nil, ErrSlotNotFound
 	}
 
-	fut := newFuture()
+	fut := newFuture(nil)
 	if err := g.enqueueControl(controlAction{
 		kind:   controlConfigChange,
 		change: change,

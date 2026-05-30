@@ -7,6 +7,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	raft "go.etcd.io/raft/v3"
@@ -62,6 +63,7 @@ type futureResolution struct {
 	kind   controlKind
 	index  uint64
 	term   uint64
+	future *future
 	result Result
 	err    error
 }
@@ -199,6 +201,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 	for _, action := range controls {
 		switch action.kind {
 		case controlPropose:
+			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
 			if err := g.rawNode.Propose(action.data); err != nil {
 				action.future.resolve(Result{}, err)
 				continue
@@ -364,7 +367,10 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	}
 
 	if lastApplied > appliedBeforeReady {
-		if err := g.storage.MarkApplied(ctx, lastApplied); err != nil {
+		started := time.Now()
+		err := g.storage.MarkApplied(ctx, lastApplied)
+		g.observeResolutionFutures(resolutions, "meta_create_slot_mark_applied", err, time.Since(started))
+		if err != nil {
 			g.fail(err)
 			return true, false
 		}
@@ -417,6 +423,12 @@ func (g *slot) applyCommittedEntries(
 		if !canBatch || len(batchEntries) == 1 {
 			// Fall back to one-by-one Apply.
 			for _, entry := range batchEntries {
+				fut := g.proposalFuture(entry.Index, entry.Term)
+				var trackedAt time.Time
+				if fut != nil {
+					trackedAt = fut.trackedAt
+				}
+				fut.observeStageSince("meta_create_slot_raft_commit_wait", nil, trackedAt)
 				hashSlot, data, err := decodeProposalPayload(entry.Data)
 				if err != nil {
 					g.resolveProposal(entry.Index, entry.Term, Result{
@@ -426,13 +438,16 @@ func (g *slot) applyCommittedEntries(
 					g.fail(err)
 					return false
 				}
-				result, err := g.stateMachine.Apply(ctx, Command{
+				applyCtx := withProposalStageObservers(ctx, proposalStageObserversFromFutures([]*future{fut}))
+				started := time.Now()
+				result, err := g.stateMachine.Apply(applyCtx, Command{
 					SlotID:   g.id,
 					HashSlot: hashSlot,
 					Index:    entry.Index,
 					Term:     entry.Term,
 					Data:     append([]byte(nil), data...),
 				})
+				fut.observeStage("meta_create_slot_fsm_apply", err, time.Since(started))
 				if err != nil {
 					g.resolveProposal(entry.Index, entry.Term, Result{
 						Index: entry.Index,
@@ -443,9 +458,10 @@ func (g *slot) applyCommittedEntries(
 					return false
 				}
 				resolutions = append(resolutions, futureResolution{
-					kind:  controlPropose,
-					index: entry.Index,
-					term:  entry.Term,
+					kind:   controlPropose,
+					index:  entry.Index,
+					term:   entry.Term,
+					future: fut,
 					result: Result{
 						Index: entry.Index,
 						Term:  entry.Term,
@@ -458,6 +474,7 @@ func (g *slot) applyCommittedEntries(
 
 		// Batched apply.
 		cmds := make([]Command, len(batchEntries))
+		futures := g.proposalFutures(batchEntries)
 		for i, entry := range batchEntries {
 			hashSlot, data, err := decodeProposalPayload(entry.Data)
 			if err != nil {
@@ -476,7 +493,16 @@ func (g *slot) applyCommittedEntries(
 				Data:     append([]byte(nil), data...),
 			}
 		}
-		results, err := batchSM.ApplyBatch(ctx, cmds)
+		observeFuturesSince(futures, "meta_create_slot_raft_commit_wait", nil, func(f *future) time.Time {
+			if f == nil {
+				return time.Time{}
+			}
+			return f.trackedAt
+		})
+		applyCtx := withProposalStageObservers(ctx, proposalStageObserversFromFutures(futures))
+		started := time.Now()
+		results, err := batchSM.ApplyBatch(applyCtx, cmds)
+		observeFutures(futures, "meta_create_slot_fsm_apply", err, time.Since(started))
 		if err != nil {
 			// Resolve the last entry and fail the slot.
 			last := batchEntries[len(batchEntries)-1]
@@ -493,9 +519,10 @@ func (g *slot) applyCommittedEntries(
 				data = results[i]
 			}
 			resolutions = append(resolutions, futureResolution{
-				kind:  controlPropose,
-				index: entry.Index,
-				term:  entry.Term,
+				kind:   controlPropose,
+				index:  entry.Index,
+				term:   entry.Term,
+				future: futures[i],
 				result: Result{
 					Index: entry.Index,
 					Term:  entry.Term,
@@ -566,6 +593,67 @@ func (g *slot) completeResolutions(resolutions []futureResolution) {
 			g.resolveConfig(resolution.index, resolution.term, resolution.result, resolution.err)
 		}
 	}
+}
+
+func (g *slot) proposalFuture(index, term uint64) *future {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	pending, ok := g.pendingProposals[index]
+	if !ok || pending.term != term {
+		return nil
+	}
+	return pending.future
+}
+
+func (g *slot) proposalFutures(entries []raftpb.Entry) []*future {
+	futures := make([]*future, len(entries))
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for i, entry := range entries {
+		pending, ok := g.pendingProposals[entry.Index]
+		if ok && pending.term == entry.Term {
+			futures[i] = pending.future
+		}
+	}
+	return futures
+}
+
+func (g *slot) observeResolutionFutures(resolutions []futureResolution, stage string, err error, d time.Duration) {
+	for _, resolution := range resolutions {
+		if resolution.kind == controlPropose && resolution.future != nil {
+			resolution.future.observeStage(stage, err, d)
+		}
+	}
+}
+
+func observeFutures(futures []*future, stage string, err error, d time.Duration) {
+	for _, future := range futures {
+		if future != nil {
+			future.observeStage(stage, err, d)
+		}
+	}
+}
+
+func observeFuturesSince(futures []*future, stage string, err error, started func(*future) time.Time) {
+	for _, future := range futures {
+		if future == nil {
+			continue
+		}
+		future.observeStageSince(stage, err, started(future))
+	}
+}
+
+func proposalStageObserversFromFutures(futures []*future) []ProposalStageObserver {
+	var observers []ProposalStageObserver
+	for _, future := range futures {
+		if future == nil || len(future.observers) == 0 {
+			continue
+		}
+		observers = append(observers, future.observers...)
+	}
+	return observers
 }
 
 func (g *slot) refreshStatus() {
@@ -807,6 +895,7 @@ func (g *slot) trackReadyEntries(entries []raftpb.Entry) {
 			if g.pendingProposals == nil {
 				g.pendingProposals = make(map[uint64]trackedFuture)
 			}
+			g.submittedProposals[0].trackedAt = time.Now()
 			g.pendingProposals[entry.Index] = trackedFuture{
 				future: g.submittedProposals[0],
 				term:   entry.Term,

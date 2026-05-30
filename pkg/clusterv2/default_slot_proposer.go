@@ -47,6 +47,9 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 	if err != nil {
 		return err
 	}
+	if observer := propose.StageObserverFromContext(ctx); observer != nil {
+		ctx = multiraft.WithProposalStageObserver(ctx, defaultSlotProposalStageObserver{observer: observer})
+	}
 	started := time.Now()
 	future, err := p.runtime.Propose(ctx, multiraft.SlotID(slotID), multiraftPayload(hashSlot, command))
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
@@ -76,3 +79,13 @@ func mapMultiraftProposeError(err error) error {
 }
 
 var _ propose.SlotRuntime = defaultSlotProposer{}
+
+type defaultSlotProposalStageObserver struct {
+	observer propose.StageObserver
+}
+
+func (o defaultSlotProposalStageObserver) ObserveProposalStage(stage string, result string, d time.Duration) {
+	if o.observer != nil {
+		o.observer.ObserveChannelAppendStage(stage, result, d)
+	}
+}

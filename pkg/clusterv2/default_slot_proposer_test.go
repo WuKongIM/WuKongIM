@@ -21,19 +21,23 @@ func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
 	if runtime.proposeCalls != 1 || runtime.slotID != 7 {
 		t.Fatalf("runtime propose = %d slot=%d, want one call to slot 7", runtime.proposeCalls, runtime.slotID)
 	}
+	multiraft.ObserveProposalStage(runtime.ctx, "meta_create_slot_raft_commit_wait", nil, time.Millisecond)
 	requireRecordedAppendStage(t, observer.events, "meta_create_slot_propose_submit", "ok")
 	requireRecordedAppendStage(t, observer.events, "meta_create_slot_propose_wait", "ok")
+	requireRecordedAppendStage(t, observer.events, "meta_create_slot_raft_commit_wait", "ok")
 }
 
 type recordingSlotRuntime struct {
 	proposeCalls int
 	slotID       multiraft.SlotID
+	ctx          context.Context
 	future       multiraft.Future
 	err          error
 }
 
-func (r *recordingSlotRuntime) Propose(_ context.Context, slotID multiraft.SlotID, _ []byte) (multiraft.Future, error) {
+func (r *recordingSlotRuntime) Propose(ctx context.Context, slotID multiraft.SlotID, _ []byte) (multiraft.Future, error) {
 	r.proposeCalls++
+	r.ctx = ctx
 	r.slotID = slotID
 	return r.future, r.err
 }

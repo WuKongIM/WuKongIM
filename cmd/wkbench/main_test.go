@@ -335,6 +335,9 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	if !strings.Contains(stderr.String(), "channelv2_meta_create_slot_propose_wait_p99_seconds:") {
 		t.Fatalf("expected channel meta Slot propose wait metric in output, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "channelv2_meta_create_slot_raft_commit_wait_p99_seconds:") {
+		t.Fatalf("expected channel meta Slot raft commit wait metric in output, got %q", stderr.String())
+	}
 }
 
 func TestMetricsClassifyReportsControllerRaftStepPressureFromPrometheusSnapshots(t *testing.T) {

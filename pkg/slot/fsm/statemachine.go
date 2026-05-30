@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -273,7 +274,10 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 		results[i] = commandApplyResult(decoded)
 	}
 
-	if err := wb.Commit(); err != nil {
+	started := time.Now()
+	err := wb.Commit()
+	multiraft.ObserveProposalStage(ctx, "meta_create_slot_fsm_commit", err, time.Since(started))
+	if err != nil {
 		if isStaleMetaCommitError(err) {
 			if len(cmds) == 1 {
 				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil

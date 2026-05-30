@@ -55,6 +55,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `SlotID` / `NodeID` | multiraft/types.go | Slot / 节点标识 |
 | `Command` | multiraft/types.go | 状态机命令：SlotID(物理 Raft 组), HashSlot(逻辑哈希分片), Index, Term, Data(TLV编码) |
 | `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 阻塞到提交 |
+| `ProposalStageObserver` | multiraft/stage_observer.go | 低基数 proposal stage 观测接口；可从上游 ctx 进入 Future 并随 apply/commit 路径传播 |
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
@@ -79,12 +80,18 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 multiraft/slot.go:
   ⑤ enqueueControl(controlPropose, data, future) → scheduler.enqueue(slotID)
   ⑥ Worker 拾取 → processControls → rawNode.Propose(data)
+     - `meta_create_slot_control_wait` 记录 Future 从 Runtime.Propose 到 Slot control 被处理的等待
   ⑦ applyCommittedEntries 先从 entry.Data 头部解出 HashSlot，再把 TLV Data 传给状态机
+     - `meta_create_slot_raft_commit_wait` 记录 proposal entry 被本地持久化/跟踪后到 committed apply 的等待
+     - `meta_create_slot_fsm_apply` 记录状态机 Apply/ApplyBatch 总耗时
   ⑧ processReady → persistReady → transport.Send → 多数确认
      ↓
 fsm/statemachine.go:43 ApplyBatch:
   ⑨ 创建 WriteBatch → 遍历 cmds → 校验物理 Slot + HashSlot 归属 → decodeCommand → cmd.apply(wb, hashSlot)
   ⑩ wb.Commit() — 单次 fsync 原子提交
+     - `meta_create_slot_fsm_commit` 记录元数据 WriteBatch commit 耗时
+  ⑪ storage.MarkApplied(lastApplied)
+     - `meta_create_slot_mark_applied` 记录 applied index 持久化耗时
      ↓
 Pebble:
   写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
@@ -146,6 +153,11 @@ Worker 循环:
     ⑥ refreshStatus → 刷新 Leader / CurrentVoters 观测，检测 Leader 丢失并清理 pending 提案
     ⑦ finishProcessing
 ```
+
+`Runtime.Propose` 会把 ctx 中的 `ProposalStageObserver` 复制到 Future 上，保证异步
+control queue、Raft commit、FSM apply、FSM commit 和 MarkApplied 阶段仍能归属到同一次上游
+ChannelV2 cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
+其中包含 `meta_create_slot_fsm_commit` 子阶段。
 
 ### 5.4 Slot 生命周期
 

@@ -47,39 +47,44 @@ type WukongIMV2Attribution struct {
 	// Reasons explains the evidence that produced the classification.
 	Reasons []string
 
-	GatewayQueueDepth                              float64
-	GatewayQueueCapacity                           float64
-	GatewayQueueRatio                              float64
-	GatewayDispatchWaitP99Seconds                  float64
-	GatewayBatchRecordsP50                         float64
-	ControllerRaftStepQueueDepth                   float64
-	ControllerRaftStepQueueCapacity                float64
-	ControllerRaftStepQueueRatio                   float64
-	ControllerRaftStepEnqueueOKP99Seconds          float64
-	ControllerRaftStepEnqueueErrP99Seconds         float64
-	ControllerRaftStepEnqueueErrCount              float64
-	ChannelV2ReactorMailboxDepthMax                float64
-	ChannelV2WorkerQueueDepthMax                   float64
-	ChannelV2AppendP99Seconds                      float64
-	ChannelV2MetaResolveP99Seconds                 float64
-	ChannelV2MetaSlotReadP99Seconds                float64
-	ChannelV2MetaCreateBuildP99Seconds             float64
-	ChannelV2MetaCreateProposeP99Seconds           float64
-	ChannelV2MetaCreateProposeLocalP99Seconds      float64
-	ChannelV2MetaCreateProposeForwardP99Seconds    float64
-	ChannelV2MetaCreateSlotProposeSubmitP99Seconds float64
-	ChannelV2MetaCreateSlotProposeWaitP99Seconds   float64
-	ChannelV2MetaCreateWriteP99Seconds             float64
-	ChannelV2MetaFinalReadP99Seconds               float64
-	ChannelV2MetaApplyP99Seconds                   float64
-	ChannelV2RuntimeAppendP99Seconds               float64
-	ChannelV2WorkerTaskP99Seconds                  float64
-	ChannelV2AppendBatchRecordsP50                 float64
-	StorageCommitQueueDepthMax                     float64
-	StorageCommitBatchRequestsP50                  float64
-	StorageCommitBatchRecordsP50                   float64
-	StorageCommitP99Seconds                        float64
-	StorageCommitTotalP99Seconds                   float64
+	GatewayQueueDepth                               float64
+	GatewayQueueCapacity                            float64
+	GatewayQueueRatio                               float64
+	GatewayDispatchWaitP99Seconds                   float64
+	GatewayBatchRecordsP50                          float64
+	ControllerRaftStepQueueDepth                    float64
+	ControllerRaftStepQueueCapacity                 float64
+	ControllerRaftStepQueueRatio                    float64
+	ControllerRaftStepEnqueueOKP99Seconds           float64
+	ControllerRaftStepEnqueueErrP99Seconds          float64
+	ControllerRaftStepEnqueueErrCount               float64
+	ChannelV2ReactorMailboxDepthMax                 float64
+	ChannelV2WorkerQueueDepthMax                    float64
+	ChannelV2AppendP99Seconds                       float64
+	ChannelV2MetaResolveP99Seconds                  float64
+	ChannelV2MetaSlotReadP99Seconds                 float64
+	ChannelV2MetaCreateBuildP99Seconds              float64
+	ChannelV2MetaCreateProposeP99Seconds            float64
+	ChannelV2MetaCreateProposeLocalP99Seconds       float64
+	ChannelV2MetaCreateProposeForwardP99Seconds     float64
+	ChannelV2MetaCreateSlotProposeSubmitP99Seconds  float64
+	ChannelV2MetaCreateSlotProposeWaitP99Seconds    float64
+	ChannelV2MetaCreateSlotControlWaitP99Seconds    float64
+	ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds float64
+	ChannelV2MetaCreateSlotFSMApplyP99Seconds       float64
+	ChannelV2MetaCreateSlotFSMCommitP99Seconds      float64
+	ChannelV2MetaCreateSlotMarkAppliedP99Seconds    float64
+	ChannelV2MetaCreateWriteP99Seconds              float64
+	ChannelV2MetaFinalReadP99Seconds                float64
+	ChannelV2MetaApplyP99Seconds                    float64
+	ChannelV2RuntimeAppendP99Seconds                float64
+	ChannelV2WorkerTaskP99Seconds                   float64
+	ChannelV2AppendBatchRecordsP50                  float64
+	StorageCommitQueueDepthMax                      float64
+	StorageCommitBatchRequestsP50                   float64
+	StorageCommitBatchRecordsP50                    float64
+	StorageCommitP99Seconds                         float64
+	StorageCommitTotalP99Seconds                    float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -229,6 +234,11 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2MetaCreateProposeForwardP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_forward"})
 	report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_submit"})
 	report.ChannelV2MetaCreateSlotProposeWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_wait"})
+	report.ChannelV2MetaCreateSlotControlWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_control_wait"})
+	report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_raft_commit_wait"})
+	report.ChannelV2MetaCreateSlotFSMApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_apply"})
+	report.ChannelV2MetaCreateSlotFSMCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_commit"})
+	report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_mark_applied"})
 	report.ChannelV2MetaCreateWriteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_write"})
 	report.ChannelV2MetaFinalReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_final_read"})
 	report.ChannelV2MetaApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_apply"})
@@ -309,6 +319,26 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2MetaCreateSlotProposeWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot propose wait p99 is high")
+	}
+	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot control wait p99 is high")
+	}
+	if report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot Raft commit wait p99 is high")
+	}
+	if report.ChannelV2MetaCreateSlotFSMApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM apply p99 is high")
+	}
+	if report.ChannelV2MetaCreateSlotFSMCommitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM commit p99 is high")
+	}
+	if report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot mark-applied p99 is high")
 	}
 	if report.ChannelV2MetaCreateWriteP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

@@ -293,6 +293,61 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",
 	}
 }
 
+func TestAnalyzeWukongIMV2PrometheusReportsChannelV2SlotFutureBreakdown(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="+Inf"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="0.01"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_control_wait",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="0.01"} 10
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_raft_commit_wait",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="0.01"} 20
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_apply",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="0.01"} 40
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_fsm_commit",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="0.01"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_mark_applied",result="ok",le="+Inf"} 100
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	}
+	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMApplyP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMCommitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds <= 0 {
+		t.Fatalf("channel Slot future breakdown p99s not parsed: %+v", report)
+	}
+}
+
 func TestAnalyzeWukongIMV2PrometheusClassifiesStorageCommitPressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
