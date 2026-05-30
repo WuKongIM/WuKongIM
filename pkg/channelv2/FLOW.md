@@ -94,6 +94,11 @@ Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters
 with follower replication stage counts to distinguish slow accepted PullHints
 from missing or failed wakeups that fall back to recovery probes.
+Follower-side PullHint receive counters split lazy activation into
+`state_check`, `loaded`, `meta_resolve`, `meta_validate`, `meta_apply`,
+`submit`, and `await` stages. Use them to distinguish remote delivery failures
+from follower metadata propagation, lazy runtime activation, reactor admission,
+or follower future wait failures.
 
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful

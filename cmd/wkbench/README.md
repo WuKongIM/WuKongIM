@@ -212,15 +212,23 @@ error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
 `channelv2_pull_hint_canceled_err_count`,
 `channelv2_pull_hint_timeout_err_count`,
 `channelv2_pull_hint_remote_err_count`, and
-`channelv2_pull_hint_other_err_count`. Use them to separate control-plane
-Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
-metadata local vs forwarded proposals, Slot metadata proposal submit, Slot
-metadata proposal wait, Slot scheduler/control wait, Raft commit wait, FSM apply,
-FSM Pebble commit, MarkApplied persistence, final rereads, runtime create/apply,
-append admission, reactor mailbox submit, append future wait, and append
-batching behavior, durable append wait, post-store local/quorum commit wait, and
-the follower pull/AckOffset/HW/final-completion split plus the follower-side
-hint/pull/apply/ack-return split and PullHint result/error structure
+`channelv2_pull_hint_other_err_count`. Receiver-side PullHint stage errors are
+reported as counters such as
+`channelv2_pull_hint_receive_meta_resolve_err_count`,
+`channelv2_pull_hint_receive_meta_validate_err_count`,
+`channelv2_pull_hint_receive_meta_apply_err_count`,
+`channelv2_pull_hint_receive_submit_err_count`,
+`channelv2_pull_hint_receive_await_err_count`, and
+`channelv2_pull_hint_receive_channel_not_found_err_count`. Use them to separate
+control-plane Step backpressure, Slot metadata reads, missing metadata
+placement/build, Slot metadata local vs forwarded proposals, Slot metadata
+proposal submit, Slot metadata proposal wait, Slot scheduler/control wait, Raft
+commit wait, FSM apply, FSM Pebble commit, MarkApplied persistence, final
+rereads, runtime create/apply, append admission, reactor mailbox submit, append
+future wait, append batching behavior, durable append wait, post-store
+local/quorum commit wait, the follower pull/AckOffset/HW/final-completion split,
+the follower-side hint/pull/apply/ack-return split, and PullHint
+send/receive/error structure
 before looking at pprof.
 
 ## Compose Development Simulator

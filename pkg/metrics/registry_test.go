@@ -177,6 +177,7 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveFollowerRecoveryProbe("ok")
 	reg.ChannelV2.ObservePull("ok", true)
 	reg.ChannelV2.ObservePullHint("append", "err", "stale_meta")
+	reg.ChannelV2.ObservePullHintReceived("append", "meta_resolve", "err", "channel_not_found")
 	reg.ChannelV2.ObserveMetaCache("hit")
 	reg.ChannelV2.ObserveMetaCache("invalidate")
 
@@ -276,6 +277,18 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"error":     "stale_meta",
 	})
 	require.Equal(t, float64(1), pullHintTotal.GetMetric()[0].GetCounter().GetValue())
+
+	pullHintReceiveTotal := requireMetricFamily(t, families, "wukongim_channelv2_pull_hint_receive_total")
+	require.Len(t, pullHintReceiveTotal.GetMetric(), 1)
+	requireMetricLabels(t, pullHintReceiveTotal.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "append",
+		"stage":     "meta_resolve",
+		"result":    "err",
+		"error":     "channel_not_found",
+	})
+	require.Equal(t, float64(1), pullHintReceiveTotal.GetMetric()[0].GetCounter().GetValue())
 
 	activeRuntimes := requireMetricFamily(t, families, "wukongim_channelv2_active_runtimes")
 	require.Len(t, activeRuntimes.GetMetric(), 1)

@@ -20,6 +20,7 @@ type ChannelV2Metrics struct {
 	recoveryProbeTotal       *prometheus.CounterVec
 	pullTotal                *prometheus.CounterVec
 	pullHintTotal            *prometheus.CounterVec
+	pullHintReceiveTotal     *prometheus.CounterVec
 	metaCacheTotal           *prometheus.CounterVec
 	appendBatchRecords       prometheus.Histogram
 	appendBatchBytes         prometheus.Histogram
@@ -74,6 +75,11 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total ChannelV2 pull hints by reason, result, and low-cardinality error class.",
 			ConstLabels: labels,
 		}, []string{"reason", "result", "error"}),
+		pullHintReceiveTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_pull_hint_receive_total",
+			Help:        "Total ChannelV2 received pull hints by reason, receive stage, result, and low-cardinality error class.",
+			ConstLabels: labels,
+		}, []string{"reason", "stage", "result", "error"}),
 		metaCacheTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_meta_cache_total",
 			Help:        "Total ChannelV2 metadata cache events by result.",
@@ -143,6 +149,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.recoveryProbeTotal,
 		m.pullTotal,
 		m.pullHintTotal,
+		m.pullHintReceiveTotal,
 		m.metaCacheTotal,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
@@ -212,6 +219,13 @@ func (m *ChannelV2Metrics) ObservePullHint(reason string, result string, errorCl
 		return
 	}
 	m.pullHintTotal.WithLabelValues(reason, result, errorClass).Inc()
+}
+
+func (m *ChannelV2Metrics) ObservePullHintReceived(reason string, stage string, result string, errorClass string) {
+	if m == nil {
+		return
+	}
+	m.pullHintReceiveTotal.WithLabelValues(reason, stage, result, errorClass).Inc()
 }
 
 func (m *ChannelV2Metrics) ObserveMetaCache(result string) {

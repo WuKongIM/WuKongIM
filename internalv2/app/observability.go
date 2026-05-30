@@ -157,6 +157,17 @@ func (o channelV2MetricsObserver) ObservePullHintResult(reason transport.PullHin
 	o.metrics.ChannelV2.ObservePullHint(channelV2PullHintReasonLabel(reason), result, channelV2PullHintErrorLabel(err))
 }
 
+func (o channelV2MetricsObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	o.metrics.ChannelV2.ObservePullHintReceived(channelV2PullHintReasonLabel(reason), stage, result, channelV2PullHintErrorLabel(err))
+}
+
 func (o channelV2MetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	if o.metrics == nil {
 		return
@@ -343,6 +354,17 @@ func (o multiChannelV2Observer) ObservePullHintResult(reason transport.PullHintR
 		pullHintObserver, ok := observer.(reactor.PullHintResultObserver)
 		if ok {
 			pullHintObserver.ObservePullHintResult(reason, result, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+	for _, observer := range o {
+		pullHintReceiveObserver, ok := observer.(interface {
+			ObservePullHintReceived(transport.PullHintReason, string, error)
+		})
+		if ok {
+			pullHintReceiveObserver.ObservePullHintReceived(reason, stage, err)
 		}
 	}
 }

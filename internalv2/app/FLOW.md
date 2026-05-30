@@ -17,7 +17,7 @@ and protocol details stay in access packages.
 New(Config)
   -> derive effective clusterv2 config from Config.Cluster with top-level fallbacks
   -> create metrics registry and runtime observers when Observability.MetricsEnabled=true
-     (gateway, ControllerV2 Raft step queue, ChannelV2, and message DB grouped commits)
+     (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, and message DB grouped commits)
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> create message.App with clusterv2 ChannelAppender and node-scoped IDs
   -> create access/gateway.Handler

@@ -105,6 +105,20 @@ type WukongIMV2Attribution struct {
 	ChannelV2PullHintTimeoutErrCount                float64
 	ChannelV2PullHintRemoteErrCount                 float64
 	ChannelV2PullHintOtherErrCount                  float64
+	ChannelV2PullHintReceiveOKCount                 float64
+	ChannelV2PullHintReceiveErrCount                float64
+	ChannelV2PullHintReceiveStateCheckErrCount      float64
+	ChannelV2PullHintReceiveMetaResolveErrCount     float64
+	ChannelV2PullHintReceiveMetaValidateErrCount    float64
+	ChannelV2PullHintReceiveMetaApplyErrCount       float64
+	ChannelV2PullHintReceiveSubmitErrCount          float64
+	ChannelV2PullHintReceiveAwaitErrCount           float64
+	ChannelV2PullHintReceiveStaleMetaErrCount       float64
+	ChannelV2PullHintReceiveChannelNotFoundErrCount float64
+	ChannelV2PullHintReceiveNotReadyErrCount        float64
+	ChannelV2PullHintReceiveCanceledErrCount        float64
+	ChannelV2PullHintReceiveTimeoutErrCount         float64
+	ChannelV2PullHintReceiveOtherErrCount           float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -297,6 +311,20 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2PullHintTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "timeout"})
 	report.ChannelV2PullHintRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "remote_error"})
 	report.ChannelV2PullHintOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "other"})
+	report.ChannelV2PullHintReceiveOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "ok"})
+	report.ChannelV2PullHintReceiveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err"})
+	report.ChannelV2PullHintReceiveStateCheckErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "state_check", "result": "err"})
+	report.ChannelV2PullHintReceiveMetaResolveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_resolve", "result": "err"})
+	report.ChannelV2PullHintReceiveMetaValidateErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_validate", "result": "err"})
+	report.ChannelV2PullHintReceiveMetaApplyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_apply", "result": "err"})
+	report.ChannelV2PullHintReceiveSubmitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "submit", "result": "err"})
+	report.ChannelV2PullHintReceiveAwaitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "await", "result": "err"})
+	report.ChannelV2PullHintReceiveStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelV2PullHintReceiveChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelV2PullHintReceiveNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelV2PullHintReceiveCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelV2PullHintReceiveTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "timeout"})
+	report.ChannelV2PullHintReceiveOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "other"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -499,6 +527,25 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 	if report.ChannelV2PullHintOtherErrCount > 0 {
 		report.Reasons = append(report.Reasons, "ChannelV2 PullHint other errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveErrCount > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveMetaResolveErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive meta_resolve errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveMetaValidateErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive meta_validate errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveSubmitErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive submit errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveAwaitErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive await errors were observed")
+	}
+	if report.ChannelV2PullHintReceiveChannelNotFoundErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive channel_not_found errors were observed")
 	}
 	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true

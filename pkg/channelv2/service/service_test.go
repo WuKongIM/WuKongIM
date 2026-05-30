@@ -191,7 +191,8 @@ func TestHandlePullHintResolverFailureDoesNotLoadState(t *testing.T) {
 	id := ch.ChannelID{ID: "hint-missing", Type: 1}
 	key := ch.ChannelKeyForID(id)
 	resolver := &failingMetaResolver{err: ch.ErrChannelNotFound}
-	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, ReactorCount: 1, MetaResolver: resolver})
+	observer := &servicePullHintReceiveObserver{}
+	clusterAPI, err := New(Config{LocalNode: 2, Store: factory, ReactorCount: 1, MetaResolver: resolver, Observer: observer})
 	require.NoError(t, err)
 	defer clusterAPI.Close()
 	svc := clusterAPI.(*cluster)
@@ -199,6 +200,7 @@ func TestHandlePullHintResolverFailureDoesNotLoadState(t *testing.T) {
 	err = svc.HandlePullHint(context.Background(), transport.PullHintRequest{ChannelKey: key, ChannelID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, LeaderLEO: 1, ActivityVersion: 1, Reason: transport.PullHintReasonAppend})
 	require.ErrorIs(t, err, ch.ErrChannelNotFound)
 	require.Equal(t, int32(1), resolver.calls.Load())
+	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "meta_resolve", ch.ErrChannelNotFound)
 
 	loaded, err := svc.group.HasChannelState(context.Background(), key)
 	require.NoError(t, err)
@@ -852,6 +854,21 @@ type serviceAppendStageEvent struct {
 	result string
 }
 
+type servicePullHintReceiveObserver struct {
+	serviceAppendStageObserver
+	events []servicePullHintReceiveEvent
+}
+
+func (o *servicePullHintReceiveObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+	o.events = append(o.events, servicePullHintReceiveEvent{reason: reason, stage: stage, err: err})
+}
+
+type servicePullHintReceiveEvent struct {
+	reason transport.PullHintReason
+	stage  string
+	err    error
+}
+
 func requireServiceAppendStage(t *testing.T, events []serviceAppendStageEvent, stage string, result string) {
 	t.Helper()
 	for _, event := range events {
@@ -860,4 +877,20 @@ func requireServiceAppendStage(t *testing.T, events []serviceAppendStageEvent, s
 		}
 	}
 	t.Fatalf("append stage %s/%s not observed in %#v", stage, result, events)
+}
+
+func requirePullHintReceive(t *testing.T, events []servicePullHintReceiveEvent, reason transport.PullHintReason, stage string, wantErr error) {
+	t.Helper()
+	for _, event := range events {
+		if event.reason != reason || event.stage != stage {
+			continue
+		}
+		if wantErr == nil {
+			require.NoError(t, event.err)
+		} else {
+			require.ErrorIs(t, event.err, wantErr)
+		}
+		return
+	}
+	t.Fatalf("pull hint receive %v/%s/%v not observed in %#v", reason, stage, wantErr, events)
 }
