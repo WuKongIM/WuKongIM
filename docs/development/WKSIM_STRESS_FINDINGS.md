@@ -487,11 +487,12 @@ Evidence:
 - Baseline metrics showed node1 ControllerV2 Raft Step queue at 1024/1024, node1 `go_goroutines=4293`, and 3,757 goroutines blocked in `controllerv2/raft.(*Service).Step` from one-way RPC notify dispatch.
 - After bounding ControllerV2 Raft handler Step enqueue time, evidence `docs/development/perf-runs/20260530-195015-three-node-activate-10kch` again passed with 10,000 activated channels, 0 errors, 0 backlog, 10,000 active leaders, and SENDACK p99 1.936s.
 - Post-fix after snapshots showed all three nodes back at 543 goroutines and no long-lived goroutines blocked in `Service.Step`; node1 Step queue ended at 7/1024.
+- Follow-up evidence `docs/development/perf-runs/20260530-204811-three-node-activate-10kch` passed with SENDACK p99 1.901s. New ChannelV2 metadata breakdown showed `meta_slot_read` and `meta_final_read` p99 around 0.5ms, while `meta_create_write` p99 was about 0.81s to 0.86s across nodes.
 
 Classification:
 - Category: ControllerV2 Raft one-way notify backpressure could create unbounded receiver-side goroutine buildup during 10k cold channel activation.
-- Confidence: high for the goroutine buildup fix. The remaining SENDACK p99 is still dominated by ChannelV2 meta resolve/runtime append and storage commit tails rather than the removed long-lived Step goroutines.
+- Confidence: high for the goroutine buildup fix. The remaining SENDACK p99 is dominated by missing ChannelV2 metadata create/write, runtime append on local leaders, and storage commit tails rather than Slot metadata reads or final rereads.
 
 Decision:
 - Bound ControllerV2 Raft receive-side Step enqueue time and rely on Raft retransmission when the local Step queue is saturated.
-- Keep the next optimization focused on ChannelV2 cold meta resolve/runtime append attribution, not on increasing ControllerV2 Step queue capacity.
+- Keep the next optimization focused on missing ChannelRuntimeMeta create/write and ChannelV2 runtime append, not on increasing ControllerV2 Step queue capacity or optimizing Slot metadata read latency.

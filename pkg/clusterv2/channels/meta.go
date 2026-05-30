@@ -64,6 +64,8 @@ type SlotMetaSourceOptions struct {
 	Placement ChannelPlacementResolver
 	// Writer persists missing metadata; when nil, reader is used if it implements RuntimeMetaWriter.
 	Writer RuntimeMetaWriter
+	// Observer receives low-cardinality metadata resolve stage metrics.
+	Observer AppendStageObserver
 }
 
 func ctxErr(ctx context.Context) error {

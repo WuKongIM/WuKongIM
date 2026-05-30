@@ -118,8 +118,13 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 		return nil
 	}
 	store := defaultChannelRuntimeMetaStore{node: n}
+	var observer channels.AppendStageObserver
+	if n.cfg.Channel.Observer != nil {
+		observer, _ = n.cfg.Channel.Observer.(channels.AppendStageObserver)
+	}
 	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
 		Placement: channels.NewSlotPlacementResolver(n.router, n.defaultChannelMinISR()),
+		Observer:  observer,
 	})
 }
 

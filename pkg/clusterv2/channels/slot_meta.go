@@ -4,9 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
+const (
+	channelMetaStageSlotRead    = "meta_slot_read"
+	channelMetaStageCreateWrite = "meta_create_write"
+	channelMetaStageFinalRead   = "meta_final_read"
 )
 
 // SlotMetaSource resolves ChannelV2 metadata from Slot authoritative runtime metadata.
@@ -37,7 +44,9 @@ func (s *SlotMetaSource) ResolveChannelMeta(ctx context.Context, id ch.ChannelID
 	if err := ctxErr(ctx); err != nil {
 		return ch.Meta{}, err
 	}
+	started := time.Now()
 	meta, err := s.readRuntimeMeta(ctx, id)
+	s.observeMetaStage(channelMetaStageSlotRead, metaStageResult(err), time.Since(started))
 	if err != nil {
 		if errors.Is(err, metadb.ErrNotFound) {
 			return ch.Meta{}, fmt.Errorf("%w: %v", ch.ErrChannelNotFound, id)
@@ -52,7 +61,9 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	if err := ctxErr(ctx); err != nil {
 		return ch.Meta{}, err
 	}
+	started := time.Now()
 	meta, err := s.readRuntimeMeta(ctx, id)
+	s.observeMetaStage(channelMetaStageSlotRead, metaStageResult(err), time.Since(started))
 	if err == nil {
 		return projectRuntimeMeta(meta), nil
 	}
@@ -62,14 +73,18 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	if s.writer == nil {
 		return ch.Meta{}, fmt.Errorf("%w: missing slot metadata writer", ch.ErrChannelNotFound)
 	}
+	started = time.Now()
 	candidate, err := s.initialRuntimeMeta(ctx, id)
+	if err == nil {
+		err = s.writer.UpsertChannelRuntimeMeta(ctx, candidate)
+	}
+	s.observeMetaStage(channelMetaStageCreateWrite, metaStageResult(err), time.Since(started))
 	if err != nil {
 		return ch.Meta{}, err
 	}
-	if err := s.writer.UpsertChannelRuntimeMeta(ctx, candidate); err != nil {
-		return ch.Meta{}, err
-	}
+	started = time.Now()
 	meta, err = s.readRuntimeMeta(ctx, id)
+	s.observeMetaStage(channelMetaStageFinalRead, metaStageResult(err), time.Since(started))
 	if err != nil {
 		if errors.Is(err, metadb.ErrNotFound) {
 			// Remote Slot proposals can commit before this node's local Slot
@@ -143,6 +158,26 @@ func (s *SlotMetaSource) initialPlacement(ctx context.Context, id ch.ChannelID) 
 		Replicas: append([]ch.NodeID(nil), s.opts.DefaultReplicas...),
 		MinISR:   s.opts.DefaultMinISR,
 	}, nil
+}
+
+func (s *SlotMetaSource) observeMetaStage(stage string, result string, d time.Duration) {
+	if s == nil || s.opts.Observer == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	s.opts.Observer.ObserveChannelAppendStage(stage, result, d)
+}
+
+func metaStageResult(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if errors.Is(err, metadb.ErrNotFound) {
+		return "miss"
+	}
+	return "err"
 }
 
 func firstNodeID(nodes []ch.NodeID) ch.NodeID {

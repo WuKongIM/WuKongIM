@@ -214,6 +214,49 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="runtime_append",r
 	}
 }
 
+func TestAnalyzeWukongIMV2PrometheusReportsChannelV2MetaResolveBreakdown(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="+Inf"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="0.01"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="0.05"} 0
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="+Inf"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="0.01"} 20
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_slot_read",result="miss",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.01"} 10
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_write",result="ok",le="+Inf"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="0.01"} 50
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="0.05"} 100
+wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",result="miss",le="+Inf"} 100
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	}
+	if report.ChannelV2MetaSlotReadP99Seconds <= 0 || report.ChannelV2MetaCreateWriteP99Seconds <= 0 || report.ChannelV2MetaFinalReadP99Seconds <= 0 {
+		t.Fatalf("channel meta breakdown p99s not parsed: %+v", report)
+	}
+}
+
 func TestAnalyzeWukongIMV2PrometheusClassifiesStorageCommitPressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0

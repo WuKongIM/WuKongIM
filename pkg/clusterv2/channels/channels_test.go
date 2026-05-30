@@ -117,10 +117,29 @@ func TestSlotMetaSourceCreatesMissingRuntimeMeta(t *testing.T) {
 	}
 }
 
+func TestSlotMetaSourceObservesEnsureMetaStageBreakdown(t *testing.T) {
+	id := ch.ChannelID{ID: "ensure-create-observed", Type: 1}
+	reader := &runtimeMetaReaderFake{err: metadb.ErrNotFound}
+	observer := &appendStageObserver{}
+	source := NewSlotMetaSource(reader, SlotMetaSourceOptions{
+		DefaultReplicas: []ch.NodeID{2, 1},
+		DefaultMinISR:   1,
+		Observer:        observer,
+	})
+
+	_, err := source.EnsureChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+
+	requireAppendStage(t, observer.events, "meta_slot_read", "miss")
+	requireAppendStage(t, observer.events, "meta_create_write", "ok")
+	requireAppendStage(t, observer.events, "meta_final_read", "ok")
+}
+
 func TestSlotMetaSourceReturnsCreatedMetaWhenLocalReadLagsAfterWrite(t *testing.T) {
 	id := ch.ChannelID{ID: "ensure-create-lagging-read", Type: 1}
 	store := &laggingRuntimeMetaStore{}
-	source := NewSlotMetaSource(store, SlotMetaSourceOptions{DefaultReplicas: []ch.NodeID{2, 1}, DefaultMinISR: 1})
+	observer := &appendStageObserver{}
+	source := NewSlotMetaSource(store, SlotMetaSourceOptions{DefaultReplicas: []ch.NodeID{2, 1}, DefaultMinISR: 1, Observer: observer})
 
 	meta, err := source.EnsureChannelMeta(context.Background(), id)
 	if err != nil {
@@ -132,6 +151,7 @@ func TestSlotMetaSourceReturnsCreatedMetaWhenLocalReadLagsAfterWrite(t *testing.
 	if meta.ID != id || meta.Leader != 2 || meta.Epoch != 1 || meta.LeaderEpoch != 1 {
 		t.Fatalf("created meta = %#v, want deterministic initial meta", meta)
 	}
+	requireAppendStage(t, observer.events, "meta_final_read", "miss")
 }
 
 func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {

@@ -62,6 +62,9 @@ type WukongIMV2Attribution struct {
 	ChannelV2WorkerQueueDepthMax           float64
 	ChannelV2AppendP99Seconds              float64
 	ChannelV2MetaResolveP99Seconds         float64
+	ChannelV2MetaSlotReadP99Seconds        float64
+	ChannelV2MetaCreateWriteP99Seconds     float64
+	ChannelV2MetaFinalReadP99Seconds       float64
 	ChannelV2MetaApplyP99Seconds           float64
 	ChannelV2RuntimeAppendP99Seconds       float64
 	ChannelV2WorkerTaskP99Seconds          float64
@@ -213,6 +216,9 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2WorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
 	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
 	report.ChannelV2MetaResolveP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_resolve"})
+	report.ChannelV2MetaSlotReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_slot_read"})
+	report.ChannelV2MetaCreateWriteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_write"})
+	report.ChannelV2MetaFinalReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_final_read"})
 	report.ChannelV2MetaApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_apply"})
 	report.ChannelV2RuntimeAppendP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
@@ -263,6 +269,18 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2MetaResolveP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta resolve p99 is high")
+	}
+	if report.ChannelV2MetaSlotReadP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta slot read p99 is high")
+	}
+	if report.ChannelV2MetaCreateWriteP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta create/write p99 is high")
+	}
+	if report.ChannelV2MetaFinalReadP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 meta final read p99 is high")
 	}
 	if report.ChannelV2MetaApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
