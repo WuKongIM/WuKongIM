@@ -177,6 +177,7 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_pull_hint_closed_err_count: %.0f\n", report.ChannelV2PullHintClosedErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_canceled_err_count: %.0f\n", report.ChannelV2PullHintCanceledErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_timeout_err_count: %.0f\n", report.ChannelV2PullHintTimeoutErrCount)
+	fmt.Fprintf(w, "channelv2_pull_hint_remote_err_count: %.0f\n", report.ChannelV2PullHintRemoteErrCount)
 	fmt.Fprintf(w, "channelv2_pull_hint_other_err_count: %.0f\n", report.ChannelV2PullHintOtherErrCount)
 	fmt.Fprintf(w, "channelv2_worker_task_p99_seconds: %.6f\n", report.ChannelV2WorkerTaskP99Seconds)
 	fmt.Fprintf(w, "storage_commit_queue_depth_max: %.0f\n", report.StorageCommitQueueDepthMax)

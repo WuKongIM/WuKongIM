@@ -156,7 +156,7 @@ Leader PullHint result counters use `wukongim_channelv2_pull_hint_total` with
 low-cardinality `reason/result/error` labels. `submitted` counts accepted worker
 submissions, `ok` counts completed PullHint RPCs, and `err` is classified by
 stable error classes such as `stale_meta`, `channel_not_found`, `not_ready`,
-`canceled`, `timeout`, and `other`.
+`canceled`, `timeout`, `remote_error`, and `other`.
 
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.

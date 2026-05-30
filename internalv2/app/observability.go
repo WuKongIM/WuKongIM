@@ -484,25 +484,31 @@ func channelV2PullHintReasonLabel(reason transport.PullHintReason) string {
 }
 
 func channelV2PullHintErrorLabel(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ch.ErrNotReady):
+	case errors.Is(err, ch.ErrNotReady) || strings.Contains(message, ch.ErrNotReady.Error()):
 		return "not_ready"
-	case errors.Is(err, ch.ErrStaleMeta):
+	case errors.Is(err, ch.ErrStaleMeta) || strings.Contains(message, ch.ErrStaleMeta.Error()):
 		return "stale_meta"
-	case errors.Is(err, ch.ErrChannelNotFound):
+	case errors.Is(err, ch.ErrChannelNotFound) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
 		return "channel_not_found"
-	case errors.Is(err, ch.ErrNotLeader):
+	case errors.Is(err, ch.ErrNotLeader) || strings.Contains(message, ch.ErrNotLeader.Error()):
 		return "not_leader"
-	case errors.Is(err, ch.ErrInvalidConfig):
+	case errors.Is(err, ch.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()):
 		return "invalid_config"
-	case errors.Is(err, ch.ErrClosed):
+	case errors.Is(err, ch.ErrClosed) || strings.Contains(message, ch.ErrClosed.Error()):
 		return "closed"
-	case errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "context canceled"):
+	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
 		return "canceled"
-	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "deadline exceeded"):
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(message, "deadline exceeded"):
 		return "timeout"
+	case strings.Contains(message, "remote error"):
+		return "remote_error"
 	default:
 		return "other"
 	}

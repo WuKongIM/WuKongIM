@@ -34,15 +34,19 @@ func TestChannelV2PullHintMetricLabels(t *testing.T) {
 	}{
 		{name: "none", want: "none"},
 		{name: "not_ready", err: ch.ErrNotReady, want: "not_ready"},
+		{name: "remote_not_ready", err: fmt.Errorf("nodetransport: remote error: %s", ch.ErrNotReady), want: "not_ready"},
 		{name: "stale_meta", err: fmt.Errorf("wrapped: %w", ch.ErrStaleMeta), want: "stale_meta"},
+		{name: "remote_stale_meta", err: fmt.Errorf("nodetransport: remote error: %s", ch.ErrStaleMeta), want: "stale_meta"},
 		{name: "channel_not_found", err: ch.ErrChannelNotFound, want: "channel_not_found"},
 		{name: "not_leader", err: ch.ErrNotLeader, want: "not_leader"},
 		{name: "invalid_config", err: ch.ErrInvalidConfig, want: "invalid_config"},
+		{name: "remote_invalid_config", err: fmt.Errorf("nodetransport: remote error: %s", ch.ErrInvalidConfig), want: "invalid_config"},
 		{name: "closed", err: ch.ErrClosed, want: "closed"},
 		{name: "canceled", err: context.Canceled, want: "canceled"},
 		{name: "remote_canceled", err: fmt.Errorf("nodetransport: remote error: %s", context.Canceled), want: "canceled"},
 		{name: "timeout", err: context.DeadlineExceeded, want: "timeout"},
 		{name: "remote_timeout", err: fmt.Errorf("nodetransport: remote error: %s", context.DeadlineExceeded), want: "timeout"},
+		{name: "remote_error", err: fmt.Errorf("nodetransport: remote error: unexpected"), want: "remote_error"},
 		{name: "other", err: fmt.Errorf("boom"), want: "other"},
 	}
 	for _, tc := range errorCases {
