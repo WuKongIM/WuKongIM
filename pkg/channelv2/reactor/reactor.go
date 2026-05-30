@@ -88,6 +88,8 @@ type Reactor struct {
 	done   chan struct{}
 	once   sync.Once
 	nextOp atomic.Uint64
+	// submitGate serializes event admission with the final shutdown drain.
+	submitGate sync.RWMutex
 	// submitMu orders final leader eviction against concurrent Append submissions.
 	submitMu sync.Mutex
 	// appendSubmitSeqs increments per channel before every Append reservation or mailbox submission.
@@ -153,6 +155,8 @@ func (r *Reactor) start() { go r.loop() }
 
 // Submit enqueues an event.
 func (r *Reactor) Submit(priority Priority, event Event) error {
+	r.submitGate.RLock()
+	defer r.submitGate.RUnlock()
 	select {
 	case <-r.stop:
 		return ch.ErrClosed
@@ -176,6 +180,8 @@ func (r *Reactor) SubmitCompletion(event Event) error {
 	if r == nil || r.mailbox == nil {
 		return ch.ErrClosed
 	}
+	r.submitGate.RLock()
+	defer r.submitGate.RUnlock()
 	select {
 	case <-r.stop:
 		return ch.ErrClosed
@@ -202,8 +208,10 @@ func (r *Reactor) loop() {
 	stopTimer(idleTimer)
 	defer func() {
 		stopTimer(idleTimer)
+		r.submitGate.Lock()
 		r.failPendingWaiters(ch.ErrClosed)
 		r.failQueuedEvents(ch.ErrClosed)
+		r.submitGate.Unlock()
 		close(r.done)
 	}()
 	for {

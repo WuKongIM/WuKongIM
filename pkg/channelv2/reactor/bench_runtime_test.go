@@ -159,3 +159,48 @@ func TestReactorCompletesQueuedFuturesOnExit(t *testing.T) {
 	_, err := future.Await(context.Background())
 	require.True(t, errors.Is(err, ch.ErrClosed))
 }
+
+func TestSubmitCompletionBlockedByFullQueueReturnsClosedOnClose(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 1})
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	blockingFuture := NewFuture()
+	blockingFuture.beforeComplete = func(Result) {
+		close(entered)
+		<-release
+	}
+	require.NoError(t, r.mailbox.Submit(PriorityHigh, Event{Kind: EventTick, Future: blockingFuture}))
+	r.start()
+
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("reactor did not enter blocking handler")
+	}
+	queuedFuture := NewFuture()
+	require.NoError(t, r.mailbox.Submit(PriorityHigh, Event{Kind: EventRuntimeProbe, Future: queuedFuture}))
+
+	submitDone := make(chan error, 1)
+	go func() {
+		submitDone <- r.SubmitCompletion(Event{Kind: EventWorkerResult})
+	}()
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- r.Close()
+	}()
+
+	select {
+	case err := <-submitDone:
+		require.ErrorIs(t, err, ch.ErrClosed)
+	case <-time.After(time.Second):
+		close(release)
+		t.Fatal("SubmitCompletion did not unblock after close")
+	}
+	close(release)
+	select {
+	case err := <-closeDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish")
+	}
+}
