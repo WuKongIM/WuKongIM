@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -38,6 +39,10 @@ func TestChannelV2PullHintMetricLabels(t *testing.T) {
 		{name: "not_leader", err: ch.ErrNotLeader, want: "not_leader"},
 		{name: "invalid_config", err: ch.ErrInvalidConfig, want: "invalid_config"},
 		{name: "closed", err: ch.ErrClosed, want: "closed"},
+		{name: "canceled", err: context.Canceled, want: "canceled"},
+		{name: "remote_canceled", err: fmt.Errorf("nodetransport: remote error: %s", context.Canceled), want: "canceled"},
+		{name: "timeout", err: context.DeadlineExceeded, want: "timeout"},
+		{name: "remote_timeout", err: fmt.Errorf("nodetransport: remote error: %s", context.DeadlineExceeded), want: "timeout"},
 		{name: "other", err: fmt.Errorf("boom"), want: "other"},
 	}
 	for _, tc := range errorCases {

@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -497,6 +499,10 @@ func channelV2PullHintErrorLabel(err error) string {
 		return "invalid_config"
 	case errors.Is(err, ch.ErrClosed):
 		return "closed"
+	case errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "context canceled"):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "deadline exceeded"):
+		return "timeout"
 	default:
 		return "other"
 	}

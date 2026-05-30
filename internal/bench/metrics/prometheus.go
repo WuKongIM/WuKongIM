@@ -101,6 +101,8 @@ type WukongIMV2Attribution struct {
 	ChannelV2PullHintNotLeaderErrCount              float64
 	ChannelV2PullHintInvalidConfigErrCount          float64
 	ChannelV2PullHintClosedErrCount                 float64
+	ChannelV2PullHintCanceledErrCount               float64
+	ChannelV2PullHintTimeoutErrCount                float64
 	ChannelV2PullHintOtherErrCount                  float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
@@ -290,6 +292,8 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2PullHintNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_leader"})
 	report.ChannelV2PullHintInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "invalid_config"})
 	report.ChannelV2PullHintClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "closed"})
+	report.ChannelV2PullHintCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelV2PullHintTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "timeout"})
 	report.ChannelV2PullHintOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "other"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
@@ -481,6 +485,12 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 	if report.ChannelV2PullHintClosedErrCount > 0 {
 		report.Reasons = append(report.Reasons, "ChannelV2 PullHint closed errors were observed")
+	}
+	if report.ChannelV2PullHintCanceledErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint canceled errors were observed")
+	}
+	if report.ChannelV2PullHintTimeoutErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 PullHint timeout errors were observed")
 	}
 	if report.ChannelV2PullHintOtherErrCount > 0 {
 		report.Reasons = append(report.Reasons, "ChannelV2 PullHint other errors were observed")

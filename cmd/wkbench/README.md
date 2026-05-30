@@ -209,6 +209,8 @@ result counters are reported as `channelv2_pull_hint_submitted_count`,
 error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
 `channelv2_pull_hint_channel_not_found_err_count`,
 `channelv2_pull_hint_not_ready_err_count`, and
+`channelv2_pull_hint_canceled_err_count`,
+`channelv2_pull_hint_timeout_err_count`, and
 `channelv2_pull_hint_other_err_count`. Use them to separate control-plane
 Step backpressure, Slot metadata reads, missing metadata placement/build, Slot
 metadata local vs forwarded proposals, Slot metadata proposal submit, Slot

@@ -384,6 +384,7 @@ func TestMetricsClassifyReportsChannelV2PullHintCounters(t *testing.T) {
 wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 1
 wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 1
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 1
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"} 0
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
@@ -391,6 +392,7 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_met
 wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 4
 wukongim_channelv2_pull_hint_total{reason="append",result="ok",error="none"} 3
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_meta"} 5
+wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"} 6
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -407,11 +409,14 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="stale_met
 	if !strings.Contains(stderr.String(), "channelv2_pull_hint_ok_count: 2") {
 		t.Fatalf("expected PullHint ok count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_err_count: 4") {
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_err_count: 10") {
 		t.Fatalf("expected PullHint err count in output, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "channelv2_pull_hint_stale_meta_err_count: 4") {
 		t.Fatalf("expected PullHint stale meta err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pull_hint_canceled_err_count: 6") {
+		t.Fatalf("expected PullHint canceled err count in output, got %q", stderr.String())
 	}
 }
 
