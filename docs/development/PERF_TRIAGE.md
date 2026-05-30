@@ -62,6 +62,9 @@ online user pool is intentionally smaller than the channel count; raise
 `--users` and `--connect-rate` only when the experiment intentionally adds
 gateway connection pressure. The default `--stable-p99 2s` is a cold-activation
 guardrail; pass a stricter value such as `200ms` when validating a latency SLA.
+The local three-node configs use three initial physical Slots so the default
+10k-channel run exercises a distributed metadata path instead of one hot Slot
+Raft group.
 For cold ChannelV2 activation attribution, first compare the per-node
 `channelv2_meta_resolve_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,

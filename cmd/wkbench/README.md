@@ -162,7 +162,9 @@ latency SLA rather than live-channel cardinality.
 For local `cmd/wukongimv2` three-node runs, prefer
 `scripts/bench-wukongimv2-three-nodes-10kch.sh`. It wraps this command and
 collects node logs, Prometheus snapshots plus per-node classification files,
-pprof, and server process CPU/memory samples under `resources/`.
+pprof, and server process CPU/memory samples under `resources/`. The referenced
+three-node configs use three initial physical Slots so cold channel metadata
+creation is distributed across the local cluster instead of one Slot Raft group.
 
 The per-node classification files include ControllerV2 Raft Step queue pressure
 plus ChannelV2 cold-activation stage p99s:
