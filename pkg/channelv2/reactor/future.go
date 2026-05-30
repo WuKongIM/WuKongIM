@@ -10,10 +10,15 @@ import (
 
 // Result is the synchronous facade completion payload.
 type Result struct {
-	Append      ch.AppendResult
-	AppendBatch ch.AppendBatchResult
-	Pull        transport.PullResponse
-	Err         error
+	Append          ch.AppendResult
+	AppendBatch     ch.AppendBatchResult
+	Pull            transport.PullResponse
+	RuntimeSnapshot ch.RuntimeReactorSnapshot
+	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.
+	RuntimeActivationRejectedTotal uint64
+	RuntimeProbe                   ch.RuntimeProbeResult
+	RuntimeEvict                   ch.RuntimeEvictResult
+	Err                            error
 }
 
 // Future lets synchronous callers wait for reactor completion.

@@ -94,6 +94,8 @@ type Reactor struct {
 	appendSubmitSeqs map[ch.ChannelKey]uint64
 	// appendReservations counts appends between loaded-state verification and mailbox submission.
 	appendReservations map[ch.ChannelKey]int
+	// activationRejectedTotal counts local runtime activation rejections for benchmark snapshots.
+	activationRejectedTotal uint64
 }
 
 type runtimeChannel struct {
@@ -274,6 +276,12 @@ func (r *Reactor) handle(event Event) {
 		r.handleApplyMeta(event)
 	case EventCheckState:
 		r.handleCheckState(event)
+	case EventRuntimeSnapshot:
+		r.handleRuntimeSnapshot(event)
+	case EventRuntimeProbe:
+		r.handleRuntimeProbe(event)
+	case EventRuntimeEvict:
+		r.handleRuntimeEvict(event)
 	case EventAppend:
 		r.handleAppend(event)
 	case EventCancelWaiter:

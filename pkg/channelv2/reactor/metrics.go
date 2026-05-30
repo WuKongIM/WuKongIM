@@ -95,6 +95,10 @@ func (r *Reactor) observeRuntimeCount(role ch.Role, count int) {
 }
 
 func (r *Reactor) observeActivationRejected(reason string) {
+	if r == nil {
+		return
+	}
+	r.activationRejectedTotal++
 	if observer, ok := r.cfg.Observer.(RuntimeObserver); ok {
 		observer.ObserveChannelActivationRejected(reason)
 	}

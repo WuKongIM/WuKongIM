@@ -17,6 +17,12 @@ const (
 	EventApplyMeta EventKind = iota + 1
 	// EventCheckState asks the owning reactor whether it has channel state loaded.
 	EventCheckState
+	// EventRuntimeSnapshot asks one reactor to summarize loaded runtime state.
+	EventRuntimeSnapshot
+	// EventRuntimeProbe asks one reactor to inspect selected loaded runtimes.
+	EventRuntimeProbe
+	// EventRuntimeEvict asks one reactor to evict selected safe runtimes.
+	EventRuntimeEvict
 	// EventAppend is the client write event handled by the local leader.
 	EventAppend
 	// EventWorkerResult carries a blocking worker completion back to its reactor.
@@ -56,6 +62,8 @@ type Event struct {
 	CancelOp  ch.OpID
 	CancelErr error
 	TickNow   time.Time
+	// RuntimeChannelIDs selects concrete channel IDs for runtime probe and eviction events.
+	RuntimeChannelIDs []ch.ChannelID
 	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
 	LeaderEvictAppendSeq uint64
 }
