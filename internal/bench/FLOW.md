@@ -96,11 +96,11 @@ instead of a pure login or burst-ingress test. Increase `--users`,
 only when the experiment intentionally adds those pressure dimensions.
 
 When the three-node helper script captures before/after Prometheus snapshots,
-`wkbench metrics classify` reports gateway dispatch wait, ChannelV2 append and
-cold-activation stages, and storage commit p99s. ChannelV2 stage labels are
-fixed to `meta_resolve`, `meta_apply`, and `runtime_append` so the report stays
-low-cardinality while still separating control-plane metadata, runtime
-create/apply, and append wait.
+`wkbench metrics classify` reports gateway dispatch wait, ControllerV2 Raft
+Step queue/enqueue pressure, ChannelV2 append and cold-activation stages, and
+storage commit p99s. ChannelV2 stage labels are fixed to `meta_resolve`,
+`meta_apply`, and `runtime_append` so the report stays low-cardinality while
+still separating control-plane metadata, runtime create/apply, and append wait.
 
 ## Worker Control Flow
 

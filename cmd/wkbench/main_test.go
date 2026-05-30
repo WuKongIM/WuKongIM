@@ -325,6 +325,48 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	}
 }
 
+func TestMetricsClassifyReportsControllerRaftStepPressureFromPrometheusSnapshots(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	if err := os.WriteFile(before, []byte(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_controller_raft_step_queue_depth 0
+wukongim_controller_raft_step_queue_capacity 1024
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{result="err",le="0.25"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{result="err",le="+Inf"} 0
+`), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_controller_raft_step_queue_depth 1024
+wukongim_controller_raft_step_queue_capacity 1024
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{result="err",le="0.25"} 3
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{result="err",le="+Inf"} 3
+`), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "classification: controller_raft_step") {
+		t.Fatalf("expected controller classification, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "controller_raft_step_queue_ratio: 1.000") {
+		t.Fatalf("expected controller queue ratio in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "controller_raft_step_enqueue_err_count: 3") {
+		t.Fatalf("expected controller enqueue error count in output, got %q", stderr.String())
+	}
+}
+
 func TestValidateCommandLoadsConfigsAndBuildsPlanWithoutNetwork(t *testing.T) {
 	targetPath := writeWkbenchTempFile(t, `
 name: target

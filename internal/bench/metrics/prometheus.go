@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	WukongIMV2BottleneckGateway       = "gateway_dispatch"
-	WukongIMV2BottleneckChannelV2     = "channelv2_append"
-	WukongIMV2BottleneckStorageCommit = "storage_commit"
-	WukongIMV2BottleneckMixed         = "mixed_backpressure"
-	WukongIMV2BottleneckUnobserved    = "no_observed_queue_pressure"
+	WukongIMV2BottleneckGateway        = "gateway_dispatch"
+	WukongIMV2BottleneckControllerRaft = "controller_raft_step"
+	WukongIMV2BottleneckChannelV2      = "channelv2_append"
+	WukongIMV2BottleneckStorageCommit  = "storage_commit"
+	WukongIMV2BottleneckMixed          = "mixed_backpressure"
+	WukongIMV2BottleneckUnobserved     = "no_observed_queue_pressure"
 )
 
 const (
@@ -46,24 +47,30 @@ type WukongIMV2Attribution struct {
 	// Reasons explains the evidence that produced the classification.
 	Reasons []string
 
-	GatewayQueueDepth                float64
-	GatewayQueueCapacity             float64
-	GatewayQueueRatio                float64
-	GatewayDispatchWaitP99Seconds    float64
-	GatewayBatchRecordsP50           float64
-	ChannelV2ReactorMailboxDepthMax  float64
-	ChannelV2WorkerQueueDepthMax     float64
-	ChannelV2AppendP99Seconds        float64
-	ChannelV2MetaResolveP99Seconds   float64
-	ChannelV2MetaApplyP99Seconds     float64
-	ChannelV2RuntimeAppendP99Seconds float64
-	ChannelV2WorkerTaskP99Seconds    float64
-	ChannelV2AppendBatchRecordsP50   float64
-	StorageCommitQueueDepthMax       float64
-	StorageCommitBatchRequestsP50    float64
-	StorageCommitBatchRecordsP50     float64
-	StorageCommitP99Seconds          float64
-	StorageCommitTotalP99Seconds     float64
+	GatewayQueueDepth                      float64
+	GatewayQueueCapacity                   float64
+	GatewayQueueRatio                      float64
+	GatewayDispatchWaitP99Seconds          float64
+	GatewayBatchRecordsP50                 float64
+	ControllerRaftStepQueueDepth           float64
+	ControllerRaftStepQueueCapacity        float64
+	ControllerRaftStepQueueRatio           float64
+	ControllerRaftStepEnqueueOKP99Seconds  float64
+	ControllerRaftStepEnqueueErrP99Seconds float64
+	ControllerRaftStepEnqueueErrCount      float64
+	ChannelV2ReactorMailboxDepthMax        float64
+	ChannelV2WorkerQueueDepthMax           float64
+	ChannelV2AppendP99Seconds              float64
+	ChannelV2MetaResolveP99Seconds         float64
+	ChannelV2MetaApplyP99Seconds           float64
+	ChannelV2RuntimeAppendP99Seconds       float64
+	ChannelV2WorkerTaskP99Seconds          float64
+	ChannelV2AppendBatchRecordsP50         float64
+	StorageCommitQueueDepthMax             float64
+	StorageCommitBatchRequestsP50          float64
+	StorageCommitBatchRecordsP50           float64
+	StorageCommitP99Seconds                float64
+	StorageCommitTotalP99Seconds           float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -193,6 +200,15 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.GatewayDispatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_gateway_async_send_dispatch_wait_duration_seconds")
 	report.GatewayBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_gateway_async_send_batch_records")
 
+	report.ControllerRaftStepQueueDepth, _ = after.maxGauge("wukongim_controller_raft_step_queue_depth")
+	report.ControllerRaftStepQueueCapacity, _ = after.maxGauge("wukongim_controller_raft_step_queue_capacity")
+	if report.ControllerRaftStepQueueCapacity > 0 {
+		report.ControllerRaftStepQueueRatio = report.ControllerRaftStepQueueDepth / report.ControllerRaftStepQueueCapacity
+	}
+	report.ControllerRaftStepEnqueueOKP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_controller_raft_step_enqueue_duration_seconds", map[string]string{"result": "ok"})
+	report.ControllerRaftStepEnqueueErrP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_controller_raft_step_enqueue_duration_seconds", map[string]string{"result": "err"})
+	report.ControllerRaftStepEnqueueErrCount, _ = histogramCountDeltaMatching(before, after, "wukongim_controller_raft_step_enqueue_duration_seconds", map[string]string{"result": "err"})
+
 	report.ChannelV2ReactorMailboxDepthMax, _ = after.maxGauge("wukongim_channelv2_reactor_mailbox_depth")
 	report.ChannelV2WorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
 	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
@@ -215,6 +231,20 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.GatewayDispatchWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		gatewayPressure = true
 		report.Reasons = append(report.Reasons, "gateway async SEND dispatch wait p99 is high")
+	}
+
+	controllerPressure := false
+	if report.ControllerRaftStepQueueRatio >= wukongIMV2GatewayQueuePressureRatio {
+		controllerPressure = true
+		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step queue ratio is high")
+	}
+	if report.ControllerRaftStepEnqueueOKP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		controllerPressure = true
+		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step enqueue ok p99 is high")
+	}
+	if report.ControllerRaftStepEnqueueErrCount > 0 {
+		controllerPressure = true
+		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step enqueue errors were observed")
 	}
 
 	channelPressure := false
@@ -262,10 +292,14 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 
 	switch {
-	case gatewayPressure && (channelPressure || storagePressure):
+	case gatewayPressure && (controllerPressure || channelPressure || storagePressure):
+		report.Classification = WukongIMV2BottleneckMixed
+	case controllerPressure && (channelPressure || storagePressure):
 		report.Classification = WukongIMV2BottleneckMixed
 	case gatewayPressure:
 		report.Classification = WukongIMV2BottleneckGateway
+	case controllerPressure:
+		report.Classification = WukongIMV2BottleneckControllerRaft
 	case storagePressure:
 		report.Classification = WukongIMV2BottleneckStorageCommit
 	case channelPressure:
@@ -296,6 +330,20 @@ type histogramBucket struct {
 
 func histogramQuantileDelta(q float64, before, after PrometheusSnapshot, family string) (float64, bool) {
 	return histogramQuantileDeltaMatching(q, before, after, family, nil)
+}
+
+func histogramCountDeltaMatching(before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {
+	beforeBuckets := before.histogramBucketsMatching(family, labels)
+	afterBuckets := after.histogramBucketsMatching(family, labels)
+	afterCount, ok := afterBuckets[math.Inf(1)]
+	if !ok {
+		return 0, false
+	}
+	delta := afterCount - beforeBuckets[math.Inf(1)]
+	if delta < 0 {
+		delta = 0
+	}
+	return delta, true
 }
 
 func histogramQuantileDeltaMatching(q float64, before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {

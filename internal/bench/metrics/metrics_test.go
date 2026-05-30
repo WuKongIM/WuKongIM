@@ -262,3 +262,54 @@ wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="com
 		t.Fatalf("storage commit batch records p50 = %v, want > 0", report.StorageCommitBatchRecordsP50)
 	}
 }
+
+func TestAnalyzeWukongIMV2PrometheusClassifiesControllerRaftStepPressure(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_controller_raft_step_queue_depth{node_id="1"} 0
+wukongim_controller_raft_step_queue_capacity{node_id="1"} 1024
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="0.01"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="0.05"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="+Inf"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="0.01"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="0.25"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="+Inf"} 0
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_controller_raft_step_queue_depth{node_id="1"} 900
+wukongim_controller_raft_step_queue_capacity{node_id="1"} 1024
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="0.01"} 10
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="0.05"} 100
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="ok",le="+Inf"} 100
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="0.01"} 0
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="0.25"} 4
+wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result="err",le="+Inf"} 4
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.Classification != WukongIMV2BottleneckControllerRaft {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckControllerRaft, report)
+	}
+	if report.ControllerRaftStepQueueDepth != 900 || report.ControllerRaftStepQueueCapacity != 1024 {
+		t.Fatalf("controller queue = %.0f/%.0f, want 900/1024", report.ControllerRaftStepQueueDepth, report.ControllerRaftStepQueueCapacity)
+	}
+	if report.ControllerRaftStepEnqueueErrCount != 4 {
+		t.Fatalf("controller err count = %v, want 4", report.ControllerRaftStepEnqueueErrCount)
+	}
+	if report.ControllerRaftStepEnqueueOKP99Seconds <= 0 || report.ControllerRaftStepEnqueueErrP99Seconds <= 0 {
+		t.Fatalf("controller enqueue p99s not parsed: %+v", report)
+	}
+}
