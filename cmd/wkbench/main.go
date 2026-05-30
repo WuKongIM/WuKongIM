@@ -145,7 +145,7 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 
 func runCapacity(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel>")
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel|activate-channels>")
 		return exitConfig
 	}
 	switch args[0] {
@@ -153,10 +153,24 @@ func runCapacity(args []string, stderr io.Writer) int {
 		return runCapacitySend(args[1:], stderr)
 	case "hot-channel":
 		return runCapacityHotChannel(args[1:], stderr)
+	case "activate-channels":
+		return runCapacityActivateChannels(args[1:], stderr)
 	default:
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel>")
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel|activate-channels>")
 		return exitConfig
 	}
+}
+
+type activateChannelsRunner interface {
+	Run(context.Context) (capacity.ActivateChannelsResult, error)
+}
+
+var discoverActivateChannelsTarget = func(ctx context.Context, cfg capacity.ActivateChannelsConfig) (capacity.DiscoveredTarget, error) {
+	return capacity.DiscoverTarget(ctx, activateChannelsDiscoveryConfig(cfg))
+}
+
+var newActivateChannelsRunner = func(cfg capacity.ActivateChannelsConfig, discovered capacity.DiscoveredTarget) activateChannelsRunner {
+	return capacity.NewActivateChannelsRunner(cfg, discovered)
 }
 
 func runCapacitySend(args []string, stderr io.Writer) int {
@@ -201,6 +215,29 @@ func runCapacityHotChannel(args []string, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "capacity run failed: %v\n", err)
 		return exitWorker
+	}
+	return result.ExitCode()
+}
+
+func runCapacityActivateChannels(args []string, stderr io.Writer) int {
+	cfg, code := parseCapacityActivateChannelsConfig(args, stderr)
+	if code != 0 {
+		return code
+	}
+	discovered, err := discoverActivateChannelsTarget(context.Background(), cfg)
+	if err != nil {
+		fmt.Fprintf(stderr, "activate-channels preflight failed: %v\n", err)
+		return exitPreflight
+	}
+	result, err := newActivateChannelsRunner(cfg, discovered).Run(context.Background())
+	if writeErr := capacity.WriteActivateChannelsResult(result.ReportDir, result); writeErr != nil {
+		fmt.Fprintf(stderr, "activate-channels report write failed: %v\n", writeErr)
+		return exitInternal
+	}
+	fmt.Fprint(stderr, capacity.ActivateChannelsConsoleSummary(result))
+	if err != nil {
+		fmt.Fprintf(stderr, "activate-channels run failed: %v\n", err)
+		return result.ExitCode()
 	}
 	return result.ExitCode()
 }
@@ -282,6 +319,55 @@ func parseCapacityHotChannelConfig(args []string, stderr io.Writer) (capacity.Ho
 		return capacity.HotChannelConfig{}, exitConfig
 	}
 	return cfg, 0
+}
+
+func parseCapacityActivateChannelsConfig(args []string, stderr io.Writer) (capacity.ActivateChannelsConfig, int) {
+	cfg := capacity.DefaultActivateChannelsConfig()
+	fs := flag.NewFlagSet("capacity activate-channels", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var apiCSV string
+	var gatewayCSV string
+	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
+	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
+	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
+	fs.StringVar(&cfg.RunID, "run-id", cfg.RunID, "stable benchmark run identifier")
+	fs.IntVar(&cfg.Channels, "channels", cfg.Channels, "number of group channels to activate")
+	fs.IntVar(&cfg.Users, "users", cfg.Users, "number of online users prepared for activation")
+	fs.IntVar(&cfg.GroupMembers, "group-members", cfg.GroupMembers, "members per generated group channel")
+	fs.IntVar(&cfg.ActivationConcurrency, "activation-concurrency", cfg.ActivationConcurrency, "maximum in-flight SEND operations during activation")
+	fs.DurationVar(&cfg.ActivationWindow, "activation-window", cfg.ActivationWindow, "active window used to schedule one SEND per channel")
+	fs.DurationVar(&cfg.Hold, "hold", cfg.Hold, "post-activation observation duration")
+	fs.DurationVar(&cfg.HoldProbeInterval, "hold-probe-interval", cfg.HoldProbeInterval, "interval between hold runtime snapshots")
+	fs.IntVar(&cfg.ProbeBatchSize, "probe-batch-size", cfg.ProbeBatchSize, "generated channels checked per runtime probe batch")
+	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
+	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
+	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
+	fs.BoolVar(&cfg.EvictAfter, "evict-after", cfg.EvictAfter, "evict generated channel runtime state after probing")
+	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "activation report output directory")
+	if err := fs.Parse(args); err != nil {
+		return capacity.ActivateChannelsConfig{}, exitConfig
+	}
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		fmt.Fprintln(stderr, "--api is required")
+		return capacity.ActivateChannelsConfig{}, exitConfig
+	}
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return capacity.ActivateChannelsConfig{}, exitConfig
+	}
+	return cfg, 0
+}
+
+func activateChannelsDiscoveryConfig(cfg capacity.ActivateChannelsConfig) capacity.Config {
+	base := capacity.DefaultConfig()
+	base.APIAddrs = append([]string(nil), cfg.APIAddrs...)
+	base.GatewayTCPAddrs = append([]string(nil), cfg.GatewayTCPAddrs...)
+	base.BenchToken = cfg.BenchToken
+	base.GroupMembers = cfg.GroupMembers
+	base.ReportDir = cfg.ReportDir
+	return base
 }
 
 func splitCSV(raw string) []string {

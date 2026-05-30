@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
 )
 
 func TestWorkerCommandRequiresControlToken(t *testing.T) {
@@ -64,7 +68,7 @@ func TestRunCapacityRequiresSubcommand(t *testing.T) {
 	if code != exitConfig {
 		t.Fatalf("expected config exit code, got %d", code)
 	}
-	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send|hot-channel>") {
+	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send|hot-channel|activate-channels>") {
 		t.Fatalf("expected capacity usage, got %q", stderr.String())
 	}
 }
@@ -86,6 +90,19 @@ func TestRunCapacityHotChannelRequiresAPI(t *testing.T) {
 	var stderr bytes.Buffer
 
 	code := runWithStderr([]string{"capacity", "hot-channel"}, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "--api is required") {
+		t.Fatalf("expected api error, got %q", stderr.String())
+	}
+}
+
+func TestRunCapacityActivateChannelsRequiresAPI(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity", "activate-channels"}, &stderr)
 
 	if code != exitConfig {
 		t.Fatalf("expected config exit code, got %d", code)
@@ -121,6 +138,136 @@ func TestParseCapacityHotChannelConfig(t *testing.T) {
 	if cfg.StartQPS != 1000 || cfg.MaxQPS != 2000 {
 		t.Fatalf("qps range = %v..%v, want 1000..2000", cfg.StartQPS, cfg.MaxQPS)
 	}
+}
+
+func TestParseCapacityActivateChannelsConfig(t *testing.T) {
+	var stderr bytes.Buffer
+
+	cfg, code := parseCapacityActivateChannelsConfig([]string{
+		"--api", "http://127.0.0.1:5001,http://127.0.0.1:5002",
+		"--gateway", "127.0.0.1:5100",
+		"--bench-token", "secret",
+		"--run-id", "activate-test",
+		"--channels", "1234",
+		"--users", "2345",
+		"--group-members", "12",
+		"--activation-concurrency", "345",
+		"--activation-window", "3s",
+		"--hold", "4s",
+		"--hold-probe-interval", "500ms",
+		"--probe-batch-size", "111",
+		"--stable-p99", "250ms",
+		"--max-sendack-error-rate", "0.01",
+		"--max-connect-error-rate", "0.02",
+		"--evict-after=true",
+		"--report-dir", "/tmp/activate-report",
+	}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected parse success, got code %d stderr %q", code, stderr.String())
+	}
+	if got := strings.Join(cfg.APIAddrs, ","); got != "http://127.0.0.1:5001,http://127.0.0.1:5002" {
+		t.Fatalf("api addrs = %q", got)
+	}
+	if got := strings.Join(cfg.GatewayTCPAddrs, ","); got != "127.0.0.1:5100" {
+		t.Fatalf("gateway addrs = %q", got)
+	}
+	if cfg.BenchToken != "secret" || cfg.RunID != "activate-test" {
+		t.Fatalf("token/run id = %q/%q", cfg.BenchToken, cfg.RunID)
+	}
+	if cfg.Channels != 1234 || cfg.Users != 2345 || cfg.GroupMembers != 12 {
+		t.Fatalf("shape = channels %d users %d members %d", cfg.Channels, cfg.Users, cfg.GroupMembers)
+	}
+	if cfg.ActivationConcurrency != 345 || cfg.ActivationWindow != 3*time.Second {
+		t.Fatalf("activation = concurrency %d window %s", cfg.ActivationConcurrency, cfg.ActivationWindow)
+	}
+	if cfg.Hold != 4*time.Second || cfg.HoldProbeInterval != 500*time.Millisecond || cfg.ProbeBatchSize != 111 {
+		t.Fatalf("hold/probe = %s %s %d", cfg.Hold, cfg.HoldProbeInterval, cfg.ProbeBatchSize)
+	}
+	if cfg.StableP99 != 250*time.Millisecond || cfg.MaxSendackErrorRate != 0.01 || cfg.MaxConnectErrorRate != 0.02 {
+		t.Fatalf("limits = %s %.3f %.3f", cfg.StableP99, cfg.MaxSendackErrorRate, cfg.MaxConnectErrorRate)
+	}
+	if !cfg.EvictAfter || cfg.ReportDir != "/tmp/activate-report" {
+		t.Fatalf("evict/report = %t %q", cfg.EvictAfter, cfg.ReportDir)
+	}
+}
+
+func TestRunCapacityActivateChannelsUsesRunnerAndWritesReport(t *testing.T) {
+	origDiscover := discoverActivateChannelsTarget
+	origNewRunner := newActivateChannelsRunner
+	defer func() {
+		discoverActivateChannelsTarget = origDiscover
+		newActivateChannelsRunner = origNewRunner
+	}()
+	var discoveredCfg capacity.ActivateChannelsConfig
+	var runnerCfg capacity.ActivateChannelsConfig
+	discoverActivateChannelsTarget = func(_ context.Context, cfg capacity.ActivateChannelsConfig) (capacity.DiscoveredTarget, error) {
+		discoveredCfg = cfg
+		return capacity.DiscoveredTarget{}, nil
+	}
+	newActivateChannelsRunner = func(cfg capacity.ActivateChannelsConfig, discovered capacity.DiscoveredTarget) activateChannelsRunner {
+		runnerCfg = cfg
+		return fakeActivateChannelsRunner{result: capacity.ActivateChannelsResult{
+			Status: capacity.StatusPassed,
+			Config: capacity.ActivateChannelsReportConfig{
+				RunID:                 cfg.RunID,
+				Channels:              cfg.Channels,
+				Users:                 cfg.Users,
+				GroupMembers:          cfg.GroupMembers,
+				ActivationConcurrency: cfg.ActivationConcurrency,
+				ActivationWindow:      cfg.ActivationWindow,
+				Hold:                  cfg.Hold,
+				ProbeBatchSize:        cfg.ProbeBatchSize,
+				EvictAfter:            cfg.EvictAfter,
+			},
+			Evaluation: capacity.ActivateChannelsEvaluation{
+				Passed:            true,
+				ActivationSuccess: uint64(cfg.Channels),
+				ActiveLeaderTotal: cfg.Channels,
+			},
+			ReportDir: cfg.ReportDir,
+		}}
+	}
+	reportDir := t.TempDir()
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{
+		"capacity", "activate-channels",
+		"--api", "http://127.0.0.1:5001",
+		"--gateway", "127.0.0.1:5100",
+		"--run-id", "activate-cli",
+		"--channels", "4",
+		"--users", "8",
+		"--group-members", "2",
+		"--activation-window", "10ms",
+		"--hold", "0s",
+		"--report-dir", reportDir,
+	}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d stderr %q", code, stderr.String())
+	}
+	if discoveredCfg.RunID != "activate-cli" || runnerCfg.Channels != 4 {
+		t.Fatalf("unexpected cfgs: discovered=%+v runner=%+v", discoveredCfg, runnerCfg)
+	}
+	if !strings.Contains(stderr.String(), "wkbench activate-channels") {
+		t.Fatalf("expected console summary, got %q", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(reportDir, "activation_report.json")); err != nil {
+		t.Fatalf("expected activation report: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(reportDir, "summary.md")); err != nil {
+		t.Fatalf("expected summary: %v", err)
+	}
+}
+
+type fakeActivateChannelsRunner struct {
+	result capacity.ActivateChannelsResult
+	err    error
+}
+
+func (f fakeActivateChannelsRunner) Run(context.Context) (capacity.ActivateChannelsResult, error) {
+	return f.result, f.err
 }
 
 func TestMetricsClassifyReportsGatewayPressureFromPrometheusSnapshots(t *testing.T) {
