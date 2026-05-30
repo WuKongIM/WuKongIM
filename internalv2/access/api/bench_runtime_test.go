@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +15,16 @@ type fakeChannelRuntimeBenchController struct {
 	snapshotQuery model.ChannelRuntimeQuery
 	probeQuery    model.ChannelRuntimeQuery
 	evictQuery    model.ChannelRuntimeQuery
+	snapshotErr   error
+	probeErr      error
+	evictErr      error
 }
 
 func (f *fakeChannelRuntimeBenchController) Snapshot(_ context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeSnapshot, error) {
 	f.snapshotQuery = query
+	if f.snapshotErr != nil {
+		return model.ChannelRuntimeSnapshot{}, f.snapshotErr
+	}
 	return model.ChannelRuntimeSnapshot{
 		NodeID:       1,
 		RunID:        query.RunID,
@@ -32,6 +39,9 @@ func (f *fakeChannelRuntimeBenchController) Snapshot(_ context.Context, query mo
 
 func (f *fakeChannelRuntimeBenchController) Probe(_ context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error) {
 	f.probeQuery = query
+	if f.probeErr != nil {
+		return model.ChannelRuntimeProbeResult{}, f.probeErr
+	}
 	return model.ChannelRuntimeProbeResult{
 		NodeID:         1,
 		RunID:          query.RunID,
@@ -45,6 +55,9 @@ func (f *fakeChannelRuntimeBenchController) Probe(_ context.Context, query model
 
 func (f *fakeChannelRuntimeBenchController) Evict(_ context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeEvictResult, error) {
 	f.evictQuery = query
+	if f.evictErr != nil {
+		return model.ChannelRuntimeEvictResult{}, f.evictErr
+	}
 	return model.ChannelRuntimeEvictResult{
 		NodeID:      1,
 		RunID:       query.RunID,
@@ -107,6 +120,17 @@ func TestBenchChannelRuntimeSnapshot(t *testing.T) {
 	}
 }
 
+func TestBenchChannelRuntimeSnapshotRejectsInvalidSelector(t *testing.T) {
+	srv := New(Options{BenchEnabled: true, BenchRuntime: &fakeChannelRuntimeBenchController{}})
+	httpSrv := httptest.NewServer(srv.Handler())
+	t.Cleanup(httpSrv.Close)
+
+	resp, err := http.Get(httpSrv.URL + "/bench/v1/channel-runtime/snapshot?start=10&end=20")
+	requireStatus(t, resp, err, http.StatusBadRequest)
+	resp, err = http.Get(httpSrv.URL + "/bench/v1/channel-runtime/snapshot?run_id=run-1&profile=wide&channel_type=nope&start=10&end=20")
+	requireStatus(t, resp, err, http.StatusBadRequest)
+}
+
 func TestBenchChannelRuntimeProbeRejectsInvalidRange(t *testing.T) {
 	srv := New(Options{BenchEnabled: true, BenchRuntime: &fakeChannelRuntimeBenchController{}})
 	httpSrv := httptest.NewServer(srv.Handler())
@@ -114,6 +138,26 @@ func TestBenchChannelRuntimeProbeRejectsInvalidRange(t *testing.T) {
 
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":10,"end":10}}`, http.StatusBadRequest)
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":100001}}`, http.StatusBadRequest)
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":-1,"end":1}}`, http.StatusBadRequest)
+}
+
+func TestBenchChannelRuntimeProbeRejectsMissingSelectorFields(t *testing.T) {
+	srv := New(Options{BenchEnabled: true, BenchRuntime: &fakeChannelRuntimeBenchController{}})
+	httpSrv := httptest.NewServer(srv.Handler())
+	t.Cleanup(httpSrv.Close)
+
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusBadRequest)
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusBadRequest)
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","range":{"start":0,"end":1}}`, http.StatusBadRequest)
+}
+
+func TestBenchChannelRuntimeProbeRejectsStrictJSONViolations(t *testing.T) {
+	srv := New(Options{BenchEnabled: true, BenchRuntime: &fakeChannelRuntimeBenchController{}})
+	httpSrv := httptest.NewServer(srv.Handler())
+	t.Cleanup(httpSrv.Close)
+
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1},"unknown":true}`, http.StatusBadRequest)
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}} {}`, http.StatusBadRequest)
 }
 
 func TestBenchChannelRuntimeEvict(t *testing.T) {
@@ -161,4 +205,17 @@ func TestBenchChannelRuntimeRoutesUnavailableWithoutController(t *testing.T) {
 	requireStatus(t, resp, err, http.StatusNotImplemented)
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusNotImplemented)
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/evict", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusNotImplemented)
+}
+
+func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testing.T) {
+	srv := New(Options{
+		BenchEnabled: true,
+		BenchRuntime: &fakeChannelRuntimeBenchController{
+			probeErr: errors.New("runtime probe failed"),
+		},
+	})
+	httpSrv := httptest.NewServer(srv.Handler())
+	t.Cleanup(httpSrv.Close)
+
+	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusInternalServerError)
 }
