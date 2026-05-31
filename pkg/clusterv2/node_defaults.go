@@ -123,7 +123,7 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 	}
 	store := defaultChannelRuntimeMetaStore{node: n, observer: observer}
 	return channels.NewSlotMetaSource(store, channels.SlotMetaSourceOptions{
-		Placement: channels.NewSlotPlacementResolver(n.router, n.defaultChannelMinISR()),
+		Placement: channels.NewSlotPlacementResolver(n.router, &n.channelDataNodes, int(n.cfg.Channel.ReplicaCount)),
 		Observer:  observer,
 	})
 }
@@ -131,8 +131,8 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 // defaultChannelMinISR returns the write quorum for newly placed ChannelV2 logs.
 func (n *Node) defaultChannelMinISR() int {
 	replicas := 1
-	if n != nil && n.cfg.Slots.ReplicaCount > 0 {
-		replicas = int(n.cfg.Slots.ReplicaCount)
+	if n != nil && n.cfg.Channel.ReplicaCount > 0 {
+		replicas = int(n.cfg.Channel.ReplicaCount)
 	}
 	return replicas/2 + 1
 }
