@@ -124,6 +124,35 @@ func TestDefaultChannelMinISRUsesSlotReplicaMajority(t *testing.T) {
 	}
 }
 
+func TestChannelReplicaCountDefaultsToSlotReplicaCount(t *testing.T) {
+	cfg := Config{}
+	cfg.Control.Voters = []ControlVoter{
+		{NodeID: 1, Addr: "127.0.0.1:1001"},
+		{NodeID: 2, Addr: "127.0.0.1:1002"},
+		{NodeID: 3, Addr: "127.0.0.1:1003"},
+	}
+	cfg.Slots.ReplicaCount = 3
+	cfg.applyDefaults()
+	if cfg.Channel.ReplicaCount != 3 {
+		t.Fatalf("Channel.ReplicaCount = %d, want slot replica count 3", cfg.Channel.ReplicaCount)
+	}
+}
+
+func TestChannelReplicaCountPreservesExplicitValue(t *testing.T) {
+	cfg := Config{}
+	cfg.Control.Voters = []ControlVoter{
+		{NodeID: 1, Addr: "127.0.0.1:1001"},
+		{NodeID: 2, Addr: "127.0.0.1:1002"},
+		{NodeID: 3, Addr: "127.0.0.1:1003"},
+	}
+	cfg.Slots.ReplicaCount = 3
+	cfg.Channel.ReplicaCount = 2
+	cfg.applyDefaults()
+	if cfg.Channel.ReplicaCount != 2 {
+		t.Fatalf("Channel.ReplicaCount = %d, want explicit value 2", cfg.Channel.ReplicaCount)
+	}
+}
+
 func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 	cfg := validNodeConfig(t)
 	cfg.Channel.TickInterval = time.Millisecond

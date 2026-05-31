@@ -85,6 +85,8 @@ type SlotConfig struct {
 
 // ChannelConfig contains ChannelV2 service configuration.
 type ChannelConfig struct {
+	// ReplicaCount is the desired ChannelV2 data replica count for newly created channels. Zero defaults to Slots.ReplicaCount.
+	ReplicaCount uint16
 	// ReactorCount is the number of ChannelV2 reactor partitions. Zero derives a CPU-aware default.
 	ReactorCount int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
@@ -132,6 +134,9 @@ func (c *Config) applyDefaults() {
 	}
 	c.applyControlDefaults()
 	c.applySlotDefaults()
+	if c.Channel.ReplicaCount == 0 {
+		c.Channel.ReplicaCount = c.Slots.ReplicaCount
+	}
 }
 
 func defaultChannelReactorCount() int {
@@ -184,6 +189,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MaxChannels < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.ReplicaCount == 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.FollowerRecoveryProbeInterval < 0 {
