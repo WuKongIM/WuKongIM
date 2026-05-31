@@ -112,7 +112,7 @@ func convertRoute(route routing.Route, err error) (Route, error) {
 	if err != nil {
 		return Route{}, mapRouteError(err)
 	}
-	return Route{HashSlot: route.HashSlot, SlotID: route.SlotID, Leader: route.Leader, Peers: append([]uint64(nil), route.Peers...), Revision: route.Revision}, nil
+	return Route{HashSlot: route.HashSlot, SlotID: route.SlotID, Leader: route.Leader, PreferredLeader: route.PreferredLeader, Peers: append([]uint64(nil), route.Peers...), Revision: route.Revision}, nil
 }
 
 func mapRouteError(err error) error {

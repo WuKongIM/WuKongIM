@@ -21,6 +21,9 @@ func TestRouterRoutesHashSlotZero(t *testing.T) {
 	if route.HashSlot != 0 || route.SlotID != 1 || route.Leader != 2 {
 		t.Fatalf("route = %#v, want hashSlot=0 slot=1 leader=2", route)
 	}
+	if route.PreferredLeader != 1 {
+		t.Fatalf("PreferredLeader = %d, want snapshot preferred leader 1", route.PreferredLeader)
+	}
 }
 
 func TestRouterOldSnapshotIsImmutable(t *testing.T) {

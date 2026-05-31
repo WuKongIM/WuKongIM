@@ -30,6 +30,8 @@ type Route struct {
 	SlotID uint32
 	// Leader is the best-known Slot Raft leader node ID. Zero means unknown.
 	Leader uint64
+	// PreferredLeader is the desired data-plane leader from the latest control snapshot.
+	PreferredLeader uint64
 	// Peers are the desired Slot replica node IDs from the latest control snapshot.
 	Peers []uint64
 	// Revision is the control snapshot revision that produced this route.

@@ -198,6 +198,26 @@ func TestSlotPlacementResolverUsesSlotRouteLeaderAndPeers(t *testing.T) {
 	}
 }
 
+func TestSlotPlacementResolverPrefersRoutePreferredLeader(t *testing.T) {
+	id := ch.ChannelID{ID: "route-placement-preferred", Type: 1}
+	resolver := NewSlotPlacementResolver(fakePlacementRouter{route: routing.Route{
+		Leader:          3,
+		PreferredLeader: 1,
+		Peers:           []uint64{2, 1, 3},
+	}}, 2)
+
+	placement, err := resolver.ResolveChannelPlacement(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveChannelPlacement() error = %v", err)
+	}
+	if placement.Leader != 1 {
+		t.Fatalf("Leader = %d, want route preferred leader 1", placement.Leader)
+	}
+	if got, want := placement.Replicas, []ch.NodeID{2, 1, 3}; !equalNodeIDs(got, want) {
+		t.Fatalf("Replicas = %v, want %v", got, want)
+	}
+}
+
 func TestSlotMetaSourceMapsMissingRuntimeMetaToChannelNotFound(t *testing.T) {
 	source := NewSlotMetaSource(runtimeMetaReaderFake{err: metadb.ErrNotFound})
 	_, err := source.ResolveChannelMeta(context.Background(), ch.ChannelID{ID: "missing", Type: 1})

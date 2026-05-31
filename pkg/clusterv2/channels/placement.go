@@ -18,7 +18,7 @@ func NewSlotPlacementResolver(router PlacementRouter, minISR int) *SlotPlacement
 	return &SlotPlacementResolver{router: router, minISR: minISR}
 }
 
-// ResolveChannelPlacement returns the Slot leader and peers for id.
+// ResolveChannelPlacement returns the preferred ChannelV2 leader and peers for id.
 func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id ch.ChannelID) (ChannelPlacement, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ChannelPlacement{}, err
@@ -34,5 +34,18 @@ func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id 
 	for _, peer := range route.Peers {
 		replicas = append(replicas, ch.NodeID(peer))
 	}
-	return ChannelPlacement{Leader: ch.NodeID(route.Leader), Replicas: replicas, MinISR: r.minISR}, nil
+	leader := route.Leader
+	if route.PreferredLeader != 0 && routeHasPeer(route.Peers, route.PreferredLeader) {
+		leader = route.PreferredLeader
+	}
+	return ChannelPlacement{Leader: ch.NodeID(leader), Replicas: replicas, MinISR: r.minISR}, nil
+}
+
+func routeHasPeer(peers []uint64, nodeID uint64) bool {
+	for _, peer := range peers {
+		if peer == nodeID {
+			return true
+		}
+	}
+	return false
 }

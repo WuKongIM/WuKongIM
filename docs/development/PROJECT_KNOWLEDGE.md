@@ -102,6 +102,7 @@
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
 - `pkg/channelv2` append is local-runtime only: clusterv2 must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
+- In wukongimv2 three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
 - wukongimv2 single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
 - SENDACK must only follow a crash-safe durable message commit; `NoSync` is diagnostic/unsafe for this guarantee. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
 
