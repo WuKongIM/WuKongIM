@@ -128,15 +128,6 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 	})
 }
 
-// defaultChannelMinISR returns the write quorum for newly placed ChannelV2 logs.
-func (n *Node) defaultChannelMinISR() int {
-	replicas := 1
-	if n != nil && n.cfg.Channel.ReplicaCount > 0 {
-		replicas = int(n.cfg.Channel.ReplicaCount)
-	}
-	return replicas/2 + 1
-}
-
 // defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.
 type defaultChannelRuntimeMetaStore struct {
 	node     *Node

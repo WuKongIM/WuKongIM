@@ -6,7 +6,7 @@ type Role string
 const (
 	// RoleController marks a node that can participate in Controller coordination.
 	RoleController Role = "controller"
-	// RoleData marks a node that can host physical Slot replicas.
+	// RoleData marks a node that can host physical Slot replicas and ChannelV2 data replicas.
 	RoleData Role = "data"
 )
 

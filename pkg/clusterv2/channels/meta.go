@@ -32,7 +32,7 @@ type RuntimeMetaWriter interface {
 	UpsertChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) error
 }
 
-// ChannelPlacement describes the initial ChannelV2 route chosen by Slot metadata.
+// ChannelPlacement describes the initial ChannelV2 data-plane placement.
 type ChannelPlacement struct {
 	// Leader is the initial ChannelV2 leader.
 	Leader ch.NodeID
@@ -42,7 +42,7 @@ type ChannelPlacement struct {
 	MinISR int
 }
 
-// ChannelPlacementResolver resolves first-append placement from Slot routing.
+// ChannelPlacementResolver resolves first-append data placement after Slot route readiness.
 type ChannelPlacementResolver interface {
 	// ResolveChannelPlacement returns the initial placement for id.
 	ResolveChannelPlacement(context.Context, ch.ChannelID) (ChannelPlacement, error)
@@ -65,7 +65,7 @@ type SlotMetaSourceOptions struct {
 	DefaultReplicas []ch.NodeID
 	// DefaultMinISR is the initial write quorum; defaults to 1 when replicas exist.
 	DefaultMinISR int
-	// Placement resolves the initial ChannelV2 route from Slot routing.
+	// Placement resolves initial ChannelV2 data replicas after Slot route readiness.
 	Placement ChannelPlacementResolver
 	// Writer persists missing metadata; when nil, reader is used if it implements RuntimeMetaWriter.
 	Writer RuntimeMetaWriter

@@ -260,6 +260,59 @@ func TestSlotPlacementResolverHashesFullChannelIdentity(t *testing.T) {
 	}
 }
 
+func TestSlotPlacementResolverRejectsInvalidDataNodeCandidates(t *testing.T) {
+	id := ch.ChannelID{ID: "invalid-placement", Type: 1}
+	tests := []struct {
+		name         string
+		dataNodes    DataNodeProvider
+		replicaCount int
+	}{
+		{name: "nil provider", dataNodes: nil, replicaCount: 1},
+		{name: "zero replicas", dataNodes: fakeDataNodeProvider{nodes: []uint64{1, 2}}, replicaCount: 0},
+		{name: "insufficient unique nodes", dataNodes: fakeDataNodeProvider{nodes: []uint64{1, 1, 2}}, replicaCount: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := NewSlotPlacementResolver(
+				fakePlacementRouter{route: routing.Route{Leader: 1, Peers: []uint64{1, 2, 3}}},
+				tt.dataNodes,
+				tt.replicaCount,
+			)
+			_, err := resolver.ResolveChannelPlacement(context.Background(), id)
+			if !errors.Is(err, ch.ErrInvalidConfig) {
+				t.Fatalf("ResolveChannelPlacement() error = %v, want ErrInvalidConfig", err)
+			}
+		})
+	}
+}
+
+func TestSlotPlacementResolverDeduplicatesDataNodeCandidates(t *testing.T) {
+	id := ch.ChannelID{ID: "dedupe-placement", Type: 1}
+	resolver := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Leader: 1, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{nodes: []uint64{7, 5, 7, 6, 5}},
+		3,
+	)
+
+	placement, err := resolver.ResolveChannelPlacement(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveChannelPlacement() error = %v", err)
+	}
+	if len(placement.Replicas) != 3 {
+		t.Fatalf("Replicas = %v, want three unique nodes", placement.Replicas)
+	}
+	seen := map[ch.NodeID]bool{}
+	for _, replica := range placement.Replicas {
+		if replica < 5 || replica > 7 {
+			t.Fatalf("Replicas = %v, want only data nodes 5,6,7", placement.Replicas)
+		}
+		if seen[replica] {
+			t.Fatalf("Replicas = %v, want no duplicates", placement.Replicas)
+		}
+		seen[replica] = true
+	}
+}
+
 func TestSlotMetaSourceMapsMissingRuntimeMetaToChannelNotFound(t *testing.T) {
 	source := NewSlotMetaSource(runtimeMetaReaderFake{err: metadb.ErrNotFound})
 	_, err := source.ResolveChannelMeta(context.Background(), ch.ChannelID{ID: "missing", Type: 1})
