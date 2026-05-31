@@ -13,6 +13,8 @@
 
 ## Channel Runtime
 
+- ChannelV2 data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.
+
 ### Conversation working set
 - Recent conversation sync is allowed to be working-set based; it does not need `version` to discover every historical conversation update.
 - Active local channel runtimes must be capacity-managed per node with `WK_CLUSTER_MAX_CHANNELS` and optional idle eviction; 100k simultaneously active channels can amplify replica goroutines and heap even before message volume is high.
