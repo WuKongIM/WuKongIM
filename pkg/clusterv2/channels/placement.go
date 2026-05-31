@@ -17,7 +17,7 @@ type SlotPlacementResolver struct {
 	replicaCount int
 }
 
-// NewSlotPlacementResolver creates a placement resolver backed by router.
+// NewSlotPlacementResolver creates a placement resolver backed by Slot routing and data-node candidates.
 func NewSlotPlacementResolver(router PlacementRouter, dataNodes DataNodeProvider, replicaCount int) *SlotPlacementResolver {
 	return &SlotPlacementResolver{router: router, dataNodes: dataNodes, replicaCount: replicaCount}
 }
@@ -38,7 +38,7 @@ func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id 
 		return ChannelPlacement{}, err
 	}
 	candidates := r.dataNodes.DataNodes()
-	selected, err := selectChannelReplicas(id.ID, candidates, r.replicaCount)
+	selected, err := selectChannelReplicas(string(ch.ChannelKeyForID(id)), candidates, r.replicaCount)
 	if err != nil {
 		return ChannelPlacement{}, err
 	}

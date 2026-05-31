@@ -240,6 +240,26 @@ func TestSlotPlacementResolverPrefersRoutePreferredLeaderOnlyWhenSelected(t *tes
 	}
 }
 
+func TestSlotPlacementResolverHashesFullChannelIdentity(t *testing.T) {
+	resolver := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Leader: 1, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{nodes: []uint64{1, 2, 3, 4, 5, 6, 7, 8}},
+		3,
+	)
+
+	first, err := resolver.ResolveChannelPlacement(context.Background(), ch.ChannelID{ID: "same-id", Type: 1})
+	if err != nil {
+		t.Fatalf("ResolveChannelPlacement(type=1) error = %v", err)
+	}
+	second, err := resolver.ResolveChannelPlacement(context.Background(), ch.ChannelID{ID: "same-id", Type: 2})
+	if err != nil {
+		t.Fatalf("ResolveChannelPlacement(type=2) error = %v", err)
+	}
+	if equalNodeIDs(first.Replicas, second.Replicas) {
+		t.Fatalf("Replicas for same ID and different Type both = %v, want type-specific placement hash", first.Replicas)
+	}
+}
+
 func TestSlotMetaSourceMapsMissingRuntimeMetaToChannelNotFound(t *testing.T) {
 	source := NewSlotMetaSource(runtimeMetaReaderFake{err: metadb.ErrNotFound})
 	_, err := source.ResolveChannelMeta(context.Background(), ch.ChannelID{ID: "missing", Type: 1})
