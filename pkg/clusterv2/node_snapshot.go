@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -67,11 +68,35 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 			return err
 		}
 	}
+	if firstSnapshot || changes.nodes {
+		n.channelDataNodes.Update(aliveDataNodeIDs(snapshot.Nodes))
+	}
 	n.mu.Lock()
 	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
 	return nil
+}
+
+func aliveDataNodeIDs(nodes []control.Node) []uint64 {
+	out := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Status != control.NodeAlive || !hasControlRole(node.Roles, control.RoleData) {
+			continue
+		}
+		out = append(out, node.NodeID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func hasControlRole(roles []control.Role, role control.Role) bool {
+	for _, item := range roles {
+		if item == role {
+			return true
+		}
+	}
+	return false
 }
 
 func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {

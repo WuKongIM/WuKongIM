@@ -80,6 +80,38 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 	}
 }
 
+func TestNodeAppliesAliveDataNodesForChannelPlacement(t *testing.T) {
+	controller := control.NewStaticController(nodeControlSnapshot())
+	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	got := node.channelDataNodes.DataNodes()
+	want := []uint64{1, 2, 3}
+	if !equalUint64s(got, want) {
+		t.Fatalf("DataNodes() = %v, want %v", got, want)
+	}
+
+	next := nodeControlSnapshot()
+	next.Revision = 2
+	next.Nodes = append(next.Nodes,
+		control.Node{NodeID: 4, Addr: "127.0.0.1:1004", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		control.Node{NodeID: 5, Addr: "127.0.0.1:1005", Roles: []control.Role{control.RoleData}, Status: control.NodeDown},
+	)
+	if err := controller.Publish(next); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	waitUntil(t, func() bool {
+		got = node.channelDataNodes.DataNodes()
+		return equalUint64s(got, []uint64{1, 2, 3, 4})
+	})
+}
+
 func TestNodeControlWatchSlotChangeReconcilesSlots(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	reconciler := &recordingReconciler{}
@@ -139,6 +171,18 @@ func TestControlSnapshotChangesDetectHashSlots(t *testing.T) {
 	if !changes.hashSlots || changes.nodes || changes.slots || changes.tasks {
 		t.Fatalf("snapshotChanges() = %#v, want only hash slots changed", changes)
 	}
+}
+
+func equalUint64s(a []uint64, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 type recordingReconciler struct {
