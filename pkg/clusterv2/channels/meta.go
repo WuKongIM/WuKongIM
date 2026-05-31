@@ -54,6 +54,11 @@ type PlacementRouter interface {
 	RouteKey(string) (routing.Route, error)
 }
 
+// DataNodeProvider returns alive data-node candidates for initial ChannelV2 placement.
+type DataNodeProvider interface {
+	DataNodes() []uint64
+}
+
 // SlotMetaSourceOptions configures first-append metadata creation.
 type SlotMetaSourceOptions struct {
 	// DefaultReplicas are the initial ChannelV2 replicas when metadata is missing.

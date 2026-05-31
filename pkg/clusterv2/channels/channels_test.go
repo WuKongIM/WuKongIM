@@ -182,39 +182,61 @@ func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
 	}
 }
 
-func TestSlotPlacementResolverUsesSlotRouteLeaderAndPeers(t *testing.T) {
+func TestSlotPlacementResolverUsesDataNodesInsteadOfSlotPeers(t *testing.T) {
 	id := ch.ChannelID{ID: "route-placement", Type: 1}
-	resolver := NewSlotPlacementResolver(fakePlacementRouter{route: routing.Route{Leader: 2, Peers: []uint64{2, 1, 3}}}, 2)
+	resolver := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Leader: 2, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{nodes: []uint64{4, 5, 6}},
+		3,
+	)
 
 	placement, err := resolver.ResolveChannelPlacement(context.Background(), id)
 	if err != nil {
 		t.Fatalf("ResolveChannelPlacement() error = %v", err)
 	}
-	if placement.Leader != 2 || placement.MinISR != 2 {
-		t.Fatalf("placement = %#v, want route leader and min ISR", placement)
+	if placement.MinISR != 2 {
+		t.Fatalf("MinISR = %d, want quorum 2", placement.MinISR)
 	}
-	if got, want := placement.Replicas, []ch.NodeID{2, 1, 3}; !equalNodeIDs(got, want) {
-		t.Fatalf("Replicas = %v, want %v", got, want)
+	if len(placement.Replicas) != 3 {
+		t.Fatalf("Replicas = %v, want 3 data replicas", placement.Replicas)
+	}
+	for _, replica := range placement.Replicas {
+		if replica < 4 || replica > 6 {
+			t.Fatalf("Replicas = %v, want only data nodes 4,5,6", placement.Replicas)
+		}
 	}
 }
 
-func TestSlotPlacementResolverPrefersRoutePreferredLeader(t *testing.T) {
+func TestSlotPlacementResolverPrefersRoutePreferredLeaderOnlyWhenSelected(t *testing.T) {
 	id := ch.ChannelID{ID: "route-placement-preferred", Type: 1}
-	resolver := NewSlotPlacementResolver(fakePlacementRouter{route: routing.Route{
-		Leader:          3,
-		PreferredLeader: 1,
-		Peers:           []uint64{2, 1, 3},
-	}}, 2)
+	resolver := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Leader: 3, PreferredLeader: 4, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{nodes: []uint64{4, 5, 6}},
+		3,
+	)
 
 	placement, err := resolver.ResolveChannelPlacement(context.Background(), id)
 	if err != nil {
 		t.Fatalf("ResolveChannelPlacement() error = %v", err)
 	}
-	if placement.Leader != 1 {
-		t.Fatalf("Leader = %d, want route preferred leader 1", placement.Leader)
+	if placement.Leader != 4 {
+		t.Fatalf("Leader = %d, want selected preferred leader 4", placement.Leader)
 	}
-	if got, want := placement.Replicas, []ch.NodeID{2, 1, 3}; !equalNodeIDs(got, want) {
-		t.Fatalf("Replicas = %v, want %v", got, want)
+
+	withoutPreferred := NewSlotPlacementResolver(
+		fakePlacementRouter{route: routing.Route{Leader: 3, PreferredLeader: 9, Peers: []uint64{1, 2, 3}}},
+		fakeDataNodeProvider{nodes: []uint64{4, 5, 6}},
+		3,
+	)
+	next, err := withoutPreferred.ResolveChannelPlacement(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveChannelPlacement(without preferred) error = %v", err)
+	}
+	if next.Leader == 9 {
+		t.Fatalf("Leader = %d, preferred leader outside replicas must not be used", next.Leader)
+	}
+	if !nodeIDIn(next.Replicas, next.Leader) {
+		t.Fatalf("Leader = %d, replicas=%v, want leader in replicas", next.Leader, next.Replicas)
 	}
 }
 
@@ -823,6 +845,23 @@ func (r fakePlacementRouter) RouteKey(string) (routing.Route, error) {
 		return routing.Route{}, r.err
 	}
 	return r.route, nil
+}
+
+type fakeDataNodeProvider struct {
+	nodes []uint64
+}
+
+func (p fakeDataNodeProvider) DataNodes() []uint64 {
+	return append([]uint64(nil), p.nodes...)
+}
+
+func nodeIDIn(nodes []ch.NodeID, node ch.NodeID) bool {
+	for _, item := range nodes {
+		if item == node {
+			return true
+		}
+	}
+	return false
 }
 
 func equalNodeIDs(a, b []ch.NodeID) bool {
