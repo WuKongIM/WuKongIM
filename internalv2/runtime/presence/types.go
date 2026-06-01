@@ -1,0 +1,111 @@
+package presence
+
+import "errors"
+
+// ErrNotLeader reports that a RouteTarget no longer matches local authority state.
+var ErrNotLeader = errors.New("internalv2/runtime/presence: not leader")
+
+// ErrStaleRoute reports an owner route older than the stored owner-sequence fence.
+var ErrStaleRoute = errors.New("internalv2/runtime/presence: stale route")
+
+// ErrRouteNotReady reports that a pending route token cannot be committed or aborted.
+var ErrRouteNotReady = errors.New("internalv2/runtime/presence: route not ready")
+
+// RouteTarget fences an authority operation to one observed hash-slot route.
+type RouteTarget struct {
+	// HashSlot is the logical user hash slot owned by this authority.
+	HashSlot uint16
+	// SlotID is the cluster slot currently hosting the hash slot authority.
+	SlotID uint32
+	// LeaderNodeID is the node that the caller observed as the slot leader.
+	LeaderNodeID uint64
+	// RouteRevision is the caller-observed routing-table revision.
+	RouteRevision uint64
+	// AuthorityEpoch increments each time this node gains authority for HashSlot.
+	AuthorityEpoch uint64
+}
+
+// Route identifies a virtual client connection known by the UID authority.
+type Route struct {
+	// UID is the authenticated user ID for this route.
+	UID string
+	// OwnerNodeID is the gateway node that owns the real client session.
+	OwnerNodeID uint64
+	// OwnerBootID identifies the owner node process generation.
+	OwnerBootID uint64
+	// OwnerSeq is the owner-local monotonic sequence for route fencing.
+	OwnerSeq uint64
+	// SessionID is the owner-local gateway session identifier.
+	SessionID uint64
+	// DeviceID is the authenticated client device identifier.
+	DeviceID string
+	// DeviceFlag is the WuKong protocol device category.
+	DeviceFlag uint8
+	// DeviceLevel is the WuKong protocol device conflict level.
+	DeviceLevel uint8
+	// Listener records the gateway listener that accepted the session.
+	Listener string
+	// ConnectedUnix records when the owner accepted the route.
+	ConnectedUnix int64
+}
+
+// RouteAction asks an owner node to resolve an authority-side route conflict.
+type RouteAction struct {
+	// UID is the user whose existing route should be acted on.
+	UID string
+	// OwnerNodeID is the node that owns the conflicting route.
+	OwnerNodeID uint64
+	// OwnerBootID identifies the owner node process generation.
+	OwnerBootID uint64
+	// SessionID is the owner-local session to close or kick.
+	SessionID uint64
+	// Kind names the owner action to apply.
+	Kind string
+	// Reason explains why the authority requested the action.
+	Reason string
+	// DelayMS optionally delays the owner action.
+	DelayMS int64
+}
+
+// RouteIdentity identifies one route independently from mutable route metadata.
+type RouteIdentity struct {
+	// UID is the authenticated user ID for this route.
+	UID string
+	// OwnerNodeID is the gateway node that owns the real client session.
+	OwnerNodeID uint64
+	// OwnerBootID identifies the owner node process generation.
+	OwnerBootID uint64
+	// SessionID is the owner-local gateway session identifier.
+	SessionID uint64
+}
+
+// PendingRouteToken names a conflict candidate waiting for action completion.
+type PendingRouteToken string
+
+// RegisterResult describes immediate or pending authority registration work.
+type RegisterResult struct {
+	// PendingToken is set when a conflicting route must be committed later.
+	PendingToken PendingRouteToken
+	// Actions are owner-side operations required before committing a pending route.
+	Actions []RouteAction
+}
+
+// RehydrateResult reports per-route replay outcome after an authority change.
+type RehydrateResult struct {
+	// Route identifies the replayed route.
+	Route RouteIdentity
+	// Accepted is true when the route was accepted by the register path.
+	Accepted bool
+	// Actions are owner-side operations required by conflict resolution.
+	Actions []RouteAction
+	// Error contains a stable error string for rejected routes.
+	Error string
+}
+
+// DirectoryOptions configures the authority route directory.
+type DirectoryOptions struct {
+	// LocalNodeID optionally fences authority targets to this local node.
+	LocalNodeID uint64
+	// ShardCount controls the number of hash-slot shards; values <= 0 use the default.
+	ShardCount int
+}

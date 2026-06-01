@@ -1,0 +1,423 @@
+package presence
+
+import (
+	"fmt"
+	"sort"
+	"sync"
+)
+
+const (
+	defaultShardCount = 32
+	deviceLevelSlave  = 0
+	deviceLevelMaster = 1
+)
+
+// Directory stores authoritative presence routes for locally led hash slots.
+type Directory struct {
+	// localNodeID optionally verifies that incoming RouteTarget values point here.
+	localNodeID uint64
+	// shards spreads hash-slot authority state across independent locks.
+	shards []directoryShard
+}
+
+type directoryShard struct {
+	// mu protects all authority slots assigned to this shard.
+	mu sync.RWMutex
+	// slots holds per-hash-slot authority epochs installed on this node.
+	slots map[uint16]*authoritySlot
+}
+
+type authoritySlot struct {
+	// target is the exact fencing token accepted by this authority epoch.
+	target RouteTarget
+	// active contains committed routes by exact owner route identity.
+	active map[identityKey]Route
+	// byUID indexes active route identities for UID endpoint lookups.
+	byUID map[string]map[identityKey]struct{}
+	// pending contains conflict candidates waiting for action commit or abort.
+	pending map[PendingRouteToken]pendingRoute
+	// ownerSeq stores the latest owner sequence seen for each route identity.
+	ownerSeq map[identityKey]uint64
+	// nextID allocates shard-local pending route tokens.
+	nextID uint64
+}
+
+type pendingRoute struct {
+	// route is the candidate that will become active on commit.
+	route Route
+	// conflicts are active route identities acknowledged by the caller.
+	conflicts []identityKey
+}
+
+type identityKey struct {
+	// uid is part of the exact route identity carried by authority RPCs.
+	uid string
+	// ownerNodeID is the gateway node that owns the route identity.
+	ownerNodeID uint64
+	// ownerBootID identifies the owner's process generation.
+	ownerBootID uint64
+	// sessionID is unique within one owner boot generation.
+	sessionID uint64
+}
+
+// NewDirectory creates a sharded in-memory authority directory.
+func NewDirectory(opts DirectoryOptions) *Directory {
+	shardCount := opts.ShardCount
+	if shardCount <= 0 {
+		shardCount = defaultShardCount
+	}
+	d := &Directory{
+		localNodeID: opts.LocalNodeID,
+		shards:      make([]directoryShard, shardCount),
+	}
+	for i := range d.shards {
+		d.shards[i].slots = make(map[uint16]*authoritySlot)
+	}
+	return d
+}
+
+// BecomeAuthority installs a fresh authority epoch for one hash slot.
+func (d *Directory) BecomeAuthority(target RouteTarget) {
+	shard := d.shard(target.HashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	current := shard.slots[target.HashSlot]
+	if current != nil && current.target == target {
+		return
+	}
+	shard.slots[target.HashSlot] = newAuthoritySlot(target)
+}
+
+// LoseAuthority clears authority state for one hash slot.
+func (d *Directory) LoseAuthority(hashSlot uint16) {
+	shard := d.shard(hashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	delete(shard.slots, hashSlot)
+}
+
+// RegisterRoute registers a route or stores it as pending when conflicts exist.
+func (d *Directory) RegisterRoute(target RouteTarget, route Route) (RegisterResult, error) {
+	shard := d.shard(target.HashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return RegisterResult{}, err
+	}
+	return slot.registerLocked(route)
+}
+
+// CommitRoute promotes a pending conflict candidate and removes acknowledged conflicts.
+func (d *Directory) CommitRoute(target RouteTarget, token PendingRouteToken) error {
+	shard := d.shard(target.HashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return err
+	}
+	pending, ok := slot.pending[token]
+	if !ok {
+		return ErrRouteNotReady
+	}
+	key := makeRouteIdentityKey(pending.route)
+	if pending.route.OwnerSeq < slot.ownerSeq[key] {
+		delete(slot.pending, token)
+		return ErrStaleRoute
+	}
+	for _, key := range slot.conflictsLocked(pending.route) {
+		if existing, ok := slot.active[key]; ok {
+			slot.removeActiveLocked(key, existing)
+		}
+	}
+	slot.upsertActiveLocked(pending.route)
+	delete(slot.pending, token)
+	return nil
+}
+
+// AbortRoute drops a pending conflict candidate without touching active routes.
+func (d *Directory) AbortRoute(target RouteTarget, token PendingRouteToken) error {
+	shard := d.shard(target.HashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return err
+	}
+	if _, ok := slot.pending[token]; !ok {
+		return ErrRouteNotReady
+	}
+	delete(slot.pending, token)
+	return nil
+}
+
+// UnregisterRoute tombstones and removes one exact route identity.
+func (d *Directory) UnregisterRoute(target RouteTarget, identity RouteIdentity, ownerSeq uint64) error {
+	shard := d.shard(target.HashSlot)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return err
+	}
+	key := makeIdentityKey(identity)
+	if ownerSeq > slot.ownerSeq[key] {
+		slot.ownerSeq[key] = ownerSeq
+	}
+	if existing, ok := slot.active[key]; ok && existing.OwnerSeq <= ownerSeq {
+		slot.removeActiveLocked(key, existing)
+	}
+	for token, pending := range slot.pending {
+		if makeRouteIdentityKey(pending.route) == key && pending.route.OwnerSeq <= ownerSeq {
+			delete(slot.pending, token)
+		}
+	}
+	return nil
+}
+
+// EndpointsByUID returns active authoritative routes for one UID.
+func (d *Directory) EndpointsByUID(target RouteTarget, uid string) ([]Route, error) {
+	shard := d.shard(target.HashSlot)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	slot, err := d.validateTargetLocked(shard, target)
+	if err != nil {
+		return nil, err
+	}
+	keys := slot.byUID[uid]
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	routes := make([]Route, 0, len(keys))
+	for key := range keys {
+		if route, ok := slot.active[key]; ok {
+			routes = append(routes, route)
+		}
+	}
+	sortRoutes(routes)
+	return routes, nil
+}
+
+// RehydrateRoutes replays owner routes through the same conflict path as registration.
+func (d *Directory) RehydrateRoutes(target RouteTarget, routes []Route) ([]RehydrateResult, error) {
+	if err := d.validateTarget(target); err != nil {
+		return nil, err
+	}
+	results := make([]RehydrateResult, 0, len(routes))
+	for _, route := range routes {
+		res, err := d.RegisterRoute(target, route)
+		result := RehydrateResult{Route: route.Identity()}
+		if err != nil {
+			if err == ErrNotLeader {
+				return nil, err
+			}
+			result.Error = err.Error()
+			results = append(results, result)
+			continue
+		}
+		result.Accepted = true
+		result.Actions = res.Actions
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// Identity returns the immutable identity fields for this route.
+func (r Route) Identity() RouteIdentity {
+	return RouteIdentity{
+		UID:         r.UID,
+		OwnerNodeID: r.OwnerNodeID,
+		OwnerBootID: r.OwnerBootID,
+		SessionID:   r.SessionID,
+	}
+}
+
+func (d *Directory) validateTarget(target RouteTarget) error {
+	shard := d.shard(target.HashSlot)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	_, err := d.validateTargetLocked(shard, target)
+	return err
+}
+
+func (d *Directory) validateTargetLocked(shard *directoryShard, target RouteTarget) (*authoritySlot, error) {
+	if d.localNodeID != 0 && target.LeaderNodeID != d.localNodeID {
+		return nil, ErrNotLeader
+	}
+	slot := shard.slots[target.HashSlot]
+	if slot == nil || slot.target != target {
+		return nil, ErrNotLeader
+	}
+	return slot, nil
+}
+
+func (d *Directory) shard(hashSlot uint16) *directoryShard {
+	return &d.shards[int(hashSlot)%len(d.shards)]
+}
+
+func newAuthoritySlot(target RouteTarget) *authoritySlot {
+	return &authoritySlot{
+		target:   target,
+		active:   make(map[identityKey]Route),
+		byUID:    make(map[string]map[identityKey]struct{}),
+		pending:  make(map[PendingRouteToken]pendingRoute),
+		ownerSeq: make(map[identityKey]uint64),
+	}
+}
+
+func (s *authoritySlot) registerLocked(route Route) (RegisterResult, error) {
+	key := makeRouteIdentityKey(route)
+	if route.OwnerSeq < s.ownerSeq[key] {
+		return RegisterResult{}, ErrStaleRoute
+	}
+	s.ownerSeq[key] = route.OwnerSeq
+
+	conflictKeys := s.conflictsLocked(route)
+	if len(conflictKeys) == 0 {
+		s.upsertActiveLocked(route)
+		return RegisterResult{}, nil
+	}
+
+	token := s.nextPendingToken()
+	s.pending[token] = pendingRoute{
+		route:     route,
+		conflicts: conflictKeys,
+	}
+	actions := make([]RouteAction, 0, len(conflictKeys))
+	for _, conflictKey := range conflictKeys {
+		actions = append(actions, actionForReplacement(route, s.active[conflictKey]))
+	}
+	return RegisterResult{
+		PendingToken: token,
+		Actions:      actions,
+	}, nil
+}
+
+func (s *authoritySlot) conflictsLocked(route Route) []identityKey {
+	keys := s.byUID[route.UID]
+	if len(keys) == 0 {
+		return nil
+	}
+	incomingKey := makeRouteIdentityKey(route)
+	conflictKeys := make([]identityKey, 0, len(keys))
+	for key := range keys {
+		if key == incomingKey {
+			continue
+		}
+		existing := s.active[key]
+		if conflicts(route, existing) {
+			conflictKeys = append(conflictKeys, key)
+		}
+	}
+	sort.Slice(conflictKeys, func(i, j int) bool {
+		return lessIdentityKey(conflictKeys[i], conflictKeys[j])
+	})
+	return conflictKeys
+}
+
+func (s *authoritySlot) upsertActiveLocked(route Route) {
+	key := makeRouteIdentityKey(route)
+	if existing, ok := s.active[key]; ok {
+		s.removeActiveLocked(key, existing)
+	}
+	s.active[key] = route
+	if s.byUID[route.UID] == nil {
+		s.byUID[route.UID] = make(map[identityKey]struct{})
+	}
+	s.byUID[route.UID][key] = struct{}{}
+}
+
+func (s *authoritySlot) removeActiveLocked(key identityKey, route Route) {
+	delete(s.active, key)
+	if routes := s.byUID[route.UID]; routes != nil {
+		delete(routes, key)
+		if len(routes) == 0 {
+			delete(s.byUID, route.UID)
+		}
+	}
+}
+
+func (s *authoritySlot) nextPendingToken() PendingRouteToken {
+	s.nextID++
+	return PendingRouteToken(fmt.Sprintf("%d", s.nextID))
+}
+
+func conflicts(incoming, existing Route) bool {
+	if incoming.UID != existing.UID || incoming.DeviceFlag != existing.DeviceFlag {
+		return false
+	}
+	switch incoming.DeviceLevel {
+	case deviceLevelMaster:
+		return true
+	case deviceLevelSlave:
+		return incoming.DeviceID == existing.DeviceID
+	default:
+		return false
+	}
+}
+
+func actionForReplacement(incoming, existing Route) RouteAction {
+	kind := "close"
+	if incoming.DeviceLevel == deviceLevelMaster && incoming.DeviceID != existing.DeviceID {
+		kind = "kick_then_close"
+	}
+	return RouteAction{
+		UID:         existing.UID,
+		OwnerNodeID: existing.OwnerNodeID,
+		OwnerBootID: existing.OwnerBootID,
+		SessionID:   existing.SessionID,
+		Kind:        kind,
+		Reason:      "presence_conflict",
+	}
+}
+
+func makeRouteIdentityKey(route Route) identityKey {
+	return identityKey{
+		uid:         route.UID,
+		ownerNodeID: route.OwnerNodeID,
+		ownerBootID: route.OwnerBootID,
+		sessionID:   route.SessionID,
+	}
+}
+
+func makeIdentityKey(identity RouteIdentity) identityKey {
+	return identityKey{
+		uid:         identity.UID,
+		ownerNodeID: identity.OwnerNodeID,
+		ownerBootID: identity.OwnerBootID,
+		sessionID:   identity.SessionID,
+	}
+}
+
+func sortRoutes(routes []Route) {
+	sort.Slice(routes, func(i, j int) bool {
+		left := makeRouteIdentityKey(routes[i])
+		right := makeRouteIdentityKey(routes[j])
+		return lessIdentityKey(left, right)
+	})
+}
+
+func lessIdentityKey(left, right identityKey) bool {
+	if left.uid != right.uid {
+		return left.uid < right.uid
+	}
+	if left.sessionID != right.sessionID {
+		return left.sessionID < right.sessionID
+	}
+	if left.ownerNodeID != right.ownerNodeID {
+		return left.ownerNodeID < right.ownerNodeID
+	}
+	if left.ownerBootID != right.ownerBootID {
+		return left.ownerBootID < right.ownerBootID
+	}
+	return false
+}
