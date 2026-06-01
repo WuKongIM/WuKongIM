@@ -281,6 +281,12 @@ func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 		`validate_presence_report`,
 		`presence-samples.jsonl`,
 		`presence-summary.tsv`,
+		`METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"`,
+		`RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"`,
+		`collect_node_logs`,
+		`capture_node_pprof`,
+		`sample_server_resources`,
+		`server-process-summary.tsv`,
 		`"$ROOT_DIR/pkg/protocol"`,
 		`WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}"`,
 	} {
@@ -306,6 +312,8 @@ func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.
 	}
 	writeFakePresenceGoBuildWkbench(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
 	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
 		"--no-start",
@@ -318,6 +326,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.
 		"--cooldown", "0s",
 		"--sample-interval", "0",
 		"--stable-samples", "1",
+		"--resource-interval", "0",
 	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
@@ -345,6 +354,8 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 	outDir := t.TempDir()
 	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
 	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
 		"--no-start",
@@ -357,6 +368,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 		"--cooldown", "0s",
 		"--sample-interval", "0",
 		"--stable-samples", "1",
+		"--resource-interval", "0",
 	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
@@ -413,6 +425,10 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 		"- presence_status: passed",
 		"- live_presence_samples: presence-samples.jsonl",
 		"- presence_summary: presence-summary.tsv",
+		"- metrics: metrics/cluster/",
+		"- pprof: pprof/",
+		"- resources: resources/",
+		"- logs: logs/",
 		"- report: report/report.json",
 	} {
 		if !strings.Contains(topSummary, want) {
@@ -430,6 +446,190 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 			t.Fatalf("live samples missing %q:\n%s", want, samples)
 		}
 	}
+
+	for _, phase := range []string{"before", "after"} {
+		for _, node := range []string{"127_0_0_1_5011", "127_0_0_1_5012", "127_0_0_1_5013"} {
+			for _, rel := range []string{
+				filepath.Join("metrics", "cluster", node+"-"+phase+".prom"),
+				filepath.Join("pprof", phase, node+"-goroutine.txt"),
+				filepath.Join("pprof", phase, node+"-heap.pb.gz"),
+			} {
+				requireNonEmptyFile(t, filepath.Join(outDir, rel))
+			}
+		}
+	}
+	requireNonEmptyFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
+	requireNonEmptyFile(t, filepath.Join(outDir, "resources", "server-process-summary.tsv"))
+
+	resources := readFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
+	for _, want := range []string{
+		`"node":"node1"`,
+		`"phase":"before"`,
+		`"phase":"after"`,
+	} {
+		if !strings.Contains(resources, want) {
+			t.Fatalf("resource samples missing %q:\n%s", want, resources)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	staleEvidence := []string{
+		"metrics/cluster/127_0_0_1_5011-before.prom",
+		"pprof/before/127_0_0_1_5011-goroutine.txt",
+	}
+	for _, rel := range staleEvidence {
+		path := filepath.Join(outDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, path, "stale evidence")
+	}
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0",
+		"--stable-samples", "1",
+		"--resource-interval", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_PRESENCE_EVIDENCE_FAIL=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script should keep validating when best-effort evidence curl fails: %v\n%s", err, output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	if !strings.Contains(summary, "presence_status\tpassed") {
+		t.Fatalf("presence validation should still pass:\n%s", summary)
+	}
+	for _, rel := range []string{
+		"metrics/cluster/127_0_0_1_5011-before.prom.error",
+		"metrics/cluster/127_0_0_1_5011-after.prom.error",
+		"pprof/before/127_0_0_1_5011-goroutine.txt.error",
+		"pprof/after/127_0_0_1_5011-goroutine.txt.error",
+	} {
+		text := readFile(t, filepath.Join(outDir, rel))
+		if !strings.Contains(text, "capture_failed") {
+			t.Fatalf("evidence error marker %s missing capture failure:\n%s", rel, text)
+		}
+	}
+	for _, rel := range staleEvidence {
+		if _, err := os.Stat(filepath.Join(outDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("stale evidence file %s should be removed after capture failure, stat err=%v", rel, err)
+		}
+	}
+
+	curlCalls := readFile(t, filepath.Join(callsDir, "curl.calls"))
+	for _, want := range []string{
+		"--connect-timeout 2 --max-time 5 http://127.0.0.1:5011/metrics",
+		"--connect-timeout 2 --max-time 5 http://127.0.0.1:5011/debug/pprof/goroutine?debug=2",
+	} {
+		if !strings.Contains(curlCalls, want) {
+			t.Fatalf("evidence curl calls should include bounded timeout %q:\n%s", want, curlCalls)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0.02",
+		"--stable-samples", "1",
+		"--resource-interval", "0.02",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_PRESENCE_RUN_SLEEP=0.08",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script failed: %v\n%s", err, output)
+	}
+
+	resources := readFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
+	if !strings.Contains(resources, `"phase":"interval"`) {
+		t.Fatalf("periodic resource samples missing interval phase:\n%s", resources)
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInvalid(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0",
+		"--stable-samples", "1",
+		"--resource-interval", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_ACTIVATE_PS_BAD=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script should keep validating when resource sampling is invalid: %v\n%s", err, output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	if !strings.Contains(summary, "presence_status\tpassed") {
+		t.Fatalf("presence validation should still pass:\n%s", summary)
+	}
+	resources := readFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
+	if !strings.Contains(resources, `"error":"invalid_ps_sample"`) {
+		t.Fatalf("resource samples should mark invalid ps output:\n%s", resources)
+	}
 }
 
 func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
@@ -439,6 +639,8 @@ func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 	outDir := t.TempDir()
 	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
 	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
 	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
 		"--no-start",
@@ -451,6 +653,7 @@ func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 		"--cooldown", "0s",
 		"--sample-interval", "0.02",
 		"--stable-samples", "2",
+		"--resource-interval", "0",
 	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
@@ -767,6 +970,10 @@ while [[ $# -gt 0 ]]; do
   fi
   shift
 done
+if [[ "${WK_FAKE_ACTIVATE_PS_BAD:-0}" == "1" ]]; then
+  echo ' cpu mem rss vsz elapsed command'
+  exit 0
+fi
 case "$pid" in
   111) echo ' 12.5  1.2 123456 789000 00:10 /tmp/wukongimv2-node1' ;;
   222) echo ' 25.0  2.3 234567 890000 00:20 /tmp/wukongimv2-node2' ;;
@@ -908,6 +1115,27 @@ case "$url" in
   http://127.0.0.1:501*/readyz)
     echo 'ok'
     ;;
+  http://127.0.0.1:501*/metrics)
+    if [[ "${WK_FAKE_PRESENCE_EVIDENCE_FAIL:-0}" == "1" ]]; then
+      echo 'metrics unavailable' >&2
+      exit 28
+    fi
+    echo 'metric 1'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
+    if [[ "${WK_FAKE_PRESENCE_EVIDENCE_FAIL:-0}" == "1" ]]; then
+      echo 'goroutine unavailable' >&2
+      exit 28
+    fi
+    echo 'goroutine profile'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/heap)
+    if [[ "${WK_FAKE_PRESENCE_EVIDENCE_FAIL:-0}" == "1" ]]; then
+      echo 'heap unavailable' >&2
+      exit 28
+    fi
+    echo 'heap profile'
+    ;;
   http://127.0.0.1:5011/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
     if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
@@ -965,5 +1193,16 @@ func writeFile(t *testing.T, path string, data string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func requireNonEmptyFile(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected non-empty file %s: %v", path, err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("expected non-empty file %s", path)
 	}
 }
