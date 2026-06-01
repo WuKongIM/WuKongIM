@@ -188,6 +188,60 @@ func TestWukongIMV2ThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T
 	}
 }
 
+func TestWukongIMV2ThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeActivateWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeActivateCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--channels", "10",
+		"--users", "10",
+		"--activation-window", "1s",
+		"--hold", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_RESOURCE_SAMPLE_INTERVAL=0",
+		"WK_FAKE_ACTIVATE_CLASSIFY_BAD=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when metrics health gates fail:\n%s", output)
+	}
+
+	health := readFile(t, filepath.Join(outDir, "metrics", "health-gates.txt"))
+	for _, want := range []string{
+		"status: failed",
+		"pending_meta_current_max",
+		"need_meta_pull_retry_count",
+		"pull_hint_err_count",
+	} {
+		if !strings.Contains(health, want) {
+			t.Fatalf("health gates missing %q:\n%s", want, health)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- metrics_health: metrics/health-gates.txt",
+		"- metrics_health_status: failed",
+		"- exit_status: 7",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("top-level summary missing %q:\n%s", want, topSummary)
+		}
+	}
+}
+
 func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	root := repoRoot(t)
 	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-1000ch.sh"))
@@ -319,7 +373,31 @@ mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
-  echo 'classification: fake'
+  if [[ "${WK_FAKE_ACTIVATE_CLASSIFY_BAD:-0}" == "1" ]]; then
+    cat <<'OUT'
+classification: fake
+channelv2_pending_meta_current_max: 1
+channelv2_pending_meta_released_count: 0
+channelv2_need_meta_pull_submitted_count: 3
+channelv2_need_meta_pull_ok_count: 2
+channelv2_need_meta_pull_retry_count: 1
+channelv2_need_meta_pull_err_count: 0
+channelv2_pull_hint_err_count: 1
+channelv2_pull_hint_receive_err_count: 0
+OUT
+    exit 0
+  fi
+  cat <<'OUT'
+classification: fake
+channelv2_pending_meta_current_max: 0
+channelv2_pending_meta_released_count: 0
+channelv2_need_meta_pull_submitted_count: 3
+channelv2_need_meta_pull_ok_count: 3
+channelv2_need_meta_pull_retry_count: 0
+channelv2_need_meta_pull_err_count: 0
+channelv2_pull_hint_err_count: 0
+channelv2_pull_hint_receive_err_count: 0
+OUT
   exit 0
 fi
 report_dir=""
@@ -376,7 +454,17 @@ mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
 printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
-  echo 'classification: rebuilt'
+  cat <<'OUT'
+classification: rebuilt
+channelv2_pending_meta_current_max: 0
+channelv2_pending_meta_released_count: 0
+channelv2_need_meta_pull_submitted_count: 3
+channelv2_need_meta_pull_ok_count: 3
+channelv2_need_meta_pull_retry_count: 0
+channelv2_need_meta_pull_err_count: 0
+channelv2_pull_hint_err_count: 0
+channelv2_pull_hint_receive_err_count: 0
+OUT
   exit 0
 fi
 report_dir=""

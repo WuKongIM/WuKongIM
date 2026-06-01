@@ -571,3 +571,22 @@ Classification:
 Follow-up:
 - Keep future 10k regressions gated on `pending_meta_current_max=0`, `pending_meta_released_count=0`, and `need_meta_pull_retry_count=0` / `need_meta_pull_err_count=0` in addition to activation success.
 - If the next goal is lower cold p99, focus on metadata create/propose, storage commit, and quorum HW/AckOffset waits rather than PendingMeta bootstrap.
+
+## 2026-06-01 wukongimv2 Three-Node 10k Channel Activation With Script Health Gates
+
+Environment:
+- Main worktree at `0bcefe3b` plus the local script metrics-health-gate patch.
+- Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/start-wukongimv2-three-nodes.sh`.
+- Command: `GOWORK=off scripts/bench-wukongimv2-three-nodes-10kch.sh`.
+- Evidence: `docs/development/perf-runs/20260601-111500-three-node-activate-10kch/`.
+
+Healthy checks:
+- `wkbench capacity activate-channels` passed with `activation_success=10000`, `activation_errors=0`, `activation_backlog=0`, and `activation_rejected_delta=0`.
+- Sendack latency was p50 `472.867833ms`, p95 `605.200958ms`, and p99 `670.259625ms` under the default cold-activation guardrail `stable_p99=2s`.
+- Active leader distribution stayed balanced across three nodes: node1 `3289`, node2 `3403`, node3 `3308`; maximum leader share `0.340`.
+- The new script-level `metrics/health-gates.txt` passed all `21` checks across three nodes: PendingMeta current/release counts were zero, NeedMeta submitted and ok counts matched (`6711`/`6597`/`6692` per node), NeedMeta retry/error counts were zero, and PullHint send/receive error counts were zero.
+- Service process samples stayed modest: average CPU about `10.1-10.3%`, max CPU `20.9-51.3%`, and max RSS about `360-368MB`.
+
+Classification:
+- Category: healthy 10k activation with automated script-level ChannelV2 bootstrap gates.
+- Confidence: high that future local 10k evidence will fail fast if classify output shows leaked PendingMeta shells, NeedMeta retries/errors, submitted/ok mismatch, or PullHint send/receive errors.

@@ -104,7 +104,11 @@ only when the experiment intentionally adds those pressure dimensions.
 When the three-node helper script captures before/after Prometheus snapshots,
 `wkbench metrics classify` reports gateway dispatch wait, ControllerV2 Raft
 Step queue/enqueue pressure, ChannelV2 append and cold-activation stages, and
-storage commit p99s. ChannelV2 high-level stage labels include `meta_resolve`,
+storage commit p99s. The 10,000-channel helper also fails the run when the
+classification cannot prove a healthy ChannelV2 bootstrap: PendingMeta must
+drain to zero with no releases, NeedMeta submitted and ok counts must match
+with no retry/error counts, and PullHint send/receive error counts must remain
+zero. ChannelV2 high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; runtime append sub-stages include
 `runtime_append_reserve_wait`, `runtime_append_submit`, and
 `runtime_append_wait`; append batch metrics include `append_batch_wait` and

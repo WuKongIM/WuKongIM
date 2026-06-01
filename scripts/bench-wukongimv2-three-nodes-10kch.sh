@@ -26,6 +26,8 @@ API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,htt
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
 METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"
 RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
+METRICS_HEALTH_EXIT_STATUS=7
+METRICS_HEALTH_STATUS="not_run"
 
 CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
@@ -345,6 +347,131 @@ classify_metrics() {
   done
 }
 
+metric_classify_value() {
+  local file="$1"
+  local key="$2"
+  awk -F':' -v key="$key" '
+    $1 == key {
+      value = $2
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      if (!found) exit 1
+    }
+  ' "$file"
+}
+
+metric_number_equals() {
+  local left="$1"
+  local right="$2"
+  [[ "$left" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || return 2
+  [[ "$right" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || return 2
+  awk -v left="$left" -v right="$right" 'BEGIN { exit !(left + 0 == right + 0) }'
+}
+
+record_zero_metric_gate() {
+  local body="$1"
+  local file="$2"
+  local key="$3"
+  local value
+  if ! value="$(metric_classify_value "$file" "$key")"; then
+    printf 'FAIL\t%s\t%s\tmissing\texpected=0\n' "$(basename "$file")" "$key" >>"$body"
+    return 1
+  fi
+  if ! metric_number_equals "$value" "0"; then
+    printf 'FAIL\t%s\t%s\t%s\texpected=0\n' "$(basename "$file")" "$key" "$value" >>"$body"
+    return 1
+  fi
+  printf 'OK\t%s\t%s\t%s\texpected=0\n' "$(basename "$file")" "$key" "$value" >>"$body"
+}
+
+record_equal_metric_gate() {
+  local body="$1"
+  local file="$2"
+  local left_key="$3"
+  local right_key="$4"
+  local left right
+  if ! left="$(metric_classify_value "$file" "$left_key")"; then
+    printf 'FAIL\t%s\t%s\tmissing\texpected=%s\n' "$(basename "$file")" "$left_key" "$right_key" >>"$body"
+    return 1
+  fi
+  if ! right="$(metric_classify_value "$file" "$right_key")"; then
+    printf 'FAIL\t%s\t%s\tmissing\texpected=%s\n' "$(basename "$file")" "$right_key" "$left_key" >>"$body"
+    return 1
+  fi
+  if ! metric_number_equals "$left" "$right"; then
+    printf 'FAIL\t%s\t%s=%s\t%s=%s\texpected_equal\n' "$(basename "$file")" "$left_key" "$left" "$right_key" "$right" >>"$body"
+    return 1
+  fi
+  printf 'OK\t%s\t%s=%s\t%s=%s\texpected_equal\n' "$(basename "$file")" "$left_key" "$left" "$right_key" "$right" >>"$body"
+}
+
+evaluate_metrics_health_gates() {
+  local metrics_dir="$OUT_DIR/metrics"
+  local out="$metrics_dir/health-gates.txt"
+  local body="$metrics_dir/health-gates.body.tmp"
+  local failures=0
+  local checks=0
+  local files=0
+  mkdir -p "$metrics_dir"
+  : >"$body"
+
+  local classify_files=("$metrics_dir"/*-classify.txt)
+  if [[ ! -e "${classify_files[0]}" ]]; then
+    printf 'FAIL\tmetrics_classify_outputs\tmissing\texpected>=1\n' >>"$body"
+    failures=$((failures + 1))
+  else
+    local file key
+    for file in "${classify_files[@]}"; do
+      files=$((files + 1))
+      if grep -q '^metrics classify skipped:' "$file"; then
+        printf 'FAIL\t%s\tmetrics_classify_missing\texpected_before_after_snapshots\n' "$(basename "$file")" >>"$body"
+        failures=$((failures + 1))
+        continue
+      fi
+      for key in \
+        channelv2_pending_meta_current_max \
+        channelv2_pending_meta_released_count \
+        channelv2_need_meta_pull_retry_count \
+        channelv2_need_meta_pull_err_count \
+        channelv2_pull_hint_err_count \
+        channelv2_pull_hint_receive_err_count; do
+        checks=$((checks + 1))
+        if ! record_zero_metric_gate "$body" "$file" "$key"; then
+          failures=$((failures + 1))
+        fi
+      done
+      checks=$((checks + 1))
+      if ! record_equal_metric_gate "$body" "$file" channelv2_need_meta_pull_submitted_count channelv2_need_meta_pull_ok_count; then
+        failures=$((failures + 1))
+      fi
+    done
+  fi
+
+  if [[ "$failures" -eq 0 ]]; then
+    METRICS_HEALTH_STATUS="passed"
+  else
+    METRICS_HEALTH_STATUS="failed"
+  fi
+  {
+    echo "status: $METRICS_HEALTH_STATUS"
+    echo "files: $files"
+    echo "checks: $checks"
+    echo "failures: $failures"
+    echo
+    cat "$body"
+  } >"$out"
+  rm -f "$body"
+
+  if [[ "$failures" -ne 0 ]]; then
+    return "$METRICS_HEALTH_EXIT_STATUS"
+  fi
+}
+
 capture_pprof() {
   local phase="$1"
   local pprof_dir="$OUT_DIR/pprof/$phase"
@@ -586,6 +713,7 @@ write_summary() {
 - config: config/
 - metrics: metrics/
 - metrics_classification: metrics/*-classify.txt
+- metrics_health: metrics/health-gates.txt
 - pprof: pprof/
 - resources: resources/
 - logs: logs/
@@ -594,6 +722,7 @@ write_summary() {
 
 ## Result
 - exit_status: $status
+- metrics_health_status: $METRICS_HEALTH_STATUS
 - activation_report: report/activation_report.json
 - activation_summary: report/summary.md
 EOF
@@ -647,6 +776,11 @@ main() {
   write_server_resource_summary
   scrape_metrics after
   classify_metrics
+  local metrics_status=0
+  evaluate_metrics_health_gates || metrics_status=$?
+  if [[ "$status" -eq 0 && "$metrics_status" -ne 0 ]]; then
+    status="$metrics_status"
+  fi
   capture_pprof after
   collect_node_logs after
   write_summary "$status"
