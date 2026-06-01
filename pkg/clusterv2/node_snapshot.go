@@ -55,10 +55,13 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	firstSnapshot := emptyControlSnapshot(previous)
 	n.mu.RUnlock()
 	changes := snapshotChanges(previous, snapshot)
+	var routeAuthorities []RouteAuthority
 	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
+		before := n.router.Table()
 		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
 			return err
 		}
+		routeAuthorities = n.routeAuthorityChanges(before, n.router.Table())
 	}
 	if n.discovery != nil && (firstSnapshot || changes.nodes) {
 		n.discovery.Update(discoveryNodes(snapshot.Nodes))
@@ -75,7 +78,51 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
+	n.publishRouteAuthority(routeAuthorities...)
 	return nil
+}
+
+type routeAuthorityKey struct {
+	slotID       uint32
+	leaderNodeID uint64
+	revision     uint64
+}
+
+func (n *Node) routeAuthorityChanges(before, after *routing.Table) []RouteAuthority {
+	if after == nil {
+		return nil
+	}
+	out := make([]RouteAuthority, 0)
+	for hashSlot, slotID := range after.HashToSlot {
+		if slotID == 0 {
+			continue
+		}
+		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], revision: after.Revision}
+		previous, ok := routeAuthorityFromTable(before, uint16(hashSlot))
+		if ok && previous == current {
+			continue
+		}
+		hashSlotID := uint16(hashSlot)
+		out = append(out, RouteAuthority{
+			HashSlot:       hashSlotID,
+			SlotID:         current.slotID,
+			LeaderNodeID:   current.leaderNodeID,
+			RouteRevision:  current.revision,
+			AuthorityEpoch: n.nextAuthorityEpoch(hashSlotID, current.leaderNodeID),
+		})
+	}
+	return out
+}
+
+func routeAuthorityFromTable(table *routing.Table, hashSlot uint16) (routeAuthorityKey, bool) {
+	if table == nil || int(hashSlot) >= len(table.HashToSlot) {
+		return routeAuthorityKey{}, false
+	}
+	slotID := table.HashToSlot[int(hashSlot)]
+	if slotID == 0 {
+		return routeAuthorityKey{}, false
+	}
+	return routeAuthorityKey{slotID: slotID, leaderNodeID: table.SlotLeaders[slotID], revision: table.Revision}, true
 }
 
 func aliveDataNodeIDs(nodes []control.Node) []uint64 {

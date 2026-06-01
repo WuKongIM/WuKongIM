@@ -85,6 +85,7 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
+	n.closeRouteAuthorityWatchers()
 	if n.watchCancel != nil {
 		n.watchCancel()
 	}

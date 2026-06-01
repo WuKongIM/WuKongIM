@@ -30,4 +30,8 @@ const (
 	RPCChannelAppendBatch
 	// RPCControlRaft carries ControllerV2 Raft protocol messages.
 	RPCControlRaft
+	// RPCPresenceAuthority serves internalv2 UID connection authority requests.
+	RPCPresenceAuthority
+	// RPCPresenceOwner serves internalv2 owner-node connection actions.
+	RPCPresenceOwner
 )

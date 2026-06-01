@@ -1,5 +1,33 @@
 package clusterv2
 
+import "context"
+
+// NodeRPCHandler handles one clusterv2 node RPC payload.
+type NodeRPCHandler interface {
+	// HandleRPC handles payload and returns a response payload.
+	HandleRPC(context.Context, []byte) ([]byte, error)
+}
+
+// RouteAuthority identifies the current authority for one logical hash slot.
+type RouteAuthority struct {
+	// HashSlot is the logical hash slot covered by this authority.
+	HashSlot uint16
+	// SlotID is the physical Slot that owns HashSlot.
+	SlotID uint32
+	// LeaderNodeID is the best-known Slot leader that currently owns routing authority.
+	LeaderNodeID uint64
+	// RouteRevision is the control route revision that produced this authority.
+	RouteRevision uint64
+	// AuthorityEpoch increments when this local node becomes authority for HashSlot.
+	AuthorityEpoch uint64
+}
+
+// RouteAuthorityEvent reports route authority changes.
+type RouteAuthorityEvent struct {
+	// Authorities lists changed logical hash-slot authorities.
+	Authorities []RouteAuthority
+}
+
 // ProposeRequest submits one Slot metadata command through clusterv2 routing.
 type ProposeRequest struct {
 	// Key is the logical routing key used when Target does not carry an explicit hash slot.

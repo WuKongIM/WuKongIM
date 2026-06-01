@@ -66,7 +66,13 @@ type Node struct {
 	defaultSlotMetaDB *metadb.DB
 	// defaultSlotProposer adapts the default Slot runtime to the propose service.
 	defaultSlotProposer propose.SlotRuntime
-	proposer            interface {
+	// pendingRPCHandlers stores public RPC handlers until the default transport exists.
+	pendingRPCHandlers map[uint8]clusternet.Handler
+	// routeAuthorityWatchers receive best-effort route authority change events.
+	routeAuthorityWatchers []chan RouteAuthorityEvent
+	// routeAuthorityEpochs tracks local authority epochs by logical hash slot.
+	routeAuthorityEpochs map[uint16]uint64
+	proposer             interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
@@ -177,6 +183,99 @@ func (n *Node) Propose(ctx context.Context, req ProposeRequest) error {
 		Command: req.Command,
 		Target:  propose.Target{HashSlot: req.Target.HashSlot, HasHashSlot: req.Target.HasHashSlot, SlotID: req.Target.SlotID, HasSlotID: req.Target.HasSlotID},
 	})
+}
+
+// RegisterRPC registers a node RPC handler on the default clusterv2 transport.
+func (n *Node) RegisterRPC(serviceID uint8, handler NodeRPCHandler) {
+	if n == nil || serviceID == 0 || handler == nil {
+		return
+	}
+	wrapped := clusternet.HandlerFunc(handler.HandleRPC)
+	n.mu.Lock()
+	if n.pendingRPCHandlers == nil {
+		n.pendingRPCHandlers = make(map[uint8]clusternet.Handler)
+	}
+	n.pendingRPCHandlers[serviceID] = wrapped
+	server := n.transportServer
+	n.mu.Unlock()
+	if server != nil {
+		server.Register(serviceID, wrapped)
+	}
+}
+
+// CallRPC invokes a node RPC service on a peer node.
+func (n *Node) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	n.mu.RLock()
+	client := n.transportClient
+	n.mu.RUnlock()
+	if client == nil {
+		return nil, ErrNotStarted
+	}
+	return client.Call(ctx, nodeID, serviceID, payload)
+}
+
+// WatchRouteAuthorities returns a buffered stream of route authority changes.
+func (n *Node) WatchRouteAuthorities() <-chan RouteAuthorityEvent {
+	ch := make(chan RouteAuthorityEvent, 16)
+	if n == nil {
+		close(ch)
+		return ch
+	}
+	n.mu.Lock()
+	if n.stopping.Load() {
+		close(ch)
+		n.mu.Unlock()
+		return ch
+	}
+	n.routeAuthorityWatchers = append(n.routeAuthorityWatchers, ch)
+	n.mu.Unlock()
+	return ch
+}
+
+func (n *Node) publishRouteAuthority(authorities ...RouteAuthority) {
+	if n == nil || len(authorities) == 0 {
+		return
+	}
+	event := RouteAuthorityEvent{Authorities: append([]RouteAuthority(nil), authorities...)}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	for _, watcher := range n.routeAuthorityWatchers {
+		select {
+		case watcher <- event:
+		default:
+		}
+	}
+}
+
+func (n *Node) closeRouteAuthorityWatchers() {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, watcher := range n.routeAuthorityWatchers {
+		close(watcher)
+	}
+	n.routeAuthorityWatchers = nil
+}
+
+func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
+	if n == nil || leaderNodeID == 0 || leaderNodeID != n.cfg.NodeID {
+		return 0
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.routeAuthorityEpochs == nil {
+		n.routeAuthorityEpochs = make(map[uint16]uint64)
+	}
+	n.routeAuthorityEpochs[hashSlot]++
+	return n.routeAuthorityEpochs[hashSlot]
 }
 
 // AppendChannel appends one message through the hosted ChannelV2 service.

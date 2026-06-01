@@ -19,6 +19,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		if err := n.ensureDefaultTransport(); err != nil {
 			return false, err
 		}
+		n.registerPendingRPCHandlers()
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
 			NodeID:           n.cfg.NodeID,
 			Addr:             n.cfg.ListenAddr,
@@ -107,6 +108,21 @@ func (n *Node) ensureDefaultTransport() error {
 	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery, PoolSize: 1})
 	n.defaultTransport = true
 	return nil
+}
+
+func (n *Node) registerPendingRPCHandlers() {
+	if n == nil || n.transportServer == nil {
+		return
+	}
+	n.mu.RLock()
+	handlers := make(map[uint8]clusternet.Handler, len(n.pendingRPCHandlers))
+	for serviceID, handler := range n.pendingRPCHandlers {
+		handlers[serviceID] = handler
+	}
+	n.mu.RUnlock()
+	for serviceID, handler := range handlers {
+		n.transportServer.Register(serviceID, handler)
+	}
 }
 
 func (n *Node) defaultChannelStorePath() string {

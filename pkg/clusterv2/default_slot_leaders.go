@@ -50,7 +50,9 @@ func (n *Node) refreshDefaultSlotLeaders() {
 	if len(slotIDs) == 0 {
 		return
 	}
+	before := n.router.Table()
 	n.router.UpdateSlotLeaders(routingSlotStatuses(slots.StatusSnapshot(n.defaultSlotRuntime, slotIDs)))
+	n.publishRouteAuthority(n.routeAuthorityChanges(before, n.router.Table())...)
 }
 
 func routingSlotStatuses(statuses []slots.Status) []routing.SlotStatus {
