@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestActivateRegistersPendingLocalRouteThenAuthorityThenMarksActive(t *testing.T) {
@@ -322,12 +324,43 @@ func TestEndpointsByUIDUsesAuthorityClient(t *testing.T) {
 	}
 }
 
+func TestTouchMarksLocalSessionTouched(t *testing.T) {
+	local := &fakeLocalRegistry{}
+	app := New(Options{Local: local})
+
+	err := app.Touch(context.Background(), TouchCommand{SessionID: 44, ActivityUnix: 123})
+	require.NoError(t, err)
+	require.Equal(t, uint64(44), local.touchedSessionID)
+	require.Equal(t, int64(123), local.touchedUnix)
+}
+
+func TestTouchRequiresLocalRegistry(t *testing.T) {
+	app := New(Options{})
+	err := app.Touch(context.Background(), TouchCommand{SessionID: 44, ActivityUnix: 123})
+	require.ErrorIs(t, err, ErrLocalRegistryUnavailable)
+}
+
+func TestRouteFromConnCarriesLastSeenUnix(t *testing.T) {
+	route := routeFromConn(OnlineConn{
+		UID:              "u1",
+		OwnerNodeID:      1,
+		OwnerBootID:      2,
+		OwnerSeq:         3,
+		SessionID:        4,
+		ConnectedUnix:    10,
+		LastActivityUnix: 20,
+	})
+	require.Equal(t, int64(20), route.LastSeenUnix)
+}
+
 var errBoom = errors.New("boom")
 
 type fakeLocalRegistry struct {
-	calls         *[]string
-	pending       map[uint64]OnlineConn
-	markActiveErr error
+	calls            *[]string
+	pending          map[uint64]OnlineConn
+	markActiveErr    error
+	touchedSessionID uint64
+	touchedUnix      int64
 }
 
 func newFakeLocalRegistry(calls *[]string) *fakeLocalRegistry {
@@ -362,6 +395,12 @@ func (f *fakeLocalRegistry) MarkClosingAndUnregister(sessionID uint64) (OnlineCo
 	conn, ok := f.pending[sessionID]
 	delete(f.pending, sessionID)
 	return conn, ok
+}
+
+func (f *fakeLocalRegistry) MarkTouched(sessionID uint64, activityUnix int64) (OnlineConn, bool) {
+	f.touchedSessionID = sessionID
+	f.touchedUnix = activityUnix
+	return OnlineConn{SessionID: sessionID, LastActivityUnix: activityUnix, State: RouteStateActive}, true
 }
 
 func (f *fakeLocalRegistry) Connection(sessionID uint64) (OnlineConn, bool) {

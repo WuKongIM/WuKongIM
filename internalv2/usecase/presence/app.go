@@ -62,19 +62,20 @@ func (a *App) onlineConn(cmd ActivateCommand) (OnlineConn, error) {
 		ownerSeq = a.ownerSeq(cmd.UID)
 	}
 	return OnlineConn{
-		UID:           cmd.UID,
-		HashSlot:      hashSlot,
-		OwnerNodeID:   a.ownerNodeID,
-		OwnerBootID:   a.ownerBootID,
-		OwnerSeq:      ownerSeq,
-		SessionID:     cmd.SessionID,
-		DeviceID:      cmd.DeviceID,
-		DeviceFlag:    cmd.DeviceFlag,
-		DeviceLevel:   cmd.DeviceLevel,
-		Listener:      cmd.Listener,
-		ConnectedUnix: cmd.ConnectedUnix,
-		State:         RouteStatePending,
-		Session:       cmd.Session,
+		UID:              cmd.UID,
+		HashSlot:         hashSlot,
+		OwnerNodeID:      a.ownerNodeID,
+		OwnerBootID:      a.ownerBootID,
+		OwnerSeq:         ownerSeq,
+		SessionID:        cmd.SessionID,
+		DeviceID:         cmd.DeviceID,
+		DeviceFlag:       cmd.DeviceFlag,
+		DeviceLevel:      cmd.DeviceLevel,
+		Listener:         cmd.Listener,
+		ConnectedUnix:    cmd.ConnectedUnix,
+		LastActivityUnix: cmd.ConnectedUnix,
+		State:            RouteStatePending,
+		Session:          cmd.Session,
 	}, nil
 }
 
@@ -90,5 +91,6 @@ func routeFromConn(conn OnlineConn) Route {
 		DeviceLevel:   conn.DeviceLevel,
 		Listener:      conn.Listener,
 		ConnectedUnix: conn.ConnectedUnix,
+		LastSeenUnix:  conn.LastActivityUnix,
 	}
 }

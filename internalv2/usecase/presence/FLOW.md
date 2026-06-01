@@ -38,6 +38,18 @@ Deactivate(command)
 Local removal happens before the authority tombstone is queued so owner-local
 delivery no longer sees the route while unregister retry is pending.
 
+## Touch Flow
+
+```text
+Touch(command)
+  -> local.MarkTouched(sessionID, activityUnix)
+```
+
+Touch is owner-local and only records observed client activity on the local
+registry. It does not call the authority for each ping. Authority touch updates
+are forwarded by the app touch worker in bounded batches from the local dirty
+touch set, so frequent client activity does not become one RPC per ping.
+
 ## Query Flow
 
 ```text

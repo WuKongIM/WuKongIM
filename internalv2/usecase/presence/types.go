@@ -59,6 +59,14 @@ type DeactivateCommand struct {
 	SessionID uint64
 }
 
+// TouchCommand records owner-observed activity for one local gateway session.
+type TouchCommand struct {
+	// SessionID is the owner-local gateway session identifier.
+	SessionID uint64
+	// ActivityUnix records the latest owner-observed client activity time.
+	ActivityUnix int64
+}
+
 // SessionHandle closes a concrete gateway session through an entry-agnostic boundary.
 type SessionHandle = online.SessionHandle
 
@@ -82,6 +90,3 @@ type PendingRouteToken = authority.PendingRouteToken
 
 // RegisterResult describes immediate or pending authority registration work.
 type RegisterResult = authority.RegisterResult
-
-// RehydrateResult reports per-route replay outcome after an authority change.
-type RehydrateResult = authority.RehydrateResult

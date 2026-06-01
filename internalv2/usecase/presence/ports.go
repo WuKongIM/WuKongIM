@@ -7,6 +7,7 @@ type LocalRegistry interface {
 	RegisterPending(OnlineConn) error
 	MarkActive(sessionID uint64) error
 	MarkClosingAndUnregister(sessionID uint64) (OnlineConn, bool)
+	MarkTouched(sessionID uint64, activityUnix int64) (OnlineConn, bool)
 	Connection(sessionID uint64) (OnlineConn, bool)
 }
 
