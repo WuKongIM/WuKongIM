@@ -54,7 +54,7 @@ Two alternatives were rejected:
 internalv2/usecase/online/
   app.go              Public facade, Options, constructor.
   types.go            Commands, results, RouteRef, OnlineState.
-  ports.go            Router, AuthorityClient, OwnerClient, SessionWriter.
+  ports.go            Router, AuthorityPeerClient, OwnerClient, SessionWriter.
   owner_registry.go   Node-local real session registry.
   authority_dir.go    UID-leader authoritative route index.
   lifecycle.go        Activate and Deactivate flows.
@@ -63,16 +63,18 @@ internalv2/usecase/online/
   FLOW.md             Package flow and boundary notes.
 ```
 
-RPC adapters belong outside the usecase package. In phase 1 they can live in
-`internalv2/infra/cluster` or a later `internalv2/access/node` package, but
-`internalv2/usecase/online` must only depend on its own narrow ports.
+RPC adapters belong outside the usecase package. Inbound node RPC handlers
+should live under `internalv2/access/node` when they are introduced.
+`internalv2/infra/cluster` should stay focused on runtime/client adaptation,
+including outbound peer clients that implement online ports.
 
 The dependency direction is:
 
 ```text
 access/gateway -> usecase/online
-usecase/online -> usecase-defined ports and pkg/protocol/frame for outbound writes
-infra/cluster or access/node -> cluster RPC/runtime, implementing online ports
+usecase/online -> usecase-defined ports and opaque outbound DTOs
+infra/cluster -> cluster runtime/client adapters, implementing peer ports
+access/node -> node RPC request handlers, calling usecase/online
 app -> access, usecase, infra, and pkg composition dependencies
 ```
 
@@ -112,19 +114,21 @@ depend on `RouteRef`.
 
 ```go
 type Options struct {
-    LocalNodeID     uint64
-    OwnerBootID     uint64
-    Router          Router
-    AuthorityClient AuthorityClient
-    OwnerClient     OwnerClient
-    Now             func() time.Time
-    RouteTTL        time.Duration
-    Observer        Observer
+    LocalNodeID         uint64
+    OwnerBootID         uint64
+    Router              Router
+    AuthorityPeerClient AuthorityPeerClient
+    OwnerClient         OwnerClient
+    Now                 func() time.Time
+    RouteTTL            time.Duration
+    Observer            Observer
 }
 ```
 
 `RouteTTL` may be zero. A zero value disables route TTL and leaves stale route
-cleanup to write-time fencing.
+cleanup to write-time fencing. With zero TTL, a stale route for an untouched UID
+can remain in memory indefinitely; this is acceptable only because owner fencing
+prevents false successful writes.
 
 ## 5. Types
 
@@ -157,14 +161,24 @@ type DeactivateCommand struct {
 
 ```go
 type WriteCommand struct {
-    UID   string
-    Frame frame.Frame
+    UID     string
+    Message OutboundMessage
 }
 ```
 
-Phase 1 accepts `frame.Frame` directly because online writes gateway sessions.
-The online module does not inspect or mutate frame business semantics. Callers
-must not mutate a frame until `WriteBatch` returns.
+`OutboundMessage` is an online-local DTO, not `pkg/protocol/frame.Frame`:
+
+```go
+type OutboundMessage struct {
+    Kind    OutboundKind
+    Payload []byte
+}
+```
+
+`internalv2/usecase/online` treats the payload as opaque. The gateway or node RPC
+adapter owns conversion between concrete protocol frames and `OutboundMessage`.
+This keeps the online usecase entry-agnostic and prevents protocol imports from
+leaking into the module.
 
 `RouteRef` is internal to the online module and online RPC DTOs:
 
@@ -184,9 +198,14 @@ type RouteRef struct {
 }
 ```
 
-`OwnerBootID` changes on every node process start. It fences stale routes left
-behind by fast node restarts. `Version` fences stale unregisters and stale route
-writes for the same session identity.
+`OwnerBootID` changes on every node process start. It should be generated once
+from a collision-resistant source such as `crypto/rand` and must not be
+persisted or restored. It fences stale routes left behind by fast node restarts.
+
+`Version` is allocated by the owner registry from a strictly increasing
+per-process counter before `RegisterPending`. It starts at 1 for each boot and
+increments on every activation attempt. It fences stale unregisters and stale
+route writes even if a session ID is later reused.
 
 Online queries return only summary state:
 
@@ -226,12 +245,24 @@ The router hides cluster details behind a narrow interface:
 
 ```go
 type Router interface {
-    SlotForUID(uid string) uint64
-    LeaderOfSlot(slotID uint64) (uint64, error)
+    RouteUID(uid string) (UIDRoute, error)
+}
+
+type UIDRoute struct {
+    UID          string
+    SlotID       uint64
+    LeaderNodeID uint64
+    Revision     uint64
 }
 ```
 
-The authority client sends UID-leader operations to local or remote leaders:
+`RouteUID` must resolve slot, leader, and revision from one cluster routing
+snapshot. It must not compute `SlotForUID` and `LeaderOfSlot` from different
+snapshots. The clusterv2 adapter should map this to the atomic key-routing API
+and preserve typed routing errors.
+
+The authority peer client sends UID-leader operations to an explicit local or
+remote leader node:
 
 ```go
 type RegisterCommand struct {
@@ -242,21 +273,27 @@ type UnregisterCommand struct {
     Route RouteRef
 }
 
-type AuthorityClient interface {
-    Register(ctx context.Context, cmd RegisterCommand) error
-    Unregister(ctx context.Context, cmd UnregisterCommand) error
-    OnlineBatch(ctx context.Context, uids []string) (map[string]OnlineState, error)
-    WriteBatch(ctx context.Context, items []WriteCommand) []WriteResult
+type AuthorityPeerClient interface {
+    Register(ctx context.Context, leaderNodeID uint64, cmd RegisterCommand) error
+    Unregister(ctx context.Context, leaderNodeID uint64, cmd UnregisterCommand) error
+    OnlineBatch(ctx context.Context, leaderNodeID uint64, uids []string) (map[string]OnlineState, error)
+    WriteBatch(ctx context.Context, leaderNodeID uint64, items []WriteCommand) []WriteResult
 }
 ```
+
+`authorityGateway`, not `AuthorityPeerClient`, owns `RouteUID` calls, grouping,
+and local short-circuit decisions. The peer client receives the already chosen
+target leader. If the target replies `not_leader`, the peer client should return
+a typed not-leader error carrying the observed leader; `authorityGateway` may
+refresh routing and retry within a bounded policy.
 
 The owner client sends concrete route writes to the node that holds the gateway
 session:
 
 ```go
 type WriteOwnerCommand struct {
-    Route RouteRef
-    Frame frame.Frame
+    Route   RouteRef
+    Message OutboundMessage
 }
 
 type WriteOwnerResult struct {
@@ -275,13 +312,12 @@ type OwnerClient interface {
 ```go
 type SessionWriter interface {
     ID() uint64
-    WriteFrame(frame.Frame) error
-    Close() error
+    WriteOnline(OutboundMessage) error
 }
 ```
 
 The gateway package is adapted to this interface in `internalv2/access/gateway`;
-`online` does not depend on `pkg/gateway.Context`.
+`online` does not depend on `pkg/gateway.Context` or `pkg/protocol/frame`.
 
 ## 7. Internal Components
 
@@ -290,7 +326,7 @@ The gateway package is adapted to this interface in `internalv2/access/gateway`;
 ```text
 ownerRegistry      Node-local real sessions and route state.
 authorityDir       UID-leader authoritative uid -> RouteRef index.
-authorityGateway   Routes Register/Online/Write to UID leaders with local short-circuit.
+authorityGateway   Resolves UID leaders and routes Register/Online/Write with local short-circuit.
 ownerGateway       Routes WriteOwnerBatch to owner nodes with local short-circuit.
 ```
 
@@ -345,7 +381,7 @@ access/gateway.OnSessionActivate
 
 ```text
 1. Validate UID and Session.
-2. Build RouteRef with LocalNodeID, OwnerBootID, SessionID, Version, and device metadata.
+2. Allocate Version and build RouteRef with LocalNodeID, OwnerBootID, SessionID, and device metadata.
 3. ownerRegistry.RegisterPending(route, session).
 4. authorityGateway.Register(route).
 5. ownerRegistry.MarkActive(sessionID, route.Version).
@@ -353,6 +389,18 @@ access/gateway.OnSessionActivate
 ```
 
 CONNECT can return CONNACK success only after `Activate` returns nil.
+
+Gateway activation rollback is part of the phase-1 contract. The gateway core
+currently calls `OnSessionActivate` before writing a successful CONNACK, while
+`OnSessionClose` is dispatched only after `OnSessionOpen`. If CONNACK writing
+fails after `Activate` succeeds, online state would otherwise remain registered
+without a real open session.
+
+The preferred implementation is a narrow gateway rollback hook that is invoked
+when activation succeeded but CONNACK success was not completed. The
+`internalv2/access/gateway` adapter maps that hook to `online.Deactivate`.
+Extending close semantics to dispatch close for activated-but-not-open sessions
+is also acceptable, but phase 1 must explicitly test this lifecycle gap.
 
 Failure handling:
 
@@ -396,16 +444,18 @@ write fencing or TTL lazy cleanup.
 `OnlineBatch` groups input UIDs by UID slot leader:
 
 ```text
-1. For each UID, resolve slot and leader.
+1. For each UID, call `Router.RouteUID`.
 2. Group UIDs by leader node.
 3. Local leader groups call authorityDir.OnlineBatch.
-4. Remote leader groups call AuthorityClient.OnlineBatch.
+4. Remote leader groups call AuthorityPeerClient.OnlineBatch with the target leader.
 5. Merge results by UID.
 ```
 
 `OnlineBatch` is authoritative-directory based. It does not synchronously verify
 owner sessions. This means old routes can briefly report online until they are
-cleaned by write attempts or TTL lazy cleanup.
+cleaned by write attempts or TTL lazy cleanup. If TTL is disabled, an untouched
+stale route can report online indefinitely; the correctness boundary is that it
+cannot produce a successful write.
 
 ## 11. WriteBatch Flow
 
@@ -413,10 +463,11 @@ cleaned by write attempts or TTL lazy cleanup.
 
 ```text
 1. Preserve each input index.
-2. Group WriteCommand items by UID leader.
-3. Local leader groups call writeAuthoritativeBatch.
-4. Remote leader groups call AuthorityClient.WriteBatch.
-5. Merge per-item results in original input order.
+2. For each UID, call `Router.RouteUID`.
+3. Group WriteCommand items by UID leader.
+4. Local leader groups call writeAuthoritativeBatch.
+5. Remote leader groups call AuthorityPeerClient.WriteBatch with the target leader.
+6. Merge per-item results in original input order.
 ```
 
 `writeAuthoritativeBatch` runs on the UID leader:
@@ -461,7 +512,7 @@ For each item:
 4. Reject if the route is not active.
 5. Reject if the local route UID or Version does not match the item route.
 6. Release registry locks.
-7. Call SessionWriter.WriteFrame(frame).
+7. Call SessionWriter.WriteOnline(message).
 8. Return owner write status.
 ```
 
@@ -495,9 +546,9 @@ Stale route controls are:
 - Optional route TTL with per-UID lazy cleanup. Zero `ExpiresAt` means no TTL.
 
 If a node crashes and no one queries or writes an affected UID, old routes can
-remain in memory until TTL cleanup. This is an accepted phase-1 tradeoff:
-stale routes can cause temporary false online, but cannot write to a restarted
-owner process.
+remain in memory until TTL cleanup when TTL is enabled. If TTL is disabled, they
+can remain indefinitely. This is an accepted phase-1 tradeoff: stale routes can
+cause false online, but cannot write to a restarted owner process.
 
 ## 14. Concurrency Model
 
@@ -511,7 +562,7 @@ authorityDir:  64 or 128 shards, keyed by UID.
 Rules:
 
 - Do not hold registry or directory locks while doing RPC.
-- Do not hold locks while calling `SessionWriter.WriteFrame`.
+- Do not hold locks while calling `SessionWriter.WriteOnline`.
 - Do not hold ownerRegistry and authorityDir locks at the same time.
 - Copy route/session references under lock, release the lock, then write or
   call remote clients.
@@ -544,10 +595,12 @@ Owner RPC direction:
 UID slot leader -> real session owner node
 ```
 
-RPC adapters handle leader refresh and not-leader responses. If an authority
-request hits a follower, the follower returns `not_leader` with `leader_id`, and
-the client retries the leader. `online.App` should see a clean port-level result
-or error, not follower-routing details.
+`authorityGateway` handles routing and local short-circuiting before calling the
+peer client. RPC adapters handle not-leader responses from explicit target
+leaders. If an authority request hits a follower, the follower returns
+`not_leader` with `leader_id`; the gateway refreshes routing and may retry the
+leader within a bounded policy. Public callers see a clean online result or
+online error, not follower-routing details.
 
 Owner RPC is direct by `OwnerNodeID`; it does not route through slots.
 
@@ -562,7 +615,7 @@ onlineApp := online.New(online.Options{
   LocalNodeID:     clusterCfg.NodeID,
   OwnerBootID:     OwnerBootID,
   Router:          onlineRouter{cluster: app.cluster},
-  AuthorityClient: onlineAuthorityClient{...},
+  AuthorityPeerClient: onlineAuthorityPeerClient{...},
   OwnerClient:     onlineOwnerClient{...},
 })
 
@@ -574,7 +627,8 @@ gatewayHandler := accessgateway.New(accessgateway.Options{
 
 The gateway handler implements `pkg/gateway.SessionActivator` by mapping
 authenticated session values into `online.ActivateCommand`. On close it calls
-`online.Deactivate` best-effort.
+`online.Deactivate` best-effort. It must also handle activation rollback when
+`Activate` succeeded but CONNACK success was not completed.
 
 ## 17. Non-Goals
 
@@ -644,13 +698,15 @@ Gateway adapter tests:
 - `OnSessionActivate` calls `online.Activate`.
 - Activate failure rejects CONNECT.
 - `OnSessionClose` calls `online.Deactivate`.
+- Activation rollback calls `online.Deactivate` when CONNACK write fails before
+  `OnSessionOpen`.
 - Existing SEND -> SENDACK behavior remains unchanged.
 
-Integration tests can be added after the usecase is stable:
+Phase acceptance also requires focused integration coverage:
 
 - A connects to node1 while A's UID leader is node2; node2 reports online.
-- A connects to node1; node3 calls `online.Write(A)`; the frame is written to
-  node1's session through node2.
+- A connects to node1; node3 calls `online.Write(A)`; the outbound message is
+  written to node1's session through node2.
 - node1 restarts with a new boot ID while node2 has an old route; write cleans
   the stale route and returns offline.
 
@@ -660,12 +716,16 @@ The first phase is complete when:
 
 - `internalv2/usecase/online` exists as an independent module with `FLOW.md`.
 - Gateway CONNECT success requires successful `online.Activate`.
+- Gateway activation rollback removes online state if CONNACK success is not
+  completed.
 - Clients can connect to any node and still become visible on their UID leader.
 - `OnlineBatch` hides leader routing from callers.
 - `WriteBatch` hides UID leader and owner node routing from callers.
 - Stale routes cannot write to restarted owners or reused sessions.
 - Deactivate does not block connection close on remote unregister failure.
 - `WriteBatch` preserves input/result order.
+- `internalv2/usecase/online` does not import `pkg/gateway` or
+  `pkg/protocol/frame`.
 - No Raft, owner heartbeat, startup broadcast, offline storage, or retry queue is
   introduced in phase 1.
 - `internalv2/FLOW.md`, `internalv2/app/FLOW.md`, and
