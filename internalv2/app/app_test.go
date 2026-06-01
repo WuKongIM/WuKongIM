@@ -422,6 +422,70 @@ func TestPresenceTouchWorkerAcceptsNewerNoLeaderAuthority(t *testing.T) {
 	}
 }
 
+func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T) {
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:    1,
+		Directory: directory,
+	})
+
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   0,
+		RouteRevision:  4,
+		AuthorityEpoch: 4,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  4,
+		AuthorityEpoch: 5,
+	})
+
+	got := directory.becomeSnapshot()
+	if len(got) != 2 || got[0].AuthorityEpoch != 3 || got[1].AuthorityEpoch != 5 {
+		t.Fatalf("become targets = %#v, want epochs 3 then 5", got)
+	}
+	if lost := directory.loseSnapshot(); !reflect.DeepEqual(lost, []uint16{9}) {
+		t.Fatalf("lost slots = %v, want one no-leader clear", lost)
+	}
+}
+
+func TestCurrentPresenceAuthoritiesIncludesNoLeaderRoutes(t *testing.T) {
+	cluster := &fakeWriteReadyCluster{
+		snapshots: []clusterv2.Snapshot{{HashSlotCount: 1}},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, SlotID: 1, Leader: 0, Revision: 4, AuthorityEpoch: 3},
+		},
+	}
+	app := &App{cluster: cluster}
+
+	got := app.currentPresenceAuthorities()
+
+	if len(got) != 1 {
+		t.Fatalf("authorities len = %d, want 1", len(got))
+	}
+	if got[0].LeaderNodeID != 0 || got[0].RouteRevision != 4 || got[0].AuthorityEpoch != 3 {
+		t.Fatalf("authority = %#v, want no-leader revision 4 epoch 3", got[0])
+	}
+}
+
 func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
 	events := make(chan clusterv2.RouteAuthorityEvent, 3)
 	directory := &recordingPresenceDirectory{}

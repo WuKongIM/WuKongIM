@@ -209,13 +209,7 @@ func authorityTargetNewer(next, current presence.RouteTarget) bool {
 	if next.RouteRevision != current.RouteRevision {
 		return next.RouteRevision > current.RouteRevision
 	}
-	if next.AuthorityEpoch != current.AuthorityEpoch {
-		if next.LeaderNodeID == 0 || current.LeaderNodeID == 0 {
-			return true
-		}
-		return next.AuthorityEpoch > current.AuthorityEpoch
-	}
-	return next != current
+	return next.AuthorityEpoch > current.AuthorityEpoch
 }
 
 func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {

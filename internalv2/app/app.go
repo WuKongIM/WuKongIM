@@ -282,7 +282,7 @@ func (a *App) currentPresenceAuthorities() []clusterv2.RouteAuthority {
 	authorities := make([]clusterv2.RouteAuthority, 0, snapshot.HashSlotCount)
 	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
 		route, err := routes.RouteHashSlot(hashSlot)
-		if err != nil || route.Leader == 0 {
+		if err != nil {
 			continue
 		}
 		authorities = append(authorities, clusterv2.RouteAuthority{

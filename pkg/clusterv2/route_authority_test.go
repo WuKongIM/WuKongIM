@@ -41,6 +41,18 @@ func TestRouteAuthorityEpochIncrementsWhenLocalNodeBecomesAuthorityAgain(t *test
 	}
 }
 
+func TestRouteAuthorityEpochIncrementsWhenLeaderBecomesUnknown(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, routeAuthorityEpochs: map[uint16]uint64{3: 7}}
+	previous := routeAuthorityKey{slotID: 1, leaderNodeID: 1, revision: 4}
+	current := routeAuthorityKey{slotID: 1, leaderNodeID: 0, revision: 4}
+
+	epoch := node.authorityEpochForChange(3, previous, true, current)
+
+	if epoch != 8 {
+		t.Fatalf("epoch = %d, want 8 for no-leader authority change", epoch)
+	}
+}
+
 func TestRouteIncludesObservedAuthorityEpoch(t *testing.T) {
 	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
 	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {

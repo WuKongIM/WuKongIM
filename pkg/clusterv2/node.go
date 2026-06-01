@@ -278,7 +278,7 @@ func (n *Node) closeRouteAuthorityWatchers() {
 }
 
 func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
-	if n == nil || leaderNodeID == 0 {
+	if n == nil {
 		return 0
 	}
 	n.mu.Lock()
@@ -291,7 +291,7 @@ func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
 }
 
 func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityKey, previousOK bool, current routeAuthorityKey) uint64 {
-	if n == nil || current.leaderNodeID == 0 {
+	if n == nil {
 		return 0
 	}
 	if !previousOK || previous.slotID != current.slotID || previous.leaderNodeID != current.leaderNodeID {
