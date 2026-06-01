@@ -41,6 +41,24 @@ func TestRouteAuthorityEpochIncrementsWhenLocalNodeBecomesAuthorityAgain(t *test
 	}
 }
 
+func TestRouteIncludesObservedAuthorityEpoch(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	if err := node.router.UpdateControlSnapshot(routeAuthoritySnapshot(1)); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 2}})
+	node.routeAuthorityEpochs[0] = 7
+	node.started.Store(true)
+
+	route, err := node.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.AuthorityEpoch != 7 {
+		t.Fatalf("AuthorityEpoch = %d, want 7", route.AuthorityEpoch)
+	}
+}
+
 func TestRouteAuthorityEpochStaysStableForRevisionOnlyUpdate(t *testing.T) {
 	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
 	previous := routeAuthoritySnapshot(1)

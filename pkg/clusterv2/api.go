@@ -18,7 +18,7 @@ type RouteAuthority struct {
 	LeaderNodeID uint64
 	// RouteRevision is the control route revision that produced this authority.
 	RouteRevision uint64
-	// AuthorityEpoch increments when this local node becomes authority for HashSlot.
+	// AuthorityEpoch increments when the observed authority identity changes for HashSlot.
 	AuthorityEpoch uint64
 }
 
@@ -64,6 +64,8 @@ type Route struct {
 	Peers []uint64
 	// Revision is the control snapshot revision that produced this route.
 	Revision uint64
+	// AuthorityEpoch is the observed authority epoch for HashSlot.
+	AuthorityEpoch uint64
 }
 
 // Snapshot summarizes local clusterv2 readiness and routing state.

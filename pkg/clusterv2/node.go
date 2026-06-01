@@ -72,7 +72,7 @@ type Node struct {
 	registeredRPCHandlers map[uint8]struct{}
 	// routeAuthorityWatchers receive best-effort route authority change events.
 	routeAuthorityWatchers []chan RouteAuthorityEvent
-	// routeAuthorityEpochs tracks local authority epochs by logical hash slot.
+	// routeAuthorityEpochs tracks observed authority epochs by logical hash slot.
 	routeAuthorityEpochs map[uint16]uint64
 	proposer             interface {
 		Propose(context.Context, propose.Request) error
@@ -158,7 +158,7 @@ func (n *Node) RouteKey(key string) (Route, error) {
 	if err := n.ensureForeground(); err != nil {
 		return Route{}, err
 	}
-	return convertRoute(n.router.RouteKey(key))
+	return n.routeWithAuthorityEpoch(convertRoute(n.router.RouteKey(key)))
 }
 
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.
@@ -166,7 +166,7 @@ func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 	if err := n.ensureForeground(); err != nil {
 		return Route{}, err
 	}
-	return convertRoute(n.router.RouteHashSlot(hashSlot))
+	return n.routeWithAuthorityEpoch(convertRoute(n.router.RouteHashSlot(hashSlot)))
 }
 
 // Propose submits a Slot metadata command through clusterv2 routing.
@@ -278,7 +278,7 @@ func (n *Node) closeRouteAuthorityWatchers() {
 }
 
 func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
-	if n == nil || leaderNodeID == 0 || leaderNodeID != n.cfg.NodeID {
+	if n == nil || leaderNodeID == 0 {
 		return 0
 	}
 	n.mu.Lock()
@@ -291,7 +291,7 @@ func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
 }
 
 func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityKey, previousOK bool, current routeAuthorityKey) uint64 {
-	if n == nil || current.leaderNodeID == 0 || current.leaderNodeID != n.cfg.NodeID {
+	if n == nil || current.leaderNodeID == 0 {
 		return 0
 	}
 	if !previousOK || previous.slotID != current.slotID || previous.leaderNodeID != current.leaderNodeID {
@@ -306,6 +306,16 @@ func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityK
 		n.routeAuthorityEpochs[hashSlot] = 1
 	}
 	return n.routeAuthorityEpochs[hashSlot]
+}
+
+func (n *Node) routeWithAuthorityEpoch(route Route, err error) (Route, error) {
+	if err != nil || n == nil {
+		return route, err
+	}
+	n.mu.RLock()
+	route.AuthorityEpoch = n.routeAuthorityEpochs[route.HashSlot]
+	n.mu.RUnlock()
+	return route, nil
 }
 
 // AppendChannel appends one message through the hosted ChannelV2 service.
