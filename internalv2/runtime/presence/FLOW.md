@@ -6,13 +6,24 @@
 
 ## Authority Fencing
 
-Every mutation and lookup carries a `RouteTarget`. The directory accepts the operation only when the target exactly matches the installed `(HashSlot, SlotID, LeaderNodeID, RouteRevision, AuthorityEpoch)`.
+Every mutation and lookup carries a `RouteTarget`. The directory accepts the
+operation only when the target exactly matches the installed `(HashSlot, SlotID,
+LeaderNodeID, RouteRevision, AuthorityEpoch)`.
 
-`BecomeAuthority` installs a fresh epoch and clears previous active, pending, and owner-sequence state for that hash slot. `LoseAuthority` removes the hash-slot state so stale callers receive `ErrNotLeader`.
+`BecomeAuthority` installs a fresh authority identity and clears previous
+active, pending, and owner-sequence state for that hash slot. Route-revision-only
+updates with the same slot, leader, and `AuthorityEpoch` preserve state while
+advancing the accepted target fence. `LoseAuthority` removes the hash-slot state
+so stale callers receive `ErrNotLeader`.
 
 ## Register And Conflicts
 
-Routes without conflicts become active immediately. Conflicting routes are stored in the pending index and return a `PendingRouteToken` plus `RouteAction` values. Active conflicting routes stay visible until `CommitRoute` promotes the pending route; `AbortRoute` deletes only the pending candidate.
+Routes without conflicts become active immediately. Conflicting routes are
+stored in the pending index and return a `PendingRouteToken` plus `RouteAction`
+values. Active conflicting routes stay visible until `CommitRoute` promotes the
+pending route; `AbortRoute` deletes only the pending candidate. Commit removes
+only the conflicts acknowledged when the pending route was created and rejects
+new unacknowledged conflicts with `ErrRouteNotReady`.
 
 ## Owner Sequence Fencing
 

@@ -16,7 +16,7 @@ func TestActivateRegistersPendingLocalRouteThenAuthorityThenMarksActive(t *testi
 		Authority:   authority,
 		OwnerNodeID: 9,
 		OwnerBootID: 99,
-		HashSlot:    func(string) uint16 { return 7 },
+		HashSlot:    func(string) (uint16, error) { return 7, nil },
 		OwnerSeq:    func(string) uint64 { return 33 },
 	})
 
@@ -67,6 +67,29 @@ func TestActivateRollsBackLocalRouteWhenAuthorityRegisterFails(t *testing.T) {
 	}
 	if _, ok := local.pending[11]; ok {
 		t.Fatal("session remains registered locally after authority register failure")
+	}
+}
+
+func TestActivateReturnsHashSlotErrorBeforeLocalRegister(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	authority := &fakeAuthorityClient{calls: &calls}
+	app := New(Options{
+		Local:     local,
+		Authority: authority,
+		HashSlot:  func(string) (uint16, error) { return 0, errBoom },
+	})
+
+	err := app.Activate(context.Background(), ActivateCommand{
+		UID:       "u1",
+		SessionID: 11,
+		Session:   fakeSessionHandle{},
+	})
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("Activate() error = %v, want errBoom", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("calls = %v, want no local or authority calls", calls)
 	}
 }
 
@@ -152,7 +175,8 @@ func TestActivateAppliesPendingActionsBeforeCommitThenMarksActive(t *testing.T) 
 			}},
 		},
 	}
-	app := New(Options{Local: local, Authority: authority})
+	ownerActions := &fakeOwnerActionClient{calls: &calls, local: local}
+	app := New(Options{Local: local, Authority: authority, OwnerActions: ownerActions})
 
 	err := app.Activate(context.Background(), ActivateCommand{
 		UID:       "u1",
@@ -163,7 +187,7 @@ func TestActivateAppliesPendingActionsBeforeCommitThenMarksActive(t *testing.T) 
 		t.Fatalf("Activate() error = %v", err)
 	}
 
-	want := []string{"local.register_pending", "authority.register", "local.connection", "local.mark_closing_unregister", "authority.commit", "local.mark_active"}
+	want := []string{"local.register_pending", "authority.register", "owner.apply_action", "local.mark_closing_unregister", "authority.commit", "local.mark_active"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}
@@ -196,7 +220,8 @@ func TestActivateAbortsPendingRouteAndKeepsConflictsWhenActionFails(t *testing.T
 			}},
 		},
 	}
-	app := New(Options{Local: local, Authority: authority})
+	ownerActions := &fakeOwnerActionClient{calls: &calls, local: local}
+	app := New(Options{Local: local, Authority: authority, OwnerActions: ownerActions})
 
 	err := app.Activate(context.Background(), ActivateCommand{
 		UID:       "u1",
@@ -207,18 +232,50 @@ func TestActivateAbortsPendingRouteAndKeepsConflictsWhenActionFails(t *testing.T
 		t.Fatalf("Activate() error = %v, want errBoom", err)
 	}
 
-	want := []string{"local.register_pending", "authority.register", "local.connection", "local.connection", "authority.abort", "local.mark_closing_unregister"}
+	want := []string{"local.register_pending", "authority.register", "owner.apply_action", "local.mark_closing_unregister", "owner.apply_action", "authority.abort", "local.mark_closing_unregister"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}
-	if _, ok := local.pending[21]; !ok {
-		t.Fatal("first conflicting route was removed before all actions succeeded")
+	if _, ok := local.pending[21]; ok {
+		t.Fatal("first conflicting route remains after acknowledged owner action")
 	}
 	if _, ok := local.pending[22]; !ok {
 		t.Fatal("second conflicting route was removed after failed action")
 	}
 	if _, ok := local.pending[11]; ok {
 		t.Fatal("new pending route remains after action failure")
+	}
+}
+
+func TestActivateAbortsPendingRouteWhenOwnerActionClientMissing(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	authority := &fakeAuthorityClient{
+		calls: &calls,
+		registerResult: RegisterResult{
+			PendingToken: "pending-1",
+			Actions: []RouteAction{{
+				UID:         "u1",
+				OwnerNodeID: 3,
+				OwnerBootID: 4,
+				SessionID:   21,
+				Reason:      "presence_conflict",
+			}},
+		},
+	}
+	app := New(Options{Local: local, Authority: authority})
+
+	err := app.Activate(context.Background(), ActivateCommand{
+		UID:       "u1",
+		SessionID: 11,
+		Session:   fakeSessionHandle{},
+	})
+	if !errors.Is(err, ErrOwnerActionUnavailable) {
+		t.Fatalf("Activate() error = %v, want ErrOwnerActionUnavailable", err)
+	}
+	want := []string{"local.register_pending", "authority.register", "authority.abort", "local.mark_closing_unregister"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %v, want %v", calls, want)
 	}
 }
 
@@ -347,7 +404,7 @@ func (f *fakeAuthorityClient) AbortRoute(context.Context, PendingRouteToken) err
 	return nil
 }
 
-func (f *fakeAuthorityClient) EnqueueUnregister(identity RouteIdentity, ownerSeq uint64) {
+func (f *fakeAuthorityClient) EnqueueUnregister(_ context.Context, identity RouteIdentity, ownerSeq uint64) {
 	*f.calls = append(*f.calls, "authority.enqueue_unregister")
 	f.unregisteredIdentity = identity
 	f.unregisteredSeq = ownerSeq
@@ -356,6 +413,29 @@ func (f *fakeAuthorityClient) EnqueueUnregister(identity RouteIdentity, ownerSeq
 func (f *fakeAuthorityClient) EndpointsByUID(context.Context, string) ([]Route, error) {
 	*f.calls = append(*f.calls, "authority.endpoints_by_uid")
 	return f.endpoints, f.endpointsErr
+}
+
+type fakeOwnerActionClient struct {
+	calls *[]string
+	local *fakeLocalRegistry
+}
+
+func (f *fakeOwnerActionClient) ApplyRouteAction(_ context.Context, action RouteAction) error {
+	*f.calls = append(*f.calls, "owner.apply_action")
+	if f.local == nil {
+		return nil
+	}
+	conn, ok := f.local.pending[action.SessionID]
+	if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
+		return nil
+	}
+	if conn.Session != nil {
+		if err := conn.Session.CloseSession(action.Reason); err != nil {
+			return err
+		}
+	}
+	f.local.MarkClosingAndUnregister(action.SessionID)
+	return nil
 }
 
 type fakeSessionHandle struct {

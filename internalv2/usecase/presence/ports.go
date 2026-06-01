@@ -15,6 +15,11 @@ type AuthorityClient interface {
 	RegisterRoute(context.Context, Route) (RegisterResult, error)
 	CommitRoute(context.Context, PendingRouteToken) error
 	AbortRoute(context.Context, PendingRouteToken) error
-	EnqueueUnregister(RouteIdentity, uint64)
+	EnqueueUnregister(context.Context, RouteIdentity, uint64)
 	EndpointsByUID(context.Context, string) ([]Route, error)
+}
+
+// OwnerActionClient applies conflict actions on the node that owns a real session.
+type OwnerActionClient interface {
+	ApplyRouteAction(context.Context, RouteAction) error
 }

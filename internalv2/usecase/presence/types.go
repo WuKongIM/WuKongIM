@@ -13,6 +13,9 @@ var ErrLocalRegistryUnavailable = errors.New("internalv2/usecase/presence: local
 // ErrAuthorityUnavailable reports a missing authority client dependency.
 var ErrAuthorityUnavailable = errors.New("internalv2/usecase/presence: authority client unavailable")
 
+// ErrOwnerActionUnavailable reports a missing owner action client dependency.
+var ErrOwnerActionUnavailable = errors.New("internalv2/usecase/presence: owner action client unavailable")
+
 // ErrSessionNotActive reports that the local session disappeared before activation completed.
 var ErrSessionNotActive = errors.New("internalv2/usecase/presence: session not active")
 

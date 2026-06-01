@@ -103,7 +103,7 @@ internalv2/
   access/                新架构入口适配层
     api/                 phase-1 health、readyz 与 bench/v1 target HTTP API 入口
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
-    node/                新架构节点间 presence authority RPC codec、handler、client
+    node/                新架构节点间 presence authority/owner-action RPC codec、handler、client
   contracts/             新架构跨用例/运行时轻量事件合约
     messageevents/       消息提交事件合约
   runtime/               新架构节点内运行时原语
@@ -113,7 +113,7 @@ internalv2/
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
   infra/                 新架构外部运行时适配器
-    cluster/             clusterv2/channelv2 append 与 presence authority 路由适配、typed error 映射
+    cluster/             clusterv2/channelv2 append 与 presence authority/owner-action 路由适配、typed error 映射
 
 pkg/
   gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit

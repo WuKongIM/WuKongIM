@@ -19,6 +19,7 @@ const (
 	presenceOpUnregisterRouteID
 	presenceOpEndpointsByUIDID
 	presenceOpRehydrateRoutesID
+	presenceOpApplyRouteActionID
 )
 
 const maxPresenceRPCCollectionLen = 4096
@@ -33,6 +34,8 @@ type presenceRPCRequest struct {
 	Route presence.Route
 	// Routes carries bulk owner routes for rehydrate requests.
 	Routes []presence.Route
+	// Action carries an owner-node conflict action.
+	Action presence.RouteAction
 	// Identity identifies a route for unregister requests.
 	Identity presence.RouteIdentity
 	// PendingToken names a pending route for commit or abort requests.
@@ -66,6 +69,7 @@ func encodePresenceRPCRequestBinary(req presenceRPCRequest) ([]byte, error) {
 	dst = appendPresenceRouteTarget(dst, req.Target)
 	dst = appendPresenceRoute(dst, req.Route)
 	dst = appendPresenceRoutes(dst, req.Routes)
+	dst = appendPresenceAction(dst, req.Action)
 	dst = appendPresenceRouteIdentity(dst, req.Identity)
 	dst = appendString(dst, req.PendingToken)
 	dst = appendString(dst, req.UID)
@@ -97,6 +101,9 @@ func decodePresenceRPCRequest(body []byte) (presenceRPCRequest, error) {
 		return presenceRPCRequest{}, err
 	}
 	if req.Routes, offset, err = readPresenceRoutes(body, offset); err != nil {
+		return presenceRPCRequest{}, err
+	}
+	if req.Action, offset, err = readPresenceAction(body, offset); err != nil {
 		return presenceRPCRequest{}, err
 	}
 	if req.Identity, offset, err = readPresenceRouteIdentity(body, offset); err != nil {
@@ -178,6 +185,8 @@ func presenceOpID(op string) (byte, error) {
 		return presenceOpEndpointsByUIDID, nil
 	case presenceOpRehydrateRoutes:
 		return presenceOpRehydrateRoutesID, nil
+	case presenceOpApplyRouteAction:
+		return presenceOpApplyRouteActionID, nil
 	default:
 		return 0, fmt.Errorf("internalv2/access/node: unknown presence op %q", op)
 	}
@@ -197,6 +206,8 @@ func presenceOpFromID(op byte) (string, error) {
 		return presenceOpEndpointsByUID, nil
 	case presenceOpRehydrateRoutesID:
 		return presenceOpRehydrateRoutes, nil
+	case presenceOpApplyRouteActionID:
+		return presenceOpApplyRouteAction, nil
 	default:
 		return "", fmt.Errorf("internalv2/access/node: unknown presence op id %d", op)
 	}
@@ -369,14 +380,19 @@ func readPresenceRegisterResult(body []byte, offset int) (presence.RegisterResul
 func appendPresenceActions(dst []byte, actions []presence.RouteAction) []byte {
 	dst = appendUvarint(dst, uint64(len(actions)))
 	for _, action := range actions {
-		dst = appendString(dst, action.UID)
-		dst = appendUvarint(dst, action.OwnerNodeID)
-		dst = appendUvarint(dst, action.OwnerBootID)
-		dst = appendUvarint(dst, action.SessionID)
-		dst = appendString(dst, action.Kind)
-		dst = appendString(dst, action.Reason)
-		dst = appendVarint(dst, action.DelayMS)
+		dst = appendPresenceAction(dst, action)
 	}
+	return dst
+}
+
+func appendPresenceAction(dst []byte, action presence.RouteAction) []byte {
+	dst = appendString(dst, action.UID)
+	dst = appendUvarint(dst, action.OwnerNodeID)
+	dst = appendUvarint(dst, action.OwnerBootID)
+	dst = appendUvarint(dst, action.SessionID)
+	dst = appendString(dst, action.Kind)
+	dst = appendString(dst, action.Reason)
+	dst = appendVarint(dst, action.DelayMS)
 	return dst
 }
 
@@ -395,30 +411,39 @@ func readPresenceActions(body []byte, offset int) ([]presence.RouteAction, int, 
 	actions := make([]presence.RouteAction, 0, int(count))
 	for i := uint64(0); i < count; i++ {
 		var action presence.RouteAction
-		if action.UID, offset, err = readString(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.OwnerBootID, offset, err = readUvarint(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.SessionID, offset, err = readUvarint(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.Kind, offset, err = readString(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.Reason, offset, err = readString(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if action.DelayMS, offset, err = readVarint(body, offset); err != nil {
+		if action, offset, err = readPresenceAction(body, offset); err != nil {
 			return nil, offset, err
 		}
 		actions = append(actions, action)
 	}
 	return actions, offset, nil
+}
+
+func readPresenceAction(body []byte, offset int) (presence.RouteAction, int, error) {
+	var action presence.RouteAction
+	var err error
+	if action.UID, offset, err = readString(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.OwnerBootID, offset, err = readUvarint(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.SessionID, offset, err = readUvarint(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.Kind, offset, err = readString(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.Reason, offset, err = readString(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	if action.DelayMS, offset, err = readVarint(body, offset); err != nil {
+		return presence.RouteAction{}, offset, err
+	}
+	return action, offset, nil
 }
 
 func appendPresenceRehydrateResults(dst []byte, results []presence.RehydrateResult) []byte {

@@ -132,7 +132,7 @@ func TestDirectoryCommitRouteReplacesConflictingActiveRoute(t *testing.T) {
 	}
 }
 
-func TestDirectoryCommitRouteRechecksCurrentConflicts(t *testing.T) {
+func TestDirectoryCommitRouteRejectsNewUnacknowledgedConflicts(t *testing.T) {
 	existing := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1}
 	firstPending := Route{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, DeviceID: "new-1", DeviceFlag: 1, DeviceLevel: 1}
 	secondPending := Route{UID: "u1", OwnerNodeID: 3, OwnerBootID: 1, OwnerSeq: 1, SessionID: 30, DeviceID: "new-2", DeviceFlag: 1, DeviceLevel: 1}
@@ -153,16 +153,16 @@ func TestDirectoryCommitRouteRechecksCurrentConflicts(t *testing.T) {
 	if err := dir.CommitRoute(target, first.PendingToken); err != nil {
 		t.Fatalf("CommitRoute(first) error = %v", err)
 	}
-	if err := dir.CommitRoute(target, second.PendingToken); err != nil {
-		t.Fatalf("CommitRoute(second) error = %v", err)
+	if err := dir.CommitRoute(target, second.PendingToken); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("CommitRoute(second) error = %v, want ErrRouteNotReady", err)
 	}
 
 	routes, err := dir.EndpointsByUID(target, "u1")
 	if err != nil {
 		t.Fatalf("EndpointsByUID() error = %v", err)
 	}
-	if len(routes) != 1 || routes[0].SessionID != secondPending.SessionID {
-		t.Fatalf("routes = %#v, want only second pending active", routes)
+	if len(routes) != 1 || routes[0].SessionID != firstPending.SessionID {
+		t.Fatalf("routes = %#v, want only first pending active", routes)
 	}
 }
 
@@ -211,6 +211,30 @@ func TestDirectoryLeadershipEpochClearsOldRoutes(t *testing.T) {
 	}
 	if _, err := dir.EndpointsByUID(first, "u1"); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("EndpointsByUID(old epoch) error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestDirectoryRouteRevisionUpdatePreservesAuthorityState(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	first := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(first)
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
+	if _, err := dir.RegisterRoute(first, route); err != nil {
+		t.Fatalf("RegisterRoute(first) error = %v", err)
+	}
+
+	second := first
+	second.RouteRevision = 2
+	dir.BecomeAuthority(second)
+	routes, err := dir.EndpointsByUID(second, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID(new revision) error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].SessionID != route.SessionID {
+		t.Fatalf("routes = %#v, want existing route preserved", routes)
+	}
+	if _, err := dir.EndpointsByUID(first, "u1"); !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("EndpointsByUID(old revision) error = %v, want ErrNotLeader", err)
 	}
 }
 

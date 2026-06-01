@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -28,12 +29,16 @@ type PresenceAuthorityClient struct {
 	node PresenceNode
 	// local handles authority calls when this node is the current leader.
 	local accessnode.PresenceAuthority
+	// localOwner handles conflict actions owned by this node.
+	localOwner accessnode.PresenceOwner
 	// remote adapts authority calls to access/node RPC for non-local leaders.
 	remote *accessnode.Client
 
 	mu      sync.Mutex
 	pending map[presence.PendingRouteToken]pendingRouteRef
 }
+
+const defaultPresenceUnregisterTimeout = 3 * time.Second
 
 type pendingRouteRef struct {
 	uid      string
@@ -48,6 +53,14 @@ func NewPresenceAuthorityClient(node PresenceNode, local accessnode.PresenceAuth
 		remote:  accessnode.NewClient(node),
 		pending: make(map[presence.PendingRouteToken]pendingRouteRef),
 	}
+}
+
+// SetLocalOwner installs the owner-local action handler used for route conflicts.
+func (c *PresenceAuthorityClient) SetLocalOwner(owner accessnode.PresenceOwner) {
+	if c == nil {
+		return
+	}
+	c.localOwner = owner
 }
 
 // ResolveRouteTarget returns the current authority target for uid.
@@ -136,9 +149,14 @@ func (c *PresenceAuthorityClient) UnregisterRoute(ctx context.Context, identity 
 	})
 }
 
-// EnqueueUnregister performs a best-effort unregister for the presence usecase port.
-func (c *PresenceAuthorityClient) EnqueueUnregister(identity presence.RouteIdentity, ownerSeq uint64) {
-	_ = c.UnregisterRoute(context.Background(), identity, ownerSeq)
+// EnqueueUnregister performs a bounded best-effort unregister for the presence usecase port.
+func (c *PresenceAuthorityClient) EnqueueUnregister(ctx context.Context, identity presence.RouteIdentity, ownerSeq uint64) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	unregisterCtx, cancel := context.WithTimeout(ctx, defaultPresenceUnregisterTimeout)
+	defer cancel()
+	_ = c.UnregisterRoute(unregisterCtx, identity, ownerSeq)
 }
 
 // EndpointsByUID reads active authority routes for one UID.
@@ -158,27 +176,51 @@ func (c *PresenceAuthorityClient) EndpointsByUID(ctx context.Context, uid string
 	return routes, nil
 }
 
-// RehydrateRoutes replays owner routes through the authority for their UID hash slot.
-func (c *PresenceAuthorityClient) RehydrateRoutes(ctx context.Context, routes []presence.Route) ([]presence.RehydrateResult, error) {
+// RehydrateRoutesTo replays owner routes into a specific observed authority epoch.
+func (c *PresenceAuthorityClient) RehydrateRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
 	if len(routes) == 0 {
 		return nil, nil
 	}
-	if err := c.validateRehydrateBatch(ctx, routes); err != nil {
-		return nil, err
-	}
-	var results []presence.RehydrateResult
-	err := c.withFreshTarget(ctx, routes[0].UID, func(target presence.RouteTarget) error {
-		authority, err := c.authorityForTarget(target)
-		if err != nil {
-			return err
-		}
-		results, err = authority.RehydrateRoutes(ctx, target, routes)
-		return err
-	})
+	authority, err := c.authorityForTarget(target)
 	if err != nil {
 		return nil, err
 	}
-	return results, nil
+	return authority.RehydrateRoutes(ctx, target, routes)
+}
+
+// CommitRehydratedRoute commits one raw pending token returned by RehydrateRoutesTo.
+func (c *PresenceAuthorityClient) CommitRehydratedRoute(ctx context.Context, target presence.RouteTarget, token string) error {
+	authority, err := c.authorityForTarget(target)
+	if err != nil {
+		return err
+	}
+	return authority.CommitRoute(ctx, target, token)
+}
+
+// AbortRehydratedRoute aborts one raw pending token returned by RehydrateRoutesTo.
+func (c *PresenceAuthorityClient) AbortRehydratedRoute(ctx context.Context, target presence.RouteTarget, token string) error {
+	authority, err := c.authorityForTarget(target)
+	if err != nil {
+		return err
+	}
+	return authority.AbortRoute(ctx, target, token)
+}
+
+// ApplyRouteAction applies a conflict action on the node that owns the real session.
+func (c *PresenceAuthorityClient) ApplyRouteAction(ctx context.Context, action presence.RouteAction) error {
+	if c == nil || c.node == nil || action.OwnerNodeID == 0 {
+		return authoritypresence.ErrRouteNotReady
+	}
+	if action.OwnerNodeID == c.node.NodeID() {
+		if c.localOwner == nil {
+			return authoritypresence.ErrRouteNotReady
+		}
+		return c.localOwner.ApplyRouteAction(ctx, action)
+	}
+	if c.remote == nil {
+		return authoritypresence.ErrRouteNotReady
+	}
+	return c.remote.ApplyRouteAction(ctx, action.OwnerNodeID, action)
 }
 
 func (c *PresenceAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(presence.RouteTarget) error) error {
@@ -253,23 +295,6 @@ func routeTargetFromClusterRoute(route clusterv2.Route) presence.RouteTarget {
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
 	}
-}
-
-func (c *PresenceAuthorityClient) validateRehydrateBatch(ctx context.Context, routes []presence.Route) error {
-	firstTarget, err := c.ResolveRouteTarget(routes[0].UID)
-	if err != nil {
-		return err
-	}
-	for _, route := range routes[1:] {
-		target, err := c.ResolveRouteTarget(route.UID)
-		if err != nil {
-			return err
-		}
-		if target.HashSlot != firstTarget.HashSlot {
-			return fmt.Errorf("%w: mixed rehydrate hash slots", authoritypresence.ErrRouteNotReady)
-		}
-	}
-	return nil
 }
 
 func wrapPendingToken(token presence.PendingRouteToken, uid string, c *PresenceAuthorityClient) presence.PendingRouteToken {

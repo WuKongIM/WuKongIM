@@ -197,6 +197,38 @@ func TestPresenceAuthorityRPCHandlerMapsErrorsToStatus(t *testing.T) {
 	}
 }
 
+func TestPresenceOwnerRPCHandlerDispatchesAction(t *testing.T) {
+	action := presence.RouteAction{
+		UID:         "u1",
+		OwnerNodeID: 13,
+		OwnerBootID: 23,
+		SessionID:   101,
+		Kind:        "close",
+		Reason:      "presence_conflict",
+	}
+	owner := &fakePresenceOwner{}
+	adapter := New(Options{Owner: owner})
+	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{Op: presenceOpApplyRouteAction, Action: action})
+	if err != nil {
+		t.Fatalf("encodePresenceRPCRequestBinary() error = %v", err)
+	}
+
+	respBody, err := adapter.HandlePresenceOwnerRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandlePresenceOwnerRPC() error = %v", err)
+	}
+	resp, err := decodePresenceRPCResponse(respBody)
+	if err != nil {
+		t.Fatalf("decodePresenceRPCResponse() error = %v", err)
+	}
+	if resp.Status != rpcStatusOK {
+		t.Fatalf("response status = %q, want %q", resp.Status, rpcStatusOK)
+	}
+	if len(owner.actions) != 1 || !reflect.DeepEqual(owner.actions[0], action) {
+		t.Fatalf("owner actions = %#v, want %#v", owner.actions, action)
+	}
+}
+
 func TestPresenceClientEncodesRPCAndMapsStatusErrors(t *testing.T) {
 	target := testPresenceTarget()
 	node := &fakePresenceRPCNode{
@@ -219,6 +251,31 @@ func TestPresenceClientEncodesRPCAndMapsStatusErrors(t *testing.T) {
 		t.Fatalf("decodePresenceRPCRequest(client payload) error = %v", err)
 	}
 	if req.Op != presenceOpCommitRoute || req.PendingToken != "pending-1" {
+		t.Fatalf("client request = %#v", req)
+	}
+}
+
+func TestPresenceClientEncodesOwnerActionRPC(t *testing.T) {
+	node := &fakePresenceRPCNode{
+		response: presenceRPCResponse{Status: rpcStatusOK},
+	}
+	client := NewClient(node)
+	action := presence.RouteAction{UID: "u1", OwnerNodeID: 2, OwnerBootID: 23, SessionID: 101, Kind: "close", Reason: "presence_conflict"}
+
+	if err := client.ApplyRouteAction(context.Background(), 2, action); err != nil {
+		t.Fatalf("ApplyRouteAction() error = %v", err)
+	}
+	if node.nodeID != 2 {
+		t.Fatalf("rpc node id = %d, want 2", node.nodeID)
+	}
+	if node.serviceID != PresenceOwnerRPCServiceID {
+		t.Fatalf("rpc service id = %d, want %d", node.serviceID, PresenceOwnerRPCServiceID)
+	}
+	req, err := decodePresenceRPCRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodePresenceRPCRequest(client payload) error = %v", err)
+	}
+	if req.Op != presenceOpApplyRouteAction || !reflect.DeepEqual(req.Action, action) {
 		t.Fatalf("client request = %#v", req)
 	}
 }
@@ -281,6 +338,15 @@ type fakePresenceAuthority struct {
 	unregisterCalls []presenceUnregisterCall
 	endpointCalls   []presenceEndpointCall
 	rehydrateCalls  []presenceRehydrateCall
+}
+
+type fakePresenceOwner struct {
+	actions []presence.RouteAction
+}
+
+func (f *fakePresenceOwner) ApplyRouteAction(_ context.Context, action presence.RouteAction) error {
+	f.actions = append(f.actions, action)
+	return nil
 }
 
 func newFakePresenceAuthority() *fakePresenceAuthority {

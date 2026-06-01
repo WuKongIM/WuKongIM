@@ -3,7 +3,10 @@ package presence
 import "context"
 
 // Deactivate removes the local route before queuing an authority unregister tombstone.
-func (a *App) Deactivate(_ context.Context, cmd DeactivateCommand) error {
+func (a *App) Deactivate(ctx context.Context, cmd DeactivateCommand) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if a.local == nil {
 		return ErrLocalRegistryUnavailable
 	}
@@ -18,6 +21,6 @@ func (a *App) Deactivate(_ context.Context, cmd DeactivateCommand) error {
 		conn.UID = cmd.UID
 	}
 	route := routeFromConn(conn)
-	a.authority.EnqueueUnregister(route.Identity(), route.OwnerSeq)
+	a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 	return nil
 }

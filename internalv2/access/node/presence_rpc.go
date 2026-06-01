@@ -17,16 +17,20 @@ const (
 	rpcStatusRouteNotReady = "route_not_ready"
 	rpcStatusRejected      = "rejected"
 
-	presenceOpRegisterRoute   = "register_route"
-	presenceOpCommitRoute     = "commit_route"
-	presenceOpAbortRoute      = "abort_route"
-	presenceOpUnregisterRoute = "unregister_route"
-	presenceOpEndpointsByUID  = "endpoints_by_uid"
-	presenceOpRehydrateRoutes = "rehydrate_routes"
+	presenceOpRegisterRoute    = "register_route"
+	presenceOpCommitRoute      = "commit_route"
+	presenceOpAbortRoute       = "abort_route"
+	presenceOpUnregisterRoute  = "unregister_route"
+	presenceOpEndpointsByUID   = "endpoints_by_uid"
+	presenceOpRehydrateRoutes  = "rehydrate_routes"
+	presenceOpApplyRouteAction = "apply_route_action"
 )
 
 // PresenceAuthorityRPCServiceID is the clusterv2 RPC service for UID route authority calls.
 const PresenceAuthorityRPCServiceID uint8 = clusternet.RPCPresenceAuthority
+
+// PresenceOwnerRPCServiceID is the clusterv2 RPC service for owner-node actions.
+const PresenceOwnerRPCServiceID uint8 = clusternet.RPCPresenceOwner
 
 // PresenceAuthority is the authority-side route API exposed over node RPC.
 type PresenceAuthority interface {
@@ -38,21 +42,30 @@ type PresenceAuthority interface {
 	RehydrateRoutes(context.Context, presence.RouteTarget, []presence.Route) ([]presence.RehydrateResult, error)
 }
 
+// PresenceOwner applies authority-requested actions to owner-local sessions.
+type PresenceOwner interface {
+	ApplyRouteAction(context.Context, presence.RouteAction) error
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
 	Authority PresenceAuthority
+	// Owner handles owner-local session conflict actions after payload decoding.
+	Owner PresenceOwner
 }
 
 // Adapter decodes node RPC payloads and forwards them to local authority ports.
 type Adapter struct {
 	// authority owns business decisions; Adapter only performs RPC adaptation.
 	authority PresenceAuthority
+	// owner mutates only owner-local real session state.
+	owner PresenceOwner
 }
 
 // New creates a node RPC adapter.
 func New(opts Options) *Adapter {
-	return &Adapter{authority: opts.Authority}
+	return &Adapter{authority: opts.Authority, owner: opts.Owner}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.
@@ -96,6 +109,22 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 	default:
 		return nil, fmt.Errorf("internalv2/access/node: unknown presence rpc op %q", req.Op)
 	}
+}
+
+// HandlePresenceOwnerRPC handles one encoded presence owner-action RPC payload.
+func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	req, err := decodePresenceRPCRequest(payload)
+	if err != nil {
+		return nil, err
+	}
+	if a == nil || a.owner == nil {
+		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusRejected})
+	}
+	if req.Op != presenceOpApplyRouteAction {
+		return nil, fmt.Errorf("internalv2/access/node: unknown presence owner rpc op %q", req.Op)
+	}
+	err = a.owner.ApplyRouteAction(ctx, req.Action)
+	return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: presenceRPCStatusForError(err)})
 }
 
 // PresenceRPCNode sends raw RPC payloads to another internalv2 node.
@@ -177,7 +206,20 @@ func (c *Client) RehydrateRoutes(ctx context.Context, target presence.RouteTarge
 	return resp.Rehydrate, nil
 }
 
+// ApplyRouteAction applies one conflict action on the owner node.
+func (c *Client) ApplyRouteAction(ctx context.Context, ownerNodeID uint64, action presence.RouteAction) error {
+	resp, err := c.callService(ctx, ownerNodeID, PresenceOwnerRPCServiceID, presenceRPCRequest{Op: presenceOpApplyRouteAction, Action: action})
+	if err != nil {
+		return err
+	}
+	return presenceRPCErrorForStatus(resp.Status)
+}
+
 func (c *Client) call(ctx context.Context, target presence.RouteTarget, req presenceRPCRequest) (presenceRPCResponse, error) {
+	return c.callService(ctx, target.LeaderNodeID, PresenceAuthorityRPCServiceID, req)
+}
+
+func (c *Client) callService(ctx context.Context, nodeID uint64, serviceID uint8, req presenceRPCRequest) (presenceRPCResponse, error) {
 	if c == nil || c.node == nil {
 		return presenceRPCResponse{}, fmt.Errorf("internalv2/access/node: presence rpc client not configured")
 	}
@@ -185,7 +227,7 @@ func (c *Client) call(ctx context.Context, target presence.RouteTarget, req pres
 	if err != nil {
 		return presenceRPCResponse{}, err
 	}
-	respBody, err := c.node.CallRPC(ctx, target.LeaderNodeID, PresenceAuthorityRPCServiceID, body)
+	respBody, err := c.node.CallRPC(ctx, nodeID, serviceID, body)
 	if err != nil {
 		return presenceRPCResponse{}, err
 	}

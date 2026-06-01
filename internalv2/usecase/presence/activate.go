@@ -14,7 +14,10 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		return ErrAuthorityUnavailable
 	}
 
-	conn := a.onlineConn(cmd)
+	conn, err := a.onlineConn(cmd)
+	if err != nil {
+		return err
+	}
 	route := routeFromConn(conn)
 	if err := a.local.RegisterPending(conn); err != nil {
 		return err
@@ -30,7 +33,7 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		return err
 	}
 	if err := a.local.MarkActive(cmd.SessionID); err != nil {
-		a.authority.EnqueueUnregister(route.Identity(), route.OwnerSeq)
+		a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 		a.rollbackLocal(cmd.SessionID)
 		return err
 	}
@@ -39,31 +42,30 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 
 func (a *App) finishPendingRoute(ctx context.Context, result RegisterResult) error {
 	if result.PendingToken == "" {
-		return a.applyRouteActions(result.Actions)
+		return a.applyRouteActions(ctx, result.Actions)
 	}
-	if err := a.applyRouteActions(result.Actions); err != nil {
+	if err := a.applyRouteActions(ctx, result.Actions); err != nil {
 		_ = a.authority.AbortRoute(ctx, result.PendingToken)
 		return err
 	}
-	return a.authority.CommitRoute(ctx, result.PendingToken)
+	if err := a.authority.CommitRoute(ctx, result.PendingToken); err != nil {
+		_ = a.authority.AbortRoute(ctx, result.PendingToken)
+		return err
+	}
+	return nil
 }
 
-func (a *App) applyRouteActions(actions []RouteAction) error {
-	toRemove := make([]uint64, 0, len(actions))
-	for _, action := range actions {
-		conn, ok := a.local.Connection(action.SessionID)
-		if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
-			continue
-		}
-		if conn.Session != nil {
-			if err := conn.Session.CloseSession(action.Reason); err != nil {
-				return err
-			}
-		}
-		toRemove = append(toRemove, action.SessionID)
+func (a *App) applyRouteActions(ctx context.Context, actions []RouteAction) error {
+	if len(actions) == 0 {
+		return nil
 	}
-	for _, sessionID := range toRemove {
-		a.rollbackLocal(sessionID)
+	if a.ownerAction == nil {
+		return ErrOwnerActionUnavailable
+	}
+	for _, action := range actions {
+		if err := a.ownerAction.ApplyRouteAction(ctx, action); err != nil {
+			return err
+		}
 	}
 	return nil
 }

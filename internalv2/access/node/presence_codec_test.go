@@ -66,6 +66,21 @@ func TestPresenceCodecRequestRoundTrip(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "owner action",
+			req: presenceRPCRequest{
+				Op: presenceOpApplyRouteAction,
+				Action: presence.RouteAction{
+					UID:         "u1",
+					OwnerNodeID: 13,
+					OwnerBootID: 23,
+					SessionID:   101,
+					Kind:        "close",
+					Reason:      "presence_conflict",
+					DelayMS:     7,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

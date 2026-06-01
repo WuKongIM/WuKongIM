@@ -116,22 +116,26 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
 		authority := presenceDirectoryAuthority{directory: directory}
+		ownerActions := presenceOwnerActions{local: app.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
-		adapter := accessnode.New(accessnode.Options{Authority: authority})
+		client.SetLocalOwner(ownerActions)
+		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
+		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
 		if app.presence == nil {
 			ownerBootID := newOwnerBootID()
 			app.presence = presence.New(presence.Options{
-				Local:       app.online,
-				Authority:   client,
-				OwnerNodeID: presenceNode.NodeID(),
-				OwnerBootID: ownerBootID,
-				HashSlot: func(uid string) uint16 {
+				Local:        app.online,
+				Authority:    client,
+				OwnerActions: client,
+				OwnerNodeID:  presenceNode.NodeID(),
+				OwnerBootID:  ownerBootID,
+				HashSlot: func(uid string) (uint16, error) {
 					target, err := client.ResolveRouteTarget(uid)
 					if err != nil {
-						return 0
+						return 0, err
 					}
-					return target.HashSlot
+					return target.HashSlot, nil
 				},
 			})
 		}
@@ -141,7 +145,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				Watch:                presenceNode.WatchRouteAuthorities,
 				Initial:              app.currentPresenceAuthorities,
 				Local:                app.online,
-				Authority:            authority,
+				Authority:            client,
+				Actions:              client,
 				Directory:            directory,
 				BatchSize:            app.cfg.Presence.RehydrateBatchSize,
 				MaxInflightPerTarget: app.cfg.Presence.RehydrateMaxInflightPerTarget,
@@ -378,6 +383,11 @@ type presenceDirectoryAuthority struct {
 	directory *authoritypresence.Directory
 }
 
+type presenceOwnerActions struct {
+	// local stores real sessions owned by this node.
+	local presenceLocalRegistry
+}
+
 type activationTimeoutPresence struct {
 	// next is the underlying entry-agnostic presence usecase.
 	next accessgateway.PresenceUsecase
@@ -444,6 +454,29 @@ func (a presenceDirectoryAuthority) RehydrateRoutes(ctx context.Context, target 
 		return nil, err
 	}
 	return a.directory.RehydrateRoutes(target, routes)
+}
+
+func (a presenceOwnerActions) ApplyRouteAction(ctx context.Context, action presence.RouteAction) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if a.local == nil {
+		return authoritypresence.ErrRouteNotReady
+	}
+	conn, ok := a.local.Connection(action.SessionID)
+	if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
+		return nil
+	}
+	if conn.Session != nil {
+		if err := conn.Session.CloseSession(action.Reason); err != nil {
+			return err
+		}
+	}
+	a.local.MarkClosingAndUnregister(action.SessionID)
+	return nil
 }
 
 func newOwnerBootID() uint64 {

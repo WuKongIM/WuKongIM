@@ -11,26 +11,28 @@ cluster runtimes, access adapters, or the app composition root.
 
 ```text
 Activate(command)
+  -> resolve UID hash slot
   -> build owner-local OnlineConn and authority Route
   -> local.RegisterPending(conn)
   -> authority.RegisterRoute(route)
      -> on error, local.MarkClosingAndUnregister(sessionID)
-  -> apply returned local RouteAction values when their exact route is present
+  -> route returned RouteAction values through OwnerActionClient
   -> authority.CommitRoute(token) when registration returned a pending token
   -> local.MarkActive(sessionID)
-     -> on failure, authority.EnqueueUnregister(exact route identity, owner seq)
+     -> on failure, authority.EnqueueUnregister(ctx, exact route identity, owner seq)
         and local.MarkClosingAndUnregister(sessionID)
 ```
 
 `MarkActive` is the final local active re-check. A successful activation means
-the authority accepted the route and the owner still has the session locally.
+the authority accepted the route, required owner actions were acknowledged, and
+the owner still has the session locally.
 
 ## Deactivate Flow
 
 ```text
 Deactivate(command)
   -> local.MarkClosingAndUnregister(sessionID)
-  -> authority.EnqueueUnregister(exact route identity, owner seq)
+  -> authority.EnqueueUnregister(ctx, exact route identity, owner seq)
 ```
 
 Local removal happens before the authority tombstone is queued so owner-local

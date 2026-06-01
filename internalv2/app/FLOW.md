@@ -25,7 +25,7 @@ New(Config)
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
        and access/node presence RPC adapter
-       register the presence authority RPC handler on clusterv2
+       register the presence authority and owner-action RPC handlers on clusterv2
        create the route-authority rehydrate worker
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server when API.ListenAddr is configured
@@ -68,12 +68,13 @@ order; if rollback fails, state remains retryable so a later `Stop` can clean up
 clusterv2.RouteAuthorityEvent
   -> if local node becomes authority:
        runtime/presence.Directory.BecomeAuthority(target)
-       page owner-local active sessions through online.Registry.VisitActiveByHashSlot
-       call Directory.RehydrateRoutes(target, batch)
-       apply returned local conflict actions and commit or abort pending routes
   -> if another node becomes authority:
        Directory.LoseAuthority(hashSlot)
-       cancel in-flight local rehydrate for that hash slot
+  -> for every authority target with a leader:
+       page owner-local active sessions through online.Registry.VisitActiveByHashSlot
+       call infra/cluster.PresenceAuthorityClient.RehydrateRoutesTo(target, batch)
+       route returned conflict actions to their owner node
+       commit or abort pending routes on the target authority
 ```
 
 The app worker keeps at most one in-flight rehydrate task per hash slot. A newer

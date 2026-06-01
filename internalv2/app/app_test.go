@@ -113,8 +113,11 @@ func TestNewWiresPresenceWhenGatewayEnabled(t *testing.T) {
 	if app.online == nil {
 		t.Fatal("online registry was not wired")
 	}
-	if cluster.registeredService != accessnode.PresenceAuthorityRPCServiceID {
-		t.Fatalf("registered presence rpc service = %d, want %d", cluster.registeredService, accessnode.PresenceAuthorityRPCServiceID)
+	if _, ok := cluster.registeredHandlers[accessnode.PresenceAuthorityRPCServiceID]; !ok {
+		t.Fatalf("presence authority rpc service was not registered")
+	}
+	if _, ok := cluster.registeredHandlers[accessnode.PresenceOwnerRPCServiceID]; !ok {
+		t.Fatalf("presence owner rpc service was not registered")
 	}
 	if app.Handler() == nil {
 		t.Fatal("gateway handler was not wired")
@@ -201,7 +204,7 @@ func TestPresenceRehydrateWorkerPagesAffectedHashSlot(t *testing.T) {
 	events <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{{
 		HashSlot:       9,
 		SlotID:         1,
-		LeaderNodeID:   1,
+		LeaderNodeID:   2,
 		RouteRevision:  3,
 		AuthorityEpoch: 2,
 	}}}
@@ -219,8 +222,8 @@ func TestPresenceRehydrateWorkerPagesAffectedHashSlot(t *testing.T) {
 		if len(batch.routes) != 1 {
 			t.Fatalf("batch %d route count = %d, want 1", i, len(batch.routes))
 		}
-		if batch.target.HashSlot != 9 || batch.target.LeaderNodeID != 1 || batch.target.AuthorityEpoch != 2 {
-			t.Fatalf("batch %d target = %#v, want hashSlot=9 leader=1 epoch=2", i, batch.target)
+		if batch.target.HashSlot != 9 || batch.target.LeaderNodeID != 2 || batch.target.AuthorityEpoch != 2 {
+			t.Fatalf("batch %d target = %#v, want hashSlot=9 leader=2 epoch=2", i, batch.target)
 		}
 	}
 	gotSessions := []uint64{authority.batches[0].routes[0].SessionID, authority.batches[1].routes[0].SessionID}
@@ -296,6 +299,7 @@ func TestPresenceRehydrateWorkerAppliesActionsAndCommitsPending(t *testing.T) {
 		Events:    events,
 		Local:     reg,
 		Authority: authority,
+		Actions:   presenceOwnerActions{local: reg},
 		BatchSize: 1,
 	})
 	if err := worker.Start(context.Background()); err != nil {
@@ -696,11 +700,12 @@ func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route,
 
 type fakePresenceCluster struct {
 	fakeCluster
-	nodeID            uint64
-	events            <-chan clusterv2.RouteAuthorityEvent
-	snapshot          clusterv2.Snapshot
-	registeredService uint8
-	registeredHandler clusterv2.NodeRPCHandler
+	nodeID             uint64
+	events             <-chan clusterv2.RouteAuthorityEvent
+	snapshot           clusterv2.Snapshot
+	registeredService  uint8
+	registeredHandler  clusterv2.NodeRPCHandler
+	registeredHandlers map[uint8]clusterv2.NodeRPCHandler
 }
 
 func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorityEvent) *fakePresenceCluster {
@@ -730,6 +735,10 @@ func (f *fakePresenceCluster) CallRPC(context.Context, uint64, uint8, []byte) ([
 func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
 	f.registeredService = serviceID
 	f.registeredHandler = handler
+	if f.registeredHandlers == nil {
+		f.registeredHandlers = make(map[uint8]clusterv2.NodeRPCHandler)
+	}
+	f.registeredHandlers[serviceID] = handler
 }
 
 func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
@@ -773,7 +782,7 @@ type recordingRehydrateAuthority struct {
 	wantCommits  int
 }
 
-func (r *recordingRehydrateAuthority) RehydrateRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
+func (r *recordingRehydrateAuthority) RehydrateRoutesTo(_ context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
 	r.mu.Lock()
 	r.batches = append(r.batches, rehydrateBatch{
 		target: target,
@@ -785,7 +794,7 @@ func (r *recordingRehydrateAuthority) RehydrateRoutes(_ context.Context, target 
 	return results, nil
 }
 
-func (r *recordingRehydrateAuthority) CommitRoute(_ context.Context, _ presence.RouteTarget, token string) error {
+func (r *recordingRehydrateAuthority) CommitRehydratedRoute(_ context.Context, _ presence.RouteTarget, token string) error {
 	r.mu.Lock()
 	r.commitTokens = append(r.commitTokens, token)
 	r.maybeDoneLocked()
@@ -793,7 +802,7 @@ func (r *recordingRehydrateAuthority) CommitRoute(_ context.Context, _ presence.
 	return nil
 }
 
-func (r *recordingRehydrateAuthority) AbortRoute(_ context.Context, _ presence.RouteTarget, token string) error {
+func (r *recordingRehydrateAuthority) AbortRehydratedRoute(_ context.Context, _ presence.RouteTarget, token string) error {
 	r.mu.Lock()
 	r.abortTokens = append(r.abortTokens, token)
 	r.mu.Unlock()

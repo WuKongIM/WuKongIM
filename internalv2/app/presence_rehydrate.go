@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
@@ -24,9 +25,14 @@ type presenceAuthorityDirectory interface {
 
 // presenceRehydrateAuthority replays owner routes into an authority epoch.
 type presenceRehydrateAuthority interface {
-	RehydrateRoutes(context.Context, presence.RouteTarget, []presence.Route) ([]presence.RehydrateResult, error)
-	CommitRoute(context.Context, presence.RouteTarget, string) error
-	AbortRoute(context.Context, presence.RouteTarget, string) error
+	RehydrateRoutesTo(context.Context, presence.RouteTarget, []presence.Route) ([]presence.RehydrateResult, error)
+	CommitRehydratedRoute(context.Context, presence.RouteTarget, string) error
+	AbortRehydratedRoute(context.Context, presence.RouteTarget, string) error
+}
+
+// presenceRouteActioner applies route conflict actions on owner nodes.
+type presenceRouteActioner interface {
+	ApplyRouteAction(context.Context, presence.RouteAction) error
 }
 
 type presenceRehydrateWorkerOptions struct {
@@ -42,6 +48,8 @@ type presenceRehydrateWorkerOptions struct {
 	Local presenceLocalRegistry
 	// Authority receives rehydrated routes for locally led hash slots.
 	Authority presenceRehydrateAuthority
+	// Actions applies conflict actions returned by the authority.
+	Actions presenceRouteActioner
 	// Directory installs or clears local authority state as leadership changes.
 	Directory presenceAuthorityDirectory
 	// BatchSize bounds routes sent in one rehydrate call.
@@ -164,7 +172,7 @@ func (w *presenceRehydrateWorker) handleAuthority(ctx context.Context, authority
 		RouteRevision:  authority.RouteRevision,
 		AuthorityEpoch: authority.AuthorityEpoch,
 	}
-	if authority.LeaderNodeID != w.opts.NodeID {
+	if authority.LeaderNodeID == 0 {
 		if !w.acceptAuthority(target) {
 			return
 		}
@@ -177,8 +185,11 @@ func (w *presenceRehydrateWorker) handleAuthority(ctx context.Context, authority
 	if !w.acceptAuthority(target) {
 		return
 	}
-	if w.opts.Directory != nil {
+	if w.opts.Directory != nil && authority.LeaderNodeID == w.opts.NodeID {
 		w.opts.Directory.BecomeAuthority(target)
+	}
+	if w.opts.Directory != nil && authority.LeaderNodeID != w.opts.NodeID {
+		w.opts.Directory.LoseAuthority(authority.HashSlot)
 	}
 	w.startHashSlot(ctx, target)
 }
@@ -258,7 +269,7 @@ func (w *presenceRehydrateWorker) rehydrateHashSlot(ctx context.Context, target 
 			return true
 		})
 		if len(routes) > 0 {
-			results, err := w.opts.Authority.RehydrateRoutes(ctx, target, routes)
+			results, err := w.opts.Authority.RehydrateRoutesTo(ctx, target, routes)
 			if err != nil {
 				return
 			}
@@ -278,14 +289,15 @@ func (w *presenceRehydrateWorker) applyRehydrateResults(ctx context.Context, tar
 		if result.Error != "" {
 			continue
 		}
-		if err := w.applyRouteActions(result.Actions); err != nil {
+		if err := w.applyRouteActions(ctx, result.Actions); err != nil {
 			if result.PendingToken != "" && w.opts.Authority != nil {
-				_ = w.opts.Authority.AbortRoute(ctx, target, string(result.PendingToken))
+				_ = w.opts.Authority.AbortRehydratedRoute(ctx, target, string(result.PendingToken))
 			}
 			return err
 		}
 		if result.PendingToken != "" && w.opts.Authority != nil {
-			if err := w.opts.Authority.CommitRoute(ctx, target, string(result.PendingToken)); err != nil {
+			if err := w.opts.Authority.CommitRehydratedRoute(ctx, target, string(result.PendingToken)); err != nil {
+				_ = w.opts.Authority.AbortRehydratedRoute(ctx, target, string(result.PendingToken))
 				return err
 			}
 		}
@@ -293,25 +305,17 @@ func (w *presenceRehydrateWorker) applyRehydrateResults(ctx context.Context, tar
 	return nil
 }
 
-func (w *presenceRehydrateWorker) applyRouteActions(actions []presence.RouteAction) error {
-	if len(actions) == 0 || w.opts.Local == nil {
+func (w *presenceRehydrateWorker) applyRouteActions(ctx context.Context, actions []presence.RouteAction) error {
+	if len(actions) == 0 {
 		return nil
 	}
-	toRemove := make([]uint64, 0, len(actions))
-	for _, action := range actions {
-		conn, ok := w.opts.Local.Connection(action.SessionID)
-		if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
-			continue
-		}
-		if conn.Session != nil {
-			if err := conn.Session.CloseSession(action.Reason); err != nil {
-				return err
-			}
-		}
-		toRemove = append(toRemove, action.SessionID)
+	if w.opts.Actions == nil {
+		return authoritypresence.ErrRouteNotReady
 	}
-	for _, sessionID := range toRemove {
-		w.opts.Local.MarkClosingAndUnregister(sessionID)
+	for _, action := range actions {
+		if err := w.opts.Actions.ApplyRouteAction(ctx, action); err != nil {
+			return err
+		}
 	}
 	return nil
 }

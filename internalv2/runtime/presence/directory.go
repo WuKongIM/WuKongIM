@@ -83,8 +83,13 @@ func (d *Directory) BecomeAuthority(target RouteTarget) {
 	defer shard.mu.Unlock()
 
 	current := shard.slots[target.HashSlot]
-	if current != nil && current.target == target {
-		return
+	if current != nil {
+		if sameAuthorityEpoch(current.target, target) {
+			if target.RouteRevision >= current.target.RouteRevision {
+				current.target = target
+			}
+			return
+		}
 	}
 	shard.slots[target.HashSlot] = newAuthoritySlot(target)
 }
@@ -297,7 +302,16 @@ func (s *authoritySlot) commitRouteLocked(token PendingRouteToken) error {
 		delete(s.pending, token)
 		return ErrStaleRoute
 	}
+	acknowledged := make(map[identityKey]struct{}, len(pending.conflicts))
+	for _, key := range pending.conflicts {
+		acknowledged[key] = struct{}{}
+	}
 	for _, key := range s.conflictsLocked(pending.route) {
+		if _, ok := acknowledged[key]; !ok {
+			return ErrRouteNotReady
+		}
+	}
+	for _, key := range pending.conflicts {
 		if existing, ok := s.active[key]; ok {
 			s.removeActiveLocked(key, existing)
 		}
@@ -354,6 +368,13 @@ func (s *authoritySlot) removeActiveLocked(key identityKey, route Route) {
 func (s *authoritySlot) nextPendingToken() PendingRouteToken {
 	s.nextID++
 	return PendingRouteToken(fmt.Sprintf("%d", s.nextID))
+}
+
+func sameAuthorityEpoch(left, right RouteTarget) bool {
+	return left.HashSlot == right.HashSlot &&
+		left.SlotID == right.SlotID &&
+		left.LeaderNodeID == right.LeaderNodeID &&
+		left.AuthorityEpoch == right.AuthorityEpoch
 }
 
 func conflicts(incoming, existing Route) bool {

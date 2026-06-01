@@ -1,7 +1,7 @@
 package presence
 
 // HashSlotResolver resolves the current hash slot for a UID.
-type HashSlotResolver func(uid string) uint16
+type HashSlotResolver func(uid string) (uint16, error)
 
 // OwnerSeqGenerator allocates the owner-local fencing sequence for a route.
 type OwnerSeqGenerator func(uid string) uint64
@@ -12,6 +12,8 @@ type Options struct {
 	Local LocalRegistry
 	// Authority registers virtual routes with the UID authority.
 	Authority AuthorityClient
+	// OwnerActions routes conflict actions to the owner node of the real session.
+	OwnerActions OwnerActionClient
 	// OwnerNodeID identifies this gateway owner node in authority route identities.
 	OwnerNodeID uint64
 	// OwnerBootID identifies this owner process generation.
@@ -26,6 +28,7 @@ type Options struct {
 type App struct {
 	local       LocalRegistry
 	authority   AuthorityClient
+	ownerAction OwnerActionClient
 	ownerNodeID uint64
 	ownerBootID uint64
 	hashSlot    HashSlotResolver
@@ -37,6 +40,7 @@ func New(opts Options) *App {
 	return &App{
 		local:       opts.Local,
 		authority:   opts.Authority,
+		ownerAction: opts.OwnerActions,
 		ownerNodeID: opts.OwnerNodeID,
 		ownerBootID: opts.OwnerBootID,
 		hashSlot:    opts.HashSlot,
@@ -44,10 +48,14 @@ func New(opts Options) *App {
 	}
 }
 
-func (a *App) onlineConn(cmd ActivateCommand) OnlineConn {
+func (a *App) onlineConn(cmd ActivateCommand) (OnlineConn, error) {
 	hashSlot := uint16(0)
 	if a.hashSlot != nil {
-		hashSlot = a.hashSlot(cmd.UID)
+		var err error
+		hashSlot, err = a.hashSlot(cmd.UID)
+		if err != nil {
+			return OnlineConn{}, err
+		}
 	}
 	ownerSeq := cmd.SessionID
 	if a.ownerSeq != nil {
@@ -67,7 +75,7 @@ func (a *App) onlineConn(cmd ActivateCommand) OnlineConn {
 		ConnectedUnix: cmd.ConnectedUnix,
 		State:         RouteStatePending,
 		Session:       cmd.Session,
-	}
+	}, nil
 }
 
 func routeFromConn(conn OnlineConn) Route {

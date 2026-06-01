@@ -4,8 +4,8 @@
 
 `internalv2/access/node` owns node-to-node RPC adaptation for the internalv2
 path. It decodes deterministic binary payloads, calls entry-agnostic authority
-ports, and encodes stable binary responses. It does not own presence conflict
-policy, routing policy, retries, leases, or gateway session state.
+or owner ports, and encodes stable binary responses. It does not own presence
+conflict policy, routing policy, retries, leases, or gateway session state.
 
 ## Presence Authority RPC
 
@@ -27,6 +27,21 @@ Supported authority calls:
 - `UnregisterRoute(RouteTarget, RouteIdentity, ownerSeq)`
 - `EndpointsByUID(RouteTarget, uid)`
 - `RehydrateRoutes(RouteTarget, []Route)`
+
+## Presence Owner RPC
+
+```text
+remote owner-action client
+  -> encode W K V P 1 request
+  -> clusterv2 RPCPresenceOwner
+  -> Adapter.HandlePresenceOwnerRPC
+  -> PresenceOwner.ApplyRouteAction
+  -> encode W K V R 1 response
+```
+
+Supported owner calls:
+
+- `ApplyRouteAction(RouteAction)`
 
 ## Codec Rules
 
@@ -50,7 +65,7 @@ Stable response statuses are:
 ## Boundaries
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
-  presence sentinel errors, and the clusterv2 RPC service ID.
+  presence sentinel errors, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not mutate local gateway sessions or authority runtime
-  state except through the `PresenceAuthority` interface.
+  state except through the `PresenceAuthority` and `PresenceOwner` interfaces.

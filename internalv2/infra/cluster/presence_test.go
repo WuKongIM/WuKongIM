@@ -75,6 +75,47 @@ func TestPresenceClientCallsRemoteAuthorityWhenTargetLeaderIsRemote(t *testing.T
 	}
 }
 
+func TestPresenceClientRoutesOwnerActionToRemoteOwnerNode(t *testing.T) {
+	remoteOwner := &fakePresenceOwner{}
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		rpc:    presenceOwnerRPCHandler{adapter: accessnode.New(accessnode.Options{Owner: remoteOwner})},
+	}
+	client := NewPresenceAuthorityClient(cluster, &fakePresenceAuthority{})
+	action := presence.RouteAction{UID: "u1", OwnerNodeID: 2, OwnerBootID: 23, SessionID: 101, Kind: "close", Reason: "presence_conflict"}
+
+	if err := client.ApplyRouteAction(context.Background(), action); err != nil {
+		t.Fatalf("ApplyRouteAction() error = %v", err)
+	}
+	if len(remoteOwner.actions) != 1 || !reflect.DeepEqual(remoteOwner.actions[0], action) {
+		t.Fatalf("remote owner actions = %#v, want %#v", remoteOwner.actions, action)
+	}
+	if len(cluster.calls) != 1 {
+		t.Fatalf("remote rpc calls = %d, want 1", len(cluster.calls))
+	}
+	if cluster.calls[0].nodeID != 2 || cluster.calls[0].serviceID != accessnode.PresenceOwnerRPCServiceID {
+		t.Fatalf("remote rpc call = %#v", cluster.calls[0])
+	}
+}
+
+func TestPresenceClientRoutesOwnerActionToLocalOwner(t *testing.T) {
+	localOwner := &fakePresenceOwner{}
+	cluster := &fakePresenceCluster{nodeID: 1}
+	client := NewPresenceAuthorityClient(cluster, &fakePresenceAuthority{})
+	client.SetLocalOwner(localOwner)
+	action := presence.RouteAction{UID: "u1", OwnerNodeID: 1, OwnerBootID: 23, SessionID: 101, Kind: "close", Reason: "presence_conflict"}
+
+	if err := client.ApplyRouteAction(context.Background(), action); err != nil {
+		t.Fatalf("ApplyRouteAction() error = %v", err)
+	}
+	if len(localOwner.actions) != 1 || !reflect.DeepEqual(localOwner.actions[0], action) {
+		t.Fatalf("local owner actions = %#v, want %#v", localOwner.actions, action)
+	}
+	if len(cluster.calls) != 0 {
+		t.Fatalf("remote rpc calls = %d, want 0", len(cluster.calls))
+	}
+}
+
 func TestPresenceClientRetriesOnceAfterStaleRoute(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
@@ -141,26 +182,33 @@ func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 	}
 }
 
-func TestPresenceClientRejectsMixedRehydrateHashSlots(t *testing.T) {
+func TestPresenceClientRehydratesRemoteAuthorityTarget(t *testing.T) {
+	remoteAuthority := &fakePresenceAuthority{}
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
-			"u1": {HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
-			"u2": {HashSlot: 8, SlotID: 12, Leader: 1, Revision: 18, AuthorityEpoch: 1},
-		},
+		rpc:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteAuthority})},
 	}
 	local := &fakePresenceAuthority{}
 	client := NewPresenceAuthorityClient(cluster, local)
+	target := presence.RouteTarget{HashSlot: 7, SlotID: 11, LeaderNodeID: 2, RouteRevision: 17, AuthorityEpoch: 1}
 
-	_, err := client.RehydrateRoutes(context.Background(), []presence.Route{
+	results, err := client.RehydrateRoutesTo(context.Background(), target, []presence.Route{
 		testInfraPresenceRoute("u1", 101),
-		testInfraPresenceRoute("u2", 201),
 	})
-	if !errors.Is(err, authoritypresence.ErrRouteNotReady) {
-		t.Fatalf("RehydrateRoutes() error = %v, want ErrRouteNotReady", err)
+	if err != nil {
+		t.Fatalf("RehydrateRoutesTo() error = %v", err)
 	}
 	if len(local.rehydrateCalls) != 0 {
 		t.Fatalf("rehydrate calls = %d, want 0", len(local.rehydrateCalls))
+	}
+	if len(remoteAuthority.rehydrateCalls) != 1 {
+		t.Fatalf("remote rehydrate calls = %d, want 1", len(remoteAuthority.rehydrateCalls))
+	}
+	if !reflect.DeepEqual(remoteAuthority.rehydrateCalls[0].target, target) {
+		t.Fatalf("remote rehydrate target = %#v, want %#v", remoteAuthority.rehydrateCalls[0].target, target)
+	}
+	if len(results) != 1 || !results[0].Accepted {
+		t.Fatalf("rehydrate results = %#v, want accepted", results)
 	}
 }
 
@@ -215,6 +263,14 @@ type presenceRPCHandler struct {
 
 func (h presenceRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	return h.adapter.HandlePresenceAuthorityRPC(ctx, payload)
+}
+
+type presenceOwnerRPCHandler struct {
+	adapter *accessnode.Adapter
+}
+
+func (h presenceOwnerRPCHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	return h.adapter.HandlePresenceOwnerRPC(ctx, payload)
 }
 
 func (f *fakePresenceCluster) NodeID() uint64 {
@@ -280,6 +336,15 @@ type fakePresenceAuthority struct {
 	unregCalls     []presenceUnregisterCall
 	endpointCalls  []presenceEndpointCall
 	rehydrateCalls []presenceRehydrateCall
+}
+
+type fakePresenceOwner struct {
+	actions []presence.RouteAction
+}
+
+func (f *fakePresenceOwner) ApplyRouteAction(_ context.Context, action presence.RouteAction) error {
+	f.actions = append(f.actions, action)
+	return nil
 }
 
 func (f *fakePresenceAuthority) RegisterRoute(_ context.Context, target presence.RouteTarget, route presence.Route) (presence.RegisterResult, error) {

@@ -37,8 +37,9 @@ other errors                                         -> message.ErrAppendFailed 
 ## Presence Authority Flow
 
 `PresenceAuthorityClient` adapts the internalv2 presence usecase authority port
-to `pkg/clusterv2` UID routing and `internalv2/access/node` RPC. The adapter
-does not own gateway activation policy or authority conflict rules.
+and owner-action port to `pkg/clusterv2` UID routing and
+`internalv2/access/node` RPC. The adapter does not own gateway activation
+policy, authority conflict rules, or local session mutation rules.
 
 ```text
 presence.Route / uid
@@ -46,14 +47,24 @@ presence.Route / uid
   -> presence.RouteTarget
   -> local accessnode.PresenceAuthority when target leader is this node
   -> access/node PresenceAuthority RPC client when target leader is remote
+
+presence.RouteAction
+  -> action.OwnerNodeID
+  -> local accessnode.PresenceOwner when owner is this node
+  -> access/node PresenceOwner RPC client when owner is remote
 ```
 
-`RegisterRoute`, `UnregisterRoute`, `EndpointsByUID`, and `RehydrateRoutes`
-resolve their target from the UID carried by the request. `CommitRoute` and
-`AbortRoute` resolve their target from the UID remembered for the pending token
-returned by `RegisterRoute`.
+`RegisterRoute`, `UnregisterRoute`, and `EndpointsByUID` resolve their target
+from the UID carried by the request. `CommitRoute` and `AbortRoute` resolve
+their target from the UID remembered for the pending token returned by
+`RegisterRoute`. Rehydrate uses `RehydrateRoutesTo(target, routes)` so owner
+nodes replay local active routes to the exact authority epoch announced by a
+route-authority event, including remote leaders.
 
 If an authority call reports stale routing or not-leader, the adapter resolves a
 fresh `RouteKey` and retries once. If route resolution is not ready, the adapter
 returns `internalv2/runtime/presence.ErrRouteNotReady` so callers can treat the
 operation as retryable without importing clusterv2 errors.
+
+Best-effort unregister calls are bounded by a short context timeout so gateway
+close and rollback paths do not block indefinitely on route lookup or node RPC.
