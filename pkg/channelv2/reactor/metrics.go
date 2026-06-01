@@ -17,6 +17,7 @@ const (
 	appendWaitStageQuorumFinalComplete = "quorum_final_complete_wait"
 	replicationStagePullHintToSubmit   = "follower_pull_hint_to_submit"
 	replicationStagePullRPC            = "follower_pull_rpc"
+	replicationStageNeedMetaPullRPC    = "follower_need_meta_pull_rpc"
 	replicationStageStoreApply         = "follower_store_apply"
 	replicationStageApplyToAckReturn   = "follower_apply_to_ack_return"
 )
@@ -64,6 +65,14 @@ type LifecycleObserver interface {
 // PullHintResultObserver receives optional leader PullHint result counters.
 type PullHintResultObserver interface {
 	ObservePullHintResult(reason transport.PullHintReason, result string, err error)
+}
+
+// PendingMetaObserver receives optional follower bootstrap metrics for
+// PendingMeta shells and NeedMeta pull attempts.
+type PendingMetaObserver interface {
+	SetPendingMetaCount(reactorID int, count int)
+	ObservePendingMeta(event string, err error)
+	ObserveNeedMetaPull(result string, err error)
 }
 
 // FollowerLifecycleObserver receives optional follower lifecycle events without
@@ -307,6 +316,24 @@ func (r *Reactor) observePullHintDropped(key ch.ChannelKey, follower ch.NodeID, 
 func (r *Reactor) observePullHintResult(reason transport.PullHintReason, result string, err error) {
 	if observer, ok := r.cfg.Observer.(PullHintResultObserver); ok {
 		observer.ObservePullHintResult(reason, result, err)
+	}
+}
+
+func (r *Reactor) observePendingMetaCount() {
+	if observer, ok := r.cfg.Observer.(PendingMetaObserver); ok {
+		observer.SetPendingMetaCount(r.cfg.ID, r.pendingMetaCount)
+	}
+}
+
+func (r *Reactor) observePendingMeta(event string, err error) {
+	if observer, ok := r.cfg.Observer.(PendingMetaObserver); ok {
+		observer.ObservePendingMeta(event, err)
+	}
+}
+
+func (r *Reactor) observeNeedMetaPull(result string, err error) {
+	if observer, ok := r.cfg.Observer.(PendingMetaObserver); ok {
+		observer.ObserveNeedMetaPull(result, err)
 	}
 }
 

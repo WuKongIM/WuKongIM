@@ -202,8 +202,21 @@ breakdown is reported as
 breakdown is reported as
 `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
 `channelv2_replication_follower_pull_rpc_p99_seconds`,
+`channelv2_need_meta_pull_rpc_p99_seconds`,
 `channelv2_replication_follower_store_apply_p99_seconds`, and
-`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. PullHint
+`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. PendingMeta
+bootstrap counters are reported as
+`channelv2_pending_meta_current_max`,
+`channelv2_pending_meta_created_count`,
+`channelv2_pending_meta_converted_count`,
+`channelv2_pending_meta_released_count`, and release-class counters such as
+`channelv2_pending_meta_timeout_release_count`. NeedMeta pull counters are
+reported as `channelv2_need_meta_pull_submitted_count`,
+`channelv2_need_meta_pull_ok_count`, `channelv2_need_meta_pull_retry_count`,
+`channelv2_need_meta_pull_err_count`, and stable error-class counters such as
+`channelv2_need_meta_pull_not_ready_err_count`,
+`channelv2_need_meta_pull_not_replica_err_count`, and
+`channelv2_need_meta_pull_timeout_err_count`. PullHint
 result counters are reported as `channelv2_pull_hint_submitted_count`,
 `channelv2_pull_hint_ok_count`, `channelv2_pull_hint_err_count`, and the stable
 error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
@@ -230,8 +243,8 @@ commit wait, FSM apply, FSM Pebble commit, MarkApplied persistence, final
 rereads, runtime create/apply, append admission, reactor mailbox submit, append
 future wait, append batching behavior, durable append wait, post-store
 local/quorum commit wait, the follower pull/AckOffset/HW/final-completion split,
-the follower-side hint/pull/apply/ack-return split, and PullHint
-send/receive/error structure
+the follower-side hint/pull/apply/ack-return split, PendingMeta/NeedMeta
+bootstrap health, and PullHint send/receive/error structure
 before looking at pprof.
 
 ## Compose Development Simulator

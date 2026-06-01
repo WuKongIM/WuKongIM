@@ -1267,6 +1267,76 @@ func TestPendingMetaNeedMetaPullResponseAppliesMetaBeforeRecords(t *testing.T) {
 	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
+func TestPendingMetaMetricsTrackNeedMetaLifecycle(t *testing.T) {
+	obs := &pendingMetaMetricsObserver{}
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("pending-metrics-lifecycle")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    0,
+		LeaderLEO:   0,
+		Meta:        &meta,
+	})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 1))
+	require.Equal(t, 1, obs.PendingMetaEvents("created"))
+	require.Equal(t, 1, obs.NeedMetaPulls("submitted"))
+	require.Equal(t, 1, obs.PendingMetaCount())
+
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+
+	require.Equal(t, 1, obs.NeedMetaPulls("ok"))
+	require.Equal(t, 1, obs.PendingMetaEvents("converted"))
+	require.Equal(t, 0, obs.PendingMetaCount())
+}
+
+func TestPendingMetaMetricsTrackNeedMetaRetryAndRelease(t *testing.T) {
+	obs := &pendingMetaMetricsObserver{}
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("pending-metrics-retry")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 1))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc.pending)
+	firstOp := rc.pending.pullOpID
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: firstOp},
+		Err:   temporaryPullError{},
+	})
+
+	require.Equal(t, 1, obs.NeedMetaPulls("retry"))
+	require.NotEqual(t, firstOp, rc.pending.pullOpID)
+
+	secondOp := rc.pending.pullOpID
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: secondOp},
+		Err:   context.DeadlineExceeded,
+	})
+
+	require.Nil(t, r.channels[meta.Key])
+	require.Equal(t, 1, obs.NeedMetaPulls("err"))
+	require.Equal(t, 1, obs.PendingMetaEvents("released"))
+	require.Equal(t, context.DeadlineExceeded, obs.LastPendingMetaError("released"))
+	require.Equal(t, 0, obs.PendingMetaCount())
+}
+
 func TestPendingMetaNeedMetaResponseRejectsNonActiveMeta(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := followerTestMeta("pending-non-active-meta")
@@ -4223,6 +4293,72 @@ type temporaryPullError struct{}
 func (temporaryPullError) Error() string   { return "temporary pull error" }
 func (temporaryPullError) Timeout() bool   { return true }
 func (temporaryPullError) Temporary() bool { return true }
+
+type pendingMetaMetricsObserver struct {
+	captureObserver
+	pendingMu        sync.Mutex
+	pendingCount     int
+	pendingEvents    map[string]int
+	pendingErrors    map[string]error
+	needMetaPulls    map[string]int
+	needMetaPullErrs map[string]error
+}
+
+func (o *pendingMetaMetricsObserver) SetPendingMetaCount(reactorID int, count int) {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	o.pendingCount = count
+}
+
+func (o *pendingMetaMetricsObserver) ObservePendingMeta(event string, err error) {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	if o.pendingEvents == nil {
+		o.pendingEvents = make(map[string]int)
+	}
+	if o.pendingErrors == nil {
+		o.pendingErrors = make(map[string]error)
+	}
+	o.pendingEvents[event]++
+	o.pendingErrors[event] = err
+}
+
+func (o *pendingMetaMetricsObserver) ObserveNeedMetaPull(result string, err error) {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	if o.needMetaPulls == nil {
+		o.needMetaPulls = make(map[string]int)
+	}
+	if o.needMetaPullErrs == nil {
+		o.needMetaPullErrs = make(map[string]error)
+	}
+	o.needMetaPulls[result]++
+	o.needMetaPullErrs[result] = err
+}
+
+func (o *pendingMetaMetricsObserver) PendingMetaCount() int {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	return o.pendingCount
+}
+
+func (o *pendingMetaMetricsObserver) PendingMetaEvents(event string) int {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	return o.pendingEvents[event]
+}
+
+func (o *pendingMetaMetricsObserver) LastPendingMetaError(event string) error {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	return o.pendingErrors[event]
+}
+
+func (o *pendingMetaMetricsObserver) NeedMetaPulls(result string) int {
+	o.pendingMu.Lock()
+	defer o.pendingMu.Unlock()
+	return o.needMetaPulls[result]
+}
 
 func newCapturingTransport() *capturingTransport {
 	return &capturingTransport{}

@@ -21,6 +21,9 @@ type ChannelV2Metrics struct {
 	pullTotal                *prometheus.CounterVec
 	pullHintTotal            *prometheus.CounterVec
 	pullHintReceiveTotal     *prometheus.CounterVec
+	pendingMetaCurrent       *prometheus.GaugeVec
+	pendingMetaTotal         *prometheus.CounterVec
+	needMetaPullTotal        *prometheus.CounterVec
 	metaCacheTotal           *prometheus.CounterVec
 	appendBatchRecords       prometheus.Histogram
 	appendBatchBytes         prometheus.Histogram
@@ -80,6 +83,21 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total ChannelV2 received pull hints by reason, receive stage, result, and low-cardinality error class.",
 			ConstLabels: labels,
 		}, []string{"reason", "stage", "result", "error"}),
+		pendingMetaCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_pending_meta_current",
+			Help:        "Number of ChannelV2 follower PendingMeta shells by reactor.",
+			ConstLabels: labels,
+		}, []string{"reactor_id"}),
+		pendingMetaTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_pending_meta_total",
+			Help:        "Total ChannelV2 follower PendingMeta lifecycle events by event and low-cardinality error class.",
+			ConstLabels: labels,
+		}, []string{"event", "error"}),
+		needMetaPullTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_need_meta_pull_total",
+			Help:        "Total ChannelV2 follower NeedMeta pull attempts by result and low-cardinality error class.",
+			ConstLabels: labels,
+		}, []string{"result", "error"}),
 		metaCacheTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_meta_cache_total",
 			Help:        "Total ChannelV2 metadata cache events by result.",
@@ -150,6 +168,9 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.pullTotal,
 		m.pullHintTotal,
 		m.pullHintReceiveTotal,
+		m.pendingMetaCurrent,
+		m.pendingMetaTotal,
+		m.needMetaPullTotal,
 		m.metaCacheTotal,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
@@ -226,6 +247,27 @@ func (m *ChannelV2Metrics) ObservePullHintReceived(reason string, stage string, 
 		return
 	}
 	m.pullHintReceiveTotal.WithLabelValues(reason, stage, result, errorClass).Inc()
+}
+
+func (m *ChannelV2Metrics) SetPendingMetaCount(reactorID int, count int) {
+	if m == nil {
+		return
+	}
+	m.pendingMetaCurrent.WithLabelValues(strconv.Itoa(reactorID)).Set(float64(count))
+}
+
+func (m *ChannelV2Metrics) ObservePendingMeta(event string, errorClass string) {
+	if m == nil {
+		return
+	}
+	m.pendingMetaTotal.WithLabelValues(event, errorClass).Inc()
+}
+
+func (m *ChannelV2Metrics) ObserveNeedMetaPull(result string, errorClass string) {
+	if m == nil {
+		return
+	}
+	m.needMetaPullTotal.WithLabelValues(result, errorClass).Inc()
 }
 
 func (m *ChannelV2Metrics) ObserveMetaCache(result string) {

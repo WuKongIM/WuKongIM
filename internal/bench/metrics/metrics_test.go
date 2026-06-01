@@ -170,6 +170,19 @@ wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result="ok",error="none"} 0
+wukongim_channelv2_pending_meta_current{reactor_id="0"} 1
+wukongim_channelv2_pending_meta_total{event="created",error="none"} 1
+wukongim_channelv2_pending_meta_total{event="converted",error="none"} 0
+wukongim_channelv2_pending_meta_total{event="released",error="timeout"} 2
+wukongim_channelv2_pending_meta_total{event="released",error="not_ready"} 0
+wukongim_channelv2_need_meta_pull_total{result="submitted",error="none"} 4
+wukongim_channelv2_need_meta_pull_total{result="ok",error="none"} 2
+wukongim_channelv2_need_meta_pull_total{result="retry",error="other"} 1
+wukongim_channelv2_need_meta_pull_total{result="err",error="timeout"} 2
+wukongim_channelv2_need_meta_pull_total{result="err",error="not_ready"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.01"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.05"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="+Inf"} 0
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(before): %v", err)
@@ -188,6 +201,19 @@ wukongim_channelv2_pull_hint_total{reason="resume",result="err",error="other"} 6
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 9
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 11
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result="ok",error="none"} 10
+wukongim_channelv2_pending_meta_current{reactor_id="0"} 4
+wukongim_channelv2_pending_meta_total{event="created",error="none"} 9
+wukongim_channelv2_pending_meta_total{event="converted",error="none"} 5
+wukongim_channelv2_pending_meta_total{event="released",error="timeout"} 5
+wukongim_channelv2_pending_meta_total{event="released",error="not_ready"} 2
+wukongim_channelv2_need_meta_pull_total{result="submitted",error="none"} 14
+wukongim_channelv2_need_meta_pull_total{result="ok",error="none"} 7
+wukongim_channelv2_need_meta_pull_total{result="retry",error="other"} 4
+wukongim_channelv2_need_meta_pull_total{result="err",error="timeout"} 6
+wukongim_channelv2_need_meta_pull_total{result="err",error="not_ready"} 2
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.01"} 2
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.05"} 5
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="+Inf"} 5
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(after): %v", err)
@@ -211,6 +237,24 @@ wukongim_channelv2_pull_hint_receive_total{reason="append",stage="await",result=
 	}
 	if report.ChannelV2PullHintReceiveMetaHintOKCount != 11 {
 		t.Fatalf("receive meta hint ok = %v, want 11", report.ChannelV2PullHintReceiveMetaHintOKCount)
+	}
+	if report.ChannelV2PendingMetaCurrentMax != 4 ||
+		report.ChannelV2PendingMetaCreatedCount != 8 ||
+		report.ChannelV2PendingMetaConvertedCount != 5 ||
+		report.ChannelV2PendingMetaReleasedCount != 5 ||
+		report.ChannelV2PendingMetaTimeoutReleaseCount != 3 {
+		t.Fatalf("pending meta breakdown not parsed: %+v", report)
+	}
+	if report.ChannelV2NeedMetaPullSubmittedCount != 10 ||
+		report.ChannelV2NeedMetaPullOKCount != 5 ||
+		report.ChannelV2NeedMetaPullRetryCount != 3 ||
+		report.ChannelV2NeedMetaPullErrCount != 6 ||
+		report.ChannelV2NeedMetaPullTimeoutErrCount != 4 ||
+		report.ChannelV2NeedMetaPullNotReadyErrCount != 2 {
+		t.Fatalf("need meta pull breakdown not parsed: %+v", report)
+	}
+	if report.ChannelV2NeedMetaPullRPCP99Seconds <= 0 {
+		t.Fatalf("need meta pull RPC p99 = %v, want > 0", report.ChannelV2NeedMetaPullRPCP99Seconds)
 	}
 	if report.Classification != WukongIMV2BottleneckChannelV2 {
 		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)

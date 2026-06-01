@@ -149,6 +149,8 @@ Follower replication stage metrics use `wukongim_channelv2_replication_stage_dur
 with low-cardinality `stage/result` labels. `follower_pull_hint_to_submit`
 measures accepted PullHint wakeup through pull RPC submission,
 `follower_pull_rpc` measures pull RPC submission through accepted result,
+`follower_need_meta_pull_rpc` measures the bootstrap `Pull{NeedMeta=true}` path
+without mixing it into ordinary follower pull latency,
 `follower_store_apply` measures follower store-apply submission through result,
 and `follower_apply_to_ack_return` measures successful apply through the return
 of the next pull carrying the new `AckOffset`.
@@ -175,6 +177,13 @@ PullHints coalesce without extending the activation deadline; newer fences for
 the same channel identity replace the pending shell; stale, invalid,
 not-replica, not-ready, and retry-exhausted attempts release it so later leader
 PullHints can start a fresh activation.
+
+PendingMeta metrics stay low-cardinality and do not label channel identity:
+`wukongim_channelv2_pending_meta_current{reactor_id}` reports outstanding
+bootstrap shells, `wukongim_channelv2_pending_meta_total{event,error}` reports
+`created`, `converted`, and `released`, and
+`wukongim_channelv2_need_meta_pull_total{result,error}` reports submitted,
+successful, retried, and failed NeedMeta pulls.
 
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.

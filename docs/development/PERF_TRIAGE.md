@@ -107,9 +107,22 @@ post-store quorum wait rises, use
 leader AckOffset processing, HW advancement, and final waiter completion. Then
 use `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
 `channelv2_replication_follower_pull_rpc_p99_seconds`,
+`channelv2_need_meta_pull_rpc_p99_seconds`,
 `channelv2_replication_follower_store_apply_p99_seconds`, and
 `channelv2_replication_follower_apply_to_ack_return_p99_seconds` to localize
-the follower-side step that delayed quorum coverage. If those accepted PullHint
+the follower-side step that delayed quorum coverage. During cold activation,
+also check `channelv2_pending_meta_current_max`,
+`channelv2_pending_meta_created_count`,
+`channelv2_pending_meta_converted_count`,
+`channelv2_pending_meta_released_count`,
+`channelv2_need_meta_pull_submitted_count`,
+`channelv2_need_meta_pull_ok_count`,
+`channelv2_need_meta_pull_retry_count`,
+`channelv2_need_meta_pull_err_count`, and stable NeedMeta error-class counters
+such as `channelv2_need_meta_pull_not_ready_err_count`,
+`channelv2_need_meta_pull_not_replica_err_count`, and
+`channelv2_need_meta_pull_timeout_err_count` before treating follower recovery
+probes as the primary wakeup path. If those accepted PullHint
 stage counts are much lower than follower apply counts, check
 `channelv2_pull_hint_submitted_count`, `channelv2_pull_hint_ok_count`,
 `channelv2_pull_hint_err_count`, and the stable error-class counters such as
@@ -370,8 +383,11 @@ Interpretation matrix:
 | `channelv2_append_quorum_final_complete_p99_seconds` rises | waiter completion wait | reactor reply completion, future wakeup, caller-side blocked receive |
 | `channelv2_replication_follower_pull_hint_to_submit_p99_seconds` rises | follower wakeup/scheduling wait | PullHint delivery, parked follower state, inflight pull suppression, due scheduler |
 | `channelv2_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
+| `channelv2_need_meta_pull_rpc_p99_seconds` rises | follower bootstrap metadata pull wait | NeedMeta leader pull handling, metadata clone path, transport RPC latency |
 | `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, follower message DB commit latency |
 | `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower AckOffset return wait | immediate next pull scheduling, pull RPC back to leader, leader ack response path |
+| `channelv2_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
+| `channelv2_need_meta_pull_retry_count` or `channelv2_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |
 | `channelv2_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
 | Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |

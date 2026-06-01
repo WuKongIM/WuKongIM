@@ -178,6 +178,9 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObservePull("ok", true)
 	reg.ChannelV2.ObservePullHint("append", "err", "stale_meta")
 	reg.ChannelV2.ObservePullHintReceived("append", "meta_resolve", "err", "channel_not_found")
+	reg.ChannelV2.SetPendingMetaCount(2, 3)
+	reg.ChannelV2.ObservePendingMeta("released", "timeout")
+	reg.ChannelV2.ObserveNeedMetaPull("retry", "other")
 	reg.ChannelV2.ObserveMetaCache("hit")
 	reg.ChannelV2.ObserveMetaCache("invalidate")
 
@@ -289,6 +292,35 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"error":     "channel_not_found",
 	})
 	require.Equal(t, float64(1), pullHintReceiveTotal.GetMetric()[0].GetCounter().GetValue())
+
+	pendingMetaCurrent := requireMetricFamily(t, families, "wukongim_channelv2_pending_meta_current")
+	require.Len(t, pendingMetaCurrent.GetMetric(), 1)
+	requireMetricLabels(t, pendingMetaCurrent.GetMetric()[0], map[string]string{
+		"node_id":    "8",
+		"node_name":  "node-8",
+		"reactor_id": "2",
+	})
+	require.Equal(t, float64(3), pendingMetaCurrent.GetMetric()[0].GetGauge().GetValue())
+
+	pendingMetaTotal := requireMetricFamily(t, families, "wukongim_channelv2_pending_meta_total")
+	require.Len(t, pendingMetaTotal.GetMetric(), 1)
+	requireMetricLabels(t, pendingMetaTotal.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"event":     "released",
+		"error":     "timeout",
+	})
+	require.Equal(t, float64(1), pendingMetaTotal.GetMetric()[0].GetCounter().GetValue())
+
+	needMetaPullTotal := requireMetricFamily(t, families, "wukongim_channelv2_need_meta_pull_total")
+	require.Len(t, needMetaPullTotal.GetMetric(), 1)
+	requireMetricLabels(t, needMetaPullTotal.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"result":    "retry",
+		"error":     "other",
+	})
+	require.Equal(t, float64(1), needMetaPullTotal.GetMetric()[0].GetCounter().GetValue())
 
 	activeRuntimes := requireMetricFamily(t, families, "wukongim_channelv2_active_runtimes")
 	require.Len(t, activeRuntimes.GetMetric(), 1)

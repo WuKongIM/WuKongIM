@@ -168,6 +168,27 @@ func (o channelV2MetricsObserver) ObservePullHintReceived(reason transport.PullH
 	o.metrics.ChannelV2.ObservePullHintReceived(channelV2PullHintReasonLabel(reason), stage, result, channelV2PullHintErrorLabel(err))
 }
 
+func (o channelV2MetricsObserver) SetPendingMetaCount(reactorID int, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetPendingMetaCount(reactorID, count)
+}
+
+func (o channelV2MetricsObserver) ObservePendingMeta(event string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePendingMeta(event, channelV2PullHintErrorLabel(err))
+}
+
+func (o channelV2MetricsObserver) ObserveNeedMetaPull(result string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveNeedMetaPull(result, channelV2PullHintErrorLabel(err))
+}
+
 func (o channelV2MetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	if o.metrics == nil {
 		return
@@ -369,6 +390,33 @@ func (o multiChannelV2Observer) ObservePullHintReceived(reason transport.PullHin
 	}
 }
 
+func (o multiChannelV2Observer) SetPendingMetaCount(reactorID int, count int) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.SetPendingMetaCount(reactorID, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePendingMeta(event string, err error) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.ObservePendingMeta(event, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveNeedMetaPull(result string, err error) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.ObserveNeedMetaPull(result, err)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	for _, observer := range o {
 		replicationStageObserver, ok := observer.(reactor.ReplicationStageObserver)
@@ -521,6 +569,10 @@ func channelV2PullHintErrorLabel(err error) string {
 		return "channel_not_found"
 	case errors.Is(err, ch.ErrNotLeader) || strings.Contains(message, ch.ErrNotLeader.Error()):
 		return "not_leader"
+	case errors.Is(err, ch.ErrNotReplica) || strings.Contains(message, ch.ErrNotReplica.Error()):
+		return "not_replica"
+	case errors.Is(err, ch.ErrBackpressured) || strings.Contains(message, ch.ErrBackpressured.Error()):
+		return "backpressured"
 	case errors.Is(err, ch.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()):
 		return "invalid_config"
 	case errors.Is(err, ch.ErrClosed) || strings.Contains(message, ch.ErrClosed.Error()):
@@ -543,6 +595,7 @@ var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
 var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
+var _ reactor.PendingMetaObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
@@ -551,6 +604,7 @@ var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
+var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}

@@ -388,6 +388,19 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="remote_error"} 0
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 1
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 2
+wukongim_channelv2_pending_meta_current{reactor_id="0"} 1
+wukongim_channelv2_pending_meta_total{event="created",error="none"} 1
+wukongim_channelv2_pending_meta_total{event="converted",error="none"} 0
+wukongim_channelv2_pending_meta_total{event="released",error="timeout"} 2
+wukongim_channelv2_pending_meta_total{event="released",error="not_ready"} 0
+wukongim_channelv2_need_meta_pull_total{result="submitted",error="none"} 4
+wukongim_channelv2_need_meta_pull_total{result="ok",error="none"} 2
+wukongim_channelv2_need_meta_pull_total{result="retry",error="other"} 1
+wukongim_channelv2_need_meta_pull_total{result="err",error="timeout"} 2
+wukongim_channelv2_need_meta_pull_total{result="err",error="not_ready"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.01"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.05"} 0
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="+Inf"} 0
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
@@ -399,6 +412,19 @@ wukongim_channelv2_pull_hint_total{reason="append",result="err",error="canceled"
 wukongim_channelv2_pull_hint_total{reason="append",result="err",error="remote_error"} 7
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_resolve",result="err",error="channel_not_found"} 9
 wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",result="ok",error="none"} 13
+wukongim_channelv2_pending_meta_current{reactor_id="0"} 4
+wukongim_channelv2_pending_meta_total{event="created",error="none"} 9
+wukongim_channelv2_pending_meta_total{event="converted",error="none"} 5
+wukongim_channelv2_pending_meta_total{event="released",error="timeout"} 5
+wukongim_channelv2_pending_meta_total{event="released",error="not_ready"} 2
+wukongim_channelv2_need_meta_pull_total{result="submitted",error="none"} 14
+wukongim_channelv2_need_meta_pull_total{result="ok",error="none"} 7
+wukongim_channelv2_need_meta_pull_total{result="retry",error="other"} 4
+wukongim_channelv2_need_meta_pull_total{result="err",error="timeout"} 6
+wukongim_channelv2_need_meta_pull_total{result="err",error="not_ready"} 2
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.01"} 2
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="0.05"} 5
+wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_need_meta_pull_rpc",result="ok",le="+Inf"} 5
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -435,6 +461,42 @@ wukongim_channelv2_pull_hint_receive_total{reason="append",stage="meta_hint",res
 	}
 	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_meta_hint_ok_count: 11") {
 		t.Fatalf("expected PullHint receive meta hint ok count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pending_meta_current_max: 4") {
+		t.Fatalf("expected PendingMeta current gauge in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pending_meta_created_count: 8") {
+		t.Fatalf("expected PendingMeta created count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pending_meta_converted_count: 5") {
+		t.Fatalf("expected PendingMeta converted count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pending_meta_released_count: 5") {
+		t.Fatalf("expected PendingMeta released count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_pending_meta_timeout_release_count: 3") {
+		t.Fatalf("expected PendingMeta timeout release count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_submitted_count: 10") {
+		t.Fatalf("expected NeedMeta submitted count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_ok_count: 5") {
+		t.Fatalf("expected NeedMeta ok count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_retry_count: 3") {
+		t.Fatalf("expected NeedMeta retry count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_err_count: 6") {
+		t.Fatalf("expected NeedMeta err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_timeout_err_count: 4") {
+		t.Fatalf("expected NeedMeta timeout err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_not_ready_err_count: 2") {
+		t.Fatalf("expected NeedMeta not ready err count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_rpc_p99_seconds:") {
+		t.Fatalf("expected NeedMeta pull RPC p99 in output, got %q", stderr.String())
 	}
 }
 

@@ -98,6 +98,13 @@ Follower-side PullHint receive counters now stay at the service adapter
 boundary: `submit` covers reactor mailbox admission and `await` covers the
 reactor future. Missing follower metadata is handled inside the owning reactor
 as a bounded `PendingMeta` bootstrap and not as a service-side metadata read.
+PendingMeta bootstrap metrics are separate from loaded runtime metrics:
+`wukongim_channelv2_pending_meta_current` tracks outstanding bootstrap shells by
+reactor, `wukongim_channelv2_pending_meta_total` tracks created, converted, and
+released shells by low-cardinality error class, and
+`wukongim_channelv2_need_meta_pull_total` plus
+`follower_need_meta_pull_rpc` track the `Pull{NeedMeta=true}` success, retry,
+failure, and RPC latency path.
 
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful

@@ -99,6 +99,8 @@ type Reactor struct {
 	appendReservations map[ch.ChannelKey]int
 	// activationRejectedTotal counts local runtime activation rejections for benchmark snapshots.
 	activationRejectedTotal uint64
+	// pendingMetaCount tracks follower bootstrap shells without scanning all channel slots.
+	pendingMetaCount int
 }
 
 type runtimeChannel struct {
@@ -351,7 +353,7 @@ func (r *Reactor) failPendingWaiters(err error) {
 	}
 	for key, rc := range r.channels {
 		if rc != nil && rc.pending != nil && rc.state == nil {
-			r.releasePendingMeta(key, rc)
+			r.releasePendingMeta(key, rc, err)
 			continue
 		}
 		r.failWaiters(rc, err)
@@ -490,17 +492,17 @@ func (r *Reactor) handleApplyMetaToPending(event Event, rc *runtimeChannel) {
 		return
 	}
 	if err := validatePendingMetaShape(meta); err != nil {
-		r.releasePendingMeta(pending.key, rc)
+		r.releasePendingMeta(pending.key, rc, err)
 		event.Future.Complete(Result{Err: err})
 		return
 	}
 	if !metaHasReplica(meta, r.cfg.LocalNode) {
-		r.releasePendingMeta(pending.key, rc)
+		r.releasePendingMeta(pending.key, rc, ch.ErrNotReplica)
 		event.Future.Complete(Result{Err: ch.ErrNotReplica})
 		return
 	}
 	if err := r.convertPendingMeta(rc, meta); err != nil {
-		r.releasePendingMeta(pending.key, rc)
+		r.releasePendingMeta(pending.key, rc, err)
 		event.Future.Complete(Result{Err: err})
 		return
 	}
@@ -570,7 +572,7 @@ func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChan
 			}
 			return rc, nil
 		default:
-			r.releasePendingMeta(req.ChannelKey, rc)
+			r.releasePendingMeta(req.ChannelKey, rc, ch.ErrStaleMeta)
 		}
 	}
 	if r.cfg.MaxChannelsEnabled && len(r.channels) >= r.cfg.MaxChannels {
@@ -606,6 +608,9 @@ func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChan
 		},
 	}
 	r.channels[req.ChannelKey] = rc
+	r.pendingMetaCount++
+	r.observePendingMeta("created", nil)
+	r.observePendingMetaCount()
 	r.schedulePendingMetaDeadline(rc)
 	return rc, nil
 }
@@ -671,6 +676,9 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 	}
 	rc.state = state
 	rc.pending = nil
+	if r.pendingMetaCount > 0 {
+		r.pendingMetaCount--
+	}
 	rc.recentRecords = newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes)
 	rc.lifecycle = newChannelRuntimeLifecycle(time.Now(), state.LEO)
 	rc.appendQ = newAppendQueue(appendQueueConfig{
@@ -697,17 +705,24 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 		r.syncLeaderFollowers(rc)
 		r.scheduleLifecycleFromState(rc, now)
 	}
+	r.observePendingMeta("converted", nil)
+	r.observePendingMetaCount()
 	r.observeChannelRuntimeLoaded(state.Key)
 	r.observeRuntimeCounts()
 	return nil
 }
 
-func (r *Reactor) releasePendingMeta(key ch.ChannelKey, rc *runtimeChannel) {
+func (r *Reactor) releasePendingMeta(key ch.ChannelKey, rc *runtimeChannel, err error) {
 	if r == nil || rc == nil || rc.pending == nil || r.channels[key] != rc {
 		return
 	}
 	_ = rc.store.Close()
 	delete(r.channels, key)
+	if r.pendingMetaCount > 0 {
+		r.pendingMetaCount--
+	}
+	r.observePendingMeta("released", err)
+	r.observePendingMetaCount()
 	r.observeRuntimeCounts()
 }
 
@@ -718,7 +733,7 @@ func (r *Reactor) releaseExpiredPendingMeta(key ch.ChannelKey, rc *runtimeChanne
 	if rc.pending.deadline.IsZero() || now.Before(rc.pending.deadline) {
 		return
 	}
-	r.releasePendingMeta(key, rc)
+	r.releasePendingMeta(key, rc, context.DeadlineExceeded)
 }
 
 func (r *Reactor) pendingMetaDeadline(now time.Time) time.Time {

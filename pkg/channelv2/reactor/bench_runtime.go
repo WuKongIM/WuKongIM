@@ -205,7 +205,7 @@ func (r *Reactor) handleRuntimeEvict(event Event) {
 			continue
 		}
 		if rc.pending != nil && rc.state == nil {
-			r.releasePendingMeta(key, rc)
+			r.releasePendingMeta(key, rc, ch.ErrClosed)
 			result.Evicted++
 			continue
 		}

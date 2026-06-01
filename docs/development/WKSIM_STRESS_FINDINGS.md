@@ -544,3 +544,30 @@ Classification:
 Follow-up:
 - Add explicit `PendingMeta` / `NeedMeta` success, failure reason, and retry counters. Current evidence proves end-to-end success and no PullHint receive errors, but it does not directly report `NeedMeta` success rate.
 - If validating an SLA stricter than cold p99 `2s`, rerun with `--stable-p99 200ms` after isolating metadata create/propose latency.
+
+## 2026-06-01 wukongimv2 Three-Node 10k Channel Activation With PendingMeta Metrics
+
+Environment:
+- Main worktree at `84d30976` plus the local PendingMeta/NeedMeta metrics patch.
+- Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/start-wukongimv2-three-nodes.sh`.
+- Command: `GOWORK=off scripts/bench-wukongimv2-three-nodes-10kch.sh`.
+- Evidence: `docs/development/perf-runs/20260601-103803-three-node-activate-10kch/`.
+
+Healthy checks:
+- `wkbench capacity activate-channels` passed with `activation_success=10000`, `activation_errors=0`, `activation_backlog=0`, and `activation_rejected_delta=0`.
+- Sendack latency was p50 `318.802708ms`, p95 `625.81775ms`, and p99 `888.88225ms` under the default cold-activation guardrail `stable_p99=2s`.
+- Active leader distribution stayed balanced across three nodes: node1 `3289`, node2 `3403`, node3 `3308`; maximum leader share `0.3403`.
+- PendingMeta metrics closed the previous visibility gap: node1/node2/node3 created and converted `6711`/`6597`/`6692` PendingMeta shells, `pending_meta_current_max=0`, and `pending_meta_released_count=0`.
+- NeedMeta pulls were clean: submitted and ok counts matched on every node, retries and errors were zero, and `channelv2_need_meta_pull_rpc_p99_seconds` stayed below `0.001s`.
+- PullHint leader-side and receive-side error counters stayed at zero.
+- Service process samples stayed modest: average CPU `10.5-11.1%`, max CPU `20.0-42.8%`, and max RSS about `348-351MB`.
+- Logs contained only the expected startup Raft quorum warning; no runtime warn/error/panic/fatal records were observed.
+
+Classification:
+- Category: healthy 10k activation with direct PendingMeta/NeedMeta proof.
+- Confidence: high that the slim PullHint plus NeedMeta bootstrap path is not losing follower metadata, leaking PendingMeta shells, or retrying under this workload.
+- Remaining classifier pressure is unrelated to NeedMeta: the run still reports mixed cold-path pressure from gateway dispatch, ChannelV2 append/runtime append, storage commit, and node1 ControllerV2 Step queue samples.
+
+Follow-up:
+- Keep future 10k regressions gated on `pending_meta_current_max=0`, `pending_meta_released_count=0`, and `need_meta_pull_retry_count=0` / `need_meta_pull_err_count=0` in addition to activation success.
+- If the next goal is lower cold p99, focus on metadata create/propose, storage commit, and quorum HW/AckOffset waits rather than PendingMeta bootstrap.

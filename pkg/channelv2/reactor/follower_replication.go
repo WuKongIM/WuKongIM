@@ -270,7 +270,7 @@ func (r *Reactor) handlePendingMetaPullHint(event Event) {
 		return
 	}
 	if err := r.submitPendingMetaPull(rc, time.Now()); err != nil {
-		r.releasePendingMeta(event.PullHint.ChannelKey, rc)
+		r.releasePendingMeta(event.PullHint.ChannelKey, rc, err)
 		if event.Future != nil {
 			event.Future.Complete(Result{Err: err})
 		}
@@ -307,8 +307,10 @@ func (r *Reactor) submitPendingMetaPull(rc *runtimeChannel, now time.Time) error
 			pending.lastError = err
 			if retryablePendingPullError(err) && pending.retryCount < 1 {
 				pending.retryCount++
+				r.observeNeedMetaPull("retry", err)
 				continue
 			}
+			r.observeNeedMetaPull("err", err)
 			return err
 		}
 		pending.pullInflight = true
@@ -316,6 +318,7 @@ func (r *Reactor) submitPendingMetaPull(rc *runtimeChannel, now time.Time) error
 		pending.pullSubmittedAt = now
 		pending.pullSubmittedAckOffset = req.AckOffset
 		pending.lastError = nil
+		r.observeNeedMetaPull("submitted", nil)
 		return nil
 	}
 }
@@ -437,50 +440,67 @@ func (r *Reactor) handlePendingMetaPullResult(rc *runtimeChannel, result worker.
 	pending.pullSubmittedAt = time.Time{}
 	pending.pullSubmittedAckOffset = 0
 	if result.Err != nil {
-		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
-		r.observePull("err", false)
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
 		pending.lastError = result.Err
 		if contextDoneError(result.Err) || nonRetryablePendingPullError(result.Err) {
-			r.releasePendingMeta(pending.key, rc)
+			r.observeNeedMetaPull("err", result.Err)
+			r.releasePendingMeta(pending.key, rc, result.Err)
 			return
 		}
 		if retryablePendingPullError(result.Err) && pending.retryCount < 1 {
+			r.observeNeedMetaPull("retry", result.Err)
 			if err := r.retryPendingMetaPull(rc, now); err != nil {
-				r.releasePendingMeta(pending.key, rc)
+				r.releasePendingMeta(pending.key, rc, err)
 			}
 			return
 		}
-		r.releasePendingMeta(pending.key, rc)
+		r.observeNeedMetaPull("err", result.Err)
+		r.releasePendingMeta(pending.key, rc, result.Err)
 		return
 	}
 	if result.RPCPull == nil {
-		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
-		r.observePull("err", false)
-		r.releasePendingMeta(pending.key, rc)
+		err := ch.ErrInvalidConfig
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		r.releasePendingMeta(pending.key, rc, err)
 		return
 	}
 	resp := result.RPCPull.Response
 	if resp.Meta == nil || resp.ChannelKey != pending.key || resp.Epoch != pending.epoch || resp.LeaderEpoch != pending.leaderEpoch {
-		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
-		r.observePull("err", false)
-		r.releasePendingMeta(pending.key, rc)
+		err := ch.ErrStaleMeta
+		if resp.Meta == nil {
+			err = ch.ErrInvalidConfig
+		}
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		r.releasePendingMeta(pending.key, rc, err)
 		return
 	}
 	meta := *resp.Meta
 	if err := validatePendingMetaShape(meta); err != nil {
-		r.releasePendingMeta(pending.key, rc)
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		r.releasePendingMeta(pending.key, rc, err)
 		return
 	}
 	if cmp := comparePendingMetaFence(pending, meta); cmp != 0 || meta.ID != pending.id || meta.Leader != pending.leader || !metaHasReplica(meta, r.cfg.LocalNode) {
-		r.releasePendingMeta(pending.key, rc)
+		err := ch.ErrStaleMeta
+		if !metaHasReplica(meta, r.cfg.LocalNode) {
+			err = ch.ErrNotReplica
+		}
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		r.releasePendingMeta(pending.key, rc, err)
 		return
 	}
 	if err := r.convertPendingMeta(rc, meta); err != nil {
-		r.releasePendingMeta(pending.key, rc)
+		r.observeNeedMetaPullRPCWait(pullSubmittedAt, "err", now)
+		r.observeNeedMetaPull("err", err)
+		r.releasePendingMeta(pending.key, rc, err)
 		return
 	}
 	resp.Meta = nil
-	r.acceptFollowerPullResponse(rc, resp, pullSubmittedAt, pullSubmittedAckOffset, 0, time.Time{}, false, now)
+	r.acceptNeedMetaPullResponse(rc, resp, pullSubmittedAt, pullSubmittedAckOffset, 0, time.Time{}, false, now)
 	r.scheduleReplicationFromState(rc, now)
 }
 
@@ -501,6 +521,17 @@ func (r *Reactor) acceptFollowerPullResponse(rc *runtimeChannel, resp transport.
 	r.observeFollowerPullRPCWait(pullSubmittedAt, "ok", now)
 	r.observeFollowerAckReturnWait(rc, pullSubmittedAckOffset, ackReturnOffset, ackReturnStartedAt, now)
 	r.observePull("ok", len(resp.Records) == 0)
+	r.applyFollowerPullResponse(rc, resp, recoveryProbe, now)
+}
+
+func (r *Reactor) acceptNeedMetaPullResponse(rc *runtimeChannel, resp transport.PullResponse, pullSubmittedAt time.Time, pullSubmittedAckOffset uint64, ackReturnOffset uint64, ackReturnStartedAt time.Time, recoveryProbe bool, now time.Time) {
+	r.observeNeedMetaPullRPCWait(pullSubmittedAt, "ok", now)
+	r.observeFollowerAckReturnWait(rc, pullSubmittedAckOffset, ackReturnOffset, ackReturnStartedAt, now)
+	r.observeNeedMetaPull("ok", nil)
+	r.applyFollowerPullResponse(rc, resp, recoveryProbe, now)
+}
+
+func (r *Reactor) applyFollowerPullResponse(rc *runtimeChannel, resp transport.PullResponse, recoveryProbe bool, now time.Time) {
 	if recoveryProbe {
 		r.observeRecoveryProbe("ok")
 	}
@@ -551,6 +582,13 @@ func (r *Reactor) observeFollowerPullRPCWait(submittedAt time.Time, result strin
 		return
 	}
 	r.observeReplicationStage(replicationStagePullRPC, result, completedAt.Sub(submittedAt))
+}
+
+func (r *Reactor) observeNeedMetaPullRPCWait(submittedAt time.Time, result string, completedAt time.Time) {
+	if submittedAt.IsZero() {
+		return
+	}
+	r.observeReplicationStage(replicationStageNeedMetaPullRPC, result, completedAt.Sub(submittedAt))
 }
 
 func (r *Reactor) observeFollowerStoreApplyWait(submittedAt time.Time, result string, completedAt time.Time) {

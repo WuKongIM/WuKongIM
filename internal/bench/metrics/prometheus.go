@@ -90,8 +90,15 @@ type WukongIMV2Attribution struct {
 	ChannelV2AppendQuorumFinalCompleteP99Seconds    float64
 	ChannelV2ReplicationPullHintToSubmitP99Seconds  float64
 	ChannelV2ReplicationPullRPCP99Seconds           float64
+	ChannelV2NeedMetaPullRPCP99Seconds              float64
 	ChannelV2ReplicationStoreApplyP99Seconds        float64
 	ChannelV2ReplicationApplyToAckReturnP99Seconds  float64
+	ChannelV2PendingMetaCurrentMax                  float64
+	ChannelV2PendingMetaCreatedCount                float64
+	ChannelV2PendingMetaConvertedCount              float64
+	ChannelV2PendingMetaReleasedCount               float64
+	ChannelV2PendingMetaTimeoutReleaseCount         float64
+	ChannelV2PendingMetaNotReadyReleaseCount        float64
 	ChannelV2PullHintSubmittedCount                 float64
 	ChannelV2PullHintOKCount                        float64
 	ChannelV2PullHintErrCount                       float64
@@ -120,6 +127,22 @@ type WukongIMV2Attribution struct {
 	ChannelV2PullHintReceiveCanceledErrCount        float64
 	ChannelV2PullHintReceiveTimeoutErrCount         float64
 	ChannelV2PullHintReceiveOtherErrCount           float64
+	ChannelV2NeedMetaPullSubmittedCount             float64
+	ChannelV2NeedMetaPullOKCount                    float64
+	ChannelV2NeedMetaPullRetryCount                 float64
+	ChannelV2NeedMetaPullErrCount                   float64
+	ChannelV2NeedMetaPullStaleMetaErrCount          float64
+	ChannelV2NeedMetaPullChannelNotFoundErrCount    float64
+	ChannelV2NeedMetaPullNotReadyErrCount           float64
+	ChannelV2NeedMetaPullNotLeaderErrCount          float64
+	ChannelV2NeedMetaPullNotReplicaErrCount         float64
+	ChannelV2NeedMetaPullBackpressuredErrCount      float64
+	ChannelV2NeedMetaPullInvalidConfigErrCount      float64
+	ChannelV2NeedMetaPullClosedErrCount             float64
+	ChannelV2NeedMetaPullCanceledErrCount           float64
+	ChannelV2NeedMetaPullTimeoutErrCount            float64
+	ChannelV2NeedMetaPullRemoteErrCount             float64
+	ChannelV2NeedMetaPullOtherErrCount              float64
 	ChannelV2WorkerTaskP99Seconds                   float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
@@ -297,8 +320,15 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2AppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
 	report.ChannelV2ReplicationPullHintToSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_hint_to_submit"})
 	report.ChannelV2ReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
+	report.ChannelV2NeedMetaPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_need_meta_pull_rpc"})
 	report.ChannelV2ReplicationStoreApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_store_apply"})
 	report.ChannelV2ReplicationApplyToAckReturnP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_apply_to_ack_return"})
+	report.ChannelV2PendingMetaCurrentMax, _ = after.maxGauge("wukongim_channelv2_pending_meta_current")
+	report.ChannelV2PendingMetaCreatedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "created"})
+	report.ChannelV2PendingMetaConvertedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "converted"})
+	report.ChannelV2PendingMetaReleasedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released"})
+	report.ChannelV2PendingMetaTimeoutReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "timeout"})
+	report.ChannelV2PendingMetaNotReadyReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "not_ready"})
 	report.ChannelV2PullHintSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "submitted"})
 	report.ChannelV2PullHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "ok"})
 	report.ChannelV2PullHintErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err"})
@@ -327,6 +357,22 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2PullHintReceiveCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "canceled"})
 	report.ChannelV2PullHintReceiveTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "timeout"})
 	report.ChannelV2PullHintReceiveOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "other"})
+	report.ChannelV2NeedMetaPullSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "submitted"})
+	report.ChannelV2NeedMetaPullOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "ok"})
+	report.ChannelV2NeedMetaPullRetryCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "retry"})
+	report.ChannelV2NeedMetaPullErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err"})
+	report.ChannelV2NeedMetaPullStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelV2NeedMetaPullChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelV2NeedMetaPullNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelV2NeedMetaPullNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_leader"})
+	report.ChannelV2NeedMetaPullNotReplicaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_replica"})
+	report.ChannelV2NeedMetaPullBackpressuredErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "backpressured"})
+	report.ChannelV2NeedMetaPullInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "invalid_config"})
+	report.ChannelV2NeedMetaPullClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "closed"})
+	report.ChannelV2NeedMetaPullCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelV2NeedMetaPullTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "timeout"})
+	report.ChannelV2NeedMetaPullRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "remote_error"})
+	report.ChannelV2NeedMetaPullOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "other"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
@@ -488,6 +534,10 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower pull RPC p99 is high")
 	}
+	if report.ChannelV2NeedMetaPullRPCP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 follower NeedMeta pull RPC p99 is high")
+	}
 	if report.ChannelV2ReplicationStoreApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower store apply p99 is high")
@@ -495,6 +545,34 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2ReplicationApplyToAckReturnP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower apply-to-AckOffset-return p99 is high")
+	}
+	if report.ChannelV2PendingMetaCurrentMax > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 PendingMeta shells remain active")
+	}
+	if report.ChannelV2PendingMetaReleasedCount > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 PendingMeta shells were released before conversion")
+	}
+	if report.ChannelV2NeedMetaPullRetryCount > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull retries were observed")
+	}
+	if report.ChannelV2NeedMetaPullErrCount > 0 {
+		channelPressure = true
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull errors were observed")
+	}
+	if report.ChannelV2NeedMetaPullTimeoutErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull timeout errors were observed")
+	}
+	if report.ChannelV2NeedMetaPullNotReadyErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull not_ready errors were observed")
+	}
+	if report.ChannelV2NeedMetaPullNotReplicaErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull not_replica errors were observed")
+	}
+	if report.ChannelV2NeedMetaPullBackpressuredErrCount > 0 {
+		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull backpressured errors were observed")
 	}
 	if report.ChannelV2PullHintErrCount > 0 {
 		channelPressure = true
