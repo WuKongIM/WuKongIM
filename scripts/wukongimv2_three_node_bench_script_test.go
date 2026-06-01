@@ -267,6 +267,216 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 }
 
+func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-presence.sh"))
+
+	for _, want := range []string{
+		`USERS="${WK_BENCH_PRESENCE_USERS:-1000}"`,
+		`CONNECT_RATE="${WK_BENCH_PRESENCE_CONNECT_RATE:-500}"`,
+		`HEARTBEAT_INTERVAL="${WK_BENCH_PRESENCE_HEARTBEAT_INTERVAL:-1s}"`,
+		`SAMPLE_INTERVAL="${WK_BENCH_PRESENCE_SAMPLE_INTERVAL:-1}"`,
+		`STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"`,
+		`REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"`,
+		`validate_presence_report`,
+		`presence-samples.jsonl`,
+		`presence-summary.tsv`,
+		`"$ROOT_DIR/pkg/protocol"`,
+		`WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("presence bench script missing %q", want)
+		}
+	}
+	if strings.Contains(script, "docker compose") {
+		t.Fatalf("presence bench script should use local startup scripts, not docker compose")
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	wkbenchPath := filepath.Join(binDir, "wkbench")
+	writeFakePresenceWkbench(t, wkbenchPath, callsDir)
+	old := time.Unix(946684800, 0)
+	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
+		t.Fatal(err)
+	}
+	writeFakePresenceGoBuildWkbench(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", wkbenchPath,
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0",
+		"--stable-samples", "1",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script failed: %v\n%s", err, output)
+	}
+
+	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+		t.Fatalf("stale presence wkbench binary should be rebuilt, calls:\n%s", goCalls)
+	}
+	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
+	if !strings.Contains(wkbenchCalls, "rebuilt") {
+		t.Fatalf("script should use rebuilt presence wkbench binary, calls:\n%s", wkbenchCalls)
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0",
+		"--stable-samples", "1",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script failed: %v\n%s", err, output)
+	}
+
+	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
+	for _, want := range []string{
+		"run --target " + filepath.Join(outDir, "target.yaml"),
+		"--scenario " + filepath.Join(outDir, "scenario.yaml"),
+		"--workers " + filepath.Join(outDir, "workers.yaml"),
+	} {
+		if !strings.Contains(wkbenchCalls, want) {
+			t.Fatalf("wkbench calls missing %q:\n%s", want, wkbenchCalls)
+		}
+	}
+
+	scenario := readFile(t, filepath.Join(outDir, "scenario.yaml"))
+	for _, want := range []string{
+		"total_users: 10",
+		"heartbeat:",
+		"interval: 1s",
+		"traffic: []",
+	} {
+		if !strings.Contains(scenario, want) {
+			t.Fatalf("scenario missing %q:\n%s", want, scenario)
+		}
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	for _, want := range []string{
+		"expected_users\t10",
+		"required_stable_samples\t1",
+		"stable_sample_count\t",
+		"heartbeat_error_total\t0",
+		"live_sample_count\t",
+		"owner_routes_active\t10",
+		"authority_routes_active\t10",
+		"owner_routes_pending\t0",
+		"expired_routes_total\t0",
+		"presence_status\tpassed",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("presence summary missing %q:\n%s", want, summary)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- presence_status: passed",
+		"- live_presence_samples: presence-samples.jsonl",
+		"- presence_summary: presence-summary.tsv",
+		"- report: report/report.json",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("top-level summary missing %q:\n%s", want, topSummary)
+		}
+	}
+
+	samples := readFile(t, filepath.Join(outDir, "presence-samples.jsonl"))
+	for _, want := range []string{
+		`"sample_phase":"run"`,
+		`"api_addr":"http://127.0.0.1:5011"`,
+		`"sample_seq":`,
+	} {
+		if !strings.Contains(samples, want) {
+			t.Fatalf("live samples missing %q:\n%s", want, samples)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--sample-interval", "0.02",
+		"--stable-samples", "2",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_PRESENCE_RUN_SLEEP=0.08",
+		"WK_FAKE_PRESENCE_TRANSIENT=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("presence script should fail on transient peak:\n%s", output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	for _, want := range []string{
+		"presence_status\tfailed",
+		"required_stable_samples\t2",
+		"stable_sample_count\t1",
+		"owner_routes_active\t10",
+		"authority_routes_active\t10",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("transient summary missing %q:\n%s", want, summary)
+		}
+	}
+}
+
 func TestChannelV2MetricsSummaryAwkSummarizesBeforeAfterPrometheus(t *testing.T) {
 	root := repoRoot(t)
 	before := filepath.Join(t.TempDir(), "before.prom")
@@ -562,6 +772,188 @@ case "$pid" in
   222) echo ' 25.0  2.3 234567 890000 00:20 /tmp/wukongimv2-node2' ;;
   333) echo '  3.5  0.7 345678 901000 00:30 /tmp/wukongimv2-node3' ;;
   *) exit 1 ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakePresenceWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
+printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "run" ]]; then
+  report_dir=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --scenario)
+        scenario="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  report_dir="$(awk '$1 == "report_dir:" { print $2 }' "$scenario")"
+  if [[ -z "$report_dir" ]]; then
+    echo "missing report_dir in scenario" >&2
+    exit 2
+  fi
+  if [[ -n "${WK_FAKE_PRESENCE_RUN_SLEEP:-}" ]]; then
+    sleep "$WK_FAKE_PRESENCE_RUN_SLEEP"
+  fi
+  mkdir -p "$report_dir"
+  echo '{"run_id":"three-node-presence","status":"passed"}' > "$report_dir/report.json"
+  echo '# fake report' > "$report_dir/summary.md"
+  exit 0
+fi
+if [[ "${1:-}" == "worker" ]]; then
+  while true; do sleep 60; done
+fi
+echo "unexpected wkbench args: $*" >&2
+exit 2
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakePresenceGoBuildWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" >> "` + callsDir + `/go.calls"
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$out" ]]; then
+  echo "missing -o" >&2
+  exit 2
+fi
+mkdir -p "$(dirname "$out")"
+cat > "$out" <<'WKFAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf 'rebuilt %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "run" ]]; then
+  scenario=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --scenario)
+        scenario="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  report_dir="$(awk '$1 == "report_dir:" { print $2 }' "$scenario")"
+  if [[ -n "${WK_FAKE_PRESENCE_RUN_SLEEP:-}" ]]; then
+    sleep "$WK_FAKE_PRESENCE_RUN_SLEEP"
+  fi
+  mkdir -p "$report_dir"
+  echo '{"run_id":"three-node-presence","status":"passed"}' > "$report_dir/report.json"
+  echo '# fake report' > "$report_dir/summary.md"
+  exit 0
+fi
+if [[ "${1:-}" == "worker" ]]; then
+  while true; do sleep 60; done
+fi
+echo "unexpected rebuilt wkbench args: $*" >&2
+exit 2
+WKFAKE
+chmod +x "$out"
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakePresenceCurl(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/curl.calls"
+url="${@: -1}"
+presence_call_index() {
+  local key
+  key="$(printf '%s' "$1" | sed 's/[^a-zA-Z0-9]/_/g')"
+  local file="` + callsDir + `/presence-${key}.count"
+  local count=0
+  if [[ -f "$file" ]]; then
+    count="$(cat "$file")"
+  fi
+  echo "$((count + 1))" > "$file"
+  echo "$count"
+}
+case "$url" in
+  http://127.0.0.1:501*/readyz)
+    echo 'ok'
+    ;;
+  http://127.0.0.1:5011/bench/v1/presence/snapshot)
+    idx="$(presence_call_index "$url")"
+    if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":1,"owner_routes_active":4,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":3,"authority_routes_by_hash_slot":{"1":3},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
+    cat <<'JSON'
+{"version":"bench/v1","node_id":1,"owner_routes_active":4,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":3,"authority_routes_by_hash_slot":{"1":3},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+    ;;
+  http://127.0.0.1:5012/bench/v1/presence/snapshot)
+    idx="$(presence_call_index "$url")"
+    if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":2,"owner_routes_active":3,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":4,"authority_routes_by_hash_slot":{"2":4},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
+    cat <<'JSON'
+{"version":"bench/v1","node_id":2,"owner_routes_active":3,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":4,"authority_routes_by_hash_slot":{"2":4},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+    ;;
+  http://127.0.0.1:5013/bench/v1/presence/snapshot)
+    idx="$(presence_call_index "$url")"
+    if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":3,"owner_routes_active":2,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":2,"authority_routes_by_hash_slot":{"3":2},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
+    cat <<'JSON'
+{"version":"bench/v1","node_id":3,"owner_routes_active":3,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":3,"authority_routes_by_hash_slot":{"3":3},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+    ;;
+  http://127.0.0.1:19131/healthz)
+    echo 'ok'
+    ;;
+  http://127.0.0.1:19131/v1/stop)
+    echo 'ok'
+    ;;
+  *)
+    echo "unexpected curl url: $url" >&2
+    exit 2
+    ;;
 esac
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {

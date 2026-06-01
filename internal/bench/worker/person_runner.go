@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -116,8 +117,8 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		_ = manager.Close()
 		return markTargetUnavailable(err)
 	}
-	r.mergeConnectionMetrics(manager)
 	if err := r.rebuildTrafficFromManager(assignment, manager); err != nil {
+		r.mergeConnectionMetrics(manager)
 		_ = manager.Close()
 		return err
 	}
@@ -231,9 +232,14 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 
 // MetricsSnapshot returns the merged metrics from active worker-local workloads.
 func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
-	personWorkloads, groupWorkloads, _ := r.snapshot(r.currentRunID())
-	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+1)
-	workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: r.workerMetrics()})
+	manager, personWorkloads, groupWorkloads, registry := r.metricsState()
+	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+2)
+	if registry != nil {
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: registry.Collect()})
+	}
+	if manager != nil {
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: manager.MetricsSnapshot()})
+	}
 	for _, wl := range personWorkloads {
 		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: wl.Metrics().Collect()})
 	}
@@ -245,6 +251,15 @@ func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
 		return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
 	}
 	return agg
+}
+
+func (r *defaultWorkloadRunner) metricsState() (*benchworkload.ConnectionManager, []*benchworkload.PersonWorkload, []*benchworkload.GroupWorkload, *metrics.Registry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.manager,
+		append([]*benchworkload.PersonWorkload(nil), r.personWorkloads...),
+		append([]*benchworkload.GroupWorkload(nil), r.groupWorkloads...),
+		r.metrics
 }
 
 func (r *defaultWorkloadRunner) workerMetrics() metrics.SnapshotData {
@@ -264,7 +279,7 @@ func (r *defaultWorkloadRunner) currentRunID() string {
 }
 
 func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	return r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Warmup, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
 			return person.Warmup(phaseCtx)
 		}
@@ -273,7 +288,7 @@ func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignmen
 }
 
 func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	return r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Duration, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
 			return person.Run(phaseCtx)
 		}
@@ -282,7 +297,7 @@ func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) 
 }
 
 func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
-	err := r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	err := r.runPhaseWithIdleHold(ctx, assignment, assignment.Scenario.Run.Cooldown, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
 			return person.Cooldown(phaseCtx)
 		}
@@ -293,6 +308,10 @@ func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignm
 }
 
 func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
+	return r.runPhaseWithIdleHold(ctx, assignment, 0, fn)
+}
+
+func (r *defaultWorkloadRunner) runPhaseWithIdleHold(ctx context.Context, assignment Assignment, idleDuration time.Duration, fn func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
 	personWorkloads, groupWorkloads, ok := r.snapshot(assignment.RunID)
 	if !ok {
 		if err := r.Connect(ctx, assignment); err != nil {
@@ -302,6 +321,9 @@ func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignm
 		if !ok {
 			return nil
 		}
+	}
+	if len(personWorkloads)+len(groupWorkloads) == 0 {
+		return sleepContext(ctx, idleDuration)
 	}
 	phaseCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -341,6 +363,20 @@ func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignm
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) error {
+	if duration <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func buildPersonExecutionPlan(assignment Assignment) (personExecutionPlan, error) {
@@ -611,18 +647,23 @@ func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonW
 
 func (r *defaultWorkloadRunner) closeCurrent(runID string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.runID != runID {
+		r.mu.Unlock()
 		return
 	}
-	if r.cancelAutoRecvAck != nil {
-		r.cancelAutoRecvAck()
-		r.cancelAutoRecvAck = nil
-	}
-	if r.manager != nil {
-		_ = r.manager.Close()
-	}
+	cancelAutoRecvAck := r.cancelAutoRecvAck
+	manager := r.manager
+	r.cancelAutoRecvAck = nil
 	r.manager = nil
+	r.mu.Unlock()
+
+	if cancelAutoRecvAck != nil {
+		cancelAutoRecvAck()
+	}
+	if manager != nil {
+		_ = manager.Close()
+		r.mergeConnectionMetrics(manager)
+	}
 }
 
 func markTargetUnavailable(err error) error {

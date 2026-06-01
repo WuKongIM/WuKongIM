@@ -170,6 +170,14 @@ The activation report includes per-node active runtime distribution
 targets, `active_leader_single_node` marks samples where all active leaders
 landed on one node instead of a distributed topology.
 
+For connection-route presence checks, use
+`scripts/bench-wukongimv2-three-nodes-presence.sh`. It starts the same local
+three-node cluster, runs a connection-only wkbench scenario with heartbeat
+pings, polls `/bench/v1/presence/snapshot` while the run is active, and
+validates the live peak for owner-active count, authority-active count, pending
+count, hash-slot totals, touch count, and TTL expiry count. The final
+`report.json` is still used for workload status and error-rate gates.
+
 The per-node classification files include ControllerV2 Raft Step queue pressure
 plus ChannelV2 cold-activation stage p99s:
 `channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,

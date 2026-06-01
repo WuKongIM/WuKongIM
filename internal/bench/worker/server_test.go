@@ -366,9 +366,9 @@ func TestWorkerDefaultRunnerStartsAutoRecvAckDrain(t *testing.T) {
 	require.NoError(t, runner.Connect(context.Background(), assignment))
 	recipient := pool.client("bench-u-7")
 	require.Eventually(t, func() bool {
-		return len(recipient.recvAckCalls) == 1
+		return recipient.recvAckCallCount() == 1
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, []workerRecvAckCall{{messageID: 88, messageSeq: 9}}, recipient.recvAckCalls)
+	require.Equal(t, []workerRecvAckCall{{messageID: 88, messageSeq: 9}}, recipient.recvAckSnapshot())
 }
 
 func TestWorkerAutoRecvAckDropsFramesWhenRecvVerificationDisabled(t *testing.T) {
@@ -418,6 +418,72 @@ func TestWorkerDefaultRunnerConnectsAssignedIdentityRange(t *testing.T) {
 		require.NotNil(t, client)
 		require.Equal(t, []workerConnectCall{{uid: uid, deviceID: fmt.Sprintf("bench-d-%d", idx)}}, client.connected)
 	}
+}
+
+func TestWorkerDefaultRunnerHoldsConnectionOnlyRunForDuration(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := connectionOnlyAssignment(30 * time.Millisecond)
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(context.Background(), assignment)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("connection-only run returned before duration: %v", err)
+	case <-time.After(10 * time.Millisecond):
+	}
+	active, _ := runner.(ConnectionStatusReporter).ConnectionStatus()
+	require.Equal(t, 3, active)
+	require.NoError(t, <-done)
+}
+
+func TestWorkerDefaultRunnerHoldsConnectionOnlyCooldownBeforeClose(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := connectionOnlyAssignment(30 * time.Millisecond)
+	assignment.Scenario.Run.Cooldown = assignment.Scenario.Run.Duration
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Cooldown(context.Background(), assignment)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("connection-only cooldown returned before duration: %v", err)
+	case <-time.After(10 * time.Millisecond):
+	}
+	active, _ := runner.(ConnectionStatusReporter).ConnectionStatus()
+	require.Equal(t, 3, active)
+	require.NoError(t, <-done)
+	active, _ = runner.(ConnectionStatusReporter).ConnectionStatus()
+	require.Zero(t, active)
+}
+
+func TestWorkerDefaultRunnerMetricsIncludeConnectionOnlyHeartbeatActivity(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := connectionOnlyAssignment(30 * time.Millisecond)
+	assignment.Scenario.Run.Cooldown = 20 * time.Millisecond
+	assignment.Scenario.Online.Heartbeat = model.HeartbeatConfig{
+		Enabled:  true,
+		Interval: 5 * time.Millisecond,
+		Timeout:  20 * time.Millisecond,
+	}
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+
+	require.NoError(t, runner.Run(context.Background(), assignment))
+	runSnap := runner.(MetricsReporter).MetricsSnapshot()
+	require.GreaterOrEqual(t, runSnap.Counters["heartbeat_success_total"], uint64(1))
+
+	require.NoError(t, runner.Cooldown(context.Background(), assignment))
+	finalSnap := runner.(MetricsReporter).MetricsSnapshot()
+	require.GreaterOrEqual(t, finalSnap.Counters["heartbeat_success_total"], runSnap.Counters["heartbeat_success_total"])
 }
 
 func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
@@ -943,6 +1009,24 @@ func personShardAssignment() Assignment {
 	}
 }
 
+func connectionOnlyAssignment(duration time.Duration) Assignment {
+	return Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a", Duration: duration},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID:      "worker-a",
+			IdentityRange: model.Range{Start: 0, End: 3},
+			Profiles:      map[string]model.ProfileShard{},
+		},
+	}
+}
+
 func groupBundlesForTest(t *testing.T, assignment Assignment) []groupWorkloadBundle {
 	t.Helper()
 	plan, err := buildGroupExecutionPlan(assignment)
@@ -1115,6 +1199,7 @@ func (p *workerPersonClientPool) client(uid string) *workerPersonClient {
 }
 
 type workerPersonClient struct {
+	mu           sync.Mutex
 	uid          string
 	addr         string
 	connected    []workerConnectCall
@@ -1122,6 +1207,7 @@ type workerPersonClient struct {
 	sentFrames   []*frame.SendPacket
 	readFrames   []frame.Frame
 	recvAckCalls []workerRecvAckCall
+	pingCalls    atomic.Int32
 }
 
 type workerConnectCall struct {
@@ -1155,7 +1241,26 @@ func (c *workerPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error)
 }
 
 func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.recvAckCalls = append(c.recvAckCalls, workerRecvAckCall{messageID: messageID, messageSeq: messageSeq})
+	return nil
+}
+
+func (c *workerPersonClient) recvAckCallCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.recvAckCalls)
+}
+
+func (c *workerPersonClient) recvAckSnapshot() []workerRecvAckCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]workerRecvAckCall(nil), c.recvAckCalls...)
+}
+
+func (c *workerPersonClient) Ping(ctx context.Context) error {
+	c.pingCalls.Add(1)
 	return nil
 }
 
