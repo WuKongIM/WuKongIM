@@ -3,10 +3,11 @@
 ## Responsibility
 
 `internalv2/app` is the only composition root for the new skeleton. It wires
-phase-1 config, `pkg/clusterv2`, the message usecase, the gateway handler, the
-optional HTTP API runtime, the optional Prometheus metrics registry, and the
-optional gateway runtime. The phase-1 runtime supports single-node clusters and
-static multi-node clusters for the `SEND -> SENDACK` write path.
+phase-1 config, `pkg/clusterv2`, the message usecase, the presence usecase, the
+gateway handler, the optional HTTP API runtime, the optional Prometheus metrics
+registry, and the optional gateway runtime. The phase-1 runtime supports
+single-node clusters and static multi-node clusters for the `SEND -> SENDACK`
+write path and UID connection-route authority.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -20,7 +21,13 @@ New(Config)
      (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, and message DB grouped commits)
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> create message.App with clusterv2 ChannelAppender and node-scoped IDs
-  -> create access/gateway.Handler
+  -> when the cluster exposes presence routing:
+       create owner boot ID, online.Registry, runtime/presence.Directory,
+       infra/cluster.PresenceAuthorityClient, usecase/presence.App,
+       and access/node presence RPC adapter
+       register the presence authority RPC handler on clusterv2
+       create the route-authority rehydrate worker
+  -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
@@ -40,15 +47,36 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
+  -> presence rehydrate worker Start(ctx)
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
+  -> presence rehydrate worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
 
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
+
+## Presence Authority Rehydrate
+
+```text
+clusterv2.RouteAuthorityEvent
+  -> if local node becomes authority:
+       runtime/presence.Directory.BecomeAuthority(target)
+       page owner-local active sessions through online.Registry.VisitActiveByHashSlot
+       call Directory.RehydrateRoutes(target, batch)
+       apply returned local conflict actions and commit or abort pending routes
+  -> if another node becomes authority:
+       Directory.LoseAuthority(hashSlot)
+       cancel in-flight local rehydrate for that hash slot
+```
+
+The app worker keeps at most one in-flight rehydrate task per hash slot. A newer
+authority event cancels older epoch work before replaying the latest target, and
+stale initial snapshots are ignored if a newer watched event has already been
+accepted.

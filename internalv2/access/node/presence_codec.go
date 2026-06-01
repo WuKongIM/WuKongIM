@@ -426,6 +426,7 @@ func appendPresenceRehydrateResults(dst []byte, results []presence.RehydrateResu
 	for _, result := range results {
 		dst = appendPresenceRouteIdentity(dst, result.Route)
 		dst = appendBool(dst, result.Accepted)
+		dst = appendString(dst, string(result.PendingToken))
 		dst = appendPresenceActions(dst, result.Actions)
 		dst = appendString(dst, result.Error)
 	}
@@ -453,6 +454,11 @@ func readPresenceRehydrateResults(body []byte, offset int) ([]presence.Rehydrate
 		if result.Accepted, offset, err = readBool(body, offset, "presence rehydrate accepted"); err != nil {
 			return nil, offset, err
 		}
+		var token string
+		if token, offset, err = readString(body, offset); err != nil {
+			return nil, offset, err
+		}
+		result.PendingToken = presence.PendingRouteToken(token)
 		if result.Actions, offset, err = readPresenceActions(body, offset); err != nil {
 			return nil, offset, err
 		}

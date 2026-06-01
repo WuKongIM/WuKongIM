@@ -3,6 +3,7 @@ package presence
 import (
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authority "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 )
 
@@ -16,15 +17,15 @@ var ErrAuthorityUnavailable = errors.New("internalv2/usecase/presence: authority
 var ErrSessionNotActive = errors.New("internalv2/usecase/presence: session not active")
 
 // RouteState records the owner-local lifecycle stage for a route.
-type RouteState uint8
+type RouteState = online.RouteState
 
 const (
 	// RouteStatePending marks a session that is locally accepted but not authority-active.
-	RouteStatePending RouteState = iota
+	RouteStatePending = online.RouteStatePending
 	// RouteStateActive marks a session that has completed authority registration.
-	RouteStateActive
+	RouteStateActive = online.RouteStateActive
 	// RouteStateClosing marks a session removed from the local route index.
-	RouteStateClosing
+	RouteStateClosing = online.RouteStateClosing
 )
 
 // ActivateCommand registers one authenticated gateway session with the presence authority.
@@ -56,39 +57,10 @@ type DeactivateCommand struct {
 }
 
 // SessionHandle closes a concrete gateway session through an entry-agnostic boundary.
-type SessionHandle interface {
-	CloseSession(reason string) error
-}
+type SessionHandle = online.SessionHandle
 
 // OnlineConn is the usecase DTO stored through the local owner registry port.
-type OnlineConn struct {
-	// UID is the authenticated user ID for this connection.
-	UID string
-	// HashSlot is the user hash slot used by bounded rehydrate scans.
-	HashSlot uint16
-	// OwnerNodeID is the gateway node that owns the real session.
-	OwnerNodeID uint64
-	// OwnerBootID identifies the owner process generation that accepted this route.
-	OwnerBootID uint64
-	// OwnerSeq is the owner-local monotonic sequence used for authority fencing.
-	OwnerSeq uint64
-	// SessionID is the owner-local gateway session identifier.
-	SessionID uint64
-	// DeviceID is the authenticated client device identifier.
-	DeviceID string
-	// DeviceFlag is the protocol device category for the session.
-	DeviceFlag uint8
-	// DeviceLevel is the protocol device conflict level for the session.
-	DeviceLevel uint8
-	// Listener records the gateway listener that accepted the session.
-	Listener string
-	// ConnectedUnix records when the gateway session was accepted locally.
-	ConnectedUnix int64
-	// State records the owner-local lifecycle state.
-	State RouteState
-	// Session holds the entry-provided close handle for this route.
-	Session SessionHandle
-}
+type OnlineConn = online.OnlineConn
 
 // RouteTarget fences an authority operation to one observed hash-slot route.
 type RouteTarget = authority.RouteTarget

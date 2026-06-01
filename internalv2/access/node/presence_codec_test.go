@@ -121,9 +121,10 @@ func TestPresenceCodecResponseRoundTrip(t *testing.T) {
 		{
 			Status: rpcStatusOK,
 			Rehydrate: []presence.RehydrateResult{{
-				Route:    route.Identity(),
-				Accepted: true,
-				Actions:  []presence.RouteAction{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 2, SessionID: 3, Kind: "close", Reason: "replace"}},
+				Route:        route.Identity(),
+				Accepted:     true,
+				PendingToken: "rehydrate-pending-1",
+				Actions:      []presence.RouteAction{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 2, SessionID: 3, Kind: "close", Reason: "replace"}},
 			}, {
 				Route: testPresenceRoute("u2", 202).Identity(),
 				Error: "stale",

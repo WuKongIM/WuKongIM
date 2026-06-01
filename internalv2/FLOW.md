@@ -15,9 +15,13 @@ storage, or routing branches that bypass cluster semantics.
 |---------|----------------|
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
 | `access/api` | Minimal health, readiness, and bench/v1 target HTTP surface for phase-1 SEND -> SENDACK benchmarking. |
-| `access/gateway` | Gateway frame adapter: `SendPacket` mapping, sendack writing, and entry error mapping. |
+| `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
+| `access/node` | Node RPC adapter for presence authority calls between internalv2 nodes. |
 | `usecase/message` | Entry-agnostic SEND orchestration, batching, validation, message ID allocation, append ports, and committed event submission. |
-| `infra/cluster` | Adapter from message append ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
+| `runtime/online` | Owner-local active gateway session registry used for local delivery and authority rehydrate. |
+| `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
+| `infra/cluster` | Adapter from message append ports and presence authority ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 
 ## Dependency Direction
@@ -45,6 +49,25 @@ pkg/gateway SendPacket
   -> internalv2/usecase/message.SendResult
   -> internalv2/access/gateway writes SendackPacket
 ```
+
+## Phase-1 Presence Flow
+
+```text
+pkg/gateway CONNECT activation
+  -> internalv2/access/gateway.Handler
+  -> internalv2/usecase/presence.App.Activate
+  -> internalv2/runtime/online pending route
+  -> internalv2/infra/cluster.PresenceAuthorityClient
+  -> local runtime/presence.Directory or access/node RPC to the current authority
+  -> internalv2/runtime/online active route
+```
+
+Route-authority changes are observed from `pkg/clusterv2`. When this node gains
+authority for a hash slot, `internalv2/app` installs a fresh
+`runtime/presence.Directory` authority epoch and rehydrates bounded pages from
+`runtime/online`, then commits or aborts any pending conflict candidates returned
+by rehydrate. When leadership moves elsewhere, local authority state and older
+rehydrate work for that hash slot are canceled.
 
 ## Phase-1 Bench Target Flow
 

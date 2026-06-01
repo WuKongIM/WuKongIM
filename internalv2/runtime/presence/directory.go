@@ -121,23 +121,7 @@ func (d *Directory) CommitRoute(target RouteTarget, token PendingRouteToken) err
 	if err != nil {
 		return err
 	}
-	pending, ok := slot.pending[token]
-	if !ok {
-		return ErrRouteNotReady
-	}
-	key := makeRouteIdentityKey(pending.route)
-	if pending.route.OwnerSeq < slot.ownerSeq[key] {
-		delete(slot.pending, token)
-		return ErrStaleRoute
-	}
-	for _, key := range slot.conflictsLocked(pending.route) {
-		if existing, ok := slot.active[key]; ok {
-			slot.removeActiveLocked(key, existing)
-		}
-	}
-	slot.upsertActiveLocked(pending.route)
-	delete(slot.pending, token)
-	return nil
+	return slot.commitRouteLocked(token)
 }
 
 // AbortRoute drops a pending conflict candidate without touching active routes.
@@ -224,6 +208,7 @@ func (d *Directory) RehydrateRoutes(target RouteTarget, routes []Route) ([]Rehyd
 			continue
 		}
 		result.Accepted = true
+		result.PendingToken = res.PendingToken
 		result.Actions = res.Actions
 		results = append(results, result)
 	}
@@ -300,6 +285,26 @@ func (s *authoritySlot) registerLocked(route Route) (RegisterResult, error) {
 		PendingToken: token,
 		Actions:      actions,
 	}, nil
+}
+
+func (s *authoritySlot) commitRouteLocked(token PendingRouteToken) error {
+	pending, ok := s.pending[token]
+	if !ok {
+		return ErrRouteNotReady
+	}
+	key := makeRouteIdentityKey(pending.route)
+	if pending.route.OwnerSeq < s.ownerSeq[key] {
+		delete(s.pending, token)
+		return ErrStaleRoute
+	}
+	for _, key := range s.conflictsLocked(pending.route) {
+		if existing, ok := s.active[key]; ok {
+			s.removeActiveLocked(key, existing)
+		}
+	}
+	s.upsertActiveLocked(pending.route)
+	delete(s.pending, token)
+	return nil
 }
 
 func (s *authoritySlot) conflictsLocked(route Route) []identityKey {

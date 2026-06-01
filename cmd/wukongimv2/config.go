@@ -58,6 +58,9 @@ var supportedConfigKeys = []string{
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
 	"WK_GATEWAY_LISTENERS",
 	"WK_GATEWAY_SEND_TIMEOUT",
+	"WK_PRESENCE_ACTIVATION_TIMEOUT",
+	"WK_PRESENCE_REHYDRATE_BATCH_SIZE",
+	"WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET",
 }
 
 const (
@@ -387,6 +390,39 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Gateway.SendTimeout = sendTimeout
+	}
+	if raw := configValue(values, "WK_PRESENCE_ACTIVATION_TIMEOUT"); raw != "" {
+		activationTimeout, err := parseDuration("WK_PRESENCE_ACTIVATION_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if activationTimeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ACTIVATION_TIMEOUT: value must be >= 0")
+		}
+		cfg.Presence.ActivationTimeout = activationTimeout
+	}
+	if raw := configValue(values, "WK_PRESENCE_REHYDRATE_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_PRESENCE_REHYDRATE_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Presence.RehydrateBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET"); raw != "" {
+		maxInflight, err := parseInt("WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxInflight < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET: value must be >= 0")
+		}
+		if maxInflight > 1 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET: value currently supports 1")
+		}
+		cfg.Presence.RehydrateMaxInflightPerTarget = maxInflight
 	}
 
 	return cfg, nil

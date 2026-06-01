@@ -50,6 +50,13 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		return errors.Join(err, stopErr)
 	}
+	if a.presenceWorker != nil {
+		if err := a.presenceWorker.Start(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.presenceStarted = true
+	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
 			stopErr := a.rollbackStarted(ctx)
@@ -94,6 +101,13 @@ func (a *App) Stop(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
+	if a.presenceStarted && a.presenceWorker != nil {
+		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.presenceStarted = false
+		}
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			err = errors.Join(err, stopErr)
@@ -101,7 +115,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	return err
@@ -114,6 +128,13 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.apiStarted = false
+		}
+	}
+	if a.presenceStarted && a.presenceWorker != nil {
+		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			a.presenceStarted = false
 		}
 	}
 	if a.clusterStarted && a.cluster != nil {

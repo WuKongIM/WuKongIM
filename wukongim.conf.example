@@ -286,6 +286,10 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_GATEWAY_GNET_WRITE_BUFFER_CAP=0
 # Optional: bound how long the gateway waits for durable send completion before failing sendack.
 # WK_GATEWAY_SEND_TIMEOUT=20s
+# Optional internalv2 presence route activation and authority rehydrate bounds.
+# WK_PRESENCE_ACTIVATION_TIMEOUT=3s
+# WK_PRESENCE_REHYDRATE_BATCH_SIZE=512
+# WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET=1
 WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT=3m
 WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
 

@@ -127,6 +127,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=64",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=262144",
 		"WK_GATEWAY_SEND_TIMEOUT=5s",
+		"WK_PRESENCE_ACTIVATION_TIMEOUT=2s",
+		"WK_PRESENCE_REHYDRATE_BATCH_SIZE=256",
+		"WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET=1",
 	)
 
 	cfg, err := loadConfig([]string{"-config", path})
@@ -169,6 +172,15 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if cfg.Presence.ActivationTimeout != 2*time.Second {
+		t.Fatalf("Presence.ActivationTimeout = %s, want 2s", cfg.Presence.ActivationTimeout)
+	}
+	if cfg.Presence.RehydrateBatchSize != 256 {
+		t.Fatalf("Presence.RehydrateBatchSize = %d, want 256", cfg.Presence.RehydrateBatchSize)
+	}
+	if cfg.Presence.RehydrateMaxInflightPerTarget != 1 {
+		t.Fatalf("Presence.RehydrateMaxInflightPerTarget = %d, want 1", cfg.Presence.RehydrateMaxInflightPerTarget)
 	}
 	if cfg.API.ListenAddr != "127.0.0.1:5042" {
 		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
@@ -301,6 +313,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", "96")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", "131072")
 	t.Setenv("WK_GATEWAY_SEND_TIMEOUT", "2s")
+	t.Setenv("WK_PRESENCE_ACTIVATION_TIMEOUT", "1500ms")
+	t.Setenv("WK_PRESENCE_REHYDRATE_BATCH_SIZE", "128")
+	t.Setenv("WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET", "1")
 	t.Setenv("WK_API_LISTEN_ADDR", "127.0.0.1:5002")
 	t.Setenv("WK_BENCH_API_ENABLE", "true")
 	t.Setenv("WK_METRICS_ENABLE", "true")
@@ -328,6 +343,15 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if cfg.Presence.ActivationTimeout != 1500*time.Millisecond {
+		t.Fatalf("Presence.ActivationTimeout = %s, want 1500ms", cfg.Presence.ActivationTimeout)
+	}
+	if cfg.Presence.RehydrateBatchSize != 128 {
+		t.Fatalf("Presence.RehydrateBatchSize = %d, want 128", cfg.Presence.RehydrateBatchSize)
+	}
+	if cfg.Presence.RehydrateMaxInflightPerTarget != 1 {
+		t.Fatalf("Presence.RehydrateMaxInflightPerTarget = %d, want 1", cfg.Presence.RehydrateMaxInflightPerTarget)
 	}
 	if cfg.Gateway.Transport.Gnet.NumEventLoop != 5 {
 		t.Fatalf("Gnet.NumEventLoop = %d, want 5", cfg.Gateway.Transport.Gnet.NumEventLoop)
@@ -463,6 +487,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "async batch records", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS"},
 		{name: "async batch bytes", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=large", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES"},
 		{name: "send timeout", line: "WK_GATEWAY_SEND_TIMEOUT=soon", wantKey: "WK_GATEWAY_SEND_TIMEOUT"},
+		{name: "presence activation timeout", line: "WK_PRESENCE_ACTIVATION_TIMEOUT=soon", wantKey: "WK_PRESENCE_ACTIVATION_TIMEOUT"},
+		{name: "presence rehydrate batch size", line: "WK_PRESENCE_REHYDRATE_BATCH_SIZE=many", wantKey: "WK_PRESENCE_REHYDRATE_BATCH_SIZE"},
+		{name: "presence rehydrate max inflight", line: "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET=many", wantKey: "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET"},
+		{name: "presence rehydrate max inflight unsupported", line: "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET=2", wantKey: "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET"},
 		{name: "bench api enable", line: "WK_BENCH_API_ENABLE=maybe", wantKey: "WK_BENCH_API_ENABLE"},
 		{name: "bench api max batch size", line: "WK_BENCH_API_MAX_BATCH_SIZE=many", wantKey: "WK_BENCH_API_MAX_BATCH_SIZE"},
 		{name: "bench api max payload bytes", line: "WK_BENCH_API_MAX_PAYLOAD_BYTES=large", wantKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES"},

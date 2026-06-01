@@ -96,6 +96,8 @@ type RehydrateResult struct {
 	Route RouteIdentity
 	// Accepted is true when the route was accepted by the register path.
 	Accepted bool
+	// PendingToken is set when conflict actions must be applied before commit.
+	PendingToken PendingRouteToken
 	// Actions are owner-side operations required by conflict resolution.
 	Actions []RouteAction
 	// Error contains a stable error string for rejected routes.

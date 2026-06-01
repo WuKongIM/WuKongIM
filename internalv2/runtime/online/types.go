@@ -1,12 +1,6 @@
 package online
 
-import (
-	"errors"
-	"time"
-
-	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-)
+import "errors"
 
 // ErrInvalidConnection reports a malformed online connection registration.
 var ErrInvalidConnection = errors.New("internalv2/runtime/online: invalid connection")
@@ -32,6 +26,8 @@ type OnlineConn struct {
 	UID string
 	// HashSlot is the user hash slot used by authority-change rehydrate scans.
 	HashSlot uint16
+	// OwnerNodeID is the gateway owner node that accepted this route.
+	OwnerNodeID uint64
 	// OwnerBootID identifies the owner node process generation that accepted this route.
 	OwnerBootID uint64
 	// OwnerSeq is the owner-local monotonic route sequence for conflict fencing.
@@ -41,17 +37,23 @@ type OnlineConn struct {
 	// DeviceID is the authenticated client device identifier.
 	DeviceID string
 	// DeviceFlag is the WuKong protocol device category for the session.
-	DeviceFlag frame.DeviceFlag
+	DeviceFlag uint8
 	// DeviceLevel is the WuKong protocol device conflict level for the session.
-	DeviceLevel frame.DeviceLevel
+	DeviceLevel uint8
 	// Listener records the gateway listener that accepted the session.
 	Listener string
-	// ConnectedAt records when the gateway session was accepted locally.
-	ConnectedAt time.Time
+	// ConnectedUnix records when the gateway session was accepted locally.
+	ConnectedUnix int64
 	// State records the owner-local lifecycle state.
 	State RouteState
 	// Session holds the gateway context used for local writes and close handling.
-	Session coregateway.Context
+	Session SessionHandle
+}
+
+// SessionHandle closes a concrete gateway session without importing entry packages.
+type SessionHandle interface {
+	// CloseSession closes the concrete session with a stable reason string.
+	CloseSession(reason string) error
 }
 
 // RouteCursor resumes a bounded active-route scan after the last delivered session.

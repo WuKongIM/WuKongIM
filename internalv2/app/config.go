@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -35,6 +36,8 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Message configures message send behavior.
 	Message MessageConfig
+	// Presence configures connection-route activation and authority rehydrate behavior.
+	Presence PresenceConfig
 }
 
 // APIConfig contains HTTP API settings for the standalone v2 entry.
@@ -81,3 +84,33 @@ type ObservabilityConfig struct {
 
 // MessageConfig contains message usecase settings.
 type MessageConfig struct{}
+
+// PresenceConfig contains connection presence and route-authority worker settings.
+type PresenceConfig struct {
+	// ActivationTimeout bounds one gateway session activation against the UID authority.
+	ActivationTimeout time.Duration
+	// RehydrateBatchSize limits owner-local active routes replayed in one authority rehydrate call.
+	RehydrateBatchSize int
+	// RehydrateMaxInflightPerTarget limits concurrent rehydrate workers per authority target; only 1 is currently supported.
+	RehydrateMaxInflightPerTarget int
+}
+
+func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
+	if cfg.ActivationTimeout <= 0 {
+		cfg.ActivationTimeout = 3 * time.Second
+	}
+	if cfg.RehydrateBatchSize <= 0 {
+		cfg.RehydrateBatchSize = 512
+	}
+	if cfg.RehydrateMaxInflightPerTarget <= 0 {
+		cfg.RehydrateMaxInflightPerTarget = 1
+	}
+	return cfg
+}
+
+func validatePresenceConfig(cfg PresenceConfig) error {
+	if cfg.RehydrateMaxInflightPerTarget != 1 {
+		return fmt.Errorf("%w: presence rehydrate max inflight per target currently supports 1", ErrInvalidConfig)
+	}
+	return nil
+}

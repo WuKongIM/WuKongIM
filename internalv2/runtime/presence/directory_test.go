@@ -242,8 +242,8 @@ func TestDirectoryRehydrateRoutesUsesConflictPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RehydrateRoutes() error = %v", err)
 	}
-	if len(results) != 1 || !results[0].Accepted || len(results[0].Actions) != 1 {
-		t.Fatalf("rehydrate results = %#v, want accepted conflict action", results)
+	if len(results) != 1 || !results[0].Accepted || results[0].PendingToken == "" || len(results[0].Actions) != 1 {
+		t.Fatalf("rehydrate results = %#v, want accepted pending conflict action", results)
 	}
 	routes, err := dir.EndpointsByUID(target, "u1")
 	if err != nil {

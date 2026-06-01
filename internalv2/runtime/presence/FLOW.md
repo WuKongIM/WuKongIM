@@ -20,4 +20,8 @@ The directory stores the last owner sequence per exact route identity. `Unregist
 
 ## Rehydrate
 
-`RehydrateRoutes` reuses the same register/conflict path as live registration and returns per-route accept or reject results. This package intentionally has no lease heartbeat, digest mismatch protocol, or replay lease state.
+`RehydrateRoutes` reuses the same register/conflict path as live registration
+and returns per-route accept or reject results. Conflicting rehydrate candidates
+return the pending token so the app worker can apply owner actions and then
+commit or abort the candidate. This package intentionally has no lease
+heartbeat, digest mismatch protocol, or replay lease state.
