@@ -24,7 +24,7 @@ const (
 type OnlineConn struct {
 	// UID is the authenticated user ID for this connection.
 	UID string
-	// HashSlot is the user hash slot used by authority-change rehydrate scans.
+	// HashSlot is the UID hash slot observed during activation.
 	HashSlot uint16
 	// OwnerNodeID is the gateway owner node that accepted this route.
 	OwnerNodeID uint64
@@ -44,6 +44,8 @@ type OnlineConn struct {
 	Listener string
 	// ConnectedUnix records when the gateway session was accepted locally.
 	ConnectedUnix int64
+	// LastActivityUnix records the latest owner-observed client activity for batched authority touch.
+	LastActivityUnix int64
 	// State records the owner-local lifecycle state.
 	State RouteState
 	// Session holds the gateway context used for local writes and close handling.
@@ -54,12 +56,6 @@ type OnlineConn struct {
 type SessionHandle interface {
 	// CloseSession closes the concrete session with a stable reason string.
 	CloseSession(reason string) error
-}
-
-// RouteCursor resumes a bounded active-route scan after the last delivered session.
-type RouteCursor struct {
-	// LastSessionID is the highest session ID delivered by the previous page.
-	LastSessionID uint64
 }
 
 // RegistryOptions configures the owner-local online registry.

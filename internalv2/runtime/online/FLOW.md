@@ -8,6 +8,6 @@
 
 `RegisterPending` is used before CONNACK succeeds. `MarkActive` promotes a session after authority registration and local active re-check. `MarkClosingAndUnregister` removes local indexes before authority unregister tombstones are queued.
 
-## Rehydrate
+## Touch Batching
 
-`VisitActiveByHashSlot` pages active routes for bounded authority-change rehydrate without copying or sorting an entire hash-slot bucket.
+`MarkTouched` records owner-observed activity on active routes only and marks the session dirty. `DrainTouched` returns bounded dirty batches for authority touch writes and clears their dirty markers. `RequeueTouched` re-marks drained routes after a failed batch only when the same active owner route is still current, so removed or superseded sessions are skipped.
