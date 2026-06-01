@@ -157,6 +157,23 @@ func TestBuildSoftLimitWarnsWithoutFailOnSoft(t *testing.T) {
 	}
 }
 
+func TestBuildCopiesPresenceSnapshots(t *testing.T) {
+	r := Build(Input{
+		RunID: "run-1",
+		PresenceSnapshots: []model.PresenceSnapshot{
+			{Version: "bench/v1", NodeID: 1, OwnerRoutesActive: 2},
+			{Version: "bench/v1", NodeID: 2, AuthorityRoutesActive: 3},
+		},
+	})
+
+	if len(r.PresenceSnapshots) != 2 {
+		t.Fatalf("presence snapshots len = %d, want 2", len(r.PresenceSnapshots))
+	}
+	if r.PresenceSnapshots[0].NodeID != 1 || r.PresenceSnapshots[1].NodeID != 2 {
+		t.Fatalf("unexpected presence snapshots: %+v", r.PresenceSnapshots)
+	}
+}
+
 func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 	dir := t.TempDir()
 	scenario := model.Scenario{Version: "wkbench/v1", Run: model.RunConfig{ID: "run-1", ReportDir: dir}}
@@ -173,7 +190,10 @@ func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 		WorkerReports:   []WorkerReport{{WorkerID: "w1", Report: json.RawMessage(`{"ok":true}`)}},
 		WorkerMetrics:   []metrics.WorkerSnapshot{{WorkerID: "w1", Metrics: metrics.SnapshotData{Counters: map[string]uint64{"send_total": 1}}}},
 		TargetSnapshots: []json.RawMessage{json.RawMessage(`{"status":"ok"}`)},
-		ErrorSamples:    []metrics.ErrorSample{{Name: "send", Message: "boom"}},
+		PresenceSnapshots: []model.PresenceSnapshot{
+			{Version: "bench/v1", NodeID: 1, OwnerRoutesActive: 2},
+		},
+		ErrorSamples: []metrics.ErrorSample{{Name: "send", Message: "boom"}},
 	})
 
 	if err := WriteDir(dir, rep); err != nil {
@@ -207,6 +227,9 @@ func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 	}
 	if decoded.RunID != "run-1" {
 		t.Fatalf("run_id = %q, want run-1", decoded.RunID)
+	}
+	if len(decoded.PresenceSnapshots) != 1 || decoded.PresenceSnapshots[0].OwnerRoutesActive != 2 {
+		t.Fatalf("unexpected report presence snapshots: %+v", decoded.PresenceSnapshots)
 	}
 }
 

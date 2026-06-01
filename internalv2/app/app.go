@@ -53,16 +53,17 @@ type Option func(*App)
 
 // App is the internalv2 composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg            Config
-	cluster        ClusterRuntime
-	api            APIRuntime
-	gateway        GatewayRuntime
-	handler        *accessgateway.Handler
-	messages       *message.App
-	presence       *presence.App
-	online         *online.Registry
-	presenceWorker WorkerRuntime
-	metrics        *obsmetrics.Registry
+	cfg               Config
+	cluster           ClusterRuntime
+	api               APIRuntime
+	gateway           GatewayRuntime
+	handler           *accessgateway.Handler
+	messages          *message.App
+	presence          *presence.App
+	online            *online.Registry
+	presenceDirectory *authoritypresence.Directory
+	presenceWorker    WorkerRuntime
+	metrics           *obsmetrics.Registry
 
 	lifecycleMu     sync.Mutex
 	started         bool
@@ -115,6 +116,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
+		app.presenceDirectory = directory
 		authority := presenceDirectoryAuthority{directory: directory}
 		ownerActions := presenceOwnerActions{local: app.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
@@ -165,6 +167,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchMaxPayloadBytes: cfg.Bench.APIMaxPayloadBytes,
 			Gateway:              apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
 			BenchRuntime:         app.benchRuntimeController(),
+			BenchPresence:        app.benchPresenceController(),
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
 		})

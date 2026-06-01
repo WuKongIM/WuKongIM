@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
 func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {
@@ -123,6 +125,46 @@ func TestServerServesPProfOnlyWhenEnabled(t *testing.T) {
 	requireStatus(t, resp, err, http.StatusOK)
 }
 
+func TestBenchPresenceSnapshotRequiresController(t *testing.T) {
+	disabled := httptest.NewServer(New(Options{BenchEnabled: true}).Handler())
+	t.Cleanup(disabled.Close)
+	resp, err := http.Get(disabled.URL + "/bench/v1/presence/snapshot")
+	requireStatus(t, resp, err, http.StatusNotImplemented)
+
+	controller := &fakePresenceBenchController{
+		snapshot: model.PresenceSnapshot{
+			Version:                   "bench/v1",
+			NodeID:                    1,
+			OwnerRoutesActive:         3,
+			OwnerRoutesPending:        1,
+			OwnerTouchedDirty:         2,
+			AuthorityRoutesActive:     3,
+			AuthorityRoutesByHashSlot: map[uint16]int{9: 3},
+			TouchRoutesTotal:          4,
+			ExpiredRoutesTotal:        1,
+		},
+	}
+	enabled := httptest.NewServer(New(Options{BenchEnabled: true, BenchPresence: controller}).Handler())
+	t.Cleanup(enabled.Close)
+
+	var caps capabilitiesResponse
+	resp, err = http.Get(enabled.URL + "/bench/v1/capabilities")
+	decodeJSON(t, resp, err, &caps)
+	if !caps.Supports.PresenceSnapshot {
+		t.Fatalf("presence snapshot support = false, want true")
+	}
+
+	var snap model.PresenceSnapshot
+	resp, err = http.Get(enabled.URL + "/bench/v1/presence/snapshot")
+	decodeJSON(t, resp, err, &snap)
+	if snap.OwnerRoutesActive != 3 || snap.OwnerTouchedDirty != 2 || snap.AuthorityRoutesByHashSlot[9] != 3 {
+		t.Fatalf("presence snapshot = %+v, want controller payload", snap)
+	}
+	if !controller.called {
+		t.Fatalf("presence controller was not called")
+	}
+}
+
 func TestBenchMutationsValidateHeadersBatchLimitsAndReset(t *testing.T) {
 	srv := New(Options{BenchEnabled: true, BenchMaxBatchSize: 1, BenchMaxPayloadBytes: 128})
 	httpSrv := httptest.NewServer(srv.Handler())
@@ -132,6 +174,20 @@ func TestBenchMutationsValidateHeadersBatchLimitsAndReset(t *testing.T) {
 	postJSON(t, httpSrv.URL+"/bench/v1/users/tokens", `{"run_id":"r1","batch_id":"b1","users":[{"uid":"u1"},{"uid":"u2"}]}`, http.StatusBadRequest)
 	postJSON(t, httpSrv.URL+"/bench/v1/channels/subscribers", `{"run_id":"r1","batch_id":"s1","items":[{"channel_id":"g1","channel_type":2,"reset":true,"subscribers":["u1"]}]}`, http.StatusBadRequest)
 	postJSON(t, httpSrv.URL+"/bench/v1/users/tokens", `{"run_id":"r1","batch_id":"b1","users":[{"uid":"`+string(bytes.Repeat([]byte("x"), 256))+`"}]}`, http.StatusRequestEntityTooLarge)
+}
+
+type fakePresenceBenchController struct {
+	called   bool
+	snapshot model.PresenceSnapshot
+	err      error
+}
+
+func (f *fakePresenceBenchController) Snapshot(context.Context) (model.PresenceSnapshot, error) {
+	f.called = true
+	if f.err != nil {
+		return model.PresenceSnapshot{}, f.err
+	}
+	return f.snapshot, nil
 }
 
 func requireStatus(t *testing.T, resp *http.Response, err error, want int) {

@@ -58,6 +58,16 @@ type LocalSession struct {
 	Session SessionHandle
 }
 
+// Snapshot summarizes owner-local route state for diagnostics.
+type Snapshot struct {
+	// Pending counts sessions accepted locally but not yet authority-active.
+	Pending int
+	// Active counts sessions that completed authority registration.
+	Active int
+	// TouchedDirty counts active sessions waiting for a touch flush.
+	TouchedDirty int
+}
+
 // SessionHandle closes a concrete gateway session without importing entry packages.
 type SessionHandle interface {
 	// CloseSession closes the concrete session with a stable reason string.

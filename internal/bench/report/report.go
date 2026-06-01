@@ -120,6 +120,8 @@ type Input struct {
 	WorkerMetrics []metrics.WorkerSnapshot
 	// TargetSnapshots contains raw target snapshots for jsonl output.
 	TargetSnapshots []json.RawMessage
+	// PresenceSnapshots contains typed target presence snapshots for report JSON.
+	PresenceSnapshots []model.PresenceSnapshot
 	// ErrorSamples contains bounded error samples for jsonl output.
 	ErrorSamples []metrics.ErrorSample
 	// CoordinatorLog contains optional coordinator log content.
@@ -156,6 +158,8 @@ type Report struct {
 	WorkerMetrics []metrics.WorkerSnapshot `json:"worker_metrics,omitempty"`
 	// TargetSnapshots contains raw target snapshots for jsonl output.
 	TargetSnapshots []json.RawMessage `json:"target_snapshots,omitempty"`
+	// PresenceSnapshots contains typed target presence snapshots.
+	PresenceSnapshots []model.PresenceSnapshot `json:"presence_snapshots,omitempty"`
 	// ErrorSamples contains bounded error samples for jsonl output.
 	ErrorSamples []metrics.ErrorSample `json:"error_samples,omitempty"`
 	// CoordinatorLog contains optional coordinator log content.
@@ -173,20 +177,21 @@ func Build(in Input) Report {
 		runID = in.Scenario.Run.ID
 	}
 	rep := Report{
-		RunID:           runID,
-		Status:          StatusPassed,
-		ExitCode:        ExitSuccess,
-		Summary:         in.Summary,
-		Scenario:        in.Scenario,
-		Target:          in.Target,
-		Workers:         in.Workers,
-		Plan:            in.Plan,
-		Metrics:         in.Metrics,
-		WorkerReports:   append([]WorkerReport(nil), in.WorkerReports...),
-		WorkerMetrics:   append([]metrics.WorkerSnapshot(nil), in.WorkerMetrics...),
-		TargetSnapshots: append([]json.RawMessage(nil), in.TargetSnapshots...),
-		ErrorSamples:    append([]metrics.ErrorSample(nil), in.ErrorSamples...),
-		CoordinatorLog:  in.CoordinatorLog,
+		RunID:             runID,
+		Status:            StatusPassed,
+		ExitCode:          ExitSuccess,
+		Summary:           in.Summary,
+		Scenario:          in.Scenario,
+		Target:            in.Target,
+		Workers:           in.Workers,
+		Plan:              in.Plan,
+		Metrics:           in.Metrics,
+		WorkerReports:     append([]WorkerReport(nil), in.WorkerReports...),
+		WorkerMetrics:     append([]metrics.WorkerSnapshot(nil), in.WorkerMetrics...),
+		TargetSnapshots:   append([]json.RawMessage(nil), in.TargetSnapshots...),
+		PresenceSnapshots: append([]model.PresenceSnapshot(nil), in.PresenceSnapshots...),
+		ErrorSamples:      append([]metrics.ErrorSample(nil), in.ErrorSamples...),
+		CoordinatorLog:    in.CoordinatorLog,
 	}
 	rep.Violations = append(rep.Violations, hardLimitViolations(limits.Hard, in.Summary)...)
 	soft := softLimitViolations(limits.Soft, in.Summary)

@@ -92,6 +92,18 @@ type RegisterResult struct {
 	Actions []RouteAction
 }
 
+// Snapshot summarizes local authority route state for bench diagnostics.
+type Snapshot struct {
+	// Active counts active authority routes on this node.
+	Active int
+	// ByHashSlot groups active authority routes by hash slot.
+	ByHashSlot map[uint16]int
+	// TouchRoutesTotal counts touch route entries accepted by the target fence.
+	TouchRoutesTotal uint64
+	// ExpiredRoutesTotal counts routes expired by TTL cleanup.
+	ExpiredRoutesTotal uint64
+}
+
 // DirectoryOptions configures the authority route directory.
 type DirectoryOptions struct {
 	// LocalNodeID optionally fences authority targets to this local node.

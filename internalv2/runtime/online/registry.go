@@ -169,6 +169,29 @@ func (r *Registry) RequeueTouched(routes []OwnerRoute) {
 	}
 }
 
+// Snapshot returns aggregate owner-local route counts without exposing sessions.
+func (r *Registry) Snapshot() Snapshot {
+	if r == nil {
+		return Snapshot{}
+	}
+	var snap Snapshot
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, session := range shard.bySession {
+			switch session.State {
+			case RouteStatePending:
+				snap.Pending++
+			case RouteStateActive:
+				snap.Active++
+			}
+		}
+		snap.TouchedDirty += len(shard.dirtyIDs)
+		shard.mu.RUnlock()
+	}
+	return snap
+}
+
 func (r *Registry) sessionShard(sessionID uint64) *registryShard {
 	return &r.shards[sessionID%uint64(len(r.shards))]
 }

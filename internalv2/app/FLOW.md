@@ -28,7 +28,7 @@ New(Config)
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
-  -> create access/api.Server when API.ListenAddr is configured
+  -> create access/api.Server with optional bench presence snapshot controller when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -37,6 +37,11 @@ cluster append surface, `New` still wires a `ChannelAppender` to keep the real
 send path available.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
+The bench presence snapshot controller aggregates `online.Registry.Snapshot`
+and `runtime/presence.Directory.Snapshot`. It is read-only and exists so
+wkbench can validate owner-route and authority-route counts after connection
+runs.
 
 The effective cluster node ID is also the message ID seed. `Config.Cluster.NodeID`
 wins when set; top-level `Config.NodeID` is only the fallback.

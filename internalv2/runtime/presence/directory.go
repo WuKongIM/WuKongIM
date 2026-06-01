@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,6 +20,10 @@ type Directory struct {
 	localNodeID uint64
 	// shards spreads hash-slot authority state across independent locks.
 	shards []directoryShard
+	// touchRoutesTotal counts route touch entries accepted by the target fence.
+	touchRoutesTotal atomic.Uint64
+	// expiredRoutesTotal counts routes removed by TTL expiry.
+	expiredRoutesTotal atomic.Uint64
 }
 
 type directoryShard struct {
@@ -190,6 +195,7 @@ func (d *Directory) TouchRoutes(target RouteTarget, routes []Route) error {
 	for _, route := range routes {
 		slot.touchLocked(route)
 	}
+	d.touchRoutesTotal.Add(uint64(len(routes)))
 	return nil
 }
 
@@ -219,7 +225,35 @@ func (d *Directory) ExpireRoutes(now time.Time, ttl time.Duration) int {
 		}
 		shard.mu.Unlock()
 	}
+	if removed > 0 {
+		d.expiredRoutesTotal.Add(uint64(removed))
+	}
 	return removed
+}
+
+// Snapshot returns aggregate authority route counts for bench diagnostics.
+func (d *Directory) Snapshot() Snapshot {
+	if d == nil {
+		return Snapshot{ByHashSlot: map[uint16]int{}}
+	}
+	snap := Snapshot{
+		ByHashSlot:         make(map[uint16]int),
+		TouchRoutesTotal:   d.touchRoutesTotal.Load(),
+		ExpiredRoutesTotal: d.expiredRoutesTotal.Load(),
+	}
+	for i := range d.shards {
+		shard := &d.shards[i]
+		shard.mu.RLock()
+		for hashSlot, slot := range shard.slots {
+			count := len(slot.active)
+			if count > 0 {
+				snap.ByHashSlot[hashSlot] = count
+				snap.Active += count
+			}
+		}
+		shard.mu.RUnlock()
+	}
+	return snap
 }
 
 // EndpointsByUID returns active authoritative routes for one UID.

@@ -36,6 +36,23 @@ func TestRegistryStoresSessionHandleSeparatelyFromOwnerRoute(t *testing.T) {
 	require.NotNil(t, gotSession.Session)
 }
 
+func TestRegistrySnapshotCountsLocalRouteStatesAndDirtyTouches(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{ShardCount: 1})
+	pending := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}
+	active := OwnerRoute{UID: "u2", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 2, SessionID: 2, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: pending}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: active}))
+	require.NoError(t, reg.MarkActive(active.SessionID))
+	_, ok := reg.MarkTouched(active.SessionID, 20)
+	require.True(t, ok)
+
+	snap := reg.Snapshot()
+
+	require.Equal(t, 1, snap.Pending)
+	require.Equal(t, 1, snap.Active)
+	require.Equal(t, 1, snap.TouchedDirty)
+}
+
 func TestRegisterPendingRejectsInvalidRoute(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 4})
 	if err := reg.RegisterPending(LocalSession{Route: OwnerRoute{SessionID: 1}}); err == nil {

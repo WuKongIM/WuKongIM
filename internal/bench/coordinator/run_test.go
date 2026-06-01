@@ -208,6 +208,124 @@ func TestCoordinatorCollectsFinalTargetSnapshot(t *testing.T) {
 	require.Contains(t, string(data), `"users":7`)
 }
 
+func TestCoordinatorCollectsPresenceSnapshotsWhenSupported(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/snapshot":
+			writeRunTestJSON(w, model.BenchSnapshot{Version: "bench/v1"})
+		case "/bench/v1/capabilities":
+			writeRunTestJSON(w, model.BenchCapabilities{
+				Enabled: true,
+				Version: "bench/v1",
+				Supports: model.BenchCapabilitiesSupports{
+					Snapshot:         true,
+					PresenceSnapshot: true,
+				},
+			})
+		case "/bench/v1/presence/snapshot":
+			writeRunTestJSON(w, model.PresenceSnapshot{
+				Version:                   "bench/v1",
+				NodeID:                    1,
+				OwnerRoutesActive:         4,
+				AuthorityRoutesActive:     6,
+				AuthorityRoutesByHashSlot: map[uint16]int{9: 6},
+				TouchRoutesTotal:          11,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(targetServer.Close)
+	tgt := fakeTargetOK()
+	tgt.BenchAPI.Addrs = []string{targetServer.URL}
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       tgt,
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Equal(t, []model.PresenceSnapshot{{
+		Version:                   "bench/v1",
+		NodeID:                    1,
+		OwnerRoutesActive:         4,
+		AuthorityRoutesActive:     6,
+		AuthorityRoutesByHashSlot: map[uint16]int{9: 6},
+		TouchRoutesTotal:          11,
+	}}, result.Report.PresenceSnapshots)
+	data, err := os.ReadFile(filepath.Join(scenario.Run.ReportDir, "report.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"presence_snapshots"`)
+	require.Contains(t, string(data), `"owner_routes_active": 4`)
+}
+
+func TestCoordinatorCollectsPresenceSnapshotsFromMixedTargets(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	oldTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/snapshot":
+			writeRunTestJSON(w, model.BenchSnapshot{Version: "bench/v1"})
+		case "/bench/v1/capabilities":
+			writeRunTestJSON(w, model.BenchCapabilities{
+				Enabled: true,
+				Version: "bench/v1",
+				Supports: model.BenchCapabilitiesSupports{
+					Snapshot: true,
+				},
+			})
+		case "/bench/v1/presence/snapshot":
+			http.Error(w, "presence snapshot is not configured", http.StatusNotImplemented)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(oldTarget.Close)
+	newTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/snapshot":
+			writeRunTestJSON(w, model.BenchSnapshot{Version: "bench/v1"})
+		case "/bench/v1/capabilities":
+			writeRunTestJSON(w, model.BenchCapabilities{
+				Enabled: true,
+				Version: "bench/v1",
+				Supports: model.BenchCapabilitiesSupports{
+					Snapshot:         true,
+					PresenceSnapshot: true,
+				},
+			})
+		case "/bench/v1/presence/snapshot":
+			writeRunTestJSON(w, model.PresenceSnapshot{Version: "bench/v1", NodeID: 2, OwnerRoutesActive: 8})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(newTarget.Close)
+	tgt := fakeTargetOK()
+	tgt.BenchAPI.Addrs = []string{oldTarget.URL, newTarget.URL}
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       tgt,
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Equal(t, []model.PresenceSnapshot{{Version: "bench/v1", NodeID: 2, OwnerRoutesActive: 8}}, result.Report.PresenceSnapshots)
+	require.Empty(t, result.Report.ErrorSamples)
+}
+
 func TestCoordinatorRecordsTargetSnapshotErrorSample(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	tgt := fakeTargetOK()

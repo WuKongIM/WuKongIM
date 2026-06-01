@@ -36,6 +36,11 @@ type ChannelRuntimeBenchController interface {
 	Evict(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeEvictResult, error)
 }
 
+// PresenceBenchController exposes benchmark-only presence route diagnostics.
+type PresenceBenchController interface {
+	Snapshot(context.Context) (model.PresenceSnapshot, error)
+}
+
 // Options configures the minimal internalv2 HTTP API server.
 type Options struct {
 	// ListenAddr is the HTTP API listen address. An empty value makes Start fail.
@@ -52,6 +57,8 @@ type Options struct {
 	Gateway GatewayAddresses
 	// BenchRuntime controls benchmark-only ChannelV2 runtime diagnostics when configured.
 	BenchRuntime ChannelRuntimeBenchController
+	// BenchPresence controls benchmark-only presence route diagnostics when configured.
+	BenchPresence PresenceBenchController
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -72,6 +79,7 @@ type Server struct {
 	benchMaxPayloadBytes int64
 	gateway              GatewayAddresses
 	benchRuntime         ChannelRuntimeBenchController
+	benchPresence        PresenceBenchController
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	counts               map[string]int
@@ -89,6 +97,7 @@ func New(opts Options) *Server {
 		benchMaxPayloadBytes: opts.BenchMaxPayloadBytes,
 		gateway:              opts.Gateway,
 		benchRuntime:         opts.BenchRuntime,
+		benchPresence:        opts.BenchPresence,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		counts:               map[string]int{},
@@ -183,6 +192,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/bench/v1/capabilities", s.method(http.MethodGet, s.handleBenchCapabilities))
 	s.mux.HandleFunc("/bench/v1/capacity-target", s.method(http.MethodGet, s.handleBenchCapacityTarget))
 	s.mux.HandleFunc("/bench/v1/snapshot", s.method(http.MethodGet, s.handleBenchSnapshot))
+	s.mux.HandleFunc("/bench/v1/presence/snapshot", s.method(http.MethodGet, s.handleBenchPresenceSnapshot))
 	s.mux.HandleFunc("/bench/v1/channel-runtime/snapshot", s.method(http.MethodGet, s.handleBenchChannelRuntimeSnapshot))
 	s.mux.HandleFunc("/bench/v1/channel-runtime/probe", s.method(http.MethodPost, s.handleBenchChannelRuntimeProbe))
 	s.mux.HandleFunc("/bench/v1/channel-runtime/evict", s.method(http.MethodPost, s.handleBenchChannelRuntimeEvict))
@@ -242,6 +252,8 @@ type capabilitiesSupports struct {
 	ChannelsBatch           bool `json:"channels_batch"`
 	ChannelSubscribersBatch bool `json:"channel_subscribers_batch"`
 	Snapshot                bool `json:"snapshot"`
+	// PresenceSnapshot indicates support for connection-route presence snapshots.
+	PresenceSnapshot bool `json:"presence_snapshot"`
 	// ChannelRuntimeSnapshot indicates support for local ChannelV2 runtime snapshots.
 	ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
 	// ChannelRuntimeProbe indicates support for bounded ChannelV2 runtime probes.
@@ -269,6 +281,7 @@ func (s *Server) handleBenchCapabilities(w http.ResponseWriter, _ *http.Request)
 			ChannelsBatch:           true,
 			ChannelSubscribersBatch: true,
 			Snapshot:                true,
+			PresenceSnapshot:        s.benchPresence != nil,
 			ChannelRuntimeSnapshot:  s.benchRuntime != nil,
 			ChannelRuntimeProbe:     s.benchRuntime != nil,
 			ChannelRuntimeEvict:     s.benchRuntime != nil,
@@ -304,6 +317,22 @@ func (s *Server) handleBenchSnapshot(w http.ResponseWriter, _ *http.Request) {
 	resp := snapshotResponse{Version: versionV1}
 	if len(counts) > 0 {
 		resp.Counts = counts
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleBenchPresenceSnapshot(w http.ResponseWriter, r *http.Request) {
+	if s.benchPresence == nil {
+		writeBenchError(w, http.StatusNotImplemented, "bench presence controller is not configured")
+		return
+	}
+	resp, err := s.benchPresence.Snapshot(r.Context())
+	if err != nil {
+		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if resp.Version == "" {
+		resp.Version = versionV1
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

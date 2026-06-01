@@ -47,3 +47,10 @@ registration omits it. `ExpireRoutes` scans active routes and removes entries
 whose last seen time plus TTL is before the caller-provided time. TTL expiry
 does not write tombstones, so a later non-conflicting touch with a fresh owner
 sequence may recreate the route.
+
+## Diagnostics
+
+`Snapshot` counts active authority routes by hash slot and reports cumulative
+target-fenced touch entries and TTL-expiry counters. It is used by bench
+diagnostics only; the directory still stores virtual owner routes, not concrete
+TCP sessions.

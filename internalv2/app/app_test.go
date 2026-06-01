@@ -169,6 +169,53 @@ func TestNewWiresPresenceWhenGatewayEnabled(t *testing.T) {
 	}
 }
 
+func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	app, err := New(Config{Cluster: clusterv2.Config{NodeID: 1}}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.presenceDirectory == nil {
+		t.Fatal("presence directory was not wired")
+	}
+	pending := online.OwnerRoute{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 1, SessionID: 101, ConnectedUnix: 100}
+	active := online.OwnerRoute{UID: "u2", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 2, SessionID: 102, ConnectedUnix: 100}
+	if err := app.online.RegisterPending(online.LocalSession{Route: pending}); err != nil {
+		t.Fatalf("RegisterPending(pending) error = %v", err)
+	}
+	if err := app.online.RegisterPending(online.LocalSession{Route: active}); err != nil {
+		t.Fatalf("RegisterPending(active) error = %v", err)
+	}
+	if err := app.online.MarkActive(active.SessionID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	app.online.MarkTouched(active.SessionID, 120)
+
+	target := presence.RouteTarget{HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 2}
+	app.presenceDirectory.BecomeAuthority(target)
+	if _, err := app.presenceDirectory.RegisterRoute(target, presence.Route{UID: "u2", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 2, SessionID: 102, ConnectedUnix: 100, LastSeenUnix: 120}); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if err := app.presenceDirectory.TouchRoutes(target, []presence.Route{{UID: "u3", OwnerNodeID: 2, OwnerBootID: 8, OwnerSeq: 1, SessionID: 201, ConnectedUnix: 100, LastSeenUnix: 121}}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+
+	controller := app.benchPresenceController()
+	if controller == nil {
+		t.Fatal("bench presence controller is nil")
+	}
+	snap, err := controller.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if snap.NodeID != 1 || snap.OwnerRoutesPending != 1 || snap.OwnerRoutesActive != 1 || snap.OwnerTouchedDirty != 1 {
+		t.Fatalf("owner snapshot = %+v, want node 1 pending 1 active 1 dirty 1", snap)
+	}
+	if snap.AuthorityRoutesActive != 2 || snap.AuthorityRoutesByHashSlot[9] != 2 || snap.TouchRoutesTotal != 1 {
+		t.Fatalf("authority snapshot = %+v, want active 2 hashSlot 9 count 2 touch total 1", snap)
+	}
+}
+
 func TestStartOrderStartsClusterThenPresenceWorkerThenGateway(t *testing.T) {
 	calls := make([]string, 0, 3)
 	events := make(chan clusterv2.RouteAuthorityEvent)

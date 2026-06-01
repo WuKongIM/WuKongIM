@@ -238,7 +238,7 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	if err != nil {
 		return report.Report{}, err
 	}
-	targetSnapshots, targetErrors, err := c.collectTargetSnapshots(ctx)
+	targetSnapshots, presenceSnapshots, targetErrors, err := c.collectTargetSnapshots(ctx)
 	if err != nil {
 		return report.Report{}, err
 	}
@@ -248,17 +248,18 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	failedWorkers := mergeWorkerFailureSets(workerFailures, collectionFailures)
 	summary := report.SummaryFromMetrics(agg, len(failedWorkers))
 	input := report.Input{
-		RunID:           scenario.Run.ID,
-		Scenario:        scenario,
-		Target:          c.cfg.Target,
-		Workers:         model.WorkerSet{Workers: c.cfg.Workers},
-		Plan:            result.Plan,
-		Summary:         summary,
-		Metrics:         agg,
-		WorkerReports:   workerReports,
-		WorkerMetrics:   workerMetrics,
-		TargetSnapshots: targetSnapshots,
-		ErrorSamples:    agg.Errors,
+		RunID:             scenario.Run.ID,
+		Scenario:          scenario,
+		Target:            c.cfg.Target,
+		Workers:           model.WorkerSet{Workers: c.cfg.Workers},
+		Plan:              result.Plan,
+		Summary:           summary,
+		Metrics:           agg,
+		WorkerReports:     workerReports,
+		WorkerMetrics:     workerMetrics,
+		TargetSnapshots:   targetSnapshots,
+		PresenceSnapshots: presenceSnapshots,
+		ErrorSamples:      agg.Errors,
 	}
 	rep := report.Build(input)
 	if rep.ExitCode == report.ExitHardLimitFailed {
@@ -351,24 +352,46 @@ func mergeWorkerFailureSets(sets ...map[string]struct{}) map[string]struct{} {
 	return merged
 }
 
-func (c *Coordinator) collectTargetSnapshots(ctx context.Context) ([]json.RawMessage, []metrics.ErrorSample, error) {
+func (c *Coordinator) collectTargetSnapshots(ctx context.Context) ([]json.RawMessage, []model.PresenceSnapshot, []metrics.ErrorSample, error) {
 	apiAddrs := c.cfg.Target.BenchAPI.Addrs
 	if len(apiAddrs) == 0 {
 		apiAddrs = c.cfg.Target.API.Addrs
 	}
 	client := target.NewClient(target.Config{APIAddrs: apiAddrs, Token: c.cfg.Target.BenchAPI.Token, HTTPClient: c.http})
+	var samples []metrics.ErrorSample
+	var targetSnapshots []json.RawMessage
 	snapshot, err := client.Snapshot(ctx)
+	if err != nil {
+		if contextCanceled(ctx, err) {
+			return nil, nil, nil, contextError(ctx, err)
+		}
+		samples = append(samples, metrics.ErrorSample{Name: "target_metrics_error", Message: err.Error(), At: time.Now()})
+	} else {
+		data, err := json.Marshal(snapshot)
+		if err != nil {
+			samples = append(samples, metrics.ErrorSample{Name: "target_metrics_error", Message: err.Error(), At: time.Now()})
+		} else {
+			targetSnapshots = append(targetSnapshots, json.RawMessage(data))
+		}
+	}
+
+	presenceSnapshots, presenceErrors, err := c.collectTargetPresenceSnapshots(ctx, client)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	samples = append(samples, presenceErrors...)
+	return targetSnapshots, presenceSnapshots, samples, nil
+}
+
+func (c *Coordinator) collectTargetPresenceSnapshots(ctx context.Context, client *target.Client) ([]model.PresenceSnapshot, []metrics.ErrorSample, error) {
+	snapshots, err := client.PresenceSnapshots(ctx)
 	if err != nil {
 		if contextCanceled(ctx, err) {
 			return nil, nil, contextError(ctx, err)
 		}
-		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}, nil
+		return snapshots, []metrics.ErrorSample{{Name: "target_presence_snapshot_error", Message: err.Error(), At: time.Now()}}, nil
 	}
-	data, err := json.Marshal(snapshot)
-	if err != nil {
-		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}, nil
-	}
-	return []json.RawMessage{json.RawMessage(data)}, nil, nil
+	return snapshots, nil, nil
 }
 
 func emptyWorkerMetricsWithError(name string, err error) metrics.SnapshotData {

@@ -17,6 +17,7 @@ GET  /debug/pprof/*                   (optional, when PProfEnabled is configured
 GET  /bench/v1/capabilities
 GET  /bench/v1/capacity-target
 GET  /bench/v1/snapshot
+GET  /bench/v1/presence/snapshot
 GET  /bench/v1/channel-runtime/snapshot
 POST /bench/v1/channel-runtime/probe
 POST /bench/v1/channel-runtime/evict
@@ -35,3 +36,7 @@ The bench mutation routes are intentionally restricted to setup acknowledgments
 for black-box `wkbench` compatibility. The current `wukongimv2` gateway does not
 enable token authentication, and delivery/fanout are phase-1 non-goals, so these
 routes do not prove user-token, subscriber, or delivery performance.
+
+`/bench/v1/presence/snapshot` is a read-only diagnostic route. It reports
+owner-local route counts and authority-side virtual route counts for wkbench
+reports, but it does not expose or mutate concrete gateway sessions.

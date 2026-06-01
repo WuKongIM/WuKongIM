@@ -22,6 +22,8 @@ type BenchCapabilitiesSupports struct {
 	ChannelSubscribersBatch bool `json:"channel_subscribers_batch"`
 	// Snapshot indicates support for lightweight bench setup snapshots.
 	Snapshot bool `json:"snapshot"`
+	// PresenceSnapshot indicates support for connection-route presence snapshots.
+	PresenceSnapshot bool `json:"presence_snapshot"`
 	// ChannelRuntimeSnapshot indicates support for local ChannelV2 runtime snapshots.
 	ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
 	// ChannelRuntimeProbe indicates support for bounded ChannelV2 runtime probes.
@@ -50,6 +52,28 @@ type BenchSnapshot struct {
 	Version string `json:"version"`
 	// Counts contains target-defined benchmark object counts.
 	Counts map[string]int `json:"counts,omitempty"`
+}
+
+// PresenceSnapshot describes owner-local and authority-side route state for bench diagnostics.
+type PresenceSnapshot struct {
+	// Version is the target bench API version that produced the snapshot.
+	Version string `json:"version"`
+	// NodeID identifies the target node that produced the snapshot.
+	NodeID uint64 `json:"node_id"`
+	// OwnerRoutesActive counts active owner-local route projections.
+	OwnerRoutesActive int `json:"owner_routes_active"`
+	// OwnerRoutesPending counts owner-local routes accepted but not yet authority-active.
+	OwnerRoutesPending int `json:"owner_routes_pending"`
+	// OwnerTouchedDirty counts owner-local routes pending touch flush.
+	OwnerTouchedDirty int `json:"owner_touched_dirty"`
+	// AuthorityRoutesActive counts active authority-side routes on this node.
+	AuthorityRoutesActive int `json:"authority_routes_active"`
+	// AuthorityRoutesByHashSlot groups active authority routes by UID hash slot.
+	AuthorityRoutesByHashSlot map[uint16]int `json:"authority_routes_by_hash_slot,omitempty"`
+	// TouchRoutesTotal counts authority touch route entries accepted by this node.
+	TouchRoutesTotal uint64 `json:"touch_routes_total"`
+	// ExpiredRoutesTotal counts authority routes expired by TTL cleanup on this node.
+	ExpiredRoutesTotal uint64 `json:"expired_routes_total"`
 }
 
 // ChannelRuntimeRange selects generated channel indexes in [start,end).

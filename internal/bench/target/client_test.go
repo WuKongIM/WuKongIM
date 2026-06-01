@@ -160,6 +160,90 @@ func TestClientChannelRuntimeSnapshotsTriesEveryTargetBeforeFailing(t *testing.T
 	require.Equal(t, 1, secondHits)
 }
 
+func TestClientPresenceSnapshotsCallsEveryTarget(t *testing.T) {
+	seen := make([]string, 0, 2)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		seen = append(seen, "first")
+		writeJSON(t, w, model.PresenceSnapshot{Version: "bench/v1", NodeID: 1, OwnerRoutesActive: 3})
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		seen = append(seen, "second")
+		writeJSON(t, w, model.PresenceSnapshot{Version: "bench/v1", NodeID: 2, AuthorityRoutesActive: 5})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.PresenceSnapshots(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, seen)
+	require.Equal(t, []model.PresenceSnapshot{
+		{Version: "bench/v1", NodeID: 1, OwnerRoutesActive: 3},
+		{Version: "bench/v1", NodeID: 2, AuthorityRoutesActive: 5},
+	}, got)
+}
+
+func TestClientPresenceSnapshotsTriesEveryTargetBeforeFailing(t *testing.T) {
+	firstHits := 0
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		firstHits++
+		http.Error(w, "presence unavailable", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+	secondHits := 0
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		secondHits++
+		writeJSON(t, w, model.PresenceSnapshot{Version: "bench/v1", NodeID: 2, OwnerRoutesPending: 1})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.PresenceSnapshots(context.Background())
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "one or more target api addresses failed")
+	require.ErrorContains(t, err, "503")
+	require.Equal(t, []model.PresenceSnapshot{{Version: "bench/v1", NodeID: 2, OwnerRoutesPending: 1}}, got)
+	require.Equal(t, 1, firstHits)
+	require.Equal(t, 1, secondHits)
+}
+
+func TestClientPresenceSnapshotsSkipsUnsupportedTargets(t *testing.T) {
+	firstHits := 0
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		firstHits++
+		http.Error(w, "presence snapshot is not configured", http.StatusNotImplemented)
+	}))
+	defer first.Close()
+	secondHits := 0
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/bench/v1/presence/snapshot", r.URL.Path)
+		secondHits++
+		writeJSON(t, w, model.PresenceSnapshot{Version: "bench/v1", NodeID: 2, OwnerRoutesActive: 8})
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	got, err := client.PresenceSnapshots(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []model.PresenceSnapshot{{Version: "bench/v1", NodeID: 2, OwnerRoutesActive: 8}}, got)
+	require.Equal(t, 1, firstHits)
+	require.Equal(t, 1, secondHits)
+}
+
 func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)

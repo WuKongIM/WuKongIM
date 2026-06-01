@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,6 +70,32 @@ func (c *Client) Snapshot(ctx context.Context) (model.BenchSnapshot, error) {
 		return model.BenchSnapshot{}, err
 	}
 	return out, nil
+}
+
+// PresenceSnapshots reads connection-route presence snapshots from every target API address.
+// When any target fails, it returns the successfully decoded snapshots with a non-nil error.
+func (c *Client) PresenceSnapshots(ctx context.Context) ([]model.PresenceSnapshot, error) {
+	addrs := c.addrs()
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no target api addresses configured")
+	}
+	snapshots := make([]model.PresenceSnapshot, 0, len(addrs))
+	var errs []string
+	for _, addr := range addrs {
+		var out model.PresenceSnapshot
+		if err := c.doJSON(ctx, http.MethodGet, addr, "/bench/v1/presence/snapshot", nil, &out); err != nil {
+			if isUnsupportedStatus(err) {
+				continue
+			}
+			errs = append(errs, err.Error())
+			continue
+		}
+		snapshots = append(snapshots, out)
+	}
+	if len(errs) > 0 {
+		return snapshots, fmt.Errorf("one or more target api addresses failed: %s", strings.Join(errs, "; "))
+	}
+	return snapshots, nil
 }
 
 // CapacityTarget reads the target node address document used by capacity tests.
@@ -297,10 +324,37 @@ func (c *Client) addrs() []string {
 func statusError(method, url string, resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 	snippet := strings.TrimSpace(string(body))
-	if snippet == "" {
-		return fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
+	return &httpStatusError{
+		method:     method,
+		url:        url,
+		statusCode: resp.StatusCode,
+		body:       snippet,
 	}
-	return fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
+}
+
+type httpStatusError struct {
+	method     string
+	url        string
+	statusCode int
+	body       string
+}
+
+func (e *httpStatusError) Error() string {
+	if e == nil {
+		return "http status error"
+	}
+	if e.body == "" {
+		return fmt.Sprintf("%s %s returned status %d", e.method, e.url, e.statusCode)
+	}
+	return fmt.Sprintf("%s %s returned status %d: %s", e.method, e.url, e.statusCode, e.body)
+}
+
+func isUnsupportedStatus(err error) bool {
+	var statusErr *httpStatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	return statusErr.statusCode == http.StatusNotFound || statusErr.statusCode == http.StatusNotImplemented
 }
 
 func joinURL(base, path string) string {

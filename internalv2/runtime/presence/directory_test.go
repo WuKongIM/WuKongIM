@@ -124,6 +124,45 @@ func TestDirectoryTouchRoutesRecreatesMissingRoute(t *testing.T) {
 	}
 }
 
+func TestDirectorySnapshotCountsAuthorityRoutesByHashSlotAndCounters(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 2})
+	targetOne := RouteTarget{HashSlot: 6, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	targetTwo := RouteTarget{HashSlot: 7, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(targetOne)
+	dir.BecomeAuthority(targetTwo)
+
+	oldRoute := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, ConnectedUnix: 100, LastSeenUnix: 100}
+	freshRoute := Route{UID: "u2", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 11, ConnectedUnix: 100, LastSeenUnix: 200}
+	if _, err := dir.RegisterRoute(targetOne, oldRoute); err != nil {
+		t.Fatalf("RegisterRoute(old) error = %v", err)
+	}
+	if err := dir.TouchRoutes(targetOne, []Route{freshRoute}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+	if err := dir.TouchRoutes(targetTwo, []Route{{UID: "u3", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 12, ConnectedUnix: 200, LastSeenUnix: 200}}); err != nil {
+		t.Fatalf("TouchRoutes(second slot) error = %v", err)
+	}
+	removed := dir.ExpireRoutes(time.Unix(120, 0), 10*time.Second)
+	if removed != 1 {
+		t.Fatalf("ExpireRoutes removed = %d, want 1", removed)
+	}
+
+	snap := dir.Snapshot()
+
+	if snap.Active != 2 {
+		t.Fatalf("active = %d, want 2", snap.Active)
+	}
+	if snap.ByHashSlot[6] != 1 || snap.ByHashSlot[7] != 1 {
+		t.Fatalf("by hash slot = %#v, want one active route per slot", snap.ByHashSlot)
+	}
+	if snap.TouchRoutesTotal != 2 {
+		t.Fatalf("touch routes total = %d, want 2", snap.TouchRoutesTotal)
+	}
+	if snap.ExpiredRoutesTotal != 1 {
+		t.Fatalf("expired routes total = %d, want 1", snap.ExpiredRoutesTotal)
+	}
+}
+
 func TestDirectoryUnregisterRequiresExactUIDIdentity(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
 	target := RouteTarget{HashSlot: 2, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
