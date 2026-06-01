@@ -6,22 +6,24 @@ load loop. Keep entries concise so the final review is easy to scan.
 ## 2026-06-02 wukongimv2 Three-Node Presence Local Bench
 
 Environment:
-- Worktree at `6e1c26b0` plus local gateway auth failure attribution patch.
+- Worktree at `6e1c26b0` plus local gateway auth failure attribution patch; cleanup follow-up at `412fca06` plus local cleanup-to-zero script patch.
 - Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/bench-wukongimv2-three-nodes-presence.sh`.
 - Evidence:
   - `docs/development/perf-runs/20260602-003857-three-node-presence-10k-r1000-cooldown10-final/`
   - `docs/development/perf-runs/20260602-003257-three-node-presence-15k-r500-cooldown10-attributed/`
+  - `docs/development/perf-runs/20260602-005320-three-node-presence-15k-r500-cooldown60-cleanup/`
   - `docs/development/perf-runs/20260602-003032-three-node-presence-20k-r500-cooldown10-attributed/`
 
 Findings:
 - 10k users at 1000 connects/s passed with `heartbeat_error_total=0`, stable peak owner/authority routes at `10000`, final routes back to `0`, and auth metrics all `status="ok", failure="none"`.
 - 15k users at 500 connects/s passed the live presence gate with `heartbeat_error_total=0`, but 10s cooldown was not enough for full cleanup; final authority routes stayed around `11324`.
+- Re-running 15k users at 500 connects/s with 60s cooldown and the script-level cleanup-to-zero probe passed: live samples reached zero by `sample_seq=96`, the post-run `after` sample was zero on all nodes, and `cleanup_zero_status=passed`. The wkbench report's own final presence snapshot still showed about `5.3k` routes, so use script samples for cleanup timing.
 - 20k users at 500 connects/s hit the local client/OS boundary before server saturation: the worker failed at `16236` connect attempts with `dial tcp 127.0.0.1:5113: connect: can't assign requested address`. The macOS ephemeral port range was `49152-65535` (`16384` ports), matching the failure point.
-- Server samples stayed modest in the valid runs: 10k max CPU `42.1%`, max RSS `133888KB`; 15k max CPU `31.8%`, max RSS `151184KB`.
+- Server samples stayed modest in the valid runs: 10k max CPU `42.1%`, max RSS `133888KB`; 15k/10s max CPU `31.8%`, max RSS `151184KB`; 15k/60s max CPU `68.2%`, max RSS `153776KB`.
 
 Classification:
-- Category: healthy 10k presence route stability; 15k live stability with slower cleanup; 20k blocked by local benchmark client port capacity, not by presence route logic.
-- Follow-up: validate 15k cleanup with a longer cooldown, and use distributed workers, separate network namespaces, or a wider ephemeral port range before treating 20k as a server-capacity run.
+- Category: healthy 10k and 15k presence route stability; 15k cleanup clears within the longer observation window; 20k blocked by local benchmark client port capacity, not by presence route logic.
+- Follow-up: use distributed workers, separate network namespaces, or a wider ephemeral port range before treating 20k as a server-capacity run.
 
 ## 2026-05-20 Run 1
 

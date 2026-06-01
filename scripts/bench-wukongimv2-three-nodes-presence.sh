@@ -22,6 +22,7 @@ HEARTBEAT_INTERVAL="${WK_BENCH_PRESENCE_HEARTBEAT_INTERVAL:-1s}"
 HEARTBEAT_TIMEOUT="${WK_BENCH_PRESENCE_HEARTBEAT_TIMEOUT:-5s}"
 SAMPLE_INTERVAL="${WK_BENCH_PRESENCE_SAMPLE_INTERVAL:-1}"
 STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"
+CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"
 REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
@@ -35,6 +36,18 @@ WORKER_PID=""
 CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
 PRESENCE_SAMPLE_SEQ=0
+CLEANUP_ZERO_STATUS="skipped"
+CLEANUP_ZERO_ELAPSED_SECONDS=0
+CLEANUP_ZERO_SAMPLE_COUNT=0
+CLEANUP_ZERO_LAST_SNAPSHOT_NODES=0
+CLEANUP_ZERO_LAST_SAMPLE_ERROR_COUNT=0
+CLEANUP_ZERO_LAST_OWNER_ROUTES_ACTIVE=0
+CLEANUP_ZERO_LAST_OWNER_ROUTES_PENDING=0
+CLEANUP_ZERO_LAST_OWNER_TOUCHED_DIRTY=0
+CLEANUP_ZERO_LAST_AUTHORITY_ROUTES_ACTIVE=0
+CLEANUP_ZERO_LAST_HASH_SLOT_TOTAL=0
+CLEANUP_ZERO_LAST_TOUCH_ROUTES_TOTAL=0
+CLEANUP_ZERO_LAST_EXPIRED_ROUTES_TOTAL=0
 
 usage() {
   cat <<'USAGE'
@@ -63,6 +76,7 @@ Options:
   --heartbeat-timeout D     Client ping timeout. Default: 5s.
   --sample-interval SECS    Live presence sample interval. Default: 1.
   --stable-samples N        Required consecutive full live samples. Default: 2.
+  --cleanup-timeout SECS    Wait up to this many seconds for owner/authority routes to clear. Default: 0.
   --no-require-touch        Do not fail when touch_routes_total is zero.
   --api LIST                Comma-separated API base URLs.
   --gateway LIST            Comma-separated WKProto gateway addresses.
@@ -92,6 +106,17 @@ require_nonnegative_number() {
   local name="$1"
   local value="$2"
   [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "$name must be a non-negative number: $value"
+}
+
+number_greater_than_zero() {
+  local value="$1"
+  awk -v value="$value" 'BEGIN { exit !(value > 0) }'
+}
+
+number_greater_or_equal() {
+  local left="$1"
+  local right="$2"
+  awk -v left="$left" -v right="$right" 'BEGIN { exit !(left >= right) }'
 }
 
 split_csv() {
@@ -196,6 +221,11 @@ while [[ $# -gt 0 ]]; do
       STABLE_SAMPLES="$2"
       shift 2
       ;;
+    --cleanup-timeout)
+      [[ $# -ge 2 ]] || die '--cleanup-timeout requires a value'
+      CLEANUP_TIMEOUT="$2"
+      shift 2
+      ;;
     --no-require-touch)
       REQUIRE_TOUCH=0
       shift
@@ -235,6 +265,7 @@ require_positive_int '--connect-rate' "$CONNECT_RATE"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_positive_int '--stable-samples' "$STABLE_SAMPLES"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
+require_nonnegative_number '--cleanup-timeout' "$CLEANUP_TIMEOUT"
 [[ "$REQUIRE_TOUCH" == "0" || "$REQUIRE_TOUCH" == "1" ]] || die "WK_BENCH_PRESENCE_REQUIRE_TOUCH must be 0 or 1"
 
 declare -a API_VALUES GATEWAY_VALUES METRICS_VALUES
@@ -703,6 +734,7 @@ CONNECT_RATE=$CONNECT_RATE
 DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
+CLEANUP_TIMEOUT=$CLEANUP_TIMEOUT
 HEARTBEAT_INTERVAL=$HEARTBEAT_INTERVAL
 HEARTBEAT_TIMEOUT=$HEARTBEAT_TIMEOUT
 SAMPLE_INTERVAL=$SAMPLE_INTERVAL
@@ -761,7 +793,7 @@ collect_presence_sample() {
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   : >"$tmp"
   for api in "${API_VALUES[@]}"; do
-    if payload="$(curl -fsS --max-time 3 "${api%/}/bench/v1/presence/snapshot" 2>/dev/null)"; then
+    if payload="$(WK_BENCH_PRESENCE_SAMPLE_PHASE="$phase" curl -fsS --max-time 3 "${api%/}/bench/v1/presence/snapshot" 2>/dev/null)"; then
       jq -c \
         --arg at "$now" \
         --arg phase "$phase" \
@@ -783,6 +815,110 @@ collect_presence_sample() {
     cat "$tmp" >>"$samples"
   fi
   rm -f "$tmp"
+}
+
+latest_cleanup_presence_stats() {
+  local samples="$OUT_DIR/presence-samples.jsonl"
+  if [[ ! -s "$samples" ]]; then
+    printf '0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n'
+    return
+  fi
+  jq -rs '
+    def sumfield($name): (map(.[$name] // 0) | add // 0);
+    def hashslotsum: (map((.authority_routes_by_hash_slot // {}) | to_entries[]? | .value // 0) | add // 0);
+    [
+      group_by(.sample_seq)[]
+      | select((.[0].sample_phase // "") == "cleanup")
+      | {
+          sample_seq: (.[0].sample_seq // 0),
+          snapshot_nodes: (map(select(has("sample_error") | not)) | length),
+          sample_error_count: (map(select(has("sample_error"))) | length),
+          owner_routes_active: sumfield("owner_routes_active"),
+          owner_routes_pending: sumfield("owner_routes_pending"),
+          owner_touched_dirty: sumfield("owner_touched_dirty"),
+          authority_routes_active: sumfield("authority_routes_active"),
+          authority_routes_by_hash_slot_total: hashslotsum,
+          touch_routes_total: sumfield("touch_routes_total"),
+          expired_routes_total: sumfield("expired_routes_total")
+        }
+    ]
+    | (last // {
+        sample_seq: 0,
+        snapshot_nodes: 0,
+        sample_error_count: 0,
+        owner_routes_active: 0,
+        owner_routes_pending: 0,
+        owner_touched_dirty: 0,
+        authority_routes_active: 0,
+        authority_routes_by_hash_slot_total: 0,
+        touch_routes_total: 0,
+        expired_routes_total: 0
+      })
+    | [
+        .sample_seq,
+        .snapshot_nodes,
+        .sample_error_count,
+        .owner_routes_active,
+        .owner_routes_pending,
+        .owner_touched_dirty,
+        .authority_routes_active,
+        .authority_routes_by_hash_slot_total,
+        .touch_routes_total,
+        .expired_routes_total
+      ] | @tsv
+  ' "$samples"
+}
+
+wait_for_presence_cleanup() {
+  if ! number_greater_than_zero "$CLEANUP_TIMEOUT"; then
+    return 0
+  fi
+
+  log "waiting up to ${CLEANUP_TIMEOUT}s for presence cleanup to reach zero"
+  CLEANUP_ZERO_STATUS="timed_out"
+  local start now elapsed sleep_interval
+  start="$(date +%s)"
+  sleep_interval="$SAMPLE_INTERVAL"
+  if ! number_greater_than_zero "$sleep_interval"; then
+    sleep_interval=1
+  fi
+
+  local seq snapshots sample_errors owner_active owner_pending owner_dirty authority_active hash_slot_total touch_total expired_total
+  while true; do
+    collect_presence_sample "cleanup" || true
+    CLEANUP_ZERO_SAMPLE_COUNT=$((CLEANUP_ZERO_SAMPLE_COUNT + 1))
+
+    IFS=$'\t' read -r seq snapshots sample_errors owner_active owner_pending owner_dirty authority_active hash_slot_total touch_total expired_total <<<"$(latest_cleanup_presence_stats)"
+    CLEANUP_ZERO_LAST_SNAPSHOT_NODES="$snapshots"
+    CLEANUP_ZERO_LAST_SAMPLE_ERROR_COUNT="$sample_errors"
+    CLEANUP_ZERO_LAST_OWNER_ROUTES_ACTIVE="$owner_active"
+    CLEANUP_ZERO_LAST_OWNER_ROUTES_PENDING="$owner_pending"
+    CLEANUP_ZERO_LAST_OWNER_TOUCHED_DIRTY="$owner_dirty"
+    CLEANUP_ZERO_LAST_AUTHORITY_ROUTES_ACTIVE="$authority_active"
+    CLEANUP_ZERO_LAST_HASH_SLOT_TOTAL="$hash_slot_total"
+    CLEANUP_ZERO_LAST_TOUCH_ROUTES_TOTAL="$touch_total"
+    CLEANUP_ZERO_LAST_EXPIRED_ROUTES_TOTAL="$expired_total"
+
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    CLEANUP_ZERO_ELAPSED_SECONDS="$elapsed"
+
+    if [[ "$snapshots" -ge "${#API_VALUES[@]}" &&
+          "$sample_errors" -eq 0 &&
+          "$owner_active" -eq 0 &&
+          "$owner_pending" -eq 0 &&
+          "$owner_dirty" -eq 0 &&
+          "$authority_active" -eq 0 &&
+          "$hash_slot_total" -eq 0 ]]; then
+      CLEANUP_ZERO_STATUS="passed"
+      return 0
+    fi
+
+    if number_greater_or_equal "$elapsed" "$CLEANUP_TIMEOUT"; then
+      return 0
+    fi
+    sleep "$sleep_interval"
+  done
 }
 
 validate_presence_report() {
@@ -963,6 +1099,18 @@ validate_presence_report() {
     printf 'final_authority_routes_by_hash_slot_total\t%s\n' "$final_hash_slot_total"
     printf 'final_touch_routes_total\t%s\n' "$final_touch_total"
     printf 'final_expired_routes_total\t%s\n' "$final_expired_total"
+    printf 'cleanup_zero_status\t%s\n' "$CLEANUP_ZERO_STATUS"
+    printf 'cleanup_zero_elapsed_seconds\t%s\n' "$CLEANUP_ZERO_ELAPSED_SECONDS"
+    printf 'cleanup_zero_sample_count\t%s\n' "$CLEANUP_ZERO_SAMPLE_COUNT"
+    printf 'cleanup_zero_last_snapshot_nodes\t%s\n' "$CLEANUP_ZERO_LAST_SNAPSHOT_NODES"
+    printf 'cleanup_zero_last_sample_error_count\t%s\n' "$CLEANUP_ZERO_LAST_SAMPLE_ERROR_COUNT"
+    printf 'cleanup_zero_last_owner_routes_active\t%s\n' "$CLEANUP_ZERO_LAST_OWNER_ROUTES_ACTIVE"
+    printf 'cleanup_zero_last_owner_routes_pending\t%s\n' "$CLEANUP_ZERO_LAST_OWNER_ROUTES_PENDING"
+    printf 'cleanup_zero_last_owner_touched_dirty\t%s\n' "$CLEANUP_ZERO_LAST_OWNER_TOUCHED_DIRTY"
+    printf 'cleanup_zero_last_authority_routes_active\t%s\n' "$CLEANUP_ZERO_LAST_AUTHORITY_ROUTES_ACTIVE"
+    printf 'cleanup_zero_last_authority_routes_by_hash_slot_total\t%s\n' "$CLEANUP_ZERO_LAST_HASH_SLOT_TOTAL"
+    printf 'cleanup_zero_last_touch_routes_total\t%s\n' "$CLEANUP_ZERO_LAST_TOUCH_ROUTES_TOTAL"
+    printf 'cleanup_zero_last_expired_routes_total\t%s\n' "$CLEANUP_ZERO_LAST_EXPIRED_ROUTES_TOTAL"
     printf 'failures\t%s\n' "$failures"
   } >"$out"
 
@@ -975,6 +1123,8 @@ validate_presence_report() {
 write_evidence_summary() {
   local presence_status
   presence_status="$(awk -F'\t' '$1 == "presence_status" { print $2 }' "$OUT_DIR/presence-summary.tsv" 2>/dev/null || true)"
+  local cleanup_zero_status
+  cleanup_zero_status="$(awk -F'\t' '$1 == "cleanup_zero_status" { print $2 }' "$OUT_DIR/presence-summary.tsv" 2>/dev/null || true)"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Presence Bench Evidence
 
@@ -983,6 +1133,8 @@ write_evidence_summary() {
 - users: $USERS
 - connect_rate: ${CONNECT_RATE}/s
 - duration: $DURATION
+- cooldown: $COOLDOWN
+- cleanup_timeout: $CLEANUP_TIMEOUT
 - heartbeat_interval: $HEARTBEAT_INTERVAL
 - stable_samples: $STABLE_SAMPLES
 - clean_cluster: $CLEAN_CLUSTER
@@ -1006,6 +1158,7 @@ write_evidence_summary() {
 
 ## Result
 - presence_status: ${presence_status:-unknown}
+- cleanup_zero_status: ${cleanup_zero_status:-skipped}
 EOF
 }
 
@@ -1040,6 +1193,9 @@ main() {
 
   local status=0
   run_bench || status=$?
+  if [[ "$status" -eq 0 ]]; then
+    wait_for_presence_cleanup || true
+  fi
 
   stop_server_resource_sampler
   sample_server_resources after || true

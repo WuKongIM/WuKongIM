@@ -277,8 +277,11 @@ func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 		`HEARTBEAT_INTERVAL="${WK_BENCH_PRESENCE_HEARTBEAT_INTERVAL:-1s}"`,
 		`SAMPLE_INTERVAL="${WK_BENCH_PRESENCE_SAMPLE_INTERVAL:-1}"`,
 		`STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"`,
+		`CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"`,
 		`REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"`,
 		`validate_presence_report`,
+		`wait_for_presence_cleanup`,
+		`cleanup_zero_status`,
 		`presence-samples.jsonl`,
 		`presence-summary.tsv`,
 		`METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"`,
@@ -296,6 +299,65 @@ func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 	}
 	if strings.Contains(script, "docker compose") {
 		t.Fatalf("presence bench script should use local startup scripts, not docker compose")
+	}
+}
+
+func TestWukongIMV2ThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--cleanup-timeout", "1",
+		"--sample-interval", "0.02",
+		"--stable-samples", "1",
+		"--resource-interval", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_PRESENCE_CLEANUP_ZERO=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script failed: %v\n%s", err, output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	for _, want := range []string{
+		"presence_status\tpassed",
+		"cleanup_zero_status\tpassed",
+		"cleanup_zero_sample_count\t",
+		"cleanup_zero_last_owner_routes_active\t0",
+		"cleanup_zero_last_authority_routes_active\t0",
+		"cleanup_zero_last_authority_routes_by_hash_slot_total\t0",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("cleanup summary missing %q:\n%s", want, summary)
+		}
+	}
+
+	samples := readFile(t, filepath.Join(outDir, "presence-samples.jsonl"))
+	if !strings.Contains(samples, `"sample_phase":"cleanup"`) {
+		t.Fatalf("cleanup samples missing cleanup phase:\n%s", samples)
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	if !strings.Contains(topSummary, "- cleanup_zero_status: passed") {
+		t.Fatalf("top-level summary should include cleanup status:\n%s", topSummary)
 	}
 }
 
@@ -1138,6 +1200,12 @@ case "$url" in
     ;;
   http://127.0.0.1:5011/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":1,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
     if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":1,"owner_routes_active":4,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":3,"authority_routes_by_hash_slot":{"1":3},"touch_routes_total":2,"expired_routes_total":0}
@@ -1150,6 +1218,12 @@ JSON
     ;;
   http://127.0.0.1:5012/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":2,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
     if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":2,"owner_routes_active":3,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":4,"authority_routes_by_hash_slot":{"2":4},"touch_routes_total":2,"expired_routes_total":0}
@@ -1162,6 +1236,12 @@ JSON
     ;;
   http://127.0.0.1:5013/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":3,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}
+JSON
+      exit 0
+    fi
     if [[ "${WK_FAKE_PRESENCE_TRANSIENT:-0}" == "1" && "$idx" -gt 0 ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":3,"owner_routes_active":2,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":2,"authority_routes_by_hash_slot":{"3":2},"touch_routes_total":2,"expired_routes_total":0}
