@@ -7,7 +7,7 @@ pkg/channelv2/        - Experimental multi-reactor channel log runtime; root DTO
 |-- machine/          - Pure per-channel state transitions for metadata, append, progress, and invariants; no blocking I/O.
 |-- reactor/          - Channel-key ownership, priority mailboxes, append queues, scheduler, lifecycle, metrics, and worker-result application.
 |-- replication/      - Leader/follower replication helpers and protocol decisions used by reactor runtime paths.
-|-- service/          - Synchronous facade that validates requests, requires preloaded append state, lazily activates PullHint followers, routes work to reactors, and waits on futures.
+|-- service/          - Synchronous facade that routes append and replication transport requests to reactors and waits on futures.
 |-- store/            - Narrow persistence contract, memory store, and `pkg/db/message` compatibility adapter boundary.
 |-- testkit/          - In-memory multi-node cluster harness for channelv2 tests.
 |-- transport/        - V0 local/RPC transport DTOs for pull, ack, notify compatibility, and PullHint.
@@ -94,13 +94,10 @@ Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters
 with follower replication stage counts to distinguish slow accepted PullHints
 from missing or failed wakeups that fall back to recovery probes.
-Follower-side PullHint receive counters split lazy activation into
-`state_check`, `loaded`, `meta_resolve`, `meta_hint`, `meta_validate`,
-`meta_apply`, `submit`, and `await` stages. `meta_hint` means the follower used
-the leader-provided metadata summary because the local metadata read was not yet
-visible. Use these counters to distinguish remote delivery failures from
-follower metadata propagation, lazy runtime activation, reactor admission, or
-follower future wait failures.
+Follower-side PullHint receive counters now stay at the service adapter
+boundary: `submit` covers reactor mailbox admission and `await` covers the
+reactor future. Missing follower metadata is handled inside the owning reactor
+as a bounded `PendingMeta` bootstrap and not as a service-side metadata read.
 
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
@@ -119,12 +116,17 @@ observation, HW advancement, and final future completion.
 ## Channel Runtime Lifecycle Model
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.
-Loaded runtimes hold `machine.ChannelState`, `appendQueue`, `replicationState`,
-and `channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single
-controller for stop, checkpoint, stopped ACK, final eviction, leader-visible
-follower stop state, and pull-hint inflight state for that loaded runtime.
-Ordinary follower replication state stays in `replicationState` and only
-exposes a summarized `RuntimeView` to lifecycle guards.
+`PendingMeta` is a short-lived follower bootstrap shell created from a slim
+PullHint when the follower lacks matching local runtime state. It opens the
+channel store, sends `Pull{NeedMeta=true}` to the channel leader, applies the
+returned active metadata before any records, and releases itself on stale,
+invalid, not-replica, timeout, or retry-exhaustion paths. Loaded runtimes hold
+`machine.ChannelState`, `appendQueue`, `replicationState`, and
+`channelRuntimeLifecycle`. `channelRuntimeLifecycle` is the single controller
+for stop, checkpoint, stopped ACK, final eviction, leader-visible follower stop
+state, and pull-hint inflight state for that loaded runtime. Ordinary follower
+replication state stays in `replicationState` and only exposes a summarized
+`RuntimeView` to lifecycle guards.
 
 Metadata reload is not a long-lived lifecycle stage. Accepted metadata fence
 changes fail stale waiters, reset transient lifecycle/replication state, apply
@@ -175,7 +177,10 @@ stale forever.
 ```mermaid
 stateDiagram-v2
     [*] --> Unloaded
-    Unloaded --> Loaded: ApplyMeta or PullHint lazy activation / load store state
+    Unloaded --> PendingMeta: slim PullHint miss / load store state and NeedMeta Pull
+    PendingMeta --> Loaded: matching active Meta / apply before records
+    PendingMeta --> Unloaded: stale, invalid, not replica, timeout, retry exhausted
+    Unloaded --> Loaded: ApplyMeta
     Loaded --> Live: local role = leader or follower
 
     Live --> LeaderStoppingFollowers: leader idle expired && HW == LEO && followers caught up

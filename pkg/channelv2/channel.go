@@ -14,7 +14,7 @@ type Cluster interface {
 	Close() error
 }
 
-// MetaResolver loads authoritative metadata for PullHint follower activation.
+// MetaResolver is retained for older adapters; PullHint metadata bootstrap uses NeedMeta pulls from the channel leader.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
 }
@@ -28,7 +28,7 @@ type Config struct {
 	MaxChannels int
 	Store       any
 	Transport   any
-	// MetaResolver lazily loads metadata for PullHint follower activation.
+	// MetaResolver is ignored by channelv2 service PullHint handling.
 	MetaResolver any
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.
 	Observer any

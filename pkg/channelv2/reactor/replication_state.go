@@ -1,8 +1,11 @@
 package reactor
 
 import (
+	"context"
+	"errors"
 	"hash/fnv"
 	"math"
+	"net"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -60,6 +63,91 @@ type replicationState struct {
 	ackReturnStartedAt time.Time
 	// ackReturnOffset is the follower LEO that must be carried back to the leader.
 	ackReturnOffset uint64
+}
+
+// pendingMetaState is a reactor-owned follower bootstrap shell awaiting authoritative metadata.
+type pendingMetaState struct {
+	key             ch.ChannelKey
+	id              ch.ChannelID
+	generation      uint64
+	epoch           uint64
+	leaderEpoch     uint64
+	leader          ch.NodeID
+	leaderLEO       uint64
+	activityVersion uint64
+	deadline        time.Time
+	initial         storeInitialState
+
+	pullInflight           bool
+	pullOpID               ch.OpID
+	pullSubmittedAt        time.Time
+	pullSubmittedAckOffset uint64
+	retryCount             int
+	lastError              error
+}
+
+type storeInitialState struct {
+	LEO          uint64
+	HW           uint64
+	CheckpointHW uint64
+}
+
+func (p *pendingMetaState) fence() ch.Fence {
+	if p == nil {
+		return ch.Fence{}
+	}
+	return ch.Fence{ChannelKey: p.key, Generation: p.generation, Epoch: p.epoch, LeaderEpoch: p.leaderEpoch, OpID: p.pullOpID}
+}
+
+func (p *pendingMetaState) sameFence(req transport.PullHintRequest) bool {
+	return p != nil &&
+		req.ChannelKey == p.key &&
+		req.ChannelID == p.id &&
+		req.Epoch == p.epoch &&
+		req.LeaderEpoch == p.leaderEpoch &&
+		req.Leader == p.leader
+}
+
+func (p *pendingMetaState) compareFence(req transport.PullHintRequest) int {
+	if p == nil {
+		return 1
+	}
+	if req.Epoch < p.epoch || (req.Epoch == p.epoch && req.LeaderEpoch < p.leaderEpoch) {
+		return -1
+	}
+	if req.Epoch == p.epoch && req.LeaderEpoch == p.leaderEpoch {
+		if req.ChannelKey != p.key || req.ChannelID != p.id || req.Leader != p.leader {
+			return -1
+		}
+		return 0
+	}
+	return 1
+}
+
+func nonRetryablePendingPullError(err error) bool {
+	return errors.Is(err, ch.ErrNotReady) ||
+		errors.Is(err, ch.ErrNotLeader) ||
+		errors.Is(err, ch.ErrStaleMeta) ||
+		errors.Is(err, ch.ErrChannelNotFound) ||
+		errors.Is(err, ch.ErrNotReplica) ||
+		errors.Is(err, ch.ErrBackpressured)
+}
+
+func retryablePendingPullError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ch.ErrBackpressured) {
+		return true
+	}
+	if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+		return true
+	}
+	return false
+}
+
+func contextDoneError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // markDirty makes the follower eligible for immediate pull scheduling.

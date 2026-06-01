@@ -19,7 +19,7 @@ type Config struct {
 	MaxChannels int
 	Store       store.Factory
 	Transport   transport.Client
-	// MetaResolver lazily loads authoritative metadata for PullHint follower activation.
+	// MetaResolver is ignored; PullHint metadata bootstrap now uses NeedMeta pulls from the channel leader.
 	MetaResolver ch.MetaResolver
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
 	ReplicationIdlePollInterval time.Duration
@@ -70,10 +70,6 @@ type cluster struct {
 	group *reactor.Group
 	// observer receives optional low-cardinality service stage metrics.
 	observer reactor.Observer
-	// metaResolver loads authoritative metadata before lazy follower activation.
-	metaResolver ch.MetaResolver
-	// localNode is this service node id for validating follower-only activation.
-	localNode ch.NodeID
 }
 
 // New constructs a v0 channelv2 cluster facade.
@@ -108,7 +104,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cluster{group: group, observer: cfg.Observer, metaResolver: cfg.MetaResolver, localNode: cfg.LocalNode}, nil
+	return &cluster{group: group, observer: cfg.Observer}, nil
 }
 
 func (c *cluster) Tick(ctx context.Context) error {

@@ -1124,6 +1124,550 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
 	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
 }
 
+func TestPendingMetaPullHintCreatesNeedMetaShellAndReportsNotLoaded(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-create")
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
+	}})
+	require.NoError(t, err)
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net, MaxChannels: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventPullHint, Key: meta.Key, PullHint: pullHintForMeta(meta, 4)}))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	pull := net.LastPull()
+	require.True(t, pull.NeedMeta)
+	require.Equal(t, uint64(3), pull.NextOffset)
+	require.Equal(t, uint64(2), pull.AckOffset)
+
+	loaded, err := g.HasChannelState(context.Background(), meta.Key)
+	require.NoError(t, err)
+	require.False(t, loaded)
+	snapshot, err := g.RuntimeSnapshot(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, snapshot.ActiveTotal)
+	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 99, "pending"))
+	require.NoError(t, err)
+	_, err = appendFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventPull, Key: meta.Key, Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1}})
+	require.NoError(t, err)
+	_, err = pullFuture.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+
+	other := followerTestMeta("pending-capacity")
+	err = awaitSubmit(g, other.Key, Event{Kind: EventApplyMeta, Key: other.Key, Meta: other})
+	require.ErrorIs(t, err, ch.ErrTooManyChannels)
+}
+
+func TestPendingMetaPullHintCoalescesAndFencesHints(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("pending-fence")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 5))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc.pending)
+	firstOp := rc.pending.pullOpID
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 6))
+	require.Equal(t, firstOp, rc.pending.pullOpID)
+	require.Equal(t, 1, net.PullCalls())
+
+	newer := meta
+	newer.LeaderEpoch = 2
+	require.NoError(t, submitPullHintDirect(t, r, newer, 7))
+	rc = r.channels[meta.Key]
+	require.NotEqual(t, firstOp, rc.pending.pullOpID)
+	require.Equal(t, uint64(2), rc.pending.leaderEpoch)
+
+	stale := meta
+	err := submitPullHintDirect(t, r, stale, 8)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Equal(t, uint64(2), rc.pending.leaderEpoch)
+
+	err = applyMetaDirect(t, r, stale)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.NotNil(t, rc.pending)
+	require.Equal(t, uint64(2), rc.pending.leaderEpoch)
+}
+
+func TestPendingMetaSameFencePullHintDoesNotExtendDeadline(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("pending-deadline-fixed")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, PullHintRetryInterval: time.Millisecond})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 5))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc.pending)
+	firstDeadline := rc.pending.deadline
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 6))
+	require.Equal(t, firstDeadline, rc.pending.deadline)
+
+	r.processDue(firstDeadline.Add(time.Nanosecond))
+	require.Nil(t, r.channels[meta.Key])
+}
+
+func TestPendingMetaNeedMetaPullResponseAppliesMetaBeforeRecords(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("pending-apply-records")
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+		Meta:        &meta,
+		Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+	})
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 1))
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.pending)
+	require.NotNil(t, rc.state)
+	require.Equal(t, ch.RoleFollower, rc.state.Role)
+	require.Equal(t, uint64(0), rc.state.LEO)
+	r.handleStoreApplyResult(sink.awaitResultKind(t, worker.TaskStoreApply))
+	require.Equal(t, uint64(1), rc.state.LEO)
+
+	cs, err := factory.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	read, err := cs.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, read.Messages, 1)
+	require.Equal(t, uint64(1), read.Messages[0].MessageSeq)
+}
+
+func TestPendingMetaNeedMetaResponseRejectsNonActiveMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-non-active-meta")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	rc := installPendingMetaForTest(t, r, meta)
+	opID := rc.pending.pullOpID
+	creating := meta
+	creating.Status = ch.StatusCreating
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: opID},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Meta:        &creating,
+			Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+		}},
+	})
+
+	require.Nil(t, r.channels[meta.Key])
+}
+
+func TestFollowerNeedMetaFalseResponseWithMetaDoesNotApplyRecords(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("normal-meta-invalid")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+	rc.replication.pullSubmittedAt = time.Now()
+
+	r.handleRPCPullResult(worker.Result{
+		Kind: worker.TaskRPCPull,
+		Fence: ch.Fence{
+			ChannelKey:  meta.Key,
+			Generation:  rc.state.Generation,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			OpID:        7,
+		},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    1,
+			LeaderLEO:   1,
+			Meta:        &meta,
+			Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+		}},
+	})
+
+	require.Zero(t, rc.state.LEO)
+	require.Nil(t, rc.replication.pendingPull)
+	require.ErrorIs(t, rc.replication.lastError, ch.ErrInvalidConfig)
+}
+
+func TestPendingMetaPullErrorsReleaseOrRetry(t *testing.T) {
+	t.Run("application errors release without retry", func(t *testing.T) {
+		for _, appErr := range []error{ch.ErrNotReady, ch.ErrNotLeader, ch.ErrStaleMeta, ch.ErrChannelNotFound, ch.ErrNotReplica} {
+			t.Run(appErr.Error(), func(t *testing.T) {
+				factory := store.NewMemoryFactory()
+				meta := followerTestMeta("pending-app-error")
+				r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+				rc := installPendingMetaForTest(t, r, meta)
+				opID := rc.pending.pullOpID
+
+				r.handleRPCPullResult(worker.Result{
+					Kind:  worker.TaskRPCPull,
+					Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: opID},
+					Err:   appErr,
+				})
+
+				require.Nil(t, r.channels[meta.Key])
+			})
+		}
+	})
+
+	t.Run("transport retry once", func(t *testing.T) {
+		net := newCapturingTransport()
+		net.BlockPulls()
+		defer net.UnblockPulls()
+		factory := store.NewMemoryFactory()
+		sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+		pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+		defer pools.Close()
+		meta := followerTestMeta("pending-retry")
+		r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+		rc := installPendingMetaForTest(t, r, meta)
+		firstOp := rc.pending.pullOpID
+
+		r.handleRPCPullResult(worker.Result{
+			Kind:  worker.TaskRPCPull,
+			Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: firstOp},
+			Err:   temporaryPullError{},
+		})
+
+		require.NotNil(t, r.channels[meta.Key])
+		require.True(t, rc.pending.pullInflight)
+		require.Equal(t, 1, rc.pending.retryCount)
+		require.NotEqual(t, firstOp, rc.pending.pullOpID)
+
+		secondOp := rc.pending.pullOpID
+		r.handleRPCPullResult(worker.Result{
+			Kind:  worker.TaskRPCPull,
+			Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: secondOp},
+			Err:   temporaryPullError{},
+		})
+		require.Nil(t, r.channels[meta.Key])
+	})
+
+	t.Run("context cancellation and deadline release immediately", func(t *testing.T) {
+		for _, cancelErr := range []error{context.Canceled, context.DeadlineExceeded} {
+			factory := store.NewMemoryFactory()
+			meta := followerTestMeta("pending-cancel")
+			r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+			rc := installPendingMetaForTest(t, r, meta)
+			opID := rc.pending.pullOpID
+
+			r.handleRPCPullResult(worker.Result{
+				Kind:  worker.TaskRPCPull,
+				Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: opID},
+				Err:   cancelErr,
+			})
+			require.Nil(t, r.channels[meta.Key])
+		}
+	})
+}
+
+func TestApplyMetaPendingMetaFenceRules(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-apply-meta")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	rc := installPendingMetaForTest(t, r, meta)
+
+	differentLeader := meta
+	differentLeader.Leader = 3
+	differentLeader.Replicas = []ch.NodeID{2, 3}
+	differentLeader.ISR = []ch.NodeID{2, 3}
+	err := applyMetaDirect(t, r, differentLeader)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Same(t, rc, r.channels[meta.Key])
+	require.NotNil(t, rc.pending)
+
+	differentID := meta
+	differentID.ID = ch.ChannelID{ID: "different-id", Type: meta.ID.Type}
+	differentID.LeaderEpoch = 2
+	err = applyMetaDirect(t, r, differentID)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Same(t, rc, r.channels[meta.Key])
+	require.NotNil(t, rc.pending)
+
+	invalidNewer := meta
+	invalidNewer.LeaderEpoch = 2
+	invalidNewer.MinISR = 3
+	err = applyMetaDirect(t, r, invalidNewer)
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Nil(t, r.channels[meta.Key])
+
+	r = NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	installPendingMetaForTest(t, r, meta)
+	newer := meta
+	newer.LeaderEpoch = 2
+	require.NoError(t, applyMetaDirect(t, r, newer))
+	rc = r.channels[meta.Key]
+	require.Nil(t, rc.pending)
+	require.NotNil(t, rc.state)
+	require.Equal(t, uint64(2), rc.state.LeaderEpoch)
+	require.Equal(t, ch.RoleFollower, rc.state.Role)
+}
+
+func TestLoadedFollowerNewerPullHintReplacesRuntimeWithPendingMeta(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	obs := &captureObserver{}
+	meta := followerTestMeta("loaded-newer-pending")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	loaded := r.channels[meta.Key]
+	loaded.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
+	r.observeFollowerParkedCount(r.countParkedFollowers())
+	require.Equal(t, 1, obs.FollowerParked())
+
+	newer := meta
+	newer.LeaderEpoch = 2
+	require.NoError(t, submitPullHintDirect(t, r, newer, 5))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.state)
+	require.NotNil(t, rc.pending)
+	require.Equal(t, uint64(2), rc.pending.leaderEpoch)
+	require.Eventually(t, func() bool { return net.LastPull().NeedMeta }, time.Second, time.Millisecond)
+	require.Equal(t, uint64(1), net.LastPull().NextOffset)
+	require.Equal(t, 1, obs.RuntimeEvicted())
+	require.Equal(t, 0, obs.FollowerParked())
+}
+
+func TestLoadedFollowerInvalidNewerPullHintDoesNotReleaseRuntime(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("loaded-invalid-newer")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	loaded := r.channels[meta.Key]
+	require.NotNil(t, loaded.state)
+
+	req := pullHintForMeta(meta, 5)
+	req.LeaderEpoch = 2
+	req.Leader = 0
+	future := NewFuture()
+	r.handleFollowerPullHint(Event{Kind: EventPullHint, Key: meta.Key, PullHint: req, Future: future})
+	_, err := future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Same(t, loaded, r.channels[meta.Key])
+	require.NotNil(t, r.channels[meta.Key].state)
+	require.Nil(t, r.channels[meta.Key].pending)
+}
+
+func TestLoadedFollowerMatchedFenceNonReplicaPullHintReturnsNotReplica(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("loaded-not-replica")
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	loaded := r.channels[meta.Key]
+
+	err := submitPullHintDirect(t, r, meta, 5)
+	require.ErrorIs(t, err, ch.ErrNotReplica)
+	require.Same(t, loaded, r.channels[meta.Key])
+	require.NotNil(t, r.channels[meta.Key].state)
+}
+
+func TestPendingMetaApplyMetaCanConvertToLeader(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-becomes-leader")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	installPendingMetaForTest(t, r, meta)
+	leader := meta
+	leader.LeaderEpoch = 2
+	leader.Leader = 2
+	leader.Replicas = []ch.NodeID{1, 2}
+	leader.ISR = []ch.NodeID{1, 2}
+
+	require.NoError(t, applyMetaDirect(t, r, leader))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.pending)
+	require.NotNil(t, rc.state)
+	require.Equal(t, ch.RoleLeader, rc.state.Role)
+	require.Equal(t, uint64(2), rc.state.LeaderEpoch)
+}
+
+func TestPendingMetaDeadlineExpiryReleasesShell(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-expire")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, PullHintRetryInterval: time.Millisecond})
+	installPendingMetaForTest(t, r, meta)
+
+	r.processDue(time.Now().Add(2 * time.Millisecond))
+
+	require.Nil(t, r.channels[meta.Key])
+}
+
+func TestRuntimeEvictReleasesPendingMeta(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-runtime-evict")
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	require.NoError(t, err)
+	defer g.Close()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventPullHint, Key: meta.Key, PullHint: pullHintForMeta(meta, 1)}))
+
+	result, err := g.RuntimeEvict(context.Background(), ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{meta.ID}})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, result.Evicted)
+	require.Equal(t, 0, result.SkippedBusy)
+	require.Equal(t, 0, result.Missing)
+}
+
+func TestPendingMetaRPCBackpressureResultReleasesWithoutRetry(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-rpc-backpressure")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	rc := installPendingMetaForTest(t, r, meta)
+	opID := rc.pending.pullOpID
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: opID},
+		Err:   ch.ErrBackpressured,
+	})
+
+	require.Nil(t, r.channels[meta.Key])
+}
+
+func TestPendingMetaNeedMetaConversionSchedulesEmptyLaggingPull(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-empty-lagging")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	rc := installPendingMetaForTest(t, r, meta)
+	opID := rc.pending.pullOpID
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.pending.generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: opID},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    0,
+			LeaderLEO:   2,
+			Meta:        &meta,
+		}},
+	})
+
+	rc = r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.pending)
+	require.True(t, rc.replication.dirty)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.Greater(t, r.due.Len(), 0)
+}
+
+func TestPendingMetaApplyMetaFollowerSchedulesReplication(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("pending-apply-schedules")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	installPendingMetaForTest(t, r, meta)
+
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Nil(t, rc.pending)
+	require.True(t, rc.replication.dirty)
+	require.Greater(t, r.due.Len(), 0)
+}
+
+func TestFollowerUnexpectedMetaResponseBacksOffAndSchedulesRetry(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("normal-meta-retry")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16, ReplicationMinBackoff: time.Millisecond, ReplicationMaxBackoff: time.Millisecond})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+	rc.replication.pullSubmittedAt = time.Now()
+
+	r.handleRPCPullResult(worker.Result{
+		Kind: worker.TaskRPCPull,
+		Fence: ch.Fence{
+			ChannelKey:  meta.Key,
+			Generation:  rc.state.Generation,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			OpID:        7,
+		},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Meta:        &meta,
+		}},
+	})
+
+	require.ErrorIs(t, rc.replication.lastError, ch.ErrInvalidConfig)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.Greater(t, r.due.Len(), 0)
+}
+
+func TestPendingMetaAcceptsExplicitNonDerivedChannelKey(t *testing.T) {
+	net := newCapturingTransport()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	meta := followerTestMeta("explicit-pending-key")
+	meta.Key = ch.ChannelKey("explicit:key")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 1))
+	require.NotNil(t, r.channels[meta.Key].pending)
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NotNil(t, r.channels[meta.Key].state)
+}
+
 func TestFollowerReplicationStageMetricsTrackHintPullApplyAndAckReturn(t *testing.T) {
 	obs := &replicationStageObserver{}
 	net := newCapturingTransport()
@@ -3579,6 +4123,63 @@ func followerTestMeta(id string) ch.Meta {
 	return ch.Meta{Key: ch.ChannelKeyForID(channelID), ID: channelID, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
 }
 
+func pullHintForMeta(meta ch.Meta, leaderLEO uint64) transport.PullHintRequest {
+	return transport.PullHintRequest{
+		ChannelKey:      meta.Key,
+		ChannelID:       meta.ID,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Leader:          meta.Leader,
+		LeaderLEO:       leaderLEO,
+		ActivityVersion: leaderLEO,
+		Reason:          transport.PullHintReasonAppend,
+	}
+}
+
+func submitPullHintDirect(t *testing.T, r *Reactor, meta ch.Meta, leaderLEO uint64) error {
+	t.Helper()
+	future := NewFuture()
+	r.handleFollowerPullHint(Event{Kind: EventPullHint, Key: meta.Key, PullHint: pullHintForMeta(meta, leaderLEO), Future: future})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := future.Await(ctx)
+	return err
+}
+
+func installPendingMetaForTest(t *testing.T, r *Reactor, meta ch.Meta) *runtimeChannel {
+	t.Helper()
+	cs, err := r.cfg.Store.ChannelStore(meta.Key, meta.ID)
+	require.NoError(t, err)
+	initial, err := cs.Load(context.Background())
+	require.NoError(t, err)
+	rc := &runtimeChannel{
+		store: cs,
+		pending: &pendingMetaState{
+			key:             meta.Key,
+			id:              meta.ID,
+			generation:      10,
+			epoch:           meta.Epoch,
+			leaderEpoch:     meta.LeaderEpoch,
+			leader:          meta.Leader,
+			leaderLEO:       1,
+			activityVersion: 1,
+			deadline:        r.pendingMetaDeadline(time.Now()),
+			initial: storeInitialState{
+				LEO:          initial.LEO,
+				HW:           initial.HW,
+				CheckpointHW: initial.CheckpointHW,
+			},
+			pullInflight:           true,
+			pullOpID:               11,
+			pullSubmittedAt:        time.Now(),
+			pullSubmittedAckOffset: initial.LEO,
+		},
+	}
+	r.channels[meta.Key] = rc
+	r.schedulePendingMetaDeadline(rc)
+	return rc
+}
+
 func newFollowerReplicationTestRuntime(t *testing.T) (*Reactor, *runtimeChannel) {
 	t.Helper()
 	factory := store.NewMemoryFactory()
@@ -3616,6 +4217,12 @@ type capturingTransport struct {
 	ackErr    error
 	blockPull chan struct{}
 }
+
+type temporaryPullError struct{}
+
+func (temporaryPullError) Error() string   { return "temporary pull error" }
+func (temporaryPullError) Timeout() bool   { return true }
+func (temporaryPullError) Temporary() bool { return true }
 
 func newCapturingTransport() *capturingTransport {
 	return &capturingTransport{}

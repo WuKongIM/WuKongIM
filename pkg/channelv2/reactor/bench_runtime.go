@@ -204,6 +204,11 @@ func (r *Reactor) handleRuntimeEvict(event Event) {
 			result.Missing++
 			continue
 		}
+		if rc.pending != nil && rc.state == nil {
+			r.releasePendingMeta(key, rc)
+			result.Evicted++
+			continue
+		}
 		if r.evictRuntimeChannel(key, rc, "bench runtime evict") {
 			result.Evicted++
 			continue

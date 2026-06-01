@@ -9,6 +9,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
@@ -103,6 +104,7 @@ type Reactor struct {
 type runtimeChannel struct {
 	state   *machine.ChannelState
 	store   store.ChannelStore
+	pending *pendingMetaState
 	waiters map[ch.OpID]*Future
 	// appendQ holds accepted append requests before they are flushed as durable batches.
 	appendQ appendQueue
@@ -347,7 +349,11 @@ func (r *Reactor) failPendingWaiters(err error) {
 	if r == nil {
 		return
 	}
-	for _, rc := range r.channels {
+	for key, rc := range r.channels {
+		if rc != nil && rc.pending != nil && rc.state == nil {
+			r.releasePendingMeta(key, rc)
+			continue
+		}
 		r.failWaiters(rc, err)
 		r.clearAppendCancelContexts(rc)
 		r.clearPullCancelChannel(rc)
@@ -375,6 +381,10 @@ func (r *Reactor) handleApplyMeta(event Event) {
 	key := event.Meta.Key
 	if key == "" {
 		key = ch.ChannelKeyForID(event.Meta.ID)
+	}
+	if existing := r.channels[key]; existing != nil && existing.pending != nil && existing.state == nil {
+		r.handleApplyMetaToPending(event, existing)
+		return
 	}
 	existing := r.channels[key]
 	rc, err := r.ensureChannel(event.Meta)
@@ -449,6 +459,54 @@ func (r *Reactor) handleCheckState(event Event) {
 	event.Future.Complete(Result{Err: err})
 }
 
+func (r *Reactor) handleApplyMetaToPending(event Event, rc *runtimeChannel) {
+	if event.Future == nil {
+		event.Future = NewFuture()
+	}
+	meta := event.Meta
+	pending := rc.pending
+	if pending == nil {
+		event.Future.Complete(Result{Err: ch.ErrChannelNotFound})
+		return
+	}
+	if meta.Key == "" {
+		meta.Key = ch.ChannelKeyForID(meta.ID)
+	}
+	if meta.Key != pending.key {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if meta.ID != pending.id {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	cmp := comparePendingMetaFence(pending, meta)
+	if cmp < 0 {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if cmp == 0 && meta.Leader != pending.leader {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	if err := validatePendingMetaShape(meta); err != nil {
+		r.releasePendingMeta(pending.key, rc)
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if !metaHasReplica(meta, r.cfg.LocalNode) {
+		r.releasePendingMeta(pending.key, rc)
+		event.Future.Complete(Result{Err: ch.ErrNotReplica})
+		return
+	}
+	if err := r.convertPendingMeta(rc, meta); err != nil {
+		r.releasePendingMeta(pending.key, rc)
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	event.Future.Complete(Result{})
+}
+
 func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	key := meta.Key
 	if key == "" {
@@ -492,6 +550,213 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	return rc, nil
 }
 
+func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChannel, error) {
+	if err := validatePendingPullHint(req, r.cfg.LocalNode); err != nil {
+		return nil, err
+	}
+	if rc := r.channels[req.ChannelKey]; rc != nil {
+		if rc.pending == nil || rc.state != nil {
+			return nil, ch.ErrStaleMeta
+		}
+		switch rc.pending.compareFence(req) {
+		case -1:
+			return nil, ch.ErrStaleMeta
+		case 0:
+			if req.LeaderLEO > rc.pending.leaderLEO {
+				rc.pending.leaderLEO = req.LeaderLEO
+			}
+			if req.ActivityVersion > rc.pending.activityVersion {
+				rc.pending.activityVersion = req.ActivityVersion
+			}
+			return rc, nil
+		default:
+			r.releasePendingMeta(req.ChannelKey, rc)
+		}
+	}
+	if r.cfg.MaxChannelsEnabled && len(r.channels) >= r.cfg.MaxChannels {
+		r.observeActivationRejected("max_channels")
+		return nil, ch.ErrTooManyChannels
+	}
+	cs, err := r.cfg.Store.ChannelStore(req.ChannelKey, req.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	initial, err := cs.Load(context.Background())
+	if err != nil {
+		_ = cs.Close()
+		return nil, err
+	}
+	rc := &runtimeChannel{
+		store: cs,
+		pending: &pendingMetaState{
+			key:             req.ChannelKey,
+			id:              req.ChannelID,
+			generation:      uint64(r.nextOpID()),
+			epoch:           req.Epoch,
+			leaderEpoch:     req.LeaderEpoch,
+			leader:          req.Leader,
+			leaderLEO:       req.LeaderLEO,
+			activityVersion: req.ActivityVersion,
+			deadline:        r.pendingMetaDeadline(time.Now()),
+			initial: storeInitialState{
+				LEO:          initial.LEO,
+				HW:           initial.HW,
+				CheckpointHW: initial.CheckpointHW,
+			},
+		},
+	}
+	r.channels[req.ChannelKey] = rc
+	r.schedulePendingMetaDeadline(rc)
+	return rc, nil
+}
+
+func validatePendingPullHint(req transport.PullHintRequest, local ch.NodeID) error {
+	if req.ChannelKey == "" || req.ChannelID == (ch.ChannelID{}) || req.Epoch == 0 || req.LeaderEpoch == 0 || req.Leader == 0 || req.Leader == local {
+		return ch.ErrInvalidConfig
+	}
+	return nil
+}
+
+func validatePendingMetaShape(meta ch.Meta) error {
+	if meta.Key == "" || meta.ID == (ch.ChannelID{}) || meta.Epoch == 0 || meta.LeaderEpoch == 0 || meta.Leader == 0 {
+		return ch.ErrInvalidConfig
+	}
+	if meta.Status != ch.StatusActive {
+		return ch.ErrNotReady
+	}
+	if meta.MinISR <= 0 || meta.MinISR > len(meta.ISR) {
+		return ch.ErrInvalidConfig
+	}
+	return nil
+}
+
+func comparePendingMetaFence(pending *pendingMetaState, meta ch.Meta) int {
+	if pending == nil {
+		return 1
+	}
+	if meta.Epoch < pending.epoch || (meta.Epoch == pending.epoch && meta.LeaderEpoch < pending.leaderEpoch) {
+		return -1
+	}
+	if meta.Epoch == pending.epoch && meta.LeaderEpoch == pending.leaderEpoch {
+		if meta.Key != pending.key {
+			return -1
+		}
+		return 0
+	}
+	return 1
+}
+
+func metaHasReplica(meta ch.Meta, node ch.NodeID) bool {
+	for _, replica := range meta.Replicas {
+		if replica == node {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
+	if r == nil || rc == nil || rc.pending == nil {
+		return ch.ErrChannelNotFound
+	}
+	pending := rc.pending
+	state := machine.NewChannelState(pending.key, r.cfg.LocalNode, pending.generation)
+	state.ID = meta.ID
+	state.LEO = pending.initial.LEO
+	state.HW = pending.initial.HW
+	state.CheckpointHW = pending.initial.CheckpointHW
+	decision := state.ApplyMeta(meta)
+	if decision.Err != nil {
+		return decision.Err
+	}
+	rc.state = state
+	rc.pending = nil
+	rc.recentRecords = newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes)
+	rc.lifecycle = newChannelRuntimeLifecycle(time.Now(), state.LEO)
+	rc.appendQ = newAppendQueue(appendQueueConfig{
+		MaxRecords:      r.cfg.AppendBatchMaxRecords,
+		MaxBytes:        r.cfg.AppendBatchMaxBytes,
+		MaxWait:         r.cfg.AppendBatchMaxWait,
+		MaxPending:      r.cfg.AppendQueueMaxRequests,
+		MaxPendingBytes: r.cfg.AppendQueueMaxBytes,
+	})
+	rc.replication.reset()
+	now := time.Now()
+	if state.Role == ch.RoleFollower && state.Status == ch.StatusActive {
+		rc.replication.lastActivityVersion = pending.activityVersion
+		if pending.leaderLEO > state.LEO {
+			rc.replication.hintedLeaderLEO = pending.leaderLEO
+			rc.replication.hintedAt = now
+		}
+		rc.replication.markDirty(now)
+		r.scheduleReplicationFromState(rc, now)
+	} else if state.Role == ch.RoleLeader && state.Status == ch.StatusActive {
+		if state.LEO > rc.lifecycle.version {
+			rc.lifecycle.version = state.LEO
+		}
+		r.syncLeaderFollowers(rc)
+		r.scheduleLifecycleFromState(rc, now)
+	}
+	r.observeChannelRuntimeLoaded(state.Key)
+	r.observeRuntimeCounts()
+	return nil
+}
+
+func (r *Reactor) releasePendingMeta(key ch.ChannelKey, rc *runtimeChannel) {
+	if r == nil || rc == nil || rc.pending == nil || r.channels[key] != rc {
+		return
+	}
+	_ = rc.store.Close()
+	delete(r.channels, key)
+	r.observeRuntimeCounts()
+}
+
+func (r *Reactor) releaseExpiredPendingMeta(key ch.ChannelKey, rc *runtimeChannel, now time.Time) {
+	if r == nil || rc == nil || rc.pending == nil || rc.state != nil || r.channels[key] != rc {
+		return
+	}
+	if rc.pending.deadline.IsZero() || now.Before(rc.pending.deadline) {
+		return
+	}
+	r.releasePendingMeta(key, rc)
+}
+
+func (r *Reactor) pendingMetaDeadline(now time.Time) time.Time {
+	timeout := r.cfg.PullHintRetryInterval
+	if timeout <= 0 {
+		timeout = time.Second
+	}
+	return now.Add(timeout)
+}
+
+func (r *Reactor) forceReleaseRuntimeForPending(key ch.ChannelKey, rc *runtimeChannel) {
+	if r == nil || rc == nil || r.channels[key] != rc {
+		return
+	}
+	var role ch.Role
+	wasParkedFollower := false
+	if rc.state != nil {
+		role = rc.state.Role
+		wasParkedFollower = role == ch.RoleFollower && rc.replication.parked
+	}
+	r.failPendingAppendWaiters(rc, ch.ErrStaleMeta)
+	rc.failPendingPullWaiters(ch.ErrStaleMeta)
+	r.clearPullCancelChannel(rc)
+	r.clearAppendCancelContexts(rc)
+	if rc.store != nil {
+		_ = rc.store.Close()
+	}
+	delete(r.channels, key)
+	r.clearAppendSubmitState(key)
+	if role != 0 {
+		r.observeChannelRuntimeEvicted(key, role)
+	}
+	if wasParkedFollower {
+		r.observeFollowerParkedCount(r.countParkedFollowers())
+	}
+	r.observeRuntimeCounts()
+}
+
 func (r *Reactor) observeRuntimeCounts() {
 	if r == nil {
 		return
@@ -514,7 +779,7 @@ func (r *Reactor) observeRuntimeCounts() {
 }
 
 func (r *Reactor) lookup(key ch.ChannelKey) (*runtimeChannel, error) {
-	if rc := r.channels[key]; rc != nil {
+	if rc := r.channels[key]; rc != nil && rc.state != nil && rc.pending == nil {
 		return rc, nil
 	}
 	return nil, ch.ErrChannelNotFound

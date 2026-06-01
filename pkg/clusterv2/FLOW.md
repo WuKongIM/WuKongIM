@@ -117,10 +117,12 @@ preferred leader only when that node is selected as a ChannelV2 replica.
 Existing `ChannelRuntimeMeta` rows remain authoritative for established
 channels.
 
-ChannelV2 PullHint RPCs carry the leader's current metadata summary so the
-remote service can lazily activate an unloaded follower even when its local Slot
-metadata read has not observed the new row yet. This is a replication-only fast
-path; client append admission still uses `EnsureChannelMeta`.
+ChannelV2 PullHint RPCs carry only a slim metadata reference and wakeup fields.
+An unloaded or newer-fence follower creates reactor-owned `PendingMeta` and
+uses `Pull{NeedMeta=true}` to fetch active metadata from the channel leader
+runtime before applying any records. The service layer does not resolve Slot
+metadata for PullHint receive; client append admission still uses
+`EnsureChannelMeta`.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

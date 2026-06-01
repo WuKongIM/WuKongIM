@@ -10,14 +10,8 @@ import (
 )
 
 const (
-	pullHintReceiveStageStateCheck   = "state_check"
-	pullHintReceiveStageLoaded       = "loaded"
-	pullHintReceiveStageMetaResolve  = "meta_resolve"
-	pullHintReceiveStageMetaHint     = "meta_hint"
-	pullHintReceiveStageMetaValidate = "meta_validate"
-	pullHintReceiveStageMetaApply    = "meta_apply"
-	pullHintReceiveStageSubmit       = "submit"
-	pullHintReceiveStageAwait        = "await"
+	pullHintReceiveStageSubmit = "submit"
+	pullHintReceiveStageAwait  = "await"
 )
 
 type pullHintReceiveObserver interface {
@@ -47,11 +41,8 @@ func (c *cluster) HandleAck(ctx context.Context, req transport.AckRequest) error
 	return err
 }
 
-// HandlePullHint serves a leader pull hint and lazily activates unloaded followers.
+// HandlePullHint serves a leader pull hint through the owning reactor.
 func (c *cluster) HandlePullHint(ctx context.Context, req transport.PullHintRequest) error {
-	if err := c.ensurePullHintChannelState(ctx, req); err != nil {
-		return err
-	}
 	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventPullHint, Key: req.ChannelKey, PullHint: req})
 	c.observePullHintReceived(req.Reason, pullHintReceiveStageSubmit, err)
 	if err != nil {
@@ -74,56 +65,10 @@ func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest)
 		ActivityVersion: req.LeaderLEO,
 		Reason:          transport.PullHintReasonAppend,
 	})
-	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) {
+	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) || errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, ch.ErrNotReplica) {
 		return nil
 	}
 	return err
-}
-
-func (c *cluster) ensurePullHintChannelState(ctx context.Context, req transport.PullHintRequest) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	loaded, err := c.group.HasChannelState(ctx, req.ChannelKey)
-	c.observePullHintReceived(req.Reason, pullHintReceiveStageStateCheck, err)
-	if err != nil {
-		return err
-	}
-	if loaded {
-		c.observePullHintReceived(req.Reason, pullHintReceiveStageLoaded, nil)
-		return nil
-	}
-	meta, err := c.resolvePullHintMeta(ctx, req)
-	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaResolve, err)
-	if err != nil {
-		return err
-	}
-	if meta.ID == (ch.ChannelID{}) {
-		meta.ID = req.ChannelID
-	}
-	if meta.Key == "" {
-		meta.Key = ch.ChannelKeyForID(meta.ID)
-	}
-	local := c.localNode
-	if meta.Key != req.ChannelKey || meta.ID != req.ChannelID || meta.Epoch != req.Epoch || meta.LeaderEpoch != req.LeaderEpoch ||
-		meta.Leader != req.Leader || meta.Leader == local || meta.Status != ch.StatusActive ||
-		!metaContainsReplica(meta.Replicas, local) {
-		c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaValidate, ch.ErrStaleMeta)
-		return ch.ErrStaleMeta
-	}
-	err = c.applyMeta(ctx, meta)
-	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaApply, err)
-	return err
-}
-
-func (c *cluster) resolvePullHintMeta(ctx context.Context, req transport.PullHintRequest) (ch.Meta, error) {
-	if c.metaResolver != nil {
-		meta, err := c.metaResolver.ResolveChannelMeta(ctx, req.ChannelID)
-		if err == nil || !errors.Is(err, ch.ErrChannelNotFound) {
-			return meta, err
-		}
-	}
-	return ch.Meta{}, ch.ErrChannelNotFound
 }
 
 func (c *cluster) observePullHintReceived(reason transport.PullHintReason, stage string, err error) {
@@ -135,13 +80,4 @@ func (c *cluster) observePullHintReceived(reason transport.PullHintReason, stage
 		return
 	}
 	observer.ObservePullHintReceived(reason, stage, err)
-}
-
-func metaContainsReplica(replicas []ch.NodeID, node ch.NodeID) bool {
-	for _, replica := range replicas {
-		if replica == node {
-			return true
-		}
-	}
-	return false
 }

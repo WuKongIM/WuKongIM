@@ -127,7 +127,7 @@ func TestPullHintLazyActivatesUnloadedFollowerAndReplicatesWithoutTicks(t *testi
 	case <-time.After(time.Second):
 		t.Fatal("append did not complete after pull hint lazy activation")
 	}
-	require.Equal(t, int32(1), resolver.calls.Load())
+	require.Equal(t, int32(0), resolver.calls.Load())
 }
 
 func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *testing.T) {
@@ -191,8 +191,8 @@ func TestThreeNodeClusterReactivatesStoppedFollowerWithPullHintAndCommits(t *tes
 	require.Equal(t, uint64(2), second.MessageSeq)
 	waitTestkitCommitted(t, nodes, stores, meta.ID, 2, 2, time.Second)
 	waitTestkitCommitted(t, nodes, stores, meta.ID, 3, 2, time.Second)
-	require.Greater(t, resolvers[2].calls.Load(), beforeFollower2)
-	require.Greater(t, resolvers[3].calls.Load(), beforeFollower3)
+	require.Equal(t, beforeFollower2, resolvers[2].calls.Load())
+	require.Equal(t, beforeFollower3, resolvers[3].calls.Load())
 }
 
 func TestThreeNodeClusterCatchesUpAfterTemporaryPullDrop(t *testing.T) {

@@ -191,23 +191,33 @@ func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
 }
 
 func (r *Reactor) handleFollowerPullHint(event Event) {
-	rc, err := r.lookup(event.Key)
-	if err != nil {
+	req := event.PullHint
+	if err := validatePendingPullHint(req, r.cfg.LocalNode); err != nil {
 		if event.Future != nil {
 			event.Future.Complete(Result{Err: err})
 		}
 		return
 	}
-	req := event.PullHint
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		r.handlePendingMetaPullHint(event)
+		return
+	}
+	if loadedFollowerPullHintNewer(rc, req) {
+		r.forceReleaseRuntimeForPending(rc.state.Key, rc)
+		r.handlePendingMetaPullHint(event)
+		return
+	}
 	if req.ChannelKey != "" && req.ChannelKey != rc.state.Key {
 		err = ch.ErrStaleMeta
 	} else if req.ChannelID != (ch.ChannelID{}) && req.ChannelID != rc.state.ID {
 		err = ch.ErrStaleMeta
 	} else if rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive ||
 		req.Epoch != rc.state.Epoch || req.LeaderEpoch != rc.state.LeaderEpoch ||
-		req.Leader != rc.state.Leader || req.Leader == r.cfg.LocalNode ||
-		!rc.state.IsReplica(r.cfg.LocalNode) {
+		req.Leader != rc.state.Leader {
 		err = ch.ErrStaleMeta
+	} else if !rc.state.IsReplica(r.cfg.LocalNode) {
+		err = ch.ErrNotReplica
 	}
 	if err != nil {
 		if event.Future != nil {
@@ -251,6 +261,82 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	}
 }
 
+func (r *Reactor) handlePendingMetaPullHint(event Event) {
+	rc, err := r.ensurePendingMeta(event.PullHint)
+	if err != nil {
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: err})
+		}
+		return
+	}
+	if err := r.submitPendingMetaPull(rc, time.Now()); err != nil {
+		r.releasePendingMeta(event.PullHint.ChannelKey, rc)
+		if event.Future != nil {
+			event.Future.Complete(Result{Err: err})
+		}
+		return
+	}
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
+}
+
+func (r *Reactor) submitPendingMetaPull(rc *runtimeChannel, now time.Time) error {
+	if r == nil || rc == nil || rc.pending == nil {
+		return ch.ErrChannelNotFound
+	}
+	pending := rc.pending
+	if pending.pullInflight {
+		return nil
+	}
+	for {
+		opID := r.nextOpID()
+		fence := ch.Fence{ChannelKey: pending.key, Generation: pending.generation, Epoch: pending.epoch, LeaderEpoch: pending.leaderEpoch, OpID: opID}
+		req := transport.PullRequest{
+			ChannelKey:  pending.key,
+			ChannelID:   pending.id,
+			Epoch:       pending.epoch,
+			LeaderEpoch: pending.leaderEpoch,
+			Follower:    r.cfg.LocalNode,
+			NextOffset:  pending.initial.LEO + 1,
+			AckOffset:   pending.initial.LEO,
+			MaxBytes:    r.cfg.PullMaxBytes,
+			NeedMeta:    true,
+		}
+		if err := r.submitRPCPull(context.Background(), pending.leader, fence, req); err != nil {
+			pending.lastError = err
+			if retryablePendingPullError(err) && pending.retryCount < 1 {
+				pending.retryCount++
+				continue
+			}
+			return err
+		}
+		pending.pullInflight = true
+		pending.pullOpID = opID
+		pending.pullSubmittedAt = now
+		pending.pullSubmittedAckOffset = req.AckOffset
+		pending.lastError = nil
+		return nil
+	}
+}
+
+func (r *Reactor) retryPendingMetaPull(rc *runtimeChannel, now time.Time) error {
+	if r == nil || rc == nil || rc.pending == nil {
+		return ch.ErrChannelNotFound
+	}
+	pending := rc.pending
+	if pending.retryCount < 1 {
+		pending.retryCount++
+		if err := r.submitPendingMetaPull(rc, now); err != nil {
+			return err
+		}
+		if pending.pullInflight {
+			return nil
+		}
+	}
+	return pending.lastError
+}
+
 // handleLegacyFollowerNotify accepts the legacy transport compatibility nudge
 // and maps it to the current PullHint-driven follower resume path.
 func (r *Reactor) handleLegacyFollowerNotify(event Event) {
@@ -281,6 +367,10 @@ func (r *Reactor) handleLegacyFollowerNotify(event Event) {
 }
 
 func (r *Reactor) handleRPCPullResult(result worker.Result) {
+	if rc := r.channels[result.Fence.ChannelKey]; rc != nil && rc.pending != nil && rc.state == nil {
+		r.handlePendingMetaPullResult(rc, result)
+		return
+	}
 	rc, err := r.lookup(result.Fence.ChannelKey)
 	if err != nil {
 		return
@@ -318,15 +408,96 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		return
 	}
 	resp := result.RPCPull.Response
-	if resp.ChannelKey != rc.state.Key || resp.Epoch != rc.state.Epoch || resp.LeaderEpoch != rc.state.LeaderEpoch {
+	if resp.ChannelKey != rc.state.Key || resp.Epoch != rc.state.Epoch || resp.LeaderEpoch != rc.state.LeaderEpoch || resp.Meta != nil {
 		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
 		r.observePull("err", false)
 		if recoveryProbe {
 			r.observeRecoveryProbe("err")
 		}
+		if resp.Meta != nil {
+			r.backoffPull(rc, ch.ErrInvalidConfig, now)
+			return
+		}
 		r.backoffPull(rc, ch.ErrStaleMeta, now)
 		return
 	}
+	r.acceptFollowerPullResponse(rc, resp, pullSubmittedAt, pullSubmittedAckOffset, ackReturnOffset, ackReturnStartedAt, recoveryProbe, now)
+}
+
+func (r *Reactor) handlePendingMetaPullResult(rc *runtimeChannel, result worker.Result) {
+	pending := rc.pending
+	if pending == nil || result.Fence.ChannelKey != pending.key || result.Fence.Generation != pending.generation || result.Fence.Epoch != pending.epoch || result.Fence.LeaderEpoch != pending.leaderEpoch || result.Fence.OpID != pending.pullOpID || !pending.pullInflight {
+		return
+	}
+	now := time.Now()
+	pullSubmittedAt := pending.pullSubmittedAt
+	pullSubmittedAckOffset := pending.pullSubmittedAckOffset
+	pending.pullInflight = false
+	pending.pullOpID = 0
+	pending.pullSubmittedAt = time.Time{}
+	pending.pullSubmittedAckOffset = 0
+	if result.Err != nil {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
+		r.observePull("err", false)
+		pending.lastError = result.Err
+		if contextDoneError(result.Err) || nonRetryablePendingPullError(result.Err) {
+			r.releasePendingMeta(pending.key, rc)
+			return
+		}
+		if retryablePendingPullError(result.Err) && pending.retryCount < 1 {
+			if err := r.retryPendingMetaPull(rc, now); err != nil {
+				r.releasePendingMeta(pending.key, rc)
+			}
+			return
+		}
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	if result.RPCPull == nil {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
+		r.observePull("err", false)
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	resp := result.RPCPull.Response
+	if resp.Meta == nil || resp.ChannelKey != pending.key || resp.Epoch != pending.epoch || resp.LeaderEpoch != pending.leaderEpoch {
+		r.observeFollowerPullRPCWait(pullSubmittedAt, "err", now)
+		r.observePull("err", false)
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	meta := *resp.Meta
+	if err := validatePendingMetaShape(meta); err != nil {
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	if cmp := comparePendingMetaFence(pending, meta); cmp != 0 || meta.ID != pending.id || meta.Leader != pending.leader || !metaHasReplica(meta, r.cfg.LocalNode) {
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	if err := r.convertPendingMeta(rc, meta); err != nil {
+		r.releasePendingMeta(pending.key, rc)
+		return
+	}
+	resp.Meta = nil
+	r.acceptFollowerPullResponse(rc, resp, pullSubmittedAt, pullSubmittedAckOffset, 0, time.Time{}, false, now)
+	r.scheduleReplicationFromState(rc, now)
+}
+
+func loadedFollowerPullHintNewer(rc *runtimeChannel, req transport.PullHintRequest) bool {
+	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleFollower {
+		return false
+	}
+	if req.ChannelKey != rc.state.Key || req.ChannelID != rc.state.ID {
+		return false
+	}
+	if req.Epoch > rc.state.Epoch {
+		return true
+	}
+	return req.Epoch == rc.state.Epoch && req.LeaderEpoch > rc.state.LeaderEpoch
+}
+
+func (r *Reactor) acceptFollowerPullResponse(rc *runtimeChannel, resp transport.PullResponse, pullSubmittedAt time.Time, pullSubmittedAckOffset uint64, ackReturnOffset uint64, ackReturnStartedAt time.Time, recoveryProbe bool, now time.Time) {
 	r.observeFollowerPullRPCWait(pullSubmittedAt, "ok", now)
 	r.observeFollowerAckReturnWait(rc, pullSubmittedAckOffset, ackReturnOffset, ackReturnStartedAt, now)
 	r.observePull("ok", len(resp.Records) == 0)

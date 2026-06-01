@@ -13,6 +13,7 @@ const (
 	dueAppendFlush dueKind = iota + 1
 	dueReplication
 	dueLifecycle
+	duePendingMeta
 )
 
 // dueItem records one scheduled maintenance attempt for a channel.
@@ -155,6 +156,8 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 			return
 		}
 		r.tickLifecycleController(rc, now)
+	case duePendingMeta:
+		r.releaseExpiredPendingMeta(item.key, rc, now)
 	}
 }
 
@@ -265,6 +268,13 @@ func (r *Reactor) scheduleLifecycleFromState(rc *runtimeChannel, now time.Time) 
 	}
 	rc.lifecycleDueVersion++
 	r.due.push(dueItem{key: rc.state.Key, kind: dueLifecycle, due: due, version: rc.lifecycleDueVersion})
+}
+
+func (r *Reactor) schedulePendingMetaDeadline(rc *runtimeChannel) {
+	if r == nil || rc == nil || rc.pending == nil || rc.pending.deadline.IsZero() {
+		return
+	}
+	r.due.push(dueItem{key: rc.pending.key, kind: duePendingMeta, due: rc.pending.deadline, version: rc.pending.generation})
 }
 
 func (r *Reactor) nextLifecycleDue(rc *runtimeChannel, now time.Time) (time.Time, bool) {

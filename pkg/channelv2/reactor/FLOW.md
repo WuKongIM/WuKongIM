@@ -43,6 +43,7 @@ Maintenance
   dueAppendFlush
   dueReplication
   dueLifecycle
+  duePendingMeta
 ```
 
 ## Lifecycle Controller
@@ -127,8 +128,8 @@ ACK state, including zero-version stopped ACKs, is recorded in
 leader PullHint or legacy Notify
   -> Group.Submit(EventPullHint or EventNotify)
   -> handleFollowerPullHint or handleLegacyFollowerNotify
-  -> mark follower dirty
-  -> tickFollowerReplication
+  -> loaded matching follower: mark dirty and tickFollowerReplication
+  -> unloaded or newer fence: create PendingMeta and submit NeedMeta Pull
 ```
 
 ```text
@@ -158,12 +159,22 @@ submissions, `ok` counts completed PullHint RPCs, and `err` is classified by
 stable error classes such as `stale_meta`, `channel_not_found`, `not_ready`,
 `canceled`, `timeout`, `remote_error`, and `other`.
 
-Leader PullHint requests carry the current channel metadata summary
-(`Replicas`, `ISR`, `MinISR`, and `Status`) along with the usual epoch and leader
-fences. This lets an unloaded follower activate from a trusted leader hint when
-its local metadata read path has not caught up yet, while the receiver still
-validates the channel key, ID, epochs, leader, status, and local replica
-membership before applying metadata.
+Leader PullHint requests carry only the channel key, channel ID, epoch,
+leader epoch, leader, leader LEO, activity version, and reason. If the follower
+does not already have matching loaded runtime state, the owning reactor creates
+a `PendingMeta` shell and submits a bounded `Pull{NeedMeta=true}` to the channel
+leader. A successful NeedMeta Pull must return cloned active metadata; the
+follower validates key, ID, epochs, leader, active status, and local replica
+membership, applies metadata, and only then processes any records in the same
+response.
+
+`PendingMeta` is not a loaded runtime. `EventCheckState` reports it as missing,
+append, leader pull, ACK, notify, snapshots, and active runtime counts do not
+use it, and runtime eviction or close may release it directly. Same-fence
+PullHints coalesce without extending the activation deadline; newer fences for
+the same channel identity replace the pending shell; stale, invalid,
+not-replica, not-ready, and retry-exhausted attempts release it so later leader
+PullHints can start a fresh activation.
 
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.

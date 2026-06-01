@@ -88,7 +88,6 @@ func NewService(cfg Config) (*Service, error) {
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
-			MetaResolver:                  cfg.MetaSource,
 			Observer:                      cfg.Observer,
 		})
 		if err != nil {
