@@ -238,6 +238,7 @@ Verification:
 - The new regression tests failed before the code change with `context deadline exceeded` and passed after the warmup timeout change.
 - Full workload tests passed with `GOWORK=off go test ./internal/bench/workload -count=1`.
 - Focused bench tests passed with `GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1`.
+
 - Rebuilt `wukongim-dev:local` and reran the default Compose `wk-sim` smoke on the accumulated local cluster with prefix `loop-fix8-u`; it reached `running` with `connected_users=1000`, `messages_sent=2239`, `send_errors=0`, `recv_errors=0`.
 
 Status:
@@ -519,3 +520,27 @@ Decision:
 - Keep the wkbench active runtime distribution diagnostic in `activate-channels`; treat `active_leader_single_node` as an invalid topology sample before reading capacity numbers.
 - Keep the next optimization focused on Slot Raft commit wait and Slot worker/control scheduling, not `Runtime.Propose` submit or metadata FSM commit.
 - Consider tightening the stable p99 gate below 500ms only after the metadata proposal and Slot scheduling tail is reduced without regressing the now-balanced three-node data-plane placement.
+
+## 2026-06-01 wukongimv2 Three-Node 10k Channel Activation After NeedMeta
+
+Environment:
+- Main worktree at `7b3449a6` after ChannelV2 PullHint `NeedMeta` bootstrap changes.
+- Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/start-wukongimv2-three-nodes.sh`.
+- Command: `GOWORK=off scripts/bench-wukongimv2-three-nodes-10kch.sh`.
+- Evidence: `docs/development/perf-runs/20260601-102049-three-node-activate-10kch/`.
+
+Healthy checks:
+- `wkbench capacity activate-channels` passed with `activation_success=10000`, `activation_errors=0`, `activation_backlog=0`, and `activation_rejected_delta=0`.
+- Sendack latency was p50 `316.836833ms`, p95 `583.767209ms`, and p99 `636.989292ms` under the default cold-activation guardrail `stable_p99=2s`.
+- Active leader distribution stayed balanced across three nodes: node1 `3289`, node2 `3403`, node3 `3308`; maximum leader share `0.340`.
+- Each node reported `active_total=10000`; follower runtimes were parked after catch-up.
+- Service process samples stayed modest for this local run: average CPU about `11-12%`, max CPU `21-27%`, and max RSS about `356-369MB`.
+- PullHint receive counters had only `submit/await ok` samples and zero stale/not-ready/channel-not-found errors; node logs had no warn/error/panic/fatal samples.
+
+Classification:
+- Category: healthy baseline for 10k simultaneous ChannelV2 live-channel activation after replacing PullHint full metadata with `NeedMeta`.
+- Confidence: high for the end-to-end 10k activation result. Metrics attribution still flags cold-path latency as `mixed_backpressure` or `storage_commit` because metadata create/propose p99 is around `493ms` and append store/quorum wait p99 is around `45-49ms`, but these were not benchmark failures under the current guardrail.
+
+Follow-up:
+- Add explicit `PendingMeta` / `NeedMeta` success, failure reason, and retry counters. Current evidence proves end-to-end success and no PullHint receive errors, but it does not directly report `NeedMeta` success rate.
+- If validating an SLA stricter than cold p99 `2s`, rerun with `--stable-p99 200ms` after isolating metadata create/propose latency.
