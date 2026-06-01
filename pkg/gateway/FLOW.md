@@ -270,7 +270,7 @@ WKProto CONNECT:
   ⑥ 标记 authenticated，并在首次认证成功后 dispatch OnSessionOpen
 ```
 
-认证失败会尽量先写出对应 CONNACK，再关闭连接。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
+认证失败会尽量先写出对应 CONNACK，再关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error 与 SessionActivator error 会额外记录 warn 日志，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
 
 ### 6.5 出站写入与 Reply
 

@@ -104,13 +104,15 @@ unit:      total | seconds | bytes | ratio
 |--------|------|------|------|
 | `wukongim_gateway_connections_active` | Gauge | `protocol`(tcp/ws) | 当前活跃连接数 |
 | `wukongim_gateway_connections_total` | Counter | `protocol`, `event`(open/close) | 连接累计数 |
-| `wukongim_gateway_auth_total` | Counter | `status`(ok/fail) | 认证请求次数 |
-| `wukongim_gateway_auth_duration_seconds` | Histogram | — | 认证延迟 |
+| `wukongim_gateway_auth_total` | Counter | `status`(ok/fail/unknown), `failure` | 认证请求次数 |
+| `wukongim_gateway_auth_duration_seconds` | Histogram | `status`(ok/fail/unknown), `failure` | 认证延迟 |
 | `wukongim_gateway_messages_received_total` | Counter | `protocol` | 收到的客户端消息数 |
 | `wukongim_gateway_messages_received_bytes` | Counter | `protocol` | 收到的字节数 |
 | `wukongim_gateway_messages_delivered_total` | Counter | `protocol` | 推送给客户端的消息数 |
 | `wukongim_gateway_messages_delivered_bytes` | Counter | `protocol` | 推送的字节数 |
 | `wukongim_gateway_frame_handle_duration_seconds` | Histogram | `frame_type`(SEND/SUB/...) | 帧处理延迟 |
+
+`failure` 使用固定低基数值：`none` 表示认证成功；`authenticator_error` 表示认证器返回错误；`activation_error` 表示 session 激活 hook 返回错误；`protocol_violation` 表示认证前收到非 CONNECT frame；`connack_*` 表示认证或激活返回的非 success CONNACK 原因或 CONNACK 写出失败；无法识别的调用方输入统一归为 `unknown`。
 
 **直方图桶**：消息处理延迟使用 `{.0005, .001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5}` 秒。
 

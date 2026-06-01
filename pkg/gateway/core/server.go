@@ -35,6 +35,23 @@ const (
 	asyncDispatchMinQueuePerWorker = 128
 	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
 	asyncDispatchMaxBufferedTasks = 128 * 1024
+
+	authStatusOK   = "ok"
+	authStatusFail = "fail"
+
+	authFailureNone                    = "none"
+	authFailureUnknown                 = "unknown"
+	authFailureProtocolViolation       = "protocol_violation"
+	authFailureAuthenticatorError      = "authenticator_error"
+	authFailureActivationError         = "activation_error"
+	authFailureConnackAuthFail         = "connack_auth_fail"
+	authFailureConnackBan              = "connack_ban"
+	authFailureConnackClientKeyEmpty   = "connack_client_key_empty"
+	authFailureConnackRateLimit        = "connack_rate_limit"
+	authFailureConnackSystemError      = "connack_system_error"
+	authFailureConnackProtocolUpgrade  = "connack_protocol_upgrade_required"
+	authFailureConnackNonSuccessReason = "connack_non_success"
+	authFailureConnackWriteError       = "connack_write_error"
 )
 
 type Server struct {
@@ -594,13 +611,15 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 		return false, nil
 	}
 	start := time.Now()
-	status := "fail"
+	status := authStatusFail
+	failure := authFailureUnknown
 	defer func() {
-		s.observeAuth(state, status, time.Since(start))
+		s.observeAuth(state, status, failure, time.Since(start))
 	}()
 
 	connect, ok := f.(*frame.ConnectPacket)
 	if !ok {
+		failure = authFailureProtocolViolation
 		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
 		return true, nil
 	}
@@ -608,6 +627,8 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	ctx := s.dispatcher.context(state, replyToken, state.closeReason(), nil)
 	result, err := s.options.Authenticator.Authenticate(&ctx, connect)
 	if err != nil {
+		failure = authFailureAuthenticatorError
+		s.logAuthFailure(state, connect, failure, err)
 		if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
 			return true, nil
@@ -629,6 +650,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	}
 
 	if connack.ReasonCode != frame.ReasonSuccess {
+		failure = authFailureForConnack(connack.ReasonCode)
 		if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPeerClosed), writeErr)
 			return true, nil
@@ -650,6 +672,8 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	if activator, ok := s.options.Handler.(gatewaytypes.SessionActivator); ok {
 		override, err := activator.OnSessionActivate(&ctx)
 		if err != nil {
+			failure = authFailureActivationError
+			s.logAuthFailure(state, connect, failure, err)
 			if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 				state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
 				return true, nil
@@ -665,8 +689,14 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	if connack.ReasonCode == 0 {
 		connack.ReasonCode = frame.ReasonSuccess
 	}
+	if connack.ReasonCode != frame.ReasonSuccess {
+		failure = authFailureForConnack(connack.ReasonCode)
+	}
 
 	if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
+		if connack.ReasonCode == frame.ReasonSuccess {
+			failure = authFailureConnackWriteError
+		}
 		if activated && connack.ReasonCode == frame.ReasonSuccess {
 			if rollbacker, ok := s.options.Handler.(gatewaytypes.SessionActivationRollbacker); ok {
 				rollbacker.OnSessionActivateRollback(ctx, writeErr)
@@ -680,13 +710,58 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 		return true, nil
 	}
 	state.setAuthenticated(true)
-	status = "ok"
+	status = authStatusOK
+	failure = authFailureNone
 	if !state.openWasDispatched() {
 		if err := s.dispatchSessionOpen(state); err != nil {
 			return true, err
 		}
 	}
 	return true, nil
+}
+
+func authFailureForConnack(reason frame.ReasonCode) string {
+	switch reason {
+	case frame.ReasonSuccess:
+		return authFailureNone
+	case frame.ReasonAuthFail:
+		return authFailureConnackAuthFail
+	case frame.ReasonBan:
+		return authFailureConnackBan
+	case frame.ReasonClientKeyIsEmpty:
+		return authFailureConnackClientKeyEmpty
+	case frame.ReasonRateLimit:
+		return authFailureConnackRateLimit
+	case frame.ReasonSystemError:
+		return authFailureConnackSystemError
+	case frame.ReasonProtocolUpgradeRequired:
+		return authFailureConnackProtocolUpgrade
+	default:
+		return authFailureConnackNonSuccessReason
+	}
+}
+
+func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacket, failure string, err error) {
+	if s == nil || s.options.Logger == nil || err == nil {
+		return
+	}
+	fields := []wklog.Field{
+		wklog.String("failure", failure),
+		wklog.Error(err),
+	}
+	if state != nil && state.listener != nil {
+		fields = append(fields,
+			wklog.String("listener", state.listener.options.Name),
+			wklog.String("protocol", state.listener.eventProtocol),
+		)
+	}
+	if connect != nil {
+		fields = append(fields,
+			wklog.String("uid", connect.UID),
+			wklog.String("device_id", connect.DeviceID),
+		)
+	}
+	s.options.Logger.Warn("gateway auth failed", fields...)
 }
 
 func (s *Server) onClose(listener *listenerRuntime, conn transport.Conn, err error) {
@@ -1498,13 +1573,14 @@ func (s *Server) observeConnectionClose(state *sessionState) {
 	s.options.Observer.OnConnectionClose(connectionEventForState(state))
 }
 
-func (s *Server) observeAuth(state *sessionState, status string, dur time.Duration) {
+func (s *Server) observeAuth(state *sessionState, status, failure string, dur time.Duration) {
 	if s == nil || s.options.Observer == nil {
 		return
 	}
 	s.options.Observer.OnAuth(gatewaytypes.AuthEvent{
 		ConnectionEvent: connectionEventForState(state),
 		Status:          status,
+		Failure:         failure,
 		Duration:        dur,
 	})
 }

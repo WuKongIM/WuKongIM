@@ -66,11 +66,12 @@ func TestServer(t *testing.T) {
 			consumed: 1,
 		})
 
-		srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
 			return &gateway.AuthResult{
 				Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonAuthFail},
 			}, nil
-		}))
+		}), observer)
 		if err := srv.Start(); err != nil {
 			t.Fatalf("start failed: %v", err)
 		}
@@ -79,7 +80,7 @@ func TestServer(t *testing.T) {
 		conn := transportFactory.MustOpen("listener-a", 1)
 		transportFactory.MustData("listener-a", 1, []byte("x"))
 
-		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 })
+		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 && observer.authCount() == 1 })
 		if got := handler.frameCount(); got != 0 {
 			t.Fatalf("expected connect not to reach handler, got %d", got)
 		}
@@ -89,6 +90,48 @@ func TestServer(t *testing.T) {
 		if !reflect.DeepEqual(conn.Writes()[0], []byte("connack-auth-fail")) {
 			t.Fatalf("unexpected connack payload: %q", conn.Writes()[0])
 		}
+		require.Equal(t, "fail", observer.auths[0].Status)
+		require.Equal(t, "connack_auth_fail", observer.auths[0].Failure)
+	})
+
+	t.Run("wkproto authenticator error writes retryable connack and records failure reason", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("wkproto")
+		proto.encodeFn = func(_ session.Session, f frame.Frame, _ session.OutboundMeta) ([]byte, error) {
+			connack, ok := f.(*frame.ConnackPacket)
+			if !ok {
+				t.Fatalf("expected connack frame, got %T", f)
+			}
+			if connack.ReasonCode != frame.ReasonSystemError {
+				t.Fatalf("expected retryable connack, got %v", connack.ReasonCode)
+			}
+			return []byte("connack-system"), nil
+		}
+		proto.pushDecode(decodeResult{
+			frames: []frame.Frame{&frame.ConnectPacket{
+				UID:        "u1",
+				DeviceID:   "d-1",
+				DeviceFlag: frame.APP,
+			}},
+			consumed: 1,
+		})
+
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+			return nil, errors.New("auth boom")
+		}), observer)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		transportFactory.MustData("listener-a", 1, []byte("c"))
+
+		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 && observer.authCount() == 1 })
+		require.Equal(t, []byte("connack-system"), conn.Writes()[0])
+		require.Equal(t, "fail", observer.auths[0].Status)
+		require.Equal(t, "authenticator_error", observer.auths[0].Failure)
 	})
 
 	t.Run("successful wkproto activation runs before success connack", func(t *testing.T) {
@@ -194,7 +237,8 @@ func TestServer(t *testing.T) {
 			consumed: 1,
 		})
 
-		srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
 		if err := srv.Start(); err != nil {
 			t.Fatalf("start failed: %v", err)
 		}
@@ -203,13 +247,15 @@ func TestServer(t *testing.T) {
 		conn := transportFactory.MustOpen("listener-a", 1)
 		transportFactory.MustData("listener-a", 1, []byte("c"))
 
-		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 })
+		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 && observer.authCount() == 1 })
 		if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate"}) {
 			t.Fatalf("unexpected call order: %v", got)
 		}
 		if got := conn.Writes()[0]; !reflect.DeepEqual(got, []byte("connack-system")) {
 			t.Fatalf("unexpected connack payload: %q", got)
 		}
+		require.Equal(t, "fail", observer.auths[0].Status)
+		require.Equal(t, "activation_error", observer.auths[0].Failure)
 	})
 
 	t.Run("wkproto activation normalizes zero reason override to success", func(t *testing.T) {
@@ -1275,7 +1321,8 @@ func TestServerRollsBackActivationWhenCONNACKWriteFails(t *testing.T) {
 		consumed: 1,
 	})
 
-	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	observer := &recordingObserver{}
+	srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -1284,10 +1331,12 @@ func TestServerRollsBackActivationWhenCONNACKWriteFails(t *testing.T) {
 	conn := transportFactory.MustOpen("listener-a", 1)
 	transportFactory.MustData("listener-a", 1, []byte("c"))
 
-	waitFor(t, func() bool { return connClosed(conn) && rollbackCalled.Load() })
+	waitFor(t, func() bool { return connClosed(conn) && rollbackCalled.Load() && observer.authCount() == 1 })
 	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate", "activate_rollback"}) {
 		t.Fatalf("unexpected call order: %v", got)
 	}
+	require.Equal(t, "fail", observer.auths[0].Status)
+	require.Equal(t, "connack_write_error", observer.auths[0].Failure)
 }
 
 func TestServerDoesNotRollbackWhenCONNACKWriteFailsWithoutActivation(t *testing.T) {
@@ -1306,7 +1355,8 @@ func TestServerDoesNotRollbackWhenCONNACKWriteFailsWithoutActivation(t *testing.
 		consumed: 1,
 	})
 
-	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	observer := &recordingObserver{}
+	srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -1315,10 +1365,12 @@ func TestServerDoesNotRollbackWhenCONNACKWriteFailsWithoutActivation(t *testing.
 	conn := transportFactory.MustOpen("listener-a", 1)
 	transportFactory.MustData("listener-a", 1, []byte("c"))
 
-	waitFor(t, func() bool { return connClosed(conn) })
+	waitFor(t, func() bool { return connClosed(conn) && observer.authCount() == 1 })
 	if handler.rollbackCalled.Load() {
 		t.Fatal("rollback called without successful activation")
 	}
+	require.Equal(t, "fail", observer.auths[0].Status)
+	require.Equal(t, "connack_write_error", observer.auths[0].Failure)
 }
 
 func TestServerDoesNotRollbackWhenActivationFailsAndCONNACKWriteFails(t *testing.T) {
@@ -1344,7 +1396,8 @@ func TestServerDoesNotRollbackWhenActivationFailsAndCONNACKWriteFails(t *testing
 		consumed: 1,
 	})
 
-	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	observer := &recordingObserver{}
+	srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -1353,13 +1406,15 @@ func TestServerDoesNotRollbackWhenActivationFailsAndCONNACKWriteFails(t *testing
 	conn := transportFactory.MustOpen("listener-a", 1)
 	transportFactory.MustData("listener-a", 1, []byte("c"))
 
-	waitFor(t, func() bool { return connClosed(conn) })
+	waitFor(t, func() bool { return connClosed(conn) && observer.authCount() == 1 })
 	if rollbackCalled.Load() {
 		t.Fatal("rollback called after failed activation")
 	}
 	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate"}) {
 		t.Fatalf("unexpected call order: %v", got)
 	}
+	require.Equal(t, "fail", observer.auths[0].Status)
+	require.Equal(t, "activation_error", observer.auths[0].Failure)
 }
 
 func TestServerDoesNotRollbackWhenActivationReturnsNonSuccessCONNACKAndWriteFails(t *testing.T) {
@@ -1394,7 +1449,8 @@ func TestServerDoesNotRollbackWhenActivationReturnsNonSuccessCONNACKAndWriteFail
 		consumed: 1,
 	})
 
-	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	observer := &recordingObserver{}
+	srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -1403,13 +1459,15 @@ func TestServerDoesNotRollbackWhenActivationReturnsNonSuccessCONNACKAndWriteFail
 	conn := transportFactory.MustOpen("listener-a", 1)
 	transportFactory.MustData("listener-a", 1, []byte("c"))
 
-	waitFor(t, func() bool { return connClosed(conn) && sawNonSuccessCONNACK.Load() })
+	waitFor(t, func() bool { return connClosed(conn) && sawNonSuccessCONNACK.Load() && observer.authCount() == 1 })
 	if rollbackCalled.Load() {
 		t.Fatal("rollback called after non-success connack override")
 	}
 	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate"}) {
 		t.Fatalf("unexpected call order: %v", got)
 	}
+	require.Equal(t, "fail", observer.auths[0].Status)
+	require.Equal(t, "connack_system_error", observer.auths[0].Failure)
 }
 
 func TestContextCloseSessionClosesPhysicalConnection(t *testing.T) {

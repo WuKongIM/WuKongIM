@@ -27,7 +27,9 @@ type ConnectionEvent struct {
 
 type AuthEvent struct {
 	ConnectionEvent
-	Status   string
+	Status string
+	// Failure is a bounded failure class for failed authentication attempts.
+	Failure  string
 	Duration time.Duration
 }
 

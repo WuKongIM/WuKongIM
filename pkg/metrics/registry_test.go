@@ -13,7 +13,9 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg := New(1, "node-1")
 
 	reg.Gateway.ConnectionOpened("tcp")
-	reg.Gateway.Auth("ok", 25*time.Millisecond)
+	reg.Gateway.Auth("ok", "none", 25*time.Millisecond)
+	reg.Gateway.Auth("fail", "activation_error", 30*time.Millisecond)
+	reg.Gateway.Auth("fail", "raw error text with uid", 35*time.Millisecond)
 	reg.Gateway.MessageReceived("tcp", 12)
 	reg.Gateway.MessageDelivered("tcp", 18)
 	reg.Gateway.FrameHandled("SEND", 5*time.Millisecond)
@@ -77,6 +79,46 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 		"node_id":   "1",
 		"node_name": "node-1",
 		"protocol":  "wkproto",
+	})
+
+	authTotal := requireMetricFamily(t, families, "wukongim_gateway_auth_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, authTotal, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "ok",
+		"failure":   "none",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, authTotal, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
+		"failure":   "activation_error",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, authTotal, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
+		"failure":   "unknown",
+	}).GetCounter().GetValue())
+
+	authDuration := requireMetricFamily(t, families, "wukongim_gateway_auth_duration_seconds")
+	findMetricByLabels(t, authDuration, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "ok",
+		"failure":   "none",
+	})
+	findMetricByLabels(t, authDuration, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
+		"failure":   "activation_error",
+	})
+	findMetricByLabels(t, authDuration, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
+		"failure":   "unknown",
 	})
 
 	requireMetricFamily(t, families, "wukongim_gateway_async_send_batch_records")

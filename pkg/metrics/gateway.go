@@ -20,7 +20,7 @@ type GatewayMetrics struct {
 	connectionsTotal         *prometheus.CounterVec
 	connectionClosesTotal    *prometheus.CounterVec
 	authTotal                *prometheus.CounterVec
-	authDuration             prometheus.Histogram
+	authDuration             *prometheus.HistogramVec
 	messagesReceivedTotal    *prometheus.CounterVec
 	messagesReceivedBytes    *prometheus.CounterVec
 	messagesDeliveredTotal   *prometheus.CounterVec
@@ -57,13 +57,13 @@ func newGatewayMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Name:        "wukongim_gateway_auth_total",
 			Help:        "Total number of gateway authentication attempts.",
 			ConstLabels: labels,
-		}, []string{"status"}),
-		authDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+		}, []string{"status", "failure"}),
+		authDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_gateway_auth_duration_seconds",
 			Help:        "Gateway authentication latency in seconds.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
-		}),
+		}, []string{"status", "failure"}),
 		messagesReceivedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_gateway_messages_received_total",
 			Help:        "Total number of client messages received by the gateway.",
@@ -183,12 +183,45 @@ func (m *GatewayMetrics) ConnectionClosedReason(protocol, reason string) {
 	m.connectionClosesTotal.WithLabelValues(protocol, reason).Inc()
 }
 
-func (m *GatewayMetrics) Auth(status string, dur time.Duration) {
+func (m *GatewayMetrics) Auth(status, failure string, dur time.Duration) {
 	if m == nil {
 		return
 	}
-	m.authTotal.WithLabelValues(status).Inc()
-	m.authDuration.Observe(dur.Seconds())
+	status = normalizeGatewayAuthStatus(status)
+	failure = normalizeGatewayAuthFailure(status, failure)
+	m.authTotal.WithLabelValues(status, failure).Inc()
+	m.authDuration.WithLabelValues(status, failure).Observe(dur.Seconds())
+}
+
+func normalizeGatewayAuthStatus(status string) string {
+	switch status {
+	case "ok", "fail":
+		return status
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeGatewayAuthFailure(status, failure string) string {
+	if status == "ok" {
+		return "none"
+	}
+	switch failure {
+	case "protocol_violation",
+		"authenticator_error",
+		"activation_error",
+		"connack_auth_fail",
+		"connack_ban",
+		"connack_client_key_empty",
+		"connack_rate_limit",
+		"connack_system_error",
+		"connack_protocol_upgrade_required",
+		"connack_non_success",
+		"connack_write_error":
+		return failure
+	default:
+		return "unknown"
+	}
 }
 
 func (m *GatewayMetrics) MessageReceived(protocol string, bytes int) {

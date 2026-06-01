@@ -120,7 +120,7 @@ func (o gatewayMetricsObserver) OnAuth(event accessgateway.AuthEvent) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.Gateway.Auth(event.Status, event.Duration)
+	o.metrics.Gateway.Auth(event.Status, event.Failure, event.Duration)
 }
 
 func (o gatewayMetricsObserver) OnFrameIn(event accessgateway.FrameEvent) {
