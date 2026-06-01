@@ -590,3 +590,21 @@ Healthy checks:
 Classification:
 - Category: healthy 10k activation with automated script-level ChannelV2 bootstrap gates.
 - Confidence: high that future local 10k evidence will fail fast if classify output shows leaked PendingMeta shells, NeedMeta retries/errors, submitted/ok mismatch, or PullHint send/receive errors.
+
+## 2026-06-01 wukongimv2 Three-Node 10k Channel Activation With Binary ChannelV2 RPC Codec
+
+Environment:
+- Main worktree with local `pkg/clusterv2/channels/codec.go` binary codec patch.
+- Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/start-wukongimv2-three-nodes.sh`.
+- JSON baseline command: `scripts/bench-wukongimv2-three-nodes-10kch.sh --out-dir docs/development/perf-runs/20260601-140307-three-node-activate-10kch-json-baseline`.
+- Binary codec command: `scripts/bench-wukongimv2-three-nodes-10kch.sh --out-dir docs/development/perf-runs/20260601-141154-three-node-activate-10kch-binary-codec`.
+
+Healthy checks:
+- Both runs passed with `activation_success=10000`, `activation_errors=0`, `activation_backlog=0`, `activation_rejected_delta=0`, balanced active leaders, and all `21` metrics health gates passing.
+- JSON baseline sendack latency was p50 `300.294958ms`, p95 `577.299708ms`, and p99 `646.022167ms`.
+- Binary codec sendack latency was p50 `462.314666ms`, p95 `593.283542ms`, and p99 `659.103166ms`.
+- Binary codec reduced several server-side RPC substage p99 values, including `channelv2_need_meta_pull_rpc_p99_seconds` from about `0.8-0.9ms` to about `0.5ms` and `channelv2_replication_follower_pull_rpc_p99_seconds` from about `0.85-0.90ms` to about `0.73-0.76ms`.
+
+Classification:
+- Category: healthy binary codec functional validation, no end-to-end activation latency improvement in this single A/B run.
+- Confidence: medium. The codec change appears to reduce small RPC encode/decode overhead, but default 10k cold activation sendack latency remains dominated by metadata create/propose and append/store/quorum waits, so the end-to-end benchmark did not improve.

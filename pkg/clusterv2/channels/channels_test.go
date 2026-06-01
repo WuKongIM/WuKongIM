@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -399,6 +400,166 @@ func TestCodecRoundTripsPullHintSlimFields(t *testing.T) {
 		t.Fatalf("decodePullHintRequest() error = %v", err)
 	}
 	require.Equal(t, req, got)
+}
+
+func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
+	sampleMeta := &ch.Meta{
+		Key:         "1:room",
+		ID:          ch.ChannelID{ID: "room", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 2,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2, 3},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		LeaseUntil:  time.Unix(1700000000, 123),
+		Status:      ch.StatusActive,
+	}
+	sampleRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, Payload: []byte("record-payload"), SizeBytes: 14}
+	sampleMessage := ch.Message{
+		MessageID:   21,
+		MessageSeq:  22,
+		ChannelID:   "room",
+		ChannelType: 1,
+		FromUID:     "u1",
+		ClientMsgNo: "m1",
+		Payload:     []byte("message-payload"),
+	}
+
+	tests := []struct {
+		name   string
+		encode func() ([]byte, error)
+		decode func([]byte)
+	}{
+		{
+			name: "pull request",
+			encode: func() ([]byte, error) {
+				return EncodePullRequest(channeltransport.PullRequest{ChannelKey: "1:room", ChannelID: ch.ChannelID{ID: "room", Type: 1}, Epoch: 1, LeaderEpoch: 2, Follower: 3, NextOffset: 4, AckOffset: 5, MaxBytes: 1024, NeedMeta: true})
+			},
+			decode: func(data []byte) {
+				got, err := DecodePullRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, uint64(5), got.AckOffset)
+				require.True(t, got.NeedMeta)
+			},
+		},
+		{
+			name: "pull response",
+			encode: func() ([]byte, error) {
+				return encodePullResponse(channeltransport.PullResponse{ChannelKey: "1:room", Epoch: 1, LeaderEpoch: 2, LeaderHW: 3, LeaderLEO: 4, ActivityVersion: 5, NextPullAfter: 250 * time.Millisecond, Control: channeltransport.PullControlStop, Meta: sampleMeta, Records: []ch.Record{sampleRecord}})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullResponse(data)
+				require.NoError(t, err)
+				require.Equal(t, channeltransport.PullControlStop, got.Control)
+				require.Equal(t, sampleMeta, got.Meta)
+				require.Equal(t, []ch.Record{sampleRecord}, got.Records)
+			},
+		},
+		{
+			name: "ack request",
+			encode: func() ([]byte, error) {
+				return encodeAckRequest(channeltransport.AckRequest{ChannelKey: "1:room", Epoch: 1, LeaderEpoch: 2, Follower: 3, MatchOffset: 4, ActivityVersion: 5, Stopped: true})
+			},
+			decode: func(data []byte) {
+				got, err := decodeAckRequest(data)
+				require.NoError(t, err)
+				require.True(t, got.Stopped)
+				require.Equal(t, uint64(4), got.MatchOffset)
+			},
+		},
+		{
+			name: "ack response",
+			encode: func() ([]byte, error) {
+				return encodeRPCResult(kindAck, nil, ch.ErrNotReady)
+			},
+			decode: func(data []byte) {
+				require.ErrorIs(t, decodeRPCResult(data, kindAck, nil), ch.ErrNotReady)
+			},
+		},
+		{
+			name: "pull hint request",
+			encode: func() ([]byte, error) {
+				return encodePullHintRequest(channeltransport.PullHintRequest{ChannelKey: "1:room", ChannelID: ch.ChannelID{ID: "room", Type: 1}, Epoch: 1, LeaderEpoch: 2, Leader: 3, LeaderLEO: 4, ActivityVersion: 5, Reason: channeltransport.PullHintReasonResume})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullHintRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, channeltransport.PullHintReasonResume, got.Reason)
+				require.Equal(t, ch.NodeID(3), got.Leader)
+			},
+		},
+		{
+			name: "notify request",
+			encode: func() ([]byte, error) {
+				return encodeNotifyRequest(channeltransport.NotifyRequest{ChannelKey: "1:room", ChannelID: ch.ChannelID{ID: "room", Type: 1}, Epoch: 1, LeaderEpoch: 2, Leader: 3, LeaderLEO: 4})
+			},
+			decode: func(data []byte) {
+				got, err := decodeNotifyRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, ch.NodeID(3), got.Leader)
+				require.Equal(t, uint64(4), got.LeaderLEO)
+			},
+		},
+		{
+			name: "append request",
+			encode: func() ([]byte, error) {
+				return encodeAppendRequest(ch.AppendRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Message: sampleMessage, CommitMode: ch.CommitModeQuorum, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2})
+			},
+			decode: func(data []byte) {
+				got, err := decodeAppendRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, sampleMessage, got.Message)
+				require.Equal(t, ch.CommitModeQuorum, got.CommitMode)
+			},
+		},
+		{
+			name: "append response",
+			encode: func() ([]byte, error) {
+				return encodeAppendResponse(ch.AppendResult{MessageID: 21, MessageSeq: 22, Message: sampleMessage})
+			},
+			decode: func(data []byte) {
+				got, err := decodeAppendResponse(data)
+				require.NoError(t, err)
+				require.Equal(t, sampleMessage, got.Message)
+			},
+		},
+		{
+			name: "append batch request",
+			encode: func() ([]byte, error) {
+				return encodeAppendBatchRequest(ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Messages: []ch.Message{sampleMessage}, CommitMode: ch.CommitModeLocal, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2, OmitResultPayload: true})
+			},
+			decode: func(data []byte) {
+				got, err := decodeAppendBatchRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, []ch.Message{sampleMessage}, got.Messages)
+				require.True(t, got.OmitResultPayload)
+			},
+		},
+		{
+			name: "append batch response",
+			encode: func() ([]byte, error) {
+				return encodeAppendBatchResponse(ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageID: 21, MessageSeq: 22, Message: sampleMessage}, {Err: ch.ErrBackpressured}}})
+			},
+			decode: func(data []byte) {
+				got, err := decodeAppendBatchResponse(data)
+				require.NoError(t, err)
+				require.Len(t, got.Items, 2)
+				require.Equal(t, sampleMessage, got.Items[0].Message)
+				require.ErrorIs(t, got.Items[1].Err, ch.ErrBackpressured)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.encode()
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(data), 2)
+			require.False(t, json.Valid(data[2:]), "payload should use binary encoding, got JSON: %s", data[2:])
+			tt.decode(data)
+		})
+	}
 }
 
 func TestTransportClientPreservesChannelApplicationErrors(t *testing.T) {
