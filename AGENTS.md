@@ -205,6 +205,12 @@ learn_project/           调研/实验代码，非主执行路径
 - 若改动跨层，优先补 `internal/app` 装配测试或入口集成测试。
 - 保持依赖方向清晰：`access -> usecase/runtime`，`usecase -> runtime/pkg`，`app -> all`。
 
+## 编写端对端黑盒测试流程
+
+- 第一步： 通过pkg/metrics 埋点
+- 第二步： 在internal/bench 里编写测试计划
+- 第三步： 编写script固化流程
+
 ## 知识积累
 
 - 发现重要的项目规则或业务知识时，记录到：**`docs/development/PROJECT_KNOWLEDGE.md`** 记录的内容需要简单，清晰，明确 不要啰嗦，保持整个文档内容不要太多
