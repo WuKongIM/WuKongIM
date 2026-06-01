@@ -43,8 +43,11 @@ func (c *TransportClient) Ack(ctx context.Context, node ch.NodeID, req channeltr
 	if err != nil {
 		return err
 	}
-	_, err = c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAck, payload)
-	return err
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAck, payload)
+	if err != nil {
+		return err
+	}
+	return decodeRPCResult(resp, kindAck, nil)
 }
 
 // PullHint sends a ChannelV2 pull hint to node.
@@ -53,8 +56,11 @@ func (c *TransportClient) PullHint(ctx context.Context, node ch.NodeID, req chan
 	if err != nil {
 		return err
 	}
-	_, err = c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullHint, payload)
-	return err
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullHint, payload)
+	if err != nil {
+		return err
+	}
+	return decodeRPCResult(resp, kindPullHint, nil)
 }
 
 // Notify sends a legacy ChannelV2 notify request to node.
@@ -63,8 +69,11 @@ func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channe
 	if err != nil {
 		return err
 	}
-	_, err = c.caller.Call(ctx, uint64(node), clusternet.RPCChannelNotify, payload)
-	return err
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelNotify, payload)
+	if err != nil {
+		return err
+	}
+	return decodeRPCResult(resp, kindNotify, nil)
 }
 
 // ForwardAppend sends a client append request to node.
@@ -101,31 +110,28 @@ func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Serv
 			return nil, err
 		}
 		resp, err := server.HandlePull(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return encodePullResponse(resp)
+		return encodeRPCResult(kindPullResponse, resp, err)
 	}))
 	registrar.Register(clusternet.RPCChannelAck, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAckRequest(payload)
 		if err != nil {
 			return nil, err
 		}
-		return nil, server.HandleAck(ctx, req)
+		return encodeRPCResult(kindAck, nil, server.HandleAck(ctx, req))
 	}))
 	registrar.Register(clusternet.RPCChannelPullHint, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodePullHintRequest(payload)
 		if err != nil {
 			return nil, err
 		}
-		return nil, server.HandlePullHint(ctx, req)
+		return encodeRPCResult(kindPullHint, nil, server.HandlePullHint(ctx, req))
 	}))
 	registrar.Register(clusternet.RPCChannelNotify, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeNotifyRequest(payload)
 		if err != nil {
 			return nil, err
 		}
-		return nil, server.HandleNotify(ctx, req)
+		return encodeRPCResult(kindNotify, nil, server.HandleNotify(ctx, req))
 	}))
 }
 
@@ -143,10 +149,7 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 			return nil, err
 		}
 		resp, err := service.Append(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return encodeAppendResponse(resp)
+		return encodeRPCResult(kindAppendResponse, resp, err)
 	}))
 	registrar.Register(clusternet.RPCChannelAppendBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAppendBatchRequest(payload)
@@ -154,10 +157,7 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 			return nil, err
 		}
 		resp, err := service.AppendBatch(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return encodeAppendBatchResponse(resp)
+		return encodeRPCResult(kindAppendBatchResponse, resp, err)
 	}))
 }
 

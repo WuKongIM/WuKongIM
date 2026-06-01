@@ -207,7 +207,7 @@ func TestHandlePullHintResolverFailureDoesNotLoadState(t *testing.T) {
 	require.False(t, loaded)
 }
 
-func TestHandlePullHintUsesHintMetaWhenResolverMisses(t *testing.T) {
+func TestHandlePullHintReturnsNotFoundWhenResolverMisses(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := ch.Meta{Key: ch.ChannelKey("1:hint-embedded"), ID: ch.ChannelID{ID: "hint-embedded", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive}
 	resolver := &failingMetaResolver{err: ch.ErrChannelNotFound}
@@ -223,22 +223,17 @@ func TestHandlePullHintUsesHintMetaWhenResolverMisses(t *testing.T) {
 		Epoch:           meta.Epoch,
 		LeaderEpoch:     meta.LeaderEpoch,
 		Leader:          meta.Leader,
-		Replicas:        meta.Replicas,
-		ISR:             meta.ISR,
-		MinISR:          meta.MinISR,
-		Status:          meta.Status,
 		LeaderLEO:       1,
 		ActivityVersion: 1,
 		Reason:          transport.PullHintReasonAppend,
 	})
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
 	require.Equal(t, int32(1), resolver.calls.Load())
-	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "meta_hint", nil)
-	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "meta_resolve", nil)
+	requirePullHintReceive(t, observer.events, transport.PullHintReasonAppend, "meta_resolve", ch.ErrChannelNotFound)
 
 	loaded, err := svc.group.HasChannelState(context.Background(), meta.Key)
 	require.NoError(t, err)
-	require.True(t, loaded)
+	require.False(t, loaded)
 }
 
 func TestHandlePullHintRejectsResolvedMetaWithDifferentID(t *testing.T) {

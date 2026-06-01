@@ -15,6 +15,8 @@ var (
 	ErrStaleMeta = errors.New("channelv2: stale meta")
 	// ErrChannelNotFound reports that a channel is unknown or deleted locally.
 	ErrChannelNotFound = errors.New("channelv2: channel not found")
+	// ErrNotReplica reports that the local or requesting node is outside the channel replica set.
+	ErrNotReplica = errors.New("channelv2: not replica")
 	// ErrClosed reports that the cluster or one of its bounded workers is closed.
 	ErrClosed = errors.New("channelv2: closed")
 	// ErrTooManyChannels reports that local channel activation hit its limit.

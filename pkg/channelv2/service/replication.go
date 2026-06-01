@@ -123,34 +123,7 @@ func (c *cluster) resolvePullHintMeta(ctx context.Context, req transport.PullHin
 			return meta, err
 		}
 	}
-	meta, ok := pullHintRequestMeta(req)
-	if !ok {
-		return ch.Meta{}, ch.ErrChannelNotFound
-	}
-	c.observePullHintReceived(req.Reason, pullHintReceiveStageMetaHint, nil)
-	return meta, nil
-}
-
-func pullHintRequestMeta(req transport.PullHintRequest) (ch.Meta, bool) {
-	if req.ChannelKey == "" || req.ChannelID == (ch.ChannelID{}) || req.Epoch == 0 || req.LeaderEpoch == 0 ||
-		req.Leader == 0 || len(req.Replicas) == 0 || req.MinISR <= 0 || req.Status == 0 {
-		return ch.Meta{}, false
-	}
-	isr := append([]ch.NodeID(nil), req.ISR...)
-	if len(isr) == 0 {
-		isr = append([]ch.NodeID(nil), req.Replicas...)
-	}
-	return ch.Meta{
-		Key:         req.ChannelKey,
-		ID:          req.ChannelID,
-		Epoch:       req.Epoch,
-		LeaderEpoch: req.LeaderEpoch,
-		Leader:      req.Leader,
-		Replicas:    append([]ch.NodeID(nil), req.Replicas...),
-		ISR:         isr,
-		MinISR:      req.MinISR,
-		Status:      req.Status,
-	}, true
+	return ch.Meta{}, ch.ErrChannelNotFound
 }
 
 func (c *cluster) observePullHintReceived(reason transport.PullHintReason, stage string, err error) {

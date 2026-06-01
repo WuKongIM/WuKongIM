@@ -336,7 +336,7 @@ func TestServiceRequiresCombinedRuntime(t *testing.T) {
 }
 
 func TestCodecRoundTripsPull(t *testing.T) {
-	req := channeltransport.PullRequest{ChannelKey: "1:room", ChannelID: ch.ChannelID{ID: "room", Type: 1}, Epoch: 1, LeaderEpoch: 2, Follower: 3, NextOffset: 4, MaxBytes: 1024}
+	req := channeltransport.PullRequest{ChannelKey: "1:room", ChannelID: ch.ChannelID{ID: "room", Type: 1}, Epoch: 1, LeaderEpoch: 2, Follower: 3, NextOffset: 4, AckOffset: 3, MaxBytes: 1024, NeedMeta: true}
 	data, err := EncodePullRequest(req)
 	if err != nil {
 		t.Fatalf("EncodePullRequest() error = %v", err)
@@ -345,22 +345,47 @@ func TestCodecRoundTripsPull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodePullRequest() error = %v", err)
 	}
-	if got.ChannelKey != req.ChannelKey || got.NextOffset != req.NextOffset {
-		t.Fatalf("decoded = %#v, want %#v", got, req)
-	}
+	require.Equal(t, req, got)
 }
 
-func TestCodecRoundTripsPullHintMeta(t *testing.T) {
+func TestCodecRoundTripsPullResponseMeta(t *testing.T) {
+	resp := channeltransport.PullResponse{
+		ChannelKey:      "1:room",
+		Epoch:           1,
+		LeaderEpoch:     2,
+		LeaderHW:        3,
+		LeaderLEO:       4,
+		ActivityVersion: 5,
+		Meta: &ch.Meta{
+			Key:         "1:room",
+			ID:          ch.ChannelID{ID: "room", Type: 1},
+			Epoch:       1,
+			LeaderEpoch: 2,
+			Leader:      1,
+			Replicas:    []ch.NodeID{1, 3},
+			ISR:         []ch.NodeID{1, 3},
+			MinISR:      2,
+			Status:      ch.StatusActive,
+		},
+	}
+	data, err := encodePullResponse(resp)
+	if err != nil {
+		t.Fatalf("encodePullResponse() error = %v", err)
+	}
+	got, err := decodePullResponse(data)
+	if err != nil {
+		t.Fatalf("decodePullResponse() error = %v", err)
+	}
+	require.Equal(t, resp, got)
+}
+
+func TestCodecRoundTripsPullHintSlimFields(t *testing.T) {
 	req := channeltransport.PullHintRequest{
 		ChannelKey:      "1:room",
 		ChannelID:       ch.ChannelID{ID: "room", Type: 1},
 		Epoch:           1,
 		LeaderEpoch:     2,
 		Leader:          1,
-		Replicas:        []ch.NodeID{1, 2, 3},
-		ISR:             []ch.NodeID{1, 2},
-		MinISR:          2,
-		Status:          ch.StatusActive,
 		LeaderLEO:       4,
 		ActivityVersion: 4,
 		Reason:          channeltransport.PullHintReasonAppend,
@@ -373,9 +398,104 @@ func TestCodecRoundTripsPullHintMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodePullHintRequest() error = %v", err)
 	}
-	if got.ChannelKey != req.ChannelKey || got.MinISR != req.MinISR || got.Status != req.Status ||
-		!equalNodeIDs(got.Replicas, req.Replicas) || !equalNodeIDs(got.ISR, req.ISR) {
-		t.Fatalf("decoded = %#v, want %#v", got, req)
+	require.Equal(t, req, got)
+}
+
+func TestTransportClientPreservesChannelApplicationErrors(t *testing.T) {
+	sentinels := []error{
+		ch.ErrInvalidConfig,
+		ch.ErrBackpressured,
+		ch.ErrNotLeader,
+		ch.ErrNotReady,
+		ch.ErrStaleMeta,
+		ch.ErrChannelNotFound,
+		ch.ErrNotReplica,
+		ch.ErrClosed,
+		ch.ErrTooManyChannels,
+	}
+	methods := []struct {
+		name string
+		call func(context.Context, *TransportClient, ch.NodeID) error
+	}{
+		{
+			name: "pull",
+			call: func(ctx context.Context, client *TransportClient, node ch.NodeID) error {
+				_, err := client.Pull(ctx, node, channeltransport.PullRequest{ChannelKey: "1:room"})
+				return err
+			},
+		},
+		{
+			name: "pull_hint",
+			call: func(ctx context.Context, client *TransportClient, node ch.NodeID) error {
+				return client.PullHint(ctx, node, channeltransport.PullHintRequest{ChannelKey: "1:room"})
+			},
+		},
+		{
+			name: "ack",
+			call: func(ctx context.Context, client *TransportClient, node ch.NodeID) error {
+				return client.Ack(ctx, node, channeltransport.AckRequest{ChannelKey: "1:room"})
+			},
+		},
+		{
+			name: "notify",
+			call: func(ctx context.Context, client *TransportClient, node ch.NodeID) error {
+				return client.Notify(ctx, node, channeltransport.NotifyRequest{ChannelKey: "1:room"})
+			},
+		},
+	}
+
+	for _, sentinel := range sentinels {
+		for _, method := range methods {
+			t.Run(method.name+"/"+sentinel.Error(), func(t *testing.T) {
+				network := clusternet.NewLocalNetwork()
+				server := &rpcErrorServer{err: sentinel}
+				RegisterHandlers(network, 2, server)
+				client := NewTransportClient(network)
+
+				err := method.call(context.Background(), client, 2)
+				require.ErrorIs(t, err, sentinel)
+			})
+		}
+	}
+}
+
+func TestTransportClientPreservesForwardApplicationErrors(t *testing.T) {
+	sentinels := []error{
+		ch.ErrInvalidConfig,
+		ch.ErrBackpressured,
+		ch.ErrNotLeader,
+		ch.ErrNotReady,
+		ch.ErrStaleMeta,
+		ch.ErrChannelNotFound,
+		ch.ErrNotReplica,
+		ch.ErrClosed,
+		ch.ErrTooManyChannels,
+	}
+
+	for _, sentinel := range sentinels {
+		t.Run("append/"+sentinel.Error(), func(t *testing.T) {
+			network := clusternet.NewLocalNetwork()
+			runtime := &fakeRuntime{appendErr: sentinel}
+			service, err := NewService(Config{Runtime: runtime})
+			require.NoError(t, err)
+			RegisterServiceHandlers(network, 2, service)
+			client := NewTransportClient(network)
+
+			_, err = client.ForwardAppend(context.Background(), 2, ch.AppendRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}})
+			require.ErrorIs(t, err, sentinel)
+		})
+
+		t.Run("append_batch/"+sentinel.Error(), func(t *testing.T) {
+			network := clusternet.NewLocalNetwork()
+			runtime := &fakeRuntime{appendBatchErr: sentinel}
+			service, err := NewService(Config{Runtime: runtime})
+			require.NoError(t, err)
+			RegisterServiceHandlers(network, 2, service)
+			client := NewTransportClient(network)
+
+			_, err = client.ForwardAppendBatch(context.Background(), 2, ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}})
+			require.ErrorIs(t, err, sentinel)
+		})
 	}
 }
 
@@ -659,7 +779,9 @@ func (clusterOnlyRuntime) Close() error               { return nil }
 type fakeRuntime struct {
 	pull               channeltransport.PullResponse
 	append             ch.AppendResult
+	appendErr          error
 	appendBatch        ch.AppendBatchResult
+	appendBatchErr     error
 	lastApplied        ch.Meta
 	pullCalls          int
 	applyCalls         int
@@ -678,12 +800,18 @@ func (f *fakeRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult
 	if f.appendRequireApply && f.applyCalls == 0 {
 		return ch.AppendResult{}, ch.ErrChannelNotFound
 	}
+	if f.appendErr != nil {
+		return ch.AppendResult{}, f.appendErr
+	}
 	return f.append, nil
 }
 func (f *fakeRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
 	f.appendBatchCalls++
 	if f.appendRequireApply && f.applyCalls == 0 {
 		return ch.AppendBatchResult{}, ch.ErrChannelNotFound
+	}
+	if f.appendBatchErr != nil {
+		return ch.AppendBatchResult{}, f.appendBatchErr
 	}
 	return f.appendBatch, nil
 }
@@ -698,6 +826,26 @@ func (f *fakeRuntime) HandlePullHint(context.Context, channeltransport.PullHintR
 	return nil
 }
 func (f *fakeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error { return nil }
+
+type rpcErrorServer struct {
+	err error
+}
+
+func (s *rpcErrorServer) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, s.err
+}
+
+func (s *rpcErrorServer) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return s.err
+}
+
+func (s *rpcErrorServer) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return s.err
+}
+
+func (s *rpcErrorServer) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return s.err
+}
 
 type appendStageEvent struct {
 	stage  string
