@@ -27,6 +27,20 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 | `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, and replication transport. |
 | `observe` | Low-frequency background loops and readiness snapshots. |
 
+## Route Authority And Node RPC Surface
+
+`Node.RegisterRPC` and `Node.CallRPC` expose a narrow typed node-to-node RPC
+surface for upper-layer internalv2 adapters. Handlers registered before the
+default transport starts are replayed during transport construction; later
+registrations are installed idempotently.
+
+`WatchRouteAuthorities` publishes hash-slot authority changes derived from the
+installed routing table. Each `RouteAuthority` carries
+`(HashSlot, SlotID, LeaderNodeID, RouteRevision, AuthorityEpoch)` so callers can
+fence authority-side state. `AuthorityEpoch` changes when the observed authority
+identity changes for a hash slot and is included in `RouteKey` / `RouteHashSlot`
+results.
+
 ## Start Flow
 
 ```text
