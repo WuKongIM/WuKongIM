@@ -12,8 +12,8 @@ cluster runtimes, access adapters, or the app composition root.
 ```text
 Activate(command)
   -> resolve UID hash slot
-  -> build owner-local OnlineConn and authority Route
-  -> local.RegisterPending(conn)
+  -> build owner-local OwnerRoute and authority Route
+  -> local.RegisterPending(LocalSession{Route, Session})
   -> authority.RegisterRoute(route)
      -> on error, local.MarkClosingAndUnregister(sessionID)
   -> route returned RouteAction values through OwnerActionClient

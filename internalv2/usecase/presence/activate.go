@@ -14,12 +14,12 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		return ErrAuthorityUnavailable
 	}
 
-	conn, err := a.onlineConn(cmd)
+	routeProjection, err := a.ownerRoute(cmd)
 	if err != nil {
 		return err
 	}
-	route := routeFromConn(conn)
-	if err := a.local.RegisterPending(conn); err != nil {
+	route := routeFromOwnerRoute(routeProjection)
+	if err := a.local.RegisterPending(LocalSession{Route: routeProjection, Session: cmd.Session}); err != nil {
 		return err
 	}
 

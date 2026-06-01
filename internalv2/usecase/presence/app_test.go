@@ -40,7 +40,7 @@ func TestActivateRegistersPendingLocalRouteThenAuthorityThenMarksActive(t *testi
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}
-	if got := local.pending[11]; got.UID != "u1" || got.HashSlot != 7 || got.OwnerBootID != 99 || got.OwnerSeq != 33 {
+	if got := local.pending[11].Route; got.UID != "u1" || got.HashSlot != 7 || got.OwnerBootID != 99 || got.OwnerSeq != 33 {
 		t.Fatalf("pending conn = %#v, want owner metadata copied", got)
 	}
 	if got := authority.registered; got.UID != "u1" || got.OwnerNodeID != 9 || got.OwnerBootID != 99 || got.OwnerSeq != 33 || got.SessionID != 11 {
@@ -163,7 +163,7 @@ func TestActivateCleansPendingLocalRouteWhenMarkActiveFails(t *testing.T) {
 func TestActivateAppliesPendingActionsBeforeCommitThenMarksActive(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[21] = OnlineConn{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 21, Session: fakeSessionHandle{}}
+	local.pending[21] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 21}, Session: fakeSessionHandle{}}
 	authority := &fakeAuthorityClient{
 		calls: &calls,
 		registerResult: RegisterResult{
@@ -201,8 +201,8 @@ func TestActivateAppliesPendingActionsBeforeCommitThenMarksActive(t *testing.T) 
 func TestActivateAbortsPendingRouteAndKeepsConflictsWhenActionFails(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[21] = OnlineConn{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 21, Session: fakeSessionHandle{}}
-	local.pending[22] = OnlineConn{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 22, Session: fakeSessionHandle{err: errBoom}}
+	local.pending[21] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 21}, Session: fakeSessionHandle{}}
+	local.pending[22] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, SessionID: 22}, Session: fakeSessionHandle{err: errBoom}}
 	authority := &fakeAuthorityClient{
 		calls: &calls,
 		registerResult: RegisterResult{
@@ -284,7 +284,7 @@ func TestActivateAbortsPendingRouteWhenOwnerActionClientMissing(t *testing.T) {
 func TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[11] = OnlineConn{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
 	authority := &fakeAuthorityClient{calls: &calls}
 	app := New(Options{Local: local, Authority: authority})
 
@@ -340,8 +340,8 @@ func TestTouchRequiresLocalRegistry(t *testing.T) {
 	require.ErrorIs(t, err, ErrLocalRegistryUnavailable)
 }
 
-func TestRouteFromConnCarriesLastSeenUnix(t *testing.T) {
-	route := routeFromConn(OnlineConn{
+func TestRouteFromOwnerRouteCarriesLastSeenUnix(t *testing.T) {
+	route := routeFromOwnerRoute(OwnerRoute{
 		UID:              "u1",
 		OwnerNodeID:      1,
 		OwnerBootID:      2,
@@ -357,7 +357,7 @@ var errBoom = errors.New("boom")
 
 type fakeLocalRegistry struct {
 	calls            *[]string
-	pending          map[uint64]OnlineConn
+	pending          map[uint64]LocalSession
 	markActiveErr    error
 	touchedSessionID uint64
 	touchedUnix      int64
@@ -366,13 +366,13 @@ type fakeLocalRegistry struct {
 func newFakeLocalRegistry(calls *[]string) *fakeLocalRegistry {
 	return &fakeLocalRegistry{
 		calls:   calls,
-		pending: make(map[uint64]OnlineConn),
+		pending: make(map[uint64]LocalSession),
 	}
 }
 
-func (f *fakeLocalRegistry) RegisterPending(conn OnlineConn) error {
+func (f *fakeLocalRegistry) RegisterPending(session LocalSession) error {
 	*f.calls = append(*f.calls, "local.register_pending")
-	f.pending[conn.SessionID] = conn
+	f.pending[session.Route.SessionID] = session
 	return nil
 }
 
@@ -381,32 +381,26 @@ func (f *fakeLocalRegistry) MarkActive(sessionID uint64) error {
 	if f.markActiveErr != nil {
 		return f.markActiveErr
 	}
-	conn, ok := f.pending[sessionID]
+	session, ok := f.pending[sessionID]
 	if !ok {
 		return ErrSessionNotActive
 	}
-	conn.State = RouteStateActive
-	f.pending[sessionID] = conn
+	session.State = RouteStateActive
+	f.pending[sessionID] = session
 	return nil
 }
 
-func (f *fakeLocalRegistry) MarkClosingAndUnregister(sessionID uint64) (OnlineConn, bool) {
+func (f *fakeLocalRegistry) MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool) {
 	*f.calls = append(*f.calls, "local.mark_closing_unregister")
-	conn, ok := f.pending[sessionID]
+	session, ok := f.pending[sessionID]
 	delete(f.pending, sessionID)
-	return conn, ok
+	return session.Route, ok
 }
 
-func (f *fakeLocalRegistry) MarkTouched(sessionID uint64, activityUnix int64) (OnlineConn, bool) {
+func (f *fakeLocalRegistry) MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool) {
 	f.touchedSessionID = sessionID
 	f.touchedUnix = activityUnix
-	return OnlineConn{SessionID: sessionID, LastActivityUnix: activityUnix, State: RouteStateActive}, true
-}
-
-func (f *fakeLocalRegistry) Connection(sessionID uint64) (OnlineConn, bool) {
-	*f.calls = append(*f.calls, "local.connection")
-	conn, ok := f.pending[sessionID]
-	return conn, ok
+	return OwnerRoute{SessionID: sessionID, LastActivityUnix: activityUnix}, true
 }
 
 type fakeAuthorityClient struct {
@@ -464,12 +458,13 @@ func (f *fakeOwnerActionClient) ApplyRouteAction(_ context.Context, action Route
 	if f.local == nil {
 		return nil
 	}
-	conn, ok := f.local.pending[action.SessionID]
-	if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
+	session, ok := f.local.pending[action.SessionID]
+	route := session.Route
+	if !ok || route.UID != action.UID || route.OwnerNodeID != action.OwnerNodeID || route.OwnerBootID != action.OwnerBootID {
 		return nil
 	}
-	if conn.Session != nil {
-		if err := conn.Session.CloseSession(action.Reason); err != nil {
+	if session.Session != nil {
+		if err := session.Session.CloseSession(action.Reason); err != nil {
 			return err
 		}
 	}

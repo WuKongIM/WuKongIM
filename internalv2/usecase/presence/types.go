@@ -70,8 +70,11 @@ type TouchCommand struct {
 // SessionHandle closes a concrete gateway session through an entry-agnostic boundary.
 type SessionHandle = online.SessionHandle
 
-// OnlineConn is the usecase DTO stored through the local owner registry port.
-type OnlineConn = online.OnlineConn
+// OwnerRoute is the usecase DTO stored through the local owner route registry port.
+type OwnerRoute = online.OwnerRoute
+
+// LocalSession stores the local gateway session separately from the route projection.
+type LocalSession = online.LocalSession
 
 // RouteTarget fences an authority operation to one observed hash-slot route.
 type RouteTarget = authority.RouteTarget

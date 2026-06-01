@@ -2,48 +2,77 @@ package online
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterPendingRejectsInvalidConnection(t *testing.T) {
+func TestOwnerRouteDoesNotExposeSessionHandleOrLifecycleState(t *testing.T) {
+	routeType := reflect.TypeOf(OwnerRoute{})
+	if _, ok := routeType.FieldByName("Session"); ok {
+		t.Fatal("OwnerRoute exposes Session, want gateway session handle kept out of presence route projection")
+	}
+	if _, ok := routeType.FieldByName("State"); ok {
+		t.Fatal("OwnerRoute exposes State, want lifecycle state kept inside the local registry")
+	}
+}
+
+func TestRegistryStoresSessionHandleSeparatelyFromOwnerRoute(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{ShardCount: 1})
+	session := fakeSessionHandle{}
+	route := OwnerRoute{UID: "u1", HashSlot: 7, OwnerNodeID: 1, OwnerBootID: 11, OwnerSeq: 21, SessionID: 101, ConnectedUnix: 10}
+	wantRoute := route
+	wantRoute.LastActivityUnix = route.ConnectedUnix
+
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: route, Session: session}))
+
+	gotRoute, ok := reg.Route(route.SessionID)
+	require.True(t, ok)
+	require.Equal(t, wantRoute, gotRoute)
+	gotSession, ok := reg.LocalSession(route.SessionID)
+	require.True(t, ok)
+	require.Equal(t, wantRoute, gotSession.Route)
+	require.NotNil(t, gotSession.Session)
+}
+
+func TestRegisterPendingRejectsInvalidRoute(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 4})
-	if err := reg.RegisterPending(OnlineConn{SessionID: 1}); err == nil {
+	if err := reg.RegisterPending(LocalSession{Route: OwnerRoute{SessionID: 1}}); err == nil {
 		t.Fatal("RegisterPending() error = nil, want invalid connection")
 	}
-	if err := reg.RegisterPending(OnlineConn{UID: "u1"}); err == nil {
+	if err := reg.RegisterPending(LocalSession{Route: OwnerRoute{UID: "u1"}}); err == nil {
 		t.Fatal("RegisterPending() error = nil, want invalid connection")
 	}
 }
 
 func TestRegistryPendingActiveClosingLifecycle(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 4})
-	conn := OnlineConn{UID: "u1", HashSlot: 3, OwnerBootID: 9, SessionID: 11}
-	if err := reg.RegisterPending(conn); err != nil {
+	conn := OwnerRoute{UID: "u1", HashSlot: 3, OwnerBootID: 9, SessionID: 11}
+	if err := reg.RegisterPending(LocalSession{Route: conn}); err != nil {
 		t.Fatalf("RegisterPending() error = %v", err)
 	}
-	if got, ok := reg.Connection(11); !ok || got.State != RouteStatePending {
+	if got, ok := reg.LocalSession(11); !ok || got.State != RouteStatePending {
 		t.Fatalf("pending connection = %#v,%v", got, ok)
 	}
 	if err := reg.MarkActive(11); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
-	if got, ok := reg.Connection(11); !ok || got.State != RouteStateActive {
+	if got, ok := reg.LocalSession(11); !ok || got.State != RouteStateActive {
 		t.Fatalf("active connection = %#v,%v", got, ok)
 	}
-	if got, ok := reg.MarkClosingAndUnregister(11); !ok || got.State != RouteStateClosing {
+	if got, ok := reg.MarkClosingAndUnregister(11); !ok || got.SessionID != 11 {
 		t.Fatalf("closing connection = %#v,%v", got, ok)
 	}
-	if _, ok := reg.Connection(11); ok {
+	if _, ok := reg.Route(11); ok {
 		t.Fatal("connection still indexed after unregister")
 	}
 }
 
 func TestRegistryMarkTouchedMarksActiveRouteDirty(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 2})
-	conn := OnlineConn{UID: "u1", HashSlot: 7, OwnerNodeID: 1, OwnerBootID: 11, OwnerSeq: 21, SessionID: 101, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(conn))
+	conn := OwnerRoute{UID: "u1", HashSlot: 7, OwnerNodeID: 1, OwnerBootID: 11, OwnerSeq: 21, SessionID: 101, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: conn}))
 	require.NoError(t, reg.MarkActive(conn.SessionID))
 
 	got, ok := reg.MarkTouched(conn.SessionID, 15)
@@ -59,8 +88,8 @@ func TestRegistryMarkTouchedMarksActiveRouteDirty(t *testing.T) {
 
 func TestRegistryMarkTouchedIgnoresPendingAndMissing(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
-	conn := OnlineConn{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 7, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(conn))
+	conn := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 7, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: conn}))
 
 	_, ok := reg.MarkTouched(conn.SessionID, 11)
 	require.False(t, ok)
@@ -72,8 +101,8 @@ func TestRegistryMarkTouchedIgnoresPendingAndMissing(t *testing.T) {
 func TestRegistryDrainTouchedBatchesAndClearsDirty(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
 	for i := uint64(1); i <= 3; i++ {
-		conn := OnlineConn{UID: fmt.Sprintf("u%d", i), HashSlot: uint16(i), OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: i, SessionID: i, ConnectedUnix: 10}
-		require.NoError(t, reg.RegisterPending(conn))
+		conn := OwnerRoute{UID: fmt.Sprintf("u%d", i), HashSlot: uint16(i), OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: i, SessionID: i, ConnectedUnix: 10}
+		require.NoError(t, reg.RegisterPending(LocalSession{Route: conn}))
 		require.NoError(t, reg.MarkActive(i))
 		_, ok := reg.MarkTouched(i, int64(20+i))
 		require.True(t, ok)
@@ -88,10 +117,10 @@ func TestRegistryDrainTouchedBatchesAndClearsDirty(t *testing.T) {
 
 func TestRegistryDrainTouchedRotatesShardStart(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 2})
-	shardOne := OnlineConn{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}
-	shardZero := OnlineConn{UID: "u2", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 2, SessionID: 2, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(shardOne))
-	require.NoError(t, reg.RegisterPending(shardZero))
+	shardOne := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}
+	shardZero := OwnerRoute{UID: "u2", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 2, SessionID: 2, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: shardOne}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: shardZero}))
 	require.NoError(t, reg.MarkActive(shardOne.SessionID))
 	require.NoError(t, reg.MarkActive(shardZero.SessionID))
 	_, ok := reg.MarkTouched(shardOne.SessionID, 20)
@@ -112,8 +141,8 @@ func TestRegistryDrainTouchedRotatesShardStart(t *testing.T) {
 
 func TestRegistryRequeueTouchedSkipsRemovedOrSupersededSessions(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
-	original := OnlineConn{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(original))
+	original := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: original}))
 	require.NoError(t, reg.MarkActive(original.SessionID))
 	_, ok := reg.MarkTouched(original.SessionID, 20)
 	require.True(t, ok)
@@ -122,13 +151,13 @@ func TestRegistryRequeueTouchedSkipsRemovedOrSupersededSessions(t *testing.T) {
 
 	removed, ok := reg.MarkClosingAndUnregister(original.SessionID)
 	require.True(t, ok)
-	reg.RequeueTouched([]OnlineConn{removed})
+	reg.RequeueTouched([]OwnerRoute{removed})
 	require.Empty(t, reg.DrainTouched(10))
 
 	replacement := original
 	replacement.OwnerSeq = 11
 	replacement.ConnectedUnix = 30
-	require.NoError(t, reg.RegisterPending(replacement))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: replacement}))
 	require.NoError(t, reg.MarkActive(replacement.SessionID))
 	reg.RequeueTouched(drained)
 	require.Empty(t, reg.DrainTouched(10))
@@ -142,8 +171,8 @@ func TestRegistryRequeueTouchedSkipsRemovedOrSupersededSessions(t *testing.T) {
 
 func TestRegistryRequeueTouchedRestoresCurrentActiveRoute(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
-	conn := OnlineConn{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(conn))
+	conn := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: conn}))
 	require.NoError(t, reg.MarkActive(conn.SessionID))
 	_, ok := reg.MarkTouched(conn.SessionID, 20)
 	require.True(t, ok)
@@ -160,17 +189,21 @@ func TestRegistryRequeueTouchedRestoresCurrentActiveRoute(t *testing.T) {
 
 func TestRegistryRequeueTouchedSkipsDifferentUID(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
-	original := OnlineConn{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
-	require.NoError(t, reg.RegisterPending(original))
+	original := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: original}))
 	require.NoError(t, reg.MarkActive(original.SessionID))
 	_, ok := reg.MarkTouched(original.SessionID, 20)
 	require.True(t, ok)
 	drained := reg.DrainTouched(10)
 	require.Len(t, drained, 1)
 
-	require.NoError(t, reg.RegisterPending(OnlineConn{UID: "u2", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 30}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: OwnerRoute{UID: "u2", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 10, SessionID: 100, ConnectedUnix: 30}}))
 	require.NoError(t, reg.MarkActive(100))
 	reg.RequeueTouched(drained)
 
 	require.Empty(t, reg.DrainTouched(10))
 }
+
+type fakeSessionHandle struct{}
+
+func (fakeSessionHandle) CloseSession(string) error { return nil }

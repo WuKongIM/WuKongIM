@@ -473,12 +473,13 @@ func (a presenceOwnerActions) ApplyRouteAction(ctx context.Context, action prese
 	if a.local == nil {
 		return authoritypresence.ErrRouteNotReady
 	}
-	conn, ok := a.local.Connection(action.SessionID)
-	if !ok || conn.UID != action.UID || conn.OwnerNodeID != action.OwnerNodeID || conn.OwnerBootID != action.OwnerBootID {
+	session, ok := a.local.LocalSession(action.SessionID)
+	route := session.Route
+	if !ok || route.UID != action.UID || route.OwnerNodeID != action.OwnerNodeID || route.OwnerBootID != action.OwnerBootID {
 		return nil
 	}
-	if conn.Session != nil {
-		if err := conn.Session.CloseSession(action.Reason); err != nil {
+	if session.Session != nil {
+		if err := session.Session.CloseSession(action.Reason); err != nil {
 			return err
 		}
 	}

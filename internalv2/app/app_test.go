@@ -214,13 +214,13 @@ func TestStartSeedsPresenceAuthorityFromCurrentRoutes(t *testing.T) {
 
 func TestPresenceTouchWorkerFlushesDirtyRoutesByTarget(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	conns := []online.OnlineConn{
+	conns := []online.OwnerRoute{
 		{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1001},
 		{UID: "u2", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 12, SessionID: 102, DeviceID: "d2", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1002},
 		{UID: "u3", HashSlot: 8, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 13, SessionID: 103, DeviceID: "d3", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1003},
 	}
 	for _, conn := range conns {
-		if err := reg.RegisterPending(conn); err != nil {
+		if err := reg.RegisterPending(online.LocalSession{Route: conn}); err != nil {
 			t.Fatalf("RegisterPending(%d) error = %v", conn.SessionID, err)
 		}
 		if err := reg.MarkActive(conn.SessionID); err != nil {
@@ -269,8 +269,8 @@ func TestPresenceTouchWorkerFlushesDirtyRoutesByTarget(t *testing.T) {
 
 func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	conn := online.OnlineConn{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
-	if err := reg.RegisterPending(conn); err != nil {
+	conn := online.OwnerRoute{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: conn}); err != nil {
 		t.Fatalf("RegisterPending() error = %v", err)
 	}
 	if err := reg.MarkActive(conn.SessionID); err != nil {
@@ -300,12 +300,12 @@ func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 
 func TestPresenceTouchWorkerRequeuesAllGroupsWhenContextCancelsAfterDrain(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	conns := []online.OnlineConn{
+	conns := []online.OwnerRoute{
 		{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001},
 		{UID: "u2", HashSlot: 8, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 12, SessionID: 102, ConnectedUnix: 1002},
 	}
 	for _, conn := range conns {
-		if err := reg.RegisterPending(conn); err != nil {
+		if err := reg.RegisterPending(online.LocalSession{Route: conn}); err != nil {
 			t.Fatalf("RegisterPending(%d) error = %v", conn.SessionID, err)
 		}
 		if err := reg.MarkActive(conn.SessionID); err != nil {
@@ -338,7 +338,7 @@ func TestPresenceTouchWorkerRequeuesAllGroupsWhenContextCancelsAfterDrain(t *tes
 	}
 }
 
-func TestOnlineConnFromRouteCarriesRouteMetadata(t *testing.T) {
+func TestOwnerRouteFromRouteCarriesRouteMetadata(t *testing.T) {
 	route := presence.Route{
 		UID:           "u1",
 		OwnerNodeID:   1,
@@ -353,7 +353,7 @@ func TestOnlineConnFromRouteCarriesRouteMetadata(t *testing.T) {
 		LastSeenUnix:  1010,
 	}
 
-	conn := onlineConnFromRoute(route)
+	conn := ownerRouteFromRoute(route)
 
 	if conn.DeviceID != route.DeviceID ||
 		conn.DeviceFlag != route.DeviceFlag ||
@@ -363,6 +363,60 @@ func TestOnlineConnFromRouteCarriesRouteMetadata(t *testing.T) {
 	}
 	if conn.LastActivityUnix != route.LastSeenUnix {
 		t.Fatalf("LastActivityUnix = %d, want %d", conn.LastActivityUnix, route.LastSeenUnix)
+	}
+}
+
+func TestPresenceOwnerActionsClosesAndUnregistersMatchingLocalSession(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	session := &recordingSessionHandle{}
+	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+
+	actions := presenceOwnerActions{local: reg}
+	err := actions.ApplyRouteAction(context.Background(), presence.RouteAction{
+		UID:         route.UID,
+		OwnerNodeID: route.OwnerNodeID,
+		OwnerBootID: route.OwnerBootID,
+		SessionID:   route.SessionID,
+		Reason:      "conflict",
+	})
+	if err != nil {
+		t.Fatalf("ApplyRouteAction() error = %v", err)
+	}
+	if session.reason != "conflict" {
+		t.Fatalf("close reason = %q, want conflict", session.reason)
+	}
+	if _, ok := reg.LocalSession(route.SessionID); ok {
+		t.Fatalf("session %d still registered after owner action", route.SessionID)
+	}
+}
+
+func TestPresenceOwnerActionsIgnoresMismatchedLocalSession(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	session := &recordingSessionHandle{}
+	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+
+	actions := presenceOwnerActions{local: reg}
+	err := actions.ApplyRouteAction(context.Background(), presence.RouteAction{
+		UID:         route.UID,
+		OwnerNodeID: route.OwnerNodeID,
+		OwnerBootID: route.OwnerBootID + 1,
+		SessionID:   route.SessionID,
+		Reason:      "stale conflict",
+	})
+	if err != nil {
+		t.Fatalf("ApplyRouteAction() error = %v", err)
+	}
+	if session.reason != "" {
+		t.Fatalf("session was closed with reason %q, want no close", session.reason)
+	}
+	if _, ok := reg.LocalSession(route.SessionID); !ok {
+		t.Fatalf("session %d was unregistered for a mismatched action", route.SessionID)
 	}
 }
 
@@ -1004,6 +1058,15 @@ type recordingTouchAuthority struct {
 	batches     []touchBatch
 	err         error
 	resolveHook func(string)
+}
+
+type recordingSessionHandle struct {
+	reason string
+}
+
+func (r *recordingSessionHandle) CloseSession(reason string) error {
+	r.reason = reason
+	return nil
 }
 
 func (r *recordingTouchAuthority) ResolveRouteTarget(uid string) (presence.RouteTarget, error) {

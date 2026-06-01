@@ -2,13 +2,12 @@ package presence
 
 import "context"
 
-// LocalRegistry stores owner-local real gateway session routes.
+// LocalRegistry stores owner-local route projections and local session records.
 type LocalRegistry interface {
-	RegisterPending(OnlineConn) error
+	RegisterPending(LocalSession) error
 	MarkActive(sessionID uint64) error
-	MarkClosingAndUnregister(sessionID uint64) (OnlineConn, bool)
-	MarkTouched(sessionID uint64, activityUnix int64) (OnlineConn, bool)
-	Connection(sessionID uint64) (OnlineConn, bool)
+	MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool)
+	MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool)
 }
 
 // AuthorityClient routes presence operations to the current UID authority.

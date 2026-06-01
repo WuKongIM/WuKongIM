@@ -8,7 +8,7 @@ type OwnerSeqGenerator func(uid string) uint64
 
 // Options configures the presence usecase.
 type Options struct {
-	// Local stores owner-local real gateway session routes.
+	// Local stores owner-local route projections and local session records.
 	Local LocalRegistry
 	// Authority registers virtual routes with the UID authority.
 	Authority AuthorityClient
@@ -48,20 +48,20 @@ func New(opts Options) *App {
 	}
 }
 
-func (a *App) onlineConn(cmd ActivateCommand) (OnlineConn, error) {
+func (a *App) ownerRoute(cmd ActivateCommand) (OwnerRoute, error) {
 	hashSlot := uint16(0)
 	if a.hashSlot != nil {
 		var err error
 		hashSlot, err = a.hashSlot(cmd.UID)
 		if err != nil {
-			return OnlineConn{}, err
+			return OwnerRoute{}, err
 		}
 	}
 	ownerSeq := cmd.SessionID
 	if a.ownerSeq != nil {
 		ownerSeq = a.ownerSeq(cmd.UID)
 	}
-	return OnlineConn{
+	return OwnerRoute{
 		UID:              cmd.UID,
 		HashSlot:         hashSlot,
 		OwnerNodeID:      a.ownerNodeID,
@@ -74,12 +74,10 @@ func (a *App) onlineConn(cmd ActivateCommand) (OnlineConn, error) {
 		Listener:         cmd.Listener,
 		ConnectedUnix:    cmd.ConnectedUnix,
 		LastActivityUnix: cmd.ConnectedUnix,
-		State:            RouteStatePending,
-		Session:          cmd.Session,
 	}, nil
 }
 
-func routeFromConn(conn OnlineConn) Route {
+func routeFromOwnerRoute(conn OwnerRoute) Route {
 	return Route{
 		UID:           conn.UID,
 		OwnerNodeID:   conn.OwnerNodeID,

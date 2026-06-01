@@ -12,14 +12,14 @@ import (
 
 // presenceTouchLocalRegistry drains owner-local routes with pending activity updates.
 type presenceTouchLocalRegistry interface {
-	DrainTouched(limit int) []online.OnlineConn
-	RequeueTouched([]online.OnlineConn)
+	DrainTouched(limit int) []online.OwnerRoute
+	RequeueTouched([]online.OwnerRoute)
 }
 
-// presenceOwnerLocalRegistry mutates owner-local real gateway sessions.
+// presenceOwnerLocalRegistry exposes owner-local sessions for conflict actions.
 type presenceOwnerLocalRegistry interface {
-	Connection(sessionID uint64) (online.OnlineConn, bool)
-	MarkClosingAndUnregister(sessionID uint64) (online.OnlineConn, bool)
+	LocalSession(sessionID uint64) (online.LocalSession, bool)
+	MarkClosingAndUnregister(sessionID uint64) (online.OwnerRoute, bool)
 }
 
 // presenceTouchAuthority routes batched activity refreshes to UID authorities.
@@ -236,10 +236,10 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 	for _, conn := range touched {
 		target, err := w.opts.Authority.ResolveRouteTarget(conn.UID)
 		if err != nil {
-			w.opts.Local.RequeueTouched([]online.OnlineConn{conn})
+			w.opts.Local.RequeueTouched([]online.OwnerRoute{conn})
 			continue
 		}
-		groups[target] = append(groups[target], routeFromOnlineConn(conn))
+		groups[target] = append(groups[target], routeFromOwnerRoute(conn))
 	}
 	for target, routes := range groups {
 		if err := ctx.Err(); err != nil {
@@ -247,7 +247,7 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 			return
 		}
 		if err := w.opts.Authority.TouchRoutesTo(ctx, target, routes); err != nil {
-			w.opts.Local.RequeueTouched(onlineConnsFromRoutes(routes))
+			w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
 		}
 		delete(groups, target)
 	}
@@ -258,11 +258,11 @@ func (w *presenceTouchWorker) requeueRouteGroups(groups map[presence.RouteTarget
 		return
 	}
 	for _, routes := range groups {
-		w.opts.Local.RequeueTouched(onlineConnsFromRoutes(routes))
+		w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
 	}
 }
 
-func routeFromOnlineConn(conn online.OnlineConn) presence.Route {
+func routeFromOwnerRoute(conn online.OwnerRoute) presence.Route {
 	return presence.Route{
 		UID:           conn.UID,
 		OwnerNodeID:   conn.OwnerNodeID,
@@ -278,16 +278,16 @@ func routeFromOnlineConn(conn online.OnlineConn) presence.Route {
 	}
 }
 
-func onlineConnsFromRoutes(routes []presence.Route) []online.OnlineConn {
-	conns := make([]online.OnlineConn, 0, len(routes))
+func ownerRoutesFromRoutes(routes []presence.Route) []online.OwnerRoute {
+	conns := make([]online.OwnerRoute, 0, len(routes))
 	for _, route := range routes {
-		conns = append(conns, onlineConnFromRoute(route))
+		conns = append(conns, ownerRouteFromRoute(route))
 	}
 	return conns
 }
 
-func onlineConnFromRoute(route presence.Route) online.OnlineConn {
-	return online.OnlineConn{
+func ownerRouteFromRoute(route presence.Route) online.OwnerRoute {
+	return online.OwnerRoute{
 		UID:              route.UID,
 		OwnerNodeID:      route.OwnerNodeID,
 		OwnerBootID:      route.OwnerBootID,

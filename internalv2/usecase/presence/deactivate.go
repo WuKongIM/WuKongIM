@@ -20,7 +20,7 @@ func (a *App) Deactivate(ctx context.Context, cmd DeactivateCommand) error {
 	if conn.UID == "" {
 		conn.UID = cmd.UID
 	}
-	route := routeFromConn(conn)
+	route := routeFromOwnerRoute(conn)
 	a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 	return nil
 }

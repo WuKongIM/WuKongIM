@@ -10,6 +10,7 @@
 - `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND metrics with ChannelV2 reactor/worker metrics. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus low-frequency recovery probes, not short-interval empty pull polling.
 - `clusterv2/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
+- `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 
 ## Channel Runtime
 

@@ -20,8 +20,8 @@ const (
 	RouteStateClosing
 )
 
-// OnlineConn describes one owner-local gateway session route.
-type OnlineConn struct {
+// OwnerRoute describes one owner-local gateway session route projection.
+type OwnerRoute struct {
 	// UID is the authenticated user ID for this connection.
 	UID string
 	// HashSlot is the UID hash slot observed during activation.
@@ -46,6 +46,12 @@ type OnlineConn struct {
 	ConnectedUnix int64
 	// LastActivityUnix records the latest owner-observed client activity for batched authority touch.
 	LastActivityUnix int64
+}
+
+// LocalSession stores the concrete gateway session separately from its route projection.
+type LocalSession struct {
+	// Route is the presence-facing owner-local route projection.
+	Route OwnerRoute
 	// State records the owner-local lifecycle state.
 	State RouteState
 	// Session holds the gateway context used for local writes and close handling.
