@@ -7,10 +7,173 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+func TestHandlerOnSessionActivateCallsPresenceActivate(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	sess.SetValue(coregateway.SessionValueDeviceID, "d1")
+	sess.SetValue(coregateway.SessionValueDeviceFlag, frame.APP)
+	sess.SetValue(coregateway.SessionValueDeviceLevel, frame.DeviceLevelMaster)
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+
+	connack, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
+	})
+	if err != nil {
+		t.Fatalf("OnSessionActivate() error = %v", err)
+	}
+	if connack != nil {
+		t.Fatalf("OnSessionActivate() connack = %#v, want nil", connack)
+	}
+	if len(usecase.activateCommands) != 1 {
+		t.Fatalf("activate command count = %d, want 1", len(usecase.activateCommands))
+	}
+	cmd := usecase.activateCommands[0]
+	if cmd.UID != "u1" || cmd.DeviceID != "d1" || cmd.DeviceFlag != uint8(frame.APP) || cmd.DeviceLevel != uint8(frame.DeviceLevelMaster) {
+		t.Fatalf("activate identity fields = %#v", cmd)
+	}
+	if cmd.Listener != "tcp" || cmd.SessionID != sess.ID() || cmd.ConnectedUnix == 0 {
+		t.Fatalf("activate route fields = listener:%q session:%d connected:%d", cmd.Listener, cmd.SessionID, cmd.ConnectedUnix)
+	}
+	if cmd.Session == nil {
+		t.Fatalf("activate session handle is nil")
+	}
+}
+
+func TestHandlerOnSessionActivateRejectsMissingUID(t *testing.T) {
+	sess := newTestSession(t, nil)
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	})
+	if !errors.Is(err, ErrUnauthenticatedSession) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, ErrUnauthenticatedSession)
+	}
+	if len(usecase.activateCommands) != 0 {
+		t.Fatalf("activate command count = %d, want 0", len(usecase.activateCommands))
+	}
+}
+
+func TestHandlerOnSessionActivateForwardsContextFallbacksAndErrors(t *testing.T) {
+	wantErr := errors.New("activate failed")
+	reqCtx := context.WithValue(context.Background(), testContextKey{}, "request")
+	sess := session.New(session.Config{ID: 101, Listener: "fallback-listener"})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{activateErr: wantErr}
+	handler := New(Options{Presence: usecase})
+
+	connack, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: reqCtx,
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, wantErr)
+	}
+	if connack != nil {
+		t.Fatalf("OnSessionActivate() connack = %#v, want nil", connack)
+	}
+	if len(usecase.activateContexts) != 1 || usecase.activateContexts[0] != reqCtx {
+		t.Fatalf("activate context = %#v, want request context", usecase.activateContexts)
+	}
+	if len(usecase.activateCommands) != 1 {
+		t.Fatalf("activate command count = %d, want 1", len(usecase.activateCommands))
+	}
+	if got := usecase.activateCommands[0].Listener; got != "fallback-listener" {
+		t.Fatalf("activate listener = %q, want fallback listener", got)
+	}
+}
+
+func TestGatewayPresenceSessionCloseUsesContextCloseHook(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+	var closed bool
+	var closeReason coregateway.CloseReason
+	var closeErr error
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
+		CloseSessionFn: func(reason coregateway.CloseReason, err error) {
+			closed = true
+			closeReason = reason
+			closeErr = err
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSessionActivate() error = %v", err)
+	}
+	if len(usecase.activateCommands) != 1 || usecase.activateCommands[0].Session == nil {
+		t.Fatalf("activate command missing session handle: %#v", usecase.activateCommands)
+	}
+
+	if err := usecase.activateCommands[0].Session.CloseSession("conflict"); err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+	if !closed {
+		t.Fatalf("CloseSessionFn was not called")
+	}
+	if closeReason != coregateway.CloseReasonPolicyViolation {
+		t.Fatalf("close reason = %q, want %q", closeReason, coregateway.CloseReasonPolicyViolation)
+	}
+	if closeErr == nil || closeErr.Error() != "conflict" {
+		t.Fatalf("close error = %v, want conflict", closeErr)
+	}
+}
+
+func TestHandlerOnSessionCloseCallsPresenceDeactivate(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+
+	err := handler.OnSessionClose(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	})
+	if err != nil {
+		t.Fatalf("OnSessionClose() error = %v", err)
+	}
+	if len(usecase.deactivateCommands) != 1 {
+		t.Fatalf("deactivate command count = %d, want 1", len(usecase.deactivateCommands))
+	}
+	cmd := usecase.deactivateCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("deactivate command = %#v", cmd)
+	}
+}
+
+func TestHandlerOnSessionActivateRollbackCallsPresenceDeactivate(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+
+	handler.OnSessionActivateRollback(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, errors.New("connack write failed"))
+	if len(usecase.deactivateCommands) != 1 {
+		t.Fatalf("deactivate command count = %d, want 1", len(usecase.deactivateCommands))
+	}
+	cmd := usecase.deactivateCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("rollback deactivate command = %#v", cmd)
+	}
+}
 
 func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	var written []frame.Frame
@@ -494,6 +657,29 @@ func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (m
 	}
 	return result, err
 }
+
+type recordingPresence struct {
+	activateErr        error
+	deactivateErr      error
+	activateContexts   []context.Context
+	deactivateContexts []context.Context
+	activateCommands   []presence.ActivateCommand
+	deactivateCommands []presence.DeactivateCommand
+}
+
+func (p *recordingPresence) Activate(ctx context.Context, cmd presence.ActivateCommand) error {
+	p.activateContexts = append(p.activateContexts, ctx)
+	p.activateCommands = append(p.activateCommands, cmd)
+	return p.activateErr
+}
+
+func (p *recordingPresence) Deactivate(ctx context.Context, cmd presence.DeactivateCommand) error {
+	p.deactivateContexts = append(p.deactivateContexts, ctx)
+	p.deactivateCommands = append(p.deactivateCommands, cmd)
+	return p.deactivateErr
+}
+
+type testContextKey struct{}
 
 func newTestSession(t *testing.T, written *[]frame.Frame) session.Session {
 	t.Helper()

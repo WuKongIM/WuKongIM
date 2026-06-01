@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -19,6 +20,8 @@ var (
 	ErrMissingRequestContext = errors.New("internalv2/access/gateway: missing request context")
 	// ErrSendBatchResultCountMismatch reports non-aligned batch usecase results.
 	ErrSendBatchResultCountMismatch = errors.New("internalv2/access/gateway: send batch result count mismatch")
+	// ErrPresenceRequired reports an activation request without a presence usecase.
+	ErrPresenceRequired = errors.New("internalv2/access/gateway: presence usecase required")
 )
 
 const defaultSendTimeout = 5 * time.Second
@@ -33,10 +36,18 @@ type MessageBatchUsecase interface {
 	SendBatch([]message.SendBatchItem) []message.SendBatchItemResult
 }
 
+// PresenceUsecase is the session lifecycle entry used by the gateway adapter.
+type PresenceUsecase interface {
+	Activate(context.Context, presence.ActivateCommand) error
+	Deactivate(context.Context, presence.DeactivateCommand) error
+}
+
 // Options configures the internalv2 gateway handler.
 type Options struct {
 	// Messages processes single SEND commands.
 	Messages MessageUsecase
+	// Presence activates and deactivates authenticated gateway sessions.
+	Presence PresenceUsecase
 	// SendTimeout bounds each gateway SEND request.
 	SendTimeout time.Duration
 }
@@ -44,6 +55,7 @@ type Options struct {
 // Handler adapts pkg/gateway frames to internalv2 message usecases.
 type Handler struct {
 	messages    MessageUsecase
+	presence    PresenceUsecase
 	sendTimeout time.Duration
 }
 
@@ -54,15 +66,39 @@ func New(opts Options) *Handler {
 	}
 	return &Handler{
 		messages:    opts.Messages,
+		presence:    opts.Presence,
 		sendTimeout: opts.SendTimeout,
 	}
 }
 
 func (h *Handler) OnListenerError(string, error) {}
 
+func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPacket, error) {
+	if h == nil || h.presence == nil {
+		return nil, ErrPresenceRequired
+	}
+	cmd, err := activateCommandFromContext(ctx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.presence.Activate(requestContextFromContext(ctx), cmd)
+}
+
 func (h *Handler) OnSessionOpen(coregateway.Context) error { return nil }
 
-func (h *Handler) OnSessionClose(coregateway.Context) error { return nil }
+func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
+	if h == nil || h.presence == nil {
+		return nil
+	}
+	return h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx))
+}
+
+func (h *Handler) OnSessionActivateRollback(ctx coregateway.Context, _ error) {
+	if h == nil || h.presence == nil {
+		return
+	}
+	_ = h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx))
+}
 
 func (h *Handler) OnSessionError(coregateway.Context, error) {}
 
