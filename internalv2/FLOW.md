@@ -19,7 +19,7 @@ storage, or routing branches that bypass cluster semantics.
 | `access/node` | Node RPC adapter for presence authority calls between internalv2 nodes. |
 | `usecase/message` | Entry-agnostic SEND orchestration, batching, validation, message ID allocation, append ports, and committed event submission. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
-| `runtime/online` | Owner-local active gateway session registry used for local delivery and authority rehydrate. |
+| `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `infra/cluster` | Adapter from message append ports and presence authority ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
@@ -63,11 +63,13 @@ pkg/gateway CONNECT activation
 ```
 
 Route-authority changes are observed from `pkg/clusterv2`. When this node gains
-authority for a hash slot, `internalv2/app` installs a fresh
-`runtime/presence.Directory` authority epoch and rehydrates bounded pages from
-`runtime/online`, then commits or aborts any pending conflict candidates returned
-by rehydrate. When leadership moves elsewhere, local authority state and older
-rehydrate work for that hash slot are canceled.
+authority for a hash slot, `internalv2/app` installs the corresponding
+`runtime/presence.Directory` authority epoch. Owner gateway PING marks active
+sessions dirty in `runtime/online`; the app worker batches those dirty routes,
+resolves their current UID authorities, sends `TouchRoutes`, and expires
+authority routes by TTL. When leadership moves elsewhere, local authority state
+for that hash slot is cleared. Authority changes do not scan or replay all
+owner-local active sessions.
 
 ## Phase-1 Bench Target Flow
 

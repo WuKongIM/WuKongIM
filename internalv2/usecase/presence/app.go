@@ -18,7 +18,7 @@ type Options struct {
 	OwnerNodeID uint64
 	// OwnerBootID identifies this owner process generation.
 	OwnerBootID uint64
-	// HashSlot resolves UID hash slots for local rehydrate indexing.
+	// HashSlot resolves UID hash slots for owner-local route metadata.
 	HashSlot HashSlotResolver
 	// OwnerSeq allocates monotonic owner sequences; nil falls back to SessionID.
 	OwnerSeq OwnerSeqGenerator
