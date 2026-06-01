@@ -113,19 +113,19 @@ func TestPresenceAuthorityRPCHandlerDispatchesOperations(t *testing.T) {
 			},
 		},
 		{
-			name: "rehydrate",
+			name: "touch routes",
 			req: presenceRPCRequest{
-				Op:     presenceOpRehydrateRoutes,
+				Op:     presenceOpTouchRoutes,
 				Target: target,
 				Routes: []presence.Route{route},
 			},
 			assert: func(t *testing.T, authority *fakePresenceAuthority, resp presenceRPCResponse) {
 				t.Helper()
-				if len(authority.rehydrateCalls) != 1 {
-					t.Fatalf("rehydrate calls = %d, want 1", len(authority.rehydrateCalls))
+				if len(authority.touchCalls) != 1 {
+					t.Fatalf("touch calls = %d, want 1", len(authority.touchCalls))
 				}
-				if len(resp.Rehydrate) != 1 || !resp.Rehydrate[0].Accepted {
-					t.Fatalf("rehydrate response = %#v", resp.Rehydrate)
+				if !reflect.DeepEqual(authority.touchCalls[0].target, target) || !reflect.DeepEqual(authority.touchCalls[0].routes, []presence.Route{route}) {
+					t.Fatalf("touch call = %#v", authority.touchCalls[0])
 				}
 			},
 		},
@@ -255,6 +255,38 @@ func TestPresenceClientEncodesRPCAndMapsStatusErrors(t *testing.T) {
 	}
 }
 
+func TestClientTouchRoutesCallsPresenceAuthorityService(t *testing.T) {
+	target := testPresenceTarget()
+	routes := []presence.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 2, OwnerSeq: 3, SessionID: 4, LastSeenUnix: 50}}
+	node := &fakePresenceRPCNode{
+		response: presenceRPCResponse{Status: rpcStatusOK},
+	}
+	client := NewClient(node)
+
+	if err := client.TouchRoutes(context.Background(), target, routes); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+	if node.nodeID != target.LeaderNodeID {
+		t.Fatalf("rpc node id = %d, want %d", node.nodeID, target.LeaderNodeID)
+	}
+	if node.serviceID != PresenceAuthorityRPCServiceID {
+		t.Fatalf("rpc service id = %d, want %d", node.serviceID, PresenceAuthorityRPCServiceID)
+	}
+	req, err := decodePresenceRPCRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodePresenceRPCRequest(client payload) error = %v", err)
+	}
+	if req.Op != presenceOpTouchRoutes {
+		t.Fatalf("op = %q, want %q", req.Op, presenceOpTouchRoutes)
+	}
+	if !reflect.DeepEqual(req.Target, target) {
+		t.Fatalf("target = %#v, want %#v", req.Target, target)
+	}
+	if !reflect.DeepEqual(req.Routes, routes) {
+		t.Fatalf("routes = %#v, want %#v", req.Routes, routes)
+	}
+}
+
 func TestPresenceClientEncodesOwnerActionRPC(t *testing.T) {
 	node := &fakePresenceRPCNode{
 		response: presenceRPCResponse{Status: rpcStatusOK},
@@ -337,7 +369,7 @@ type fakePresenceAuthority struct {
 	abortCalls      []presenceTokenCall
 	unregisterCalls []presenceUnregisterCall
 	endpointCalls   []presenceEndpointCall
-	rehydrateCalls  []presenceRehydrateCall
+	touchCalls      []presenceTouchCall
 }
 
 type fakePresenceOwner struct {
@@ -381,13 +413,9 @@ func (f *fakePresenceAuthority) EndpointsByUID(_ context.Context, target presenc
 	return []presence.Route{testPresenceRoute(uid, 101)}, nil
 }
 
-func (f *fakePresenceAuthority) RehydrateRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
-	f.rehydrateCalls = append(f.rehydrateCalls, presenceRehydrateCall{target: target, routes: append([]presence.Route(nil), routes...)})
-	results := make([]presence.RehydrateResult, 0, len(routes))
-	for _, route := range routes {
-		results = append(results, presence.RehydrateResult{Route: route.Identity(), Accepted: true})
-	}
-	return results, nil
+func (f *fakePresenceAuthority) TouchRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	f.touchCalls = append(f.touchCalls, presenceTouchCall{target: target, routes: append([]presence.Route(nil), routes...)})
+	return nil
 }
 
 type presenceRegisterCall struct {
@@ -411,7 +439,7 @@ type presenceEndpointCall struct {
 	uid    string
 }
 
-type presenceRehydrateCall struct {
+type presenceTouchCall struct {
 	target presence.RouteTarget
 	routes []presence.Route
 }

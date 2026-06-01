@@ -22,7 +22,7 @@ const (
 	presenceOpAbortRoute       = "abort_route"
 	presenceOpUnregisterRoute  = "unregister_route"
 	presenceOpEndpointsByUID   = "endpoints_by_uid"
-	presenceOpRehydrateRoutes  = "rehydrate_routes"
+	presenceOpTouchRoutes      = "touch_routes"
 	presenceOpApplyRouteAction = "apply_route_action"
 )
 
@@ -39,7 +39,7 @@ type PresenceAuthority interface {
 	AbortRoute(context.Context, presence.RouteTarget, string) error
 	UnregisterRoute(context.Context, presence.RouteTarget, presence.RouteIdentity, uint64) error
 	EndpointsByUID(context.Context, presence.RouteTarget, string) ([]presence.Route, error)
-	RehydrateRoutes(context.Context, presence.RouteTarget, []presence.Route) ([]presence.RehydrateResult, error)
+	TouchRoutes(context.Context, presence.RouteTarget, []presence.Route) error
 }
 
 // PresenceOwner applies authority-requested actions to owner-local sessions.
@@ -100,12 +100,9 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 			return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: presenceRPCStatusForError(err)})
 		}
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusOK, Endpoints: routes})
-	case presenceOpRehydrateRoutes:
-		results, err := a.authority.RehydrateRoutes(ctx, req.Target, req.Routes)
-		if err != nil {
-			return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: presenceRPCStatusForError(err)})
-		}
-		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusOK, Rehydrate: results})
+	case presenceOpTouchRoutes:
+		err := a.authority.TouchRoutes(ctx, req.Target, req.Routes)
+		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: presenceRPCStatusForError(err)})
 	default:
 		return nil, fmt.Errorf("internalv2/access/node: unknown presence rpc op %q", req.Op)
 	}
@@ -194,16 +191,13 @@ func (c *Client) EndpointsByUID(ctx context.Context, target presence.RouteTarget
 	return resp.Endpoints, nil
 }
 
-// RehydrateRoutes replays owner routes on the target authority node.
-func (c *Client) RehydrateRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
-	resp, err := c.call(ctx, target, presenceRPCRequest{Op: presenceOpRehydrateRoutes, Target: target, Routes: routes})
+// TouchRoutes refreshes owner routes on the target authority node.
+func (c *Client) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	resp, err := c.call(ctx, target, presenceRPCRequest{Op: presenceOpTouchRoutes, Target: target, Routes: routes})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err := presenceRPCErrorForStatus(resp.Status); err != nil {
-		return nil, err
-	}
-	return resp.Rehydrate, nil
+	return presenceRPCErrorForStatus(resp.Status)
 }
 
 // ApplyRouteAction applies one conflict action on the owner node.

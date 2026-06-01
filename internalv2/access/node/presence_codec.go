@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	presenceRPCRequestMagic  = [...]byte{'W', 'K', 'V', 'P', 1}
-	presenceRPCResponseMagic = [...]byte{'W', 'K', 'V', 'R', 1}
+	presenceRPCRequestMagic  = [...]byte{'W', 'K', 'V', 'P', 2}
+	presenceRPCResponseMagic = [...]byte{'W', 'K', 'V', 'R', 2}
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 	presenceOpAbortRouteID
 	presenceOpUnregisterRouteID
 	presenceOpEndpointsByUIDID
-	presenceOpRehydrateRoutesID
+	presenceOpTouchRoutesID
 	presenceOpApplyRouteActionID
 )
 
@@ -30,9 +30,9 @@ type presenceRPCRequest struct {
 	Op string
 	// Target fences the request to one observed hash-slot authority epoch.
 	Target presence.RouteTarget
-	// Route carries a route for register or rehydrate requests.
+	// Route carries a route for register requests.
 	Route presence.Route
-	// Routes carries bulk owner routes for rehydrate requests.
+	// Routes carries bulk owner routes for touch requests.
 	Routes []presence.Route
 	// Action carries an owner-node conflict action.
 	Action presence.RouteAction
@@ -54,8 +54,6 @@ type presenceRPCResponse struct {
 	Register presence.RegisterResult
 	// Endpoints carries EndpointsByUID output when Status is ok.
 	Endpoints []presence.Route
-	// Rehydrate carries RehydrateRoutes output when Status is ok.
-	Rehydrate []presence.RehydrateResult
 }
 
 func encodePresenceRPCRequestBinary(req presenceRPCRequest) ([]byte, error) {
@@ -130,7 +128,6 @@ func encodePresenceRPCResponseBinary(resp presenceRPCResponse) ([]byte, error) {
 	dst = appendString(dst, resp.Status)
 	dst = appendPresenceRegisterResult(dst, resp.Register)
 	dst = appendPresenceRoutes(dst, resp.Endpoints)
-	dst = appendPresenceRehydrateResults(dst, resp.Rehydrate)
 	return dst, nil
 }
 
@@ -152,9 +149,6 @@ func decodePresenceRPCResponseBinary(body []byte) (presenceRPCResponse, error) {
 		return presenceRPCResponse{}, err
 	}
 	if resp.Endpoints, offset, err = readPresenceRoutes(body, offset); err != nil {
-		return presenceRPCResponse{}, err
-	}
-	if resp.Rehydrate, offset, err = readPresenceRehydrateResults(body, offset); err != nil {
 		return presenceRPCResponse{}, err
 	}
 	if offset != len(body) {
@@ -183,8 +177,8 @@ func presenceOpID(op string) (byte, error) {
 		return presenceOpUnregisterRouteID, nil
 	case presenceOpEndpointsByUID:
 		return presenceOpEndpointsByUIDID, nil
-	case presenceOpRehydrateRoutes:
-		return presenceOpRehydrateRoutesID, nil
+	case presenceOpTouchRoutes:
+		return presenceOpTouchRoutesID, nil
 	case presenceOpApplyRouteAction:
 		return presenceOpApplyRouteActionID, nil
 	default:
@@ -204,8 +198,8 @@ func presenceOpFromID(op byte) (string, error) {
 		return presenceOpUnregisterRoute, nil
 	case presenceOpEndpointsByUIDID:
 		return presenceOpEndpointsByUID, nil
-	case presenceOpRehydrateRoutesID:
-		return presenceOpRehydrateRoutes, nil
+	case presenceOpTouchRoutesID:
+		return presenceOpTouchRoutes, nil
 	case presenceOpApplyRouteActionID:
 		return presenceOpApplyRouteAction, nil
 	default:
@@ -262,6 +256,7 @@ func appendPresenceRoute(dst []byte, route presence.Route) []byte {
 	dst = append(dst, route.DeviceFlag, route.DeviceLevel)
 	dst = appendString(dst, route.Listener)
 	dst = appendVarint(dst, route.ConnectedUnix)
+	dst = appendVarint(dst, route.LastSeenUnix)
 	return dst
 }
 
@@ -296,6 +291,9 @@ func readPresenceRoute(body []byte, offset int) (presence.Route, int, error) {
 		return presence.Route{}, offset, err
 	}
 	if route.ConnectedUnix, offset, err = readVarint(body, offset); err != nil {
+		return presence.Route{}, offset, err
+	}
+	if route.LastSeenUnix, offset, err = readVarint(body, offset); err != nil {
 		return presence.Route{}, offset, err
 	}
 	return route, offset, nil
@@ -446,55 +444,6 @@ func readPresenceAction(body []byte, offset int) (presence.RouteAction, int, err
 	return action, offset, nil
 }
 
-func appendPresenceRehydrateResults(dst []byte, results []presence.RehydrateResult) []byte {
-	dst = appendUvarint(dst, uint64(len(results)))
-	for _, result := range results {
-		dst = appendPresenceRouteIdentity(dst, result.Route)
-		dst = appendBool(dst, result.Accepted)
-		dst = appendString(dst, string(result.PendingToken))
-		dst = appendPresenceActions(dst, result.Actions)
-		dst = appendString(dst, result.Error)
-	}
-	return dst
-}
-
-func readPresenceRehydrateResults(body []byte, offset int) ([]presence.RehydrateResult, int, error) {
-	count, next, err := readUvarint(body, offset)
-	if err != nil {
-		return nil, offset, err
-	}
-	offset = next
-	if count == 0 {
-		return nil, offset, nil
-	}
-	if err := validateCollectionLen(count, len(body)-offset, "presence rehydrate results"); err != nil {
-		return nil, offset, err
-	}
-	results := make([]presence.RehydrateResult, 0, int(count))
-	for i := uint64(0); i < count; i++ {
-		var result presence.RehydrateResult
-		if result.Route, offset, err = readPresenceRouteIdentity(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if result.Accepted, offset, err = readBool(body, offset, "presence rehydrate accepted"); err != nil {
-			return nil, offset, err
-		}
-		var token string
-		if token, offset, err = readString(body, offset); err != nil {
-			return nil, offset, err
-		}
-		result.PendingToken = presence.PendingRouteToken(token)
-		if result.Actions, offset, err = readPresenceActions(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if result.Error, offset, err = readString(body, offset); err != nil {
-			return nil, offset, err
-		}
-		results = append(results, result)
-	}
-	return results, offset, nil
-}
-
 func appendString(dst []byte, value string) []byte {
 	dst = appendUvarint(dst, uint64(len(value)))
 	return append(dst, value...)
@@ -511,28 +460,6 @@ func readString(body []byte, offset int) (string, int, error) {
 	}
 	end := offset + int(n)
 	return string(body[offset:end]), end, nil
-}
-
-func appendBool(dst []byte, value bool) []byte {
-	if value {
-		return append(dst, 1)
-	}
-	return append(dst, 0)
-}
-
-func readBool(body []byte, offset int, label string) (bool, int, error) {
-	value, next, err := readByte(body, offset, label)
-	if err != nil {
-		return false, offset, err
-	}
-	switch value {
-	case 0:
-		return false, next, nil
-	case 1:
-		return true, next, nil
-	default:
-		return false, offset, fmt.Errorf("internalv2/access/node: invalid %s bool", label)
-	}
 }
 
 func appendUvarint(dst []byte, value uint64) []byte {

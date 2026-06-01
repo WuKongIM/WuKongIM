@@ -11,11 +11,11 @@ conflict policy, routing policy, retries, leases, or gateway session state.
 
 ```text
 remote authority client
-  -> encode W K V P 1 request
+  -> encode W K V P 2 request
   -> clusterv2 RPCPresenceAuthority
   -> Adapter.HandlePresenceAuthorityRPC
   -> PresenceAuthority method
-  -> encode W K V R 1 response
+  -> encode W K V R 2 response
   -> client maps status to typed authority error
 ```
 
@@ -26,17 +26,17 @@ Supported authority calls:
 - `AbortRoute(RouteTarget, PendingRouteToken)`
 - `UnregisterRoute(RouteTarget, RouteIdentity, ownerSeq)`
 - `EndpointsByUID(RouteTarget, uid)`
-- `RehydrateRoutes(RouteTarget, []Route)`
+- `TouchRoutes(RouteTarget, []Route)`
 
 ## Presence Owner RPC
 
 ```text
 remote owner-action client
-  -> encode W K V P 1 request
+  -> encode W K V P 2 request
   -> clusterv2 RPCPresenceOwner
   -> Adapter.HandlePresenceOwnerRPC
   -> PresenceOwner.ApplyRouteAction
-  -> encode W K V R 1 response
+  -> encode W K V R 2 response
 ```
 
 Supported owner calls:
@@ -47,8 +47,8 @@ Supported owner calls:
 
 Presence authority RPC uses fixed magic headers:
 
-- Request: `W K V P 1`
-- Response: `W K V R 1`
+- Request: `W K V P 2`
+- Response: `W K V R 2`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
