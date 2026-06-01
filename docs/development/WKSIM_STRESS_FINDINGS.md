@@ -6,7 +6,7 @@ load loop. Keep entries concise so the final review is easy to scan.
 ## 2026-06-02 wukongimv2 Three-Node Presence Local Bench
 
 Environment:
-- Worktree at `6e1c26b0` plus local gateway auth failure attribution patch; cleanup follow-ups at `412fca06` and `9a9970dd`.
+- Worktree at `6e1c26b0` plus local gateway auth failure attribution patch; cleanup follow-ups at `412fca06` and `9a9970dd`, then a local presence activation route retry/classification patch.
 - Local `cmd/wukongimv2` three-node cluster, clean data, started by `scripts/bench-wukongimv2-three-nodes-presence.sh`.
 - macOS local client ephemeral port range was widened temporarily from `49152-65535` to `10000-65535` for the 20k follow-up runs.
 - Evidence:
@@ -16,6 +16,13 @@ Environment:
   - `docs/development/perf-runs/20260602-003032-three-node-presence-20k-r500-cooldown10-attributed/`
   - `docs/development/perf-runs/20260602-010633-three-node-presence-20k-r500-wideports-cleanup/`
   - `docs/development/perf-runs/20260602-010908-three-node-presence-20k-r1000-wideports-cleanup/`
+  - `docs/development/perf-runs/20260602-012723-three-node-presence-20k-r500-timeout30-cleanup/`
+  - `docs/development/perf-runs/20260602-013308-three-node-presence-20k-r500-timeout30-repeat-cleanup/`
+  - `docs/development/perf-runs/20260602-013916-three-node-presence-20k-r500-timeout30-settle60-cleanup/`
+  - `docs/development/perf-runs/20260602-014521-three-node-presence-20k-r500-hb5s-timeout30-cleanup/`
+  - `docs/development/perf-runs/20260602-020733-three-node-presence-20k-r500-hb1s-route-retry-cleanup/`
+  - `docs/development/perf-runs/20260602-022027-three-node-presence-20k-r500-hb1s-route-retry-nosleep-cleanup/`
+  - `docs/development/perf-runs/20260602-022429-three-node-presence-20k-r500-hb1s-route-retry-nosleep-cleanup120/`
 
 Findings:
 - 10k users at 1000 connects/s passed with `heartbeat_error_total=0`, stable peak owner/authority routes at `10000`, final routes back to `0`, and auth metrics all `status="ok", failure="none"`.
@@ -24,11 +31,16 @@ Findings:
 - 20k users at 500 connects/s hit the local client/OS boundary before server saturation: the worker failed at `16236` connect attempts with `dial tcp 127.0.0.1:5113: connect: can't assign requested address`. The macOS ephemeral port range was `49152-65535` (`16384` ports), matching the failure point.
 - After widening the ephemeral port range, 20k users at 500 connects/s no longer failed on `EADDRNOTAVAIL`; the run reached `18999` successful connects and then hit the wkbench worker phase poll timeout with one `context canceled` connect sample. Auth metrics stayed `status="ok", failure="none"` and server resource samples were modest, so this is a coordinator timing boundary for this connect schedule, not a presence route failure.
 - With the widened port range, 20k users at 1000 connects/s passed: `heartbeat_error_total=0`, `stable_sample_count=18`, live owner/authority routes reached `20000`, auth metrics stayed `status="ok", failure="none"`, and `cleanup_zero_status=passed`.
+- Repeating 20k users at 500 connects/s with `--phase-poll-timeout 30s` exposed an intermittent activation failure class instead of local port exhaustion: runs failed after about `15.2k-19.7k` connects with one `ReasonSystemError` and gateway auth `failure="activation_error"`.
+- The failure correlated with stale or not-yet-ready slot-leader route observation during the activation path, sometimes around ControllerV2 leadership churn. Gateway auth metrics now keep bounded activation failure labels (`activation_route_not_ready`, `activation_not_leader`, `activation_stale_route`, and context cancellation/deadline classes) instead of collapsing every activation failure into `activation_error`.
+- Presence route resolution now performs bounded immediate fresh-route retries for route-not-ready, stale-route, and not-leader results before failing activation. Authority calls retry only stale-route and not-leader, preserving explicit route-not-ready semantics for pending-token cleanup.
+- With the retry patch, 20k users at 500 connects/s and 1s heartbeats reached `20000` owner and authority routes with `heartbeat_error_total=0`, `connect_success_total=20000`, and no auth failures even when later logs still showed controller leader stepdowns.
+- Cleanup remains a separate tail issue at this scale: the 60s no-sleep retry run left small residual routes (`owner=119`, `authority=42`), and the 120s cleanup run left only owner/gateway active-connection residuals (`owner=257`, `authority=0`). Treat cleanup tail as a worker/gateway TCP close investigation, not as evidence that authority presence registration failed.
 - Server samples stayed modest in the valid runs: 10k max CPU `42.1%`, max RSS `133888KB`; 15k/10s max CPU `31.8%`, max RSS `151184KB`; 15k/60s max CPU `68.2%`, max RSS `153776KB`; 20k/1000 max CPU `35.6%`, max RSS `171552KB`.
 
 Classification:
-- Category: healthy 10k, 15k, and 20k presence route stability after widening local ephemeral ports; cleanup clears within the script observation window.
-- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, run wkbench with a larger `--phase-poll-timeout` before treating coordinator timeouts as service failures.
+- Category: healthy 10k, 15k, and 20k presence route stability after widening local ephemeral ports and hardening activation route lookup; remaining 20k cleanup tail is separate from authority registration correctness.
+- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, run wkbench with a larger `--phase-poll-timeout` before treating coordinator timeouts as service failures. Investigate residual owner/gateway active connections after worker stop with connection close metrics before tuning presence expiry.
 
 ## 2026-05-20 Run 1
 

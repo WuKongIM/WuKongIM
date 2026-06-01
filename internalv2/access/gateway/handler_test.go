@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -91,6 +92,29 @@ func TestHandlerOnSessionActivateForwardsContextFallbacksAndErrors(t *testing.T)
 	}
 	if got := usecase.activateCommands[0].Listener; got != "fallback-listener" {
 		t.Fatalf("activate listener = %q, want fallback listener", got)
+	}
+}
+
+func TestHandlerOnSessionActivateClassifiesPresenceRouteErrors(t *testing.T) {
+	reqCtx := context.WithValue(context.Background(), testContextKey{}, "request")
+	sess := session.New(session.Config{ID: 101, Listener: "fallback-listener"})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{activateErr: authoritypresence.ErrRouteNotReady}
+	handler := New(Options{Presence: usecase})
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: reqCtx,
+	})
+	if !errors.Is(err, authoritypresence.ErrRouteNotReady) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, authoritypresence.ErrRouteNotReady)
+	}
+	classified, ok := err.(interface{ GatewayAuthFailure() string })
+	if !ok {
+		t.Fatalf("OnSessionActivate() error does not expose GatewayAuthFailure: %T", err)
+	}
+	if got := classified.GatewayAuthFailure(); got != "activation_route_not_ready" {
+		t.Fatalf("GatewayAuthFailure() = %q, want activation_route_not_ready", got)
 	}
 }
 

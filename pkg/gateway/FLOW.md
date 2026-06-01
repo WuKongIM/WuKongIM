@@ -118,6 +118,9 @@ type Context struct {
 ```
 
 `SessionActivator` 是可选 hook。WKProto CONNECT 认证成功后、CONNACK 写出前调用它；`internal/access/gateway` / `internalv2/access/gateway` 使用该 hook 完成 presence activate。
+如果激活错误实现 `AuthFailureClassifier`，`core` 会使用其返回的低基数
+failure class 记录认证失败指标；未知或未分类激活错误仍归为
+`activation_error`。
 
 `SessionActivationRollbacker` 是可选 hook。`SessionActivator` 已接受路由或在线状态后，如果成功 CONNACK 写出失败，`core` 会调用它回滚已接受的激活结果；认证失败或激活自身返回错误时不会调用 rollback。
 

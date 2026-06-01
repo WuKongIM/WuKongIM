@@ -33,6 +33,11 @@ type AuthEvent struct {
 	Duration time.Duration
 }
 
+// AuthFailureClassifier lets entry adapters expose a bounded auth failure class.
+type AuthFailureClassifier interface {
+	GatewayAuthFailure() string
+}
+
 type FrameEvent struct {
 	ConnectionEvent
 	FrameType string

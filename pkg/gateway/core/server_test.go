@@ -258,6 +258,50 @@ func TestServer(t *testing.T) {
 		require.Equal(t, "activation_error", observer.auths[0].Failure)
 	})
 
+	t.Run("wkproto activation failure uses stable failure classifier", func(t *testing.T) {
+		handler := newTestHandler()
+		handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) {
+			return nil, classifiedActivationError{
+				class: "activation_route_not_ready",
+				err:   errors.New("route not ready"),
+			}
+		}
+
+		proto := newScriptedProtocol("wkproto")
+		proto.encodeFn = func(_ session.Session, f frame.Frame, _ session.OutboundMeta) ([]byte, error) {
+			connack, ok := f.(*frame.ConnackPacket)
+			if !ok {
+				t.Fatalf("expected connack frame, got %T", f)
+			}
+			if connack.ReasonCode != frame.ReasonSystemError {
+				t.Fatalf("expected retryable connack, got %v", connack.ReasonCode)
+			}
+			return []byte("connack-system"), nil
+		}
+		proto.pushDecode(decodeResult{
+			frames: []frame.Frame{&frame.ConnectPacket{
+				UID:        "u1",
+				DeviceID:   "d-1",
+				DeviceFlag: frame.APP,
+			}},
+			consumed: 1,
+		})
+
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}), observer)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		transportFactory.MustData("listener-a", 1, []byte("c"))
+
+		waitFor(t, func() bool { return connClosed(conn) && len(conn.Writes()) == 1 && observer.authCount() == 1 })
+		require.Equal(t, "fail", observer.auths[0].Status)
+		require.Equal(t, "activation_route_not_ready", observer.auths[0].Failure)
+	})
+
 	t.Run("wkproto activation normalizes zero reason override to success", func(t *testing.T) {
 		handler := newTestHandler()
 		handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) {
@@ -1925,6 +1969,26 @@ func connClosed(conn *testkit.FakeConn) bool {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+type classifiedActivationError struct {
+	class string
+	err   error
+}
+
+func (e classifiedActivationError) Error() string {
+	if e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e classifiedActivationError) Unwrap() error {
+	return e.err
+}
+
+func (e classifiedActivationError) GatewayAuthFailure() string {
+	return e.class
+}
 
 type buildSpyFactory struct {
 	name    string

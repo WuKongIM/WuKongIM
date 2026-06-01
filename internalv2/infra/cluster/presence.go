@@ -38,7 +38,10 @@ type PresenceAuthorityClient struct {
 	pending map[presence.PendingRouteToken]pendingRouteRef
 }
 
-const defaultPresenceUnregisterTimeout = 3 * time.Second
+const (
+	defaultPresenceUnregisterTimeout  = 3 * time.Second
+	defaultPresenceRouteRetryAttempts = 5
+)
 
 type pendingRouteRef struct {
 	uid      string
@@ -208,24 +211,32 @@ func (c *PresenceAuthorityClient) withFreshTarget(ctx context.Context, uid strin
 }
 
 func (c *PresenceAuthorityClient) withFreshTargetSource(ctx context.Context, uid string, call func(presence.RouteTarget) error) (bool, error) {
-	for attempt := 0; attempt < 2; attempt++ {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	fromAuthority := false
+	for attempt := 0; attempt < defaultPresenceRouteRetryAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return fromAuthority, err
 		}
 		target, err := c.ResolveRouteTarget(uid)
 		if err != nil {
-			return false, err
+			if attempt+1 < defaultPresenceRouteRetryAttempts && shouldRetryPresenceRouteLookup(err) {
+				continue
+			}
+			return fromAuthority, err
 		}
 		err = call(target)
+		fromAuthority = true
 		if err == nil {
 			return true, nil
 		}
-		if attempt == 0 && shouldRetryPresenceRoute(err) {
+		if attempt+1 < defaultPresenceRouteRetryAttempts && shouldRetryPresenceRoute(err) {
 			continue
 		}
 		return true, err
 	}
-	return false, authoritypresence.ErrRouteNotReady
+	return fromAuthority, authoritypresence.ErrRouteNotReady
 }
 
 func (c *PresenceAuthorityClient) authorityForTarget(target presence.RouteTarget) (accessnode.PresenceAuthority, error) {
@@ -281,7 +292,12 @@ func wrapPendingToken(token presence.PendingRouteToken, uid string, c *PresenceA
 }
 
 func shouldRetryPresenceRoute(err error) bool {
-	return errors.Is(err, authoritypresence.ErrStaleRoute) || errors.Is(err, authoritypresence.ErrNotLeader)
+	return errors.Is(err, authoritypresence.ErrStaleRoute) ||
+		errors.Is(err, authoritypresence.ErrNotLeader)
+}
+
+func shouldRetryPresenceRouteLookup(err error) bool {
+	return shouldRetryPresenceRoute(err) || errors.Is(err, authoritypresence.ErrRouteNotReady)
 }
 
 func mapPresenceRouteError(err error) error {

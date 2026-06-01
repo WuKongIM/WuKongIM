@@ -15,6 +15,7 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg.Gateway.ConnectionOpened("tcp")
 	reg.Gateway.Auth("ok", "none", 25*time.Millisecond)
 	reg.Gateway.Auth("fail", "activation_error", 30*time.Millisecond)
+	reg.Gateway.Auth("fail", "activation_route_not_ready", 32*time.Millisecond)
 	reg.Gateway.Auth("fail", "raw error text with uid", 35*time.Millisecond)
 	reg.Gateway.MessageReceived("tcp", 12)
 	reg.Gateway.MessageDelivered("tcp", 18)
@@ -98,6 +99,12 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 		"node_id":   "1",
 		"node_name": "node-1",
 		"status":    "fail",
+		"failure":   "activation_route_not_ready",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, authTotal, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
 		"failure":   "unknown",
 	}).GetCounter().GetValue())
 
@@ -113,6 +120,12 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 		"node_name": "node-1",
 		"status":    "fail",
 		"failure":   "activation_error",
+	})
+	findMetricByLabels(t, authDuration, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"status":    "fail",
+		"failure":   "activation_route_not_ready",
 	})
 	findMetricByLabels(t, authDuration, map[string]string{
 		"node_id":   "1",

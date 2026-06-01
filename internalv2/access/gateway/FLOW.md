@@ -13,6 +13,7 @@ OnSessionActivate(Context)
   -> read authenticated UID, device, listener, and session fields from gateway Context/Session values
   -> map them into presence.ActivateCommand
   -> call presence.Activate
+  -> classify known presence activation errors for gateway auth metrics
   -> return activation errors to gateway core so core writes system-error CONNACK and closes
 
 OnSessionClose(Context)

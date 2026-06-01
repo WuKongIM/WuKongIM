@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -82,7 +83,10 @@ func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPac
 	if err != nil {
 		return nil, err
 	}
-	return nil, h.presence.Activate(requestContextFromContext(ctx), cmd)
+	if err := h.presence.Activate(requestContextFromContext(ctx), cmd); err != nil {
+		return nil, classifyActivationError(err)
+	}
+	return nil, nil
 }
 
 func (h *Handler) OnSessionOpen(coregateway.Context) error { return nil }
@@ -161,3 +165,47 @@ func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) message.
 
 var _ coregateway.Handler = (*Handler)(nil)
 var _ coregateway.SendBatchHandler = (*Handler)(nil)
+
+// activationAuthFailureError preserves the original activation error and exposes a bounded gateway metric class.
+type activationAuthFailureError struct {
+	class string
+	err   error
+}
+
+func (e activationAuthFailureError) Error() string {
+	if e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e activationAuthFailureError) Unwrap() error {
+	return e.err
+}
+
+func (e activationAuthFailureError) GatewayAuthFailure() string {
+	return e.class
+}
+
+func classifyActivationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	class := ""
+	switch {
+	case errors.Is(err, authoritypresence.ErrRouteNotReady):
+		class = "activation_route_not_ready"
+	case errors.Is(err, authoritypresence.ErrNotLeader):
+		class = "activation_not_leader"
+	case errors.Is(err, authoritypresence.ErrStaleRoute):
+		class = "activation_stale_route"
+	case errors.Is(err, context.Canceled):
+		class = "activation_context_canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		class = "activation_context_deadline"
+	}
+	if class == "" {
+		return err
+	}
+	return activationAuthFailureError{class: class, err: err}
+}

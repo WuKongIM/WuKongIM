@@ -144,6 +144,31 @@ func TestPresenceClientRetriesOnceAfterStaleRoute(t *testing.T) {
 	}
 }
 
+func TestPresenceClientRetriesRouteResolutionWhenRouteNotReady(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		routes: []clusterv2.Route{
+			{HashSlot: 7, SlotID: 11, Leader: 0, Revision: 17, AuthorityEpoch: 1},
+			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 18, AuthorityEpoch: 2},
+		},
+	}
+	local := &fakePresenceAuthority{}
+	client := NewPresenceAuthorityClient(cluster, local)
+
+	if _, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101)); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if cluster.routeKeyCalls != 2 {
+		t.Fatalf("RouteKey calls = %d, want 2", cluster.routeKeyCalls)
+	}
+	if len(local.registerCalls) != 1 {
+		t.Fatalf("local register calls = %d, want 1", len(local.registerCalls))
+	}
+	if got := local.registerCalls[0].target.RouteRevision; got != 18 {
+		t.Fatalf("retry RouteRevision = %d, want 18", got)
+	}
+}
+
 func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
@@ -209,6 +234,36 @@ func TestPresenceClientKeepsPendingTokenWhenCommitRouteNotReady(t *testing.T) {
 	}
 	if local.abortCalls[0].token != "pending-1" {
 		t.Fatalf("abort raw token = %q, want pending-1", local.abortCalls[0].token)
+	}
+}
+
+func TestPresenceClientForgetsPendingTokenWhenAbortReachedAuthorityBeforeRouteLoss(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		routes: []clusterv2.Route{
+			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 18, AuthorityEpoch: 2},
+			{HashSlot: 7, SlotID: 11, Leader: 0, Revision: 19, AuthorityEpoch: 3},
+		},
+	}
+	local := &fakePresenceAuthority{
+		registerResult: presence.RegisterResult{PendingToken: "pending-1"},
+		abortErrs:      []error{authoritypresence.ErrNotLeader},
+	}
+	client := NewPresenceAuthorityClient(cluster, local)
+
+	result, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101))
+	if err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if err := client.AbortRoute(context.Background(), result.PendingToken); !errors.Is(err, authoritypresence.ErrRouteNotReady) {
+		t.Fatalf("AbortRoute() error = %v, want ErrRouteNotReady", err)
+	}
+	if _, ok := client.pendingRef(result.PendingToken); ok {
+		t.Fatal("pending token remains after abort reached authority before route loss")
+	}
+	if len(local.abortCalls) != 1 {
+		t.Fatalf("abort calls = %d, want 1", len(local.abortCalls))
 	}
 }
 
@@ -363,6 +418,7 @@ type fakePresenceAuthority struct {
 	registerResult presence.RegisterResult
 	registerErrs   []error
 	commitErrs     []error
+	abortErrs      []error
 	registerCalls  []presenceRegisterCall
 	commitCalls    []presenceTokenCall
 	abortCalls     []presenceTokenCall
@@ -404,6 +460,11 @@ func (f *fakePresenceAuthority) CommitRoute(_ context.Context, target presence.R
 
 func (f *fakePresenceAuthority) AbortRoute(_ context.Context, target presence.RouteTarget, token string) error {
 	f.abortCalls = append(f.abortCalls, presenceTokenCall{target: target, token: token})
+	if len(f.abortErrs) > 0 {
+		err := f.abortErrs[0]
+		f.abortErrs = f.abortErrs[1:]
+		return err
+	}
 	return nil
 }
 

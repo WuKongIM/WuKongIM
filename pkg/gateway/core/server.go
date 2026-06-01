@@ -44,6 +44,11 @@ const (
 	authFailureProtocolViolation       = "protocol_violation"
 	authFailureAuthenticatorError      = "authenticator_error"
 	authFailureActivationError         = "activation_error"
+	authFailureActivationRouteNotReady = "activation_route_not_ready"
+	authFailureActivationNotLeader     = "activation_not_leader"
+	authFailureActivationStaleRoute    = "activation_stale_route"
+	authFailureActivationCtxCanceled   = "activation_context_canceled"
+	authFailureActivationCtxDeadline   = "activation_context_deadline"
 	authFailureConnackAuthFail         = "connack_auth_fail"
 	authFailureConnackBan              = "connack_ban"
 	authFailureConnackClientKeyEmpty   = "connack_client_key_empty"
@@ -672,7 +677,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	if activator, ok := s.options.Handler.(gatewaytypes.SessionActivator); ok {
 		override, err := activator.OnSessionActivate(&ctx)
 		if err != nil {
-			failure = authFailureActivationError
+			failure = authFailureForActivationError(err)
 			s.logAuthFailure(state, connect, failure, err)
 			if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 				state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
@@ -739,6 +744,21 @@ func authFailureForConnack(reason frame.ReasonCode) string {
 	default:
 		return authFailureConnackNonSuccessReason
 	}
+}
+
+func authFailureForActivationError(err error) string {
+	var classified gatewaytypes.AuthFailureClassifier
+	if errors.As(err, &classified) {
+		switch failure := strings.TrimSpace(classified.GatewayAuthFailure()); failure {
+		case authFailureActivationRouteNotReady,
+			authFailureActivationNotLeader,
+			authFailureActivationStaleRoute,
+			authFailureActivationCtxCanceled,
+			authFailureActivationCtxDeadline:
+			return failure
+		}
+	}
+	return authFailureActivationError
 }
 
 func (s *Server) logAuthFailure(state *sessionState, connect *frame.ConnectPacket, failure string, err error) {

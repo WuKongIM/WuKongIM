@@ -12,6 +12,7 @@ type Observer = gatewaytypes.Observer
 type AsyncSendObserver = gatewaytypes.AsyncSendObserver
 type ConnectionEvent = gatewaytypes.ConnectionEvent
 type AuthEvent = gatewaytypes.AuthEvent
+type AuthFailureClassifier = gatewaytypes.AuthFailureClassifier
 type FrameEvent = gatewaytypes.FrameEvent
 type FrameHandleEvent = gatewaytypes.FrameHandleEvent
 type AsyncSendQueueEvent = gatewaytypes.AsyncSendQueueEvent
