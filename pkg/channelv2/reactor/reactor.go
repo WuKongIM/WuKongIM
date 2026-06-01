@@ -141,6 +141,8 @@ type pullWaiter struct {
 	nextOffset uint64
 	// maxBytes is the follower's response byte budget.
 	maxBytes int
+	// needMeta asks the leader completion path to include a cloned runtime metadata snapshot.
+	needMeta bool
 	// mergeCacheSuffix asks the store-read completion path to append the cached suffix after the read range.
 	mergeCacheSuffix bool
 }

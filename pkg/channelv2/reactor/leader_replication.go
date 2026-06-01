@@ -28,12 +28,20 @@ func (r *Reactor) handleLeaderPull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrNotLeader})
 		return
 	}
-	if event.Pull.ChannelKey != rc.state.Key || event.Pull.ChannelID != rc.state.ID || event.Pull.Epoch != rc.state.Epoch || event.Pull.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Pull.Follower) {
+	if event.Pull.ChannelKey != rc.state.Key || event.Pull.ChannelID != rc.state.ID || event.Pull.Epoch != rc.state.Epoch || event.Pull.LeaderEpoch != rc.state.LeaderEpoch {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
-	if event.OpID == 0 || event.Pull.NextOffset == 0 || event.Pull.MaxBytes <= 0 {
+	if invalidLeaderPullShape(event) {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
+	if !rc.state.IsReplica(event.Pull.Follower) {
+		event.Future.Complete(Result{Err: ch.ErrNotReplica})
+		return
+	}
+	if event.Pull.NeedMeta && rc.state.Status != ch.StatusActive {
+		event.Future.Complete(Result{Err: ch.ErrNotReady})
 		return
 	}
 	if rc.pullWaiters == nil {
@@ -50,7 +58,7 @@ func (r *Reactor) handleLeaderPull(event Event) {
 		return
 	}
 	rc.lifecycle.recordFollowerPull(event.Pull.Follower, event.Pull.NextOffset, rc.state.LEO, now)
-	waiter := &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset, maxBytes: event.Pull.MaxBytes}
+	waiter := &pullWaiter{future: event.Future, ctx: ctx, follower: event.Pull.Follower, nextOffset: event.Pull.NextOffset, maxBytes: event.Pull.MaxBytes, needMeta: event.Pull.NeedMeta}
 	if r.tryCompletePullFromLeaderCache(rc, event, waiter, now) {
 		return
 	}
@@ -65,6 +73,11 @@ func (r *Reactor) handleLeaderPull(event Event) {
 		r.unregisterPullCancelContext(rc)
 		event.Future.Complete(Result{Err: err})
 	}
+}
+
+// invalidLeaderPullShape rejects request fields that are malformed without consulting runtime metadata.
+func invalidLeaderPullShape(event Event) bool {
+	return event.OpID == 0 || event.Pull.NextOffset == 0 || event.Pull.MaxBytes <= 0
 }
 
 func (r *Reactor) tryCompletePullFromLeaderCache(rc *runtimeChannel, event Event, waiter *pullWaiter, now time.Time) bool {
@@ -256,7 +269,7 @@ func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, fut
 	}
 	r.markAppendFollowerPullServed(rc, records, now)
 	r.updateLeaderPullFollowerState(rc, waiter, records, control, delay, now)
-	future.Complete(Result{Pull: transport.PullResponse{
+	resp := transport.PullResponse{
 		ChannelKey:      rc.state.Key,
 		Epoch:           rc.state.Epoch,
 		LeaderEpoch:     rc.state.LeaderEpoch,
@@ -266,8 +279,31 @@ func (r *Reactor) completeLeaderPull(rc *runtimeChannel, waiter *pullWaiter, fut
 		NextPullAfter:   delay,
 		Control:         control,
 		Records:         records,
-	}})
+	}
+	if waiter != nil && waiter.needMeta {
+		meta := cloneLeaderRuntimeMeta(rc)
+		resp.Meta = &meta
+	}
+	future.Complete(Result{Pull: resp})
 	r.scheduleLifecycleFromState(rc, now)
+}
+
+// cloneLeaderRuntimeMeta snapshots runtime metadata with independent membership slices for RPC callers.
+func cloneLeaderRuntimeMeta(rc *runtimeChannel) ch.Meta {
+	if rc == nil || rc.state == nil {
+		return ch.Meta{}
+	}
+	return ch.Meta{
+		Key:         rc.state.Key,
+		ID:          rc.state.ID,
+		Epoch:       rc.state.Epoch,
+		LeaderEpoch: rc.state.LeaderEpoch,
+		Leader:      rc.state.Leader,
+		Replicas:    append([]ch.NodeID(nil), rc.state.Replicas...),
+		ISR:         append([]ch.NodeID(nil), rc.state.ISR...),
+		MinISR:      rc.state.MinISR,
+		Status:      rc.state.Status,
+	}
 }
 
 func (r *Reactor) updateLeaderPullFollowerState(rc *runtimeChannel, waiter *pullWaiter, records []ch.Record, control transport.PullControl, delay time.Duration, now time.Time) {

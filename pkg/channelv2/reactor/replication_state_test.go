@@ -1436,6 +1436,218 @@ func TestLeaderPullInvalidRangeFailsWithInvalidConfig(t *testing.T) {
 	}
 }
 
+func TestLeaderPullInvalidShapeWinsBeforeMembership(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-invalid-before-membership")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 211,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 99, NextOffset: 0, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+}
+
+func TestLeaderPullNotFoundWinsBeforeInvalidShape(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	key := ch.ChannelKey("1:missing-invalid-shape")
+	future, err := g.Submit(context.Background(), key, Event{
+		Kind: EventPull,
+		Key:  key,
+		OpID: 216,
+		Pull: transport.PullRequest{
+			ChannelKey: key, ChannelID: ch.ChannelID{ID: "missing-invalid-shape", Type: 1},
+			Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 0, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrChannelNotFound)
+}
+
+func TestLeaderPullStaleFenceWinsBeforeInvalidShape(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-stale-before-invalid")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 217,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: ch.ChannelID{ID: "other", Type: meta.ID.Type},
+			Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2,
+			NextOffset: 0, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+}
+
+func TestLeaderPullNeedMetaReturnsClonedRuntimeMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("pull-needmeta-clone")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	future := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		OpID:    212,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.NotNil(t, result.Pull.Meta)
+	require.Equal(t, meta.Key, result.Pull.Meta.Key)
+	require.Equal(t, meta.ID, result.Pull.Meta.ID)
+	require.Equal(t, meta.Epoch, result.Pull.Meta.Epoch)
+	require.Equal(t, meta.LeaderEpoch, result.Pull.Meta.LeaderEpoch)
+	require.Equal(t, meta.Leader, result.Pull.Meta.Leader)
+	require.Equal(t, meta.Replicas, result.Pull.Meta.Replicas)
+	require.Equal(t, meta.ISR, result.Pull.Meta.ISR)
+	require.Equal(t, meta.MinISR, result.Pull.Meta.MinISR)
+	require.Equal(t, meta.Status, result.Pull.Meta.Status)
+
+	result.Pull.Meta.Replicas[0] = 99
+	result.Pull.Meta.ISR[0] = 99
+	rc := r.channels[meta.Key]
+	require.Equal(t, []ch.NodeID{1, 2}, rc.state.Replicas)
+	require.Equal(t, []ch.NodeID{1, 2}, rc.state.ISR)
+}
+
+func TestLeaderPullNeedMetaMatchedFenceNonReplicaFailsWithNotReplica(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-needmeta-not-replica")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 213,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 99, NextOffset: 1, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrNotReplica)
+}
+
+func TestLeaderPullNeedMetaNonActiveRuntimeFailsNotReadyWithoutRecords(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("pull-needmeta-not-ready")
+	meta.Status = ch.StatusCreating
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	future := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		OpID:    214,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024, NeedMeta: true,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := future.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.ErrorIs(t, result.Err, ch.ErrNotReady)
+	require.Nil(t, result.Pull.Meta)
+	require.Empty(t, result.Pull.Records)
+}
+
+func TestLeaderPullWithoutNeedMetaKeepsResponseMetadataEmpty(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("pull-without-needmeta")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	future := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		OpID:    215,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+	})
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Nil(t, result.Pull.Meta)
+	require.Equal(t, meta.Key, result.Pull.ChannelKey)
+	require.Equal(t, meta.Epoch, result.Pull.Epoch)
+	require.Equal(t, meta.LeaderEpoch, result.Pull.LeaderEpoch)
+}
+
+func TestLeaderPullWithoutNeedMetaAllowsNonActiveRuntime(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	meta := followerTestMeta("pull-without-needmeta-non-active")
+	meta.Status = ch.StatusCreating
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	future := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:    EventPull,
+		Key:     meta.Key,
+		Future:  future,
+		Context: context.Background(),
+		OpID:    218,
+		Pull: transport.PullRequest{
+			ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+			Follower: 2, NextOffset: 1, MaxBytes: 1024,
+		},
+	})
+
+	result := awaitFutureResult(t, future)
+	require.NoError(t, result.Err)
+	require.Nil(t, result.Pull.Meta)
+	require.Equal(t, meta.Key, result.Pull.ChannelKey)
+}
+
 func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
 	factory := newNonCancelingBlockingReadLogFactory()
 	g, err := NewGroup(Config{
