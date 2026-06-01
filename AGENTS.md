@@ -107,7 +107,7 @@ internalv2/
   contracts/             新架构跨用例/运行时轻量事件合约
     messageevents/       消息提交事件合约
   runtime/               新架构节点内运行时原语
-    online/              节点内真实 gateway session 注册、状态、按 UID hash slot 分页 rehydrate
+    online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记
     presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
   usecase/               新架构入口无关业务用例
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交

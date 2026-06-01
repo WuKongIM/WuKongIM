@@ -59,8 +59,9 @@ var supportedConfigKeys = []string{
 	"WK_GATEWAY_LISTENERS",
 	"WK_GATEWAY_SEND_TIMEOUT",
 	"WK_PRESENCE_ACTIVATION_TIMEOUT",
-	"WK_PRESENCE_REHYDRATE_BATCH_SIZE",
-	"WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET",
+	"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
+	"WK_PRESENCE_TOUCH_BATCH_SIZE",
+	"WK_PRESENCE_ROUTE_TTL",
 }
 
 const (
@@ -401,28 +402,35 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Presence.ActivationTimeout = activationTimeout
 	}
-	if raw := configValue(values, "WK_PRESENCE_REHYDRATE_BATCH_SIZE"); raw != "" {
-		batchSize, err := parseInt("WK_PRESENCE_REHYDRATE_BATCH_SIZE", raw)
+	if raw := configValue(values, "WK_PRESENCE_TOUCH_FLUSH_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_FLUSH_INTERVAL: value must be >= 0")
+		}
+		cfg.Presence.TouchFlushInterval = interval
+	}
+	if raw := configValue(values, "WK_PRESENCE_TOUCH_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_PRESENCE_TOUCH_BATCH_SIZE", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
 		if batchSize < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_BATCH_SIZE: value must be >= 0")
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_BATCH_SIZE: value must be >= 0")
 		}
-		cfg.Presence.RehydrateBatchSize = batchSize
+		cfg.Presence.TouchBatchSize = batchSize
 	}
-	if raw := configValue(values, "WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET"); raw != "" {
-		maxInflight, err := parseInt("WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET", raw)
+	if raw := configValue(values, "WK_PRESENCE_ROUTE_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_PRESENCE_ROUTE_TTL", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		if maxInflight < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET: value must be >= 0")
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ROUTE_TTL: value must be >= 0")
 		}
-		if maxInflight > 1 {
-			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_REHYDRATE_MAX_INFLIGHT_PER_TARGET: value currently supports 1")
-		}
-		cfg.Presence.RehydrateMaxInflightPerTarget = maxInflight
+		cfg.Presence.RouteTTL = ttl
 	}
 
 	return cfg, nil
