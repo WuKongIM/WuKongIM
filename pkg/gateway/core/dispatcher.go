@@ -80,6 +80,9 @@ func (d dispatcher) context(state *sessionState, replyToken string, reason gatew
 		CloseReason:    reason,
 		ReplyToken:     replyToken,
 		RequestContext: requestContext,
+		CloseSessionFn: func(closeReason gatewaytypes.CloseReason, closeErr error) {
+			state.close(closeReason, closeErr)
+		},
 	}
 }
 

@@ -41,6 +41,11 @@ type SessionActivator interface {
 	OnSessionActivate(ctx *Context) (*frame.ConnackPacket, error)
 }
 
+// SessionActivationRollbacker is optionally implemented by handlers that must undo a successful activation.
+type SessionActivationRollbacker interface {
+	OnSessionActivateRollback(ctx Context, err error)
+}
+
 type Context struct {
 	Session        session.Session
 	Listener       string
@@ -50,6 +55,8 @@ type Context struct {
 	CloseReason    CloseReason
 	ReplyToken     string
 	RequestContext context.Context
+	// CloseSessionFn closes the owning gateway connection state when core builds this context.
+	CloseSessionFn func(CloseReason, error)
 }
 
 func (ctx *Context) WriteFrame(f frame.Frame) error {
@@ -57,4 +64,19 @@ func (ctx *Context) WriteFrame(f frame.Frame) error {
 		return session.ErrSessionClosed
 	}
 	return ctx.Session.WriteFrame(f, session.WithReplyToken(ctx.ReplyToken))
+}
+
+// CloseSession closes the gateway session through the physical connection path when available.
+func (ctx *Context) CloseSession(reason CloseReason, err error) error {
+	if ctx == nil {
+		return session.ErrSessionClosed
+	}
+	if ctx.CloseSessionFn != nil {
+		ctx.CloseSessionFn(reason, err)
+		return nil
+	}
+	if ctx.Session == nil {
+		return session.ErrSessionClosed
+	}
+	return ctx.Session.Close()
 }

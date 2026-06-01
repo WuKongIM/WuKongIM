@@ -646,6 +646,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	}
 
 	ctx = s.dispatcher.context(state, replyToken, state.closeReason(), nil)
+	activated := false
 	if activator, ok := s.options.Handler.(gatewaytypes.SessionActivator); ok {
 		override, err := activator.OnSessionActivate(&ctx)
 		if err != nil {
@@ -656,6 +657,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 			state.close(gatewaytypes.CloseReasonPolicyViolation, err)
 			return true, nil
 		}
+		activated = true
 		if override != nil {
 			connack = override
 		}
@@ -665,6 +667,11 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	}
 
 	if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
+		if activated && connack.ReasonCode == frame.ReasonSuccess {
+			if rollbacker, ok := s.options.Handler.(gatewaytypes.SessionActivationRollbacker); ok {
+				rollbacker.OnSessionActivateRollback(ctx, writeErr)
+			}
+		}
 		state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPeerClosed), writeErr)
 		return true, nil
 	}

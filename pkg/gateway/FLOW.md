@@ -96,6 +96,10 @@ type SessionActivator interface {
     OnSessionActivate(ctx *Context) (*frame.ConnackPacket, error)
 }
 
+type SessionActivationRollbacker interface {
+    OnSessionActivateRollback(ctx Context, err error)
+}
+
 type SendBatchHandler interface {
     OnSendBatch(items []SendBatchItem) error
 }
@@ -109,12 +113,17 @@ type Context struct {
     CloseReason    CloseReason
     ReplyToken     string
     RequestContext context.Context
+    CloseSessionFn func(CloseReason, error)
 }
 ```
 
 `SessionActivator` 是可选 hook。WKProto CONNECT 认证成功后、CONNACK 写出前调用它；`internal/access/gateway` 使用该 hook 完成 presence activate。
 
+`SessionActivationRollbacker` 是可选 hook。`SessionActivator` 已接受路由或在线状态后，如果成功 CONNACK 写出失败，`core` 会调用它回滚已接受的激活结果；认证失败或激活自身返回错误时不会调用 rollback。
+
 `Handler` 的 `Context` 按值传递，避免热路径为每个 Frame 分配 context wrapper；handler 不应依赖 `Context` 指针身份。`SessionActivator` 仍使用指针参数以兼容认证/激活阶段的 nil 检查习惯。
+
+`Context.CloseSession` 是 owner route action 等 handler 主动关闭会话的物理关闭入口。`core` 构造 Context 时注入 `CloseSessionFn`，优先关闭对应 `sessionState` 和底层 transport 连接；没有该函数时才退回 `Session.Close`。
 
 `SendBatchHandler` 是可选 SEND 微批 hook。实现方必须按 `items` 顺序写回对应 sendack；未实现时 `core` 自动退回逐帧 `OnFrame`，协议语义不变。
 
@@ -257,6 +266,7 @@ WKProto CONNECT:
      - access/gateway 在这里调用 presence.Activate
      - 可返回 Connack override
   ⑤ 写出 CONNACK；非 success 时关闭连接
+     - 若激活已成功但 success CONNACK 写出失败，调用 SessionActivationRollbacker 回滚激活，再关闭物理连接
   ⑥ 标记 authenticated，并在首次认证成功后 dispatch OnSessionOpen
 ```
 

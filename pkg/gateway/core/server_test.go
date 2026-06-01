@@ -1246,12 +1246,202 @@ func TestObserverReceivesGatewayLifecycleEvents(t *testing.T) {
 	require.Equal(t, "SEND", observer.handled[0].FrameType)
 }
 
-func newTestServer(t *testing.T, handler *testHandler, proto *scriptedProtocol, sessOpts gateway.SessionOptions) (*core.Server, *testkit.FakeTransportFactory) {
+func TestServerRollsBackActivationWhenCONNACKWriteFails(t *testing.T) {
+	handler := newTestHandler()
+	handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) {
+		return nil, nil
+	}
+	var rollbackCalled atomic.Bool
+	handler.onActivateRollback = func(ctx gateway.Context, err error) {
+		rollbackCalled.Store(true)
+		if ctx.Session == nil {
+			t.Fatal("rollback context missing session")
+		}
+		if err == nil {
+			t.Fatal("rollback err = nil, want connack write error")
+		}
+	}
+
+	proto := newScriptedProtocol("wkproto")
+	proto.encodeFn = func(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error) {
+		return nil, errors.New("encode connack failed")
+	}
+	proto.pushDecode(decodeResult{
+		frames: []frame.Frame{&frame.ConnectPacket{
+			UID:        "u1",
+			DeviceID:   "d1",
+			DeviceFlag: frame.APP,
+		}},
+		consumed: 1,
+	})
+
+	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	conn := transportFactory.MustOpen("listener-a", 1)
+	transportFactory.MustData("listener-a", 1, []byte("c"))
+
+	waitFor(t, func() bool { return connClosed(conn) && rollbackCalled.Load() })
+	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate", "activate_rollback"}) {
+		t.Fatalf("unexpected call order: %v", got)
+	}
+}
+
+func TestServerDoesNotRollbackWhenCONNACKWriteFailsWithoutActivation(t *testing.T) {
+	handler := &rollbackOnlyHandler{RecordingHandler: testkit.NewRecordingHandler()}
+
+	proto := newScriptedProtocol("wkproto")
+	proto.encodeFn = func(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error) {
+		return nil, errors.New("encode connack failed")
+	}
+	proto.pushDecode(decodeResult{
+		frames: []frame.Frame{&frame.ConnectPacket{
+			UID:        "u1",
+			DeviceID:   "d1",
+			DeviceFlag: frame.APP,
+		}},
+		consumed: 1,
+	})
+
+	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	conn := transportFactory.MustOpen("listener-a", 1)
+	transportFactory.MustData("listener-a", 1, []byte("c"))
+
+	waitFor(t, func() bool { return connClosed(conn) })
+	if handler.rollbackCalled.Load() {
+		t.Fatal("rollback called without successful activation")
+	}
+}
+
+func TestServerDoesNotRollbackWhenActivationFailsAndCONNACKWriteFails(t *testing.T) {
+	handler := newTestHandler()
+	handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) {
+		return nil, errors.New("activate failed")
+	}
+	var rollbackCalled atomic.Bool
+	handler.onActivateRollback = func(gateway.Context, error) {
+		rollbackCalled.Store(true)
+	}
+
+	proto := newScriptedProtocol("wkproto")
+	proto.encodeFn = func(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error) {
+		return nil, errors.New("encode failure connack failed")
+	}
+	proto.pushDecode(decodeResult{
+		frames: []frame.Frame{&frame.ConnectPacket{
+			UID:        "u1",
+			DeviceID:   "d1",
+			DeviceFlag: frame.APP,
+		}},
+		consumed: 1,
+	})
+
+	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	conn := transportFactory.MustOpen("listener-a", 1)
+	transportFactory.MustData("listener-a", 1, []byte("c"))
+
+	waitFor(t, func() bool { return connClosed(conn) })
+	if rollbackCalled.Load() {
+		t.Fatal("rollback called after failed activation")
+	}
+	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate"}) {
+		t.Fatalf("unexpected call order: %v", got)
+	}
+}
+
+func TestServerDoesNotRollbackWhenActivationReturnsNonSuccessCONNACKAndWriteFails(t *testing.T) {
+	handler := newTestHandler()
+	handler.onActivate = func(*gateway.Context) (*frame.ConnackPacket, error) {
+		return &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}, nil
+	}
+	var rollbackCalled atomic.Bool
+	handler.onActivateRollback = func(gateway.Context, error) {
+		rollbackCalled.Store(true)
+	}
+
+	proto := newScriptedProtocol("wkproto")
+	var sawNonSuccessCONNACK atomic.Bool
+	proto.encodeFn = func(_ session.Session, f frame.Frame, _ session.OutboundMeta) ([]byte, error) {
+		connack, ok := f.(*frame.ConnackPacket)
+		if !ok {
+			t.Fatalf("expected connack frame, got %T", f)
+		}
+		if connack.ReasonCode == frame.ReasonSuccess {
+			t.Fatalf("expected non-success connack, got %v", connack.ReasonCode)
+		}
+		sawNonSuccessCONNACK.Store(true)
+		return nil, errors.New("encode non-success connack failed")
+	}
+	proto.pushDecode(decodeResult{
+		frames: []frame.Frame{&frame.ConnectPacket{
+			UID:        "u1",
+			DeviceID:   "d1",
+			DeviceFlag: frame.APP,
+		}},
+		consumed: 1,
+	})
+
+	srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	conn := transportFactory.MustOpen("listener-a", 1)
+	transportFactory.MustData("listener-a", 1, []byte("c"))
+
+	waitFor(t, func() bool { return connClosed(conn) && sawNonSuccessCONNACK.Load() })
+	if rollbackCalled.Load() {
+		t.Fatal("rollback called after non-success connack override")
+	}
+	if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"activate"}) {
+		t.Fatalf("unexpected call order: %v", got)
+	}
+}
+
+func TestContextCloseSessionClosesPhysicalConnection(t *testing.T) {
+	handler := newTestHandler()
+	handler.onFrame = func(ctx gateway.Context, f frame.Frame) error {
+		return ctx.CloseSession(gateway.CloseReasonPolicyViolation, errors.New("close requested"))
+	}
+
+	proto := newScriptedProtocol("fake-proto")
+	proto.pushDecode(decodeResult{
+		frames:   []frame.Frame{&frame.PingPacket{}},
+		consumed: 1,
+	})
+
+	srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	conn := transportFactory.MustOpen("listener-a", 1)
+	transportFactory.MustData("listener-a", 1, []byte("p"))
+
+	waitFor(t, func() bool { return connClosed(conn) })
+}
+
+func newTestServer(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, sessOpts gateway.SessionOptions) (*core.Server, *testkit.FakeTransportFactory) {
 	t.Helper()
 	return newTestServerWithAuthenticator(t, handler, proto, sessOpts, nil)
 }
 
-func newTestServerWithAuthenticator(t *testing.T, handler *testHandler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator) (*core.Server, *testkit.FakeTransportFactory) {
+func newTestServerWithAuthenticator(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator) (*core.Server, *testkit.FakeTransportFactory) {
 	t.Helper()
 
 	transportFactory := testkit.NewFakeTransportFactory("fake-transport")
@@ -1267,7 +1457,7 @@ func newTestServerWithAuthenticator(t *testing.T, handler *testHandler, proto *s
 	return srv, transportFactory
 }
 
-func newTestServerWithObserver(t *testing.T, handler *testHandler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator, observer gateway.Observer) (*core.Server, *testkit.FakeTransportFactory) {
+func newTestServerWithObserver(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator, observer gateway.Observer) (*core.Server, *testkit.FakeTransportFactory) {
 	t.Helper()
 
 	transportFactory := testkit.NewFakeTransportFactory("fake-transport")
@@ -1283,7 +1473,7 @@ func newTestServerWithObserver(t *testing.T, handler *testHandler, proto *script
 	return srv, transportFactory
 }
 
-func newServerWithListeners(t *testing.T, handler *testHandler, proto *scriptedProtocol, transportFactory transport.Factory, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator, observer gateway.Observer, listeners []gateway.ListenerOptions) *core.Server {
+func newServerWithListeners(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, transportFactory transport.Factory, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator, observer gateway.Observer, listeners []gateway.ListenerOptions) *core.Server {
 	t.Helper()
 
 	registry := core.NewRegistry()
@@ -1498,13 +1688,23 @@ type testHandler struct {
 	framesSeen     []frame.Frame
 	contextCopies  []gateway.Context
 
-	onOpen     func(gateway.Context) error
-	onActivate func(*gateway.Context) (*frame.ConnackPacket, error)
-	onFrame    func(gateway.Context, frame.Frame) error
-	onClose    func(gateway.Context) error
+	onOpen             func(gateway.Context) error
+	onActivate         func(*gateway.Context) (*frame.ConnackPacket, error)
+	onActivateRollback func(gateway.Context, error)
+	onFrame            func(gateway.Context, frame.Frame) error
+	onClose            func(gateway.Context) error
 }
 
 func newTestHandler() *testHandler { return &testHandler{} }
+
+type rollbackOnlyHandler struct {
+	*testkit.RecordingHandler
+	rollbackCalled atomic.Bool
+}
+
+func (h *rollbackOnlyHandler) OnSessionActivateRollback(gateway.Context, error) {
+	h.rollbackCalled.Store(true)
+}
 
 func (h *testHandler) OnListenerError(listener string, err error) {
 	h.mu.Lock()
@@ -1538,6 +1738,17 @@ func (h *testHandler) OnSessionActivate(ctx *gateway.Context) (*frame.ConnackPac
 	}
 	h.mu.Unlock()
 	return fn(ctx)
+}
+
+func (h *testHandler) OnSessionActivateRollback(ctx gateway.Context, err error) {
+	h.mu.Lock()
+	h.order = append(h.order, "activate_rollback")
+	h.contextCopies = append(h.contextCopies, ctx)
+	fn := h.onActivateRollback
+	h.mu.Unlock()
+	if fn != nil {
+		fn(ctx, err)
+	}
 }
 
 func (h *testHandler) OnFrame(ctx gateway.Context, f frame.Frame) error {
