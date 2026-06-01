@@ -98,6 +98,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 }
 
 func (n *Node) ensureDefaultTransport() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.transportServer != nil && n.transportClient != nil {
 		return nil
 	}
@@ -107,21 +109,34 @@ func (n *Node) ensureDefaultTransport() error {
 	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{})
 	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery, PoolSize: 1})
 	n.defaultTransport = true
+	n.registeredRPCHandlers = make(map[uint8]struct{})
 	return nil
 }
 
 func (n *Node) registerPendingRPCHandlers() {
-	if n == nil || n.transportServer == nil {
+	if n == nil {
 		return
 	}
-	n.mu.RLock()
+	n.mu.Lock()
+	server := n.transportServer
+	if server == nil {
+		n.mu.Unlock()
+		return
+	}
+	if n.registeredRPCHandlers == nil {
+		n.registeredRPCHandlers = make(map[uint8]struct{})
+	}
 	handlers := make(map[uint8]clusternet.Handler, len(n.pendingRPCHandlers))
 	for serviceID, handler := range n.pendingRPCHandlers {
+		if _, ok := n.registeredRPCHandlers[serviceID]; ok {
+			continue
+		}
+		n.registeredRPCHandlers[serviceID] = struct{}{}
 		handlers[serviceID] = handler
 	}
-	n.mu.RUnlock()
+	n.mu.Unlock()
 	for serviceID, handler := range handlers {
-		n.transportServer.Register(serviceID, handler)
+		server.Register(serviceID, handler)
 	}
 }
 
@@ -221,16 +236,25 @@ func (n *Node) discardDefaultControl() {
 }
 
 func (n *Node) discardDefaultTransport() {
-	if n == nil || !n.defaultTransport {
+	if n == nil {
 		return
 	}
-	if n.transportClient != nil {
-		n.transportClient.Stop()
+	n.mu.Lock()
+	if !n.defaultTransport {
+		n.mu.Unlock()
+		return
 	}
-	if n.transportServer != nil {
-		n.transportServer.Stop()
-	}
+	client := n.transportClient
+	server := n.transportServer
 	n.transportClient = nil
 	n.transportServer = nil
 	n.defaultTransport = false
+	n.registeredRPCHandlers = nil
+	n.mu.Unlock()
+	if client != nil {
+		client.Stop()
+	}
+	if server != nil {
+		server.Stop()
+	}
 }

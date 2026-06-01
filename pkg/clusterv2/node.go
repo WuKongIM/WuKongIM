@@ -68,6 +68,8 @@ type Node struct {
 	defaultSlotProposer propose.SlotRuntime
 	// pendingRPCHandlers stores public RPC handlers until the default transport exists.
 	pendingRPCHandlers map[uint8]clusternet.Handler
+	// registeredRPCHandlers records handlers installed on the current default transport.
+	registeredRPCHandlers map[uint8]struct{}
 	// routeAuthorityWatchers receive best-effort route authority change events.
 	routeAuthorityWatchers []chan RouteAuthorityEvent
 	// routeAuthorityEpochs tracks local authority epochs by logical hash slot.
@@ -197,8 +199,18 @@ func (n *Node) RegisterRPC(serviceID uint8, handler NodeRPCHandler) {
 	}
 	n.pendingRPCHandlers[serviceID] = wrapped
 	server := n.transportServer
-	n.mu.Unlock()
+	register := false
 	if server != nil {
+		if n.registeredRPCHandlers == nil {
+			n.registeredRPCHandlers = make(map[uint8]struct{})
+		}
+		if _, ok := n.registeredRPCHandlers[serviceID]; !ok {
+			n.registeredRPCHandlers[serviceID] = struct{}{}
+			register = true
+		}
+	}
+	n.mu.Unlock()
+	if register {
 		server.Register(serviceID, wrapped)
 	}
 }
@@ -275,6 +287,24 @@ func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
 		n.routeAuthorityEpochs = make(map[uint16]uint64)
 	}
 	n.routeAuthorityEpochs[hashSlot]++
+	return n.routeAuthorityEpochs[hashSlot]
+}
+
+func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityKey, previousOK bool, current routeAuthorityKey) uint64 {
+	if n == nil || current.leaderNodeID == 0 || current.leaderNodeID != n.cfg.NodeID {
+		return 0
+	}
+	if !previousOK || previous.slotID != current.slotID || previous.leaderNodeID != current.leaderNodeID {
+		return n.nextAuthorityEpoch(hashSlot, current.leaderNodeID)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.routeAuthorityEpochs == nil {
+		n.routeAuthorityEpochs = make(map[uint16]uint64)
+	}
+	if n.routeAuthorityEpochs[hashSlot] == 0 {
+		n.routeAuthorityEpochs[hashSlot] = 1
+	}
 	return n.routeAuthorityEpochs[hashSlot]
 }
 

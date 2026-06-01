@@ -41,6 +41,27 @@ func TestRouteAuthorityEpochIncrementsWhenLocalNodeBecomesAuthorityAgain(t *test
 	}
 }
 
+func TestRouteAuthorityEpochStaysStableForRevisionOnlyUpdate(t *testing.T) {
+	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
+	previous := routeAuthoritySnapshot(1)
+	if err := node.router.UpdateControlSnapshot(previous); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.routeAuthorityEpochs[0] = 1
+	node.routeAuthorityEpochs[1] = 1
+
+	changes := node.routeAuthorityChanges(node.router.Table(), routeAuthorityTable(2))
+	if len(changes) != 2 {
+		t.Fatalf("changes len = %d, want 2", len(changes))
+	}
+	for _, got := range changes {
+		if got.LeaderNodeID != 1 || got.RouteRevision != 2 || got.AuthorityEpoch != 1 {
+			t.Fatalf("authority = %#v, want stable epoch 1 for revision-only update", got)
+		}
+	}
+}
+
 func TestApplySnapshotPublishesChangedRouteAuthority(t *testing.T) {
 	node := &Node{cfg: Config{NodeID: 1}, router: routing.NewRouter(), routeAuthorityEpochs: map[uint16]uint64{}}
 	previous := routeAuthoritySnapshot(1)
@@ -98,4 +119,14 @@ func routeAuthoritySnapshot(revision uint64) control.Snapshot {
 		},
 		HashSlots: control.HashSlotTable{Revision: revision, Count: 2, Ranges: []control.HashSlotRange{{From: 0, To: 1, SlotID: 1}}},
 	}
+}
+
+func routeAuthorityTable(revision uint64) *routing.Table {
+	snapshot := routeAuthoritySnapshot(revision)
+	router := routing.NewRouter()
+	if err := router.UpdateControlSnapshot(snapshot); err != nil {
+		panic(err)
+	}
+	router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	return router.Table()
 }

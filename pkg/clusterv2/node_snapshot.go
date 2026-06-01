@@ -108,7 +108,7 @@ func (n *Node) routeAuthorityChanges(before, after *routing.Table) []RouteAuthor
 			SlotID:         current.slotID,
 			LeaderNodeID:   current.leaderNodeID,
 			RouteRevision:  current.revision,
-			AuthorityEpoch: n.nextAuthorityEpoch(hashSlotID, current.leaderNodeID),
+			AuthorityEpoch: n.authorityEpochForChange(hashSlotID, previous, ok, current),
 		})
 	}
 	return out
