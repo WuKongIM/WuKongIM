@@ -40,6 +40,7 @@ type MessageBatchUsecase interface {
 type PresenceUsecase interface {
 	Activate(context.Context, presence.ActivateCommand) error
 	Deactivate(context.Context, presence.DeactivateCommand) error
+	Touch(context.Context, presence.TouchCommand) error
 }
 
 // Options configures the internalv2 gateway handler.
@@ -105,12 +106,27 @@ func (h *Handler) OnSessionError(coregateway.Context, error) {}
 func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 	switch pkt := f.(type) {
 	case *frame.PingPacket:
+		h.touchPresence(&ctx, time.Now())
 		return ctx.WriteFrame(&frame.PongPacket{})
 	case *frame.SendPacket:
 		return h.handleSend(&ctx, pkt)
 	default:
 		return ErrUnsupportedFrame
 	}
+}
+
+func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
+	if h == nil || h.presence == nil || ctx == nil || ctx.Session == nil {
+		return
+	}
+	sessionID := ctx.Session.ID()
+	if sessionID == 0 {
+		return
+	}
+	_ = h.presence.Touch(requestContextFromContext(ctx), presence.TouchCommand{
+		SessionID:    sessionID,
+		ActivityUnix: now.Unix(),
+	})
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {

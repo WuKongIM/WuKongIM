@@ -342,6 +342,66 @@ func TestOnFramePingPacketWritesPong(t *testing.T) {
 	}
 }
 
+func TestHandlerPingTouchesPresenceBeforePong(t *testing.T) {
+	var written []frame.Frame
+	presenceUsecase := &recordingPresence{}
+	sess := session.New(session.Config{
+		ID: 99,
+		WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+			if len(presenceUsecase.touchCommands) != 1 {
+				t.Fatalf("touch command count before pong write = %d, want 1", len(presenceUsecase.touchCommands))
+			}
+			written = append(written, f)
+			return nil
+		},
+	})
+	handler := New(Options{Presence: presenceUsecase})
+
+	err := handler.OnFrame(coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(presenceUsecase.touchCommands) != 1 {
+		t.Fatalf("touch command count = %d, want 1", len(presenceUsecase.touchCommands))
+	}
+	if got := presenceUsecase.touchCommands[0].SessionID; got != 99 {
+		t.Fatalf("touch session id = %d, want 99", got)
+	}
+	if got := presenceUsecase.touchCommands[0].ActivityUnix; got <= 0 {
+		t.Fatalf("touch activity unix = %d, want positive", got)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+}
+
+func TestHandlerPingStillWritesPongWhenTouchFails(t *testing.T) {
+	var written []frame.Frame
+	sess := session.New(session.Config{
+		ID: 99,
+		WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+			written = append(written, f)
+			return nil
+		},
+	})
+	presenceUsecase := &recordingPresence{touchErr: presence.ErrLocalRegistryUnavailable}
+	handler := New(Options{Presence: presenceUsecase})
+
+	err := handler.OnFrame(coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+}
+
 func TestOnFrameUnknownFrameReturnsErrUnsupportedFrame(t *testing.T) {
 	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
 
@@ -661,10 +721,13 @@ func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (m
 type recordingPresence struct {
 	activateErr        error
 	deactivateErr      error
+	touchErr           error
 	activateContexts   []context.Context
 	deactivateContexts []context.Context
+	touchContexts      []context.Context
 	activateCommands   []presence.ActivateCommand
 	deactivateCommands []presence.DeactivateCommand
+	touchCommands      []presence.TouchCommand
 }
 
 func (p *recordingPresence) Activate(ctx context.Context, cmd presence.ActivateCommand) error {
@@ -677,6 +740,12 @@ func (p *recordingPresence) Deactivate(ctx context.Context, cmd presence.Deactiv
 	p.deactivateContexts = append(p.deactivateContexts, ctx)
 	p.deactivateCommands = append(p.deactivateCommands, cmd)
 	return p.deactivateErr
+}
+
+func (p *recordingPresence) Touch(ctx context.Context, cmd presence.TouchCommand) error {
+	p.touchContexts = append(p.touchContexts, ctx)
+	p.touchCommands = append(p.touchCommands, cmd)
+	return p.touchErr
 }
 
 type testContextKey struct{}

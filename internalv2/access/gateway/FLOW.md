@@ -41,6 +41,7 @@ OnSendBatch([]SendBatchItem)
   -> write one SendackPacket for every input item
 
 OnFrame(PingPacket)
+  -> best-effort touch presence activity for the gateway session
   -> write PongPacket on the same gateway session
 ```
 
