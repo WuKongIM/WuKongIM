@@ -182,6 +182,35 @@ func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 	}
 }
 
+func TestPresenceClientKeepsPendingTokenWhenCommitRouteNotReady(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+	}
+	local := &fakePresenceAuthority{
+		registerResult: presence.RegisterResult{PendingToken: "pending-1"},
+		commitErrs:     []error{authoritypresence.ErrRouteNotReady},
+	}
+	client := NewPresenceAuthorityClient(cluster, local)
+
+	result, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101))
+	if err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if err := client.CommitRoute(context.Background(), result.PendingToken); !errors.Is(err, authoritypresence.ErrRouteNotReady) {
+		t.Fatalf("CommitRoute() error = %v, want ErrRouteNotReady", err)
+	}
+	if err := client.AbortRoute(context.Background(), result.PendingToken); err != nil {
+		t.Fatalf("AbortRoute() after commit ErrRouteNotReady error = %v", err)
+	}
+	if len(local.abortCalls) != 1 {
+		t.Fatalf("abort calls = %d, want 1", len(local.abortCalls))
+	}
+	if local.abortCalls[0].token != "pending-1" {
+		t.Fatalf("abort raw token = %q, want pending-1", local.abortCalls[0].token)
+	}
+}
+
 func TestPresenceClientRehydratesRemoteAuthorityTarget(t *testing.T) {
 	remoteAuthority := &fakePresenceAuthority{}
 	cluster := &fakePresenceCluster{
@@ -330,6 +359,7 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuth
 type fakePresenceAuthority struct {
 	registerResult presence.RegisterResult
 	registerErrs   []error
+	commitErrs     []error
 	registerCalls  []presenceRegisterCall
 	commitCalls    []presenceTokenCall
 	abortCalls     []presenceTokenCall
@@ -361,6 +391,11 @@ func (f *fakePresenceAuthority) RegisterRoute(_ context.Context, target presence
 
 func (f *fakePresenceAuthority) CommitRoute(_ context.Context, target presence.RouteTarget, token string) error {
 	f.commitCalls = append(f.commitCalls, presenceTokenCall{target: target, token: token})
+	if len(f.commitErrs) > 0 {
+		err := f.commitErrs[0]
+		f.commitErrs = f.commitErrs[1:]
+		return err
+	}
 	return nil
 }
 

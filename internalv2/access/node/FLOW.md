@@ -53,6 +53,9 @@ Presence authority RPC uses fixed magic headers:
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, truncated payloads, and trailing bytes.
+The codec is an internalv2 node-to-node contract and does not provide
+mixed-version rolling-upgrade compatibility yet; incompatible payload layout
+changes must bump the magic version when that compatibility is required.
 
 Stable response statuses are:
 

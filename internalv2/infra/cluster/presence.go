@@ -106,14 +106,14 @@ func (c *PresenceAuthorityClient) CommitRoute(ctx context.Context, token presenc
 	if !ok {
 		return authoritypresence.ErrRouteNotReady
 	}
-	fromAuthority, err := c.withFreshTargetSource(ctx, ref.uid, func(target presence.RouteTarget) error {
+	err := c.withFreshTarget(ctx, ref.uid, func(target presence.RouteTarget) error {
 		authority, err := c.authorityForTarget(target)
 		if err != nil {
 			return err
 		}
 		return authority.CommitRoute(ctx, target, ref.rawToken)
 	})
-	if err == nil || (fromAuthority && errors.Is(err, authoritypresence.ErrRouteNotReady)) {
+	if err == nil {
 		c.forgetPending(token)
 	}
 	return err
