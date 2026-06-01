@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
@@ -539,11 +540,11 @@ func envMap(items []string) map[string]string {
 }
 
 func runBench(args []string, stderr io.Writer) int {
-	targetCfg, scenario, workers, code := loadValidateInputs("run", args, stderr)
+	targetCfg, scenario, workers, phasePollTimeout, code := loadValidateRunInputs(args, stderr)
 	if code != 0 {
 		return code
 	}
-	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: workers.Workers, Target: targetCfg})
+	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: workers.Workers, Target: targetCfg, PollTimeout: phasePollTimeout})
 	result, err := coord.Run(context.Background(), scenario)
 	if err != nil {
 		switch result.Status {
@@ -577,6 +578,11 @@ type benchConfigPaths struct {
 	workers  string
 }
 
+type runBenchConfig struct {
+	paths            benchConfigPaths
+	phasePollTimeout time.Duration
+}
+
 func runValidate(args []string, stderr io.Writer) int {
 	targetCfg, scenario, workers, code := loadValidateInputs("validate", args, stderr)
 	if code != 0 {
@@ -606,6 +612,27 @@ func runDoctor(args []string, stderr io.Writer) int {
 		return exitPreflight
 	}
 	return 0
+}
+
+func loadValidateRunInputs(args []string, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, time.Duration, int) {
+	runCfg, code := parseRunBenchConfig(args, stderr)
+	if code != 0 {
+		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, code
+	}
+	targetCfg, workers, code := loadTargetAndWorkers(runCfg.paths, stderr)
+	if code != 0 {
+		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, code
+	}
+	scenario, err := config.LoadScenario(runCfg.paths.scenario)
+	if err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, exitConfig
+	}
+	if err := config.ValidateTargetScenario(targetCfg, scenario); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, exitConfig
+	}
+	return targetCfg, scenario, workers, runCfg.phasePollTimeout, 0
 }
 
 func loadValidateInputs(name string, args []string, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, int) {
@@ -669,6 +696,32 @@ func loadTargetAndWorkers(paths benchConfigPaths, stderr io.Writer) (config.Targ
 		return config.Target{}, config.WorkerSet{}, exitConfig
 	}
 	return targetCfg, workers, 0
+}
+
+func parseRunBenchConfig(args []string, stderr io.Writer) (runBenchConfig, int) {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var cfg runBenchConfig
+	fs.StringVar(&cfg.paths.target, "target", "", "target YAML file")
+	fs.StringVar(&cfg.paths.scenario, "scenario", "", "scenario YAML file")
+	fs.StringVar(&cfg.paths.workers, "workers", "", "workers YAML file")
+	fs.DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; connect/warmup/run/cooldown add their configured schedule duration; 0 uses the wkbench default")
+	if err := fs.Parse(args); err != nil {
+		return runBenchConfig{}, exitConfig
+	}
+	if cfg.paths.target == "" {
+		fmt.Fprintln(stderr, "--target is required")
+		return runBenchConfig{}, exitConfig
+	}
+	if cfg.paths.scenario == "" {
+		fmt.Fprintln(stderr, "--scenario is required")
+		return runBenchConfig{}, exitConfig
+	}
+	if cfg.paths.workers == "" {
+		fmt.Fprintln(stderr, "--workers is required")
+		return runBenchConfig{}, exitConfig
+	}
+	return cfg, 0
 }
 
 func parseBenchConfigPaths(name string, args []string, stderr io.Writer, scenarioRequired bool) (benchConfigPaths, int) {

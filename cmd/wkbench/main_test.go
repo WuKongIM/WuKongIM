@@ -746,6 +746,55 @@ workers:
 	}
 }
 
+func TestRunCommandPhasePollTimeoutAllowsSlowConnectPhase(t *testing.T) {
+	targetSrv := goodWkbenchTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := delayedConnectWkbenchWorkerServer(t, "secret", 40*time.Millisecond)
+	defer workerSrv.Close()
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML())
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"run", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath, "--phase-poll-timeout", "120ms"}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected run success, got code %d stderr %q", code, stderr.String())
+	}
+}
+
+func TestRunCommandPhasePollTimeoutFailsWhenPhaseExceedsConfiguredWindow(t *testing.T) {
+	targetSrv := goodWkbenchTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := delayedConnectWkbenchWorkerServer(t, "secret", 40*time.Millisecond)
+	defer workerSrv.Close()
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML())
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"run", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath, "--phase-poll-timeout", "5ms"}, &stderr)
+
+	if code != exitWorker {
+		t.Fatalf("expected worker exit code, got code %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "worker phase poll timeout") {
+		t.Fatalf("expected phase poll timeout error, got %q", stderr.String())
+	}
+}
+
 func TestRunCommandWritesReportDirectoryWhenConfigured(t *testing.T) {
 	targetSrv := goodWkbenchTargetServer(t)
 	defer targetSrv.Close()
@@ -1067,6 +1116,71 @@ func goodWkbenchWorkerServer(t *testing.T, token string) *httptest.Server {
 		case "/v1/stop":
 			phase = "stopped"
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func delayedConnectWkbenchWorkerServer(t *testing.T, token string, delay time.Duration) *httptest.Server {
+	t.Helper()
+	phase := "assigned"
+	completedPhase := ""
+	activePhase := ""
+	var connectStarted time.Time
+	assignment := map[string]string{"run_id": "bench-run", "worker_id": "w1"}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/info":
+			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
+		case "/v1/assign":
+			phase = "assigned"
+			completedPhase = ""
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/prepare":
+			phase = "prepare"
+			completedPhase = "prepare"
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/phase/connect":
+			activePhase = "connect"
+			connectStarted = time.Now()
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "active_phase": activePhase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/phase/warmup":
+			phase = "warmup"
+			completedPhase = "warmup"
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/phase/run":
+			phase = "run"
+			completedPhase = "run"
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/phase/cooldown":
+			phase = "cooldown"
+			completedPhase = "cooldown"
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/status":
+			if activePhase == "connect" && time.Since(connectStarted) >= delay {
+				phase = "connect"
+				completedPhase = "connect"
+				activePhase = ""
+			}
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "active_phase": activePhase, "completed_phase": completedPhase, "assignment": assignment})
+		case "/v1/metrics":
+			writeWkbenchJSON(t, w, map[string]any{"counters": map[string]uint64{}, "gauges": map[string]float64{}, "histograms": map[string]any{}, "errors": []any{}})
+		case "/v1/report":
+			writeWkbenchJSON(t, w, map[string]any{"worker_id": "w1"})
+		case "/v1/stop":
+			phase = "stopped"
+			activePhase = ""
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "completed_phase": completedPhase, "assignment": assignment})
 		default:
 			http.NotFound(w, r)
 		}

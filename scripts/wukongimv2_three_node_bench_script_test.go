@@ -278,6 +278,7 @@ func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 		`SAMPLE_INTERVAL="${WK_BENCH_PRESENCE_SAMPLE_INTERVAL:-1}"`,
 		`STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"`,
 		`CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"`,
+		`PHASE_POLL_TIMEOUT="${WK_BENCH_PRESENCE_PHASE_POLL_TIMEOUT:-30s}"`,
 		`REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"`,
 		`validate_presence_report`,
 		`wait_for_presence_cleanup`,
@@ -446,6 +447,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 		"run --target " + filepath.Join(outDir, "target.yaml"),
 		"--scenario " + filepath.Join(outDir, "scenario.yaml"),
 		"--workers " + filepath.Join(outDir, "workers.yaml"),
+		"--phase-poll-timeout 30s",
 	} {
 		if !strings.Contains(wkbenchCalls, want) {
 			t.Fatalf("wkbench calls missing %q:\n%s", want, wkbenchCalls)

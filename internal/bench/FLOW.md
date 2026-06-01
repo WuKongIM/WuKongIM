@@ -48,6 +48,11 @@ Coordinator terminal statuses map directly to CLI exit codes:
 - `target_unavailable` -> `5`
 - `canceled` or `internal_failed` -> `6`
 
+`wkbench run --phase-poll-timeout` controls the base worker phase poll wait.
+When it is omitted, the coordinator default is used. The coordinator then adds
+the expected phase schedule duration for connect, warmup, run, and cooldown;
+for example, connect waits for `phase_poll_timeout + total_users/connect_rate`.
+
 `PhasePrepare` has one extra coordinator step for split large groups: before normal prepare, the coordinator calls `/v1/prepare/channels` on workers that own split group channels. This creates owner channels before all workers append subscribers.
 
 ## Capacity Send Flow

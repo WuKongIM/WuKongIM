@@ -82,6 +82,19 @@ go run ./cmd/wkbench run \
   --scenario ./scenario.yaml
 ```
 
+For large runs with intentionally slow connection ramps, raise the coordinator
+phase poll margin:
+
+```bash
+go run ./cmd/wkbench run \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml \
+  --phase-poll-timeout 30s
+```
+
+The connect phase waits for this base timeout plus `total_users/connect_rate`.
+
 For a compiled binary, replace `go run ./cmd/wkbench` with the binary path.
 
 ## Capacity Send

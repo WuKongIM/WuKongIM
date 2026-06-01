@@ -23,6 +23,7 @@ HEARTBEAT_TIMEOUT="${WK_BENCH_PRESENCE_HEARTBEAT_TIMEOUT:-5s}"
 SAMPLE_INTERVAL="${WK_BENCH_PRESENCE_SAMPLE_INTERVAL:-1}"
 STABLE_SAMPLES="${WK_BENCH_PRESENCE_STABLE_SAMPLES:-2}"
 CLEANUP_TIMEOUT="${WK_BENCH_PRESENCE_CLEANUP_TIMEOUT:-0}"
+PHASE_POLL_TIMEOUT="${WK_BENCH_PRESENCE_PHASE_POLL_TIMEOUT:-30s}"
 REQUIRE_TOUCH="${WK_BENCH_PRESENCE_REQUIRE_TOUCH:-1}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
@@ -77,6 +78,7 @@ Options:
   --sample-interval SECS    Live presence sample interval. Default: 1.
   --stable-samples N        Required consecutive full live samples. Default: 2.
   --cleanup-timeout SECS    Wait up to this many seconds for owner/authority routes to clear. Default: 0.
+  --phase-poll-timeout D    Base wkbench worker phase poll timeout. Default: 30s.
   --no-require-touch        Do not fail when touch_routes_total is zero.
   --api LIST                Comma-separated API base URLs.
   --gateway LIST            Comma-separated WKProto gateway addresses.
@@ -224,6 +226,11 @@ while [[ $# -gt 0 ]]; do
     --cleanup-timeout)
       [[ $# -ge 2 ]] || die '--cleanup-timeout requires a value'
       CLEANUP_TIMEOUT="$2"
+      shift 2
+      ;;
+    --phase-poll-timeout)
+      [[ $# -ge 2 ]] || die '--phase-poll-timeout requires a value'
+      PHASE_POLL_TIMEOUT="$2"
       shift 2
       ;;
     --no-require-touch)
@@ -735,6 +742,7 @@ DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
 CLEANUP_TIMEOUT=$CLEANUP_TIMEOUT
+PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 HEARTBEAT_INTERVAL=$HEARTBEAT_INTERVAL
 HEARTBEAT_TIMEOUT=$HEARTBEAT_TIMEOUT
 SAMPLE_INTERVAL=$SAMPLE_INTERVAL
@@ -766,6 +774,7 @@ run_bench() {
     --target "$OUT_DIR/target.yaml" \
     --scenario "$OUT_DIR/scenario.yaml" \
     --workers "$OUT_DIR/workers.yaml" \
+    --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$OUT_DIR/wkbench-console.txt" 2>&1 &
   local bench_pid="$!"
 

@@ -28,7 +28,7 @@ Findings:
 
 Classification:
 - Category: healthy 10k, 15k, and 20k presence route stability after widening local ephemeral ports; cleanup clears within the script observation window.
-- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, expose or raise the wkbench connect phase poll timeout before treating coordinator timeouts as service failures.
+- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, run wkbench with a larger `--phase-poll-timeout` before treating coordinator timeouts as service failures.
 
 ## 2026-05-20 Run 1
 
