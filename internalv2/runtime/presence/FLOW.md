@@ -27,12 +27,23 @@ new unacknowledged conflicts with `ErrRouteNotReady`.
 
 ## Owner Sequence Fencing
 
-The directory stores the last owner sequence per exact route identity. `UnregisterRoute` records a tombstone and removes only that identity when the tombstone is at least as new as the active route. Register and rehydrate reject routes whose `OwnerSeq` is older than the stored tombstone.
+The directory stores the last owner sequence and explicit unregister tombstone
+per exact route identity. `UnregisterRoute` records a tombstone and removes only
+that identity when the tombstone is at least as new as the active route.
+Register rejects routes whose `OwnerSeq` is at or behind the stored tombstone.
+Touch ignores routes that are older than the latest owner sequence or at or
+behind the explicit unregister tombstone.
 
-## Rehydrate
+## Touch And TTL
 
-`RehydrateRoutes` reuses the same register/conflict path as live registration
-and returns per-route accept or reject results. Conflicting rehydrate candidates
-return the pending token so the app worker can apply owner actions and then
-commit or abort the candidate. This package intentionally has no lease
-heartbeat, digest mismatch protocol, or replay lease state.
+`TouchRoutes` validates the same `RouteTarget` fence as other mutations, then
+refreshes exact active routes or recreates missing non-conflicting routes from
+owner activity. Touch does not create pending candidates or return owner
+actions; conflicting missing routes are ignored so live registration remains
+the only conflict-resolution path.
+
+Each active route carries `LastSeenUnix`, initialized from `ConnectedUnix` when
+registration omits it. `ExpireRoutes` scans active routes and removes entries
+whose last seen time plus TTL is before the caller-provided time. TTL expiry
+does not write tombstones, so a later non-conflicting touch with a fresh owner
+sequence may recreate the route.

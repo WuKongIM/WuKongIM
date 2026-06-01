@@ -3,6 +3,7 @@ package presence
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestDirectoryRejectsStaleTarget(t *testing.T) {
@@ -25,32 +26,101 @@ func TestDirectoryRejectsStaleTarget(t *testing.T) {
 	}
 }
 
-func TestDirectoryUnregisterWithNewerOwnerSeqPreventsStaleRehydrate(t *testing.T) {
+func TestDirectoryTouchRoutesIgnoresExplicitUnregisterTombstoneAtSameOwnerSeq(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
 	target := RouteTarget{HashSlot: 2, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
 	dir.BecomeAuthority(target)
 
-	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, ConnectedUnix: 100, LastSeenUnix: 100}
 	if _, err := dir.RegisterRoute(target, route); err != nil {
 		t.Fatalf("RegisterRoute() error = %v", err)
 	}
-	if err := dir.UnregisterRoute(target, RouteIdentity{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, SessionID: 10}, 7); err != nil {
+	if err := dir.UnregisterRoute(target, RouteIdentity{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, SessionID: 10}, 5); err != nil {
 		t.Fatalf("UnregisterRoute() error = %v", err)
 	}
 
-	results, err := dir.RehydrateRoutes(target, []Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 6, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}})
-	if err != nil {
-		t.Fatalf("RehydrateRoutes() error = %v", err)
-	}
-	if len(results) != 1 || results[0].Accepted || results[0].Error == "" {
-		t.Fatalf("rehydrate results = %#v, want stale rejection", results)
+	touched := route
+	touched.LastSeenUnix = 200
+	if err := dir.TouchRoutes(target, []Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
 	}
 	routes, err := dir.EndpointsByUID(target, "u1")
 	if err != nil {
 		t.Fatalf("EndpointsByUID() error = %v", err)
 	}
 	if len(routes) != 0 {
-		t.Fatalf("routes = %#v, want none after stale rehydrate", routes)
+		t.Fatalf("routes = %#v, want none after tombstoned touch", routes)
+	}
+}
+
+func TestDirectoryTouchRoutesRefreshesExistingRoute(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 6, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp-a", ConnectedUnix: 100, LastSeenUnix: 100}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	touched := route
+	touched.LastSeenUnix = 200
+	touched.Listener = "tcp-b"
+
+	if err := dir.TouchRoutes(target, []Route{touched}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+
+	routes, err := dir.EndpointsByUID(target, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].LastSeenUnix != 200 || routes[0].Listener != "tcp-b" {
+		t.Fatalf("routes = %#v, want touched route metadata", routes)
+	}
+}
+
+func TestDirectoryTouchRoutesDoesNotMoveLastSeenBackward(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 6, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, ConnectedUnix: 100, LastSeenUnix: 200}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	delayed := route
+	delayed.LastSeenUnix = 150
+	delayed.Listener = "old-touch"
+
+	if err := dir.TouchRoutes(target, []Route{delayed}); err != nil {
+		t.Fatalf("TouchRoutes(delayed) error = %v", err)
+	}
+
+	routes, err := dir.EndpointsByUID(target, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].LastSeenUnix != 200 {
+		t.Fatalf("routes = %#v, want LastSeenUnix preserved at 200", routes)
+	}
+}
+
+func TestDirectoryTouchRoutesRecreatesMissingRoute(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 6, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 5, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, ConnectedUnix: 100, LastSeenUnix: 200}
+	if err := dir.TouchRoutes(target, []Route{route}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
+	}
+
+	routes, err := dir.EndpointsByUID(target, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].SessionID != route.SessionID || routes[0].LastSeenUnix != 200 {
+		t.Fatalf("routes = %#v, want touched missing route recreated", routes)
 	}
 }
 
@@ -252,7 +322,7 @@ func TestDirectoryLoseAuthorityRejectsOldTarget(t *testing.T) {
 	}
 }
 
-func TestDirectoryRehydrateRoutesUsesConflictPath(t *testing.T) {
+func TestDirectoryTouchRoutesIgnoresConflictingMissingRoute(t *testing.T) {
 	existing := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1}
 	incoming := Route{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, DeviceID: "new", DeviceFlag: 1, DeviceLevel: 1}
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
@@ -262,18 +332,71 @@ func TestDirectoryRehydrateRoutesUsesConflictPath(t *testing.T) {
 		t.Fatalf("RegisterRoute(existing) error = %v", err)
 	}
 
-	results, err := dir.RehydrateRoutes(target, []Route{incoming})
-	if err != nil {
-		t.Fatalf("RehydrateRoutes() error = %v", err)
-	}
-	if len(results) != 1 || !results[0].Accepted || results[0].PendingToken == "" || len(results[0].Actions) != 1 {
-		t.Fatalf("rehydrate results = %#v, want accepted pending conflict action", results)
+	if err := dir.TouchRoutes(target, []Route{incoming}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v", err)
 	}
 	routes, err := dir.EndpointsByUID(target, "u1")
 	if err != nil {
 		t.Fatalf("EndpointsByUID() error = %v", err)
 	}
 	if len(routes) != 1 || routes[0].SessionID != existing.SessionID {
-		t.Fatalf("routes = %#v, want existing route still active before commit", routes)
+		t.Fatalf("routes = %#v, want existing route still active after conflicting touch", routes)
+	}
+}
+
+func TestDirectoryExpireRoutesRemovesUntouchedRoutes(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 7, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	stale := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1, ConnectedUnix: now.Add(-10 * time.Second).Unix()}
+	fresh := Route{UID: "u2", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, DeviceID: "new", DeviceFlag: 1, DeviceLevel: 1, ConnectedUnix: now.Add(-10 * time.Second).Unix(), LastSeenUnix: now.Add(-2 * time.Second).Unix()}
+	if _, err := dir.RegisterRoute(target, stale); err != nil {
+		t.Fatalf("RegisterRoute(stale) error = %v", err)
+	}
+	if _, err := dir.RegisterRoute(target, fresh); err != nil {
+		t.Fatalf("RegisterRoute(fresh) error = %v", err)
+	}
+
+	if removed := dir.ExpireRoutes(now, 5*time.Second); removed != 1 {
+		t.Fatalf("ExpireRoutes() removed = %d, want 1", removed)
+	}
+	staleRoutes, err := dir.EndpointsByUID(target, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID(stale) error = %v", err)
+	}
+	if len(staleRoutes) != 0 {
+		t.Fatalf("stale routes = %#v, want none", staleRoutes)
+	}
+	freshRoutes, err := dir.EndpointsByUID(target, "u2")
+	if err != nil {
+		t.Fatalf("EndpointsByUID(fresh) error = %v", err)
+	}
+	if len(freshRoutes) != 1 || freshRoutes[0].SessionID != fresh.SessionID {
+		t.Fatalf("fresh routes = %#v, want fresh route preserved", freshRoutes)
+	}
+}
+
+func TestDirectoryExpireRoutesKeepsUntimestampedRoutes(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	target := RouteTarget{HashSlot: 7, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1}
+	if _, err := dir.RegisterRoute(target, route); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+
+	if removed := dir.ExpireRoutes(now, 5*time.Second); removed != 0 {
+		t.Fatalf("ExpireRoutes() removed = %d, want 0", removed)
+	}
+	routes, err := dir.EndpointsByUID(target, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 {
+		t.Fatalf("routes = %#v, want untimestamped route preserved", routes)
 	}
 }

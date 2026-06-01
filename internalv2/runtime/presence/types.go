@@ -47,6 +47,8 @@ type Route struct {
 	Listener string
 	// ConnectedUnix records when the owner accepted the route.
 	ConnectedUnix int64
+	// LastSeenUnix records the latest authority-observed owner activity for TTL expiry.
+	LastSeenUnix int64
 }
 
 // RouteAction asks an owner node to resolve an authority-side route conflict.
@@ -88,20 +90,6 @@ type RegisterResult struct {
 	PendingToken PendingRouteToken
 	// Actions are owner-side operations required before committing a pending route.
 	Actions []RouteAction
-}
-
-// RehydrateResult reports per-route replay outcome after an authority change.
-type RehydrateResult struct {
-	// Route identifies the replayed route.
-	Route RouteIdentity
-	// Accepted is true when the route was accepted by the register path.
-	Accepted bool
-	// PendingToken is set when conflict actions must be applied before commit.
-	PendingToken PendingRouteToken
-	// Actions are owner-side operations required by conflict resolution.
-	Actions []RouteAction
-	// Error contains a stable error string for rejected routes.
-	Error string
 }
 
 // DirectoryOptions configures the authority route directory.
