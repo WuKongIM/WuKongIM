@@ -57,9 +57,10 @@ presence.RouteAction
 `RegisterRoute`, `UnregisterRoute`, and `EndpointsByUID` resolve their target
 from the UID carried by the request. `CommitRoute` and `AbortRoute` resolve
 their target from the UID remembered for the pending token returned by
-`RegisterRoute`. Rehydrate uses `RehydrateRoutesTo(target, routes)` so owner
-nodes replay local active routes to the exact authority epoch announced by a
-route-authority event, including remote leaders.
+`RegisterRoute`. Touch batching uses `TouchRoutesTo(target, routes)` because
+the app worker groups dirty owner sessions by the exact authority target
+observed during flush. The adapter sends the batch locally when the target
+leader is this node and uses access/node RPC for remote leaders.
 
 If an authority call reports stale routing or not-leader, the adapter resolves a
 fresh `RouteKey` and retries once. If route resolution is not ready, the adapter

@@ -10,6 +10,7 @@ import (
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPresenceClientUsesLocalAuthorityWhenTargetLeaderIsLocal(t *testing.T) {
@@ -211,34 +212,36 @@ func TestPresenceClientKeepsPendingTokenWhenCommitRouteNotReady(t *testing.T) {
 	}
 }
 
-func TestPresenceClientRehydratesRemoteAuthorityTarget(t *testing.T) {
+func TestPresenceAuthorityClientTouchRoutesToLocal(t *testing.T) {
+	node := &fakePresenceCluster{nodeID: 1}
+	local := &fakePresenceAuthority{}
+	client := NewPresenceAuthorityClient(node, local)
+	target := presence.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	routes := []presence.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 2, OwnerSeq: 3, SessionID: 4, LastSeenUnix: 50}}
+
+	require.NoError(t, client.TouchRoutesTo(context.Background(), target, routes))
+	require.Len(t, local.touchCalls, 1)
+	require.Equal(t, target, local.touchCalls[0].target)
+	require.Equal(t, routes, local.touchCalls[0].routes)
+}
+
+func TestPresenceAuthorityClientTouchRoutesToRemote(t *testing.T) {
 	remoteAuthority := &fakePresenceAuthority{}
-	cluster := &fakePresenceCluster{
+	node := &fakePresenceCluster{
 		nodeID: 1,
 		rpc:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteAuthority})},
 	}
-	local := &fakePresenceAuthority{}
-	client := NewPresenceAuthorityClient(cluster, local)
-	target := presence.RouteTarget{HashSlot: 7, SlotID: 11, LeaderNodeID: 2, RouteRevision: 17, AuthorityEpoch: 1}
+	client := NewPresenceAuthorityClient(node, &fakePresenceAuthority{})
+	target := presence.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 3, AuthorityEpoch: 4}
+	routes := []presence.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 2, OwnerSeq: 3, SessionID: 4, LastSeenUnix: 50}}
 
-	results, err := client.RehydrateRoutesTo(context.Background(), target, []presence.Route{
-		testInfraPresenceRoute("u1", 101),
-	})
-	if err != nil {
-		t.Fatalf("RehydrateRoutesTo() error = %v", err)
-	}
-	if len(local.rehydrateCalls) != 0 {
-		t.Fatalf("rehydrate calls = %d, want 0", len(local.rehydrateCalls))
-	}
-	if len(remoteAuthority.rehydrateCalls) != 1 {
-		t.Fatalf("remote rehydrate calls = %d, want 1", len(remoteAuthority.rehydrateCalls))
-	}
-	if !reflect.DeepEqual(remoteAuthority.rehydrateCalls[0].target, target) {
-		t.Fatalf("remote rehydrate target = %#v, want %#v", remoteAuthority.rehydrateCalls[0].target, target)
-	}
-	if len(results) != 1 || !results[0].Accepted {
-		t.Fatalf("rehydrate results = %#v, want accepted", results)
-	}
+	require.NoError(t, client.TouchRoutesTo(context.Background(), target, routes))
+	require.Len(t, remoteAuthority.touchCalls, 1)
+	require.Equal(t, target, remoteAuthority.touchCalls[0].target)
+	require.Equal(t, routes, remoteAuthority.touchCalls[0].routes)
+	require.Len(t, node.calls, 1)
+	require.Equal(t, uint64(2), node.calls[0].nodeID)
+	require.Equal(t, accessnode.PresenceAuthorityRPCServiceID, node.calls[0].serviceID)
 }
 
 func TestPresenceClientReturnsRouteNotReadyWhenRouteKeyFails(t *testing.T) {
@@ -365,7 +368,7 @@ type fakePresenceAuthority struct {
 	abortCalls     []presenceTokenCall
 	unregCalls     []presenceUnregisterCall
 	endpointCalls  []presenceEndpointCall
-	rehydrateCalls []presenceRehydrateCall
+	touchCalls     []presenceTouchCall
 }
 
 type fakePresenceOwner struct {
@@ -414,13 +417,9 @@ func (f *fakePresenceAuthority) EndpointsByUID(_ context.Context, target presenc
 	return []presence.Route{testInfraPresenceRoute(uid, 301)}, nil
 }
 
-func (f *fakePresenceAuthority) RehydrateRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
-	f.rehydrateCalls = append(f.rehydrateCalls, presenceRehydrateCall{target: target, routes: append([]presence.Route(nil), routes...)})
-	results := make([]presence.RehydrateResult, 0, len(routes))
-	for _, route := range routes {
-		results = append(results, presence.RehydrateResult{Route: route.Identity(), Accepted: true})
-	}
-	return results, nil
+func (f *fakePresenceAuthority) TouchRoutes(_ context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	f.touchCalls = append(f.touchCalls, presenceTouchCall{target: target, routes: append([]presence.Route(nil), routes...)})
+	return nil
 }
 
 type presenceRegisterCall struct {
@@ -444,7 +443,7 @@ type presenceEndpointCall struct {
 	uid    string
 }
 
-type presenceRehydrateCall struct {
+type presenceTouchCall struct {
 	target presence.RouteTarget
 	routes []presence.Route
 }

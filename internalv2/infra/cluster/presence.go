@@ -176,34 +176,13 @@ func (c *PresenceAuthorityClient) EndpointsByUID(ctx context.Context, uid string
 	return routes, nil
 }
 
-// RehydrateRoutesTo replays owner routes into a specific observed authority epoch.
-func (c *PresenceAuthorityClient) RehydrateRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
-	if len(routes) == 0 {
-		return nil, nil
-	}
-	authority, err := c.authorityForTarget(target)
-	if err != nil {
-		return nil, err
-	}
-	return authority.RehydrateRoutes(ctx, target, routes)
-}
-
-// CommitRehydratedRoute commits one raw pending token returned by RehydrateRoutesTo.
-func (c *PresenceAuthorityClient) CommitRehydratedRoute(ctx context.Context, target presence.RouteTarget, token string) error {
+// TouchRoutesTo refreshes owner routes in a specific observed authority epoch.
+func (c *PresenceAuthorityClient) TouchRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	authority, err := c.authorityForTarget(target)
 	if err != nil {
 		return err
 	}
-	return authority.CommitRoute(ctx, target, token)
-}
-
-// AbortRehydratedRoute aborts one raw pending token returned by RehydrateRoutesTo.
-func (c *PresenceAuthorityClient) AbortRehydratedRoute(ctx context.Context, target presence.RouteTarget, token string) error {
-	authority, err := c.authorityForTarget(target)
-	if err != nil {
-		return err
-	}
-	return authority.AbortRoute(ctx, target, token)
+	return authority.TouchRoutes(ctx, target, routes)
 }
 
 // ApplyRouteAction applies a conflict action on the node that owns the real session.
