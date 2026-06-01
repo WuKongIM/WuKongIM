@@ -26,7 +26,7 @@ New(Config)
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
        and access/node presence RPC adapter
        register the presence authority and owner-action RPC handlers on clusterv2
-       create the route-authority rehydrate worker
+       create the presence touch worker
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
@@ -47,14 +47,14 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
-  -> presence rehydrate worker Start(ctx)
+  -> presence touch worker Start(ctx)
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> presence rehydrate worker Stop(ctx)
+  -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
 
@@ -62,7 +62,7 @@ Stop(ctx)
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
 
-## Presence Authority Rehydrate
+## Presence Touch Worker
 
 ```text
 clusterv2.RouteAuthorityEvent
@@ -70,14 +70,15 @@ clusterv2.RouteAuthorityEvent
        runtime/presence.Directory.BecomeAuthority(target)
   -> if another node becomes authority:
        Directory.LoseAuthority(hashSlot)
-  -> for every authority target with a leader:
-       page owner-local active sessions through online.Registry.VisitActiveByHashSlot
-       call infra/cluster.PresenceAuthorityClient.RehydrateRoutesTo(target, batch)
-       route returned conflict actions to their owner node
-       commit or abort pending routes on the target authority
+
+periodic flush
+  -> runtime/presence.Directory.ExpireRoutes(now, routeTTL)
+  -> drain owner-local dirty routes through online.Registry.DrainTouched
+  -> resolve the current UID authority target for each route
+  -> group touches by observed target and call PresenceAuthorityClient.TouchRoutesTo
+  -> requeue only failed or unresolved owner-local route identities
 ```
 
-The app worker keeps at most one in-flight rehydrate task per hash slot. A newer
-authority event cancels older epoch work before replaying the latest target, and
-stale initial snapshots are ignored if a newer watched event has already been
-accepted.
+The app worker has one authority watch loop and one periodic touch loop. It does
+not scan or replay owner-local active sessions when authority changes, and it
+does not create per-hash-slot workers.

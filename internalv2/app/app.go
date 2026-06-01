@@ -140,16 +140,16 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			})
 		}
 		if app.presenceWorker == nil {
-			app.presenceWorker = newPresenceRehydrateWorker(presenceRehydrateWorkerOptions{
-				NodeID:               presenceNode.NodeID(),
-				Watch:                presenceNode.WatchRouteAuthorities,
-				Initial:              app.currentPresenceAuthorities,
-				Local:                app.online,
-				Authority:            client,
-				Actions:              client,
-				Directory:            directory,
-				BatchSize:            app.cfg.Presence.RehydrateBatchSize,
-				MaxInflightPerTarget: app.cfg.Presence.RehydrateMaxInflightPerTarget,
+			app.presenceWorker = newPresenceTouchWorker(presenceTouchWorkerOptions{
+				NodeID:        presenceNode.NodeID(),
+				Watch:         presenceNode.WatchRouteAuthorities,
+				Initial:       app.currentPresenceAuthorities,
+				Local:         app.online,
+				Authority:     client,
+				Directory:     directory,
+				FlushInterval: app.cfg.Presence.TouchFlushInterval,
+				BatchSize:     app.cfg.Presence.TouchBatchSize,
+				RouteTTL:      app.cfg.Presence.RouteTTL,
 			})
 		}
 	}
@@ -385,7 +385,7 @@ type presenceDirectoryAuthority struct {
 
 type presenceOwnerActions struct {
 	// local stores real sessions owned by this node.
-	local presenceLocalRegistry
+	local presenceOwnerLocalRegistry
 }
 
 type activationTimeoutPresence struct {
@@ -412,6 +412,13 @@ func (p activationTimeoutPresence) Deactivate(ctx context.Context, cmd presence.
 		return nil
 	}
 	return p.next.Deactivate(ctx, cmd)
+}
+
+func (p activationTimeoutPresence) Touch(ctx context.Context, cmd presence.TouchCommand) error {
+	if p.next == nil {
+		return nil
+	}
+	return p.next.Touch(ctx, cmd)
 }
 
 func (a presenceDirectoryAuthority) RegisterRoute(ctx context.Context, target presence.RouteTarget, route presence.Route) (presence.RegisterResult, error) {
@@ -449,11 +456,11 @@ func (a presenceDirectoryAuthority) EndpointsByUID(ctx context.Context, target p
 	return a.directory.EndpointsByUID(target, uid)
 }
 
-func (a presenceDirectoryAuthority) RehydrateRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
+func (a presenceDirectoryAuthority) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
-	return a.directory.RehydrateRoutes(target, routes)
+	return a.directory.TouchRoutes(target, routes)
 }
 
 func (a presenceOwnerActions) ApplyRouteAction(ctx context.Context, action presence.RouteAction) error {

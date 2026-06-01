@@ -81,10 +81,52 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestNewRejectsUnsupportedPresenceMaxInflight(t *testing.T) {
-	_, err := New(Config{Presence: PresenceConfig{RehydrateMaxInflightPerTarget: 2}}, WithCluster(&fakeCluster{}))
-	if !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("New() error = %v, want %v", err, ErrInvalidConfig)
+func TestDefaultPresenceConfigUsesTouchDefaults(t *testing.T) {
+	cfg := defaultPresenceConfig(PresenceConfig{})
+
+	if cfg.ActivationTimeout != 3*time.Second {
+		t.Fatalf("ActivationTimeout = %v, want 3s", cfg.ActivationTimeout)
+	}
+	if cfg.TouchFlushInterval != time.Second {
+		t.Fatalf("TouchFlushInterval = %v, want 1s", cfg.TouchFlushInterval)
+	}
+	if cfg.TouchBatchSize != 512 {
+		t.Fatalf("TouchBatchSize = %d, want 512", cfg.TouchBatchSize)
+	}
+	if cfg.RouteTTL != 90*time.Second {
+		t.Fatalf("RouteTTL = %v, want 90s", cfg.RouteTTL)
+	}
+
+	negative := defaultPresenceConfig(PresenceConfig{
+		ActivationTimeout:  -time.Second,
+		TouchFlushInterval: -time.Second,
+		TouchBatchSize:     -1,
+		RouteTTL:           -time.Second,
+	})
+	if negative.ActivationTimeout != -time.Second ||
+		negative.TouchFlushInterval != -time.Second ||
+		negative.TouchBatchSize != -1 ||
+		negative.RouteTTL != -time.Second {
+		t.Fatalf("negative presence values were overwritten: %#v", negative)
+	}
+}
+
+func TestValidatePresenceConfigRejectsInvalidTouchValues(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  PresenceConfig
+	}{
+		{name: "activation timeout", cfg: PresenceConfig{ActivationTimeout: -time.Nanosecond}},
+		{name: "touch flush interval", cfg: PresenceConfig{TouchFlushInterval: -time.Nanosecond}},
+		{name: "touch batch size", cfg: PresenceConfig{TouchBatchSize: -1}},
+		{name: "route ttl", cfg: PresenceConfig{RouteTTL: -time.Nanosecond}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validatePresenceConfig(tt.cfg); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validatePresenceConfig() error = %v, want %v", err, ErrInvalidConfig)
+			}
+		})
 	}
 }
 
@@ -170,137 +212,223 @@ func TestStartSeedsPresenceAuthorityFromCurrentRoutes(t *testing.T) {
 	}
 }
 
-func TestPresenceRehydrateWorkerPagesAffectedHashSlot(t *testing.T) {
-	events := make(chan clusterv2.RouteAuthorityEvent, 1)
+func TestPresenceTouchWorkerFlushesDirtyRoutesByTarget(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	for _, conn := range []online.OnlineConn{
+	conns := []online.OnlineConn{
 		{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1001},
 		{UID: "u2", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 12, SessionID: 102, DeviceID: "d2", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1002},
 		{UID: "u3", HashSlot: 8, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 13, SessionID: 103, DeviceID: "d3", DeviceFlag: 1, DeviceLevel: 1, Listener: "tcp", ConnectedUnix: 1003},
-	} {
+	}
+	for _, conn := range conns {
 		if err := reg.RegisterPending(conn); err != nil {
 			t.Fatalf("RegisterPending(%d) error = %v", conn.SessionID, err)
 		}
 		if err := reg.MarkActive(conn.SessionID); err != nil {
 			t.Fatalf("MarkActive(%d) error = %v", conn.SessionID, err)
 		}
+		reg.MarkTouched(conn.SessionID, conn.ConnectedUnix+10)
 	}
-	authority := &recordingRehydrateAuthority{done: make(chan struct{}), wantBatches: 2}
-	worker := newPresenceRehydrateWorker(presenceRehydrateWorkerOptions{
-		NodeID:    1,
-		Events:    events,
+	targetA := presence.RouteTarget{HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 2}
+	targetB := presence.RouteTarget{HashSlot: 8, SlotID: 1, LeaderNodeID: 2, RouteRevision: 4, AuthorityEpoch: 5}
+	authority := &recordingTouchAuthority{targets: map[string]presence.RouteTarget{
+		"u1": targetA,
+		"u2": targetA,
+		"u3": targetB,
+	}}
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		Local:     reg,
 		Authority: authority,
-		BatchSize: 1,
+		Directory: directory,
+		BatchSize: 10,
+		RouteTTL:  90 * time.Second,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := worker.Start(ctx); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	defer worker.Stop(context.Background())
-
-	events <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{{
-		HashSlot:       9,
-		SlotID:         1,
-		LeaderNodeID:   2,
-		RouteRevision:  3,
-		AuthorityEpoch: 2,
-	}}}
-
-	select {
-	case <-authority.done:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for rehydrate")
-	}
+	worker.flushOnce(context.Background(), time.Unix(2000, 0))
 
 	if len(authority.batches) != 2 {
-		t.Fatalf("rehydrate batches = %d, want 2", len(authority.batches))
+		t.Fatalf("touch batches = %d, want 2", len(authority.batches))
 	}
-	for i, batch := range authority.batches {
-		if len(batch.routes) != 1 {
-			t.Fatalf("batch %d route count = %d, want 1", i, len(batch.routes))
-		}
-		if batch.target.HashSlot != 9 || batch.target.LeaderNodeID != 2 || batch.target.AuthorityEpoch != 2 {
-			t.Fatalf("batch %d target = %#v, want hashSlot=9 leader=2 epoch=2", i, batch.target)
-		}
+	if got := len(routesForTarget(authority.batches, targetA)); got != 2 {
+		t.Fatalf("targetA route count = %d, want 2", got)
 	}
-	gotSessions := []uint64{authority.batches[0].routes[0].SessionID, authority.batches[1].routes[0].SessionID}
-	if !reflect.DeepEqual(gotSessions, []uint64{101, 102}) {
-		t.Fatalf("rehydrated session IDs = %v, want [101 102]", gotSessions)
+	targetBRoutes := routesForTarget(authority.batches, targetB)
+	if len(targetBRoutes) != 1 {
+		t.Fatalf("targetB route count = %d, want 1", len(targetBRoutes))
 	}
-}
-
-func TestPresenceRehydrateWorkerIgnoresStaleAuthority(t *testing.T) {
-	directory := &recordingPresenceDirectory{}
-	worker := newPresenceRehydrateWorker(presenceRehydrateWorkerOptions{
-		NodeID:    1,
-		Directory: directory,
-	})
-	newer := clusterv2.RouteAuthority{HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 3}
-	older := clusterv2.RouteAuthority{HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 2, AuthorityEpoch: 2}
-
-	worker.handleAuthority(context.Background(), newer)
-	worker.handleAuthority(context.Background(), older)
-
-	if len(directory.becomeTargets) != 1 {
-		t.Fatalf("BecomeAuthority calls = %d, want 1", len(directory.becomeTargets))
+	if targetBRoutes[0].LastSeenUnix != conns[2].ConnectedUnix+10 {
+		t.Fatalf("LastSeenUnix = %d, want %d", targetBRoutes[0].LastSeenUnix, conns[2].ConnectedUnix+10)
 	}
-	if got := directory.becomeTargets[0].AuthorityEpoch; got != 3 {
-		t.Fatalf("accepted authority epoch = %d, want 3", got)
+	if len(reg.DrainTouched(10)) != 0 {
+		t.Fatalf("dirty routes were not cleared after successful touch")
+	}
+	if len(directory.expires) != 1 {
+		t.Fatalf("ExpireRoutes calls = %d, want 1", len(directory.expires))
 	}
 }
 
-func TestPresenceRehydrateWorkerAppliesActionsAndCommitsPending(t *testing.T) {
-	events := make(chan clusterv2.RouteAuthorityEvent, 1)
+func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
-	session := &recordingSessionHandle{}
-	conn := online.OnlineConn{
-		UID:           "u1",
-		HashSlot:      9,
-		OwnerNodeID:   1,
-		OwnerBootID:   7,
-		OwnerSeq:      11,
-		SessionID:     101,
-		DeviceID:      "d1",
-		DeviceFlag:    1,
-		DeviceLevel:   1,
-		Listener:      "tcp",
-		ConnectedUnix: 1001,
-		Session:       session,
-	}
+	conn := online.OnlineConn{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
 	if err := reg.RegisterPending(conn); err != nil {
 		t.Fatalf("RegisterPending() error = %v", err)
 	}
 	if err := reg.MarkActive(conn.SessionID); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
-
-	authority := &recordingRehydrateAuthority{
-		done:        make(chan struct{}),
-		wantBatches: 1,
-		wantCommits: 1,
-		results: []presence.RehydrateResult{{
-			Route:        presence.RouteIdentity{UID: conn.UID, OwnerNodeID: conn.OwnerNodeID, OwnerBootID: conn.OwnerBootID, SessionID: conn.SessionID},
-			Accepted:     true,
-			PendingToken: "pending-1",
-			Actions: []presence.RouteAction{{
-				UID:         conn.UID,
-				OwnerNodeID: conn.OwnerNodeID,
-				OwnerBootID: conn.OwnerBootID,
-				SessionID:   conn.SessionID,
-				Reason:      "presence_conflict",
-			}},
-		}},
+	reg.MarkTouched(conn.SessionID, 1010)
+	authority := &recordingTouchAuthority{
+		targets: map[string]presence.RouteTarget{"u1": {HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 2}},
+		err:     errors.New("touch failed"),
 	}
-	worker := newPresenceRehydrateWorker(presenceRehydrateWorkerOptions{
-		NodeID:    1,
-		Events:    events,
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		Local:     reg,
 		Authority: authority,
-		Actions:   presenceOwnerActions{local: reg},
-		BatchSize: 1,
+		BatchSize: 10,
+	})
+
+	worker.flushOnce(context.Background(), time.Now())
+
+	requeued := reg.DrainTouched(10)
+	if len(requeued) != 1 {
+		t.Fatalf("requeued dirty routes = %d, want 1", len(requeued))
+	}
+	if requeued[0].SessionID != conn.SessionID || requeued[0].UID != conn.UID {
+		t.Fatalf("requeued route = %#v, want session %d uid %s", requeued[0], conn.SessionID, conn.UID)
+	}
+}
+
+func TestPresenceTouchWorkerRequeuesAllGroupsWhenContextCancelsAfterDrain(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	conns := []online.OnlineConn{
+		{UID: "u1", HashSlot: 9, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001},
+		{UID: "u2", HashSlot: 8, OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 12, SessionID: 102, ConnectedUnix: 1002},
+	}
+	for _, conn := range conns {
+		if err := reg.RegisterPending(conn); err != nil {
+			t.Fatalf("RegisterPending(%d) error = %v", conn.SessionID, err)
+		}
+		if err := reg.MarkActive(conn.SessionID); err != nil {
+			t.Fatalf("MarkActive(%d) error = %v", conn.SessionID, err)
+		}
+		reg.MarkTouched(conn.SessionID, conn.ConnectedUnix+10)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	authority := &recordingTouchAuthority{
+		targets: map[string]presence.RouteTarget{
+			"u1": {HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 2},
+			"u2": {HashSlot: 8, SlotID: 1, LeaderNodeID: 2, RouteRevision: 4, AuthorityEpoch: 5},
+		},
+		resolveHook: func(string) { cancel() },
+	}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		Local:     reg,
+		Authority: authority,
+		BatchSize: 10,
+	})
+
+	worker.flushOnce(ctx, time.Now())
+
+	if len(authority.batches) != 0 {
+		t.Fatalf("touch batches = %d, want 0 after context cancellation", len(authority.batches))
+	}
+	requeued := reg.DrainTouched(10)
+	if len(requeued) != len(conns) {
+		t.Fatalf("requeued dirty routes = %d, want %d", len(requeued), len(conns))
+	}
+}
+
+func TestOnlineConnFromRouteCarriesRouteMetadata(t *testing.T) {
+	route := presence.Route{
+		UID:           "u1",
+		OwnerNodeID:   1,
+		OwnerBootID:   7,
+		OwnerSeq:      11,
+		SessionID:     101,
+		DeviceID:      "d1",
+		DeviceFlag:    2,
+		DeviceLevel:   3,
+		Listener:      "tcp",
+		ConnectedUnix: 1001,
+		LastSeenUnix:  1010,
+	}
+
+	conn := onlineConnFromRoute(route)
+
+	if conn.DeviceID != route.DeviceID ||
+		conn.DeviceFlag != route.DeviceFlag ||
+		conn.DeviceLevel != route.DeviceLevel ||
+		conn.Listener != route.Listener {
+		t.Fatalf("online conn metadata = %#v, want route metadata %#v", conn, route)
+	}
+	if conn.LastActivityUnix != route.LastSeenUnix {
+		t.Fatalf("LastActivityUnix = %d, want %d", conn.LastActivityUnix, route.LastSeenUnix)
+	}
+}
+
+func TestPresenceTouchWorkerIgnoresStaleAuthorityAfterNewerEvent(t *testing.T) {
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:    1,
+		Directory: directory,
+	})
+
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   2,
+		RouteRevision:  3,
+		AuthorityEpoch: 2,
+	})
+
+	if got := directory.becomeSnapshot(); len(got) != 1 || got[0].LeaderNodeID != 1 || got[0].AuthorityEpoch != 3 {
+		t.Fatalf("become targets = %#v, want one current local authority", got)
+	}
+	if got := directory.loseSnapshot(); len(got) != 0 {
+		t.Fatalf("lost slots = %v, want stale remote authority ignored", got)
+	}
+}
+
+func TestPresenceTouchWorkerAcceptsNewerNoLeaderAuthority(t *testing.T) {
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:    1,
+		Directory: directory,
+	})
+
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:      9,
+		SlotID:        1,
+		LeaderNodeID:  0,
+		RouteRevision: 5,
+	})
+
+	if got := directory.loseSnapshot(); !reflect.DeepEqual(got, []uint16{9}) {
+		t.Fatalf("lost slots = %v, want newer no-leader authority to clear local authority", got)
+	}
+}
+
+func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
+	events := make(chan clusterv2.RouteAuthorityEvent, 3)
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:    1,
+		Events:    events,
+		Directory: directory,
 	})
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -313,22 +441,28 @@ func TestPresenceRehydrateWorkerAppliesActionsAndCommitsPending(t *testing.T) {
 		LeaderNodeID:   1,
 		RouteRevision:  3,
 		AuthorityEpoch: 2,
+	}, {
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   2,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	}, {
+		HashSlot:       10,
+		SlotID:         1,
+		LeaderNodeID:   0,
+		RouteRevision:  5,
+		AuthorityEpoch: 4,
 	}}}
 
-	select {
-	case <-authority.done:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for rehydrate commit")
+	waitUntil(t, time.Second, func() bool {
+		return len(directory.becomeSnapshot()) == 1 && len(directory.loseSnapshot()) == 2
+	})
+	if got := directory.becomeSnapshot()[0]; got.HashSlot != 9 || got.LeaderNodeID != 1 || got.AuthorityEpoch != 2 {
+		t.Fatalf("become target = %#v, want hashSlot=9 leader=1 epoch=2", got)
 	}
-
-	if session.reason != "presence_conflict" {
-		t.Fatalf("close reason = %q, want presence_conflict", session.reason)
-	}
-	if _, ok := reg.Connection(conn.SessionID); ok {
-		t.Fatalf("connection %d remains after conflict action", conn.SessionID)
-	}
-	if !reflect.DeepEqual(authority.commitTokens, []string{"pending-1"}) {
-		t.Fatalf("commit tokens = %v, want [pending-1]", authority.commitTokens)
+	if got := directory.loseSnapshot(); !reflect.DeepEqual(got, []uint16{9, 10}) {
+		t.Fatalf("lost slots = %v, want [9 10]", got)
 	}
 }
 
@@ -752,84 +886,109 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuth
 	return ch
 }
 
-type rehydrateBatch struct {
+type touchBatch struct {
 	target presence.RouteTarget
 	routes []presence.Route
 }
 
 type recordingPresenceDirectory struct {
-	becomeTargets []presence.RouteTarget
-	lostSlots     []uint16
+	mu      sync.Mutex
+	become  []presence.RouteTarget
+	lose    []uint16
+	expires []expireCall
+}
+
+type expireCall struct {
+	now time.Time
+	ttl time.Duration
 }
 
 func (r *recordingPresenceDirectory) BecomeAuthority(target presence.RouteTarget) {
-	r.becomeTargets = append(r.becomeTargets, target)
+	r.mu.Lock()
+	r.become = append(r.become, target)
+	r.mu.Unlock()
 }
 
 func (r *recordingPresenceDirectory) LoseAuthority(hashSlot uint16) {
-	r.lostSlots = append(r.lostSlots, hashSlot)
-}
-
-type recordingRehydrateAuthority struct {
-	mu           sync.Mutex
-	batches      []rehydrateBatch
-	results      []presence.RehydrateResult
-	commitTokens []string
-	abortTokens  []string
-	done         chan struct{}
-	closed       bool
-	wantBatches  int
-	wantCommits  int
-}
-
-func (r *recordingRehydrateAuthority) RehydrateRoutesTo(_ context.Context, target presence.RouteTarget, routes []presence.Route) ([]presence.RehydrateResult, error) {
 	r.mu.Lock()
-	r.batches = append(r.batches, rehydrateBatch{
+	r.lose = append(r.lose, hashSlot)
+	r.mu.Unlock()
+}
+
+func (r *recordingPresenceDirectory) ExpireRoutes(now time.Time, ttl time.Duration) int {
+	r.mu.Lock()
+	r.expires = append(r.expires, expireCall{now: now, ttl: ttl})
+	r.mu.Unlock()
+	return 0
+}
+
+func (r *recordingPresenceDirectory) becomeSnapshot() []presence.RouteTarget {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]presence.RouteTarget(nil), r.become...)
+}
+
+func (r *recordingPresenceDirectory) loseSnapshot() []uint16 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]uint16(nil), r.lose...)
+}
+
+type recordingTouchAuthority struct {
+	mu          sync.Mutex
+	targets     map[string]presence.RouteTarget
+	batches     []touchBatch
+	err         error
+	resolveHook func(string)
+}
+
+func (r *recordingTouchAuthority) ResolveRouteTarget(uid string) (presence.RouteTarget, error) {
+	r.mu.Lock()
+	target, ok := r.targets[uid]
+	hook := r.resolveHook
+	r.mu.Unlock()
+	if hook != nil {
+		hook(uid)
+	}
+	if !ok {
+		return presence.RouteTarget{}, errors.New("target not found")
+	}
+	return target, nil
+}
+
+func (r *recordingTouchAuthority) TouchRoutesTo(_ context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	r.mu.Lock()
+	r.batches = append(r.batches, touchBatch{
 		target: target,
 		routes: append([]presence.Route(nil), routes...),
 	})
-	results := append([]presence.RehydrateResult(nil), r.results...)
-	r.maybeDoneLocked()
+	err := r.err
 	r.mu.Unlock()
-	return results, nil
+	return err
 }
 
-func (r *recordingRehydrateAuthority) CommitRehydratedRoute(_ context.Context, _ presence.RouteTarget, token string) error {
-	r.mu.Lock()
-	r.commitTokens = append(r.commitTokens, token)
-	r.maybeDoneLocked()
-	r.mu.Unlock()
+func routesForTarget(batches []touchBatch, target presence.RouteTarget) []presence.Route {
+	for _, batch := range batches {
+		if batch.target == target {
+			return batch.routes
+		}
+	}
 	return nil
 }
 
-func (r *recordingRehydrateAuthority) AbortRehydratedRoute(_ context.Context, _ presence.RouteTarget, token string) error {
-	r.mu.Lock()
-	r.abortTokens = append(r.abortTokens, token)
-	r.mu.Unlock()
-	return nil
-}
-
-func (r *recordingRehydrateAuthority) maybeDoneLocked() {
-	if r.done == nil || r.closed {
+func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if ok() {
 		return
 	}
-	if r.wantBatches > 0 && len(r.batches) < r.wantBatches {
-		return
-	}
-	if r.wantCommits > 0 && len(r.commitTokens) < r.wantCommits {
-		return
-	}
-	close(r.done)
-	r.closed = true
-}
-
-type recordingSessionHandle struct {
-	reason string
-}
-
-func (r *recordingSessionHandle) CloseSession(reason string) error {
-	r.reason = reason
-	return nil
+	t.Fatalf("condition was not met within %v", timeout)
 }
 
 type fakeGateway struct {

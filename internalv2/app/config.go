@@ -36,7 +36,7 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Message configures message send behavior.
 	Message MessageConfig
-	// Presence configures connection-route activation and authority rehydrate behavior.
+	// Presence configures connection-route activation and authority touch behavior.
 	Presence PresenceConfig
 }
 
@@ -85,32 +85,46 @@ type ObservabilityConfig struct {
 // MessageConfig contains message usecase settings.
 type MessageConfig struct{}
 
-// PresenceConfig contains connection presence and route-authority worker settings.
+// PresenceConfig contains connection presence and route-authority touch settings.
 type PresenceConfig struct {
 	// ActivationTimeout bounds one gateway session activation against the UID authority.
 	ActivationTimeout time.Duration
-	// RehydrateBatchSize limits owner-local active routes replayed in one authority rehydrate call.
-	RehydrateBatchSize int
-	// RehydrateMaxInflightPerTarget limits concurrent rehydrate workers per authority target; only 1 is currently supported.
-	RehydrateMaxInflightPerTarget int
+	// TouchFlushInterval controls how often owner-local activity is flushed to UID authorities.
+	TouchFlushInterval time.Duration
+	// TouchBatchSize limits owner-local touched routes drained in one flush.
+	TouchBatchSize int
+	// RouteTTL bounds authority-side route liveness since the latest observed activity.
+	RouteTTL time.Duration
 }
 
 func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
-	if cfg.ActivationTimeout <= 0 {
+	if cfg.ActivationTimeout == 0 {
 		cfg.ActivationTimeout = 3 * time.Second
 	}
-	if cfg.RehydrateBatchSize <= 0 {
-		cfg.RehydrateBatchSize = 512
+	if cfg.TouchFlushInterval == 0 {
+		cfg.TouchFlushInterval = time.Second
 	}
-	if cfg.RehydrateMaxInflightPerTarget <= 0 {
-		cfg.RehydrateMaxInflightPerTarget = 1
+	if cfg.TouchBatchSize == 0 {
+		cfg.TouchBatchSize = 512
+	}
+	if cfg.RouteTTL == 0 {
+		cfg.RouteTTL = 90 * time.Second
 	}
 	return cfg
 }
 
 func validatePresenceConfig(cfg PresenceConfig) error {
-	if cfg.RehydrateMaxInflightPerTarget != 1 {
-		return fmt.Errorf("%w: presence rehydrate max inflight per target currently supports 1", ErrInvalidConfig)
+	if cfg.ActivationTimeout < 0 {
+		return fmt.Errorf("%w: presence activation timeout must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.TouchFlushInterval < 0 {
+		return fmt.Errorf("%w: presence touch flush interval must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.TouchBatchSize < 0 {
+		return fmt.Errorf("%w: presence touch batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.RouteTTL < 0 {
+		return fmt.Errorf("%w: presence route ttl must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }
