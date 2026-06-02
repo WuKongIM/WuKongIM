@@ -61,7 +61,9 @@ gateway SEND on N1
   -> SENDACK is written to sender
   -> MessageCommitted enters delivery
 
-Delivery dispatcher
+App async committed sink
+  -> delivery usecase
+  -> runtime Manager bounded admission
   -> classifies g1 as large/hot
   -> CoordinatorReactor creates or resumes fanout plan
   -> FanoutTask per UID authority partition
@@ -73,7 +75,7 @@ FanoutReactor for each partition
   -> enqueues owner batches to owner lanes
 
 Owner lane
-  -> local owner: OwnerReactor + SessionWriteExecutor
+  -> local owner: OwnerSessionPort + SessionWriteExecutor adapter
   -> remote owner: PushRPCExecutor to access/node Delivery Push RPC
 
 Recipient owner node
@@ -109,9 +111,9 @@ Recipient owner node
 
 ## Runtime Components
 
-### DeliveryManager
+### Manager
 
-`DeliveryManager` remains the runtime facade consumed by the usecase adapter.
+`Manager` remains the runtime facade consumed by the usecase adapter.
 `SubmitCommitted` clones the event, performs bounded admission, and returns.
 It no longer runs all fanout tasks synchronously.
 
@@ -119,7 +121,42 @@ It no longer runs all fanout tasks synchronously.
 SubmitCommitted
   -> classify envelope
   -> enqueue CoordinatorCommand
-  -> return ok / queue_full / closed
+  -> return accepted / queue_full / closed
+```
+
+The app async committed sink and runtime manager admission queue are two
+separate boundaries. The app sink accepts committed events from the send path so
+SENDACK latency stays detached from delivery. The runtime manager accepts work
+only after `SubmitCommitted` successfully enqueues a coordinator command. If the
+app sink accepted an event but manager admission later fails, the event is
+observed as a runtime admission failure and is not considered accepted runtime
+work.
+
+First implementation contract:
+
+```go
+type AdmissionResult string
+
+const (
+	AdmissionAccepted  AdmissionResult = "accepted"
+	AdmissionQueueFull AdmissionResult = "queue_full"
+	AdmissionClosed    AdmissionResult = "closed"
+)
+
+type CoordinatorCommand struct {
+	CommandID   uint64
+	Envelope    Envelope
+	SubmittedAt int64
+}
+```
+
+Accepted runtime work must produce exactly one terminal observation:
+
+```text
+completed
+failed
+cancelled
+dropped
 ```
 
 `Recvack`, `SessionClosed`, `BindPendingAck`, and `ExpirePendingAcks` continue
@@ -137,7 +174,7 @@ Responsibilities:
 - resolve current delivery partitions;
 - create `FanoutJob` / `FanoutTask` records in memory;
 - route local tasks to fanout reactors;
-- route remote authority tasks through fanout RPC lanes;
+- route remote authority tasks through authority fanout lanes;
 - observe planning failures and retryable route-not-ready errors.
 
 They do not scan subscribers, resolve presence, call node RPC, or write
@@ -156,8 +193,13 @@ one message partition:
 FanoutCell
   Envelope
   Partition
+  SourceKind
+  SourceVersion
+  TopologyVersion
+  RouteSnapshotVersion
   Cursor
   Attempt
+  Generation
   State
   InflightEffect
   RetryDueAt
@@ -182,18 +224,76 @@ local owner writes continue.
 Local owner work enters owner reactors or write shards. Remote owner work enters
 `PushRPCExecutor` and uses access-node Delivery Push RPC.
 
+Authority fanout RPC uses the same isolation principle before presence
+resolution:
+
+```text
+AuthorityNodeID -> bounded fanout lane queue -> bounded inflight fanout RPC work
+```
+
+A slow UID-authority node must not consume all remote fanout RPC capacity for
+other authority leaders.
+
 ### Owner Reactors Or Write Shards
 
-Owner-local delivery validates route fences and owns pending recvack mutation.
-The hot operation is session write, so actual writes should run through
-`SessionWriteExecutor` instead of blocking the reactor.
+Owner-local delivery coordinates through small runtime ports. Concrete
+`online.Registry` lookups, `RecvPacket` construction, and gateway session writes
+remain app/adapter responsibilities unless they are introduced through narrow
+interfaces owned by `runtime/delivery`. The runtime must not import concrete
+gateway, app, or online registry implementation types.
+
+The hot operation is session write, so concrete writes should run through
+`SessionWriteExecutor` instead of blocking owner-lane scheduling.
 
 ```text
 OwnerPushCommand
-  -> validate route against online.Registry
-  -> bind PendingRecvAck if budget allows
+  -> validate route through OwnerSessionPort
   -> submit SessionWriteTask
+  -> bind PendingRecvAck only after write acceptance
+  -> rollback/unbind PendingRecvAck on retryable or dropped write result
   -> write result returns accepted / retryable / dropped
+```
+
+Per-session writes must be single-writer serialized by either the concrete
+session handle or by owner-local write shards keyed by `(UID, SessionID)`.
+Realtime message arrival order is not globally guaranteed, but concurrent writes
+to the same socket must not race.
+
+```go
+type OwnerSessionPort interface {
+	Push(context.Context, PushCommand) (PushResult, error)
+}
+
+type SessionWriteTask struct {
+	CommandID uint64
+	Route     Route
+	Envelope  Envelope
+}
+
+type SessionWriteResult struct {
+	CommandID uint64
+	Route     Route
+	Accepted  bool
+	Retryable bool
+	Dropped   bool
+	Err       error
+}
+```
+
+Ack state transition:
+
+```text
+write accepted
+  -> BindPendingAck
+  -> return accepted
+
+write rejected before socket acceptance
+  -> no pending ack is bound
+  -> return retryable or dropped
+
+write accepted then later classified failed by adapter
+  -> UnbindPendingAck / Recvack rollback
+  -> return retryable or dropped
 ```
 
 If route validation fails, the route is dropped. If session write fails with a
@@ -209,7 +309,7 @@ SubscriberExecutor   subscriber or delivery-tag page reads
 PresenceExecutor     EndpointsByUIDs batch resolution
 FanoutRPCExecutor    remote authority fanout RPC
 PushRPCExecutor      remote owner push RPC
-SessionWriteExecutor owner-local gateway session writes
+SessionWriteExecutor owner-local session write adapter tasks
 ```
 
 Each executor has independent worker and queue budgets. This prevents, for
@@ -228,6 +328,36 @@ EffectKind
 
 The reactor applies a completion only when the fence still matches the current
 cell.
+
+Executor API shape:
+
+```go
+type Executor interface {
+	Submit(context.Context, EffectTask) error
+	Start(context.Context) error
+	Stop(context.Context) error
+}
+
+type EffectTask struct {
+	Fence EffectFence
+	Kind  EffectKind
+	Body  any
+}
+
+type EffectFence struct {
+	CommandID   uint64
+	TaskID      uint64
+	PartitionID uint32
+	Generation  uint64
+	Cursor      string
+	Attempt     int
+}
+```
+
+`Generation` increments whenever a fanout cell is replaced, aborted, rerouted to
+a newer authority owner, or restarted from a different source/version fence.
+Stale completions are ignored after a bounded observation; they must not retry
+or mutate cursor state.
 
 ## Adaptive Path Selection
 
@@ -273,7 +403,8 @@ reactors and typed executors.
 Used when channel subscriber count or online count crosses configured
 thresholds. The first implementation uses config thresholds only so behavior is
 deterministic; later versions may also use observed fanout latency, queue depth,
-or message rate.
+or message rate. When counts are unknown, P1 falls back to the normal paged path
+and records the classification as `unknown`.
 
 Flow:
 
@@ -285,14 +416,18 @@ DeliveryTag or OnlineIndex page
 ```
 
 P1 can keep jobs in memory. The data shape must remain serializable so P2 can
-persist job cursor and retry state.
+persist job cursor and retry state. P1 only meets the offline-heavy
+100k-channel performance goal when the configured source can return online UIDs
+or online routes by partition. If only the existing subscriber source is
+available, the large/hot path improves fairness and isolation but still pays
+subscriber-scan cost.
 
 ## Delivery Tags And Online Indexes
 
 The best large-channel path should avoid scanning offline members for every
 message.
 
-Preferred future source:
+Preferred source for large channels:
 
 ```text
 channel + subscriber_version + topology_version
@@ -300,7 +435,7 @@ channel + subscriber_version + topology_version
   -> UID pages by partition
 ```
 
-Best realtime source when available:
+Best realtime source:
 
 ```text
 channel -> online UID or online route index
@@ -310,6 +445,30 @@ P1 does not need to build the full persistent tag/index system. It must,
 however, keep the runtime source port flexible:
 
 ```go
+type FanoutSourceKind string
+
+const (
+	FanoutSourceSubscribers  FanoutSourceKind = "subscribers"
+	FanoutSourceOnlineUIDs   FanoutSourceKind = "online_uids"
+	FanoutSourceOnlineRoutes FanoutSourceKind = "online_routes"
+	FanoutSourceDeliveryTag  FanoutSourceKind = "delivery_tag"
+)
+
+type FanoutPlan struct {
+	SourceKind           FanoutSourceKind
+	SourceVersion        uint64
+	TopologyVersion      uint64
+	RouteSnapshotVersion uint64
+}
+
+type FanoutPageRequest struct {
+	Envelope  Envelope
+	Plan      FanoutPlan
+	Partition Partition
+	Cursor    string
+	Limit     int
+}
+
 type FanoutSource interface {
     Begin(ctx context.Context, env Envelope) (FanoutPlan, error)
     NextPage(ctx context.Context, req FanoutPageRequest) (UIDPage, error)
@@ -318,6 +477,8 @@ type FanoutSource interface {
 
 Existing `ChannelSubscriberSource` can adapt to this interface. Future delivery
 tags and online indexes can implement it without changing reactor execution.
+Cursor values are source-scoped; a cursor from one source kind or source version
+must never be reused with another.
 
 ## Backpressure
 
@@ -346,6 +507,33 @@ session_missing
 session_write_failed
 ```
 
+Policy:
+
+```text
+committed sink full
+  -> reject app sink submit, observe overflow, SENDACK remains durable-only
+
+manager admission full
+  -> reject runtime admission, observe queue_full terminal failure
+
+executor queue full
+  -> retry only if the task has retry budget and retry will not increase cardinality
+  -> otherwise terminally drop realtime work for that cell/page
+
+authority fanout lane full
+  -> retry with bounded backoff; drop after max attempts
+
+owner lane full
+  -> narrow retry to exact affected routes; drop after max attempts
+
+pending ack budget full
+  -> drop exact route; do not retry until a newer presence route is observed
+```
+
+Retry must narrow whenever possible. A retryable owner push result should carry
+only retryable routes, and a retryable presence/page failure should preserve the
+same cursor rather than rescan earlier pages.
+
 ## Retry And Failure Handling
 
 Route-not-ready or stale authority:
@@ -359,10 +547,12 @@ Presence failure:
   observe the error.
 
 Remote authority fanout failure:
-: retry the fanout task through the owner partition's routing path.
+: retry the fanout task through the current authority partition leader routing
+  path.
 
 Remote owner push failure:
-: classify all routes in that owner batch as retryable.
+: classify only the affected owner batch as retryable; later retries should
+  carry the exact retryable route set.
 
 Local route fence mismatch or missing session:
 : drop the exact route.
@@ -384,9 +574,12 @@ arrival order:
 - every `RecvPacket` includes `MessageSeq`.
 - clients use `MessageSeq` to order and detect gaps.
 
-Fanout partitions, owner lanes, and session writes may complete out of order.
-This is acceptable for realtime delivery. Gap recovery and message sync remain
-the correctness mechanism.
+Fanout partitions and owner lanes may complete out of order. This is acceptable
+for realtime delivery. Gap recovery and message sync remain the correctness
+mechanism. Slice 1 should preserve current behavior as closely as possible by
+defaulting to one runner worker around the existing synchronous runner unless
+the implementation explicitly adds tests for same-channel, same-session
+out-of-order delivery. Per-session socket writes must remain serialized.
 
 ## Configuration
 
@@ -394,24 +587,30 @@ Add delivery execution settings under `internalv2/app.DeliveryConfig` only when
 implementation needs them. Keep defaults conservative and avoid exposing every
 internal knob at once.
 
-Useful first knobs:
+Expose only the knobs needed by the active implementation slice. New external
+config fields require detailed English comments and `wukongim.conf.example`
+alignment.
 
-- `ReactorCount`
-- `CoordinatorMailboxSize`
-- `FanoutMailboxSize`
-- `ExecutorQueueSize`
-- `SubscriberWorkers`
-- `PresenceWorkers`
-- `PushRPCWorkers`
-- `SessionWriteWorkers`
-- `OwnerLaneQueueSize`
-- `OwnerLaneInflight`
-- `LargeChannelSubscriberThreshold`
-- `LargeChannelOnlineThreshold`
+Useful Slice 1 knobs:
+
+- `AdmissionQueueSize`
+- `RunnerWorkers`
+- `StopDrainTimeout`
 - `FanoutPageSize`
 - `PushBatchSize`
 - `RetryMaxAttempts`
 - `RetryBackoff`
+
+Future slice candidates:
+
+- `ReactorCount`
+- `CoordinatorMailboxSize`
+- `FanoutMailboxSize`
+- per-executor worker and queue sizes
+- `OwnerLaneQueueSize`
+- `OwnerLaneInflight`
+- `LargeChannelSubscriberThreshold`
+- `LargeChannelOnlineThreshold`
 
 Existing `FanoutPageSize`, `PushBatchSize`, `EventQueueSize`,
 `PendingAckTTL`, and `PendingAckMaxPerSession` remain valid.
@@ -438,6 +637,19 @@ Do not label metrics with channel IDs, UIDs, session IDs, or message IDs.
 
 ## Lifecycle
 
+This section describes the sub-order inside `internalv2/app`'s delivery worker
+group. The app-level order still starts cluster and presence readiness before
+delivery workers, then starts API and gateway after delivery.
+
+Runtime states:
+
+```text
+open
+  -> closing: reject new runtime admission
+  -> draining: drain accepted queues until deadline
+  -> closed: reject admission and ignore stale completions after observation
+```
+
 Start order:
 
 ```text
@@ -460,25 +672,35 @@ typed executors stop after completions are returned or cancelled
 retry/job scheduler exits
 ```
 
-No accepted command should be left without a terminal observation. P1 may drop
-in-memory fanout work on process crash; P2 durable jobs should recover from
-stored cursors.
+No accepted command should be left without a terminal observation. Stop with an
+expired context terminally observes remaining accepted in-memory commands as
+`cancelled`. P1 may drop in-memory fanout work on process crash; P2 durable jobs
+should recover from stored cursors.
 
 ## Implementation Slices
 
-### Slice 1: Runtime Execution Skeleton
+### Slice 1A: Bounded Async Manager Around Existing Runner
+
+- Add bounded manager admission and explicit `Start` / `Stop`.
+- Run the current runner behind a small typed executor, defaulting to one worker
+  to preserve current delivery ordering as closely as possible.
+- Add `AdmissionResult`, `CoordinatorCommand`, terminal observations, and
+  lifecycle state.
+- Add no-cluster unit tests for admission, queue-full terminal observation,
+  repeated start/stop, stop/submit races, and executor completion after stop.
+
+### Slice 1B: Runtime Execution Skeleton
 
 - Add coordinator/fanout reactor group and typed executor interfaces.
 - Keep existing `Planner`, `FanoutWorker`, `FanoutTaskRouter`, and
   `RetryScheduler` behavior behind compatibility adapters.
-- Convert `Manager.SubmitCommitted` from synchronous execution to bounded
-  admission.
-- Add no-cluster unit tests for admission, routing, and stop behavior.
+- Add no-cluster unit tests for routing, fences, and stale completions.
 
 ### Slice 2: Owner Lanes And Write Shards
 
 - Split owner push into per-owner lanes.
-- Move local session writes through `SessionWriteExecutor`.
+- Move local session writes through abstract owner/session ports backed by app
+  adapters.
 - Preserve pending ack semantics.
 - Test slow owner isolation and recvack cleanup.
 
@@ -507,14 +729,19 @@ stored cursors.
 Runtime unit tests:
 
 - `SubmitCommitted` is bounded and does not execute blocking effects inline.
+- queue-full admission creates a terminal observation.
 - same channel planning is ordered while unrelated channels progress.
 - fanout reactor advances large jobs fairly.
 - stale executor completions are ignored by fence checks.
 - owner lane pressure does not block other owner lanes.
+- authority fanout lane pressure does not block other authority lanes.
 - local route fence mismatch drops exact routes.
 - session write retry returns exact retryable routes.
 - recvack and session close clear owner-local pending ack state.
 - stop/submit races do not hang accepted commands.
+- fake-clock backoff avoids timing-sensitive retry tests.
+- repeated Start/Stop is idempotent.
+- executor completion after Stop is observed and ignored safely.
 
 App wiring tests:
 
@@ -523,11 +750,14 @@ App wiring tests:
 - single-node cluster delivery uses the same routing surfaces as multi-node
   clusters.
 - delivery disabled preserves existing `SEND -> SENDACK` behavior.
+- implementation slices that change package flow update the relevant `FLOW.md`
+  files.
 
 Benchmarks:
 
 ```text
 go test ./internalv2/runtime/delivery -run '^$' -bench . -benchmem
+go test -race ./internalv2/runtime/delivery
 ```
 
 Scenarios:
