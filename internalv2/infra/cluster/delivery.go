@@ -5,15 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
-
-// DeliveryPushNode is the clusterv2 surface required by delivery push routing.
-type DeliveryPushNode interface {
-	NodeID() uint64
-	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
-	RegisterRPC(uint8, clusterv2.NodeRPCHandler)
-}
 
 // DeliveryPusher routes owner-node delivery batches to local or remote pushers.
 type DeliveryPusher struct {
