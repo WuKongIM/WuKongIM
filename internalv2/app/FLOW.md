@@ -28,7 +28,7 @@ New(Config)
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
   -> when Delivery.Enabled=true:
-       create runtime/delivery Manager with a clusterv2-backed partitioner
+       create a clusterv2-backed delivery partitioner
        when route snapshots are available, an app subscriber planner, presence
        resolver, local/cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
