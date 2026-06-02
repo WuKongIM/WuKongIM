@@ -13,6 +13,8 @@ type ManagerOptions struct {
 	Planner *Planner
 	// Worker executes fanout tasks synchronously.
 	Worker *FanoutWorker
+	// Runner executes fanout tasks; when set it overrides Worker.
+	Runner FanoutTaskRunner
 	// Acks tracks pending recipient recvacks; nil creates a default tracker.
 	Acks *AckTracker
 }
@@ -20,7 +22,7 @@ type ManagerOptions struct {
 // Manager is the synchronous delivery runtime facade used by app adapters.
 type Manager struct {
 	planner *Planner
-	worker  *FanoutWorker
+	runner  FanoutTaskRunner
 	acks    *AckTracker
 }
 
@@ -30,16 +32,20 @@ func NewManager(opts ManagerOptions) *Manager {
 	if acks == nil {
 		acks = NewAckTracker(AckTrackerOptions{})
 	}
+	runner := opts.Runner
+	if runner == nil {
+		runner = opts.Worker
+	}
 	return &Manager{
 		planner: opts.Planner,
-		worker:  opts.Worker,
+		runner:  runner,
 		acks:    acks,
 	}
 }
 
 // SubmitCommitted plans and executes fanout for one committed message event.
 func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
-	if m == nil || m.planner == nil || m.worker == nil {
+	if m == nil || m.planner == nil || m.runner == nil {
 		return nil
 	}
 	tasks, err := m.planner.Plan(ctx, envelopeFromEvent(event))
@@ -47,7 +53,7 @@ func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.Messa
 		return err
 	}
 	for _, task := range tasks {
-		if err := m.worker.RunTask(ctx, task); err != nil {
+		if err := m.runner.RunTask(ctx, task); err != nil {
 			return err
 		}
 	}

@@ -53,6 +53,11 @@ type DeliveryOwnerPush interface {
 	Push(context.Context, runtimedelivery.PushCommand) (runtimedelivery.PushResult, error)
 }
 
+// DeliveryFanoutRunner accepts authority-node fanout tasks over node RPC.
+type DeliveryFanoutRunner interface {
+	RunTask(context.Context, runtimedelivery.FanoutTask) error
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -61,6 +66,8 @@ type Options struct {
 	Owner PresenceOwner
 	// Delivery handles owner-local delivery push batches after payload decoding.
 	Delivery DeliveryOwnerPush
+	// DeliveryFanout handles authority-node delivery fanout tasks after payload decoding.
+	DeliveryFanout DeliveryFanoutRunner
 }
 
 // Adapter decodes node RPC payloads and forwards them to local authority ports.
@@ -71,11 +78,13 @@ type Adapter struct {
 	owner PresenceOwner
 	// delivery pushes messages into owner-local delivery sessions.
 	delivery DeliveryOwnerPush
+	// deliveryFanout runs subscriber fanout tasks for this authority node.
+	deliveryFanout DeliveryFanoutRunner
 }
 
 // New creates a node RPC adapter.
 func New(opts Options) *Adapter {
-	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery}
+	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.

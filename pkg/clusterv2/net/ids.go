@@ -36,4 +36,6 @@ const (
 	RPCPresenceOwner
 	// RPCDeliveryPush serves internalv2 owner-node delivery push batches.
 	RPCDeliveryPush
+	// RPCDeliveryFanout serves internalv2 authority-node delivery fanout tasks.
+	RPCDeliveryFanout
 )

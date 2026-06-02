@@ -28,11 +28,12 @@ New(Config)
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
   -> when Delivery.Enabled=true:
-       create runtime/delivery Manager with an app subscriber planner,
-       presence resolver, and local/cluster delivery pusher
+       create runtime/delivery Manager with a clusterv2-backed partitioner
+       when route snapshots are available, an app subscriber planner, presence
+       resolver, local/cluster delivery pusher, and partition-leader fanout router
        create usecase/delivery.App backed by the manager
        create a bounded asynchronous committed-event sink for delivery fanout
-       register the delivery push RPC handler when node RPC is available
+       register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
      and delivery committed sink only when delivery is enabled and messages
      were not overridden
@@ -54,6 +55,13 @@ non-person unscoped channel fanout it delegates to an optional durable
 subscriber source; without that source the scan remains a terminal empty page.
 Scoped UID delivery still bypasses subscriber scan and flows through presence
 resolution plus the local or RPC owner pusher.
+
+When the cluster runtime exposes route snapshots, delivery planning uses the
+clusterv2 UID hash-slot table to create authority partitions. A fanout task
+router runs local partitions through the in-process fanout worker and forwards
+remote partitions through access/node Delivery Fanout RPC. The remote node then
+uses its own subscriber source and still pushes resolved online routes by
+owner node.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

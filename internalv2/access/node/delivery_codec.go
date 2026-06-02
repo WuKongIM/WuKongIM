@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	deliveryRPCRequestMagic  = [...]byte{'W', 'K', 'V', 'D', 1}
-	deliveryRPCResponseMagic = [...]byte{'W', 'K', 'V', 'd', 1}
+	deliveryRPCRequestMagic     = [...]byte{'W', 'K', 'V', 'D', 1}
+	deliveryRPCResponseMagic    = [...]byte{'W', 'K', 'V', 'd', 1}
+	deliveryFanoutRequestMagic  = [...]byte{'W', 'K', 'V', 'F', 1}
+	deliveryFanoutResponseMagic = [...]byte{'W', 'K', 'V', 'f', 1}
 )
 
 const maxDeliveryRPCCollectionLen = 4096
@@ -25,6 +27,18 @@ type deliveryPushResponse struct {
 	Status string
 	// Result reports how the owner node classified pushed routes.
 	Result runtimedelivery.PushResult
+}
+
+// deliveryFanoutRequest is the deterministic binary DTO for authority-node fanout calls.
+type deliveryFanoutRequest struct {
+	// Task carries one partition-scoped fanout task.
+	Task runtimedelivery.FanoutTask
+}
+
+// deliveryFanoutResponse is the deterministic binary DTO returned by fanout calls.
+type deliveryFanoutResponse struct {
+	// Status is one of the stable delivery RPC status strings.
+	Status string
 }
 
 func encodeDeliveryPushRequest(req deliveryPushRequest) ([]byte, error) {
@@ -77,6 +91,52 @@ func decodeDeliveryPushResponse(body []byte) (deliveryPushResponse, error) {
 	return resp, nil
 }
 
+func encodeDeliveryFanoutRequest(req deliveryFanoutRequest) ([]byte, error) {
+	dst := make([]byte, 0, 128)
+	dst = append(dst, deliveryFanoutRequestMagic[:]...)
+	dst = appendDeliveryFanoutTask(dst, req.Task)
+	return dst, nil
+}
+
+func decodeDeliveryFanoutRequest(body []byte) (deliveryFanoutRequest, error) {
+	if !hasMagic(body, deliveryFanoutRequestMagic[:]) {
+		return deliveryFanoutRequest{}, fmt.Errorf("internalv2/access/node: invalid delivery fanout request codec")
+	}
+	offset := len(deliveryFanoutRequestMagic)
+	var req deliveryFanoutRequest
+	var err error
+	if req.Task, offset, err = readDeliveryFanoutTask(body, offset); err != nil {
+		return deliveryFanoutRequest{}, err
+	}
+	if offset != len(body) {
+		return deliveryFanoutRequest{}, fmt.Errorf("internalv2/access/node: trailing delivery fanout request bytes")
+	}
+	return req, nil
+}
+
+func encodeDeliveryFanoutResponse(resp deliveryFanoutResponse) ([]byte, error) {
+	dst := make([]byte, 0, 128)
+	dst = append(dst, deliveryFanoutResponseMagic[:]...)
+	dst = appendString(dst, resp.Status)
+	return dst, nil
+}
+
+func decodeDeliveryFanoutResponse(body []byte) (deliveryFanoutResponse, error) {
+	if !hasMagic(body, deliveryFanoutResponseMagic[:]) {
+		return deliveryFanoutResponse{}, fmt.Errorf("internalv2/access/node: invalid delivery fanout response codec")
+	}
+	offset := len(deliveryFanoutResponseMagic)
+	var resp deliveryFanoutResponse
+	var err error
+	if resp.Status, offset, err = readString(body, offset); err != nil {
+		return deliveryFanoutResponse{}, err
+	}
+	if offset != len(body) {
+		return deliveryFanoutResponse{}, fmt.Errorf("internalv2/access/node: trailing delivery fanout response bytes")
+	}
+	return resp, nil
+}
+
 func appendDeliveryPushCommand(dst []byte, cmd runtimedelivery.PushCommand) []byte {
 	dst = appendUvarint(dst, cmd.OwnerNodeID)
 	dst = appendDeliveryEnvelope(dst, cmd.Envelope)
@@ -96,6 +156,62 @@ func readDeliveryPushCommand(body []byte, offset int) (runtimedelivery.PushComma
 		return runtimedelivery.PushCommand{}, offset, err
 	}
 	return cmd, offset, nil
+}
+
+func appendDeliveryFanoutTask(dst []byte, task runtimedelivery.FanoutTask) []byte {
+	dst = appendDeliveryEnvelope(dst, task.Envelope)
+	dst = appendDeliveryPartition(dst, task.Partition)
+	dst = appendString(dst, task.Cursor)
+	return appendVarint(dst, int64(task.Attempt))
+}
+
+func readDeliveryFanoutTask(body []byte, offset int) (runtimedelivery.FanoutTask, int, error) {
+	var task runtimedelivery.FanoutTask
+	var attempt int64
+	var err error
+	if task.Envelope, offset, err = readDeliveryEnvelope(body, offset); err != nil {
+		return runtimedelivery.FanoutTask{}, offset, err
+	}
+	if task.Partition, offset, err = readDeliveryPartition(body, offset); err != nil {
+		return runtimedelivery.FanoutTask{}, offset, err
+	}
+	if task.Cursor, offset, err = readString(body, offset); err != nil {
+		return runtimedelivery.FanoutTask{}, offset, err
+	}
+	if attempt, offset, err = readVarint(body, offset); err != nil {
+		return runtimedelivery.FanoutTask{}, offset, err
+	}
+	task.Attempt = int(attempt)
+	return task, offset, nil
+}
+
+func appendDeliveryPartition(dst []byte, partition runtimedelivery.Partition) []byte {
+	dst = appendUvarint(dst, uint64(partition.ID))
+	dst = appendUvarint(dst, partition.LeaderNodeID)
+	dst = appendUvarint(dst, uint64(partition.HashSlotStart))
+	return appendUvarint(dst, uint64(partition.HashSlotEnd))
+}
+
+func readDeliveryPartition(body []byte, offset int) (runtimedelivery.Partition, int, error) {
+	var partition runtimedelivery.Partition
+	var id, start, end uint64
+	var err error
+	if id, offset, err = readUvarint(body, offset); err != nil {
+		return runtimedelivery.Partition{}, offset, err
+	}
+	if partition.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return runtimedelivery.Partition{}, offset, err
+	}
+	if start, offset, err = readUvarint(body, offset); err != nil {
+		return runtimedelivery.Partition{}, offset, err
+	}
+	if end, offset, err = readUvarint(body, offset); err != nil {
+		return runtimedelivery.Partition{}, offset, err
+	}
+	partition.ID = uint32(id)
+	partition.HashSlotStart = uint16(start)
+	partition.HashSlotEnd = uint16(end)
+	return partition, offset, nil
 }
 
 func appendDeliveryEnvelope(dst []byte, env runtimedelivery.Envelope) []byte {

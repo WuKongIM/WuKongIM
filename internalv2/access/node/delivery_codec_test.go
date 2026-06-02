@@ -69,6 +69,42 @@ func TestDeliveryCodecResponseRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDeliveryFanoutCodecRoundTrip(t *testing.T) {
+	req := deliveryFanoutRequest{Task: testDeliveryFanoutTask()}
+
+	body, err := encodeDeliveryFanoutRequest(req)
+	if err != nil {
+		t.Fatalf("encodeDeliveryFanoutRequest() error = %v", err)
+	}
+	again, err := encodeDeliveryFanoutRequest(req)
+	if err != nil {
+		t.Fatalf("second encodeDeliveryFanoutRequest() error = %v", err)
+	}
+	if !bytes.Equal(body, again) {
+		t.Fatal("encodeDeliveryFanoutRequest() is not deterministic")
+	}
+	got, err := decodeDeliveryFanoutRequest(body)
+	if err != nil {
+		t.Fatalf("decodeDeliveryFanoutRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("decodeDeliveryFanoutRequest() = %#v, want %#v", got, req)
+	}
+
+	resp := deliveryFanoutResponse{Status: rpcStatusOK}
+	respBody, err := encodeDeliveryFanoutResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeDeliveryFanoutResponse() error = %v", err)
+	}
+	decodedResp, err := decodeDeliveryFanoutResponse(respBody)
+	if err != nil {
+		t.Fatalf("decodeDeliveryFanoutResponse() error = %v", err)
+	}
+	if !reflect.DeepEqual(decodedResp, resp) {
+		t.Fatalf("decodeDeliveryFanoutResponse() = %#v, want %#v", decodedResp, resp)
+	}
+}
+
 func TestDeliveryCodecRejectsBadMagicTruncatedAndTrailingBytes(t *testing.T) {
 	reqBody, err := encodeDeliveryPushRequest(deliveryPushRequest{Command: testDeliveryPushCommand()})
 	if err != nil {
@@ -101,6 +137,41 @@ func TestDeliveryCodecRejectsBadMagicTruncatedAndTrailingBytes(t *testing.T) {
 	}
 	if _, err := decodeDeliveryPushResponse(append(append([]byte(nil), respBody...), 0)); err == nil {
 		t.Fatal("decodeDeliveryPushResponse() accepted trailing bytes")
+	}
+}
+
+func TestDeliveryFanoutCodecRejectsBadMagicTruncatedAndTrailingBytes(t *testing.T) {
+	reqBody, err := encodeDeliveryFanoutRequest(deliveryFanoutRequest{Task: testDeliveryFanoutTask()})
+	if err != nil {
+		t.Fatalf("encodeDeliveryFanoutRequest() error = %v", err)
+	}
+	respBody, err := encodeDeliveryFanoutResponse(deliveryFanoutResponse{Status: rpcStatusOK})
+	if err != nil {
+		t.Fatalf("encodeDeliveryFanoutResponse() error = %v", err)
+	}
+
+	badReqMagic := append([]byte(nil), reqBody...)
+	badReqMagic[0] = 'X'
+	if _, err := decodeDeliveryFanoutRequest(badReqMagic); err == nil {
+		t.Fatal("decodeDeliveryFanoutRequest() accepted bad magic")
+	}
+	if _, err := decodeDeliveryFanoutRequest(reqBody[:len(reqBody)-1]); err == nil {
+		t.Fatal("decodeDeliveryFanoutRequest() accepted truncated body")
+	}
+	if _, err := decodeDeliveryFanoutRequest(append(append([]byte(nil), reqBody...), 0)); err == nil {
+		t.Fatal("decodeDeliveryFanoutRequest() accepted trailing bytes")
+	}
+
+	badRespMagic := append([]byte(nil), respBody...)
+	badRespMagic[0] = 'X'
+	if _, err := decodeDeliveryFanoutResponse(badRespMagic); err == nil {
+		t.Fatal("decodeDeliveryFanoutResponse() accepted bad magic")
+	}
+	if _, err := decodeDeliveryFanoutResponse(respBody[:len(respBody)-1]); err == nil {
+		t.Fatal("decodeDeliveryFanoutResponse() accepted truncated body")
+	}
+	if _, err := decodeDeliveryFanoutResponse(append(append([]byte(nil), respBody...), 0)); err == nil {
+		t.Fatal("decodeDeliveryFanoutResponse() accepted trailing bytes")
 	}
 }
 

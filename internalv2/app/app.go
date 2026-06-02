@@ -161,22 +161,40 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if app.cfg.Delivery.Enabled && app.delivery == nil {
 		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL}
 		var push runtimedelivery.Pusher = localPusher
+		var fanoutRemote runtimedelivery.FanoutTaskForwarder
+		var localNodeID uint64
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-			push = clusterinfra.NewDeliveryPusher(presenceNode.NodeID(), localPusher, accessnode.NewClient(presenceNode))
+			localNodeID = presenceNode.NodeID()
+			nodeClient := accessnode.NewClient(presenceNode)
+			push = clusterinfra.NewDeliveryPusher(localNodeID, localPusher, nodeClient)
+			fanoutRemote = nodeClient
+		}
+		var partitioner runtimedelivery.Partitioner
+		if routes, ok := app.cluster.(clusterWriteReadyRuntime); ok {
+			partitioner = clusterinfra.NewDeliveryPartitioner(routes)
+		}
+		fanoutWorker := runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
+			Subscribers: appSubscriberPlanner{
+				channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
+					Source: app.deliverySubscribers,
+				}),
+			},
+			Presence:      presenceResolverAdapter{presence: app.presence},
+			Push:          push,
+			PageSize:      app.cfg.Delivery.FanoutPageSize,
+			PushBatchSize: app.cfg.Delivery.PushBatchSize,
+		})
+		var fanoutRunner runtimedelivery.FanoutTaskRunner = fanoutWorker
+		if localNodeID != 0 {
+			fanoutRunner = runtimedelivery.NewFanoutTaskRouter(runtimedelivery.FanoutTaskRouterOptions{
+				LocalNodeID: localNodeID,
+				Local:       fanoutWorker,
+				Remote:      fanoutRemote,
+			})
 		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{}),
-			Worker: runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-				Subscribers: appSubscriberPlanner{
-					channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
-						Source: app.deliverySubscribers,
-					}),
-				},
-				Presence:      presenceResolverAdapter{presence: app.presence},
-				Push:          push,
-				PageSize:      app.cfg.Delivery.FanoutPageSize,
-				PushBatchSize: app.cfg.Delivery.PushBatchSize,
-			}),
+			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
+			Runner:  fanoutRunner,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
 			}),
@@ -191,8 +209,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.deliveryWorker = app.deliverySink
 		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-			adapter := accessnode.New(accessnode.Options{Delivery: localPusher})
+			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})
 			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
+			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
 		}
 	}
 	if app.messages == nil {

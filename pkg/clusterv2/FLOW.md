@@ -32,7 +32,9 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 `Node.RegisterRPC` and `Node.CallRPC` expose a narrow typed node-to-node RPC
 surface for upper-layer internalv2 adapters. Handlers registered before the
 default transport starts are replayed during transport construction; later
-registrations are installed idempotently.
+registrations are installed idempotently. Internalv2 delivery uses this surface
+for owner-node push RPC and partition-leader fanout RPC; clusterv2 only routes
+the payload and does not inspect delivery DTOs.
 
 `WatchRouteAuthorities` publishes hash-slot authority changes derived from the
 installed routing table. Each `RouteAuthority` carries

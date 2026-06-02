@@ -9,14 +9,18 @@ pending limit. `Manager`, `Planner`, and `FanoutWorker` form the synchronous
 runtime facade used by app adapters. `ChannelSubscriberPlanner` adapts an
 optional durable subscriber source into partition/cursor-based fanout pages; a
 nil source returns a terminal empty page so app tests can enable delivery
-without wiring a subscriber store.
+without wiring a subscriber store. `FanoutTaskRouter` can sit between
+`Manager` and `FanoutWorker` to run local authority partitions in-process and
+forward remote authority partitions through a small node RPC port.
 
 Committed-message fanout flow:
 
 1. A committed message event enters `Manager.SubmitCommitted`.
 2. `Manager` converts the event into an independent `Envelope`.
 3. `Planner.Plan` creates one `FanoutTask` per authority `Partition`, or a single default task when no partitioner is wired.
-4. `Manager` runs tasks sequentially through `FanoutWorker.RunTask`.
+4. `Manager` runs tasks sequentially through its configured `FanoutTaskRunner`.
+   App wiring may use `FanoutTaskRouter`, which dispatches by
+   `Partition.LeaderNodeID`.
 5. When `Envelope.MessageScopedUIDs` is non-empty, `Planner` creates a single default scoped task and `FanoutWorker` uses those UIDs directly without scanning subscribers.
 6. Otherwise `FanoutWorker` pages recipients through `SubscriberPlanner.NextPartitionPage`.
 7. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.

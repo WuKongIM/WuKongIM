@@ -18,6 +18,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"presence_authority":   RPCPresenceAuthority,
 		"presence_owner":       RPCPresenceOwner,
 		"delivery_push":        RPCDeliveryPush,
+		"delivery_fanout":      RPCDeliveryFanout,
 	}
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {

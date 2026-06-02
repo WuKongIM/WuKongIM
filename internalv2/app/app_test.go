@@ -219,6 +219,9 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliverySink == nil || app.deliveryWorker == nil {
 		t.Fatal("delivery async sink was not wired")
 	}
+	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; !ok {
+		t.Fatalf("delivery fanout rpc service was not registered")
+	}
 }
 
 func TestDeliveryAsyncSinkReportsQueueFull(t *testing.T) {
@@ -434,6 +437,9 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	req := subscribers.requests[0]
 	if req.ChannelID != "g1" || req.ChannelType != frame.ChannelTypeGroup || req.Limit != app.cfg.Delivery.FanoutPageSize {
 		t.Fatalf("subscriber request = %#v, want group channel with configured page size", req)
+	}
+	if req.Partition.LeaderNodeID != 1 || req.Partition.HashSlotStart != 0 || req.Partition.HashSlotEnd != 15 {
+		t.Fatalf("subscriber partition = %#v, want local authority hash slots 0..15", req.Partition)
 	}
 
 	if err := app.Handler().OnFrame(gateway.Context{Session: recipient, RequestContext: context.Background()}, &frame.RecvackPacket{

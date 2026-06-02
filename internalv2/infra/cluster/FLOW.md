@@ -90,3 +90,21 @@ the adapter marks all routes dropped because no owner-local session runtime can
 accept them. When a remote client is missing or the remote RPC fails, it marks
 all routes retryable and returns nil error so the delivery runtime can apply its
 normal retry policy.
+
+## Delivery Fanout Partition Flow
+
+`DeliveryPartitioner` adapts the clusterv2 UID hash-slot route table to
+`runtime/delivery.Partitioner`. It reads the current snapshot hash-slot count,
+routes each hash slot through `RouteHashSlot`, and merges contiguous hash-slot
+ranges with the same leader into delivery partitions.
+
+```text
+clusterv2 Snapshot.HashSlotCount
+  -> RouteHashSlot(hashSlot)
+  -> contiguous ranges grouped by Route.Leader
+  -> runtime/delivery.Partition{LeaderNodeID, HashSlotStart, HashSlotEnd}
+```
+
+Route-table-not-ready, no-leader, and route lookup failures map to
+`runtime/delivery.ErrRouteNotReady`, so the async delivery sink can record the
+failure without adding cluster-specific errors to the runtime package.

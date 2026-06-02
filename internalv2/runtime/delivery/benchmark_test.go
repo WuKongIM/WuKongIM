@@ -115,6 +115,38 @@ func BenchmarkChannelSubscriberPlannerScan100K(b *testing.B) {
 	}
 }
 
+func BenchmarkFanoutTaskRouterLocal(b *testing.B) {
+	router := NewFanoutTaskRouter(FanoutTaskRouterOptions{
+		LocalNodeID: 1,
+		Local:       benchmarkFanoutTaskRunner{},
+		Remote:      benchmarkFanoutForwarder{},
+	})
+	task := FanoutTask{Envelope: Envelope{MessageID: 1}, Partition: Partition{ID: 1, LeaderNodeID: 1}}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if err := router.RunTask(context.Background(), task); err != nil {
+			b.Fatalf("RunTask() error = %v", err)
+		}
+	}
+}
+
+func BenchmarkFanoutTaskRouterRemote(b *testing.B) {
+	router := NewFanoutTaskRouter(FanoutTaskRouterOptions{
+		LocalNodeID: 1,
+		Local:       benchmarkFanoutTaskRunner{},
+		Remote:      benchmarkFanoutForwarder{},
+	})
+	task := FanoutTask{Envelope: Envelope{MessageID: 1}, Partition: Partition{ID: 1, LeaderNodeID: 2}}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if err := router.RunTask(context.Background(), task); err != nil {
+			b.Fatalf("RunTask() error = %v", err)
+		}
+	}
+}
+
 func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	uids := benchmarkUIDs(256)
 	manager := NewManager(ManagerOptions{
@@ -205,6 +237,18 @@ func (s benchmarkChannelSubscriberSource) ListSubscribers(_ context.Context, req
 		page.NextCursor = strconv.Itoa(end)
 	}
 	return page, nil
+}
+
+type benchmarkFanoutTaskRunner struct{}
+
+func (benchmarkFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {
+	return nil
+}
+
+type benchmarkFanoutForwarder struct{}
+
+func (benchmarkFanoutForwarder) ForwardFanoutTask(context.Context, uint64, FanoutTask) error {
+	return nil
 }
 
 type benchmarkPresence struct {
