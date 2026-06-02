@@ -387,6 +387,47 @@ func TestCommittedSinkErrorDoesNotChangeSendResult(t *testing.T) {
 	}
 }
 
+func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
+	committed := &capturingCommitted{}
+	app := New(Options{
+		Appender:  &recordingAppender{},
+		MessageID: &sequenceIDs{next: 50},
+		Committed: committed,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:         "u1",
+		SenderSessionID: 42,
+		ClientMsgNo:     "client-1",
+		ChannelID:       "g1",
+		ChannelType:     2,
+		Payload:         []byte("hello"),
+		RedDot:          true,
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	if len(committed.events) != 1 {
+		t.Fatalf("committed events = %d, want 1", len(committed.events))
+	}
+	event := committed.events[0]
+	if event.SenderSessionID != 42 {
+		t.Fatalf("SenderSessionID = %d, want 42", event.SenderSessionID)
+	}
+	if !event.RedDot {
+		t.Fatalf("RedDot = false, want true")
+	}
+	if event.ClientMsgNo != "client-1" {
+		t.Fatalf("ClientMsgNo = %q, want client-1", event.ClientMsgNo)
+	}
+	if event.FromUID != "u1" {
+		t.Fatalf("FromUID = %q, want u1", event.FromUID)
+	}
+}
+
 func TestSendReturnsErrorWhenAppenderOrAllocatorMissing(t *testing.T) {
 	noAppender := New(Options{MessageID: &sequenceIDs{next: 1}})
 	_, err := noAppender.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("hello")})
@@ -478,6 +519,15 @@ func (f failingCommitted) Submit(context.Context, messageevents.MessageCommitted
 type recordingCommitted struct{}
 
 func (recordingCommitted) Submit(context.Context, messageevents.MessageCommitted) error {
+	return nil
+}
+
+type capturingCommitted struct {
+	events []messageevents.MessageCommitted
+}
+
+func (c *capturingCommitted) Submit(_ context.Context, event messageevents.MessageCommitted) error {
+	c.events = append(c.events, event.Clone())
 	return nil
 }
 

@@ -12,8 +12,21 @@ type MessageCommitted struct {
 	ChannelType uint8
 	// FromUID is the sender user id.
 	FromUID string
+	// SenderSessionID is the owner-local sender session id used to suppress same-connection echo.
+	SenderSessionID uint64
 	// ClientMsgNo is the client idempotency key.
 	ClientMsgNo string
 	// Payload is a copy of the committed payload.
 	Payload []byte
+	// RedDot carries the client red-dot flag for delivery side effects.
+	RedDot bool
+	// MessageScopedUIDs are request-scoped one-shot delivery targets.
+	MessageScopedUIDs []string
+}
+
+// Clone returns an independent copy of the committed-message event.
+func (e MessageCommitted) Clone() MessageCommitted {
+	e.Payload = append([]byte(nil), e.Payload...)
+	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
+	return e
 }

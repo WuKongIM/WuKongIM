@@ -212,13 +212,15 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended App
 		return
 	}
 	event := messageevents.MessageCommitted{
-		MessageID:   appended.MessageID,
-		MessageSeq:  appended.MessageSeq,
-		ChannelID:   cmd.ChannelID,
-		ChannelType: cmd.ChannelType,
-		FromUID:     cmd.FromUID,
-		ClientMsgNo: cmd.ClientMsgNo,
-		Payload:     cloneBytes(appended.Message.Payload),
+		MessageID:       appended.MessageID,
+		MessageSeq:      appended.MessageSeq,
+		ChannelID:       cmd.ChannelID,
+		ChannelType:     cmd.ChannelType,
+		FromUID:         cmd.FromUID,
+		SenderSessionID: cmd.SenderSessionID,
+		ClientMsgNo:     cmd.ClientMsgNo,
+		Payload:         cloneBytes(appended.Message.Payload),
+		RedDot:          cmd.RedDot,
 	}
 	if err := a.committed.Submit(ctx, event); err != nil && a.observer != nil {
 		a.observer.CommittedSinkError(cmd, err)
