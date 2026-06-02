@@ -9,6 +9,7 @@ func TestMessageCommittedCloneDeepCopiesDeliveryFields(t *testing.T) {
 		ChannelID:         "g1",
 		ChannelType:       2,
 		FromUID:           "u1",
+		SenderNodeID:      7,
 		SenderSessionID:   42,
 		ClientMsgNo:       "client-1",
 		Payload:           []byte("hello"),
@@ -28,6 +29,9 @@ func TestMessageCommittedCloneDeepCopiesDeliveryFields(t *testing.T) {
 	}
 	if cloned.SenderSessionID != 42 {
 		t.Fatalf("SenderSessionID = %d, want 42", cloned.SenderSessionID)
+	}
+	if cloned.SenderNodeID != 7 {
+		t.Fatalf("SenderNodeID = %d, want 7", cloned.SenderNodeID)
 	}
 	if !cloned.RedDot {
 		t.Fatalf("RedDot = false, want true")

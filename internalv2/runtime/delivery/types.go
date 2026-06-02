@@ -50,6 +50,8 @@ type Envelope struct {
 	ChannelType uint8
 	// FromUID is the sender user ID.
 	FromUID string
+	// SenderNodeID is the sender owner node ID used for same-connection echo suppression.
+	SenderNodeID uint64
 	// SenderSessionID is the sender owner-local gateway session used for same-connection echo suppression.
 	SenderSessionID uint64
 	// ClientMsgNo is the client idempotency key associated with the send request.

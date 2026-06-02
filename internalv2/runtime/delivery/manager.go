@@ -94,6 +94,7 @@ func envelopeFromEvent(event messageevents.MessageCommitted) Envelope {
 		ChannelID:         event.ChannelID,
 		ChannelType:       event.ChannelType,
 		FromUID:           event.FromUID,
+		SenderNodeID:      event.SenderNodeID,
 		SenderSessionID:   event.SenderSessionID,
 		ClientMsgNo:       event.ClientMsgNo,
 		RedDot:            event.RedDot,

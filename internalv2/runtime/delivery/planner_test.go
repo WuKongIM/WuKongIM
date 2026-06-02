@@ -67,6 +67,47 @@ func TestPlannerClonesEnvelope(t *testing.T) {
 	}
 }
 
+func TestPlannerScopedUIDsUseSingleTaskAcrossPartitions(t *testing.T) {
+	planner := NewPlanner(PlannerOptions{
+		Partitioner: staticPartitioner{
+			partitions: []Partition{
+				{ID: 1, LeaderNodeID: 10},
+				{ID: 2, LeaderNodeID: 20},
+			},
+		},
+	})
+	payload := []byte("payload")
+	scopedUIDs := []string{"u1", "u2"}
+	env := Envelope{
+		MessageID:         1001,
+		Payload:           payload,
+		MessageScopedUIDs: scopedUIDs,
+	}
+
+	tasks, err := planner.Plan(context.Background(), env)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("Plan() task count = %d, want 1", len(tasks))
+	}
+	if tasks[0].Partition.ID != 1 {
+		t.Fatalf("scoped task partition ID = %d, want 1", tasks[0].Partition.ID)
+	}
+	if tasks[0].Attempt != 1 {
+		t.Fatalf("scoped task attempt = %d, want 1", tasks[0].Attempt)
+	}
+
+	payload[0] = 'X'
+	scopedUIDs[0] = "mutated"
+	if got := string(tasks[0].Envelope.Payload); got != "payload" {
+		t.Fatalf("scoped task payload = %q, want payload", got)
+	}
+	if got := tasks[0].Envelope.MessageScopedUIDs[0]; got != "u1" {
+		t.Fatalf("scoped task uid = %q, want u1", got)
+	}
+}
+
 type staticPartitioner struct {
 	partitions []Partition
 }

@@ -23,14 +23,13 @@ func NewPlanner(opts PlannerOptions) *Planner {
 	return &Planner{partitioner: opts.Partitioner}
 }
 
-// Plan builds one fanout task per authority partition.
+// Plan builds one fanout task per authority partition unless the envelope targets scoped UIDs.
 func (p *Planner) Plan(ctx context.Context, env Envelope) ([]FanoutTask, error) {
+	if len(env.MessageScopedUIDs) > 0 {
+		return []FanoutTask{newDefaultFanoutTask(env)}, nil
+	}
 	if p == nil || p.partitioner == nil {
-		return []FanoutTask{{
-			Envelope:  cloneEnvelope(env),
-			Partition: Partition{ID: 1},
-			Attempt:   1,
-		}}, nil
+		return []FanoutTask{newDefaultFanoutTask(env)}, nil
 	}
 
 	partitions, err := p.partitioner.Partitions(ctx)
@@ -46,6 +45,14 @@ func (p *Planner) Plan(ctx context.Context, env Envelope) ([]FanoutTask, error) 
 		})
 	}
 	return tasks, nil
+}
+
+func newDefaultFanoutTask(env Envelope) FanoutTask {
+	return FanoutTask{
+		Envelope:  cloneEnvelope(env),
+		Partition: Partition{ID: 1},
+		Attempt:   1,
+	}
 }
 
 func cloneEnvelope(env Envelope) Envelope {

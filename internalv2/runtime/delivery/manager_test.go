@@ -109,3 +109,42 @@ func TestManagerEnvelopeFromEventClonesSlices(t *testing.T) {
 		t.Fatalf("pushed scoped uid = %q, want u1", got.MessageScopedUIDs[0])
 	}
 }
+
+func TestManagerEnvelopeFromEventCopiesSenderNodeID(t *testing.T) {
+	pusher := &fakePusher{}
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{}),
+		Worker: NewFanoutWorker(FanoutWorkerOptions{
+			Presence: &fakePresenceResolver{
+				routes: map[string][]Route{
+					"sender": {
+						{UID: "sender", OwnerNodeID: 10, SessionID: 100},
+						{UID: "sender", OwnerNodeID: 20, SessionID: 100},
+					},
+				},
+			},
+			Push: pusher,
+		}),
+	})
+
+	event := messageevents.MessageCommitted{
+		MessageID:         1001,
+		FromUID:           "sender",
+		SenderNodeID:      10,
+		SenderSessionID:   100,
+		MessageScopedUIDs: []string{"sender"},
+	}
+	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+
+	if len(pusher.commands) != 1 {
+		t.Fatalf("push command count = %d, want 1", len(pusher.commands))
+	}
+	if pusher.commands[0].OwnerNodeID != 20 {
+		t.Fatalf("push owner = %d, want 20", pusher.commands[0].OwnerNodeID)
+	}
+	if got := pusher.commands[0].Envelope.SenderNodeID; got != 10 {
+		t.Fatalf("pushed SenderNodeID = %d, want 10", got)
+	}
+}

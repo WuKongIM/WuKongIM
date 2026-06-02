@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -108,7 +109,7 @@ func TestFanoutWorkerSkipsSenderSameSession(t *testing.T) {
 	})
 
 	task := FanoutTask{
-		Envelope:  Envelope{MessageID: 1001, FromUID: "sender", SenderSessionID: 100},
+		Envelope:  Envelope{MessageID: 1001, FromUID: "sender", SenderNodeID: 10, SenderSessionID: 100},
 		Partition: Partition{ID: 1},
 		Attempt:   1,
 	}
@@ -122,6 +123,89 @@ func TestFanoutWorkerSkipsSenderSameSession(t *testing.T) {
 	routes := pusher.commands[0].Routes
 	if len(routes) != 1 || routes[0].SessionID != 101 {
 		t.Fatalf("pushed routes = %#v, want only different sender session 101", routes)
+	}
+}
+
+func TestFanoutWorkerInvalidSubscriberCursorReturnsError(t *testing.T) {
+	tests := []struct {
+		name string
+		page UIDPage
+	}{
+		{
+			name: "empty cursor",
+			page: UIDPage{UIDs: []string{"u1"}, Done: false},
+		},
+		{
+			name: "repeated cursor",
+			page: UIDPage{UIDs: []string{"u1"}, NextCursor: "cursor-1", Done: false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subscribers := &fakeSubscriberPlanner{pages: []UIDPage{tt.page}}
+			worker := NewFanoutWorker(FanoutWorkerOptions{
+				Subscribers: subscribers,
+				Presence: &fakePresenceResolver{
+					routes: map[string][]Route{
+						"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+					},
+				},
+				Push: &fakePusher{},
+			})
+
+			err := worker.RunTask(context.Background(), FanoutTask{
+				Envelope:  Envelope{MessageID: 1001},
+				Partition: Partition{ID: 1},
+				Cursor:    "cursor-1",
+				Attempt:   1,
+			})
+			if !errors.Is(err, ErrInvalidSubscriberCursor) {
+				t.Fatalf("RunTask() error = %v, want ErrInvalidSubscriberCursor", err)
+			}
+		})
+	}
+}
+
+func TestFanoutWorkerSkipsSenderSameSessionOnlyOnSenderOwner(t *testing.T) {
+	subscribers := &fakeSubscriberPlanner{
+		pages: []UIDPage{
+			{UIDs: []string{"sender"}, Done: true},
+		},
+	}
+	presence := &fakePresenceResolver{
+		routes: map[string][]Route{
+			"sender": {
+				{UID: "sender", OwnerNodeID: 10, SessionID: 100},
+				{UID: "sender", OwnerNodeID: 20, SessionID: 100},
+			},
+		},
+	}
+	pusher := &fakePusher{}
+	worker := NewFanoutWorker(FanoutWorkerOptions{
+		Subscribers: subscribers,
+		Presence:    presence,
+		Push:        pusher,
+	})
+
+	task := FanoutTask{
+		Envelope:  Envelope{MessageID: 1001, FromUID: "sender", SenderNodeID: 10, SenderSessionID: 100},
+		Partition: Partition{ID: 1},
+		Attempt:   1,
+	}
+	if err := worker.RunTask(context.Background(), task); err != nil {
+		t.Fatalf("RunTask() error = %v", err)
+	}
+
+	if len(pusher.commands) != 1 {
+		t.Fatalf("push command count = %d, want 1", len(pusher.commands))
+	}
+	if pusher.commands[0].OwnerNodeID != 20 {
+		t.Fatalf("push owner = %d, want 20", pusher.commands[0].OwnerNodeID)
+	}
+	routes := pusher.commands[0].Routes
+	if len(routes) != 1 || routes[0].OwnerNodeID != 20 || routes[0].SessionID != 100 {
+		t.Fatalf("pushed routes = %#v, want same session on another owner", routes)
 	}
 }
 

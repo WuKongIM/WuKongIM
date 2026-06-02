@@ -1,8 +1,14 @@
 package delivery
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 const defaultFanoutPageSize = 512
+
+// ErrInvalidSubscriberCursor reports a non-terminal page that cannot advance scanning.
+var ErrInvalidSubscriberCursor = errors.New("internalv2/runtime/delivery: invalid subscriber cursor")
 
 // SubscriberPlanner pages channel subscribers for one delivery partition.
 type SubscriberPlanner interface {
@@ -89,7 +95,7 @@ func (w *FanoutWorker) RunTask(ctx context.Context, task FanoutTask) error {
 		}
 		nextCursor := page.NextCursor
 		if nextCursor == "" || nextCursor == cursor {
-			return nil
+			return ErrInvalidSubscriberCursor
 		}
 		cursor = nextCursor
 	}
@@ -129,7 +135,11 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 }
 
 func isSenderSameSession(env Envelope, route Route) bool {
-	return route.UID == env.FromUID && env.SenderSessionID != 0 && route.SessionID == env.SenderSessionID
+	return env.SenderNodeID != 0 &&
+		route.OwnerNodeID == env.SenderNodeID &&
+		route.UID == env.FromUID &&
+		env.SenderSessionID != 0 &&
+		route.SessionID == env.SenderSessionID
 }
 
 func cloneRoutes(routes []Route) []Route {

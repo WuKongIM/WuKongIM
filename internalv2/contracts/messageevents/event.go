@@ -12,6 +12,8 @@ type MessageCommitted struct {
 	ChannelType uint8
 	// FromUID is the sender user id.
 	FromUID string
+	// SenderNodeID is the sender owner node id used to suppress same-connection echo.
+	SenderNodeID uint64
 	// SenderSessionID is the owner-local sender session id used to suppress same-connection echo.
 	SenderSessionID uint64
 	// ClientMsgNo is the client idempotency key.
