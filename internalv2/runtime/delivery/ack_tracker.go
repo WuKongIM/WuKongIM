@@ -13,12 +13,15 @@ type AckTrackerOptions struct {
 	ShardCount int
 	// Now returns the current Unix second; nil uses time.Now().Unix().
 	Now func() int64
+	// MaxPendingPerSession limits pending recvacks per UID/session; values <= 0 keep it unlimited.
+	MaxPendingPerSession int
 }
 
 // AckTracker tracks delivered messages that still need recipient recvacks.
 type AckTracker struct {
-	now    func() int64
-	shards []ackTrackerShard
+	now                  func() int64
+	maxPendingPerSession int
+	shards               []ackTrackerShard
 }
 
 type ackTrackerShard struct {
@@ -51,8 +54,9 @@ func NewAckTracker(opts AckTrackerOptions) *AckTracker {
 		}
 	}
 	tracker := &AckTracker{
-		now:    now,
-		shards: make([]ackTrackerShard, shardCount),
+		now:                  now,
+		maxPendingPerSession: opts.MaxPendingPerSession,
+		shards:               make([]ackTrackerShard, shardCount),
 	}
 	for i := range tracker.shards {
 		tracker.shards[i].byMessage = make(map[ackMessageKey]PendingRecvAck)
@@ -62,9 +66,9 @@ func NewAckTracker(opts AckTrackerOptions) *AckTracker {
 }
 
 // Bind records a delivered message that is waiting for a recipient recvack.
-func (t *AckTracker) Bind(pending PendingRecvAck) {
+func (t *AckTracker) Bind(pending PendingRecvAck) bool {
 	if t == nil || pending.UID == "" || pending.SessionID == 0 || pending.MessageID == 0 {
-		return
+		return false
 	}
 	if pending.DeliveredAt == 0 {
 		pending.DeliveredAt = t.now()
@@ -75,13 +79,19 @@ func (t *AckTracker) Bind(pending PendingRecvAck) {
 
 	messageKey := ackMessageKey{uid: pending.UID, sessionID: pending.SessionID, messageID: pending.MessageID}
 	sessionKey := ackSessionKey{uid: pending.UID, sessionID: pending.SessionID}
-	shard.byMessage[messageKey] = pending
 	messages := shard.bySession[sessionKey]
 	if messages == nil {
 		messages = make(map[uint64]struct{})
 		shard.bySession[sessionKey] = messages
 	}
+	if t.maxPendingPerSession > 0 && len(messages) >= t.maxPendingPerSession {
+		if _, exists := messages[pending.MessageID]; !exists {
+			return false
+		}
+	}
+	shard.byMessage[messageKey] = pending
 	messages[pending.MessageID] = struct{}{}
+	return true
 }
 
 // Ack clears and returns a pending recvack matched by UID, session ID, and message ID.

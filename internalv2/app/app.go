@@ -63,6 +63,8 @@ type App struct {
 	messages          *message.App
 	delivery          *deliveryusecase.App
 	deliveryManager   *runtimedelivery.Manager
+	deliverySink      *deliveryAsyncSink
+	deliveryWorker    WorkerRuntime
 	presence          *presence.App
 	online            *online.Registry
 	presenceDirectory *authoritypresence.Directory
@@ -74,8 +76,10 @@ type App struct {
 	stopped         bool
 	clusterStarted  bool
 	presenceStarted bool
+	deliveryStarted bool
 	apiStarted      bool
 	gatewayStarted  bool
+	deliveryErrors  atomic.Uint64
 }
 
 // New creates an internalv2 App.
@@ -161,17 +165,25 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{}),
 			Worker: runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-				Subscribers:   noopSubscriberPlanner{},
+				Subscribers:   appSubscriberPlanner{},
 				Presence:      presenceResolverAdapter{presence: app.presence},
 				Push:          push,
 				PageSize:      app.cfg.Delivery.FanoutPageSize,
 				PushBatchSize: app.cfg.Delivery.PushBatchSize,
 			}),
-			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{}),
+			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
+				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
+			}),
 		})
 		localPusher.delivery = manager
 		app.deliveryManager = manager
 		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
+		if app.deliverySink == nil {
+			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError)
+		}
+		if app.deliveryWorker == nil {
+			app.deliveryWorker = app.deliverySink
+		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 			adapter := accessnode.New(accessnode.Options{Delivery: localPusher})
 			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
@@ -183,7 +195,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
 		}
 		if app.cfg.Delivery.Enabled {
-			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
+			messageOpts.Committed = deliveryCommittedSink{delivery: app.deliverySink}
+			messageOpts.Observer = deliveryMessageObserver{app: app}
 		}
 		app.messages = message.New(messageOpts)
 	}

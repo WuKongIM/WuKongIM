@@ -33,6 +33,7 @@ OnSessionActivateRollback(Context, err)
 OnFrame(SendPacket)
   -> map session and frame fields into message.SendCommand
   -> stamp the configured owner node id for sender echo suppression
+  -> request person-channel canonicalization when ChannelType is person
   -> call message.Send
   -> map usecase result/error to frame.ReasonCode
   -> write SendackPacket
@@ -40,6 +41,7 @@ OnFrame(SendPacket)
 OnSendBatch([]SendBatchItem)
   -> compute one shared send deadline for the gateway micro-batch
   -> map valid packet items into message.SendBatchItem
+     (including person-channel canonicalization requests)
   -> call message.SendBatch when available
   -> require item-aligned result count
   -> write one SendackPacket for every input item

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
@@ -396,14 +397,15 @@ func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:         "u1",
-		SenderNodeID:    7,
-		SenderSessionID: 42,
-		ClientMsgNo:     "client-1",
-		ChannelID:       "g1",
-		ChannelType:     2,
-		Payload:         []byte("hello"),
-		RedDot:          true,
+		FromUID:           "u1",
+		SenderNodeID:      7,
+		SenderSessionID:   42,
+		ClientMsgNo:       "client-1",
+		ChannelID:         "g1",
+		ChannelType:       2,
+		Payload:           []byte("hello"),
+		RedDot:            true,
+		MessageScopedUIDs: []string{"u2", "u3"},
 	})
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -429,6 +431,46 @@ func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 	}
 	if event.FromUID != "u1" {
 		t.Fatalf("FromUID = %q, want u1", event.FromUID)
+	}
+	if len(event.MessageScopedUIDs) != 2 || event.MessageScopedUIDs[0] != "u2" || event.MessageScopedUIDs[1] != "u3" {
+		t.Fatalf("MessageScopedUIDs = %#v, want u2,u3", event.MessageScopedUIDs)
+	}
+}
+
+func TestSendNormalizesPersonChannelBeforeAppendAndCommit(t *testing.T) {
+	appender := &recordingAppender{}
+	committed := &capturingCommitted{}
+	app := New(Options{
+		Appender:  appender,
+		MessageID: &sequenceIDs{next: 100},
+		Committed: committed,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:                "u1",
+		ChannelID:              "u2",
+		ChannelType:            channelTypePerson,
+		NormalizePersonChannel: true,
+		Payload:                []byte("hello"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	want := runtimechannelid.EncodePersonChannel("u1", "u2")
+	if len(appender.requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(appender.requests))
+	}
+	if got := appender.requests[0].ChannelID.ID; got != want {
+		t.Fatalf("append channel id = %q, want %q", got, want)
+	}
+	if got := appender.requests[0].Messages[0].ChannelID; got != want {
+		t.Fatalf("append message channel id = %q, want %q", got, want)
+	}
+	if len(committed.events) != 1 || committed.events[0].ChannelID != want {
+		t.Fatalf("committed events = %#v, want normalized channel %q", committed.events, want)
 	}
 }
 

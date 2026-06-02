@@ -102,12 +102,35 @@ func TestAckTrackerExpireSubSecondTTLDoesNotExpireCurrentSecond(t *testing.T) {
 	}
 }
 
+func TestAckTrackerMaxPendingPerSessionRejectsNewMessages(t *testing.T) {
+	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 4, MaxPendingPerSession: 1})
+
+	if ok := tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001}); !ok {
+		t.Fatalf("first Bind() ok = false, want true")
+	}
+	if ok := tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1002}); ok {
+		t.Fatalf("second Bind() ok = true, want false at session limit")
+	}
+	if ok := tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 2}); !ok {
+		t.Fatalf("existing-message Bind() ok = false, want true")
+	}
+	if count := tracker.PendingCount(); count != 1 {
+		t.Fatalf("PendingCount() = %d, want 1", count)
+	}
+}
+
 func TestAckTrackerInvalidBindIsNoop(t *testing.T) {
 	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 4})
 
-	tracker.Bind(PendingRecvAck{UID: "", SessionID: 10, MessageID: 1001})
-	tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 0, MessageID: 1001})
-	tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 0})
+	if tracker.Bind(PendingRecvAck{UID: "", SessionID: 10, MessageID: 1001}) {
+		t.Fatalf("Bind(empty uid) ok = true, want false")
+	}
+	if tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 0, MessageID: 1001}) {
+		t.Fatalf("Bind(empty session) ok = true, want false")
+	}
+	if tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 0}) {
+		t.Fatalf("Bind(empty message) ok = true, want false")
+	}
 
 	if count := tracker.PendingCount(); count != 0 {
 		t.Fatalf("PendingCount() = %d, want 0", count)

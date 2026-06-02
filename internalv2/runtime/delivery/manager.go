@@ -73,11 +73,11 @@ func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
 }
 
 // BindPendingAck records one delivery waiting for a client recvack.
-func (m *Manager) BindPendingAck(pending PendingRecvAck) {
+func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
 	if m == nil || m.acks == nil {
-		return
+		return false
 	}
-	m.acks.Bind(pending)
+	return m.acks.Bind(pending)
 }
 
 // ExpirePendingAcks removes pending recvacks older than ttl.

@@ -4,7 +4,9 @@
 
 The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
 
-`AckTracker` keeps owner-local recvack state. `Manager`, `Planner`, and `FanoutWorker` form the synchronous runtime facade used by future app adapters.
+`AckTracker` keeps owner-local recvack state and can enforce a per UID/session
+pending limit. `Manager`, `Planner`, and `FanoutWorker` form the synchronous
+runtime facade used by app adapters.
 
 Committed-message fanout flow:
 
@@ -22,7 +24,8 @@ Committed-message fanout flow:
 Recvack flow:
 
 1. Push accepted by recipient owner.
-2. `AckTracker.Bind` records the pending recvack.
+2. `AckTracker.Bind` records the pending recvack when the per-session limit
+   allows it.
 3. Client sends Recvack.
 4. `AckTracker.Ack` clears the owner-local pending state.
 5. `SessionClosed` or `Expire` cleans pending entries that no longer have a live client ack path.

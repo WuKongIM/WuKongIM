@@ -109,6 +109,10 @@ type DeliveryConfig struct {
 	PushBatchSize int
 	// PendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	PendingAckTTL time.Duration
+	// PendingAckMaxPerSession limits owner-local pending recvacks for one UID/session.
+	PendingAckMaxPerSession int
+	// EventQueueSize bounds committed-message events waiting for asynchronous delivery fanout.
+	EventQueueSize int
 }
 
 func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
@@ -136,6 +140,12 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	}
 	if cfg.PendingAckTTL == 0 {
 		cfg.PendingAckTTL = 30 * time.Second
+	}
+	if cfg.PendingAckMaxPerSession == 0 {
+		cfg.PendingAckMaxPerSession = 1024
+	}
+	if cfg.EventQueueSize == 0 {
+		cfg.EventQueueSize = 1024
 	}
 	return cfg
 }
@@ -165,6 +175,12 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	}
 	if cfg.PendingAckTTL < 0 {
 		return fmt.Errorf("%w: delivery pending ack ttl must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.PendingAckMaxPerSession < 0 {
+		return fmt.Errorf("%w: delivery pending ack max per session must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.EventQueueSize < 0 {
+		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

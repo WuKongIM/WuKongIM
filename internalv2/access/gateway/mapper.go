@@ -41,6 +41,7 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd.ClientMsgNo = pkt.ClientMsgNo
 	cmd.ChannelID = pkt.ChannelID
 	cmd.ChannelType = pkt.ChannelType
+	cmd.NormalizePersonChannel = pkt.ChannelType == frame.ChannelTypePerson
 	if clonePayload {
 		cmd.Payload = cloneBytes(pkt.Payload)
 	} else {

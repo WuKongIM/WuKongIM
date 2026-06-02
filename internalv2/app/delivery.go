@@ -3,17 +3,23 @@ package app
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id overflows recv packet")
+var errDeliveryEventQueueFull = errors.New("internalv2/app: delivery event queue full")
+
+const defaultDeliveryEventQueueSize = 1024
 
 type deliveryRuntimeAdapter struct {
 	// manager executes synchronous fanout and ack mutations.
@@ -21,15 +27,155 @@ type deliveryRuntimeAdapter struct {
 }
 
 type deliveryCommittedSink struct {
-	// delivery receives committed message events through the delivery usecase.
-	delivery *deliveryusecase.App
+	// delivery receives committed message events through the delivery usecase or async adapter.
+	delivery interface {
+		Submit(context.Context, messageevents.MessageCommitted) error
+	}
 }
 
 func (s deliveryCommittedSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
 	if s.delivery == nil {
 		return nil
 	}
-	return s.delivery.SubmitCommitted(ctx, event)
+	return s.delivery.Submit(ctx, event)
+}
+
+// deliveryAsyncSink decouples SEND result latency from online delivery fanout.
+type deliveryAsyncSink struct {
+	// delivery receives dequeued committed message events.
+	delivery *deliveryusecase.App
+	// queue stores cloned committed events waiting for delivery fanout.
+	queue chan messageevents.MessageCommitted
+	// observeError records non-fatal delivery fanout failures.
+	observeError func(error)
+
+	mu      sync.Mutex
+	started bool
+	stop    chan struct{}
+	done    chan struct{}
+}
+
+func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeError func(error)) *deliveryAsyncSink {
+	if queueSize <= 0 {
+		queueSize = defaultDeliveryEventQueueSize
+	}
+	return &deliveryAsyncSink{
+		delivery:     delivery,
+		queue:        make(chan messageevents.MessageCommitted, queueSize),
+		observeError: observeError,
+	}
+}
+
+func (s *deliveryAsyncSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
+	if s == nil || s.delivery == nil {
+		return nil
+	}
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	cloned := event.Clone()
+	select {
+	case s.queue <- cloned:
+		return nil
+	default:
+		return errDeliveryEventQueueFull
+	}
+}
+
+func (s *deliveryAsyncSink) Start(context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.started {
+		return nil
+	}
+	s.stop = make(chan struct{})
+	s.done = make(chan struct{})
+	s.started = true
+	go s.run(s.stop, s.done)
+	return nil
+}
+
+func (s *deliveryAsyncSink) Stop(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	if !s.started {
+		s.mu.Unlock()
+		return nil
+	}
+	stop := s.stop
+	done := s.done
+	s.started = false
+	s.stop = nil
+	s.done = nil
+	s.mu.Unlock()
+
+	close(stop)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *deliveryAsyncSink) run(stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	for {
+		select {
+		case event := <-s.queue:
+			s.deliver(event)
+		case <-stop:
+			s.drain()
+			return
+		}
+	}
+}
+
+func (s *deliveryAsyncSink) drain() {
+	for {
+		select {
+		case event := <-s.queue:
+			s.deliver(event)
+		default:
+			return
+		}
+	}
+}
+
+func (s *deliveryAsyncSink) deliver(event messageevents.MessageCommitted) {
+	if s == nil || s.delivery == nil {
+		return
+	}
+	if err := s.delivery.SubmitCommitted(context.Background(), event); err != nil && s.observeError != nil {
+		s.observeError(err)
+	}
+}
+
+type deliveryMessageObserver struct {
+	// app records non-fatal delivery sink failures for tests and diagnostics.
+	app *App
+}
+
+func (o deliveryMessageObserver) CommittedSinkError(message.SendCommand, error) {
+	if o.app != nil {
+		o.app.recordDeliveryError(nil)
+	}
+}
+
+func (a *App) recordDeliveryError(error) {
+	if a != nil {
+		a.deliveryErrors.Add(1)
+	}
 }
 
 func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
@@ -83,19 +229,28 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
-		if err := session.Session.WriteDelivery(packet); err != nil {
-			result.Retryable = append(result.Retryable, route)
+		pending := runtimedelivery.PendingRecvAck{
+			UID:         route.UID,
+			SessionID:   route.SessionID,
+			MessageID:   cmd.Envelope.MessageID,
+			MessageSeq:  cmd.Envelope.MessageSeq,
+			ChannelID:   cmd.Envelope.ChannelID,
+			ChannelType: cmd.Envelope.ChannelType,
+		}
+		if p.delivery != nil && !p.delivery.BindPendingAck(pending) {
+			result.Dropped = append(result.Dropped, route)
 			continue
 		}
-		if p.delivery != nil {
-			p.delivery.BindPendingAck(runtimedelivery.PendingRecvAck{
-				UID:         route.UID,
-				SessionID:   route.SessionID,
-				MessageID:   cmd.Envelope.MessageID,
-				MessageSeq:  cmd.Envelope.MessageSeq,
-				ChannelID:   cmd.Envelope.ChannelID,
-				ChannelType: cmd.Envelope.ChannelType,
-			})
+		if err := session.Session.WriteDelivery(packet); err != nil {
+			if p.delivery != nil {
+				_ = p.delivery.Recvack(context.Background(), runtimedelivery.Recvack{
+					UID:       route.UID,
+					SessionID: route.SessionID,
+					MessageID: cmd.Envelope.MessageID,
+				})
+			}
+			result.Retryable = append(result.Retryable, route)
+			continue
 		}
 		result.Accepted = append(result.Accepted, route)
 	}
@@ -121,9 +276,12 @@ func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.Loca
 }
 
 func buildRecvPacket(env runtimedelivery.Envelope, uid string) (*frame.RecvPacket, error) {
-	_ = uid
 	if env.MessageID > uint64(1<<63-1) {
 		return nil, errRecvMessageIDOverflow
+	}
+	channelID := env.ChannelID
+	if env.ChannelType == frame.ChannelTypePerson {
+		channelID = recipientPersonChannelView(env, uid)
 	}
 	return &frame.RecvPacket{
 		Framer: frame.Framer{
@@ -133,11 +291,49 @@ func buildRecvPacket(env runtimedelivery.Envelope, uid string) (*frame.RecvPacke
 		MessageSeq:  env.MessageSeq,
 		ClientMsgNo: env.ClientMsgNo,
 		Timestamp:   int32(time.Now().Unix()),
-		ChannelID:   env.ChannelID,
+		ChannelID:   channelID,
 		ChannelType: env.ChannelType,
 		FromUID:     env.FromUID,
 		Payload:     append([]byte(nil), env.Payload...),
 	}, nil
+}
+
+func recipientPersonChannelView(env runtimedelivery.Envelope, recipientUID string) string {
+	if recipientUID == "" {
+		return env.ChannelID
+	}
+	left, right, err := runtimechannelid.DecodePersonChannel(env.ChannelID)
+	if err != nil {
+		return env.FromUID
+	}
+	switch recipientUID {
+	case left:
+		return right
+	case right:
+		return left
+	default:
+		return env.FromUID
+	}
+}
+
+type appSubscriberPlanner struct{}
+
+func (appSubscriberPlanner) NextPartitionPage(_ context.Context, task runtimedelivery.FanoutTask, cursor string, _ int) (runtimedelivery.UIDPage, error) {
+	if cursor != "" || task.Envelope.ChannelType != frame.ChannelTypePerson {
+		return runtimedelivery.UIDPage{Done: true}, nil
+	}
+	left, right, err := runtimechannelid.DecodePersonChannel(task.Envelope.ChannelID)
+	if err != nil {
+		return runtimedelivery.UIDPage{Done: true}, nil
+	}
+	uids := make([]string, 0, 2)
+	if left != "" {
+		uids = append(uids, left)
+	}
+	if right != "" && right != left {
+		uids = append(uids, right)
+	}
+	return runtimedelivery.UIDPage{UIDs: uids, Done: true}, nil
 }
 
 type noopSubscriberPlanner struct{}
@@ -156,14 +352,11 @@ func (r presenceResolverAdapter) EndpointsByUIDs(ctx context.Context, uids []str
 	if r.presence == nil {
 		return out, nil
 	}
-	for _, uid := range uids {
-		if uid == "" {
-			continue
-		}
-		routes, err := r.presence.EndpointsByUID(ctx, uid)
-		if err != nil {
-			return nil, err
-		}
+	routesByUID, err := r.presence.EndpointsByUIDs(ctx, uids)
+	if err != nil {
+		return nil, err
+	}
+	for uid, routes := range routesByUID {
 		for _, route := range routes {
 			out[uid] = append(out[uid], runtimedelivery.Route{
 				UID:         route.UID,

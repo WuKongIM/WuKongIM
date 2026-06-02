@@ -28,9 +28,10 @@ New(Config)
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
   -> when Delivery.Enabled=true:
-       create runtime/delivery Manager with a no-op subscriber planner,
+       create runtime/delivery Manager with a person-channel subscriber planner,
        presence resolver, and local/cluster delivery pusher
        create usecase/delivery.App backed by the manager
+       create a bounded asynchronous committed-event sink for delivery fanout
        register the delivery push RPC handler when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
      and delivery committed sink only when delivery is enabled and messages
@@ -43,13 +44,15 @@ New(Config)
 `Delivery.Enabled` defaults to false. With delivery disabled, committed message
 events are not emitted to the delivery runtime and the existing `SEND ->
 SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
-session close feedback flows to the delivery usecase, and owner-local pushes
-write `RecvPacket` values through `online.SessionHandle.WriteDelivery`.
+session close feedback flows to the delivery usecase. Committed message events
+enter a bounded asynchronous delivery queue so SENDACK latency is not coupled
+to subscriber scan or owner push latency. Owner-local pushes write `RecvPacket`
+values through `online.SessionHandle.WriteDelivery`.
 
-The current app subscriber planner is intentionally no-op for unscoped channel
-fanout. Scoped UID delivery can still flow through presence resolution and the
-local or RPC owner pusher; durable subscriber storage is outside this wiring
-step.
+The current app subscriber planner derives both UIDs for person channels and
+keeps non-person unscoped channel fanout as a no-op until a durable subscriber
+store is wired into internalv2. Scoped UID delivery still bypasses subscriber
+scan and flows through presence resolution plus the local or RPC owner pusher.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real
@@ -72,12 +75,14 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
+  -> delivery async sink Start(ctx)
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
+  -> delivery async sink Stop(ctx)
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -85,8 +90,9 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
-The delivery manager is synchronous in this phase and has no lifecycle worker;
-stale pending recvacks are expired during owner-local delivery push activity.
+The delivery runtime manager remains synchronous, but the app-level committed
+sink has a lifecycle worker and drains queued events during stop. Stale pending
+recvacks are expired during owner-local delivery push activity.
 
 ## Presence Touch Worker
 
