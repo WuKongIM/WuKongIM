@@ -87,6 +87,49 @@ func TestFanoutWorkerUsesMessageScopedUIDsWithoutSubscriberScan(t *testing.T) {
 	}
 }
 
+func TestFanoutWorkerSplitsOwnerPushBatches(t *testing.T) {
+	presence := &fakePresenceResolver{
+		routes: map[string][]Route{
+			"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+			"u2": {{UID: "u2", OwnerNodeID: 10, SessionID: 102}},
+			"u3": {{UID: "u3", OwnerNodeID: 10, SessionID: 103}},
+		},
+	}
+	pusher := &fakePusher{}
+	worker := NewFanoutWorker(FanoutWorkerOptions{
+		Presence:      presence,
+		Push:          pusher,
+		PushBatchSize: 2,
+	})
+
+	task := FanoutTask{
+		Envelope: Envelope{
+			MessageID:         1001,
+			MessageScopedUIDs: []string{"u1", "u2", "u3"},
+		},
+		Partition: Partition{ID: 1},
+		Attempt:   1,
+	}
+	if err := worker.RunTask(context.Background(), task); err != nil {
+		t.Fatalf("RunTask() error = %v", err)
+	}
+
+	if len(pusher.commands) != 2 {
+		t.Fatalf("push command count = %d, want 2; commands=%#v", len(pusher.commands), pusher.commands)
+	}
+	if got := len(pusher.commands[0].Routes); got != 2 {
+		t.Fatalf("first push route count = %d, want 2", got)
+	}
+	if got := len(pusher.commands[1].Routes); got != 1 {
+		t.Fatalf("second push route count = %d, want 1", got)
+	}
+	for i, command := range pusher.commands {
+		if command.OwnerNodeID != 10 {
+			t.Fatalf("command[%d] owner = %d, want 10", i, command.OwnerNodeID)
+		}
+	}
+}
+
 func TestFanoutWorkerSkipsSenderSameSession(t *testing.T) {
 	subscribers := &fakeSubscriberPlanner{
 		pages: []UIDPage{

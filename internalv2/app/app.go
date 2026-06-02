@@ -161,10 +161,11 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{}),
 			Worker: runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-				Subscribers: noopSubscriberPlanner{},
-				Presence:    presenceResolverAdapter{presence: app.presence},
-				Push:        push,
-				PageSize:    app.cfg.Delivery.FanoutPageSize,
+				Subscribers:   noopSubscriberPlanner{},
+				Presence:      presenceResolverAdapter{presence: app.presence},
+				Push:          push,
+				PageSize:      app.cfg.Delivery.FanoutPageSize,
+				PushBatchSize: app.cfg.Delivery.PushBatchSize,
 			}),
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{}),
 		})

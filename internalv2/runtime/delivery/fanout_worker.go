@@ -5,7 +5,10 @@ import (
 	"errors"
 )
 
-const defaultFanoutPageSize = 512
+const (
+	defaultFanoutPageSize = 512
+	defaultPushBatchSize  = 512
+)
 
 // ErrInvalidSubscriberCursor reports a non-terminal page that cannot advance scanning.
 var ErrInvalidSubscriberCursor = errors.New("internalv2/runtime/delivery: invalid subscriber cursor")
@@ -45,14 +48,17 @@ type FanoutWorkerOptions struct {
 	Push Pusher
 	// PageSize controls subscriber page size; values <= 0 use the default.
 	PageSize int
+	// PushBatchSize limits owner-node routes sent in one Push command; values <= 0 use the default.
+	PushBatchSize int
 }
 
 // FanoutWorker synchronously resolves recipients and pushes them by owner node.
 type FanoutWorker struct {
-	subscribers SubscriberPlanner
-	presence    PresenceResolver
-	push        Pusher
-	pageSize    int
+	subscribers   SubscriberPlanner
+	presence      PresenceResolver
+	push          Pusher
+	pageSize      int
+	pushBatchSize int
 }
 
 // NewFanoutWorker creates a synchronous fanout worker.
@@ -61,11 +67,16 @@ func NewFanoutWorker(opts FanoutWorkerOptions) *FanoutWorker {
 	if pageSize <= 0 {
 		pageSize = defaultFanoutPageSize
 	}
+	pushBatchSize := opts.PushBatchSize
+	if pushBatchSize <= 0 {
+		pushBatchSize = defaultPushBatchSize
+	}
 	return &FanoutWorker{
-		subscribers: opts.Subscribers,
-		presence:    opts.Presence,
-		push:        opts.Push,
-		pageSize:    pageSize,
+		subscribers:   opts.Subscribers,
+		presence:      opts.Presence,
+		push:          opts.Push,
+		pageSize:      pageSize,
+		pushBatchSize: pushBatchSize,
 	}
 }
 
@@ -122,13 +133,19 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 		if len(routes) == 0 {
 			continue
 		}
-		_, err := w.push.Push(ctx, PushCommand{
-			OwnerNodeID: ownerNodeID,
-			Envelope:    cloneEnvelope(task.Envelope),
-			Routes:      cloneRoutes(routes),
-		})
-		if err != nil {
-			return err
+		for start := 0; start < len(routes); start += w.pushBatchSize {
+			end := start + w.pushBatchSize
+			if end > len(routes) {
+				end = len(routes)
+			}
+			_, err := w.push.Push(ctx, PushCommand{
+				OwnerNodeID: ownerNodeID,
+				Envelope:    cloneEnvelope(task.Envelope),
+				Routes:      cloneRoutes(routes[start:end]),
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -15,7 +15,7 @@ Committed-message fanout flow:
 5. When `Envelope.MessageScopedUIDs` is non-empty, `Planner` creates a single default scoped task and `FanoutWorker` uses those UIDs directly without scanning subscribers.
 6. Otherwise `FanoutWorker` pages recipients through `SubscriberPlanner.NextPartitionPage`.
 7. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.
-8. Online routes are grouped by `OwnerNodeID` and sent through `Pusher.Push`.
+8. Online routes are grouped by `OwnerNodeID`, split by push batch size, and sent through `Pusher.Push`.
 9. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
 10. `FanoutWorker` skips routes without an owner node and skips same-session sender echo only when `Envelope.SenderNodeID` is known and the route matches sender UID, sender owner node, and sender session.
 
