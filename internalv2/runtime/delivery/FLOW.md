@@ -5,14 +5,12 @@
 The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
-pending limit. `Manager`, `Planner`, and `FanoutWorker` form the delivery
-runtime facade used by app adapters. `Manager` runs synchronously by default;
-when async options are enabled, `Start` opens a bounded admission queue,
-workers execute accepted commands, and `Stop` closes worker lifecycle after
-draining accepted commands. Runtime
-`Observer` events describe fanout task routing, UID route resolution, and owner
-push attempts with bounded result and error-class labels; concrete metrics
-remain an app concern.
+pending limit. `Manager`, `Planner`, and `FanoutWorker` form the runtime facade
+used by app adapters. `Manager` supports a sync compatibility mode for focused
+unit tests and a bounded async mode for app wiring. Runtime `Observer` and
+`ManagerObserver` events describe fanout routing, UID route resolution, owner
+push attempts, manager admission, and terminal async outcomes with bounded
+result and error-class labels; concrete metrics remain an app concern.
 `RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
 retry queue. It executes the first attempt inline; retryable failures are
 queued for background workers, while non-retryable failures and queue overflow
@@ -49,6 +47,17 @@ Committed-message fanout flow:
 14. `RetryScheduler` enqueues retryable task failures until `MaxAttempts` is reached. Push-route retries are narrowed to the retryable route UIDs before re-enqueueing.
 15. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
 16. `FanoutWorker` skips routes without an owner node and skips same-session sender echo only when `Envelope.SenderNodeID` is known and the route matches sender UID, sender owner node, and sender session.
+
+Async manager flow:
+
+1. `Manager.Start` opens a bounded queue and launches a small worker set.
+2. `Manager.SubmitCommitted` clones the committed event and tries bounded
+   admission.
+3. Accepted work is later planned and run through the existing runner.
+4. Queue overflow and closed admission return typed errors to the caller.
+5. Every accepted command emits exactly one terminal observation.
+6. `Manager.Stop` rejects new admission and drains accepted work until the
+   caller context expires.
 
 Retry scheduler lifecycle:
 

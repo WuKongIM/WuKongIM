@@ -32,6 +32,7 @@ New(Config)
        when route snapshots are available, an app subscriber planner, presence
        resolver, local/cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
+       create runtime/delivery Manager in bounded async mode around the runner
        attach delivery metrics observers when metrics are enabled
        create usecase/delivery.App backed by the manager
        create a bounded asynchronous committed-event sink for delivery fanout
@@ -96,14 +97,16 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
-  -> delivery worker group Start(ctx): retry scheduler starts before async sink
+  -> delivery worker group Start(ctx): retry scheduler starts before async
+     manager, and async manager starts before committed-event sink
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> delivery worker group Stop(ctx): async sink drains before retry scheduler
+  -> delivery worker group Stop(ctx): committed-event sink drains before async
+     manager, and async manager drains before retry scheduler
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -111,10 +114,10 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
-The delivery runtime manager remains synchronous, but the app-level committed
-sink and retry scheduler have lifecycle workers. Stop drains queued committed
-events before draining queued retries. Stale pending recvacks are expired during
-owner-local delivery push activity.
+The app-level committed sink drains before the runtime async manager. The
+manager drains accepted fanout before the retry scheduler stops, so queued
+retries remain available while accepted manager work completes. Stale pending
+recvacks expire during owner-local push activity.
 
 ## Presence Touch Worker
 
