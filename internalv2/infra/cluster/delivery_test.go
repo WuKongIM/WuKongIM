@@ -31,6 +31,25 @@ func TestDeliveryPusherUsesLocalOwner(t *testing.T) {
 	}
 }
 
+func TestDeliveryPusherDropsLocalOwnerWhenLocalPusherMissing(t *testing.T) {
+	cmd := testInfraDeliveryPushCommand(1)
+	pusher := NewDeliveryPusher(1, nil, nil)
+
+	result, err := pusher.Push(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("Push() error = %v", err)
+	}
+	if !reflect.DeepEqual(result.Dropped, cmd.Routes) {
+		t.Fatalf("dropped routes = %#v, want %#v", result.Dropped, cmd.Routes)
+	}
+	if len(result.Accepted) != 0 {
+		t.Fatalf("accepted routes = %#v, want empty", result.Accepted)
+	}
+	if len(result.Retryable) != 0 {
+		t.Fatalf("retryable routes = %#v, want empty", result.Retryable)
+	}
+}
+
 func TestDeliveryPusherRoutesRemoteOwnerThroughRPC(t *testing.T) {
 	cmd := testInfraDeliveryPushCommand(2)
 	remoteOwner := &fakeRuntimeDeliveryPusher{result: runtimedelivery.PushResult{Accepted: []runtimedelivery.Route{cmd.Routes[0]}}}
