@@ -7,8 +7,9 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the delivery
 runtime facade used by app adapters. `Manager` runs synchronously by default;
-when async options are enabled, `Start` opens a bounded admission queue and
-`Stop` closes worker lifecycle after draining accepted commands. Runtime
+when async options are enabled, `Start` opens a bounded admission queue,
+workers execute accepted commands, and `Stop` closes worker lifecycle after
+draining accepted commands. Runtime
 `Observer` events describe fanout task routing, UID route resolution, and owner
 push attempts with bounded result and error-class labels; concrete metrics
 remain an app concern.
@@ -29,13 +30,15 @@ Committed-message fanout flow:
 3. When async manager mode is enabled, `Manager` admits the envelope into a
    bounded queue only while started; overflow and closed states return explicit
    admission errors and observer events.
-4. In synchronous mode, `Planner.Plan` creates one `FanoutTask` per authority
-   `Partition`, or a single default task when no partitioner is wired.
-5. In synchronous mode, `Manager` runs tasks sequentially through its configured `FanoutTaskRunner`.
+4. In async manager mode, workers consume accepted envelopes, call
+   `Manager.runEnvelope` with an execution context independent from admission,
+   and emit terminal observations with bounded result, error-class, and queue
+   depth labels.
+5. `Planner.Plan` creates one `FanoutTask` per authority `Partition`, or a
+   single default task when no partitioner is wired.
+6. `Manager` runs planned tasks sequentially through its configured `FanoutTaskRunner`.
    App wiring may use `FanoutTaskRouter`, which dispatches by
    `Partition.LeaderNodeID`, wrapped by `RetryScheduler` for retryable failures.
-6. Current async manager workers only drain accepted commands during shutdown;
-   execution and terminal observations are added by the next implementation slice.
 7. When `Envelope.MessageScopedUIDs` is non-empty, `Planner` creates a single default scoped task and `FanoutWorker` uses those UIDs directly without scanning subscribers.
 8. Otherwise `FanoutWorker` pages recipients through `SubscriberPlanner.NextPartitionPage`.
 9. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.

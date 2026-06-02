@@ -211,16 +211,42 @@ func (a *managerAsync) observeAdmission(result string, queueDepth int) {
 }
 
 func (a *managerAsync) runWorker(ctx context.Context) {
-	<-ctx.Done()
-	a.drain()
+	for {
+		select {
+		case cmd := <-a.queue:
+			a.runCommand(cmd)
+		case <-ctx.Done():
+			a.drain()
+			return
+		}
+	}
 }
 
 func (a *managerAsync) drain() {
 	for {
 		select {
-		case <-a.queue:
+		case cmd := <-a.queue:
+			a.runCommand(cmd)
 		default:
 			return
 		}
 	}
+}
+
+func (a *managerAsync) runCommand(cmd managerCommand) {
+	err := a.manager.runEnvelope(context.Background(), cmd.envelope)
+	result := deliveryResultForError(err)
+	class := DeliveryErrorClass(err)
+	a.observeTerminal(result, class)
+}
+
+func (a *managerAsync) observeTerminal(result, class string) {
+	if a.observer == nil {
+		return
+	}
+	a.observer.ObserveManagerTerminal(ManagerTerminalEvent{
+		Result:     result,
+		ErrorClass: class,
+		QueueDepth: len(a.queue),
+	})
 }

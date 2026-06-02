@@ -7,7 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
-// ManagerOptions configures the synchronous delivery runtime facade.
+// ManagerOptions configures the delivery runtime facade.
 type ManagerOptions struct {
 	// Planner creates fanout tasks from committed message events.
 	Planner *Planner
@@ -25,7 +25,9 @@ type ManagerOptions struct {
 	ManagerObserver ManagerObserver
 }
 
-// Manager is the synchronous delivery runtime facade used by app adapters.
+// Manager is the delivery runtime facade used by app adapters.
+// It runs committed work synchronously by default and can use bounded async
+// admission when AsyncQueueSize is configured.
 type Manager struct {
 	planner *Planner
 	runner  FanoutTaskRunner

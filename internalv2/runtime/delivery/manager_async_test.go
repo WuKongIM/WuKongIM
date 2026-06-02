@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
@@ -23,7 +24,7 @@ func TestManagerAsyncSubmitRequiresStart(t *testing.T) {
 	}
 }
 
-func TestManagerAsyncQueueFullReportsAdmission(t *testing.T) {
+func TestManagerAsyncBoundedAdmissionReportsQueueFull(t *testing.T) {
 	observer := &recordingManagerObserver{}
 	manager := NewManager(ManagerOptions{
 		Planner:         NewPlanner(PlannerOptions{}),
@@ -32,14 +33,14 @@ func TestManagerAsyncQueueFullReportsAdmission(t *testing.T) {
 		AsyncWorkers:    1,
 		ManagerObserver: observer,
 	})
-	if err := manager.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	defer manager.Stop(context.Background())
 
-	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1}); err != nil {
-		t.Fatalf("first SubmitCommitted() error = %v", err)
-	}
+	// This lower-level admission test keeps worker lifecycle out of the assertion
+	// so queue overflow remains deterministic after workers execute immediately.
+	manager.async.mu.Lock()
+	manager.async.state = managerStateOpen
+	manager.async.queue <- managerCommand{envelope: Envelope{MessageID: 1}}
+	manager.async.mu.Unlock()
+
 	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2})
 	if !errors.Is(err, ErrManagerQueueFull) {
 		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerQueueFull", err)
@@ -126,6 +127,57 @@ func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
 	}
 }
 
+func TestManagerAsyncRunsAcceptedWorkAndReportsTerminal(t *testing.T) {
+	observer := &recordingManagerObserver{}
+	runner := &countingManagerRunner{}
+	manager := NewManager(ManagerOptions{
+		Planner:         NewPlanner(PlannerOptions{}),
+		Runner:          runner,
+		AsyncQueueSize:  4,
+		AsyncWorkers:    1,
+		ManagerObserver: observer,
+	})
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if runner.count != 1 {
+		t.Fatalf("runner count = %d, want 1", runner.count)
+	}
+	if !observer.sawTerminal(DeliveryResultOK) {
+		t.Fatalf("terminals = %#v, want ok terminal", observer.terminals)
+	}
+}
+
+func TestManagerAsyncReportsRunnerErrorTerminal(t *testing.T) {
+	observer := &recordingManagerObserver{}
+	wantErr := errors.New("runner failed")
+	manager := NewManager(ManagerOptions{
+		Planner:         NewPlanner(PlannerOptions{}),
+		Runner:          recordingManagerRunner{err: wantErr},
+		AsyncQueueSize:  4,
+		AsyncWorkers:    1,
+		ManagerObserver: observer,
+	})
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if !observer.sawTerminal(DeliveryResultError) {
+		t.Fatalf("terminals = %#v, want error terminal", observer.terminals)
+	}
+}
+
 type recordingManagerRunner struct {
 	tasks []FanoutTask
 	err   error
@@ -135,21 +187,48 @@ func (r recordingManagerRunner) RunTask(context.Context, FanoutTask) error {
 	return r.err
 }
 
+type countingManagerRunner struct {
+	count int
+}
+
+func (r *countingManagerRunner) RunTask(context.Context, FanoutTask) error {
+	r.count++
+	return nil
+}
+
 type recordingManagerObserver struct {
+	mu         sync.Mutex
 	admissions []ManagerAdmissionEvent
 	terminals  []ManagerTerminalEvent
 }
 
 func (o *recordingManagerObserver) ObserveManagerAdmission(event ManagerAdmissionEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.admissions = append(o.admissions, event)
 }
 
 func (o *recordingManagerObserver) ObserveManagerTerminal(event ManagerTerminalEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.terminals = append(o.terminals, event)
 }
 
 func (o *recordingManagerObserver) sawAdmission(result string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	for _, event := range o.admissions {
+		if event.Result == result {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *recordingManagerObserver) sawTerminal(result string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, event := range o.terminals {
 		if event.Result == result {
 			return true
 		}
