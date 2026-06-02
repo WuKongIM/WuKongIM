@@ -207,9 +207,16 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			Backoff:     defaultDeliveryRetryBackoff,
 			Observer:    retryObserver,
 		})
+		var managerObserver runtimedelivery.ManagerObserver
+		if observer, ok := deliveryObserver.(runtimedelivery.ManagerObserver); ok {
+			managerObserver = observer
+		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:  retryScheduler,
+			Planner:         runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
+			Runner:          retryScheduler,
+			AsyncQueueSize:  app.cfg.Delivery.EventQueueSize,
+			AsyncWorkers:    1,
+			ManagerObserver: managerObserver,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
 			}),
@@ -222,7 +229,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError, app.recordDeliveryQueue)
 		}
 		if app.deliveryWorker == nil {
-			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, app.deliverySink}
+			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager, app.deliverySink}
 		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})

@@ -323,6 +323,20 @@ func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) 
 	o.observeError(event.ErrorClass)
 }
 
+func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveEventQueue(event.Result)
+}
+
+func (o deliveryMetricsObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.observeError(event.ErrorClass)
+}
+
 func (o deliveryMetricsObserver) observeError(class string) {
 	if class == "" || class == runtimedelivery.DeliveryErrorClassNone {
 		return

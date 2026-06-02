@@ -219,6 +219,16 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliverySink == nil || app.deliveryWorker == nil {
 		t.Fatal("delivery async sink was not wired")
 	}
+	if app.deliveryManager == nil || app.deliveryManager.PendingAckCount() != 0 {
+		t.Fatal("delivery manager was not initialized for async runtime")
+	}
+	group, ok := app.deliveryWorker.(deliveryWorkerGroup)
+	if !ok {
+		t.Fatalf("delivery worker = %T, want deliveryWorkerGroup", app.deliveryWorker)
+	}
+	if len(group) != 3 {
+		t.Fatalf("delivery worker count = %d, want retry scheduler, manager, async sink", len(group))
+	}
 	if app.deliveryRetry == nil {
 		t.Fatal("delivery retry scheduler was not wired")
 	}
