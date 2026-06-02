@@ -31,9 +31,14 @@ func TestManagerAsyncQueueFullReportsAdmission(t *testing.T) {
 		AsyncWorkers:    1,
 		ManagerObserver: observer,
 	})
-	manager.async.state = managerStateOpen
-	manager.async.queue <- managerCommand{envelope: Envelope{MessageID: 1}}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer manager.Stop(context.Background())
 
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1}); err != nil {
+		t.Fatalf("first SubmitCommitted() error = %v", err)
+	}
 	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2})
 	if !errors.Is(err, ErrManagerQueueFull) {
 		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerQueueFull", err)
@@ -82,6 +87,42 @@ func TestManagerAsyncStopRejectsNewSubmits(t *testing.T) {
 	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1})
 	if !errors.Is(err, ErrManagerClosed) {
 		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerClosed", err)
+	}
+}
+
+func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
+	manager := NewManager(ManagerOptions{
+		Planner:        NewPlanner(PlannerOptions{}),
+		Runner:         recordingManagerRunner{},
+		AsyncQueueSize: 2,
+		AsyncWorkers:   1,
+	})
+	done := make(chan struct{})
+	manager.async.mu.Lock()
+	manager.async.state = managerStateOpen
+	manager.async.cancel = func() {}
+	manager.async.done = done
+	manager.async.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := manager.Stop(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Stop() error = %v, want context.Canceled", err)
+	}
+	if err := manager.Start(context.Background()); !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("Start() while closing error = %v, want ErrManagerClosed", err)
+	}
+
+	close(done)
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() after workers exit error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("final Stop() error = %v", err)
 	}
 }
 

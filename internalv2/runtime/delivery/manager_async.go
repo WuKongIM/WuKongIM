@@ -70,7 +70,9 @@ func (a *managerAsync) start(context.Context) error {
 	case managerStateOpen:
 		return nil
 	case managerStateClosing:
-		return ErrManagerClosed
+		if !a.finishClosedIfDoneLocked() {
+			return ErrManagerClosed
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -110,32 +112,59 @@ func (a *managerAsync) stop(ctx context.Context) error {
 	case managerStateClosing:
 		done := a.done
 		a.mu.Unlock()
-		select {
-		case <-done:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		return a.waitClosed(ctx, done)
 	}
 	cancel := a.cancel
 	done := a.done
 	a.state = managerStateClosing
 	a.mu.Unlock()
 
-	cancel()
-	var err error
+	if cancel != nil {
+		cancel()
+	}
+	return a.waitClosed(ctx, done)
+}
+
+func (a *managerAsync) waitClosed(ctx context.Context, done <-chan struct{}) error {
+	if done == nil {
+		a.finishClosedForDone(done)
+		return nil
+	}
 	select {
 	case <-done:
+		a.finishClosedForDone(done)
+		return nil
 	case <-ctx.Done():
-		err = ctx.Err()
+		return ctx.Err()
 	}
+}
 
+func (a *managerAsync) finishClosedForDone(done <-chan struct{}) {
 	a.mu.Lock()
-	a.state = managerStateClosed
-	a.cancel = nil
-	a.done = nil
+	if a.state == managerStateClosing && a.done == done {
+		a.state = managerStateClosed
+		a.cancel = nil
+		a.done = nil
+	}
 	a.mu.Unlock()
-	return err
+}
+
+func (a *managerAsync) finishClosedIfDoneLocked() bool {
+	done := a.done
+	if done == nil {
+		a.state = managerStateClosed
+		a.cancel = nil
+		return true
+	}
+	select {
+	case <-done:
+		a.state = managerStateClosed
+		a.cancel = nil
+		a.done = nil
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *managerAsync) submit(ctx context.Context, env Envelope) error {
@@ -151,42 +180,39 @@ func (a *managerAsync) submit(ctx context.Context, env Envelope) error {
 
 	a.mu.Lock()
 	if a.state != managerStateOpen {
-		a.observeAdmission(DeliveryResultError)
+		depth := len(a.queue)
 		a.mu.Unlock()
+		a.observeAdmission(DeliveryResultError, depth)
 		return ErrManagerClosed
 	}
 	cmd := managerCommand{envelope: cloneEnvelope(env)}
 	select {
 	case a.queue <- cmd:
-		a.observeAdmission(DeliveryResultOK)
+		depth := len(a.queue)
 		a.mu.Unlock()
+		a.observeAdmission(DeliveryResultOK, depth)
 		return nil
 	default:
-		a.observeAdmission(DeliveryResultOverflow)
+		depth := len(a.queue)
 		a.mu.Unlock()
+		a.observeAdmission(DeliveryResultOverflow, depth)
 		return ErrManagerQueueFull
 	}
 }
 
-func (a *managerAsync) observeAdmission(result string) {
+func (a *managerAsync) observeAdmission(result string, queueDepth int) {
 	if a.observer == nil {
 		return
 	}
 	a.observer.ObserveManagerAdmission(ManagerAdmissionEvent{
 		Result:     result,
-		QueueDepth: len(a.queue),
+		QueueDepth: queueDepth,
 	})
 }
 
 func (a *managerAsync) runWorker(ctx context.Context) {
-	for {
-		select {
-		case <-a.queue:
-		case <-ctx.Done():
-			a.drain()
-			return
-		}
-	}
+	<-ctx.Done()
+	a.drain()
 }
 
 func (a *managerAsync) drain() {
