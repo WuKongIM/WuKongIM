@@ -6,8 +6,8 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the runtime facade
-used by app adapters. `Manager` supports a sync compatibility mode for focused
-unit tests and a bounded async mode for app wiring. Runtime `Observer` and
+used by app adapters. `Manager` supports a sync unit-test mode and a bounded
+async mode for app wiring. Runtime `Observer` and
 `ManagerObserver` events describe fanout routing, UID route resolution, owner
 push attempts, manager admission, and terminal async outcomes with bounded
 result and error-class labels; concrete metrics remain an app concern.

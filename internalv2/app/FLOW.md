@@ -49,13 +49,15 @@ New(Config)
 events are not emitted to the delivery runtime and the existing `SEND ->
 SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
 session close feedback flows to the delivery usecase. Committed message events
-enter a bounded asynchronous delivery queue so SENDACK latency is not coupled
-to subscriber scan or owner push latency. The queue records submit results
-(`ok` and `overflow`) when metrics are enabled; sink and runtime failures are
-counted with normalized delivery error classes. Retryable fanout failures enter
-a bounded in-memory retry scheduler with a small fixed attempt cap; queue
-overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket`
-values through `online.SessionHandle.WriteDelivery`.
+enter a bounded app-level committed-event queue so SENDACK latency is not
+coupled to subscriber scan or owner push latency. The app-level queue records
+submit results (`ok` and `overflow`) when metrics are enabled. Accepted events
+then enter the runtime manager admission queue, where closed and overflow
+admission return typed errors and manager observations. Sink and runtime
+failures are counted with normalized delivery error classes. Retryable fanout
+failures enter a bounded in-memory retry scheduler with a small fixed attempt
+cap; retry queue overflow is surfaced as `queue_full`. Owner-local pushes write
+`RecvPacket` values through `online.SessionHandle.WriteDelivery`.
 
 The delivery adapter scopes unscoped person-channel committed events to the two
 channel participants before they enter runtime partition planning. This keeps a

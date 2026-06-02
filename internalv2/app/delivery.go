@@ -24,7 +24,7 @@ const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
 
 type deliveryRuntimeAdapter struct {
-	// manager executes synchronous fanout and ack mutations.
+	// manager handles committed-message fanout and ack mutations.
 	manager *runtimedelivery.Manager
 }
 
