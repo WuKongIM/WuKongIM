@@ -1,0 +1,103 @@
+package delivery
+
+import (
+	"context"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
+)
+
+// ManagerOptions configures the synchronous delivery runtime facade.
+type ManagerOptions struct {
+	// Planner creates fanout tasks from committed message events.
+	Planner *Planner
+	// Worker executes fanout tasks synchronously.
+	Worker *FanoutWorker
+	// Acks tracks pending recipient recvacks; nil creates a default tracker.
+	Acks *AckTracker
+}
+
+// Manager is the synchronous delivery runtime facade used by app adapters.
+type Manager struct {
+	planner *Planner
+	worker  *FanoutWorker
+	acks    *AckTracker
+}
+
+// NewManager creates a delivery runtime facade.
+func NewManager(opts ManagerOptions) *Manager {
+	acks := opts.Acks
+	if acks == nil {
+		acks = NewAckTracker(AckTrackerOptions{})
+	}
+	return &Manager{
+		planner: opts.Planner,
+		worker:  opts.Worker,
+		acks:    acks,
+	}
+}
+
+// SubmitCommitted plans and executes fanout for one committed message event.
+func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+	if m == nil || m.planner == nil || m.worker == nil {
+		return nil
+	}
+	tasks, err := m.planner.Plan(ctx, envelopeFromEvent(event))
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		if err := m.worker.RunTask(ctx, task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Recvack clears a pending recipient recvack and ignores unknown acks.
+func (m *Manager) Recvack(_ context.Context, cmd Recvack) error {
+	if m == nil || m.acks == nil {
+		return nil
+	}
+	m.acks.Ack(cmd)
+	return nil
+}
+
+// SessionClosed clears pending recvacks for a closed recipient-owner session.
+func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
+	if m == nil || m.acks == nil {
+		return nil
+	}
+	m.acks.SessionClosed(cmd.UID, cmd.SessionID)
+	return nil
+}
+
+// BindPendingAck records one delivery waiting for a client recvack.
+func (m *Manager) BindPendingAck(pending PendingRecvAck) {
+	if m == nil || m.acks == nil {
+		return
+	}
+	m.acks.Bind(pending)
+}
+
+// PendingAckCount returns the current pending recvack count for tests and diagnostics.
+func (m *Manager) PendingAckCount() int {
+	if m == nil || m.acks == nil {
+		return 0
+	}
+	return m.acks.PendingCount()
+}
+
+func envelopeFromEvent(event messageevents.MessageCommitted) Envelope {
+	return Envelope{
+		MessageID:         event.MessageID,
+		MessageSeq:        event.MessageSeq,
+		ChannelID:         event.ChannelID,
+		ChannelType:       event.ChannelType,
+		FromUID:           event.FromUID,
+		SenderSessionID:   event.SenderSessionID,
+		ClientMsgNo:       event.ClientMsgNo,
+		RedDot:            event.RedDot,
+		Payload:           append([]byte(nil), event.Payload...),
+		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+	}
+}
