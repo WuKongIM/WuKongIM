@@ -15,6 +15,10 @@ const (
 	DeliveryResultError = "error"
 	// DeliveryResultDropped reports delivery work that was discarded by local validation.
 	DeliveryResultDropped = "dropped"
+	// DeliveryResultOverflow reports bounded queue overflow.
+	DeliveryResultOverflow = "overflow"
+	// DeliveryResultMaxAttempts reports retry work that reached its attempt cap.
+	DeliveryResultMaxAttempts = "max_attempts"
 
 	// DeliveryErrorClassNone reports that no error was present.
 	DeliveryErrorClassNone = "none"
@@ -22,6 +26,8 @@ const (
 	DeliveryErrorClassRetryable = "retryable"
 	// DeliveryErrorClassRouteNotReady reports a cluster route that is not ready yet.
 	DeliveryErrorClassRouteNotReady = "route_not_ready"
+	// DeliveryErrorClassQueueFull reports bounded delivery retry queue overflow.
+	DeliveryErrorClassQueueFull = "queue_full"
 	// DeliveryErrorClassInvalidCursor reports a subscriber scan cursor error.
 	DeliveryErrorClassInvalidCursor = "invalid_cursor"
 	// DeliveryErrorClassCanceled reports context cancellation.
@@ -103,6 +109,8 @@ func DeliveryErrorClass(err error) string {
 	switch {
 	case err == nil:
 		return DeliveryErrorClassNone
+	case errors.Is(err, ErrRetryQueueFull):
+		return DeliveryErrorClassQueueFull
 	case errors.Is(err, ErrRouteNotReady):
 		return DeliveryErrorClassRouteNotReady
 	case errors.Is(err, ErrRetryableFanoutTask), errors.Is(err, ErrRetryablePushRoutes):
@@ -120,6 +128,9 @@ func DeliveryErrorClass(err error) string {
 
 // IsRetryableDeliveryError reports whether delivery should retry the failed work later.
 func IsRetryableDeliveryError(err error) bool {
+	if errors.Is(err, ErrRetryQueueFull) {
+		return false
+	}
 	return errors.Is(err, ErrRouteNotReady) ||
 		errors.Is(err, ErrRetryableFanoutTask) ||
 		errors.Is(err, ErrRetryablePushRoutes)

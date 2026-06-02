@@ -20,11 +20,15 @@ var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id o
 var errDeliveryEventQueueFull = errors.New("internalv2/app: delivery event queue full")
 
 const defaultDeliveryEventQueueSize = 1024
+const defaultDeliveryRetryMaxAttempts = 3
+const defaultDeliveryRetryBackoff = 10 * time.Millisecond
 
 type deliveryRuntimeAdapter struct {
 	// manager executes synchronous fanout and ack mutations.
 	manager *runtimedelivery.Manager
 }
+
+type deliveryWorkerGroup []WorkerRuntime
 
 type deliveryCommittedSink struct {
 	// delivery receives committed message events through the delivery usecase or async adapter.
@@ -67,6 +71,36 @@ func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeE
 		observeError: observeError,
 		observeQueue: observeQueue,
 	}
+}
+
+func (g deliveryWorkerGroup) Start(ctx context.Context) error {
+	for idx, worker := range g {
+		if worker == nil {
+			continue
+		}
+		if err := worker.Start(ctx); err != nil {
+			for i := idx - 1; i >= 0; i-- {
+				if g[i] != nil {
+					_ = g[i].Stop(ctx)
+				}
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (g deliveryWorkerGroup) Stop(ctx context.Context) error {
+	var err error
+	for i := len(g) - 1; i >= 0; i-- {
+		if g[i] == nil {
+			continue
+		}
+		if stopErr := g[i].Stop(ctx); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		}
+	}
+	return err
 }
 
 func (s *deliveryAsyncSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {

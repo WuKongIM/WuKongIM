@@ -314,6 +314,15 @@ func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutP
 	o.observeError(event.ErrorClass)
 }
 
+func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveRetry(event.Event, event.Result)
+	o.metrics.Delivery.SetRetryQueueDepth(event.QueueDepth)
+	o.observeError(event.ErrorClass)
+}
+
 func (o deliveryMetricsObserver) observeError(class string) {
 	if class == "" || class == runtimedelivery.DeliveryErrorClassNone {
 		return

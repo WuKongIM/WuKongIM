@@ -64,6 +64,7 @@ type App struct {
 	delivery        *deliveryusecase.App
 	deliveryManager *runtimedelivery.Manager
 	deliverySink    *deliveryAsyncSink
+	deliveryRetry   *runtimedelivery.RetryScheduler
 	deliveryWorker  WorkerRuntime
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
@@ -195,21 +196,33 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				Observer:    deliveryObserver,
 			})
 		}
+		var retryObserver runtimedelivery.RetryObserver
+		if observer, ok := deliveryObserver.(runtimedelivery.RetryObserver); ok {
+			retryObserver = observer
+		}
+		retryScheduler := runtimedelivery.NewRetryScheduler(runtimedelivery.RetrySchedulerOptions{
+			Runner:      fanoutRunner,
+			Capacity:    app.cfg.Delivery.EventQueueSize,
+			MaxAttempts: defaultDeliveryRetryMaxAttempts,
+			Backoff:     defaultDeliveryRetryBackoff,
+			Observer:    retryObserver,
+		})
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:  fanoutRunner,
+			Runner:  retryScheduler,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
 			}),
 		})
 		localPusher.delivery = manager
 		app.deliveryManager = manager
+		app.deliveryRetry = retryScheduler
 		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
 		if app.deliverySink == nil {
 			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError, app.recordDeliveryQueue)
 		}
 		if app.deliveryWorker == nil {
-			app.deliveryWorker = app.deliverySink
+			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, app.deliverySink}
 		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})

@@ -8,15 +8,16 @@ import (
 
 func TestDeliveryErrorClassifiesRetryableErrors(t *testing.T) {
 	tests := []struct {
-		name       string
-		err        error
-		wantClass  string
-		retryable  bool
+		name      string
+		err       error
+		wantClass string
+		retryable bool
 	}{
 		{name: "nil", wantClass: DeliveryErrorClassNone},
 		{name: "retryable fanout", err: ErrRetryableFanoutTask, wantClass: DeliveryErrorClassRetryable, retryable: true},
 		{name: "retryable push", err: ErrRetryablePushRoutes, wantClass: DeliveryErrorClassRetryable, retryable: true},
 		{name: "route not ready", err: ErrRouteNotReady, wantClass: DeliveryErrorClassRouteNotReady, retryable: true},
+		{name: "queue full", err: errors.Join(ErrRetryQueueFull, ErrRetryableFanoutTask), wantClass: DeliveryErrorClassQueueFull},
 		{name: "invalid cursor", err: ErrInvalidSubscriberCursor, wantClass: DeliveryErrorClassInvalidCursor},
 		{name: "context canceled", err: context.Canceled, wantClass: DeliveryErrorClassCanceled},
 		{name: "unknown", err: errors.New("other"), wantClass: DeliveryErrorClassError},

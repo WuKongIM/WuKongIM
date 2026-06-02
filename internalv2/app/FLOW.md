@@ -31,6 +31,7 @@ New(Config)
        create runtime/delivery Manager with a clusterv2-backed partitioner
        when route snapshots are available, an app subscriber planner, presence
        resolver, local/cluster delivery pusher, and partition-leader fanout router
+       wrap the fanout runner with a bounded in-memory retry scheduler
        attach delivery metrics observers when metrics are enabled
        create usecase/delivery.App backed by the manager
        create a bounded asynchronous committed-event sink for delivery fanout
@@ -50,8 +51,10 @@ session close feedback flows to the delivery usecase. Committed message events
 enter a bounded asynchronous delivery queue so SENDACK latency is not coupled
 to subscriber scan or owner push latency. The queue records submit results
 (`ok` and `overflow`) when metrics are enabled; sink and runtime failures are
-counted with normalized delivery error classes. Owner-local pushes write
-`RecvPacket` values through `online.SessionHandle.WriteDelivery`.
+counted with normalized delivery error classes. Retryable fanout failures enter
+a bounded in-memory retry scheduler with a small fixed attempt cap; queue
+overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket`
+values through `online.SessionHandle.WriteDelivery`.
 
 The app subscriber planner derives both UIDs for person channels. For
 non-person unscoped channel fanout it delegates to an optional durable
@@ -65,8 +68,9 @@ router runs local partitions through the in-process fanout worker and forwards
 remote partitions through access/node Delivery Fanout RPC. The remote node then
 uses its own subscriber source and still pushes resolved online routes by
 owner node. Runtime fanout task, resolve, and push observations are translated
-by app-level metrics adapters; the delivery runtime itself stays independent
-from Prometheus.
+by app-level metrics adapters; retry enqueue, attempt, drop, and queue-depth
+observations use the same adapter. The delivery runtime itself stays
+independent from Prometheus.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real
@@ -89,14 +93,14 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
-  -> delivery async sink Start(ctx)
+  -> delivery worker group Start(ctx): retry scheduler starts before async sink
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> delivery async sink Stop(ctx)
+  -> delivery worker group Stop(ctx): async sink drains before retry scheduler
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -105,8 +109,9 @@ Stop(ctx)
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
 The delivery runtime manager remains synchronous, but the app-level committed
-sink has a lifecycle worker and drains queued events during stop. Stale pending
-recvacks are expired during owner-local delivery push activity.
+sink and retry scheduler have lifecycle workers. Stop drains queued committed
+events before draining queued retries. Stale pending recvacks are expired during
+owner-local delivery push activity.
 
 ## Presence Touch Worker
 

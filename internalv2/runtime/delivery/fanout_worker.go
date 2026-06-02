@@ -17,6 +17,36 @@ var ErrInvalidSubscriberCursor = errors.New("internalv2/runtime/delivery: invali
 // ErrRetryablePushRoutes reports that at least one pushed route needs retry scheduling.
 var ErrRetryablePushRoutes = errors.New("internalv2/runtime/delivery: retryable push routes")
 
+// RetryablePushRoutesError carries owner routes that should be retried later.
+type RetryablePushRoutesError struct {
+	routes []Route
+}
+
+func newRetryablePushRoutesError(routes []Route) error {
+	if len(routes) == 0 {
+		return ErrRetryablePushRoutes
+	}
+	return &RetryablePushRoutesError{routes: cloneRoutes(routes)}
+}
+
+// Error returns the stable retryable push error text.
+func (e *RetryablePushRoutesError) Error() string {
+	return ErrRetryablePushRoutes.Error()
+}
+
+// Unwrap exposes ErrRetryablePushRoutes for errors.Is checks.
+func (e *RetryablePushRoutesError) Unwrap() error {
+	return ErrRetryablePushRoutes
+}
+
+// Routes returns an independent copy of retryable owner routes.
+func (e *RetryablePushRoutesError) Routes() []Route {
+	if e == nil {
+		return nil
+	}
+	return cloneRoutes(e.routes)
+}
+
 // SubscriberPlanner pages channel subscribers for one delivery partition.
 type SubscriberPlanner interface {
 	NextPartitionPage(context.Context, FanoutTask, string, int) (UIDPage, error)
@@ -220,7 +250,7 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 				})
 			}
 			if len(result.Retryable) > 0 {
-				return ErrRetryablePushRoutes
+				return newRetryablePushRoutesError(result.Retryable)
 			}
 		}
 	}

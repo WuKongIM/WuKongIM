@@ -147,6 +147,27 @@ func BenchmarkFanoutTaskRouterRemote(b *testing.B) {
 	}
 }
 
+func BenchmarkRetrySchedulerEnqueue(b *testing.B) {
+	scheduler := NewRetryScheduler(RetrySchedulerOptions{
+		Runner:      benchmarkRetryableFanoutTaskRunner{},
+		Capacity:    1024,
+		MaxAttempts: 3,
+	})
+	task := FanoutTask{Envelope: Envelope{MessageID: 1}, Partition: Partition{ID: 1}, Attempt: 1}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if err := scheduler.RunTask(context.Background(), task); err != nil {
+			b.Fatalf("RunTask() error = %v", err)
+		}
+		select {
+		case <-scheduler.queue:
+		default:
+			b.Fatal("retry queue was empty")
+		}
+	}
+}
+
 func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	uids := benchmarkUIDs(256)
 	manager := NewManager(ManagerOptions{
@@ -243,6 +264,12 @@ type benchmarkFanoutTaskRunner struct{}
 
 func (benchmarkFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {
 	return nil
+}
+
+type benchmarkRetryableFanoutTaskRunner struct{}
+
+func (benchmarkRetryableFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {
+	return ErrRetryableFanoutTask
 }
 
 type benchmarkFanoutForwarder struct{}

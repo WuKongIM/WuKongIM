@@ -27,6 +27,8 @@ type DeliveryMetrics struct {
 	errorsTotal        *prometheus.CounterVec
 	fanoutTaskTotal    *prometheus.CounterVec
 	fanoutTaskDuration *prometheus.HistogramVec
+	retryTotal         *prometheus.CounterVec
+	retryQueueDepth    prometheus.Gauge
 	actorInflight      prometheus.Gauge
 	ackBindings        prometheus.Gauge
 	routeExpiredTotal  *prometheus.CounterVec
@@ -90,6 +92,16 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"target_node", "result"}),
+		retryTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_retry_total",
+			Help:        "Total number of delivery retry scheduler events.",
+			ConstLabels: labels,
+		}, []string{"event", "result"}),
+		retryQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_retry_queue_depth",
+			Help:        "Current number of fanout tasks waiting in the delivery retry queue.",
+			ConstLabels: labels,
+		}),
 		actorInflight: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_delivery_actor_inflight_routes",
 			Help:        "Current number of in-flight routes held by delivery actors.",
@@ -118,6 +130,8 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.errorsTotal,
 		m.fanoutTaskTotal,
 		m.fanoutTaskDuration,
+		m.retryTotal,
+		m.retryQueueDepth,
 		m.actorInflight,
 		m.ackBindings,
 		m.routeExpiredTotal,
@@ -171,6 +185,24 @@ func (m *DeliveryMetrics) ObserveFanoutTask(targetNode, result string, dur time.
 	result = normalizeDeliveryLabel(result, "unknown")
 	m.fanoutTaskTotal.WithLabelValues(targetNode, result).Inc()
 	m.fanoutTaskDuration.WithLabelValues(targetNode, result).Observe(dur.Seconds())
+}
+
+// ObserveRetry records one delivery retry scheduler event.
+func (m *DeliveryMetrics) ObserveRetry(event, result string) {
+	if m == nil {
+		return
+	}
+	event = normalizeDeliveryLabel(event, "unknown")
+	result = normalizeDeliveryLabel(result, "unknown")
+	m.retryTotal.WithLabelValues(event, result).Inc()
+}
+
+// SetRetryQueueDepth sets the current delivery retry queue depth.
+func (m *DeliveryMetrics) SetRetryQueueDepth(depth int) {
+	if m == nil {
+		return
+	}
+	m.retryQueueDepth.Set(float64(depth))
 }
 
 // SetActorInflightRoutes sets the current number of in-flight delivery actor routes.

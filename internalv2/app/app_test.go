@@ -219,6 +219,9 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliverySink == nil || app.deliveryWorker == nil {
 		t.Fatal("delivery async sink was not wired")
 	}
+	if app.deliveryRetry == nil {
+		t.Fatal("delivery retry scheduler was not wired")
+	}
 	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; !ok {
 		t.Fatalf("delivery fanout rpc service was not registered")
 	}
