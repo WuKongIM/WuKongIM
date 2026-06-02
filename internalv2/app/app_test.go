@@ -348,6 +348,20 @@ func TestDeliveryRuntimeAdapterScopesPersonChannelAcrossPartitions(t *testing.T)
 	}
 }
 
+func waitAppDeliveryPendingAckCount(t *testing.T, app *App, want int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var got int
+	for time.Now().Before(deadline) {
+		got = app.deliveryManager.PendingAckCount()
+		if got == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("pending ack count = %d, want %d", got, want)
+}
+
 func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
@@ -407,9 +421,7 @@ func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T
 	if recv.ChannelID != "u1" || recv.ChannelType != frame.ChannelTypePerson || recv.FromUID != "u1" || string(recv.Payload) != "hello" {
 		t.Fatalf("recv packet = %#v, want person view from u1", recv)
 	}
-	if app.deliveryManager.PendingAckCount() != 1 {
-		t.Fatalf("pending ack count = %d, want 1", app.deliveryManager.PendingAckCount())
-	}
+	waitAppDeliveryPendingAckCount(t, app, 1, time.Second)
 
 	if err := app.Handler().OnFrame(gateway.Context{Session: recipient, RequestContext: context.Background()}, &frame.RecvackPacket{
 		MessageID:  recv.MessageID,
@@ -417,9 +429,7 @@ func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T
 	}); err != nil {
 		t.Fatalf("OnFrame(recvack) error = %v", err)
 	}
-	if app.deliveryManager.PendingAckCount() != 0 {
-		t.Fatalf("pending ack count = %d, want 0 after recvack", app.deliveryManager.PendingAckCount())
-	}
+	waitAppDeliveryPendingAckCount(t, app, 0, time.Second)
 }
 
 func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
@@ -488,9 +498,7 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 		string(recv.Payload) != "hello group" {
 		t.Fatalf("recv packet = %#v, want group delivery from u1", recv)
 	}
-	if app.deliveryManager.PendingAckCount() != 1 {
-		t.Fatalf("pending ack count = %d, want 1", app.deliveryManager.PendingAckCount())
-	}
+	waitAppDeliveryPendingAckCount(t, app, 1, time.Second)
 	if len(subscribers.requests) != 1 {
 		t.Fatalf("subscriber requests = %d, want 1", len(subscribers.requests))
 	}
@@ -508,9 +516,7 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("OnFrame(recvack) error = %v", err)
 	}
-	if app.deliveryManager.PendingAckCount() != 0 {
-		t.Fatalf("pending ack count = %d, want 0 after recvack", app.deliveryManager.PendingAckCount())
-	}
+	waitAppDeliveryPendingAckCount(t, app, 0, time.Second)
 }
 
 func TestNewDoesNotOverwriteWithMessagesWhenDeliveryEnabled(t *testing.T) {
