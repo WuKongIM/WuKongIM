@@ -991,8 +991,9 @@ validate_presence_report() {
       touch_routes_total: sumfield("touch_routes_total"),
       expired_routes_total: sumfield("expired_routes_total")
     })) as $samples
-    | ($samples | max_by(([.owner_routes_active // 0, .authority_routes_active // 0] | min)) // {}) as $peak
-    | (reduce $samples[] as $sample ({current: 0, max: 0};
+    | ($samples | map(select(.sample_phase == "run"))) as $run_samples
+    | ($run_samples | max_by(([.owner_routes_active // 0, .authority_routes_active // 0] | min)) // {}) as $peak
+    | (reduce $run_samples[] as $sample ({current: 0, max: 0};
         if ($sample | sample_ok) then
           .current += 1 | .max = ([.max, .current] | max)
         else
@@ -1011,8 +1012,8 @@ validate_presence_report() {
       ($peak.authority_routes_by_hash_slot_total // 0),
       ($peak.touch_routes_total // 0),
       ($peak.expired_routes_total // 0),
-      ($samples | map(.touch_routes_total // 0) | max // 0),
-      ($samples | map(.expired_routes_total // 0) | max // 0),
+      ($run_samples | map(.touch_routes_total // 0) | max // 0),
+      ($run_samples | map(.expired_routes_total // 0) | max // 0),
       $stable_count,
       ($samples | map(.sample_error_count // 0) | add // 0)
     ] | @tsv

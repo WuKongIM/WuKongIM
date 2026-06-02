@@ -362,6 +362,54 @@ func TestWukongIMV2ThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 	}
 }
 
+func TestWukongIMV2ThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakePresenceWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakePresenceCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--users", "10",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--cleanup-timeout", "1",
+		"--sample-interval", "0.02",
+		"--stable-samples", "1",
+		"--resource-interval", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_PRESENCE_CLEANUP_ZERO=1",
+		"WK_FAKE_PRESENCE_CLEANUP_EXPIRED=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("presence script should pass when only cleanup samples expire authority routes: %v\n%s", err, output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "presence-summary.tsv"))
+	for _, want := range []string{
+		"presence_status\tpassed",
+		"max_expired_routes_total\t0",
+		"cleanup_zero_status\tpassed",
+		"cleanup_zero_last_expired_routes_total\t3",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("cleanup-expired summary missing %q:\n%s", want, summary)
+		}
+	}
+}
+
 func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
@@ -1202,6 +1250,12 @@ case "$url" in
     ;;
   http://127.0.0.1:5011/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" && "${WK_FAKE_PRESENCE_CLEANUP_EXPIRED:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":1,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":1}
+JSON
+      exit 0
+    fi
     if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":1,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}
@@ -1220,6 +1274,12 @@ JSON
     ;;
   http://127.0.0.1:5012/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" && "${WK_FAKE_PRESENCE_CLEANUP_EXPIRED:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":2,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":1}
+JSON
+      exit 0
+    fi
     if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":2,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}
@@ -1238,6 +1298,12 @@ JSON
     ;;
   http://127.0.0.1:5013/bench/v1/presence/snapshot)
     idx="$(presence_call_index "$url")"
+    if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" && "${WK_FAKE_PRESENCE_CLEANUP_EXPIRED:-0}" == "1" ]]; then
+      cat <<'JSON'
+{"version":"bench/v1","node_id":3,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":1}
+JSON
+      exit 0
+    fi
     if [[ "${WK_BENCH_PRESENCE_SAMPLE_PHASE:-}" == "cleanup" && "${WK_FAKE_PRESENCE_CLEANUP_ZERO:-0}" == "1" ]]; then
       cat <<'JSON'
 {"version":"bench/v1","node_id":3,"owner_routes_active":0,"owner_routes_pending":0,"owner_touched_dirty":0,"authority_routes_active":0,"authority_routes_by_hash_slot":{},"touch_routes_total":2,"expired_routes_total":0}

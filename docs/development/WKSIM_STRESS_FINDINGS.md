@@ -23,6 +23,9 @@ Environment:
   - `docs/development/perf-runs/20260602-020733-three-node-presence-20k-r500-hb1s-route-retry-cleanup/`
   - `docs/development/perf-runs/20260602-022027-three-node-presence-20k-r500-hb1s-route-retry-nosleep-cleanup/`
   - `docs/development/perf-runs/20260602-022429-three-node-presence-20k-r500-hb1s-route-retry-nosleep-cleanup120/`
+  - `docs/development/perf-runs/20260602-090430-cleanup-idle-check-three-node-presence/`
+  - `docs/development/perf-runs/20260602-090700-cleanup-idle-check-20k-three-node-presence/`
+  - `docs/development/perf-runs/20260602-091430-cleanup-idle-check-20k-fixed-three-node-presence/`
 
 Findings:
 - 10k users at 1000 connects/s passed with `heartbeat_error_total=0`, stable peak owner/authority routes at `10000`, final routes back to `0`, and auth metrics all `status="ok", failure="none"`.
@@ -36,11 +39,14 @@ Findings:
 - Presence route resolution now performs bounded immediate fresh-route retries for route-not-ready, stale-route, and not-leader results before failing activation. Authority calls retry only stale-route and not-leader, preserving explicit route-not-ready semantics for pending-token cleanup.
 - With the retry patch, 20k users at 500 connects/s and 1s heartbeats reached `20000` owner and authority routes with `heartbeat_error_total=0`, `connect_success_total=20000`, and no auth failures even when later logs still showed controller leader stepdowns.
 - Cleanup remains a separate tail issue at this scale: the 60s no-sleep retry run left small residual routes (`owner=119`, `authority=42`), and the 120s cleanup run left only owner/gateway active-connection residuals (`owner=257`, `authority=0`). Treat cleanup tail as a worker/gateway TCP close investigation, not as evidence that authority presence registration failed.
+- A retained-cluster 10k users at 500 connects/s run cleared immediately in the cleanup probe (`cleanup_zero_elapsed_seconds=0`), so cleanup residuals are not inherent to the presence state machine.
+- A retained-cluster 20k users at 500 connects/s run reproduced the cleanup tail but cleared with a longer observation window: owner routes, gateway active connections, and OS `ESTABLISHED` server sockets all matched at `780`, worker held no matching client TCP FDs, authority routes expired by the 90s route TTL, and owner routes cleared at `cleanup_zero_elapsed_seconds=179`, matching the gateway default 3 minute read-idle timeout. The script now gates `expired_routes_total` only during the live run phase; cleanup-phase authority expiry is normal when the observation window exceeds the route TTL.
+- A follow-up retained-cluster 20k rerun with the fixed script failed at the second connect with one gateway auth `failure="activation_not_leader"`. This is a separate route-leadership churn sample, not a cleanup validation result; keep it in the activation-route retry backlog.
 - Server samples stayed modest in the valid runs: 10k max CPU `42.1%`, max RSS `133888KB`; 15k/10s max CPU `31.8%`, max RSS `151184KB`; 15k/60s max CPU `68.2%`, max RSS `153776KB`; 20k/1000 max CPU `35.6%`, max RSS `171552KB`.
 
 Classification:
 - Category: healthy 10k, 15k, and 20k presence route stability after widening local ephemeral ports and hardening activation route lookup; remaining 20k cleanup tail is separate from authority registration correctness.
-- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, run wkbench with a larger `--phase-poll-timeout` before treating coordinator timeouts as service failures. Investigate residual owner/gateway active connections after worker stop with connection close metrics before tuning presence expiry.
+- Follow-up: keep the wider local port range or use distributed workers/network namespaces for 20k+ local runs. If lower connect rates are required at this scale, run wkbench with a larger `--phase-poll-timeout` before treating coordinator timeouts as service failures. For local 20k cleanup assertions, set `--cleanup-timeout` above the gateway idle timeout or lower the test gateway idle timeout explicitly; do not tune presence expiry to hide owner-side socket tails.
 
 ## 2026-05-20 Run 1
 
