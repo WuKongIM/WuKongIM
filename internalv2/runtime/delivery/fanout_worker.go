@@ -23,7 +23,7 @@ type SubscriberPlanner interface {
 
 // UIDPage is one page of subscriber UIDs for a fanout task.
 type UIDPage struct {
-	// UIDs are recipient user IDs to resolve through presence.
+	// UIDs are recipient user IDs to resolve through presence; callers treat the slice as read-only.
 	UIDs []string
 	// NextCursor resumes subscriber scanning after this page.
 	NextCursor string
@@ -89,7 +89,7 @@ func (w *FanoutWorker) RunTask(ctx context.Context, task FanoutTask) error {
 		return nil
 	}
 	if len(task.Envelope.MessageScopedUIDs) > 0 {
-		return w.pushUIDs(ctx, task, append([]string(nil), task.Envelope.MessageScopedUIDs...))
+		return w.pushUIDs(ctx, task, task.Envelope.MessageScopedUIDs)
 	}
 	if w.subscribers == nil {
 		return nil
@@ -101,7 +101,7 @@ func (w *FanoutWorker) RunTask(ctx context.Context, task FanoutTask) error {
 		if err != nil {
 			return err
 		}
-		if err := w.pushUIDs(ctx, task, append([]string(nil), page.UIDs...)); err != nil {
+		if err := w.pushUIDs(ctx, task, page.UIDs); err != nil {
 			return err
 		}
 		if page.Done {

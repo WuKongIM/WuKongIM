@@ -6,7 +6,10 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the synchronous
-runtime facade used by app adapters.
+runtime facade used by app adapters. `ChannelSubscriberPlanner` adapts an
+optional durable subscriber source into partition/cursor-based fanout pages; a
+nil source returns a terminal empty page so app tests can enable delivery
+without wiring a subscriber store.
 
 Committed-message fanout flow:
 

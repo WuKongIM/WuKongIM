@@ -316,10 +316,19 @@ func recipientPersonChannelView(env runtimedelivery.Envelope, recipientUID strin
 	}
 }
 
-type appSubscriberPlanner struct{}
+type appSubscriberPlanner struct {
+	// channel scans durable subscribers for non-person channel fanout.
+	channel runtimedelivery.SubscriberPlanner
+}
 
-func (appSubscriberPlanner) NextPartitionPage(_ context.Context, task runtimedelivery.FanoutTask, cursor string, _ int) (runtimedelivery.UIDPage, error) {
-	if cursor != "" || task.Envelope.ChannelType != frame.ChannelTypePerson {
+func (p appSubscriberPlanner) NextPartitionPage(ctx context.Context, task runtimedelivery.FanoutTask, cursor string, limit int) (runtimedelivery.UIDPage, error) {
+	if task.Envelope.ChannelType != frame.ChannelTypePerson {
+		if p.channel == nil {
+			return runtimedelivery.UIDPage{Done: true}, nil
+		}
+		return p.channel.NextPartitionPage(ctx, task, cursor, limit)
+	}
+	if cursor != "" {
 		return runtimedelivery.UIDPage{Done: true}, nil
 	}
 	left, right, err := runtimechannelid.DecodePersonChannel(task.Envelope.ChannelID)

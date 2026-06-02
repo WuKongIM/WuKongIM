@@ -28,7 +28,7 @@ New(Config)
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
   -> when Delivery.Enabled=true:
-       create runtime/delivery Manager with a person-channel subscriber planner,
+       create runtime/delivery Manager with an app subscriber planner,
        presence resolver, and local/cluster delivery pusher
        create usecase/delivery.App backed by the manager
        create a bounded asynchronous committed-event sink for delivery fanout
@@ -49,10 +49,11 @@ enter a bounded asynchronous delivery queue so SENDACK latency is not coupled
 to subscriber scan or owner push latency. Owner-local pushes write `RecvPacket`
 values through `online.SessionHandle.WriteDelivery`.
 
-The current app subscriber planner derives both UIDs for person channels and
-keeps non-person unscoped channel fanout as a no-op until a durable subscriber
-store is wired into internalv2. Scoped UID delivery still bypasses subscriber
-scan and flows through presence resolution plus the local or RPC owner pusher.
+The app subscriber planner derives both UIDs for person channels. For
+non-person unscoped channel fanout it delegates to an optional durable
+subscriber source; without that source the scan remains a terminal empty page.
+Scoped UID delivery still bypasses subscriber scan and flows through presence
+resolution plus the local or RPC owner pusher.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

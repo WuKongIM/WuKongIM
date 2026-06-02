@@ -359,6 +359,94 @@ func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T
 	}
 }
 
+func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
+	subscribers := &fakeDeliverySubscriberSource{
+		pages: []runtimedelivery.UIDPage{
+			{UIDs: []string{"u2"}, Done: true},
+		},
+	}
+	app, err := New(
+		Config{
+			Cluster: clusterv2.Config{NodeID: 1},
+			Delivery: DeliveryConfig{
+				Enabled:        true,
+				EventQueueSize: 8,
+			},
+			Presence: PresenceConfig{TouchFlushInterval: time.Hour},
+		},
+		WithCluster(cluster),
+		WithDeliverySubscriberSource(subscribers),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	startCtx, startCancel := context.WithTimeout(context.Background(), time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second)
+		defer stopCancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+
+	senderWrites := &sendackSmokeSessionWrites{}
+	recipientWrites := &sendackSmokeSessionWrites{}
+	sender := newAppDeliveryTestSession(201, senderWrites)
+	recipient := newAppDeliveryTestSession(202, recipientWrites)
+	activateAppDeliverySession(t, app, sender, "u1")
+	activateAppDeliverySession(t, app, recipient, "u2")
+
+	send := &frame.SendPacket{
+		ClientSeq:   1,
+		ClientMsgNo: "client-group-1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hello group"),
+	}
+	if err := app.Handler().OnFrame(gateway.Context{Session: sender, RequestContext: context.Background()}, send); err != nil {
+		t.Fatalf("OnFrame(send) error = %v", err)
+	}
+	ack := senderWrites.requireOnlySendack(t)
+	if ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("sendack reason = %v, want success", ack.ReasonCode)
+	}
+
+	recv := recipientWrites.waitForRecvPacket(t, time.Second)
+	if recv.MessageID != ack.MessageID || recv.MessageSeq != ack.MessageSeq {
+		t.Fatalf("recv id/seq = %d/%d, want %d/%d", recv.MessageID, recv.MessageSeq, ack.MessageID, ack.MessageSeq)
+	}
+	if recv.ChannelID != "g1" || recv.ChannelType != frame.ChannelTypeGroup || recv.FromUID != "u1" ||
+		string(recv.Payload) != "hello group" {
+		t.Fatalf("recv packet = %#v, want group delivery from u1", recv)
+	}
+	if app.deliveryManager.PendingAckCount() != 1 {
+		t.Fatalf("pending ack count = %d, want 1", app.deliveryManager.PendingAckCount())
+	}
+	if len(subscribers.requests) != 1 {
+		t.Fatalf("subscriber requests = %d, want 1", len(subscribers.requests))
+	}
+	req := subscribers.requests[0]
+	if req.ChannelID != "g1" || req.ChannelType != frame.ChannelTypeGroup || req.Limit != app.cfg.Delivery.FanoutPageSize {
+		t.Fatalf("subscriber request = %#v, want group channel with configured page size", req)
+	}
+
+	if err := app.Handler().OnFrame(gateway.Context{Session: recipient, RequestContext: context.Background()}, &frame.RecvackPacket{
+		MessageID:  recv.MessageID,
+		MessageSeq: recv.MessageSeq,
+	}); err != nil {
+		t.Fatalf("OnFrame(recvack) error = %v", err)
+	}
+	if app.deliveryManager.PendingAckCount() != 0 {
+		t.Fatalf("pending ack count = %d, want 0 after recvack", app.deliveryManager.PendingAckCount())
+	}
+}
+
 func TestNewDoesNotOverwriteWithMessagesWhenDeliveryEnabled(t *testing.T) {
 	override := message.New(message.Options{})
 	app, err := New(
@@ -1637,6 +1725,21 @@ type recordingSessionHandle struct {
 
 type failingDeliveryRuntime struct {
 	err error
+}
+
+type fakeDeliverySubscriberSource struct {
+	requests []runtimedelivery.SubscriberPageRequest
+	pages    []runtimedelivery.UIDPage
+}
+
+func (s *fakeDeliverySubscriberSource) ListSubscribers(_ context.Context, req runtimedelivery.SubscriberPageRequest) (runtimedelivery.UIDPage, error) {
+	s.requests = append(s.requests, req)
+	if len(s.pages) == 0 {
+		return runtimedelivery.UIDPage{Done: true}, nil
+	}
+	page := s.pages[0]
+	s.pages = s.pages[1:]
+	return page, nil
 }
 
 func (f failingDeliveryRuntime) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {

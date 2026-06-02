@@ -55,21 +55,23 @@ type Option func(*App)
 
 // App is the internalv2 composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg               Config
-	cluster           ClusterRuntime
-	api               APIRuntime
-	gateway           GatewayRuntime
-	handler           *accessgateway.Handler
-	messages          *message.App
-	delivery          *deliveryusecase.App
-	deliveryManager   *runtimedelivery.Manager
-	deliverySink      *deliveryAsyncSink
-	deliveryWorker    WorkerRuntime
-	presence          *presence.App
-	online            *online.Registry
-	presenceDirectory *authoritypresence.Directory
-	presenceWorker    WorkerRuntime
-	metrics           *obsmetrics.Registry
+	cfg             Config
+	cluster         ClusterRuntime
+	api             APIRuntime
+	gateway         GatewayRuntime
+	handler         *accessgateway.Handler
+	messages        *message.App
+	delivery        *deliveryusecase.App
+	deliveryManager *runtimedelivery.Manager
+	deliverySink    *deliveryAsyncSink
+	deliveryWorker  WorkerRuntime
+	// deliverySubscribers scans durable non-person channel subscribers when provided.
+	deliverySubscribers runtimedelivery.ChannelSubscriberSource
+	presence            *presence.App
+	online              *online.Registry
+	presenceDirectory   *authoritypresence.Directory
+	presenceWorker      WorkerRuntime
+	metrics             *obsmetrics.Registry
 
 	lifecycleMu     sync.Mutex
 	started         bool
@@ -165,7 +167,11 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{}),
 			Worker: runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-				Subscribers:   appSubscriberPlanner{},
+				Subscribers: appSubscriberPlanner{
+					channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
+						Source: app.deliverySubscribers,
+					}),
+				},
 				Presence:      presenceResolverAdapter{presence: app.presence},
 				Push:          push,
 				PageSize:      app.cfg.Delivery.FanoutPageSize,
@@ -268,6 +274,11 @@ func WithPresence(presence *presence.App) Option {
 // WithOnlineRegistry overrides the owner-local online registry.
 func WithOnlineRegistry(reg *online.Registry) Option {
 	return func(a *App) { a.online = reg }
+}
+
+// WithDeliverySubscriberSource overrides the durable subscriber source used by delivery fanout.
+func WithDeliverySubscriberSource(source runtimedelivery.ChannelSubscriberSource) Option {
+	return func(a *App) { a.deliverySubscribers = source }
 }
 
 // Handler returns the gateway access handler.

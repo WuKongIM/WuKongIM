@@ -82,6 +82,39 @@ func BenchmarkFanoutWorkerRemotePushBatch(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelSubscriberPlannerScan100K(b *testing.B) {
+	uids := benchmarkUIDs(100000)
+	planner := NewChannelSubscriberPlanner(ChannelSubscriberPlannerOptions{
+		Source: benchmarkChannelSubscriberSource{uids: uids},
+	})
+	task := FanoutTask{
+		Envelope:  Envelope{MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: 2},
+		Partition: Partition{ID: 1, LeaderNodeID: 1},
+		Attempt:   1,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cursor := ""
+		total := 0
+		for {
+			page, err := planner.NextPartitionPage(context.Background(), task, cursor, 1024)
+			if err != nil {
+				b.Fatalf("NextPartitionPage() error = %v", err)
+			}
+			total += len(page.UIDs)
+			if page.Done {
+				break
+			}
+			cursor = page.NextCursor
+		}
+		if total != len(uids) {
+			b.Fatalf("scanned UIDs = %d, want %d", total, len(uids))
+		}
+	}
+}
+
 func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	uids := benchmarkUIDs(256)
 	manager := NewManager(ManagerOptions{
@@ -138,6 +171,40 @@ type benchmarkSubscriber struct {
 
 func (s benchmarkSubscriber) NextPartitionPage(context.Context, FanoutTask, string, int) (UIDPage, error) {
 	return UIDPage{UIDs: s.uids, Done: true}, nil
+}
+
+type benchmarkChannelSubscriberSource struct {
+	uids []string
+}
+
+func (s benchmarkChannelSubscriberSource) ListSubscribers(_ context.Context, req SubscriberPageRequest) (UIDPage, error) {
+	limit := req.Limit
+	if limit <= 0 {
+		limit = defaultFanoutPageSize
+	}
+	start := 0
+	if req.Cursor != "" {
+		parsed, err := strconv.Atoi(req.Cursor)
+		if err != nil {
+			return UIDPage{}, err
+		}
+		start = parsed
+	}
+	if start >= len(s.uids) {
+		return UIDPage{Done: true}, nil
+	}
+	end := start + limit
+	if end > len(s.uids) {
+		end = len(s.uids)
+	}
+	page := UIDPage{
+		UIDs: s.uids[start:end],
+		Done: end == len(s.uids),
+	}
+	if !page.Done {
+		page.NextCursor = strconv.Itoa(end)
+	}
+	return page, nil
 }
 
 type benchmarkPresence struct {
