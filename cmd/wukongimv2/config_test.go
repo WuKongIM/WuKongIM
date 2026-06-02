@@ -131,6 +131,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL=2s",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
 		"WK_PRESENCE_ROUTE_TTL=2m",
+		"WK_DELIVERY_ENABLE=true",
+		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
+		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
+		"WK_DELIVERY_PENDING_ACK_TTL=45s",
+		"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=777",
+		"WK_DELIVERY_EVENT_QUEUE_SIZE=2048",
 	)
 
 	cfg, err := loadConfig([]string{"-config", path})
@@ -185,6 +191,24 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Presence.RouteTTL != 2*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 2m", cfg.Presence.RouteTTL)
+	}
+	if !cfg.Delivery.Enabled {
+		t.Fatalf("Delivery.Enabled = false, want true")
+	}
+	if cfg.Delivery.FanoutPageSize != 256 {
+		t.Fatalf("Delivery.FanoutPageSize = %d, want 256", cfg.Delivery.FanoutPageSize)
+	}
+	if cfg.Delivery.PushBatchSize != 128 {
+		t.Fatalf("Delivery.PushBatchSize = %d, want 128", cfg.Delivery.PushBatchSize)
+	}
+	if cfg.Delivery.PendingAckTTL != 45*time.Second {
+		t.Fatalf("Delivery.PendingAckTTL = %s, want 45s", cfg.Delivery.PendingAckTTL)
+	}
+	if cfg.Delivery.PendingAckMaxPerSession != 777 {
+		t.Fatalf("Delivery.PendingAckMaxPerSession = %d, want 777", cfg.Delivery.PendingAckMaxPerSession)
+	}
+	if cfg.Delivery.EventQueueSize != 2048 {
+		t.Fatalf("Delivery.EventQueueSize = %d, want 2048", cfg.Delivery.EventQueueSize)
 	}
 	if cfg.API.ListenAddr != "127.0.0.1:5042" {
 		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
@@ -321,6 +345,12 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
+	t.Setenv("WK_DELIVERY_ENABLE", "true")
+	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
+	t.Setenv("WK_DELIVERY_PUSH_BATCH_SIZE", "32")
+	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
+	t.Setenv("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", "256")
+	t.Setenv("WK_DELIVERY_EVENT_QUEUE_SIZE", "512")
 	t.Setenv("WK_API_LISTEN_ADDR", "127.0.0.1:5002")
 	t.Setenv("WK_BENCH_API_ENABLE", "true")
 	t.Setenv("WK_METRICS_ENABLE", "true")
@@ -360,6 +390,11 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Presence.RouteTTL != 3*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 3m", cfg.Presence.RouteTTL)
+	}
+	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
+		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
+		cfg.Delivery.EventQueueSize != 512 {
+		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
 	}
 	if cfg.Gateway.Transport.Gnet.NumEventLoop != 5 {
 		t.Fatalf("Gnet.NumEventLoop = %d, want 5", cfg.Gateway.Transport.Gnet.NumEventLoop)
@@ -502,6 +537,17 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "presence touch batch size negative", line: "WK_PRESENCE_TOUCH_BATCH_SIZE=-1", wantKey: "WK_PRESENCE_TOUCH_BATCH_SIZE"},
 		{name: "presence route ttl", line: "WK_PRESENCE_ROUTE_TTL=soon", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "presence route ttl negative", line: "WK_PRESENCE_ROUTE_TTL=-1s", wantKey: "WK_PRESENCE_ROUTE_TTL"},
+		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
+		{name: "delivery fanout page size", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=many", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
+		{name: "delivery fanout page size negative", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=-1", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
+		{name: "delivery push batch size", line: "WK_DELIVERY_PUSH_BATCH_SIZE=many", wantKey: "WK_DELIVERY_PUSH_BATCH_SIZE"},
+		{name: "delivery push batch size negative", line: "WK_DELIVERY_PUSH_BATCH_SIZE=-1", wantKey: "WK_DELIVERY_PUSH_BATCH_SIZE"},
+		{name: "delivery pending ack ttl", line: "WK_DELIVERY_PENDING_ACK_TTL=soon", wantKey: "WK_DELIVERY_PENDING_ACK_TTL"},
+		{name: "delivery pending ack ttl negative", line: "WK_DELIVERY_PENDING_ACK_TTL=-1s", wantKey: "WK_DELIVERY_PENDING_ACK_TTL"},
+		{name: "delivery pending ack max per session", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=many", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
+		{name: "delivery pending ack max per session negative", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=-1", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
+		{name: "delivery event queue size", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=many", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
+		{name: "delivery event queue size negative", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=-1", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
 		{name: "bench api enable", line: "WK_BENCH_API_ENABLE=maybe", wantKey: "WK_BENCH_API_ENABLE"},
 		{name: "bench api max batch size", line: "WK_BENCH_API_MAX_BATCH_SIZE=many", wantKey: "WK_BENCH_API_MAX_BATCH_SIZE"},
 		{name: "bench api max payload bytes", line: "WK_BENCH_API_MAX_PAYLOAD_BYTES=large", wantKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES"},

@@ -13,12 +13,15 @@ SendBatch(items)
   -> normalize nil contexts
   -> validate authenticated sender, channel, payload, and phase-1 send mode
   -> authorize send
+  -> canonicalize person-channel IDs when `SendCommand.NormalizePersonChannel`
+     is set by an entry adapter
   -> allocate message IDs for durable gateway-origin sends
   -> split adjacent sends by canonical channel
   -> clone payloads at the appender boundary
   -> append each active segment through Appender.AppendBatch
      (omit result payloads when no committed sink is configured)
   -> submit committed-message events after successful append when a sink is configured
+     (including sender identity and request-scoped delivery UIDs)
   -> return item-aligned SendBatchItemResult values
 ```
 

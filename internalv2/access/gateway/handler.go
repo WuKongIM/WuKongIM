@@ -6,6 +6,7 @@ import (
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -44,12 +45,22 @@ type PresenceUsecase interface {
 	Touch(context.Context, presence.TouchCommand) error
 }
 
+// DeliveryUsecase is the delivery feedback entry used by the gateway adapter.
+type DeliveryUsecase interface {
+	Recvack(context.Context, delivery.RecvackCommand) error
+	SessionClosed(context.Context, delivery.SessionClosedCommand) error
+}
+
 // Options configures the internalv2 gateway handler.
 type Options struct {
 	// Messages processes single SEND commands.
 	Messages MessageUsecase
 	// Presence activates and deactivates authenticated gateway sessions.
 	Presence PresenceUsecase
+	// Delivery receives client recvacks and session close cleanup events.
+	Delivery DeliveryUsecase
+	// OwnerNodeID is the local gateway owner node id stamped on SEND commands.
+	OwnerNodeID uint64
 	// SendTimeout bounds each gateway SEND request.
 	SendTimeout time.Duration
 }
@@ -58,6 +69,8 @@ type Options struct {
 type Handler struct {
 	messages    MessageUsecase
 	presence    PresenceUsecase
+	delivery    DeliveryUsecase
+	ownerNodeID uint64
 	sendTimeout time.Duration
 }
 
@@ -69,6 +82,8 @@ func New(opts Options) *Handler {
 	return &Handler{
 		messages:    opts.Messages,
 		presence:    opts.Presence,
+		delivery:    opts.Delivery,
+		ownerNodeID: opts.OwnerNodeID,
 		sendTimeout: opts.SendTimeout,
 	}
 }
@@ -92,10 +107,22 @@ func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPac
 func (h *Handler) OnSessionOpen(coregateway.Context) error { return nil }
 
 func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
-	if h == nil || h.presence == nil {
+	if h == nil {
 		return nil
 	}
-	return h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx))
+	reqCtx := requestContextFromContext(&ctx)
+	var presenceErr error
+	if h.presence != nil {
+		presenceErr = h.presence.Deactivate(reqCtx, deactivateCommandFromContext(&ctx))
+	}
+	var deliveryErr error
+	if h.delivery != nil && ctx.Session != nil {
+		uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
+		if uid != "" && ctx.Session.ID() != 0 {
+			deliveryErr = h.delivery.SessionClosed(reqCtx, delivery.SessionClosedCommand{UID: uid, SessionID: ctx.Session.ID()})
+		}
+	}
+	return errors.Join(presenceErr, deliveryErr)
 }
 
 func (h *Handler) OnSessionActivateRollback(ctx coregateway.Context, _ error) {
@@ -114,6 +141,8 @@ func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 		return ctx.WriteFrame(&frame.PongPacket{})
 	case *frame.SendPacket:
 		return h.handleSend(&ctx, pkt)
+	case *frame.RecvackPacket:
+		return h.handleRecvack(&ctx, pkt)
 	default:
 		return ErrUnsupportedFrame
 	}
@@ -134,7 +163,7 @@ func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {
-	cmd, err := mapSendCommand(ctx, pkt)
+	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, true)
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticatedSession) {
 			return writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail})
@@ -150,6 +179,22 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 
 	result := h.sendOne(reqCtx, cmd)
 	return writeSendack(ctx, pkt, result)
+}
+
+func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
+	if h == nil || h.delivery == nil || ctx == nil || ctx.Session == nil || pkt == nil {
+		return nil
+	}
+	uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
+	if uid == "" || ctx.Session.ID() == 0 || pkt.MessageID <= 0 {
+		return nil
+	}
+	return h.delivery.Recvack(requestContextFromContext(ctx), delivery.RecvackCommand{
+		UID:        uid,
+		SessionID:  ctx.Session.ID(),
+		MessageID:  uint64(pkt.MessageID),
+		MessageSeq: pkt.MessageSeq,
+	})
 }
 
 func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) message.SendResult {

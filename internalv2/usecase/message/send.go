@@ -5,8 +5,11 @@ import (
 	"errors"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
+
+const channelTypePerson uint8 = 1
 
 // Send processes one send command.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
@@ -77,6 +80,13 @@ func (a *App) prepare(ctx context.Context, cmd SendCommand) (preparedSend, bool)
 			reason = ReasonInvalidRequest
 		}
 		return preparedSend{result: SendResult{Reason: reason}}, true
+	}
+	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
+		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		if err != nil {
+			return preparedSend{err: err}, true
+		}
+		cmd.ChannelID = channelID
 	}
 	if cmd.MessageID == 0 {
 		if a.messageID == nil {
@@ -212,13 +222,17 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended App
 		return
 	}
 	event := messageevents.MessageCommitted{
-		MessageID:   appended.MessageID,
-		MessageSeq:  appended.MessageSeq,
-		ChannelID:   cmd.ChannelID,
-		ChannelType: cmd.ChannelType,
-		FromUID:     cmd.FromUID,
-		ClientMsgNo: cmd.ClientMsgNo,
-		Payload:     cloneBytes(appended.Message.Payload),
+		MessageID:         appended.MessageID,
+		MessageSeq:        appended.MessageSeq,
+		ChannelID:         cmd.ChannelID,
+		ChannelType:       cmd.ChannelType,
+		FromUID:           cmd.FromUID,
+		SenderNodeID:      cmd.SenderNodeID,
+		SenderSessionID:   cmd.SenderSessionID,
+		ClientMsgNo:       cmd.ClientMsgNo,
+		Payload:           cloneBytes(appended.Message.Payload),
+		RedDot:            cmd.RedDot,
+		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),
 	}
 	if err := a.committed.Submit(ctx, event); err != nil && a.observer != nil {
 		a.observer.CommittedSinkError(cmd, err)

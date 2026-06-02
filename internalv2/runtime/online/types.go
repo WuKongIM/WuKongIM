@@ -68,8 +68,10 @@ type Snapshot struct {
 	TouchedDirty int
 }
 
-// SessionHandle closes a concrete gateway session without importing entry packages.
+// SessionHandle writes to and closes a concrete gateway session without importing entry packages.
 type SessionHandle interface {
+	// WriteDelivery writes one entry-owned delivery packet to the concrete session.
+	WriteDelivery(any) error
 	// CloseSession closes the concrete session with a stable reason string.
 	CloseSession(reason string) error
 }

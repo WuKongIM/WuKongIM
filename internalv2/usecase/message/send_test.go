@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
@@ -387,6 +388,92 @@ func TestCommittedSinkErrorDoesNotChangeSendResult(t *testing.T) {
 	}
 }
 
+func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
+	committed := &capturingCommitted{}
+	app := New(Options{
+		Appender:  &recordingAppender{},
+		MessageID: &sequenceIDs{next: 50},
+		Committed: committed,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:           "u1",
+		SenderNodeID:      7,
+		SenderSessionID:   42,
+		ClientMsgNo:       "client-1",
+		ChannelID:         "g1",
+		ChannelType:       2,
+		Payload:           []byte("hello"),
+		RedDot:            true,
+		MessageScopedUIDs: []string{"u2", "u3"},
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	if len(committed.events) != 1 {
+		t.Fatalf("committed events = %d, want 1", len(committed.events))
+	}
+	event := committed.events[0]
+	if event.SenderSessionID != 42 {
+		t.Fatalf("SenderSessionID = %d, want 42", event.SenderSessionID)
+	}
+	if event.SenderNodeID != 7 {
+		t.Fatalf("SenderNodeID = %d, want 7", event.SenderNodeID)
+	}
+	if !event.RedDot {
+		t.Fatalf("RedDot = false, want true")
+	}
+	if event.ClientMsgNo != "client-1" {
+		t.Fatalf("ClientMsgNo = %q, want client-1", event.ClientMsgNo)
+	}
+	if event.FromUID != "u1" {
+		t.Fatalf("FromUID = %q, want u1", event.FromUID)
+	}
+	if len(event.MessageScopedUIDs) != 2 || event.MessageScopedUIDs[0] != "u2" || event.MessageScopedUIDs[1] != "u3" {
+		t.Fatalf("MessageScopedUIDs = %#v, want u2,u3", event.MessageScopedUIDs)
+	}
+}
+
+func TestSendNormalizesPersonChannelBeforeAppendAndCommit(t *testing.T) {
+	appender := &recordingAppender{}
+	committed := &capturingCommitted{}
+	app := New(Options{
+		Appender:  appender,
+		MessageID: &sequenceIDs{next: 100},
+		Committed: committed,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:                "u1",
+		ChannelID:              "u2",
+		ChannelType:            channelTypePerson,
+		NormalizePersonChannel: true,
+		Payload:                []byte("hello"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	want := runtimechannelid.EncodePersonChannel("u1", "u2")
+	if len(appender.requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(appender.requests))
+	}
+	if got := appender.requests[0].ChannelID.ID; got != want {
+		t.Fatalf("append channel id = %q, want %q", got, want)
+	}
+	if got := appender.requests[0].Messages[0].ChannelID; got != want {
+		t.Fatalf("append message channel id = %q, want %q", got, want)
+	}
+	if len(committed.events) != 1 || committed.events[0].ChannelID != want {
+		t.Fatalf("committed events = %#v, want normalized channel %q", committed.events, want)
+	}
+}
+
 func TestSendReturnsErrorWhenAppenderOrAllocatorMissing(t *testing.T) {
 	noAppender := New(Options{MessageID: &sequenceIDs{next: 1}})
 	_, err := noAppender.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("hello")})
@@ -478,6 +565,15 @@ func (f failingCommitted) Submit(context.Context, messageevents.MessageCommitted
 type recordingCommitted struct{}
 
 func (recordingCommitted) Submit(context.Context, messageevents.MessageCommitted) error {
+	return nil
+}
+
+type capturingCommitted struct {
+	events []messageevents.MessageCommitted
+}
+
+func (c *capturingCommitted) Submit(_ context.Context, event messageevents.MessageCommitted) error {
+	c.events = append(c.events, event.Clone())
 	return nil
 }
 

@@ -18,7 +18,7 @@ import (
 
 func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
-	channelID := channelv2.ChannelID{ID: "room-sendack", Type: 1}
+	channelID := channelv2.ChannelID{ID: "room-sendack", Type: frame.ChannelTypeGroup}
 	node := newSendackSmokeSingleNodeCluster(t, cfg.Cluster, channelID)
 	app, err := New(cfg, WithCluster(node))
 	if err != nil {
@@ -75,7 +75,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 
 func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
-	channelID := channelv2.ChannelID{ID: "room-default-meta", Type: 1}
+	channelID := channelv2.ChannelID{ID: "room-default-meta", Type: frame.ChannelTypeGroup}
 	app, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

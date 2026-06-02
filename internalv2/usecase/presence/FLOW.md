@@ -55,6 +55,11 @@ touch set, so frequent client activity does not become one RPC per ping.
 ```text
 EndpointsByUID(uid)
   -> authority.EndpointsByUID(uid)
+
+EndpointsByUIDs(uids)
+  -> authority.EndpointsByUIDs(uids) when the authority client exposes the
+     optional batch surface
+  -> otherwise loop through authority.EndpointsByUID(uid)
 ```
 
 Lookup stays authority-routed behind the `AuthorityClient` port.

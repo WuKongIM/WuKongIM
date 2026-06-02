@@ -47,6 +47,8 @@ type ChannelID struct {
 type SendCommand struct {
 	// FromUID is the authenticated sender uid.
 	FromUID string
+	// SenderNodeID is the owner node id that accepted the sender gateway session.
+	SenderNodeID uint64
 	// SenderSessionID is the node-local gateway session id.
 	SenderSessionID uint64
 	// ClientSeq is the client sequence echoed in Sendack.
@@ -65,6 +67,10 @@ type SendCommand struct {
 	SyncOnce bool
 	// RedDot carries the client red-dot flag for future delivery side effects.
 	RedDot bool
+	// NormalizePersonChannel requests canonical person-channel ID normalization before append.
+	NormalizePersonChannel bool
+	// MessageScopedUIDs are request-scoped one-shot delivery targets.
+	MessageScopedUIDs []string
 	// MessageID is optional and must be zero for gateway-origin sends.
 	MessageID uint64
 	// ProtocolVersion is the client protocol version.

@@ -62,6 +62,12 @@ var supportedConfigKeys = []string{
 	"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
 	"WK_PRESENCE_TOUCH_BATCH_SIZE",
 	"WK_PRESENCE_ROUTE_TTL",
+	"WK_DELIVERY_ENABLE",
+	"WK_DELIVERY_FANOUT_PAGE_SIZE",
+	"WK_DELIVERY_PUSH_BATCH_SIZE",
+	"WK_DELIVERY_PENDING_ACK_TTL",
+	"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION",
+	"WK_DELIVERY_EVENT_QUEUE_SIZE",
 }
 
 const (
@@ -431,6 +437,63 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ROUTE_TTL: value must be >= 0")
 		}
 		cfg.Presence.RouteTTL = ttl
+	}
+	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Delivery.Enabled = enabled
+	}
+	if raw := configValue(values, "WK_DELIVERY_FANOUT_PAGE_SIZE"); raw != "" {
+		pageSize, err := parseInt("WK_DELIVERY_FANOUT_PAGE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if pageSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_FANOUT_PAGE_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.FanoutPageSize = pageSize
+	}
+	if raw := configValue(values, "WK_DELIVERY_PUSH_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_DELIVERY_PUSH_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PUSH_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.PushBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_DELIVERY_PENDING_ACK_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_DELIVERY_PENDING_ACK_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PENDING_ACK_TTL: value must be >= 0")
+		}
+		cfg.Delivery.PendingAckTTL = ttl
+	}
+	if raw := configValue(values, "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"); raw != "" {
+		maxPending, err := parseInt("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxPending < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION: value must be >= 0")
+		}
+		cfg.Delivery.PendingAckMaxPerSession = maxPending
+	}
+	if raw := configValue(values, "WK_DELIVERY_EVENT_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_DELIVERY_EVENT_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_EVENT_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.EventQueueSize = queueSize
 	}
 
 	return cfg, nil

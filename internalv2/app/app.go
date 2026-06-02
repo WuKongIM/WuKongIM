@@ -15,8 +15,10 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -53,25 +55,34 @@ type Option func(*App)
 
 // App is the internalv2 composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg               Config
-	cluster           ClusterRuntime
-	api               APIRuntime
-	gateway           GatewayRuntime
-	handler           *accessgateway.Handler
-	messages          *message.App
-	presence          *presence.App
-	online            *online.Registry
-	presenceDirectory *authoritypresence.Directory
-	presenceWorker    WorkerRuntime
-	metrics           *obsmetrics.Registry
+	cfg             Config
+	cluster         ClusterRuntime
+	api             APIRuntime
+	gateway         GatewayRuntime
+	handler         *accessgateway.Handler
+	messages        *message.App
+	delivery        *deliveryusecase.App
+	deliveryManager *runtimedelivery.Manager
+	deliverySink    *deliveryAsyncSink
+	deliveryRetry   *runtimedelivery.RetryScheduler
+	deliveryWorker  WorkerRuntime
+	// deliverySubscribers scans durable non-person channel subscribers when provided.
+	deliverySubscribers runtimedelivery.ChannelSubscriberSource
+	presence            *presence.App
+	online              *online.Registry
+	presenceDirectory   *authoritypresence.Directory
+	presenceWorker      WorkerRuntime
+	metrics             *obsmetrics.Registry
 
 	lifecycleMu     sync.Mutex
 	started         bool
 	stopped         bool
 	clusterStarted  bool
 	presenceStarted bool
+	deliveryStarted bool
 	apiStarted      bool
 	gatewayStarted  bool
+	deliveryErrors  atomic.Uint64
 }
 
 // New creates an internalv2 App.
@@ -79,6 +90,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app := &App{cfg: cfg}
 	app.cfg.Presence = defaultPresenceConfig(app.cfg.Presence)
 	if err := validatePresenceConfig(app.cfg.Presence); err != nil {
+		return nil, err
+	}
+	app.cfg.Delivery = defaultDeliveryConfig(app.cfg.Delivery)
+	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
 		return nil, err
 	}
 	clusterCfg := defaultClusterConfig(cfg)
@@ -99,17 +114,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			return nil, err
 		}
 		app.cluster = node
-		app.messages = message.New(message.Options{
-			Appender:  clusterinfra.NewChannelAppender(node),
-			MessageID: newNodeMessageIDs(clusterCfg.NodeID),
-		})
-	}
-	if app.messages == nil {
-		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
-		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
-			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
-		}
-		app.messages = message.New(messageOpts)
 	}
 	if app.online == nil {
 		app.online = online.NewRegistry(online.RegistryOptions{})
@@ -155,8 +159,96 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			})
 		}
 	}
+	if app.cfg.Delivery.Enabled && app.delivery == nil {
+		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL}
+		deliveryObserver := app.deliveryObserver()
+		var push runtimedelivery.Pusher = localPusher
+		var fanoutRemote runtimedelivery.FanoutTaskForwarder
+		var localNodeID uint64
+		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
+			localNodeID = presenceNode.NodeID()
+			nodeClient := accessnode.NewClient(presenceNode)
+			push = clusterinfra.NewDeliveryPusher(localNodeID, localPusher, nodeClient)
+			fanoutRemote = nodeClient
+		}
+		var partitioner runtimedelivery.Partitioner
+		if routes, ok := app.cluster.(clusterWriteReadyRuntime); ok {
+			partitioner = clusterinfra.NewDeliveryPartitioner(routes)
+		}
+		fanoutWorker := runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
+			Subscribers: appSubscriberPlanner{
+				channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
+					Source: app.deliverySubscribers,
+				}),
+			},
+			Presence:      presenceResolverAdapter{presence: app.presence},
+			Push:          push,
+			PageSize:      app.cfg.Delivery.FanoutPageSize,
+			PushBatchSize: app.cfg.Delivery.PushBatchSize,
+			Observer:      deliveryObserver,
+		})
+		var fanoutRunner runtimedelivery.FanoutTaskRunner = fanoutWorker
+		if localNodeID != 0 {
+			fanoutRunner = runtimedelivery.NewFanoutTaskRouter(runtimedelivery.FanoutTaskRouterOptions{
+				LocalNodeID: localNodeID,
+				Local:       fanoutWorker,
+				Remote:      fanoutRemote,
+				Observer:    deliveryObserver,
+			})
+		}
+		var retryObserver runtimedelivery.RetryObserver
+		if observer, ok := deliveryObserver.(runtimedelivery.RetryObserver); ok {
+			retryObserver = observer
+		}
+		retryScheduler := runtimedelivery.NewRetryScheduler(runtimedelivery.RetrySchedulerOptions{
+			Runner:      fanoutRunner,
+			Capacity:    app.cfg.Delivery.EventQueueSize,
+			MaxAttempts: defaultDeliveryRetryMaxAttempts,
+			Backoff:     defaultDeliveryRetryBackoff,
+			Observer:    retryObserver,
+		})
+		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
+			Runner:  retryScheduler,
+			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
+				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
+			}),
+		})
+		localPusher.delivery = manager
+		app.deliveryManager = manager
+		app.deliveryRetry = retryScheduler
+		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
+		if app.deliverySink == nil {
+			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError, app.recordDeliveryQueue)
+		}
+		if app.deliveryWorker == nil {
+			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, app.deliverySink}
+		}
+		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
+			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})
+			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
+			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
+		}
+	}
+	if app.messages == nil {
+		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
+		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
+			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
+		}
+		if app.cfg.Delivery.Enabled {
+			messageOpts.Committed = deliveryCommittedSink{delivery: app.deliverySink}
+			messageOpts.Observer = deliveryMessageObserver{app: app}
+		}
+		app.messages = message.New(messageOpts)
+	}
 	if app.handler == nil {
-		app.handler = accessgateway.New(accessgateway.Options{Messages: app.messages, Presence: app.gatewayPresenceUsecase(), SendTimeout: cfg.Gateway.SendTimeout})
+		app.handler = accessgateway.New(accessgateway.Options{
+			Messages:    app.messages,
+			Presence:    app.gatewayPresenceUsecase(),
+			Delivery:    app.delivery,
+			OwnerNodeID: clusterCfg.NodeID,
+			SendTimeout: cfg.Gateway.SendTimeout,
+		})
 	}
 	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
 		app.api = accessapi.New(accessapi.Options{
@@ -219,6 +311,11 @@ func WithOnlineRegistry(reg *online.Registry) Option {
 	return func(a *App) { a.online = reg }
 }
 
+// WithDeliverySubscriberSource overrides the durable subscriber source used by delivery fanout.
+func WithDeliverySubscriberSource(source runtimedelivery.ChannelSubscriberSource) Option {
+	return func(a *App) { a.deliverySubscribers = source }
+}
+
 // Handler returns the gateway access handler.
 func (a *App) Handler() *accessgateway.Handler {
 	if a == nil {
@@ -233,6 +330,14 @@ func (a *App) Messages() *message.App {
 		return nil
 	}
 	return a.messages
+}
+
+// Delivery returns the delivery usecase app.
+func (a *App) Delivery() *deliveryusecase.App {
+	if a == nil {
+		return nil
+	}
+	return a.delivery
 }
 
 func (a *App) metricsHandler() http.Handler {

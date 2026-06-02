@@ -43,12 +43,55 @@ Supported owner calls:
 
 - `ApplyRouteAction(RouteAction)`
 
+## Delivery Push RPC
+
+```text
+remote delivery client
+  -> encode W K V D 1 request
+  -> clusterv2 RPCDeliveryPush
+  -> Adapter.HandleDeliveryPushRPC
+  -> DeliveryOwnerPush.Push
+  -> encode W K V d 1 response
+```
+
+Delivery push requests carry one `runtime/delivery.PushCommand` in the stable
+field order `OwnerNodeID`, `Envelope`, and `Routes`. The envelope includes the
+committed message identifiers, sender echo-suppression fields, payload, red-dot
+flag, and request-scoped UIDs. Responses carry status plus accepted, retryable,
+and dropped route groups.
+
+## Delivery Fanout RPC
+
+```text
+remote delivery fanout router
+  -> encode W K V F 1 request
+  -> clusterv2 RPCDeliveryFanout
+  -> Adapter.HandleDeliveryFanoutRPC
+  -> DeliveryFanoutRunner.RunTask
+  -> encode W K V f 1 response
+```
+
+Delivery fanout requests carry one `runtime/delivery.FanoutTask` in the stable
+field order `Envelope`, `Partition`, `Cursor`, and `Attempt`. The receiving
+node runs only the subscriber fanout task; owner-node delivery still uses the
+separate Delivery Push RPC after presence resolution.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
 
 - Request: `W K V P 2`
 - Response: `W K V R 2`
+
+Delivery push RPC uses fixed magic headers:
+
+- Request: `W K V D 1`
+- Response: `W K V d 1`
+
+Delivery fanout RPC uses fixed magic headers:
+
+- Request: `W K V F 1`
+- Response: `W K V f 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -65,10 +108,17 @@ Stable response statuses are:
 - `route_not_ready`
 - `rejected`
 
+Delivery push and fanout responses currently use:
+
+- `ok`
+- `rejected`
+
 ## Boundaries
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
-  presence sentinel errors, and the clusterv2 RPC service IDs.
+  presence sentinel errors, runtime delivery DTOs, and the clusterv2 RPC
+  service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not mutate local gateway sessions or authority runtime
-  state except through the `PresenceAuthority` and `PresenceOwner` interfaces.
+  state except through the `PresenceAuthority`, `PresenceOwner`, and
+  `DeliveryOwnerPush` / `DeliveryFanoutRunner` interfaces.

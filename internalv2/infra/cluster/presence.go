@@ -179,6 +179,22 @@ func (c *PresenceAuthorityClient) EndpointsByUID(ctx context.Context, uid string
 	return routes, nil
 }
 
+// EndpointsByUIDs reads active authority routes for multiple UIDs.
+func (c *PresenceAuthorityClient) EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]presence.Route, error) {
+	out := make(map[string][]presence.Route, len(uids))
+	for _, uid := range uids {
+		if uid == "" {
+			continue
+		}
+		routes, err := c.EndpointsByUID(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		out[uid] = append(out[uid], routes...)
+	}
+	return out, nil
+}
+
 // TouchRoutesTo refreshes owner routes in a specific observed authority epoch.
 func (c *PresenceAuthorityClient) TouchRoutesTo(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
 	authority, err := c.authorityForTarget(target)

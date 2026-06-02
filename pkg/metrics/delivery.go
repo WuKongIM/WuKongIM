@@ -15,7 +15,7 @@ type DeliverySnapshot struct {
 	AckBindings int64
 }
 
-// DeliveryMetrics exposes route resolution, push RPC, actor, and expiry metrics.
+// DeliveryMetrics exposes delivery queue, fanout, route resolution, push RPC, actor, and expiry metrics.
 type DeliveryMetrics struct {
 	resolveDuration    *prometheus.HistogramVec
 	resolvePagesTotal  *prometheus.CounterVec
@@ -23,6 +23,12 @@ type DeliveryMetrics struct {
 	pushRPCTotal       *prometheus.CounterVec
 	pushRPCDuration    *prometheus.HistogramVec
 	pushRPCRoutesTotal *prometheus.CounterVec
+	eventQueueTotal    *prometheus.CounterVec
+	errorsTotal        *prometheus.CounterVec
+	fanoutTaskTotal    *prometheus.CounterVec
+	fanoutTaskDuration *prometheus.HistogramVec
+	retryTotal         *prometheus.CounterVec
+	retryQueueDepth    prometheus.Gauge
 	actorInflight      prometheus.Gauge
 	ackBindings        prometheus.Gauge
 	routeExpiredTotal  *prometheus.CounterVec
@@ -65,6 +71,37 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Help:        "Total number of routes sent by delivery push RPC.",
 			ConstLabels: labels,
 		}, []string{"target_node", "result"}),
+		eventQueueTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_event_queue_total",
+			Help:        "Total number of delivery committed-event queue submit attempts.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		errorsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_errors_total",
+			Help:        "Total number of normalized delivery errors.",
+			ConstLabels: labels,
+		}, []string{"class"}),
+		fanoutTaskTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_fanout_task_total",
+			Help:        "Total number of delivery fanout task routing attempts.",
+			ConstLabels: labels,
+		}, []string{"target_node", "result"}),
+		fanoutTaskDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_fanout_task_duration_seconds",
+			Help:        "Delivery fanout task routing latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"target_node", "result"}),
+		retryTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_retry_total",
+			Help:        "Total number of delivery retry scheduler events.",
+			ConstLabels: labels,
+		}, []string{"event", "result"}),
+		retryQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_retry_queue_depth",
+			Help:        "Current number of fanout tasks waiting in the delivery retry queue.",
+			ConstLabels: labels,
+		}),
 		actorInflight: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_delivery_actor_inflight_routes",
 			Help:        "Current number of in-flight routes held by delivery actors.",
@@ -89,6 +126,12 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.pushRPCTotal,
 		m.pushRPCDuration,
 		m.pushRPCRoutesTotal,
+		m.eventQueueTotal,
+		m.errorsTotal,
+		m.fanoutTaskTotal,
+		m.fanoutTaskDuration,
+		m.retryTotal,
+		m.retryQueueDepth,
 		m.actorInflight,
 		m.ackBindings,
 		m.routeExpiredTotal,
@@ -115,6 +158,51 @@ func (m *DeliveryMetrics) ObservePushRPC(targetNode, result string, dur time.Dur
 	m.pushRPCTotal.WithLabelValues(targetNode, result).Inc()
 	m.pushRPCDuration.WithLabelValues(targetNode, result).Observe(dur.Seconds())
 	m.pushRPCRoutesTotal.WithLabelValues(targetNode, result).Add(float64(routes))
+}
+
+// ObserveEventQueue records a committed-event queue submit result.
+func (m *DeliveryMetrics) ObserveEventQueue(result string) {
+	if m == nil {
+		return
+	}
+	m.eventQueueTotal.WithLabelValues(normalizeDeliveryLabel(result, "unknown")).Inc()
+}
+
+// ObserveError records a normalized delivery error class.
+func (m *DeliveryMetrics) ObserveError(class string) {
+	if m == nil {
+		return
+	}
+	m.errorsTotal.WithLabelValues(normalizeDeliveryLabel(class, "unknown")).Inc()
+}
+
+// ObserveFanoutTask records one fanout task routing attempt.
+func (m *DeliveryMetrics) ObserveFanoutTask(targetNode, result string, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	targetNode = normalizeDeliveryLabel(targetNode, "0")
+	result = normalizeDeliveryLabel(result, "unknown")
+	m.fanoutTaskTotal.WithLabelValues(targetNode, result).Inc()
+	m.fanoutTaskDuration.WithLabelValues(targetNode, result).Observe(dur.Seconds())
+}
+
+// ObserveRetry records one delivery retry scheduler event.
+func (m *DeliveryMetrics) ObserveRetry(event, result string) {
+	if m == nil {
+		return
+	}
+	event = normalizeDeliveryLabel(event, "unknown")
+	result = normalizeDeliveryLabel(result, "unknown")
+	m.retryTotal.WithLabelValues(event, result).Inc()
+}
+
+// SetRetryQueueDepth sets the current delivery retry queue depth.
+func (m *DeliveryMetrics) SetRetryQueueDepth(depth int) {
+	if m == nil {
+		return
+	}
+	m.retryQueueDepth.Set(float64(depth))
 }
 
 // SetActorInflightRoutes sets the current number of in-flight delivery actor routes.
@@ -158,4 +246,11 @@ func (m *DeliveryMetrics) Snapshot() DeliverySnapshot {
 		ActorInflightRoutes: m.actorInflightV,
 		AckBindings:         m.ackBindingsV,
 	}
+}
+
+func normalizeDeliveryLabel(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
 }
