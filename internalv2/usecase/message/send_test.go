@@ -397,6 +397,7 @@ func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 
 	result, err := app.Send(context.Background(), SendCommand{
 		FromUID:         "u1",
+		SenderNodeID:    7,
 		SenderSessionID: 42,
 		ClientMsgNo:     "client-1",
 		ChannelID:       "g1",
@@ -416,6 +417,9 @@ func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 	event := committed.events[0]
 	if event.SenderSessionID != 42 {
 		t.Fatalf("SenderSessionID = %d, want 42", event.SenderSessionID)
+	}
+	if event.SenderNodeID != 7 {
+		t.Fatalf("SenderNodeID = %d, want 7", event.SenderNodeID)
 	}
 	if !event.RedDot {
 		t.Fatalf("RedDot = false, want true")

@@ -217,6 +217,7 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended App
 		ChannelID:       cmd.ChannelID,
 		ChannelType:     cmd.ChannelType,
 		FromUID:         cmd.FromUID,
+		SenderNodeID:    cmd.SenderNodeID,
 		SenderSessionID: cmd.SenderSessionID,
 		ClientMsgNo:     cmd.ClientMsgNo,
 		Payload:         cloneBytes(appended.Message.Payload),

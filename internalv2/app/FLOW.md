@@ -3,11 +3,12 @@
 ## Responsibility
 
 `internalv2/app` is the only composition root for the new skeleton. It wires
-phase-1 config, `pkg/clusterv2`, the message usecase, the presence usecase, the
-gateway handler, the optional HTTP API runtime, the optional Prometheus metrics
-registry, and the optional gateway runtime. The phase-1 runtime supports
+phase-1 config, `pkg/clusterv2`, the message usecase, the optional delivery
+usecase/runtime, the presence usecase, the gateway handler, the optional HTTP
+API runtime, the optional Prometheus metrics registry, and the optional gateway
+runtime. The phase-1 runtime supports
 single-node clusters and static multi-node clusters for the `SEND -> SENDACK`
-write path and UID connection-route authority.
+write path, UID connection-route authority, and opt-in local online delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -20,17 +21,35 @@ New(Config)
   -> create metrics registry and runtime observers when Observability.MetricsEnabled=true
      (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, and message DB grouped commits)
   -> create clusterv2.Node when no ClusterRuntime override is provided
-  -> create message.App with clusterv2 ChannelAppender and node-scoped IDs
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
        and access/node presence RPC adapter
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
+  -> when Delivery.Enabled=true:
+       create runtime/delivery Manager with a no-op subscriber planner,
+       presence resolver, and local/cluster delivery pusher
+       create usecase/delivery.App backed by the manager
+       register the delivery push RPC handler when node RPC is available
+  -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
+     and delivery committed sink only when delivery is enabled and messages
+     were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server with optional bench presence snapshot controller when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
+
+`Delivery.Enabled` defaults to false. With delivery disabled, committed message
+events are not emitted to the delivery runtime and the existing `SEND ->
+SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
+session close feedback flows to the delivery usecase, and owner-local pushes
+write `RecvPacket` values through `online.SessionHandle.WriteDelivery`.
+
+The current app subscriber planner is intentionally no-op for unscoped channel
+fanout. Scoped UID delivery can still flow through presence resolution and the
+local or RPC owner pusher; durable subscriber storage is outside this wiring
+step.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real
@@ -66,6 +85,7 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
+The delivery manager is synchronous in this phase and has no lifecycle worker.
 
 ## Presence Touch Worker
 

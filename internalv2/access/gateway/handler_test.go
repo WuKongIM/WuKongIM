@@ -7,6 +7,7 @@ import (
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -180,6 +181,32 @@ func TestHandlerOnSessionCloseCallsPresenceDeactivate(t *testing.T) {
 	}
 }
 
+func TestHandlerOnSessionCloseForwardsDeliveryWhenPresenceFails(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	presenceErr := errors.New("presence failed")
+	deliveryUsecase := &recordingDelivery{}
+	handler := New(Options{
+		Presence: &recordingPresence{deactivateErr: presenceErr},
+		Delivery: deliveryUsecase,
+	})
+
+	err := handler.OnSessionClose(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	})
+	if !errors.Is(err, presenceErr) {
+		t.Fatalf("OnSessionClose() error = %v, want joined presence error", err)
+	}
+	if len(deliveryUsecase.closedCommands) != 1 {
+		t.Fatalf("delivery session closed commands = %d, want 1", len(deliveryUsecase.closedCommands))
+	}
+	cmd := deliveryUsecase.closedCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("delivery session closed command = %#v", cmd)
+	}
+}
+
 func TestHandlerOnSessionActivateRollbackCallsPresenceDeactivate(t *testing.T) {
 	sess := newTestSession(t, nil)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
@@ -212,7 +239,7 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 			Reason:     message.ReasonSuccess,
 		},
 	}
-	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
 	pkt := &frame.SendPacket{
 		Framer: frame.Framer{
 			NoPersist: true,
@@ -237,8 +264,8 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
 	}
 	cmd := usecase.sendCommands[0]
-	if cmd.FromUID != "u1" || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
-		t.Fatalf("mapped sender fields = uid=%q session=%d version=%d", cmd.FromUID, cmd.SenderSessionID, cmd.ProtocolVersion)
+	if cmd.FromUID != "u1" || cmd.SenderNodeID != 9 || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
+		t.Fatalf("mapped sender fields = uid=%q node=%d session=%d version=%d", cmd.FromUID, cmd.SenderNodeID, cmd.SenderSessionID, cmd.ProtocolVersion)
 	}
 	if cmd.ClientSeq != pkt.ClientSeq || cmd.ClientMsgNo != pkt.ClientMsgNo || cmd.ChannelID != pkt.ChannelID || cmd.ChannelType != pkt.ChannelType {
 		t.Fatalf("mapped packet fields = %#v, want packet fields from %#v", cmd, pkt)
@@ -263,6 +290,28 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonSuccess)
+	}
+}
+
+func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	deliveryUsecase := &recordingDelivery{}
+	handler := New(Options{Delivery: deliveryUsecase})
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, &frame.RecvackPacket{MessageID: 77, MessageSeq: 8})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(deliveryUsecase.recvackCommands) != 1 {
+		t.Fatalf("recvack commands = %d, want 1", len(deliveryUsecase.recvackCommands))
+	}
+	cmd := deliveryUsecase.recvackCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() || cmd.MessageID != 77 || cmd.MessageSeq != 8 {
+		t.Fatalf("recvack command = %#v", cmd)
 	}
 }
 
@@ -446,7 +495,7 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 			{Result: message.SendResult{Reason: message.ReasonNodeNotMatch}},
 		},
 	}
-	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
 	items := []coregateway.SendBatchItem{
 		{
 			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
@@ -468,6 +517,9 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	}
 	if usecase.batchItems[0].Command.ClientMsgNo != "a" || usecase.batchItems[1].Command.ClientMsgNo != "b" {
 		t.Fatalf("batch commands not aligned: %#v", usecase.batchItems)
+	}
+	if usecase.batchItems[0].Command.SenderNodeID != 9 || usecase.batchItems[1].Command.SenderNodeID != 9 {
+		t.Fatalf("batch sender node ids = %d,%d want 9", usecase.batchItems[0].Command.SenderNodeID, usecase.batchItems[1].Command.SenderNodeID)
 	}
 	if usecase.batchItems[1].Context == nil {
 		t.Fatalf("batch item context with reply token is nil")
@@ -740,6 +792,23 @@ func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (m
 		err = m.errs[index]
 	}
 	return result, err
+}
+
+type recordingDelivery struct {
+	recvackErr      error
+	closedErr       error
+	recvackCommands []delivery.RecvackCommand
+	closedCommands  []delivery.SessionClosedCommand
+}
+
+func (d *recordingDelivery) Recvack(_ context.Context, cmd delivery.RecvackCommand) error {
+	d.recvackCommands = append(d.recvackCommands, cmd)
+	return d.recvackErr
+}
+
+func (d *recordingDelivery) SessionClosed(_ context.Context, cmd delivery.SessionClosedCommand) error {
+	d.closedCommands = append(d.closedCommands, cmd)
+	return d.closedErr
 }
 
 type recordingPresence struct {

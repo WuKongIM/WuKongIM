@@ -38,6 +38,8 @@ type Config struct {
 	Message MessageConfig
 	// Presence configures connection-route activation and authority touch behavior.
 	Presence PresenceConfig
+	// Delivery configures online message delivery fanout and owner-local ack tracking.
+	Delivery DeliveryConfig
 }
 
 // APIConfig contains HTTP API settings for the standalone v2 entry.
@@ -97,6 +99,18 @@ type PresenceConfig struct {
 	RouteTTL time.Duration
 }
 
+// DeliveryConfig contains online delivery fanout and recvack tracking settings.
+type DeliveryConfig struct {
+	// Enabled wires committed messages into the delivery runtime when true.
+	Enabled bool
+	// FanoutPageSize limits subscriber UIDs read by one fanout page.
+	FanoutPageSize int
+	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
+	PushBatchSize int
+	// PendingAckTTL bounds how long owner-local pending recvacks may remain tracked.
+	PendingAckTTL time.Duration
+}
+
 func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 	if cfg.ActivationTimeout == 0 {
 		cfg.ActivationTimeout = 3 * time.Second
@@ -113,6 +127,19 @@ func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 	return cfg
 }
 
+func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
+	if cfg.FanoutPageSize == 0 {
+		cfg.FanoutPageSize = 512
+	}
+	if cfg.PushBatchSize == 0 {
+		cfg.PushBatchSize = 512
+	}
+	if cfg.PendingAckTTL == 0 {
+		cfg.PendingAckTTL = 30 * time.Second
+	}
+	return cfg
+}
+
 func validatePresenceConfig(cfg PresenceConfig) error {
 	if cfg.ActivationTimeout < 0 {
 		return fmt.Errorf("%w: presence activation timeout must be non-negative", ErrInvalidConfig)
@@ -125,6 +152,19 @@ func validatePresenceConfig(cfg PresenceConfig) error {
 	}
 	if cfg.RouteTTL < 0 {
 		return fmt.Errorf("%w: presence route ttl must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateDeliveryConfig(cfg DeliveryConfig) error {
+	if cfg.FanoutPageSize < 0 {
+		return fmt.Errorf("%w: delivery fanout page size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.PushBatchSize < 0 {
+		return fmt.Errorf("%w: delivery push batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.PendingAckTTL < 0 {
+		return fmt.Errorf("%w: delivery pending ack ttl must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

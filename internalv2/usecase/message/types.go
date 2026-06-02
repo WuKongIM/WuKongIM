@@ -47,6 +47,8 @@ type ChannelID struct {
 type SendCommand struct {
 	// FromUID is the authenticated sender uid.
 	FromUID string
+	// SenderNodeID is the owner node id that accepted the sender gateway session.
+	SenderNodeID uint64
 	// SenderSessionID is the node-local gateway session id.
 	SenderSessionID uint64
 	// ClientSeq is the client sequence echoed in Sendack.

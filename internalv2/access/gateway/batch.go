@@ -26,7 +26,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			contexts[i].ReplyToken = item.ReplyToken
 		}
 		ctx := &contexts[i]
-		cmd, err := mapSendCommandForBatch(ctx, item.Frame)
+		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, false)
 		if err != nil {
 			if errors.Is(err, ErrUnauthenticatedSession) {
 				results[i].Reason = message.ReasonAuthFail

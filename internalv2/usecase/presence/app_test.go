@@ -476,4 +476,6 @@ type fakeSessionHandle struct {
 	err error
 }
 
+func (h fakeSessionHandle) WriteDelivery(any) error { return h.err }
+
 func (h fakeSessionHandle) CloseSession(string) error { return h.err }

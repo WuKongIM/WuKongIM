@@ -15,8 +15,10 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -59,6 +61,8 @@ type App struct {
 	gateway           GatewayRuntime
 	handler           *accessgateway.Handler
 	messages          *message.App
+	delivery          *deliveryusecase.App
+	deliveryManager   *runtimedelivery.Manager
 	presence          *presence.App
 	online            *online.Registry
 	presenceDirectory *authoritypresence.Directory
@@ -81,6 +85,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if err := validatePresenceConfig(app.cfg.Presence); err != nil {
 		return nil, err
 	}
+	app.cfg.Delivery = defaultDeliveryConfig(app.cfg.Delivery)
+	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
+		return nil, err
+	}
 	clusterCfg := defaultClusterConfig(cfg)
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
@@ -99,17 +107,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			return nil, err
 		}
 		app.cluster = node
-		app.messages = message.New(message.Options{
-			Appender:  clusterinfra.NewChannelAppender(node),
-			MessageID: newNodeMessageIDs(clusterCfg.NodeID),
-		})
-	}
-	if app.messages == nil {
-		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
-		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
-			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
-		}
-		app.messages = message.New(messageOpts)
 	}
 	if app.online == nil {
 		app.online = online.NewRegistry(online.RegistryOptions{})
@@ -155,8 +152,48 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			})
 		}
 	}
+	if app.cfg.Delivery.Enabled && app.delivery == nil {
+		localPusher := &localOwnerPusher{online: app.online}
+		var push runtimedelivery.Pusher = localPusher
+		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
+			push = clusterinfra.NewDeliveryPusher(presenceNode.NodeID(), localPusher, accessnode.NewClient(presenceNode))
+		}
+		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+			Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{}),
+			Worker: runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
+				Subscribers: noopSubscriberPlanner{},
+				Presence:    presenceResolverAdapter{presence: app.presence},
+				Push:        push,
+				PageSize:    app.cfg.Delivery.FanoutPageSize,
+			}),
+			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{}),
+		})
+		localPusher.delivery = manager
+		app.deliveryManager = manager
+		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
+		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
+			adapter := accessnode.New(accessnode.Options{Delivery: localPusher})
+			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
+		}
+	}
+	if app.messages == nil {
+		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
+		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
+			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
+		}
+		if app.cfg.Delivery.Enabled {
+			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
+		}
+		app.messages = message.New(messageOpts)
+	}
 	if app.handler == nil {
-		app.handler = accessgateway.New(accessgateway.Options{Messages: app.messages, Presence: app.gatewayPresenceUsecase(), SendTimeout: cfg.Gateway.SendTimeout})
+		app.handler = accessgateway.New(accessgateway.Options{
+			Messages:    app.messages,
+			Presence:    app.gatewayPresenceUsecase(),
+			Delivery:    app.delivery,
+			OwnerNodeID: clusterCfg.NodeID,
+			SendTimeout: cfg.Gateway.SendTimeout,
+		})
 	}
 	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
 		app.api = accessapi.New(accessapi.Options{
@@ -233,6 +270,14 @@ func (a *App) Messages() *message.App {
 		return nil
 	}
 	return a.messages
+}
+
+// Delivery returns the delivery usecase app.
+func (a *App) Delivery() *deliveryusecase.App {
+	if a == nil {
+		return nil
+	}
+	return a.delivery
 }
 
 func (a *App) metricsHandler() http.Handler {

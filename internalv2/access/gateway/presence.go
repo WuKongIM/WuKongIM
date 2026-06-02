@@ -104,6 +104,18 @@ type gatewayPresenceSession struct {
 
 var _ presence.SessionHandle = gatewayPresenceSession{}
 
+// WriteDelivery writes a server-push frame to the concrete gateway session.
+func (s gatewayPresenceSession) WriteDelivery(payload any) error {
+	f, ok := payload.(frame.Frame)
+	if !ok {
+		return errors.New("internalv2/access/gateway: delivery payload must be a frame")
+	}
+	if s.ctx == nil || s.ctx.Session == nil {
+		return session.ErrSessionClosed
+	}
+	return s.ctx.Session.WriteFrame(f)
+}
+
 // CloseSession closes the concrete gateway session using the core close path when present.
 func (s gatewayPresenceSession) CloseSession(reason string) error {
 	if s.ctx == nil {

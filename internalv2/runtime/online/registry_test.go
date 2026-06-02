@@ -223,4 +223,6 @@ func TestRegistryRequeueTouchedSkipsDifferentUID(t *testing.T) {
 
 type fakeSessionHandle struct{}
 
+func (fakeSessionHandle) WriteDelivery(any) error { return nil }
+
 func (fakeSessionHandle) CloseSession(string) error { return nil }

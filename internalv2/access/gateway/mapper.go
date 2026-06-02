@@ -7,14 +7,14 @@ import (
 )
 
 func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, true)
+	return mapSendCommandWithPayload(ctx, pkt, 0, true)
 }
 
 func mapSendCommandForBatch(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, false)
+	return mapSendCommandWithPayload(ctx, pkt, 0, false)
 }
 
-func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, clonePayload bool) (message.SendCommand, error) {
+func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, clonePayload bool) (message.SendCommand, error) {
 	if ctx == nil || ctx.Session == nil {
 		return message.SendCommand{}, ErrUnauthenticatedSession
 	}
@@ -30,6 +30,7 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 
 	cmd := message.SendCommand{
 		FromUID:         fromUID,
+		SenderNodeID:    ownerNodeID,
 		SenderSessionID: ctx.Session.ID(),
 		ProtocolVersion: protocolVersion,
 	}

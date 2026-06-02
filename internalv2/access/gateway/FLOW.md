@@ -19,6 +19,8 @@ OnSessionActivate(Context)
 OnSessionClose(Context)
   -> map UID and sessionID into presence.DeactivateCommand
   -> call presence.Deactivate
+  -> map UID and sessionID into delivery.SessionClosedCommand when delivery is configured
+  -> call delivery.SessionClosed even when presence deactivation fails
 
 OnSessionActivateRollback(Context, err)
   -> map UID and sessionID into presence.DeactivateCommand
@@ -30,6 +32,7 @@ OnSessionActivateRollback(Context, err)
 ```text
 OnFrame(SendPacket)
   -> map session and frame fields into message.SendCommand
+  -> stamp the configured owner node id for sender echo suppression
   -> call message.Send
   -> map usecase result/error to frame.ReasonCode
   -> write SendackPacket
@@ -44,11 +47,18 @@ OnSendBatch([]SendBatchItem)
 OnFrame(PingPacket)
   -> best-effort touch presence activity for the gateway session
   -> write PongPacket on the same gateway session
+
+OnFrame(RecvackPacket)
+  -> require an authenticated UID and positive message id
+  -> map session id, message id, and message seq into delivery.RecvackCommand
+  -> call delivery.Recvack when delivery is configured
 ```
 
 Unauthenticated sends and nil message usecases are converted into sendacks
-instead of raw protocol errors. Unsupported frames other than SEND and PING
-still return `ErrUnsupportedFrame`.
+instead of raw protocol errors. Unsupported frames other than SEND, PING, and
+RECVACK still return `ErrUnsupportedFrame`. Stale or malformed RECVACK frames
+are treated as best-effort delivery feedback and ignored without protocol
+noise.
 
 Missing UID during session activation returns `ErrUnauthenticatedSession` to
 gateway core; the adapter does not write CONNACK directly.
@@ -59,6 +69,8 @@ gateway core; the adapter does not write CONNACK directly.
 - This package must not import `pkg/clusterv2` or `pkg/channelv2`.
 - Presence activation only maps gateway Context/session values into usecase
   commands. Authority, conflict, and route policy stay in the presence usecase.
+- Delivery feedback only maps gateway Context/session values into delivery
+  commands. Fanout, ack tracking, and local push policy stay outside gateway.
 - Single-frame SEND payloads are cloned while mapping so later frame reuse
   cannot mutate usecase commands. Batched SEND keeps the async-dispatch-owned
   frame payload until `internalv2/usecase/message` clones at the append boundary.
