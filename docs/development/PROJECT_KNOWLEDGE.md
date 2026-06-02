@@ -11,6 +11,7 @@
 - `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus low-frequency recovery probes, not short-interval empty pull polling.
 - `clusterv2/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
+- `internalv2/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 
 ## Channel Runtime
 
