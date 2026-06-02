@@ -41,6 +41,11 @@ const (
 	DeliveryFanoutPathLocal = "local"
 	// DeliveryFanoutPathRemote reports a fanout task forwarded to another authority node.
 	DeliveryFanoutPathRemote = "remote"
+
+	// ManagerEventAdmission reports manager queue admission decisions.
+	ManagerEventAdmission = "admission"
+	// ManagerEventTerminal reports terminal outcomes for accepted manager work.
+	ManagerEventTerminal = "terminal"
 )
 
 // Observer receives synchronous delivery fanout observations.
@@ -48,6 +53,30 @@ type Observer interface {
 	ObserveFanoutTask(FanoutTaskEvent)
 	ObserveFanoutResolve(FanoutResolveEvent)
 	ObserveFanoutPush(FanoutPushEvent)
+}
+
+// ManagerObserver receives bounded manager admission and terminal observations.
+type ManagerObserver interface {
+	ObserveManagerAdmission(ManagerAdmissionEvent)
+	ObserveManagerTerminal(ManagerTerminalEvent)
+}
+
+// ManagerAdmissionEvent describes one manager admission decision.
+type ManagerAdmissionEvent struct {
+	// Result is accepted, overflow, or closed.
+	Result string
+	// QueueDepth is the current async manager queue depth after the decision.
+	QueueDepth int
+}
+
+// ManagerTerminalEvent describes the final outcome for accepted manager work.
+type ManagerTerminalEvent struct {
+	// Result is ok, error, cancelled, or dropped.
+	Result string
+	// ErrorClass is the normalized delivery error class.
+	ErrorClass string
+	// QueueDepth is the current async manager queue depth after the event.
+	QueueDepth int
 }
 
 // FanoutTaskEvent describes one fanout task routing attempt.
