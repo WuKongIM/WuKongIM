@@ -240,7 +240,26 @@ func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messa
 	if a.manager == nil {
 		return nil
 	}
+	event = scopePersonDeliveryEvent(event)
 	return a.manager.SubmitCommitted(ctx, event)
+}
+
+// scopePersonDeliveryEvent narrows person-channel fanout to the two channel participants.
+func scopePersonDeliveryEvent(event messageevents.MessageCommitted) messageevents.MessageCommitted {
+	if event.ChannelType != frame.ChannelTypePerson || len(event.MessageScopedUIDs) > 0 {
+		return event
+	}
+	left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
+	if err != nil {
+		return event
+	}
+	if left != "" {
+		event.MessageScopedUIDs = append(event.MessageScopedUIDs, left)
+	}
+	if right != "" && right != left {
+		event.MessageScopedUIDs = append(event.MessageScopedUIDs, right)
+	}
+	return event
 }
 
 func (a deliveryRuntimeAdapter) Recvack(ctx context.Context, cmd deliveryusecase.RecvackCommand) error {

@@ -3,6 +3,41 @@
 This document records issues found while running the Docker Compose `wk-sim`
 load loop. Keep entries concise so the final review is easy to scan.
 
+## 2026-06-02 internalv2 Three-Node Delivery Person Bench
+
+Environment:
+- Worktree branch: `codex/internalv2-message-delivery`.
+- Local `cmd/wukongimv2` three-node cluster, clean data, delivery enabled,
+  started by `scripts/start-wukongimv2-three-nodes.sh`.
+- Evidence:
+  - `docs/development/perf-runs/20260602-151403-three-node-delivery-person-smoke/`
+  - `docs/development/perf-runs/20260602-151536-three-node-delivery-person-100qps/`
+  - `docs/development/perf-runs/20260602-152006-three-node-delivery-person-100qps-fixed/`
+
+Findings:
+- Clean 10 QPS person capacity smoke passed: `scheduled=50`, `success=50`,
+  `errors=0`, `backlog=0`, `p99=39.475917ms`.
+- Clean 100 QPS target before the fix passed at the client layer but metrics
+  exposed duplicate delivery work: delivery event queue total was `1100`,
+  while `fanout_task_total`, `resolve_pages_total`, and push routes were `3300`.
+- Root cause: unscoped person-channel committed events entered authority
+  partition planning before the app derived the two participants. With three
+  partitions, each person message created three scoped fanout tasks.
+- Fix: the internalv2 app delivery adapter now scopes person-channel committed
+  events to both participants before handing them to the delivery manager.
+- Clean 100 QPS target after the fix passed: `scheduled=1000`, `success=1000`,
+  `errors=0`, `backlog=0`, `p99=78.713667ms`. Metrics showed
+  `event_queue_total=1092`, `fanout_task_total=1092`,
+  `push_rpc_routes_total=1092`, `resolve_routes_total=2184`, no delivery
+  errors or retries, and retry queue depth stayed `0`.
+
+Classification:
+- Category: delivery planning code defect fixed; no tuning change was made.
+- Follow-up: use these delivery-specific metrics as the acceptance gate for the
+  next group fanout pressure run: event queue and fanout task counts should
+  match the expected fanout shape, retry queues should drain to zero, and
+  normalized delivery errors should remain empty.
+
 ## 2026-06-02 wukongimv2 Three-Node Presence Local Bench
 
 Environment:

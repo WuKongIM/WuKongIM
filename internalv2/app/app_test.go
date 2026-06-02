@@ -297,6 +297,47 @@ func TestAppSubscriberPlannerReturnsPersonChannelUIDs(t *testing.T) {
 	}
 }
 
+func TestDeliveryRuntimeAdapterScopesPersonChannelAcrossPartitions(t *testing.T) {
+	runner := &appRecordingFanoutRunner{}
+	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+		Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{
+			Partitioner: appStaticDeliveryPartitioner{
+				partitions: []runtimedelivery.Partition{
+					{ID: 1, LeaderNodeID: 1},
+					{ID: 2, LeaderNodeID: 2},
+					{ID: 3, LeaderNodeID: 3},
+				},
+			},
+		}),
+		Runner: runner,
+	})
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+
+	err := deliveryRuntimeAdapter{manager: manager}.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		MessageID:   1,
+		MessageSeq:  1,
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		FromUID:     "u1",
+	})
+	if err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if len(runner.tasks) != 1 {
+		t.Fatalf("fanout tasks = %d, want 1 scoped person task", len(runner.tasks))
+	}
+	got := runner.tasks[0].Envelope.MessageScopedUIDs
+	if len(got) != 2 {
+		t.Fatalf("MessageScopedUIDs = %#v, want two participants", got)
+	}
+	want := map[string]bool{"u1": true, "u2": true}
+	for _, uid := range got {
+		if !want[uid] {
+			t.Fatalf("unexpected scoped UID %q in %#v", uid, got)
+		}
+	}
+}
+
 func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
@@ -1745,6 +1786,23 @@ type failingDeliveryRuntime struct {
 type fakeDeliverySubscriberSource struct {
 	requests []runtimedelivery.SubscriberPageRequest
 	pages    []runtimedelivery.UIDPage
+}
+
+type appStaticDeliveryPartitioner struct {
+	partitions []runtimedelivery.Partition
+}
+
+func (p appStaticDeliveryPartitioner) Partitions(context.Context) ([]runtimedelivery.Partition, error) {
+	return append([]runtimedelivery.Partition(nil), p.partitions...), nil
+}
+
+type appRecordingFanoutRunner struct {
+	tasks []runtimedelivery.FanoutTask
+}
+
+func (r *appRecordingFanoutRunner) RunTask(_ context.Context, task runtimedelivery.FanoutTask) error {
+	r.tasks = append(r.tasks, task)
+	return nil
 }
 
 func (s *fakeDeliverySubscriberSource) ListSubscribers(_ context.Context, req runtimedelivery.SubscriberPageRequest) (runtimedelivery.UIDPage, error) {

@@ -56,11 +56,14 @@ a bounded in-memory retry scheduler with a small fixed attempt cap; queue
 overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket`
 values through `online.SessionHandle.WriteDelivery`.
 
-The app subscriber planner derives both UIDs for person channels. For
-non-person unscoped channel fanout it delegates to an optional durable
-subscriber source; without that source the scan remains a terminal empty page.
-Scoped UID delivery still bypasses subscriber scan and flows through presence
-resolution plus the local or RPC owner pusher.
+The delivery adapter scopes unscoped person-channel committed events to the two
+channel participants before they enter runtime partition planning. This keeps a
+person message to one scoped fanout task instead of one task per authority
+partition. The app subscriber planner still derives both UIDs for direct
+person-channel scans. For non-person unscoped channel fanout it delegates to an
+optional durable subscriber source; without that source the scan remains a
+terminal empty page. Scoped UID delivery still bypasses subscriber scan and
+flows through presence resolution plus the local or RPC owner pusher.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
