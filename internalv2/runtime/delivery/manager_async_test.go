@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
@@ -91,18 +92,18 @@ func TestManagerAsyncStopRejectsNewSubmits(t *testing.T) {
 }
 
 func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
+	previousProcs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previousProcs)
+
 	manager := NewManager(ManagerOptions{
 		Planner:        NewPlanner(PlannerOptions{}),
 		Runner:         recordingManagerRunner{},
 		AsyncQueueSize: 2,
 		AsyncWorkers:   1,
 	})
-	done := make(chan struct{})
-	manager.async.mu.Lock()
-	manager.async.state = managerStateOpen
-	manager.async.cancel = func() {}
-	manager.async.done = done
-	manager.async.mu.Unlock()
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -114,7 +115,6 @@ func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
 		t.Fatalf("Start() while closing error = %v, want ErrManagerClosed", err)
 	}
 
-	close(done)
 	if err := manager.Stop(context.Background()); err != nil {
 		t.Fatalf("second Stop() error = %v", err)
 	}
