@@ -43,12 +43,34 @@ Supported owner calls:
 
 - `ApplyRouteAction(RouteAction)`
 
+## Delivery Push RPC
+
+```text
+remote delivery client
+  -> encode W K V D 1 request
+  -> clusterv2 RPCDeliveryPush
+  -> Adapter.HandleDeliveryPushRPC
+  -> DeliveryOwnerPush.Push
+  -> encode W K V d 1 response
+```
+
+Delivery push requests carry one `runtime/delivery.PushCommand` in the stable
+field order `OwnerNodeID`, `Envelope`, and `Routes`. The envelope includes the
+committed message identifiers, sender echo-suppression fields, payload, red-dot
+flag, and request-scoped UIDs. Responses carry status plus accepted, retryable,
+and dropped route groups.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
 
 - Request: `W K V P 2`
 - Response: `W K V R 2`
+
+Delivery push RPC uses fixed magic headers:
+
+- Request: `W K V D 1`
+- Response: `W K V d 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -65,10 +87,17 @@ Stable response statuses are:
 - `route_not_ready`
 - `rejected`
 
+Delivery push responses currently use:
+
+- `ok`
+- `rejected`
+
 ## Boundaries
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
-  presence sentinel errors, and the clusterv2 RPC service IDs.
+  presence sentinel errors, runtime delivery DTOs, and the clusterv2 RPC
+  service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not mutate local gateway sessions or authority runtime
-  state except through the `PresenceAuthority` and `PresenceOwner` interfaces.
+  state except through the `PresenceAuthority`, `PresenceOwner`, and
+  `DeliveryOwnerPush` interfaces.

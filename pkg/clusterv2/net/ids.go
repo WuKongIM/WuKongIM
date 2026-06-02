@@ -34,4 +34,6 @@ const (
 	RPCPresenceAuthority
 	// RPCPresenceOwner serves internalv2 owner-node connection actions.
 	RPCPresenceOwner
+	// RPCDeliveryPush serves internalv2 owner-node delivery push batches.
+	RPCDeliveryPush
 )

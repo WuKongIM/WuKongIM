@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -47,12 +48,19 @@ type PresenceOwner interface {
 	ApplyRouteAction(context.Context, presence.RouteAction) error
 }
 
+// DeliveryOwnerPush accepts owner-node delivery batches over node RPC.
+type DeliveryOwnerPush interface {
+	Push(context.Context, runtimedelivery.PushCommand) (runtimedelivery.PushResult, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
 	Authority PresenceAuthority
 	// Owner handles owner-local session conflict actions after payload decoding.
 	Owner PresenceOwner
+	// Delivery handles owner-local delivery push batches after payload decoding.
+	Delivery DeliveryOwnerPush
 }
 
 // Adapter decodes node RPC payloads and forwards them to local authority ports.
@@ -61,11 +69,13 @@ type Adapter struct {
 	authority PresenceAuthority
 	// owner mutates only owner-local real session state.
 	owner PresenceOwner
+	// delivery pushes messages into owner-local delivery sessions.
+	delivery DeliveryOwnerPush
 }
 
 // New creates a node RPC adapter.
 func New(opts Options) *Adapter {
-	return &Adapter{authority: opts.Authority, owner: opts.Owner}
+	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.

@@ -70,3 +70,23 @@ token cleanup semantics stay explicit.
 
 Best-effort unregister calls are bounded by a short context timeout so gateway
 close and rollback paths do not block indefinitely on route lookup or node RPC.
+
+## Delivery Push Flow
+
+`DeliveryPusher` adapts the internalv2 delivery runtime pusher port to local
+owner delivery or `internalv2/access/node` delivery RPC.
+
+```text
+delivery.PushCommand
+  -> OwnerNodeID == localNodeID
+       -> local runtime delivery Pusher
+  -> OwnerNodeID != localNodeID
+       -> access/node Delivery Push RPC client
+       -> remote owner DeliveryOwnerPush
+```
+
+When the command targets this node but no local delivery pusher is installed,
+the adapter marks all routes dropped because no owner-local session runtime can
+accept them. When a remote client is missing or the remote RPC fails, it marks
+all routes retryable and returns nil error so the delivery runtime can apply its
+normal retry policy.
