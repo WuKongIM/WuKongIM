@@ -25,6 +25,7 @@ WARMUP="${WK_BENCH_WARMUP:-5s}"
 COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
+SENDER_PICK="${WK_BENCH_SENDER_PICK:-first_online}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -57,6 +58,7 @@ Options:
   --cooldown DURATION    Cooldown duration. Default: 2s.
   --stable-p99 DURATION  Soft p99 gate written into scenarios. Default: 400ms.
   --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
+  --sender-pick MODE     Group sender selection: first_online or round_robin. Default: first_online.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
@@ -193,6 +195,11 @@ while [[ $# -gt 0 ]]; do
       PROFILE_SECONDS="$2"
       shift 2
       ;;
+    --sender-pick)
+      [[ $# -ge 2 ]] || die '--sender-pick requires a value'
+      SENDER_PICK="$2"
+      shift 2
+      ;;
     --api)
       [[ $# -ge 2 ]] || die '--api requires a value'
       API_ADDRS="$2"
@@ -224,6 +231,13 @@ require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
+case "$SENDER_PICK" in
+  first_online|round_robin)
+    ;;
+  *)
+    die "--sender-pick must be first_online or round_robin: $SENDER_PICK"
+    ;;
+esac
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
@@ -467,7 +481,7 @@ messages:
       channel_ref: thousand-groups
       rate_per_channel: ${rate}/s
       concurrency: $CONCURRENCY
-      sender_pick: first_online
+      sender_pick: $SENDER_PICK
       recv_ack: false
       verify:
         recv:
@@ -669,6 +683,7 @@ DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
+SENDER_PICK=$SENDER_PICK
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS

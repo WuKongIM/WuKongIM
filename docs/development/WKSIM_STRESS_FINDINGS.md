@@ -3,6 +3,37 @@
 This document records issues found while running the Docker Compose `wk-sim`
 load loop. Keep entries concise so the final review is easy to scan.
 
+## 2026-06-02 wukongimv2 Three-Node 1000-Channel QPS Bench
+
+Environment:
+- Worktree at `87cd8fc9`; local parent `go.work` referenced missing sibling modules, so the smoke and bench commands were run with `GOWORK=off`.
+- Local `cmd/wukongimv2` clean three-node cluster started by `scripts/bench-wukongimv2-three-nodes-1000ch.sh`.
+- Workload: 1000 group channels, 4096 users, 10 members per channel, concurrency 1000, 128B payload, 5s warmup, 15s measured run, 2s cooldown, and p99 soft gate `400ms`.
+- Evidence:
+  - `docs/development/perf-runs/20260602-132623-three-node-1000ch/`
+  - `docs/development/perf-runs/20260602-133650-three-node-1000ch-single-2400/`
+  - `docs/development/perf-runs/20260602-135531-three-node-real-qps/`
+  - `docs/development/perf-runs/20260602-140104-three-node-real-qps/`
+  - `docs/development/perf-runs/20260602-140745-three-node-real-qps/`
+  - `docs/development/perf-runs/20260602-141141-three-node-real-qps/`
+
+Findings:
+- Ready smoke passed for all three local nodes before the high-rate run.
+- Highest passing offered load was `2000` QPS with actual `2000.0` QPS, `send_errors=0`, `connect_error_rate=0`, `sendack_error_rate=0`, p95 `165.2ms`, p99 `263.4ms`, max `763.0ms`, and aggregate `rpc_pull/s=8266.7`.
+- The `1000` QPS run passed with p99 `88.4ms`.
+- `2400` QPS and higher failed before measured send traffic: wkbench stopped in the connect phase after `connect_attempt_total=2`, `connect_success_total=1`, `connect_error_total=1`, with `ReasonSystemError` and hard limit `max_connect_error_rate=0`.
+- A clean single-attempt `2400` QPS run did not reproduce the connect failure. It passed with actual `2258.9` QPS, `send_errors=0`, p95 `154.0ms`, p99 `218.4ms`, and aggregate `rpc_pull/s=9354.5`.
+- The single-attempt run scheduled `36000` measured sends but completed `33884`; no send errors were reported. Metrics classified the run as `mixed_backpressure`: ChannelV2 append p99 was about `233-242ms`, storage commit p99 about `37-42ms`, and gateway dispatch wait p99 about `96-131ms`.
+- ChannelV2 sub-stage deltas showed follower pull was not the tail (`p99 <= 5ms`); the dominant waits were `store_append_wait` around `26-28ms` average and `post_store_commit_wait` / `quorum_ack_offset_wait` / `quorum_hw_advance_wait` around `44-50ms` average.
+- With `sender_pick: first_online`, the 1000 groups mapped to 433 distinct first-online senders; the hottest sender owned 10 channels. Because the worker serializes sends per sender UID, hot sender queues can miss the fixed 15s scheduling window under 200ms-class sendack tails.
+- The new real-QPS wrapper, using clean single-attempt runs and `sender_pick: round_robin`, passed `800`, `1000`, `1200`, `1400`, `1450`, `1550`, and `1575` QPS with actual/offered ratio `1.000` and no send errors. The highest passing sample was `1575` QPS with p95 `81.9ms`, p99 `107.7ms`, max `224.5ms`, and aggregate `rpc_pull/s=6510.0`.
+- `1600` QPS completed all measured sends with no send errors but failed the p99 gate: p95 `393.4ms`, p99 `771.8ms`, max `2080.8ms`. Metrics classified it as `mixed_backpressure`, with gateway dispatch p99 around `270-307ms`, ChannelV2 append p99 around `451-481ms`, and storage commit p99 around `48ms`.
+- Two non-monotonic outliers were observed: `600` failed during connect with one `ReasonSystemError` (`connect_error_rate=0.111111`), and `1500` failed with sendack timeout samples (`sendack_error_rate=0.00352`). Treat these as separate instability samples, not as the stable throughput boundary, because adjacent higher points passed cleanly.
+
+Classification:
+- Category: real stable group-send capacity for the current local three-node shape is about `1575` QPS under the `actual/offered >= 0.95`, `send_errors=0`, and `p99 <= 400ms` gates. The next tested clean point, `1600` QPS, is latency-bound by mixed gateway/ChannelV2/storage backpressure rather than connect failure.
+- Follow-up: investigate the intermittent connect `ReasonSystemError` and sendack timeout outliers separately. For capacity optimization, start from the `1600` QPS mixed-backpressure evidence and split gateway dispatch wait, ChannelV2 quorum append wait, and storage commit wait before changing code.
+
 ## 2026-06-02 wukongimv2 Three-Node Presence Local Bench
 
 Environment:
