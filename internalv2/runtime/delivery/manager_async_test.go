@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -25,38 +24,64 @@ func TestManagerAsyncSubmitRequiresStart(t *testing.T) {
 
 func TestManagerAsyncQueueFullReportsAdmission(t *testing.T) {
 	observer := &recordingManagerObserver{}
-	started := make(chan struct{}, 1)
-	block := make(chan struct{})
 	manager := NewManager(ManagerOptions{
 		Planner:         NewPlanner(PlannerOptions{}),
-		Runner:          blockingManagerRunner{started: started, block: block},
+		Runner:          recordingManagerRunner{},
 		AsyncQueueSize:  1,
 		AsyncWorkers:    1,
 		ManagerObserver: observer,
 	})
-	if err := manager.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	defer manager.Stop(context.Background())
-	defer close(block)
+	manager.async.state = managerStateOpen
+	manager.async.queue <- managerCommand{envelope: Envelope{MessageID: 1}}
 
-	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1}); err != nil {
-		t.Fatalf("first SubmitCommitted() error = %v", err)
-	}
-	select {
-	case <-started:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for async manager worker to start")
-	}
-	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2}); err != nil {
-		t.Fatalf("second SubmitCommitted() error = %v", err)
-	}
-	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 3})
+	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2})
 	if !errors.Is(err, ErrManagerQueueFull) {
 		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerQueueFull", err)
 	}
 	if !observer.sawAdmission(DeliveryResultOverflow) {
 		t.Fatalf("admissions = %#v, want overflow admission", observer.admissions)
+	}
+}
+
+func TestManagerAsyncStartStopIdempotent(t *testing.T) {
+	manager := NewManager(ManagerOptions{
+		Planner:        NewPlanner(PlannerOptions{}),
+		Runner:         recordingManagerRunner{},
+		AsyncQueueSize: 2,
+		AsyncWorkers:   1,
+	})
+
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("first Start() error = %v", err)
+	}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("second Start() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("first Stop() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+}
+
+func TestManagerAsyncStopRejectsNewSubmits(t *testing.T) {
+	manager := NewManager(ManagerOptions{
+		Planner:        NewPlanner(PlannerOptions{}),
+		Runner:         recordingManagerRunner{},
+		AsyncQueueSize: 2,
+		AsyncWorkers:   1,
+	})
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1})
+	if !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerClosed", err)
 	}
 }
 
@@ -67,22 +92,6 @@ type recordingManagerRunner struct {
 
 func (r recordingManagerRunner) RunTask(context.Context, FanoutTask) error {
 	return r.err
-}
-
-type blockingManagerRunner struct {
-	started chan<- struct{}
-	block   <-chan struct{}
-}
-
-func (r blockingManagerRunner) RunTask(context.Context, FanoutTask) error {
-	if r.started != nil {
-		select {
-		case r.started <- struct{}{}:
-		default:
-		}
-	}
-	<-r.block
-	return nil
 }
 
 type recordingManagerObserver struct {

@@ -27,12 +27,10 @@ type ManagerOptions struct {
 
 // Manager is the synchronous delivery runtime facade used by app adapters.
 type Manager struct {
-	planner         *Planner
-	runner          FanoutTaskRunner
-	acks            *AckTracker
-	asyncQueueSize  int
-	asyncWorkers    int
-	managerObserver ManagerObserver
+	planner *Planner
+	runner  FanoutTaskRunner
+	acks    *AckTracker
+	async   *managerAsync
 }
 
 // NewManager creates a delivery runtime facade.
@@ -49,24 +47,31 @@ func NewManager(opts ManagerOptions) *Manager {
 	if opts.AsyncQueueSize > 0 && asyncWorkers <= 0 {
 		asyncWorkers = defaultManagerAsyncWorkers
 	}
-	return &Manager{
-		planner:         opts.Planner,
-		runner:          runner,
-		acks:            acks,
-		asyncQueueSize:  opts.AsyncQueueSize,
-		asyncWorkers:    asyncWorkers,
-		managerObserver: opts.ManagerObserver,
+	manager := &Manager{
+		planner: opts.Planner,
+		runner:  runner,
+		acks:    acks,
 	}
+	if opts.AsyncQueueSize > 0 {
+		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
+	}
+	return manager
 }
 
-// Start prepares the manager lifecycle; async queue behavior is implemented by later slices.
-func (m *Manager) Start(context.Context) error {
-	return nil
+// Start prepares the manager lifecycle.
+func (m *Manager) Start(ctx context.Context) error {
+	if m == nil || m.async == nil {
+		return nil
+	}
+	return m.async.start(ctx)
 }
 
-// Stop closes manager lifecycle resources; async queue behavior is implemented by later slices.
-func (m *Manager) Stop(context.Context) error {
-	return nil
+// Stop closes manager lifecycle resources.
+func (m *Manager) Stop(ctx context.Context) error {
+	if m == nil || m.async == nil {
+		return nil
+	}
+	return m.async.stop(ctx)
 }
 
 // SubmitCommitted plans and executes fanout for one committed message event.
@@ -74,16 +79,15 @@ func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.Messa
 	if m == nil || m.planner == nil || m.runner == nil {
 		return nil
 	}
-	if m.asyncQueueSize > 0 {
-		if m.managerObserver != nil {
-			m.managerObserver.ObserveManagerAdmission(ManagerAdmissionEvent{
-				Result:     "closed",
-				QueueDepth: 0,
-			})
-		}
-		return ErrManagerClosed
+	env := envelopeFromEvent(event)
+	if m.async != nil {
+		return m.async.submit(ctx, env)
 	}
-	tasks, err := m.planner.Plan(ctx, envelopeFromEvent(event))
+	return m.runEnvelope(ctx, env)
+}
+
+func (m *Manager) runEnvelope(ctx context.Context, env Envelope) error {
+	tasks, err := m.planner.Plan(ctx, env)
 	if err != nil {
 		return err
 	}
