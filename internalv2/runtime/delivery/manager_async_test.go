@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -42,7 +43,11 @@ func TestManagerAsyncQueueFullReportsAdmission(t *testing.T) {
 	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1}); err != nil {
 		t.Fatalf("first SubmitCommitted() error = %v", err)
 	}
-	<-started
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async manager worker to start")
+	}
 	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2}); err != nil {
 		t.Fatalf("second SubmitCommitted() error = %v", err)
 	}
