@@ -19,7 +19,7 @@ and protocol details stay in access packages.
 New(Config)
   -> derive effective clusterv2 config from Config.Cluster with top-level fallbacks
   -> create metrics registry and runtime observers when Observability.MetricsEnabled=true
-     (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, and message DB grouped commits)
+     (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, message DB grouped commits, and delivery fanout)
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
@@ -31,6 +31,7 @@ New(Config)
        create runtime/delivery Manager with a clusterv2-backed partitioner
        when route snapshots are available, an app subscriber planner, presence
        resolver, local/cluster delivery pusher, and partition-leader fanout router
+       attach delivery metrics observers when metrics are enabled
        create usecase/delivery.App backed by the manager
        create a bounded asynchronous committed-event sink for delivery fanout
        register delivery push and fanout RPC handlers when node RPC is available
@@ -47,8 +48,10 @@ events are not emitted to the delivery runtime and the existing `SEND ->
 SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
 session close feedback flows to the delivery usecase. Committed message events
 enter a bounded asynchronous delivery queue so SENDACK latency is not coupled
-to subscriber scan or owner push latency. Owner-local pushes write `RecvPacket`
-values through `online.SessionHandle.WriteDelivery`.
+to subscriber scan or owner push latency. The queue records submit results
+(`ok` and `overflow`) when metrics are enabled; sink and runtime failures are
+counted with normalized delivery error classes. Owner-local pushes write
+`RecvPacket` values through `online.SessionHandle.WriteDelivery`.
 
 The app subscriber planner derives both UIDs for person channels. For
 non-person unscoped channel fanout it delegates to an optional durable
@@ -61,7 +64,9 @@ clusterv2 UID hash-slot table to create authority partitions. A fanout task
 router runs local partitions through the in-process fanout worker and forwards
 remote partitions through access/node Delivery Fanout RPC. The remote node then
 uses its own subscriber source and still pushes resolved online routes by
-owner node.
+owner node. Runtime fanout task, resolve, and push observations are translated
+by app-level metrics adapters; the delivery runtime itself stays independent
+from Prometheus.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

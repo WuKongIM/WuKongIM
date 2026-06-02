@@ -160,6 +160,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	if app.cfg.Delivery.Enabled && app.delivery == nil {
 		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL}
+		deliveryObserver := app.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
 		var fanoutRemote runtimedelivery.FanoutTaskForwarder
 		var localNodeID uint64
@@ -183,6 +184,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			Push:          push,
 			PageSize:      app.cfg.Delivery.FanoutPageSize,
 			PushBatchSize: app.cfg.Delivery.PushBatchSize,
+			Observer:      deliveryObserver,
 		})
 		var fanoutRunner runtimedelivery.FanoutTaskRunner = fanoutWorker
 		if localNodeID != 0 {
@@ -190,6 +192,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				LocalNodeID: localNodeID,
 				Local:       fanoutWorker,
 				Remote:      fanoutRemote,
+				Observer:    deliveryObserver,
 			})
 		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
@@ -203,7 +206,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		app.deliveryManager = manager
 		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
 		if app.deliverySink == nil {
-			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError)
+			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError, app.recordDeliveryQueue)
 		}
 		if app.deliveryWorker == nil {
 			app.deliveryWorker = app.deliverySink

@@ -6,7 +6,10 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the synchronous
-runtime facade used by app adapters. `ChannelSubscriberPlanner` adapts an
+runtime facade used by app adapters. Runtime `Observer` events describe fanout
+task routing, UID route resolution, and owner push attempts with bounded result
+and error-class labels; concrete metrics remain an app concern.
+`ChannelSubscriberPlanner` adapts an
 optional durable subscriber source into partition/cursor-based fanout pages; a
 nil source returns a terminal empty page so app tests can enable delivery
 without wiring a subscriber store. `FanoutTaskRouter` can sit between
@@ -24,9 +27,12 @@ Committed-message fanout flow:
 5. When `Envelope.MessageScopedUIDs` is non-empty, `Planner` creates a single default scoped task and `FanoutWorker` uses those UIDs directly without scanning subscribers.
 6. Otherwise `FanoutWorker` pages recipients through `SubscriberPlanner.NextPartitionPage`.
 7. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.
-8. Online routes are grouped by `OwnerNodeID`, split by push batch size, and sent through `Pusher.Push`.
-9. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
-10. `FanoutWorker` skips routes without an owner node and skips same-session sender echo only when `Envelope.SenderNodeID` is known and the route matches sender UID, sender owner node, and sender session.
+8. `FanoutWorker` emits a resolve observation for each UID page.
+9. Online routes are grouped by `OwnerNodeID`, split by push batch size, and sent through `Pusher.Push`.
+10. `FanoutWorker` emits a push observation for each owner-node batch and classifies retryable push results as `ErrRetryablePushRoutes`.
+11. `FanoutTaskRouter` emits a task observation for local or remote task execution. Remote forwarding failures are wrapped with `ErrRetryableFanoutTask`.
+12. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
+13. `FanoutWorker` skips routes without an owner node and skips same-session sender echo only when `Envelope.SenderNodeID` is known and the route matches sender UID, sender owner node, and sender session.
 
 Recvack flow:
 

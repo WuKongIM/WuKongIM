@@ -225,7 +225,10 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 }
 
 func TestDeliveryAsyncSinkReportsQueueFull(t *testing.T) {
-	sink := newDeliveryAsyncSink(deliveryusecase.New(deliveryusecase.Options{}), 1, nil)
+	var queueResults []string
+	sink := newDeliveryAsyncSink(deliveryusecase.New(deliveryusecase.Options{}), 1, nil, func(result string) {
+		queueResults = append(queueResults, result)
+	})
 
 	event := messageevents.MessageCommitted{MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}
 	if err := sink.Submit(context.Background(), event); err != nil {
@@ -233,6 +236,9 @@ func TestDeliveryAsyncSinkReportsQueueFull(t *testing.T) {
 	}
 	if err := sink.Submit(context.Background(), event); !errors.Is(err, errDeliveryEventQueueFull) {
 		t.Fatalf("second Submit() error = %v, want %v", err, errDeliveryEventQueueFull)
+	}
+	if got, want := strings.Join(queueResults, ","), "ok,overflow"; got != want {
+		t.Fatalf("queue results = %q, want %q", got, want)
 	}
 
 	app := &App{}
@@ -249,7 +255,7 @@ func TestDeliveryAsyncSinkRecordsRuntimeError(t *testing.T) {
 		if errors.Is(err, wantErr) {
 			observed++
 		}
-	})
+	}, nil)
 	if err := sink.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}

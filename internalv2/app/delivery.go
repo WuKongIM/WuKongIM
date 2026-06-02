@@ -48,6 +48,8 @@ type deliveryAsyncSink struct {
 	queue chan messageevents.MessageCommitted
 	// observeError records non-fatal delivery fanout failures.
 	observeError func(error)
+	// observeQueue records committed-event queue submit results.
+	observeQueue func(string)
 
 	mu      sync.Mutex
 	started bool
@@ -55,7 +57,7 @@ type deliveryAsyncSink struct {
 	done    chan struct{}
 }
 
-func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeError func(error)) *deliveryAsyncSink {
+func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeError func(error), observeQueue func(string)) *deliveryAsyncSink {
 	if queueSize <= 0 {
 		queueSize = defaultDeliveryEventQueueSize
 	}
@@ -63,6 +65,7 @@ func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeE
 		delivery:     delivery,
 		queue:        make(chan messageevents.MessageCommitted, queueSize),
 		observeError: observeError,
+		observeQueue: observeQueue,
 	}
 }
 
@@ -78,8 +81,10 @@ func (s *deliveryAsyncSink) Submit(ctx context.Context, event messageevents.Mess
 	cloned := event.Clone()
 	select {
 	case s.queue <- cloned:
+		s.recordQueue(runtimedelivery.DeliveryResultOK)
 		return nil
 	default:
+		s.recordQueue("overflow")
 		return errDeliveryEventQueueFull
 	}
 }
@@ -161,21 +166,40 @@ func (s *deliveryAsyncSink) deliver(event messageevents.MessageCommitted) {
 	}
 }
 
+func (s *deliveryAsyncSink) recordQueue(result string) {
+	if s != nil && s.observeQueue != nil {
+		s.observeQueue(result)
+	}
+}
+
 type deliveryMessageObserver struct {
 	// app records non-fatal delivery sink failures for tests and diagnostics.
 	app *App
 }
 
-func (o deliveryMessageObserver) CommittedSinkError(message.SendCommand, error) {
+func (o deliveryMessageObserver) CommittedSinkError(_ message.SendCommand, err error) {
 	if o.app != nil {
-		o.app.recordDeliveryError(nil)
+		o.app.recordDeliveryError(err)
 	}
 }
 
-func (a *App) recordDeliveryError(error) {
-	if a != nil {
-		a.deliveryErrors.Add(1)
+func (a *App) recordDeliveryError(err error) {
+	if a == nil {
+		return
 	}
+	a.deliveryErrors.Add(1)
+	if a.metrics != nil {
+		if class := runtimedelivery.DeliveryErrorClass(err); class != runtimedelivery.DeliveryErrorClassNone {
+			a.metrics.Delivery.ObserveError(class)
+		}
+	}
+}
+
+func (a *App) recordDeliveryQueue(result string) {
+	if a == nil || a.metrics == nil {
+		return
+	}
+	a.metrics.Delivery.ObserveEventQueue(result)
 }
 
 func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {

@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 const (
@@ -53,6 +54,8 @@ type FanoutWorkerOptions struct {
 	PageSize int
 	// PushBatchSize limits owner-node routes sent in one Push command; values <= 0 use the default.
 	PushBatchSize int
+	// Observer receives bounded fanout resolve and push observations.
+	Observer Observer
 }
 
 // FanoutWorker synchronously resolves recipients and pushes them by owner node.
@@ -62,6 +65,7 @@ type FanoutWorker struct {
 	push          Pusher
 	pageSize      int
 	pushBatchSize int
+	observer      Observer
 }
 
 // NewFanoutWorker creates a synchronous fanout worker.
@@ -80,6 +84,7 @@ func NewFanoutWorker(opts FanoutWorkerOptions) *FanoutWorker {
 		push:          opts.Push,
 		pageSize:      pageSize,
 		pushBatchSize: pushBatchSize,
+		observer:      opts.Observer,
 	}
 }
 
@@ -119,10 +124,41 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 	if len(uids) == 0 {
 		return nil
 	}
+	observing := w.observer != nil
+	var resolveStarted time.Time
+	if observing {
+		resolveStarted = time.Now()
+	}
 	routesByUID, err := w.presence.EndpointsByUIDs(ctx, uids)
 	if err != nil {
+		if observing {
+			w.observeFanoutResolve(FanoutResolveEvent{
+				ChannelType: task.Envelope.ChannelType,
+				Result:      deliveryResultForError(err),
+				ErrorClass:  DeliveryErrorClass(err),
+				Duration:    time.Since(resolveStarted),
+				Pages:       1,
+				UIDs:        len(uids),
+			})
+		}
 		return err
 	}
+	if observing {
+		resolvedRoutes := 0
+		for _, routes := range routesByUID {
+			resolvedRoutes += len(routes)
+		}
+		w.observeFanoutResolve(FanoutResolveEvent{
+			ChannelType: task.Envelope.ChannelType,
+			Result:      DeliveryResultOK,
+			ErrorClass:  DeliveryErrorClassNone,
+			Duration:    time.Since(resolveStarted),
+			Pages:       1,
+			UIDs:        len(uids),
+			Routes:      resolvedRoutes,
+		})
+	}
+
 	grouped := make(map[uint64][]Route)
 	for _, uid := range uids {
 		for _, route := range routesByUID[uid] {
@@ -141,13 +177,47 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 			if end > len(routes) {
 				end = len(routes)
 			}
+			batch := routes[start:end]
+			var pushStarted time.Time
+			if observing {
+				pushStarted = time.Now()
+			}
 			result, err := w.push.Push(ctx, PushCommand{
 				OwnerNodeID: ownerNodeID,
 				Envelope:    cloneEnvelope(task.Envelope),
-				Routes:      cloneRoutes(routes[start:end]),
+				Routes:      cloneRoutes(batch),
 			})
 			if err != nil {
+				if observing {
+					w.observeFanoutPush(FanoutPushEvent{
+						OwnerNodeID: ownerNodeID,
+						Result:      deliveryResultForError(err),
+						ErrorClass:  DeliveryErrorClass(err),
+						Duration:    time.Since(pushStarted),
+						Routes:      len(batch),
+					})
+				}
 				return err
+			}
+			pushResult := DeliveryResultOK
+			errorClass := DeliveryErrorClassNone
+			if len(result.Retryable) > 0 {
+				pushResult = DeliveryResultRetryable
+				errorClass = DeliveryErrorClassRetryable
+			} else if len(result.Accepted) == 0 && len(result.Dropped) > 0 {
+				pushResult = DeliveryResultDropped
+			}
+			if observing {
+				w.observeFanoutPush(FanoutPushEvent{
+					OwnerNodeID: ownerNodeID,
+					Result:      pushResult,
+					ErrorClass:  errorClass,
+					Duration:    time.Since(pushStarted),
+					Routes:      len(batch),
+					Accepted:    len(result.Accepted),
+					Retryable:   len(result.Retryable),
+					Dropped:     len(result.Dropped),
+				})
 			}
 			if len(result.Retryable) > 0 {
 				return ErrRetryablePushRoutes
@@ -155,6 +225,20 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 		}
 	}
 	return nil
+}
+
+func (w *FanoutWorker) observeFanoutResolve(event FanoutResolveEvent) {
+	if w == nil || w.observer == nil {
+		return
+	}
+	w.observer.ObserveFanoutResolve(event)
+}
+
+func (w *FanoutWorker) observeFanoutPush(event FanoutPushEvent) {
+	if w == nil || w.observer == nil {
+		return
+	}
+	w.observer.ObserveFanoutPush(event)
 }
 
 func isSenderSameSession(env Envelope, route Route) bool {

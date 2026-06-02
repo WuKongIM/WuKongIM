@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
@@ -15,6 +17,7 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 type gatewayMetricsObserver struct {
@@ -30,6 +33,10 @@ type controllerRaftMetricsObserver struct {
 }
 
 type storageCommitMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type deliveryMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
@@ -283,6 +290,44 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messag
 	})
 }
 
+func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
+	o.observeError(event.ErrorClass)
+}
+
+func (o deliveryMetricsObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObserveResolve(deliveryChannelTypeLabel(event.ChannelType), event.Result, event.Duration, event.Pages, event.Routes)
+	o.observeError(event.ErrorClass)
+}
+
+func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), event.Result, event.Duration, event.Routes)
+	o.observeError(event.ErrorClass)
+}
+
+func (o deliveryMetricsObserver) observeError(class string) {
+	if class == "" || class == runtimedelivery.DeliveryErrorClassNone {
+		return
+	}
+	o.metrics.Delivery.ObserveError(class)
+}
+
+func (a *App) deliveryObserver() runtimedelivery.Observer {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return deliveryMetricsObserver{metrics: a.metrics}
+}
+
 func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer {
 	if first == nil {
 		return second
@@ -311,6 +356,21 @@ func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinator
 		return first
 	}
 	return multiCommitCoordinatorObserver{first, second}
+}
+
+func deliveryNodeLabel(nodeID uint64) string {
+	return strconv.FormatUint(nodeID, 10)
+}
+
+func deliveryChannelTypeLabel(channelType uint8) string {
+	switch channelType {
+	case frame.ChannelTypePerson:
+		return "person"
+	case frame.ChannelTypeGroup:
+		return "group"
+	default:
+		return strconv.Itoa(int(channelType))
+	}
 }
 
 func (o multiChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
