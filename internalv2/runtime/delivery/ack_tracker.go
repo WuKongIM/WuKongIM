@@ -134,7 +134,8 @@ func (t *AckTracker) Expire(ttl time.Duration) []PendingRecvAck {
 	if t == nil || ttl <= 0 {
 		return nil
 	}
-	cutoff := t.now() - int64(ttl/time.Second)
+	ttlSeconds := int64((ttl + time.Second - 1) / time.Second)
+	cutoff := t.now() - ttlSeconds
 	var removed []PendingRecvAck
 	for i := range t.shards {
 		shard := &t.shards[i]

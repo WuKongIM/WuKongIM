@@ -84,6 +84,24 @@ func TestAckTrackerExpireRemovesOldPending(t *testing.T) {
 	}
 }
 
+func TestAckTrackerExpireSubSecondTTLDoesNotExpireCurrentSecond(t *testing.T) {
+	tracker := NewAckTracker(AckTrackerOptions{
+		ShardCount: 4,
+		Now: func() int64 {
+			return 100
+		},
+	})
+	tracker.Bind(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 1, DeliveredAt: 100})
+
+	removed := tracker.Expire(500 * time.Millisecond)
+	if len(removed) != 0 {
+		t.Fatalf("Expire(sub-second ttl) removed = %#v, want none", removed)
+	}
+	if count := tracker.PendingCount(); count != 1 {
+		t.Fatalf("PendingCount() = %d, want 1", count)
+	}
+}
+
 func TestAckTrackerInvalidBindIsNoop(t *testing.T) {
 	tracker := NewAckTracker(AckTrackerOptions{ShardCount: 4})
 
