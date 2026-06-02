@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -77,6 +78,14 @@ func (m *Manager) BindPendingAck(pending PendingRecvAck) {
 		return
 	}
 	m.acks.Bind(pending)
+}
+
+// ExpirePendingAcks removes pending recvacks older than ttl.
+func (m *Manager) ExpirePendingAcks(ttl time.Duration) []PendingRecvAck {
+	if m == nil || m.acks == nil {
+		return nil
+	}
+	return m.acks.Expire(ttl)
 }
 
 // PendingAckCount returns the current pending recvack count for tests and diagnostics.

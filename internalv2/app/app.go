@@ -153,7 +153,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		}
 	}
 	if app.cfg.Delivery.Enabled && app.delivery == nil {
-		localPusher := &localOwnerPusher{online: app.online}
+		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL}
 		var push runtimedelivery.Pusher = localPusher
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 			push = clusterinfra.NewDeliveryPusher(presenceNode.NodeID(), localPusher, accessnode.NewClient(presenceNode))

@@ -107,7 +107,7 @@ type DeliveryConfig struct {
 	FanoutPageSize int
 	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
 	PushBatchSize int
-	// PendingAckTTL bounds how long owner-local pending recvacks may remain tracked.
+	// PendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	PendingAckTTL time.Duration
 }
 

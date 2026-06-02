@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
@@ -11,6 +12,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id overflows recv packet")
 
 type deliveryRuntimeAdapter struct {
 	// manager executes synchronous fanout and ack mutations.
@@ -60,9 +63,14 @@ type localOwnerPusher struct {
 	online *online.Registry
 	// delivery tracks pending recvacks after successful local writes.
 	delivery *runtimedelivery.Manager
+	// pendingAckTTL bounds stale pending recvack cleanup during delivery activity.
+	pendingAckTTL time.Duration
 }
 
 func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
+	if p.pendingAckTTL > 0 && p.delivery != nil {
+		p.delivery.ExpirePendingAcks(p.pendingAckTTL)
+	}
 	var result runtimedelivery.PushResult
 	for _, route := range cmd.Routes {
 		session, ok := p.localSession(route)
@@ -70,7 +78,11 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
-		packet := buildRecvPacket(cmd.Envelope, route.UID)
+		packet, err := buildRecvPacket(cmd.Envelope, route.UID)
+		if err != nil {
+			result.Dropped = append(result.Dropped, route)
+			continue
+		}
 		if err := session.Session.WriteDelivery(packet); err != nil {
 			result.Retryable = append(result.Retryable, route)
 			continue
@@ -91,7 +103,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 }
 
 func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.LocalSession, bool) {
-	if p.online == nil || route.UID == "" || route.SessionID == 0 {
+	if p.online == nil || route.UID == "" || route.SessionID == 0 || route.OwnerNodeID == 0 || route.OwnerBootID == 0 || route.OwnerSeq == 0 {
 		return online.LocalSession{}, false
 	}
 	session, ok := p.online.LocalSession(route.SessionID)
@@ -102,20 +114,17 @@ func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.Loca
 	if local.UID != route.UID || local.SessionID != route.SessionID {
 		return online.LocalSession{}, false
 	}
-	if route.OwnerNodeID != 0 && local.OwnerNodeID != route.OwnerNodeID {
-		return online.LocalSession{}, false
-	}
-	if route.OwnerBootID != 0 && local.OwnerBootID != route.OwnerBootID {
-		return online.LocalSession{}, false
-	}
-	if route.OwnerSeq != 0 && local.OwnerSeq != route.OwnerSeq {
+	if local.OwnerNodeID != route.OwnerNodeID || local.OwnerBootID != route.OwnerBootID || local.OwnerSeq != route.OwnerSeq {
 		return online.LocalSession{}, false
 	}
 	return session, true
 }
 
-func buildRecvPacket(env runtimedelivery.Envelope, uid string) *frame.RecvPacket {
+func buildRecvPacket(env runtimedelivery.Envelope, uid string) (*frame.RecvPacket, error) {
 	_ = uid
+	if env.MessageID > uint64(1<<63-1) {
+		return nil, errRecvMessageIDOverflow
+	}
 	return &frame.RecvPacket{
 		Framer: frame.Framer{
 			RedDot: env.RedDot,
@@ -128,7 +137,7 @@ func buildRecvPacket(env runtimedelivery.Envelope, uid string) *frame.RecvPacket
 		ChannelType: env.ChannelType,
 		FromUID:     env.FromUID,
 		Payload:     append([]byte(nil), env.Payload...),
-	}
+	}, nil
 }
 
 type noopSubscriberPlanner struct{}

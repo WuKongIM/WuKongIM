@@ -130,6 +130,28 @@ func TestFanoutWorkerSplitsOwnerPushBatches(t *testing.T) {
 	}
 }
 
+func TestFanoutWorkerReturnsErrorForRetryablePush(t *testing.T) {
+	presence := &fakePresenceResolver{
+		routes: map[string][]Route{
+			"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+		},
+	}
+	pusher := &fakePusher{result: PushResult{Retryable: []Route{{UID: "u1", OwnerNodeID: 10, SessionID: 101}}}}
+	worker := NewFanoutWorker(FanoutWorkerOptions{
+		Presence: presence,
+		Push:     pusher,
+	})
+
+	err := worker.RunTask(context.Background(), FanoutTask{
+		Envelope:  Envelope{MessageID: 1001, MessageScopedUIDs: []string{"u1"}},
+		Partition: Partition{ID: 1},
+		Attempt:   1,
+	})
+	if !errors.Is(err, ErrRetryablePushRoutes) {
+		t.Fatalf("RunTask() error = %v, want ErrRetryablePushRoutes", err)
+	}
+}
+
 func TestFanoutWorkerSkipsSenderSameSession(t *testing.T) {
 	subscribers := &fakeSubscriberPlanner{
 		pages: []UIDPage{
@@ -284,12 +306,16 @@ func (r *fakePresenceResolver) EndpointsByUIDs(_ context.Context, uids []string)
 
 type fakePusher struct {
 	commands []PushCommand
+	result   PushResult
 }
 
 func (p *fakePusher) Push(_ context.Context, command PushCommand) (PushResult, error) {
 	command.Envelope = cloneEnvelope(command.Envelope)
 	command.Routes = append([]Route(nil), command.Routes...)
 	p.commands = append(p.commands, command)
+	if len(p.result.Accepted) > 0 || len(p.result.Retryable) > 0 || len(p.result.Dropped) > 0 {
+		return p.result, nil
+	}
 	return PushResult{Accepted: append([]Route(nil), command.Routes...)}, nil
 }
 

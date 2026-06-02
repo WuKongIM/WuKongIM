@@ -85,7 +85,8 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
-The delivery manager is synchronous in this phase and has no lifecycle worker.
+The delivery manager is synchronous in this phase and has no lifecycle worker;
+stale pending recvacks are expired during owner-local delivery push activity.
 
 ## Presence Touch Worker
 

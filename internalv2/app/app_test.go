@@ -370,6 +370,106 @@ func TestLocalOwnerPusherMarksWriteErrorRetryable(t *testing.T) {
 	}
 }
 
+func TestLocalOwnerPusherExpiresPendingAcksDuringPushActivity(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	session := &recordingSessionHandle{}
+	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+	if err := reg.MarkActive(route.SessionID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	now := int64(200)
+	tracker := runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
+		ShardCount: 1,
+		Now: func() int64 {
+			return now
+		},
+	})
+	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{Acks: tracker})
+	manager.BindPendingAck(runtimedelivery.PendingRecvAck{UID: "u1", SessionID: 101, MessageID: 1, MessageSeq: 1, DeliveredAt: 100})
+	pusher := localOwnerPusher{online: reg, delivery: manager, pendingAckTTL: 50 * time.Second}
+
+	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
+		OwnerNodeID: 1,
+		Envelope:    runtimedelivery.Envelope{MessageID: 2, MessageSeq: 2},
+		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
+	})
+	if err != nil {
+		t.Fatalf("Push() error = %v", err)
+	}
+	if len(result.Accepted) != 1 {
+		t.Fatalf("accepted routes = %d, want 1", len(result.Accepted))
+	}
+	if _, ok := tracker.Ack(runtimedelivery.Recvack{UID: "u1", SessionID: 101, MessageID: 1}); ok {
+		t.Fatalf("old pending ack still exists after delivery activity expiration")
+	}
+	if pending, ok := tracker.Ack(runtimedelivery.Recvack{UID: "u1", SessionID: 101, MessageID: 2}); !ok || pending.MessageID != 2 {
+		t.Fatalf("new pending ack = %#v, %v, want message 2 true", pending, ok)
+	}
+}
+
+func TestLocalOwnerPusherDropsOverflowMessageID(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	session := &recordingSessionHandle{}
+	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+	if err := reg.MarkActive(route.SessionID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
+	pusher := localOwnerPusher{online: reg, delivery: manager}
+
+	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
+		OwnerNodeID: 1,
+		Envelope:    runtimedelivery.Envelope{MessageID: uint64(1 << 63), MessageSeq: 1},
+		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
+	})
+	if err != nil {
+		t.Fatalf("Push() error = %v", err)
+	}
+	if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
+		t.Fatalf("push result = %#v, want one dropped", result)
+	}
+	if len(session.writes) != 0 {
+		t.Fatalf("delivery writes = %d, want 0", len(session.writes))
+	}
+	if manager.PendingAckCount() != 0 {
+		t.Fatalf("pending ack count = %d, want 0", manager.PendingAckCount())
+	}
+}
+
+func TestLocalOwnerPusherDropsIncompleteRouteIdentity(t *testing.T) {
+	reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	session := &recordingSessionHandle{}
+	route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+	if err := reg.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+	if err := reg.MarkActive(route.SessionID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	pusher := localOwnerPusher{online: reg, delivery: runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})}
+
+	result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
+		OwnerNodeID: 1,
+		Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
+		Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerSeq: 11, SessionID: 101}},
+	})
+	if err != nil {
+		t.Fatalf("Push() error = %v", err)
+	}
+	if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
+		t.Fatalf("push result = %#v, want incomplete identity dropped", result)
+	}
+	if len(session.writes) != 0 {
+		t.Fatalf("delivery writes = %d, want 0", len(session.writes))
+	}
+}
+
 func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	app, err := New(Config{Cluster: clusterv2.Config{NodeID: 1}}, WithCluster(cluster))

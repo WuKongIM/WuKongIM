@@ -13,6 +13,9 @@ const (
 // ErrInvalidSubscriberCursor reports a non-terminal page that cannot advance scanning.
 var ErrInvalidSubscriberCursor = errors.New("internalv2/runtime/delivery: invalid subscriber cursor")
 
+// ErrRetryablePushRoutes reports that at least one pushed route needs retry scheduling.
+var ErrRetryablePushRoutes = errors.New("internalv2/runtime/delivery: retryable push routes")
+
 // SubscriberPlanner pages channel subscribers for one delivery partition.
 type SubscriberPlanner interface {
 	NextPartitionPage(context.Context, FanoutTask, string, int) (UIDPage, error)
@@ -138,13 +141,16 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 			if end > len(routes) {
 				end = len(routes)
 			}
-			_, err := w.push.Push(ctx, PushCommand{
+			result, err := w.push.Push(ctx, PushCommand{
 				OwnerNodeID: ownerNodeID,
 				Envelope:    cloneEnvelope(task.Envelope),
 				Routes:      cloneRoutes(routes[start:end]),
 			})
 			if err != nil {
 				return err
+			}
+			if len(result.Retryable) > 0 {
+				return ErrRetryablePushRoutes
 			}
 		}
 	}
