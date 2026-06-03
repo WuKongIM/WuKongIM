@@ -1,4 +1,0 @@
-interface:
-  display_name: "WuKongIM Perf Triage"
-  short_description: "Evidence-first wk-sim triage."
-  default_prompt: "Investigate a WuKongIM wk-sim or three-node Docker Compose performance issue using evidence-first triage. Collect evidence, classify the failure, define one falsifiable hypothesis, and propose the next minimal experiment before tuning or code changes."

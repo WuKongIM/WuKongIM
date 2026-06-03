@@ -1,6 +1,6 @@
 # WuKongIM Performance Triage
 
-This runbook is the project-local companion for `.codex/skills/wukongim-perf-triage/SKILL.md`. Use it when investigating `wk-sim`, `wkbench dev-sim`, or three-node Docker Compose performance, timeout, throughput, sendack, recv, delivery, Raft, or data-plane regressions.
+Use this project-local runbook when investigating `wk-sim`, `wkbench dev-sim`, or three-node Docker Compose performance, timeout, throughput, sendack, recv, delivery, Raft, or data-plane regressions.
 
 ## Core Rule
 

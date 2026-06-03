@@ -26,8 +26,8 @@
 
 ## 性能调试规则
 
-- 分析 `wk-sim`、`wkbench dev-sim` 或三节点 Docker Compose 性能/超时/吞吐问题时，先阅读并遵循 `.codex/skills/wukongim-perf-triage/SKILL.md`。
-- 项目内完整性能排查 runbook 位于 `docs/development/PERF_TRIAGE.md`；采集证据后再分类、假设和实验，不要凭感觉调参或改代码。
+- 分析 `wk-sim`、`wkbench dev-sim` 或三节点 Docker Compose 性能/超时/吞吐问题时，先阅读并遵循 `docs/development/PERF_TRIAGE.md`。
+- 采集证据后再分类、假设和实验，不要凭感觉调参或改代码。
 
 ## 必须遵循的规则
 
@@ -47,9 +47,6 @@
 ## 目录结构
 
 ```text
-.codex/
-  skills/                 项目内 agent skills，记录可复用工作流
-
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
   wukongimv2/            internalv2/app 迁移期独立验证入口，当前验证单节点集群 SEND -> SENDACK 骨架

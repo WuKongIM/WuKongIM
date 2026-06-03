@@ -509,7 +509,7 @@ Create `docs/development/perf-runs/20260529-channelv2-10k-live-channels/README.m
 
 ## Perf-Triage Rule
 
-Follow `docs/development/PERF_TRIAGE.md` and `.codex/skills/wukongim-perf-triage/SKILL.md`: establish smoke health, collect evidence, classify, form one hypothesis, and change exactly one variable per experiment.
+Follow `docs/development/PERF_TRIAGE.md`: establish smoke health, collect evidence, classify, form one hypothesis, and change exactly one variable per experiment.
 ```
 
 - [ ] **Step 4: Commit**
