@@ -267,6 +267,196 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 }
 
+func TestWukongIMV2DeliveryBenchScriptIsLocalThreeNodeOnly(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-delivery.sh"))
+
+	for _, want := range []string{
+		"scripts/start-wukongimv2-three-nodes.sh",
+		`SCENARIO="${WK_BENCH_DELIVERY_SCENARIO:-group}"`,
+		`DELIVERY_ENABLE="${WK_DELIVERY_ENABLE:-true}"`,
+		`DELIVERY_EVENT_QUEUE_SIZE="${WK_DELIVERY_EVENT_QUEUE_SIZE:-1024}"`,
+		`DELIVERY_FANOUT_PAGE_SIZE="${WK_DELIVERY_FANOUT_PAGE_SIZE:-512}"`,
+		`DELIVERY_PUSH_BATCH_SIZE="${WK_DELIVERY_PUSH_BATCH_SIZE:-512}"`,
+		`DELIVERY_PENDING_ACK_MAX_PER_SESSION="${WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION:-1024}"`,
+		`PHASE_POLL_TIMEOUT="${WK_BENCH_DELIVERY_PHASE_POLL_TIMEOUT:-120s}"`,
+		"write_delivery_summary",
+		"delivery-summary.tsv",
+		"wukongim_delivery_event_queue_total",
+		"wukongim_delivery_retry_total",
+		"wukongim_delivery_ack_bindings",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("delivery bench script missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"bench-wukongimv2-three-nodes-real-qps.sh",
+		"docker compose",
+		"dev-sim",
+		"--start-script",
+		"--api LIST",
+		"--gateway LIST",
+		"--metrics LIST",
+		"WK_BENCH_API_ADDRS",
+		"WK_BENCH_GATEWAY_ADDRS",
+		"WK_BENCH_METRICS_ADDRS",
+		"WK_BENCH_THREE_NODE_START_SCRIPT",
+	} {
+		if strings.Contains(script, forbidden) {
+			t.Fatalf("delivery bench script should not contain %q", forbidden)
+		}
+	}
+}
+
+func TestWukongIMV2DeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-delivery.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--scenario", "group",
+		"--qps", "100",
+		"--channels", "20",
+		"--users", "200",
+		"--members", "50",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--phase-poll-timeout", "45s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("delivery script failed: %v\n%s", err, output)
+	}
+
+	scenario := readFile(t, filepath.Join(outDir, "scenarios", "scenario-000100.yaml"))
+	for _, want := range []string{
+		"id: delivery-group-000100",
+		"channel_type: group",
+		"count: 20",
+		"members:",
+		"count: 50",
+		"rate_per_channel: 5/s",
+		"recv_ack: true",
+		"mode: none",
+	} {
+		if !strings.Contains(scenario, want) {
+			t.Fatalf("delivery scenario missing %q:\n%s", want, scenario)
+		}
+	}
+
+	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
+	for _, want := range []string{
+		"run --target " + filepath.Join(outDir, "target.yaml"),
+		"--scenario " + filepath.Join(outDir, "scenarios", "scenario-000100.yaml"),
+		"--workers " + filepath.Join(outDir, "workers.yaml"),
+		"--phase-poll-timeout 45s",
+	} {
+		if !strings.Contains(wkbenchCalls, want) {
+			t.Fatalf("wkbench calls missing %q:\n%s", want, wkbenchCalls)
+		}
+	}
+
+	delivery := readFile(t, filepath.Join(outDir, "delivery-summary.tsv"))
+	for _, want := range []string{
+		"tag\tnode\tadmission_ok\tadmission_overflow\tadmission_error\tdelivery_errors\tretry_drop\tretry_overflow\tretry_queue_depth\tack_bindings\tresolve_routes\tpush_routes",
+		"000100\t127_0_0_1_5011\t20\t0\t0\t0\t0\t0\t0\t0\t1000\t1000",
+	} {
+		if !strings.Contains(delivery, want) {
+			t.Fatalf("delivery summary missing %q:\n%s", want, delivery)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- scenario: group",
+		"- delivery_summary: delivery-summary.tsv",
+		"- status: passed",
+		"- reports: reports/",
+		"- metrics: metrics/",
+		"- pprof: pprof/",
+		"- logs: logs/",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("top-level summary missing %q:\n%s", want, topSummary)
+		}
+	}
+}
+
+func TestWukongIMV2DeliveryBenchScriptInjectsDeliveryEnvWhenStartingCluster(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-delivery.sh"))
+	for _, want := range []string{
+		`WK_DELIVERY_ENABLE="$DELIVERY_ENABLE"`,
+		`WK_DELIVERY_EVENT_QUEUE_SIZE="$DELIVERY_EVENT_QUEUE_SIZE"`,
+		`WK_DELIVERY_FANOUT_PAGE_SIZE="$DELIVERY_FANOUT_PAGE_SIZE"`,
+		`WK_DELIVERY_PUSH_BATCH_SIZE="$DELIVERY_PUSH_BATCH_SIZE"`,
+		`WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION="$DELIVERY_PENDING_ACK_MAX_PER_SESSION"`,
+		`WK_PPROF_ENABLE="${WK_PPROF_ENABLE:-true}"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("delivery script missing start env %q", want)
+		}
+	}
+}
+
+func TestWukongIMV2DeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	timestamp := "test-delivery-person-default"
+	outDir := filepath.Join(root, "docs", "development", "perf-runs", timestamp+"-delivery-person")
+	wrongOutDir := filepath.Join(root, "docs", "development", "perf-runs", timestamp+"-delivery-group")
+	t.Cleanup(func() {
+		_ = os.RemoveAll(outDir)
+		_ = os.RemoveAll(wrongOutDir)
+	})
+	_ = os.RemoveAll(outDir)
+	_ = os.RemoveAll(wrongOutDir)
+	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
+	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-delivery.sh",
+		"--no-start",
+		"--no-worker",
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--scenario", "person",
+		"--qps", "1",
+		"--channels", "1",
+		"--users", "10",
+		"--duration", "0s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_BENCH_DELIVERY_TIMESTAMP="+timestamp,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("delivery script failed: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "summary.md")); err != nil {
+		t.Fatalf("expected default person out dir summary: %v", err)
+	}
+	if _, err := os.Stat(wrongOutDir); !os.IsNotExist(err) {
+		t.Fatalf("wrong default group out dir should not exist, stat err=%v", err)
+	}
+}
+
 func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 	root := repoRoot(t)
 	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-presence.sh"))
@@ -1136,6 +1326,154 @@ if [[ "${1:-}" == "worker" ]]; then
 fi
 echo "unexpected wkbench args: $*" >&2
 exit 2
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeDeliveryWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" > "` + callsDir + `/wkbench.args"
+printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "run" ]]; then
+  scenario=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --scenario)
+        scenario="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  report_dir="$(awk '$1 == "report_dir:" { print $2 }' "$scenario")"
+  if [[ -z "$report_dir" ]]; then
+    echo "missing report_dir in scenario" >&2
+    exit 2
+  fi
+  mkdir -p "$report_dir"
+  cat > "$report_dir/report.json" <<'JSON'
+{"run_id":"delivery-group-000100","status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0,"recv_verify_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=delivery-group,traffic=delivery-group-send}":20,"group_send_error_total{channel_type=group,phase=run,profile=delivery-group,traffic=delivery-group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=delivery-group,traffic=delivery-group-send}":{"p50_seconds":0.01,"p95_seconds":0.02,"p99_seconds":0.03,"max_seconds":0.04}}}}
+JSON
+  echo '# fake delivery report' > "$report_dir/summary.md"
+  exit 0
+fi
+if [[ "${1:-}" == "worker" ]]; then
+  while true; do sleep 60; done
+fi
+echo "unexpected delivery wkbench args: $*" >&2
+exit 2
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeDeliveryCurl(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/curl.calls"
+url="${@: -1}"
+delivery_call_index() {
+  local key
+  key="$(printf '%s' "$1" | sed 's/[^a-zA-Z0-9]/_/g')"
+  local file="` + callsDir + `/delivery-${key}.count"
+  local count=0
+  if [[ -f "$file" ]]; then
+    count="$(cat "$file")"
+  fi
+  echo "$((count + 1))" > "$file"
+  echo "$count"
+}
+case "$url" in
+  http://127.0.0.1:501*/readyz)
+    echo 'ok'
+    ;;
+  http://127.0.0.1:501*/metrics)
+    idx="$(delivery_call_index "$url")"
+    if [[ "$idx" -eq 0 ]]; then
+      cat <<'PROM'
+wukongim_delivery_event_queue_total{result="ok"} 0
+wukongim_delivery_event_queue_total{result="overflow"} 0
+wukongim_delivery_event_queue_total{result="error"} 0
+wukongim_delivery_errors_total{class="queue_full"} 0
+wukongim_delivery_retry_total{event="drop",result="max_attempts"} 0
+wukongim_delivery_retry_total{event="enqueue",result="overflow"} 0
+wukongim_delivery_retry_queue_depth 0
+wukongim_delivery_ack_bindings 0
+wukongim_delivery_resolve_routes_total{channel_type="group",result="ok"} 0
+wukongim_delivery_push_rpc_routes_total{target_node="1",result="ok"} 0
+PROM
+      exit 0
+    fi
+    case "$url" in
+      http://127.0.0.1:5011/metrics)
+        cat <<'PROM'
+wukongim_delivery_event_queue_total{result="ok"} 20
+wukongim_delivery_event_queue_total{result="overflow"} 0
+wukongim_delivery_event_queue_total{result="error"} 0
+wukongim_delivery_errors_total{class="queue_full"} 0
+wukongim_delivery_retry_total{event="drop",result="max_attempts"} 0
+wukongim_delivery_retry_total{event="enqueue",result="overflow"} 0
+wukongim_delivery_retry_queue_depth 0
+wukongim_delivery_ack_bindings 0
+wukongim_delivery_resolve_routes_total{channel_type="group",result="ok"} 1000
+wukongim_delivery_push_rpc_routes_total{target_node="1",result="ok"} 1000
+PROM
+        ;;
+      *)
+        cat <<'PROM'
+wukongim_delivery_event_queue_total{result="ok"} 0
+wukongim_delivery_event_queue_total{result="overflow"} 0
+wukongim_delivery_event_queue_total{result="error"} 0
+wukongim_delivery_errors_total{class="queue_full"} 0
+wukongim_delivery_retry_total{event="drop",result="max_attempts"} 0
+wukongim_delivery_retry_total{event="enqueue",result="overflow"} 0
+wukongim_delivery_retry_queue_depth 0
+wukongim_delivery_ack_bindings 0
+wukongim_delivery_resolve_routes_total{channel_type="group",result="ok"} 0
+wukongim_delivery_push_rpc_routes_total{target_node="1",result="ok"} 0
+PROM
+        ;;
+    esac
+    ;;
+  http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
+    echo 'goroutine profile'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/heap)
+    echo 'heap profile'
+    ;;
+  *)
+    echo "unexpected delivery curl url: $url" >&2
+    exit 2
+    ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeDeliveryStartScript(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+env | LC_ALL=C sort | grep -E '^(WK_DELIVERY_|WK_PPROF_)' > "` + callsDir + `/start.env"
+printf '%s\n' "$*" > "` + callsDir + `/start.args"
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo 'fake delivery start dry-run'
+  exit 0
+fi
+while true; do sleep 60; done
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

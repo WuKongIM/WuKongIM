@@ -21,6 +21,8 @@ New(Config)
   -> create metrics registry and runtime observers when Observability.MetricsEnabled=true
      (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, message DB grouped commits, and delivery fanout)
   -> create clusterv2.Node when no ClusterRuntime override is provided
+  -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
+     subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
@@ -35,13 +37,13 @@ New(Config)
        create runtime/delivery Manager in bounded async mode around the runner
        attach delivery metrics observers when metrics are enabled
        create usecase/delivery.App backed by the manager
-       create a bounded asynchronous committed-event sink for delivery fanout
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
      and delivery committed sink only when delivery is enabled and messages
      were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with optional bench presence snapshot controller when API.ListenAddr is configured
+  -> create access/api.Server with optional bench presence snapshot controller
+     and real benchmark channel/subscriber data writer when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -49,23 +51,29 @@ New(Config)
 events are not emitted to the delivery runtime and the existing `SEND ->
 SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
 session close feedback flows to the delivery usecase. Committed message events
-enter a bounded app-level committed-event queue so SENDACK latency is not
-coupled to subscriber scan or owner push latency. The app-level queue records
-submit results (`ok` and `overflow`) when metrics are enabled. Accepted events
-then enter the runtime manager admission queue, where closed and overflow
-admission return typed errors and manager observations. Sink and runtime
-failures are counted with normalized delivery error classes. Retryable fanout
-failures enter a bounded in-memory retry scheduler with a small fixed attempt
-cap; retry queue overflow is surfaced as `queue_full`. Owner-local pushes write
-`RecvPacket` values through `online.SessionHandle.WriteDelivery`.
+enter the runtime manager admission queue directly, so SENDACK latency is not
+coupled to subscriber scan or owner push execution. Closed admission returns a
+typed error; full-queue admission waits for capacity until the caller context
+expires, producing manager observations without changing the send result. Runtime
+fanout failures are counted with normalized delivery error classes. Retryable
+fanout failures enter a bounded in-memory retry scheduler with a small fixed
+attempt cap; retry queue overflow is surfaced as `queue_full`. Owner-local
+pushes write `RecvPacket` values through `online.SessionHandle.WriteDelivery`.
 
 The delivery adapter scopes unscoped person-channel committed events to the two
 channel participants before they enter runtime partition planning. This keeps a
 person message to one scoped fanout task instead of one task per authority
 partition. The app subscriber planner still derives both UIDs for direct
 person-channel scans. For non-person unscoped channel fanout it delegates to an
-optional durable subscriber source; without that source the scan remains a
-terminal empty page. Scoped UID delivery still bypasses subscriber scan and
+optional durable subscriber source. If no source is supplied and delivery is
+enabled, the composition root installs a clusterv2 Slot-metadata-backed source
+when the cluster runtime exposes it. `/bench/v1/channels` and
+`/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
+through Slot proposals. The benchmark data writer uses bounded concurrency for
+independent channel/subscriber mutations while preserving subscriber mutation
+order within the same channel. Group fanout then pages the real channel
+subscriber table and filters UIDs by the task's UID hash-slot partition before
+presence resolution. Scoped UID delivery still bypasses subscriber scan and
 flows through presence resolution plus the local or RPC owner pusher.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
@@ -99,16 +107,14 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
-  -> delivery worker group Start(ctx): retry scheduler starts before async
-     manager, and async manager starts before committed-event sink
+  -> delivery worker group Start(ctx): retry scheduler starts before async manager
   -> api.Start()
   -> gateway.Start()
 
 Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> delivery worker group Stop(ctx): committed-event sink drains before async
-     manager, and async manager drains before retry scheduler
+  -> delivery worker group Stop(ctx): async manager drains before retry scheduler
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -116,8 +122,7 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
-The app-level committed sink drains before the runtime async manager. The
-manager drains accepted fanout before the retry scheduler stops, so queued
+The manager drains accepted fanout before the retry scheduler stops, so queued
 retries remain available while accepted manager work completes. Stale pending
 recvacks expire during owner-local push activity.
 

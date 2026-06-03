@@ -16,9 +16,10 @@ SendBatch(items)
   -> canonicalize person-channel IDs when `SendCommand.NormalizePersonChannel`
      is set by an entry adapter
   -> allocate message IDs for durable gateway-origin sends
-  -> split adjacent sends by canonical channel
+  -> group sends by canonical channel while preserving per-channel order
   -> clone payloads at the appender boundary
-  -> append each active segment through Appender.AppendBatch
+  -> append active channel groups through Appender.AppendBatch with bounded
+     channel-level concurrency
      (omit result payloads when no committed sink is configured)
   -> submit committed-message events after successful append when a sink is configured
      (including sender identity and request-scoped delivery UIDs)

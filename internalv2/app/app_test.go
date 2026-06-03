@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -21,11 +22,12 @@ import (
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -216,8 +218,8 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if _, ok := cluster.registeredHandlers[accessnode.DeliveryPushRPCServiceID]; !ok {
 		t.Fatalf("delivery push rpc service was not registered")
 	}
-	if app.deliverySink == nil || app.deliveryWorker == nil {
-		t.Fatal("delivery async sink was not wired")
+	if app.deliveryWorker == nil {
+		t.Fatal("delivery worker was not wired")
 	}
 	if app.deliveryManager == nil || app.deliveryManager.PendingAckCount() != 0 {
 		t.Fatal("delivery manager was not initialized for async runtime")
@@ -226,8 +228,14 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if !ok {
 		t.Fatalf("delivery worker = %T, want deliveryWorkerGroup", app.deliveryWorker)
 	}
-	if len(group) != 3 {
-		t.Fatalf("delivery worker count = %d, want retry scheduler, manager, async sink", len(group))
+	if len(group) != 2 {
+		t.Fatalf("delivery worker count = %d, want retry scheduler and manager", len(group))
+	}
+	if group[0] != app.deliveryRetry {
+		t.Fatalf("delivery worker[0] = %T, want retry scheduler", group[0])
+	}
+	if group[1] != app.deliveryManager {
+		t.Fatalf("delivery worker[1] = %T, want manager", group[1])
 	}
 	if app.deliveryRetry == nil {
 		t.Fatal("delivery retry scheduler was not wired")
@@ -237,51 +245,20 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	}
 }
 
-func TestDeliveryAsyncSinkReportsQueueFull(t *testing.T) {
-	var queueResults []string
-	sink := newDeliveryAsyncSink(deliveryusecase.New(deliveryusecase.Options{}), 1, nil, func(result string) {
-		queueResults = append(queueResults, result)
-	})
+func TestDeliveryWorkerGroupStopKeepsDependenciesRunningWhenDrainFails(t *testing.T) {
+	retry := &recordingWorkerRuntime{}
+	manager := &recordingWorkerRuntime{stopErr: context.DeadlineExceeded}
+	group := deliveryWorkerGroup{retry, manager}
 
-	event := messageevents.MessageCommitted{MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}
-	if err := sink.Submit(context.Background(), event); err != nil {
-		t.Fatalf("first Submit() error = %v", err)
+	err := group.Stop(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want deadline exceeded", err)
 	}
-	if err := sink.Submit(context.Background(), event); !errors.Is(err, errDeliveryEventQueueFull) {
-		t.Fatalf("second Submit() error = %v, want %v", err, errDeliveryEventQueueFull)
+	if manager.stopCount != 1 {
+		t.Fatalf("manager stop count = %d, want 1", manager.stopCount)
 	}
-	if got, want := strings.Join(queueResults, ","), "ok,overflow"; got != want {
-		t.Fatalf("queue results = %q, want %q", got, want)
-	}
-
-	app := &App{}
-	deliveryMessageObserver{app: app}.CommittedSinkError(message.SendCommand{}, errDeliveryEventQueueFull)
-	if app.deliveryErrors.Load() != 1 {
-		t.Fatalf("delivery error count = %d, want 1", app.deliveryErrors.Load())
-	}
-}
-
-func TestDeliveryAsyncSinkRecordsRuntimeError(t *testing.T) {
-	wantErr := errors.New("fanout failed")
-	var observed int
-	sink := newDeliveryAsyncSink(deliveryusecase.New(deliveryusecase.Options{Runtime: failingDeliveryRuntime{err: wantErr}}), 1, func(err error) {
-		if errors.Is(err, wantErr) {
-			observed++
-		}
-	}, nil)
-	if err := sink.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := sink.Submit(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageSeq: 1}); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := sink.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if observed != 1 {
-		t.Fatalf("observed errors = %d, want 1", observed)
+	if retry.stopCount != 0 {
+		t.Fatalf("retry stop count = %d, want dependency kept running", retry.stopCount)
 	}
 }
 
@@ -321,6 +298,16 @@ func TestDeliveryRuntimeAdapterScopesPersonChannelAcrossPartitions(t *testing.T)
 		}),
 		Runner: runner,
 	})
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := manager.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 
 	err := deliveryRuntimeAdapter{manager: manager}.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
@@ -333,10 +320,11 @@ func TestDeliveryRuntimeAdapterScopesPersonChannelAcrossPartitions(t *testing.T)
 	if err != nil {
 		t.Fatalf("SubmitCommitted() error = %v", err)
 	}
-	if len(runner.tasks) != 1 {
-		t.Fatalf("fanout tasks = %d, want 1 scoped person task", len(runner.tasks))
+	tasks := waitAppFanoutTasks(t, runner, 1, time.Second)
+	if len(tasks) != 1 {
+		t.Fatalf("fanout tasks = %d, want 1 scoped person task", len(tasks))
 	}
-	got := runner.tasks[0].Envelope.MessageScopedUIDs
+	got := tasks[0].Envelope.MessageScopedUIDs
 	if len(got) != 2 {
 		t.Fatalf("MessageScopedUIDs = %#v, want two participants", got)
 	}
@@ -360,6 +348,21 @@ func waitAppDeliveryPendingAckCount(t *testing.T, app *App, want int, timeout ti
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("pending ack count = %d, want %d", got, want)
+}
+
+func waitAppFanoutTasks(t *testing.T, runner *appRecordingFanoutRunner, want int, timeout time.Duration) []runtimedelivery.FanoutTask {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var tasks []runtimedelivery.FanoutTask
+	for time.Now().Before(deadline) {
+		tasks = runner.snapshot()
+		if len(tasks) == want {
+			return tasks
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("fanout tasks = %d, want %d", len(tasks), want)
+	return nil
 }
 
 func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T) {
@@ -517,6 +520,106 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 		t.Fatalf("OnFrame(recvack) error = %v", err)
 	}
 	waitAppDeliveryPendingAckCount(t, app, 0, time.Second)
+}
+
+func TestDeliveryMetaStoreWritesBenchDataAndFiltersSubscriberPages(t *testing.T) {
+	const hashSlotCount = 16
+	slotThreeUID := testUIDForHashSlot(t, 3, hashSlotCount)
+	slotNineUID := testUIDForHashSlot(t, 9, hashSlotCount)
+	node := &recordingDeliveryMetaNode{
+		snapshot:    readyFakeClusterSnapshot(1, hashSlotCount),
+		subscribers: map[string][]string{"g1": []string{slotThreeUID, slotNineUID}},
+	}
+	store := newDeliveryMetaStore(node)
+
+	acceptedChannels, err := store.UpsertChannels(context.Background(), []accessapi.BenchChannelMutation{{
+		ChannelID:     "g1",
+		ChannelType:   frame.ChannelTypeGroup,
+		AllowStranger: true,
+	}})
+	if err != nil {
+		t.Fatalf("UpsertChannels() error = %v", err)
+	}
+	if acceptedChannels != 1 || len(node.upserted) != 1 || node.upserted[0].ChannelID != "g1" || node.upserted[0].AllowStranger != 1 {
+		t.Fatalf("upserted = %#v accepted=%d, want real channel metadata", node.upserted, acceptedChannels)
+	}
+	acceptedSubscribers, err := store.AddSubscribers(context.Background(), []accessapi.BenchSubscriberMutation{{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Subscribers: []string{slotThreeUID},
+	}, {
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Subscribers: []string{slotNineUID},
+	}})
+	if err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if acceptedSubscribers != 2 || len(node.added) != 2 || node.added[0].version != 1 || node.added[1].version != 2 {
+		t.Fatalf("added = %#v accepted=%d, want ordered subscriber mutation versions 1 and 2", node.added, acceptedSubscribers)
+	}
+
+	page, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Partition:   runtimedelivery.Partition{HashSlotStart: 3, HashSlotEnd: 3},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListSubscribers() error = %v", err)
+	}
+	if len(page.UIDs) != 1 || page.UIDs[0] != slotThreeUID || !page.Done {
+		t.Fatalf("slot-filtered page = %#v, want only slot 3 uid", page)
+	}
+	first, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Partition:   runtimedelivery.Partition{HashSlotStart: 0, HashSlotEnd: hashSlotCount - 1},
+		Limit:       1,
+	})
+	if err != nil {
+		t.Fatalf("ListSubscribers(first) error = %v", err)
+	}
+	if len(first.UIDs) != 1 || first.NextCursor == "" || first.Done {
+		t.Fatalf("first page = %#v, want one uid and continuation", first)
+	}
+	second, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Partition:   runtimedelivery.Partition{HashSlotStart: 0, HashSlotEnd: hashSlotCount - 1},
+		Cursor:      first.NextCursor,
+		Limit:       1,
+	})
+	if err != nil {
+		t.Fatalf("ListSubscribers(second) error = %v", err)
+	}
+	if len(second.UIDs) != 1 || !second.Done {
+		t.Fatalf("second page = %#v, want final uid", second)
+	}
+}
+
+func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) {
+	cluster := &recordingDeliveryMetaNode{
+		fakeCluster: fakeCluster{calls: &[]string{}},
+		snapshot:    readyFakeClusterSnapshot(1, 16),
+		subscribers: map[string][]string{},
+	}
+	app, err := New(
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 1},
+			Delivery: DeliveryConfig{Enabled: true},
+		},
+		WithCluster(cluster),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.deliverySubscribers == nil {
+		t.Fatal("delivery subscriber source was not wired")
+	}
+	if _, ok := app.deliverySubscribers.(*deliveryMetaStore); !ok {
+		t.Fatalf("deliverySubscribers = %T, want *deliveryMetaStore", app.deliverySubscribers)
+	}
 }
 
 func TestNewDoesNotOverwriteWithMessagesWhenDeliveryEnabled(t *testing.T) {
@@ -1663,6 +1766,22 @@ type fakePresenceCluster struct {
 	appendSeq          uint64
 }
 
+type recordingDeliveryMetaNode struct {
+	fakeCluster
+	mu          sync.Mutex
+	snapshot    clusterv2.Snapshot
+	upserted    []metadb.Channel
+	added       []recordedSubscriberMutation
+	subscribers map[string][]string
+}
+
+type recordedSubscriberMutation struct {
+	channelID   string
+	channelType int64
+	uids        []string
+	version     uint64
+}
+
 func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorityEvent) *fakePresenceCluster {
 	return &fakePresenceCluster{nodeID: nodeID, events: events}
 }
@@ -1676,6 +1795,71 @@ func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Sna
 		SlotCount:     1,
 		HashSlotCount: hashSlotCount,
 	}
+}
+
+func testUIDForHashSlot(t *testing.T, want, count uint16) string {
+	t.Helper()
+	for i := 0; i < 100000; i++ {
+		uid := fmt.Sprintf("bench-u-%d", i)
+		if routing.HashSlotForKey(uid, count) == want {
+			return uid
+		}
+	}
+	t.Fatalf("no uid found for hash slot %d/%d", want, count)
+	return ""
+}
+
+func (n *recordingDeliveryMetaNode) Snapshot() clusterv2.Snapshot {
+	return n.snapshot
+}
+
+func (n *recordingDeliveryMetaNode) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+	return clusterv2.Route{HashSlot: hashSlot, SlotID: 1, Leader: 1, Revision: 1, AuthorityEpoch: 1}, nil
+}
+
+func (n *recordingDeliveryMetaNode) UpsertChannelMetadata(_ context.Context, channel metadb.Channel) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.upserted = append(n.upserted, channel)
+	return nil
+}
+
+func (n *recordingDeliveryMetaNode) AddChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, version uint64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.added = append(n.added, recordedSubscriberMutation{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		version:     version,
+	})
+	return nil
+}
+
+func (n *recordingDeliveryMetaNode) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
+	n.mu.Lock()
+	uids := append([]string(nil), n.subscribers[channelID]...)
+	n.mu.Unlock()
+	start := 0
+	for start < len(uids) && afterUID != "" {
+		if uids[start] == afterUID {
+			start++
+			break
+		}
+		start++
+	}
+	if limit <= 0 || start >= len(uids) {
+		return nil, "", true, nil
+	}
+	end := start + limit
+	if end > len(uids) {
+		end = len(uids)
+	}
+	page := append([]string(nil), uids[start:end]...)
+	if end >= len(uids) {
+		return page, "", true, nil
+	}
+	return page, page[len(page)-1], false, nil
 }
 
 func (f *fakePresenceCluster) NodeID() uint64 {
@@ -1795,10 +1979,6 @@ type recordingSessionHandle struct {
 	writes   []any
 }
 
-type failingDeliveryRuntime struct {
-	err error
-}
-
 type fakeDeliverySubscriberSource struct {
 	requests []runtimedelivery.SubscriberPageRequest
 	pages    []runtimedelivery.UIDPage
@@ -1813,12 +1993,38 @@ func (p appStaticDeliveryPartitioner) Partitions(context.Context) ([]runtimedeli
 }
 
 type appRecordingFanoutRunner struct {
+	mu    sync.Mutex
 	tasks []runtimedelivery.FanoutTask
 }
 
+type recordingWorkerRuntime struct {
+	startCount int
+	stopCount  int
+	startErr   error
+	stopErr    error
+}
+
+func (r *recordingWorkerRuntime) Start(context.Context) error {
+	r.startCount++
+	return r.startErr
+}
+
+func (r *recordingWorkerRuntime) Stop(context.Context) error {
+	r.stopCount++
+	return r.stopErr
+}
+
 func (r *appRecordingFanoutRunner) RunTask(_ context.Context, task runtimedelivery.FanoutTask) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.tasks = append(r.tasks, task)
 	return nil
+}
+
+func (r *appRecordingFanoutRunner) snapshot() []runtimedelivery.FanoutTask {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]runtimedelivery.FanoutTask(nil), r.tasks...)
 }
 
 func (s *fakeDeliverySubscriberSource) ListSubscribers(_ context.Context, req runtimedelivery.SubscriberPageRequest) (runtimedelivery.UIDPage, error) {
@@ -1829,18 +2035,6 @@ func (s *fakeDeliverySubscriberSource) ListSubscribers(_ context.Context, req ru
 	page := s.pages[0]
 	s.pages = s.pages[1:]
 	return page, nil
-}
-
-func (f failingDeliveryRuntime) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
-	return f.err
-}
-
-func (f failingDeliveryRuntime) Recvack(context.Context, deliveryusecase.RecvackCommand) error {
-	return nil
-}
-
-func (f failingDeliveryRuntime) SessionClosed(context.Context, deliveryusecase.SessionClosedCommand) error {
-	return nil
 }
 
 func (r *recordingSessionHandle) WriteDelivery(payload any) error {

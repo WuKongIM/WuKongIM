@@ -63,10 +63,10 @@ observed during flush. The adapter sends the batch locally when the target
 leader is this node and uses access/node RPC for remote leaders.
 
 If route resolution reports route-not-ready, stale routing, or not-leader, the
-adapter immediately resolves a fresh `RouteKey` a few bounded times. Authority
-calls retry stale routing and not-leader the same way, while authority-side
-route-not-ready is returned as its original bounded presence error so pending
-token cleanup semantics stay explicit.
+adapter waits a short bounded backoff and resolves a fresh `RouteKey` a few
+bounded times. Authority calls retry stale routing and not-leader the same way,
+while authority-side route-not-ready is returned as its original bounded
+presence error so pending token cleanup semantics stay explicit.
 
 Best-effort unregister calls are bounded by a short context timeout so gateway
 close and rollback paths do not block indefinitely on route lookup or node RPC.

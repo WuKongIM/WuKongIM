@@ -36,11 +36,15 @@ type PresenceAuthorityClient struct {
 
 	mu      sync.Mutex
 	pending map[presence.PendingRouteToken]pendingRouteRef
+
+	routeRetryBackoff time.Duration
+	routeRetrySleep   func(context.Context, time.Duration) error
 }
 
 const (
 	defaultPresenceUnregisterTimeout  = 3 * time.Second
 	defaultPresenceRouteRetryAttempts = 5
+	defaultPresenceRouteRetryBackoff  = 5 * time.Millisecond
 )
 
 type pendingRouteRef struct {
@@ -55,6 +59,8 @@ func NewPresenceAuthorityClient(node PresenceNode, local accessnode.PresenceAuth
 		local:   local,
 		remote:  accessnode.NewClient(node),
 		pending: make(map[presence.PendingRouteToken]pendingRouteRef),
+
+		routeRetryBackoff: defaultPresenceRouteRetryBackoff,
 	}
 }
 
@@ -238,6 +244,9 @@ func (c *PresenceAuthorityClient) withFreshTargetSource(ctx context.Context, uid
 		target, err := c.ResolveRouteTarget(uid)
 		if err != nil {
 			if attempt+1 < defaultPresenceRouteRetryAttempts && shouldRetryPresenceRouteLookup(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return fromAuthority, sleepErr
+				}
 				continue
 			}
 			return fromAuthority, err
@@ -248,11 +257,31 @@ func (c *PresenceAuthorityClient) withFreshTargetSource(ctx context.Context, uid
 			return true, nil
 		}
 		if attempt+1 < defaultPresenceRouteRetryAttempts && shouldRetryPresenceRoute(err) {
+			if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+				return true, sleepErr
+			}
 			continue
 		}
 		return true, err
 	}
 	return fromAuthority, authoritypresence.ErrRouteNotReady
+}
+
+func (c *PresenceAuthorityClient) sleepBeforeRouteRetry(ctx context.Context) error {
+	if c == nil || c.routeRetryBackoff <= 0 {
+		return nil
+	}
+	if c.routeRetrySleep != nil {
+		return c.routeRetrySleep(ctx, c.routeRetryBackoff)
+	}
+	timer := time.NewTimer(c.routeRetryBackoff)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (c *PresenceAuthorityClient) authorityForTarget(target presence.RouteTarget) (accessnode.PresenceAuthority, error) {

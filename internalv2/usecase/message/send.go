@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -10,6 +11,9 @@ import (
 )
 
 const channelTypePerson uint8 = 1
+
+// maxConcurrentAppendSegments bounds channel-level append fanout inside one gateway batch.
+const maxConcurrentAppendSegments = 16
 
 // Send processes one send command.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
@@ -39,9 +43,7 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		}
 		prepared = append(prepared, next)
 	}
-	for _, segment := range splitSegments(prepared) {
-		a.appendSegment(segment, results)
-	}
+	a.appendSegments(groupSegmentsByChannel(prepared), results)
 	return results
 }
 
@@ -102,24 +104,52 @@ type segment struct {
 	items   []preparedSend
 }
 
-func splitSegments(items []preparedSend) []segment {
+func groupSegmentsByChannel(items []preparedSend) []segment {
 	if len(items) == 0 {
 		return nil
 	}
-	out := make([]segment, 0, 1)
-	start := 0
-	current := ChannelID{ID: items[0].cmd.ChannelID, Type: items[0].cmd.ChannelType}
-	for i := 1; i < len(items); i++ {
-		channel := ChannelID{ID: items[i].cmd.ChannelID, Type: items[i].cmd.ChannelType}
-		if channel == current {
+	out := make([]segment, 0, len(items))
+	indexes := make(map[ChannelID]int, len(items))
+	for _, item := range items {
+		channel := ChannelID{ID: item.cmd.ChannelID, Type: item.cmd.ChannelType}
+		if index, ok := indexes[channel]; ok {
+			out[index].items = append(out[index].items, item)
 			continue
 		}
-		out = append(out, segment{channel: current, items: items[start:i]})
-		start = i
-		current = channel
+		indexes[channel] = len(out)
+		out = append(out, segment{channel: channel, items: []preparedSend{item}})
 	}
-	out = append(out, segment{channel: current, items: items[start:]})
 	return out
+}
+
+func (a *App) appendSegments(segments []segment, results []SendBatchItemResult) {
+	switch len(segments) {
+	case 0:
+		return
+	case 1:
+		a.appendSegment(segments[0], results)
+		return
+	}
+	workers := maxConcurrentAppendSegments
+	if workers > len(segments) {
+		workers = len(segments)
+	}
+	tasks := make(chan segment)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for segment := range tasks {
+				a.appendSegment(segment, results)
+			}
+		}()
+	}
+	for _, segment := range segments {
+		tasks <- segment
+	}
+	close(tasks)
+	wg.Wait()
 }
 
 func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {

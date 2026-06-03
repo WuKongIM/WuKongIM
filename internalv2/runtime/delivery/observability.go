@@ -15,7 +15,7 @@ const (
 	DeliveryResultError = "error"
 	// DeliveryResultDropped reports delivery work that was discarded by local validation.
 	DeliveryResultDropped = "dropped"
-	// DeliveryResultOverflow reports bounded queue overflow.
+	// DeliveryResultOverflow reports a full bounded queue whose admission wait expired.
 	DeliveryResultOverflow = "overflow"
 	// DeliveryResultMaxAttempts reports retry work that reached its attempt cap.
 	DeliveryResultMaxAttempts = "max_attempts"
@@ -63,7 +63,7 @@ type ManagerObserver interface {
 
 // ManagerAdmissionEvent describes one manager admission decision.
 type ManagerAdmissionEvent struct {
-	// Result is accepted, overflow, or closed.
+	// Result is ok, overflow, or error.
 	Result string
 	// QueueDepth is the current async manager queue depth after the decision.
 	QueueDepth int
@@ -71,7 +71,7 @@ type ManagerAdmissionEvent struct {
 
 // ManagerTerminalEvent describes the final outcome for accepted manager work.
 type ManagerTerminalEvent struct {
-	// Result is ok, error, cancelled, or dropped.
+	// Result is ok, retryable, error, dropped, overflow, or max_attempts.
 	Result string
 	// ErrorClass is the normalized delivery error class.
 	ErrorClass string

@@ -42,8 +42,10 @@ type Client struct {
 	token            string
 
 	mu            sync.Mutex
+	readMu        sync.Mutex
 	writeMu       sync.Mutex
 	conn          net.Conn
+	readBuf       []byte
 	privateKey    [32]byte
 	publicKey     [32]byte
 	sessionCrypto *protocolenc.SessionCrypto
@@ -94,6 +96,9 @@ func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
 	c.conn = conn
 	c.sessionCrypto = nil
 	c.mu.Unlock()
+	c.readMu.Lock()
+	c.readBuf = c.readBuf[:0]
+	c.readMu.Unlock()
 
 	connect := &frame.ConnectPacket{
 		Version:         frame.LatestVersion,
@@ -225,11 +230,36 @@ func (c *Client) readFrame(ctx context.Context) (frame.Frame, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
 	var f frame.Frame
 	if err := withDeadline(ctx, conn.SetReadDeadline, func() error {
-		var decodeErr error
-		f, decodeErr = c.proto.DecodePacketWithConn(conn, frame.LatestVersion)
-		return decodeErr
+		var scratch [4096]byte
+		for {
+			decoded, ok, err := c.nextBufferedFrame()
+			if err != nil {
+				return err
+			}
+			if ok {
+				f = decoded
+				return nil
+			}
+			n, readErr := conn.Read(scratch[:])
+			if n > 0 {
+				c.readBuf = append(c.readBuf, scratch[:n]...)
+				decoded, ok, err = c.nextBufferedFrame()
+				if err != nil {
+					return err
+				}
+				if ok {
+					f = decoded
+					return nil
+				}
+			}
+			if readErr != nil {
+				return readErr
+			}
+		}
 	}); err != nil {
 		return nil, err
 	}
@@ -246,12 +276,68 @@ func (c *Client) readFrame(ctx context.Context) (frame.Frame, error) {
 		if c.cryptoEnabled() && !pkt.Setting.IsSet(frame.SettingNoEncrypt) {
 			plain, err := protocolenc.DecryptPayloadWithCrypto(pkt.Payload, c.currentCrypto())
 			if err != nil {
-				return nil, err
+				return nil, recvDecryptError(pkt, err)
 			}
 			pkt.Payload = plain
 		}
 	}
 	return f, nil
+}
+
+func recvDecryptError(pkt *frame.RecvPacket, err error) error {
+	if pkt == nil {
+		return fmt.Errorf("wkproto client: decrypt recv payload: packet is nil: %w", err)
+	}
+	const maxPrefix = 32
+	prefix := pkt.Payload
+	if len(prefix) > maxPrefix {
+		prefix = prefix[:maxPrefix]
+	}
+	return fmt.Errorf(
+		"wkproto client: decrypt recv payload: channel_id=%q channel_type=%d from_uid=%q client_msg_no=%q message_id=%d message_seq=%d setting=%d msg_key_empty=%t payload_len=%d payload_prefix=%q payload_prefix_hex=%x: %w",
+		pkt.ChannelID,
+		pkt.ChannelType,
+		pkt.FromUID,
+		pkt.ClientMsgNo,
+		pkt.MessageID,
+		pkt.MessageSeq,
+		pkt.Setting.Uint8(),
+		pkt.MsgKey == "",
+		len(pkt.Payload),
+		string(prefix),
+		prefix,
+		err,
+	)
+}
+
+func (c *Client) nextBufferedFrame() (frame.Frame, bool, error) {
+	if len(c.readBuf) == 0 {
+		return nil, false, nil
+	}
+	f, consumed, err := c.proto.DecodeFrame(c.readBuf, frame.LatestVersion)
+	if err != nil {
+		return nil, false, err
+	}
+	if f == nil || consumed == 0 {
+		return nil, false, nil
+	}
+	detachFramePayload(f)
+	if consumed >= len(c.readBuf) {
+		c.readBuf = c.readBuf[:0]
+	} else {
+		copy(c.readBuf, c.readBuf[consumed:])
+		c.readBuf = c.readBuf[:len(c.readBuf)-consumed]
+	}
+	return f, true, nil
+}
+
+func detachFramePayload(f frame.Frame) {
+	switch pkt := f.(type) {
+	case *frame.SendPacket:
+		pkt.Payload = append([]byte(nil), pkt.Payload...)
+	case *frame.RecvPacket:
+		pkt.Payload = append([]byte(nil), pkt.Payload...)
+	}
 }
 
 func (c *Client) applyConnack(connack *frame.ConnackPacket) error {

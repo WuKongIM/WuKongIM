@@ -33,6 +33,52 @@ func TestClusterV2SingleNodeDefaultProposeAppliesSlotCommand(t *testing.T) {
 	}
 }
 
+func TestClusterV2SingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	route := waitRouteKeyLeaderReady(t, node, "g1")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := node.UpsertChannelMetadata(ctx, metadb.Channel{
+		ChannelID:     "g1",
+		ChannelType:   2,
+		AllowStranger: 1,
+	}); err != nil {
+		t.Fatalf("UpsertChannelMetadata() error = %v", err)
+	}
+	channel, err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannel(ctx, "g1", 2)
+	if err != nil {
+		t.Fatalf("GetChannel() error = %v, want channel", err)
+	}
+	if channel.AllowStranger != 1 {
+		t.Fatalf("channel = %#v, want persisted flags", channel)
+	}
+	if err := node.AddChannelSubscribers(ctx, "g1", 2, []string{"u2", "u1", "u1"}, 7); err != nil {
+		t.Fatalf("AddChannelSubscribers() error = %v", err)
+	}
+
+	first, cursor, done, err := node.ListChannelSubscribersPage(ctx, "g1", 2, "", 1)
+	if err != nil {
+		t.Fatalf("ListChannelSubscribersPage(first) error = %v", err)
+	}
+	if len(first) != 1 || first[0] != "u1" || cursor != "u1" || done {
+		t.Fatalf("first page = %#v cursor=%q done=%t, want u1 and continuation", first, cursor, done)
+	}
+	second, cursor, done, err := node.ListChannelSubscribersPage(ctx, "g1", 2, cursor, 10)
+	if err != nil {
+		t.Fatalf("ListChannelSubscribersPage(second) error = %v", err)
+	}
+	if len(second) != 1 || second[0] != "u2" || cursor != "" || !done {
+		t.Fatalf("second page = %#v cursor=%q done=%t, want final u2", second, cursor, done)
+	}
+	channel, err = node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannel(ctx, "g1", 2)
+	if err != nil || channel.SubscriberMutationVersion != 7 {
+		t.Fatalf("channel after subscribers = %#v err=%v, want mutation version 7", channel, err)
+	}
+}
+
 func TestClusterV2ThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	channelID := channelv2.ChannelID{ID: "room-default-quorum", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)

@@ -12,10 +12,21 @@
 - `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
 - `capacity`: maximum stable ingress QPS search used by `wkbench capacity send` and `wkbench capacity hot-channel`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
 - `workload`: reusable connection, person traffic, and group traffic executors.
-- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs.
+- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongimv2` route real metadata writes through their cluster runtime.
 - `wkproto`: benchmark WKProto client implementation.
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
+
+The WKProto bench client keeps a per-connection decode buffer so socket read
+timeouts never discard a partial frame. Decoded payload slices are detached
+before the buffer is compacted, because codec `BinaryAll` payloads point into
+the shared read buffer. Worker clients are additionally wrapped by a matching
+reader: when automatic recv-ack is enabled, one background reader continuously
+drains the connection, auto-acks unverified `RECV` frames, and buffers
+`SENDACK`/verified frames for foreground waiters. Foreground sendack waiters do
+not take over socket reads while that background reader is active, which keeps
+high-fanout delivery traffic from putting large `RECV` backlogs in front of
+`SENDACK` matching.
 
 ## Coordinator Run Flow
 
@@ -215,7 +226,12 @@ Prepare
        -> group subscriber batches
 ```
 
-Group preparation uses the target bench API only. Small group profiles create owned channels and append their subscribers. Split large group profiles create the logical group channel only on the deterministic owner, then every worker appends its member range as subscribers.
+Group preparation uses the target bench API only. Small group profiles create
+owned channels and append their subscribers; non-split small groups batch many
+channel subscriber items into one `/bench/v1/channels/subscribers` request so
+real metadata setup does not issue one HTTP POST per channel. Split large group
+profiles create the logical group channel only on the deterministic owner, then
+every worker appends its member range as subscribers.
 
 ### Connect
 
@@ -237,7 +253,13 @@ The client wrapper serializes access to each underlying `ReadFrame` call and buf
 
 When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
 
-The background drainer does not inject short socket read deadlines because a timeout can split a partially read WKProto frame. When a background read returns naturally and foreground sendack/recv matchers are queued, the drainer briefly yields the shared reader instead of immediately reacquiring it.
+The WKProto benchmark client keeps a per-connection decode buffer and only
+discards bytes after `DecodeFrame` returns a complete frame. Read-deadline
+timeouts may therefore return an error while retaining partial frame bytes for
+the next read. The background drainer still avoids injecting short socket read
+deadlines; when a background read returns naturally and foreground sendack/recv
+matchers are queued, the drainer briefly yields the shared reader instead of
+immediately reacquiring it.
 
 ### Warmup, Run, Cooldown
 

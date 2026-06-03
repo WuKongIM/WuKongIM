@@ -2,10 +2,23 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
+
+func TestManagerRequiresStartForFanoutRunnerByDefault(t *testing.T) {
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{}),
+		Runner:  recordingManagerRunner{},
+	})
+
+	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1001})
+	if !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerClosed", err)
+	}
+}
 
 func TestManagerPlansAndRunsFanout(t *testing.T) {
 	presence := &fakePresenceResolver{
@@ -24,7 +37,7 @@ func TestManagerPlansAndRunsFanout(t *testing.T) {
 				},
 			},
 		}),
-		Worker: NewFanoutWorker(FanoutWorkerOptions{
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
 			Subscribers: &fakeSubscriberPlanner{
 				pages: []UIDPage{
 					{UIDs: []string{"u1"}, Done: true},
@@ -37,8 +50,14 @@ func TestManagerPlansAndRunsFanout(t *testing.T) {
 	})
 
 	event := messageevents.MessageCommitted{MessageID: 1001, ChannelID: "c1"}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
 		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
 
 	if len(pusher.commands) != 2 {
@@ -77,7 +96,7 @@ func TestManagerEnvelopeFromEventClonesSlices(t *testing.T) {
 	pusher := &fakePusher{}
 	manager := NewManager(ManagerOptions{
 		Planner: NewPlanner(PlannerOptions{}),
-		Worker: NewFanoutWorker(FanoutWorkerOptions{
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
 			Presence: &fakePresenceResolver{
 				routes: map[string][]Route{
 					"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
@@ -92,11 +111,17 @@ func TestManagerEnvelopeFromEventClonesSlices(t *testing.T) {
 		MessageScopedUIDs: []string{"u1"},
 	}
 
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
 		t.Fatalf("SubmitCommitted() error = %v", err)
 	}
 	event.Payload[0] = 'X'
 	event.MessageScopedUIDs[0] = "mutated"
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
 
 	if len(pusher.commands) != 1 {
 		t.Fatalf("push command count = %d, want 1", len(pusher.commands))
@@ -114,7 +139,7 @@ func TestManagerEnvelopeFromEventCopiesSenderNodeID(t *testing.T) {
 	pusher := &fakePusher{}
 	manager := NewManager(ManagerOptions{
 		Planner: NewPlanner(PlannerOptions{}),
-		Worker: NewFanoutWorker(FanoutWorkerOptions{
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
 			Presence: &fakePresenceResolver{
 				routes: map[string][]Route{
 					"sender": {
@@ -134,8 +159,14 @@ func TestManagerEnvelopeFromEventCopiesSenderNodeID(t *testing.T) {
 		SenderSessionID:   100,
 		MessageScopedUIDs: []string{"sender"},
 	}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
 		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
 
 	if len(pusher.commands) != 1 {

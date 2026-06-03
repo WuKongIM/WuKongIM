@@ -41,6 +41,40 @@ type PresenceBenchController interface {
 	Snapshot(context.Context) (model.PresenceSnapshot, error)
 }
 
+// BenchData accepts benchmark setup mutations backed by the composition root.
+type BenchData interface {
+	UpsertChannels(context.Context, []BenchChannelMutation) (int, error)
+	AddSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
+}
+
+// BenchChannelMutation describes one benchmark channel metadata upsert.
+type BenchChannelMutation struct {
+	// ChannelID identifies the benchmark channel.
+	ChannelID string
+	// ChannelType is the WuKong channel type for ChannelID.
+	ChannelType uint8
+	// Large marks a large-group channel.
+	Large bool
+	// Ban blocks channel messaging when true.
+	Ban bool
+	// Disband marks a channel as disbanded.
+	Disband bool
+	// SendBan blocks sending while allowing receives.
+	SendBan bool
+	// AllowStranger permits stranger sends for compatible legacy semantics.
+	AllowStranger bool
+}
+
+// BenchSubscriberMutation describes one benchmark channel subscriber append.
+type BenchSubscriberMutation struct {
+	// ChannelID identifies the benchmark channel.
+	ChannelID string
+	// ChannelType is the WuKong channel type for ChannelID.
+	ChannelType uint8
+	// Subscribers are user IDs appended to the benchmark channel subscriber set.
+	Subscribers []string
+}
+
 // Options configures the minimal internalv2 HTTP API server.
 type Options struct {
 	// ListenAddr is the HTTP API listen address. An empty value makes Start fail.
@@ -59,6 +93,8 @@ type Options struct {
 	BenchRuntime ChannelRuntimeBenchController
 	// BenchPresence controls benchmark-only presence route diagnostics when configured.
 	BenchPresence PresenceBenchController
+	// BenchData stores benchmark channel/subscriber setup when configured.
+	BenchData BenchData
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -80,6 +116,7 @@ type Server struct {
 	gateway              GatewayAddresses
 	benchRuntime         ChannelRuntimeBenchController
 	benchPresence        PresenceBenchController
+	benchData            BenchData
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	counts               map[string]int
@@ -98,6 +135,7 @@ func New(opts Options) *Server {
 		gateway:              opts.Gateway,
 		benchRuntime:         opts.BenchRuntime,
 		benchPresence:        opts.BenchPresence,
+		benchData:            opts.BenchData,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		counts:               map[string]int{},
@@ -278,8 +316,8 @@ func (s *Server) handleBenchCapabilities(w http.ResponseWriter, _ *http.Request)
 		Version: versionV1,
 		Supports: capabilitiesSupports{
 			UsersTokensBatch:        true,
-			ChannelsBatch:           true,
-			ChannelSubscribersBatch: true,
+			ChannelsBatch:           s.benchData != nil,
+			ChannelSubscribersBatch: s.benchData != nil,
 			Snapshot:                true,
 			PresenceSnapshot:        s.benchPresence != nil,
 			ChannelRuntimeSnapshot:  s.benchRuntime != nil,
@@ -399,6 +437,10 @@ func (r channelsRequest) channelItems() []channelItem {
 }
 
 func (s *Server) handleBenchChannels(w http.ResponseWriter, r *http.Request) {
+	if s.benchData == nil {
+		writeBenchError(w, http.StatusNotImplemented, "bench channel data writer is not configured")
+		return
+	}
 	var req channelsRequest
 	if !s.bindBenchJSON(w, r, &req) {
 		return
@@ -408,8 +450,25 @@ func (s *Server) handleBenchChannels(w http.ResponseWriter, r *http.Request) {
 		writeBenchError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.addCount("accepted_channels", len(items))
-	writeJSON(w, http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(items)})
+	mutations := make([]BenchChannelMutation, 0, len(items))
+	for _, item := range items {
+		mutations = append(mutations, BenchChannelMutation{
+			ChannelID:     item.ChannelID,
+			ChannelType:   item.ChannelType,
+			Large:         item.Large,
+			Ban:           item.Ban,
+			Disband:       item.Disband,
+			SendBan:       item.SendBan,
+			AllowStranger: item.AllowStranger,
+		})
+	}
+	accepted, err := s.benchData.UpsertChannels(r.Context(), mutations)
+	if err != nil {
+		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.addCount("accepted_channels", accepted)
+	writeJSON(w, http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: accepted})
 }
 
 type subscribersRequest struct {
@@ -426,6 +485,10 @@ type subscriberItem struct {
 }
 
 func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) {
+	if s.benchData == nil {
+		writeBenchError(w, http.StatusNotImplemented, "bench subscriber data writer is not configured")
+		return
+	}
 	var req subscribersRequest
 	if !s.bindBenchJSON(w, r, &req) {
 		return
@@ -435,12 +498,23 @@ func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	acceptedSubscribers := 0
+	mutations := make([]BenchSubscriberMutation, 0, len(req.Items))
 	for _, item := range req.Items {
 		if item.Reset {
 			writeBenchError(w, http.StatusBadRequest, "bench/v1 subscribers reset=true is not supported")
 			return
 		}
 		acceptedSubscribers += len(item.Subscribers)
+		mutations = append(mutations, BenchSubscriberMutation{
+			ChannelID:   item.ChannelID,
+			ChannelType: item.ChannelType,
+			Subscribers: append([]string(nil), item.Subscribers...),
+		})
+	}
+	acceptedSubscribers, err := s.benchData.AddSubscribers(r.Context(), mutations)
+	if err != nil {
+		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	s.addCount("accepted_subscriber_items", len(req.Items))
 	s.addCount("accepted_subscribers", acceptedSubscribers)

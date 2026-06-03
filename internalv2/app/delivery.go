@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -17,9 +16,7 @@ import (
 )
 
 var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id overflows recv packet")
-var errDeliveryEventQueueFull = errors.New("internalv2/app: delivery event queue full")
 
-const defaultDeliveryEventQueueSize = 1024
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
 
@@ -31,9 +28,9 @@ type deliveryRuntimeAdapter struct {
 type deliveryWorkerGroup []WorkerRuntime
 
 type deliveryCommittedSink struct {
-	// delivery receives committed message events through the delivery usecase or async adapter.
+	// delivery receives committed message events through the delivery usecase.
 	delivery interface {
-		Submit(context.Context, messageevents.MessageCommitted) error
+		SubmitCommitted(context.Context, messageevents.MessageCommitted) error
 	}
 }
 
@@ -41,36 +38,7 @@ func (s deliveryCommittedSink) Submit(ctx context.Context, event messageevents.M
 	if s.delivery == nil {
 		return nil
 	}
-	return s.delivery.Submit(ctx, event)
-}
-
-// deliveryAsyncSink decouples SEND result latency from online delivery fanout.
-type deliveryAsyncSink struct {
-	// delivery receives dequeued committed message events.
-	delivery *deliveryusecase.App
-	// queue stores cloned committed events waiting for delivery fanout.
-	queue chan messageevents.MessageCommitted
-	// observeError records non-fatal delivery fanout failures.
-	observeError func(error)
-	// observeQueue records committed-event queue submit results.
-	observeQueue func(string)
-
-	mu      sync.Mutex
-	started bool
-	stop    chan struct{}
-	done    chan struct{}
-}
-
-func newDeliveryAsyncSink(delivery *deliveryusecase.App, queueSize int, observeError func(error), observeQueue func(string)) *deliveryAsyncSink {
-	if queueSize <= 0 {
-		queueSize = defaultDeliveryEventQueueSize
-	}
-	return &deliveryAsyncSink{
-		delivery:     delivery,
-		queue:        make(chan messageevents.MessageCommitted, queueSize),
-		observeError: observeError,
-		observeQueue: observeQueue,
-	}
+	return s.delivery.SubmitCommitted(ctx, event)
 }
 
 func (g deliveryWorkerGroup) Start(ctx context.Context) error {
@@ -90,120 +58,17 @@ func (g deliveryWorkerGroup) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop preserves reverse dependency order; earlier workers stay running if a later worker cannot drain.
 func (g deliveryWorkerGroup) Stop(ctx context.Context) error {
-	var err error
 	for i := len(g) - 1; i >= 0; i-- {
 		if g[i] == nil {
 			continue
 		}
 		if stopErr := g[i].Stop(ctx); stopErr != nil {
-			err = errors.Join(err, stopErr)
+			return stopErr
 		}
 	}
-	return err
-}
-
-func (s *deliveryAsyncSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
-	if s == nil || s.delivery == nil {
-		return nil
-	}
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-	cloned := event.Clone()
-	select {
-	case s.queue <- cloned:
-		s.recordQueue(runtimedelivery.DeliveryResultOK)
-		return nil
-	default:
-		s.recordQueue("overflow")
-		return errDeliveryEventQueueFull
-	}
-}
-
-func (s *deliveryAsyncSink) Start(context.Context) error {
-	if s == nil {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.started {
-		return nil
-	}
-	s.stop = make(chan struct{})
-	s.done = make(chan struct{})
-	s.started = true
-	go s.run(s.stop, s.done)
 	return nil
-}
-
-func (s *deliveryAsyncSink) Stop(ctx context.Context) error {
-	if s == nil {
-		return nil
-	}
-	s.mu.Lock()
-	if !s.started {
-		s.mu.Unlock()
-		return nil
-	}
-	stop := s.stop
-	done := s.done
-	s.started = false
-	s.stop = nil
-	s.done = nil
-	s.mu.Unlock()
-
-	close(stop)
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (s *deliveryAsyncSink) run(stop <-chan struct{}, done chan<- struct{}) {
-	defer close(done)
-	for {
-		select {
-		case event := <-s.queue:
-			s.deliver(event)
-		case <-stop:
-			s.drain()
-			return
-		}
-	}
-}
-
-func (s *deliveryAsyncSink) drain() {
-	for {
-		select {
-		case event := <-s.queue:
-			s.deliver(event)
-		default:
-			return
-		}
-	}
-}
-
-func (s *deliveryAsyncSink) deliver(event messageevents.MessageCommitted) {
-	if s == nil || s.delivery == nil {
-		return
-	}
-	if err := s.delivery.SubmitCommitted(context.Background(), event); err != nil && s.observeError != nil {
-		s.observeError(err)
-	}
-}
-
-func (s *deliveryAsyncSink) recordQueue(result string) {
-	if s != nil && s.observeQueue != nil {
-		s.observeQueue(result)
-	}
 }
 
 type deliveryMessageObserver struct {
@@ -227,13 +92,6 @@ func (a *App) recordDeliveryError(err error) {
 			a.metrics.Delivery.ObserveError(class)
 		}
 	}
-}
-
-func (a *App) recordDeliveryQueue(result string) {
-	if a == nil || a.metrics == nil {
-		return
-	}
-	a.metrics.Delivery.ObserveEventQueue(result)
 }
 
 func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {

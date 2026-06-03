@@ -552,6 +552,26 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 	if cfg.MembersPerChannel <= 0 {
 		return nil
 	}
+	items := make([]model.SubscriberItem, 0, minInt(cfg.ChannelRange.Len(), maxGroupSubscriberBatchSize))
+	batchStart := -1
+	batchEnd := -1
+	flush := func() error {
+		if len(items) == 0 {
+			return nil
+		}
+		reqItems := append([]model.SubscriberItem(nil), items...)
+		if err := target.AddSubscribers(ctx, model.BatchSubscribersRequest{
+			RunID:   cfg.RunID,
+			BatchID: groupSubscribersBatchID(cfg, batchStart, batchEnd),
+			Items:   reqItems,
+		}); err != nil {
+			return err
+		}
+		items = items[:0]
+		batchStart = -1
+		batchEnd = -1
+		return nil
+	}
 	for channelIndex := cfg.ChannelRange.Start; channelIndex < cfg.ChannelRange.End; channelIndex++ {
 		memberIndexes := smallGroupMemberIndexes(cfg, channelIndex)
 		if len(memberIndexes) == 0 {
@@ -560,13 +580,23 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 		channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex)
 		for start := 0; start < len(memberIndexes); {
 			end := groupSubscriberIndexBatchEnd(cfg, start, len(memberIndexes))
-			if err := addSubscriberIndexBatch(ctx, target, cfg, channelID, memberIndexes[start:end]); err != nil {
+			if batchStart < 0 {
+				batchStart = channelIndex
+			}
+			batchEnd = channelIndex + 1
+			items = append(items, subscriberItemForIndexes(cfg, channelID, memberIndexes[start:end]))
+			if len(items) >= maxGroupSubscriberBatchSize {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+			if err := ctx.Err(); err != nil {
 				return err
 			}
 			start = end
 		}
 	}
-	return nil
+	return flush()
 }
 
 func smallGroupMemberIndexes(cfg GroupPrepareConfig, channelIndex int) []int {
@@ -618,20 +648,25 @@ func addSubscriberIndexBatch(ctx context.Context, target GroupPrepareTarget, cfg
 	if len(indexes) == 0 {
 		return nil
 	}
+	item := subscriberItemForIndexes(cfg, channelID, indexes)
+	return target.AddSubscribers(ctx, model.BatchSubscribersRequest{
+		RunID:   cfg.RunID,
+		BatchID: groupSubscribersIndexBatchID(cfg, indexes),
+		Items:   []model.SubscriberItem{item},
+	})
+}
+
+func subscriberItemForIndexes(cfg GroupPrepareConfig, channelID string, indexes []int) model.SubscriberItem {
 	subscribers := make([]string, 0, len(indexes))
 	for _, idx := range indexes {
 		subscribers = append(subscribers, indexedBenchID(cfg.UIDPrefix, idx))
 	}
-	return target.AddSubscribers(ctx, model.BatchSubscribersRequest{
-		RunID:   cfg.RunID,
-		BatchID: groupSubscribersIndexBatchID(cfg, indexes),
-		Items: []model.SubscriberItem{{
-			ChannelID:   channelID,
-			ChannelType: frame.ChannelTypeGroup,
-			Reset:       false,
-			Subscribers: subscribers,
-		}},
-	})
+	return model.SubscriberItem{
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypeGroup,
+		Reset:       false,
+		Subscribers: subscribers,
+	}
 }
 
 func groupSubscriberIndexBatchEnd(cfg GroupPrepareConfig, start, max int) int {
@@ -852,6 +887,13 @@ func indexedBenchID(prefix string, index int) string {
 		prefix = "bench"
 	}
 	return fmt.Sprintf("%s-%d", prefix, index)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func groupSubscriberBatchLimit(batchSize int) int {

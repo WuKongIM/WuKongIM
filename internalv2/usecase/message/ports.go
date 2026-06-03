@@ -30,6 +30,8 @@ type Authorizer interface {
 }
 
 // CommittedSink receives durable append events.
+// Implementations must be safe for concurrent Submit calls from independent
+// channel appends within one SendBatch.
 type CommittedSink interface {
 	Submit(context.Context, messageevents.MessageCommitted) error
 }

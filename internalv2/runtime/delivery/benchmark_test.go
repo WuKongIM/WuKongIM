@@ -172,7 +172,7 @@ func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	uids := benchmarkUIDs(256)
 	manager := NewManager(ManagerOptions{
 		Planner: NewPlanner(PlannerOptions{}),
-		Worker: NewFanoutWorker(FanoutWorkerOptions{
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
 			Presence:      benchmarkPresence{ownerNodeID: 1},
 			Push:          &benchmarkPusher{},
 			PushBatchSize: 128,
@@ -193,8 +193,8 @@ func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		event.MessageID = uint64(i + 1)
 		event.MessageSeq = uint64(i + 1)
-		if err := manager.SubmitCommitted(context.Background(), event); err != nil {
-			b.Fatalf("SubmitCommitted() error = %v", err)
+		if err := manager.runEnvelope(context.Background(), envelopeFromEvent(event)); err != nil {
+			b.Fatalf("runEnvelope() error = %v", err)
 		}
 	}
 }

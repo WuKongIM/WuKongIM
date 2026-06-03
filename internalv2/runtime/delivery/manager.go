@@ -11,23 +11,20 @@ import (
 type ManagerOptions struct {
 	// Planner creates fanout tasks from committed message events.
 	Planner *Planner
-	// Worker executes fanout tasks synchronously.
-	Worker *FanoutWorker
-	// Runner executes fanout tasks; when set it overrides Worker.
+	// Runner executes planned fanout tasks for accepted commands.
 	Runner FanoutTaskRunner
 	// Acks tracks pending recipient recvacks; nil creates a default tracker.
 	Acks *AckTracker
-	// AsyncQueueSize enables bounded asynchronous execution when greater than zero.
+	// AsyncQueueSize bounds committed-message commands waiting for fanout.
 	AsyncQueueSize int
-	// AsyncWorkers controls asynchronous fanout worker count; values <= 0 use one worker when async is enabled.
+	// AsyncWorkers controls fanout worker count; values <= 0 use one worker.
 	AsyncWorkers int
 	// ManagerObserver receives async manager admission and terminal observations.
 	ManagerObserver ManagerObserver
 }
 
 // Manager is the delivery runtime facade used by app adapters.
-// It runs committed work synchronously by default and can use bounded async
-// admission when AsyncQueueSize is configured.
+// It admits committed work into a bounded queue when fanout ports are configured.
 type Manager struct {
 	planner *Planner
 	runner  FanoutTaskRunner
@@ -42,11 +39,8 @@ func NewManager(opts ManagerOptions) *Manager {
 		acks = NewAckTracker(AckTrackerOptions{})
 	}
 	runner := opts.Runner
-	if runner == nil {
-		runner = opts.Worker
-	}
 	asyncWorkers := opts.AsyncWorkers
-	if opts.AsyncQueueSize > 0 && asyncWorkers <= 0 {
+	if asyncWorkers <= 0 {
 		asyncWorkers = defaultManagerAsyncWorkers
 	}
 	manager := &Manager{
@@ -54,7 +48,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		runner:  runner,
 		acks:    acks,
 	}
-	if opts.AsyncQueueSize > 0 {
+	if opts.Planner != nil && runner != nil {
 		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
 	}
 	return manager
@@ -76,16 +70,12 @@ func (m *Manager) Stop(ctx context.Context) error {
 	return m.async.stop(ctx)
 }
 
-// SubmitCommitted plans and executes fanout for one committed message event.
+// SubmitCommitted admits one committed message event into async fanout.
 func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
-	if m == nil || m.planner == nil || m.runner == nil {
+	if m == nil || m.planner == nil || m.runner == nil || m.async == nil {
 		return nil
 	}
-	env := envelopeFromEvent(event)
-	if m.async != nil {
-		return m.async.submit(ctx, env)
-	}
-	return m.runEnvelope(ctx, env)
+	return m.async.submit(ctx, envelopeFromEvent(event))
 }
 
 func (m *Manager) runEnvelope(ctx context.Context, env Envelope) error {

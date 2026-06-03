@@ -618,6 +618,40 @@ func TestAutoRecvAckIdleReadDoesNotInjectReadDeadline(t *testing.T) {
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
+func TestAutoRecvAckKeepsBackgroundReaderWhileSendackWaiterIsPending(t *testing.T) {
+	raw := newControlledReadPersonClient()
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	defer stop()
+
+	require.Equal(t, readStart{count: 1, hasDeadline: false}, raw.waitReadStart(t, time.Second))
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		got, err := readFrameMatching(waitCtx, wrapped, func(f frame.Frame) bool {
+			ack, ok := f.(*frame.SendackPacket)
+			return ok && ack.ClientMsgNo == "sendack-a"
+		})
+		if err != nil {
+			done <- err
+			return
+		}
+		require.Equal(t, "sendack-a", got.(*frame.SendackPacket).ClientMsgNo)
+		done <- nil
+	}()
+
+	raw.pushFrame(&frame.RecvPacket{MessageID: 50, MessageSeq: 1, ClientMsgNo: "recv-a"})
+	require.Equal(t, readStart{count: 2, hasDeadline: false}, raw.waitReadStart(t, time.Second))
+	raw.pushFrame(&frame.RecvPacket{MessageID: 51, MessageSeq: 2, ClientMsgNo: "recv-b"})
+	require.Equal(t, readStart{count: 3, hasDeadline: false}, raw.waitReadStart(t, time.Second))
+	raw.pushFrame(&frame.SendackPacket{ClientSeq: 9, ClientMsgNo: "sendack-a", ReasonCode: frame.ReasonSuccess})
+
+	require.NoError(t, <-done)
+	require.Equal(t, []recvAckCall{{messageID: 50, messageSeq: 1}, {messageID: 51, messageSeq: 2}}, raw.recvAckSnapshot())
+}
+
 func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {
 	sender := newDelayedSendackClient(10 * time.Millisecond)
 	recipient := newRecordingPersonClient()
@@ -723,6 +757,73 @@ func (c *countingBlockingReadPersonClient) completeRead(err error) {
 }
 
 func (c *countingBlockingReadPersonClient) waitReadStart(t *testing.T, timeout time.Duration) readStart {
+	t.Helper()
+	select {
+	case start := <-c.starts:
+		return start
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for ReadFrame to start")
+		return readStart{}
+	}
+}
+
+type controlledReadPersonClient struct {
+	starts      chan readStart
+	frames      chan frame.Frame
+	recvAckMu   sync.Mutex
+	recvAckCall []recvAckCall
+	mu          sync.Mutex
+	count       int
+}
+
+func newControlledReadPersonClient() *controlledReadPersonClient {
+	return &controlledReadPersonClient{
+		starts: make(chan readStart, 8),
+		frames: make(chan frame.Frame, 8),
+	}
+}
+
+func (c *controlledReadPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	return nil
+}
+func (c *controlledReadPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	return nil
+}
+func (c *controlledReadPersonClient) Close() error { return nil }
+
+func (c *controlledReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	c.mu.Lock()
+	c.count++
+	count := c.count
+	c.mu.Unlock()
+	_, hasDeadline := ctx.Deadline()
+	c.starts <- readStart{count: count, hasDeadline: hasDeadline}
+	select {
+	case f := <-c.frames:
+		return f, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (c *controlledReadPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.recvAckMu.Lock()
+	defer c.recvAckMu.Unlock()
+	c.recvAckCall = append(c.recvAckCall, recvAckCall{messageID: messageID, messageSeq: messageSeq})
+	return nil
+}
+
+func (c *controlledReadPersonClient) pushFrame(f frame.Frame) {
+	c.frames <- f
+}
+
+func (c *controlledReadPersonClient) recvAckSnapshot() []recvAckCall {
+	c.recvAckMu.Lock()
+	defer c.recvAckMu.Unlock()
+	return append([]recvAckCall(nil), c.recvAckCall...)
+}
+
+func (c *controlledReadPersonClient) waitReadStart(t *testing.T, timeout time.Duration) readStart {
 	t.Helper()
 	select {
 	case start := <-c.starts:

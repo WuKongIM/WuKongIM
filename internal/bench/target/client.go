@@ -17,7 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
-const defaultTimeout = 10 * time.Second
+const defaultTimeout = 60 * time.Second
 
 // Config controls the black-box target bench API client.
 type Config struct {

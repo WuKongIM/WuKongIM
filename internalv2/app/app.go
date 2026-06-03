@@ -63,11 +63,11 @@ type App struct {
 	messages        *message.App
 	delivery        *deliveryusecase.App
 	deliveryManager *runtimedelivery.Manager
-	deliverySink    *deliveryAsyncSink
 	deliveryRetry   *runtimedelivery.RetryScheduler
 	deliveryWorker  WorkerRuntime
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
+	deliveryMeta        *deliveryMetaStore
 	presence            *presence.App
 	online              *online.Registry
 	presenceDirectory   *authoritypresence.Directory
@@ -117,6 +117,12 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	if app.online == nil {
 		app.online = online.NewRegistry(online.RegistryOptions{})
+	}
+	if app.cfg.Delivery.Enabled && app.deliverySubscribers == nil {
+		if node, ok := app.cluster.(deliveryMetaNode); ok {
+			app.deliveryMeta = newDeliveryMetaStore(node)
+			app.deliverySubscribers = app.deliveryMeta
+		}
 	}
 	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
@@ -225,11 +231,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		app.deliveryManager = manager
 		app.deliveryRetry = retryScheduler
 		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
-		if app.deliverySink == nil {
-			app.deliverySink = newDeliveryAsyncSink(app.delivery, app.cfg.Delivery.EventQueueSize, app.recordDeliveryError, app.recordDeliveryQueue)
-		}
 		if app.deliveryWorker == nil {
-			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager, app.deliverySink}
+			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager}
 		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})
@@ -243,7 +246,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
 		}
 		if app.cfg.Delivery.Enabled {
-			messageOpts.Committed = deliveryCommittedSink{delivery: app.deliverySink}
+			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
 			messageOpts.Observer = deliveryMessageObserver{app: app}
 		}
 		app.messages = message.New(messageOpts)
@@ -267,6 +270,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			Gateway:              apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
 			BenchRuntime:         app.benchRuntimeController(),
 			BenchPresence:        app.benchPresenceController(),
+			BenchData:            app.deliveryMeta,
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
 		})

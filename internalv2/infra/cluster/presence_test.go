@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -166,6 +167,43 @@ func TestPresenceClientRetriesRouteResolutionWhenRouteNotReady(t *testing.T) {
 	}
 	if got := local.registerCalls[0].target.RouteRevision; got != 18 {
 		t.Fatalf("retry RouteRevision = %d, want 18", got)
+	}
+}
+
+func TestPresenceClientBacksOffBeforeRetryingTransientNotLeader(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+	}
+	allowRetry := false
+	local := &fakePresenceAuthority{
+		registerHook: func() error {
+			if !allowRetry {
+				return authoritypresence.ErrNotLeader
+			}
+			return nil
+		},
+	}
+	client := NewPresenceAuthorityClient(cluster, local)
+	client.routeRetryBackoff = time.Millisecond
+	sleepCalls := 0
+	client.routeRetrySleep = func(ctx context.Context, d time.Duration) error {
+		sleepCalls++
+		if d != time.Millisecond {
+			t.Fatalf("retry backoff = %s, want 1ms", d)
+		}
+		allowRetry = true
+		return nil
+	}
+
+	if _, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101)); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if sleepCalls != 1 {
+		t.Fatalf("retry sleeps = %d, want 1", sleepCalls)
+	}
+	if len(local.registerCalls) != 2 {
+		t.Fatalf("local register calls = %d, want 2", len(local.registerCalls))
 	}
 }
 
@@ -417,6 +455,7 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuth
 type fakePresenceAuthority struct {
 	registerResult presence.RegisterResult
 	registerErrs   []error
+	registerHook   func() error
 	commitErrs     []error
 	abortErrs      []error
 	registerCalls  []presenceRegisterCall
@@ -438,6 +477,11 @@ func (f *fakePresenceOwner) ApplyRouteAction(_ context.Context, action presence.
 
 func (f *fakePresenceAuthority) RegisterRoute(_ context.Context, target presence.RouteTarget, route presence.Route) (presence.RegisterResult, error) {
 	f.registerCalls = append(f.registerCalls, presenceRegisterCall{target: target, route: route})
+	if f.registerHook != nil {
+		if err := f.registerHook(); err != nil {
+			return presence.RegisterResult{}, err
+		}
+	}
 	if len(f.registerErrs) > 0 {
 		err := f.registerErrs[0]
 		f.registerErrs = f.registerErrs[1:]

@@ -1406,8 +1406,9 @@ func TestWorkerDefaultRunnerUsesPlannedMemberRangeForSmallGroups(t *testing.T) {
 		case "/bench/v1/channels/subscribers":
 			var req model.BatchSubscribersRequest
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-			require.Len(t, req.Items, 1)
-			seen = append(seen, seenSubscribers{channelID: req.Items[0].ChannelID, uids: req.Items[0].Subscribers})
+			for _, item := range req.Items {
+				seen = append(seen, seenSubscribers{channelID: item.ChannelID, uids: item.Subscribers})
+			}
 		default:
 			t.Fatalf("unexpected target path %s", r.URL.Path)
 		}

@@ -123,11 +123,13 @@ func TestGroupPrepareSmallGroupsCreatesOwnedChannelsAndSubscriberBatches(t *test
 		{ChannelID: "run-small-small-group-2", ChannelType: uint8(frame.ChannelTypeGroup)},
 		{ChannelID: "run-small-small-group-3", ChannelType: uint8(frame.ChannelTypeGroup)},
 	}, target.channelRequests[0].Channels)
-	require.Len(t, target.subscriberRequests, 4)
+	require.Len(t, target.subscriberRequests, 1)
+	require.Equal(t, "run-small-subs-small-group-worker-a-2-4", target.subscriberRequests[0].BatchID)
+	require.Len(t, target.subscriberRequests[0].Items, 4)
 	require.Equal(t, []string{"u-6", "u-7"}, target.subscriberRequests[0].Items[0].Subscribers)
-	require.Equal(t, []string{"u-8"}, target.subscriberRequests[1].Items[0].Subscribers)
-	require.Equal(t, []string{"u-9", "u-10"}, target.subscriberRequests[2].Items[0].Subscribers)
-	require.Equal(t, []string{"u-11"}, target.subscriberRequests[3].Items[0].Subscribers)
+	require.Equal(t, []string{"u-8"}, target.subscriberRequests[0].Items[1].Subscribers)
+	require.Equal(t, []string{"u-9", "u-10"}, target.subscriberRequests[0].Items[2].Subscribers)
+	require.Equal(t, []string{"u-11"}, target.subscriberRequests[0].Items[3].Subscribers)
 }
 
 func TestGroupPrepareAllowedOverlapUsesSharedMemberPool(t *testing.T) {
@@ -189,6 +191,38 @@ func TestGroupPrepareChunksChannelUpsertsAtThousand(t *testing.T) {
 	require.Equal(t, "run-large-large-group-1999", target.channelRequests[1].Channels[999].ChannelID)
 	require.Equal(t, "run-large-large-group-2000", target.channelRequests[2].Channels[0].ChannelID)
 	require.Equal(t, "run-large-large-group-2499", target.channelRequests[2].Channels[499].ChannelID)
+}
+
+func TestGroupPrepareBatchesSmallGroupSubscriberItemsAtThousand(t *testing.T) {
+	target := newRecordingGroupPrepareTarget()
+
+	err := PrepareGroup(context.Background(), GroupPrepareConfig{
+		RunID:             "run-large",
+		WorkerID:          "worker-a",
+		ProfileName:       "small-group",
+		ChannelRange:      model.Range{Start: 0, End: 2500},
+		MembersPerChannel: 1,
+		UIDPrefix:         "u",
+	}, target, NoopGroupPrepareBarrier{})
+
+	require.NoError(t, err)
+	require.Len(t, target.subscriberRequests, 3)
+	require.Equal(t, []string{
+		"run-large-subs-small-group-worker-a-0-1000",
+		"run-large-subs-small-group-worker-a-1000-2000",
+		"run-large-subs-small-group-worker-a-2000-2500",
+	}, []string{
+		target.subscriberRequests[0].BatchID,
+		target.subscriberRequests[1].BatchID,
+		target.subscriberRequests[2].BatchID,
+	})
+	require.Len(t, target.subscriberRequests[0].Items, 1000)
+	require.Len(t, target.subscriberRequests[1].Items, 1000)
+	require.Len(t, target.subscriberRequests[2].Items, 500)
+	require.Equal(t, "run-large-small-group-0", target.subscriberRequests[0].Items[0].ChannelID)
+	require.Equal(t, "run-large-small-group-999", target.subscriberRequests[0].Items[999].ChannelID)
+	require.Equal(t, "run-large-small-group-1000", target.subscriberRequests[1].Items[0].ChannelID)
+	require.Equal(t, "run-large-small-group-2499", target.subscriberRequests[2].Items[499].ChannelID)
 }
 
 func TestGroupWorkloadLocalRateUsesOwnedPartitionShare(t *testing.T) {

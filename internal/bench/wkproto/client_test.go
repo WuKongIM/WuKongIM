@@ -1,9 +1,11 @@
 package wkproto
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -241,6 +243,163 @@ func TestClientSerializesConcurrentPartialWrites(t *testing.T) {
 	}
 }
 
+func TestClientReadFrameRetainsPartialFrameAfterTimeout(t *testing.T) {
+	packet := &frame.SendackPacket{
+		MessageID:   11,
+		MessageSeq:  12,
+		ClientSeq:   13,
+		ClientMsgNo: "client-13",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	encoded := mustEncodeFrame(t, packet)
+	headerLen := wkprotoHeaderLen(t, encoded)
+	conn := newTimeoutAfterReadConn(encoded, headerLen+3)
+	client, err := NewClient(ClientConfig{
+		Addr:             "127.0.0.1:5100",
+		Dialer:           staticDialer{conn: conn},
+		OperationTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	client.mu.Lock()
+	client.conn = conn
+	client.mu.Unlock()
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := client.ReadFrame(ctx); err == nil {
+		t.Fatal("first ReadFrame() error = nil, want timeout after partial frame")
+	}
+
+	f, err := client.ReadFrame(ctx)
+	if err != nil {
+		t.Fatalf("second ReadFrame() error = %v", err)
+	}
+	ack, ok := f.(*frame.SendackPacket)
+	if !ok {
+		t.Fatalf("second ReadFrame() = %T, want *frame.SendackPacket", f)
+	}
+	if ack.ClientMsgNo != packet.ClientMsgNo || ack.ClientSeq != packet.ClientSeq || ack.MessageSeq != packet.MessageSeq {
+		t.Fatalf("sendack = %#v, want %#v", ack, packet)
+	}
+}
+
+func TestClientReadFrameReportsRecvDecryptContext(t *testing.T) {
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		connect := f.(*frame.ConnectPacket)
+		serverKeys, serverKey, err := protocolenc.NegotiateServerSession(connect.ClientKey)
+		if err != nil {
+			t.Fatalf("NegotiateServerSession() error = %v", err)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{
+			ReasonCode:    frame.ReasonSuccess,
+			ServerVersion: frame.LatestVersion,
+			ServerKey:     serverKey,
+			Salt:          string(serverKeys.AESIV),
+		})
+		writeFrame(t, conn, &frame.RecvPacket{
+			MessageID:   99,
+			MessageSeq:  7,
+			ClientMsgNo: "m1",
+			FromUID:     "u2",
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("plain-payload"),
+		})
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	_, err = client.ReadFrame(ctx)
+	if err == nil {
+		t.Fatal("ReadFrame() error = nil, want decrypt context")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		"decrypt recv payload",
+		`channel_id="g1"`,
+		"channel_type=2",
+		`client_msg_no="m1"`,
+		"msg_key_empty=true",
+		`payload_prefix="plain-payload"`,
+		"illegal base64",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("ReadFrame() error %q missing %q", msg, want)
+		}
+	}
+}
+
+func TestClientReadFrameDetachesRecvPayloadBeforeBufferCompaction(t *testing.T) {
+	keys := protocolenc.SessionKeys{
+		AESKey: []byte("0123456789abcdef"),
+		AESIV:  []byte("abcdefghijklmnop"),
+	}
+	sessionCrypto, err := protocolenc.NewSessionCrypto(keys)
+	if err != nil {
+		t.Fatalf("NewSessionCrypto() error = %v", err)
+	}
+	sealed, err := protocolenc.SealRecvPacketWithCrypto(&frame.RecvPacket{
+		MessageID:   99,
+		MessageSeq:  7,
+		ClientMsgNo: "m1",
+		Timestamp:   123,
+		FromUID:     "u2",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("welcome"),
+	}, sessionCrypto)
+	if err != nil {
+		t.Fatalf("SealRecvPacketWithCrypto() error = %v", err)
+	}
+	wire := append(mustEncodeFrame(t, sealed), bytes.Repeat([]byte{0x05}, 512)...)
+	conn := newPartialWriteConn(wire, 0)
+	client, err := NewClient(ClientConfig{
+		Addr:             "127.0.0.1:5100",
+		Dialer:           staticDialer{conn: conn},
+		OperationTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	client.mu.Lock()
+	client.conn = conn
+	client.sessionCrypto = sessionCrypto
+	client.mu.Unlock()
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	f, err := client.ReadFrame(ctx)
+	if err != nil {
+		t.Fatalf("ReadFrame() error = %v", err)
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		t.Fatalf("ReadFrame() = %T, want *frame.RecvPacket", f)
+	}
+	if got, want := string(recv.Payload), "welcome"; got != want {
+		t.Fatalf("recv payload = %q, want %q", got, want)
+	}
+}
+
 func TestClientMethodsReportNotConnectedForNilClient(t *testing.T) {
 	var client *Client
 	if err := client.Send(context.Background(), &frame.SendPacket{}); err == nil {
@@ -301,6 +460,21 @@ func mustEncodeFrame(t *testing.T, f frame.Frame) []byte {
 	return payload
 }
 
+func wkprotoHeaderLen(t *testing.T, payload []byte) int {
+	t.Helper()
+	if len(payload) < 2 {
+		t.Fatalf("encoded frame too short: %d", len(payload))
+	}
+	idx := 1
+	for ; idx < len(payload); idx++ {
+		if payload[idx] < 0x80 {
+			return idx + 1
+		}
+	}
+	t.Fatalf("encoded frame missing remaining length terminator")
+	return 0
+}
+
 func decodeWrittenFrames(t *testing.T, payload []byte) []frame.Frame {
 	t.Helper()
 	var frames []frame.Frame
@@ -336,6 +510,85 @@ type partialWriteConn struct {
 	active   int32
 	max      int32
 }
+
+type timeoutAfterReadConn struct {
+	mu           sync.Mutex
+	data         []byte
+	offset       int
+	timeoutAfter int
+	timedOut     bool
+	closed       bool
+}
+
+func newTimeoutAfterReadConn(data []byte, timeoutAfter int) *timeoutAfterReadConn {
+	return &timeoutAfterReadConn{data: append([]byte(nil), data...), timeoutAfter: timeoutAfter}
+}
+
+func (c *timeoutAfterReadConn) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return 0, net.ErrClosed
+	}
+	if c.offset >= len(c.data) {
+		return 0, io.EOF
+	}
+	limit := len(c.data)
+	if !c.timedOut && c.timeoutAfter > 0 && c.timeoutAfter < limit {
+		limit = c.timeoutAfter
+	}
+	if c.offset >= limit {
+		c.timedOut = true
+		return 0, timeoutError{}
+	}
+	n := copy(p, c.data[c.offset:limit])
+	c.offset += n
+	if !c.timedOut && c.timeoutAfter > 0 && c.offset >= c.timeoutAfter {
+		c.timedOut = true
+		return n, timeoutError{}
+	}
+	return n, nil
+}
+
+func (c *timeoutAfterReadConn) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return len(p), nil
+}
+
+func (c *timeoutAfterReadConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	return nil
+}
+
+func (c *timeoutAfterReadConn) LocalAddr() net.Addr {
+	return fakeAddr("local")
+}
+
+func (c *timeoutAfterReadConn) RemoteAddr() net.Addr {
+	return fakeAddr("remote")
+}
+
+func (c *timeoutAfterReadConn) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (c *timeoutAfterReadConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (c *timeoutAfterReadConn) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
 
 func newPartialWriteConn(readBuf []byte, partial int) *partialWriteConn {
 	return &partialWriteConn{readBuf: append([]byte(nil), readBuf...), partial: partial}

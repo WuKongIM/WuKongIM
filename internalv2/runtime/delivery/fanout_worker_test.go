@@ -152,6 +152,40 @@ func TestFanoutWorkerReturnsErrorForRetryablePush(t *testing.T) {
 	}
 }
 
+func TestFanoutWorkerContinuesAfterRetryablePushBatch(t *testing.T) {
+	presence := &fakePresenceResolver{
+		routes: map[string][]Route{
+			"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+			"u2": {{UID: "u2", OwnerNodeID: 20, SessionID: 201}},
+		},
+	}
+	pusher := &firstRetryablePusher{}
+	worker := NewFanoutWorker(FanoutWorkerOptions{
+		Presence: presence,
+		Push:     pusher,
+	})
+
+	err := worker.RunTask(context.Background(), FanoutTask{
+		Envelope:  Envelope{MessageID: 1001, MessageScopedUIDs: []string{"u1", "u2"}},
+		Partition: Partition{ID: 1},
+		Attempt:   1,
+	})
+	if !errors.Is(err, ErrRetryablePushRoutes) {
+		t.Fatalf("RunTask() error = %v, want ErrRetryablePushRoutes", err)
+	}
+	if len(pusher.commands) != 2 {
+		t.Fatalf("push command count = %d, want 2; commands=%#v", len(pusher.commands), pusher.commands)
+	}
+	var retryErr *RetryablePushRoutesError
+	if !errors.As(err, &retryErr) {
+		t.Fatalf("RunTask() error = %T, want *RetryablePushRoutesError", err)
+	}
+	retryRoutes := retryErr.Routes()
+	if len(retryRoutes) != 1 || retryRoutes[0].UID != pusher.commands[0].Routes[0].UID {
+		t.Fatalf("retry routes = %#v, want first pushed route", retryRoutes)
+	}
+}
+
 func TestFanoutWorkerSkipsSenderSameSession(t *testing.T) {
 	subscribers := &fakeSubscriberPlanner{
 		pages: []UIDPage{
@@ -315,6 +349,20 @@ func (p *fakePusher) Push(_ context.Context, command PushCommand) (PushResult, e
 	p.commands = append(p.commands, command)
 	if len(p.result.Accepted) > 0 || len(p.result.Retryable) > 0 || len(p.result.Dropped) > 0 {
 		return p.result, nil
+	}
+	return PushResult{Accepted: append([]Route(nil), command.Routes...)}, nil
+}
+
+type firstRetryablePusher struct {
+	commands []PushCommand
+}
+
+func (p *firstRetryablePusher) Push(_ context.Context, command PushCommand) (PushResult, error) {
+	command.Envelope = cloneEnvelope(command.Envelope)
+	command.Routes = append([]Route(nil), command.Routes...)
+	p.commands = append(p.commands, command)
+	if len(p.commands) == 1 {
+		return PushResult{Retryable: append([]Route(nil), command.Routes...)}, nil
 	}
 	return PushResult{Accepted: append([]Route(nil), command.Routes...)}, nil
 }

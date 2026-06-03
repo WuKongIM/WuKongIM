@@ -198,6 +198,7 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 			grouped[route.OwnerNodeID] = append(grouped[route.OwnerNodeID], route)
 		}
 	}
+	var retryableRoutes []Route
 	for ownerNodeID, routes := range grouped {
 		if len(routes) == 0 {
 			continue
@@ -249,10 +250,11 @@ func (w *FanoutWorker) pushUIDs(ctx context.Context, task FanoutTask, uids []str
 					Dropped:     len(result.Dropped),
 				})
 			}
-			if len(result.Retryable) > 0 {
-				return newRetryablePushRoutesError(result.Retryable)
-			}
+			retryableRoutes = append(retryableRoutes, result.Retryable...)
 		}
+	}
+	if len(retryableRoutes) > 0 {
+		return newRetryablePushRoutesError(retryableRoutes)
 	}
 	return nil
 }

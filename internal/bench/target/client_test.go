@@ -464,7 +464,7 @@ func TestHealthAndReadyUseConfiguredAPIAddress(t *testing.T) {
 	require.Equal(t, 1, seen["/readyz"])
 }
 
-func TestMutationsPostSpecShapedRequestsToFirstAddress(t *testing.T) {
+func TestUserAndChannelMutationsPostSpecShapedRequestsToFirstAddress(t *testing.T) {
 	firstSeen := make([]string, 0)
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		firstSeen = append(firstSeen, r.URL.Path)
@@ -478,10 +478,6 @@ func TestMutationsPostSpecShapedRequestsToFirstAddress(t *testing.T) {
 			var req model.BatchChannelsRequest
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 			require.Equal(t, []model.ChannelItem{{ChannelID: "g1", ChannelType: 2}}, req.Channels)
-		case "/bench/v1/channels/subscribers":
-			var req model.BatchSubscribersRequest
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-			require.Equal(t, []model.SubscriberItem{{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1", "u2"}}}, req.Items)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -496,9 +492,36 @@ func TestMutationsPostSpecShapedRequestsToFirstAddress(t *testing.T) {
 
 	require.NoError(t, client.UpsertTokens(context.Background(), model.BatchTokensRequest{RunID: "run", BatchID: "b1", Upsert: true, Users: []model.UserTokenItem{{UID: "u1", Token: "t1"}}}))
 	require.NoError(t, client.UpsertChannels(context.Background(), model.BatchChannelsRequest{RunID: "run", BatchID: "b2", Upsert: true, Channels: []model.ChannelItem{{ChannelID: "g1", ChannelType: 2}}}))
-	require.NoError(t, client.AddSubscribers(context.Background(), model.BatchSubscribersRequest{RunID: "run", BatchID: "b3", Items: []model.SubscriberItem{{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1", "u2"}}}}))
 
-	require.Equal(t, []string{"/bench/v1/users/tokens", "/bench/v1/channels", "/bench/v1/channels/subscribers"}, firstSeen)
+	require.Equal(t, []string{"/bench/v1/users/tokens", "/bench/v1/channels"}, firstSeen)
+}
+
+func TestAddSubscribersPostsToFirstHealthyAPIAddress(t *testing.T) {
+	hits := make(map[string]int)
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/channels/subscribers", r.URL.Path)
+		hits["first"]++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("AddSubscribers should use the first healthy address, got %s", r.URL.Path)
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	err := client.AddSubscribers(context.Background(), model.BatchSubscribersRequest{
+		RunID:   "run",
+		BatchID: "b3",
+		Items: []model.SubscriberItem{{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			Subscribers: []string{"u1", "u2"},
+		}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, hits["first"])
 }
 
 func TestMutationsFallBackToNextAPIAddress(t *testing.T) {

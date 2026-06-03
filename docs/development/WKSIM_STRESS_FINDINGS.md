@@ -3,6 +3,60 @@
 This document records issues found while running the Docker Compose `wk-sim`
 load loop. Keep entries concise so the final review is easy to scan.
 
+## 2026-06-03 internalv2 Delivery Three-Node Real-Storage Bench
+
+Environment:
+- Local `cmd/wukongimv2` clean three-node cluster started by `scripts/bench-wukongimv2-delivery.sh`.
+- Bench data is injected through `/bench/v1/channels` and `/bench/v1/channels/subscribers`, then persisted through real clusterv2 Slot metadata APIs. The delivery runtime reads the same real subscriber metadata instead of an in-memory benchmark subscriber store.
+- Evidence:
+  - `docs/development/perf-runs/20260603-021952-delivery-group/`
+  - `docs/development/perf-runs/20260603-023513-delivery-group/`
+  - `docs/development/perf-runs/20260603-024007-delivery-group/`
+  - `docs/development/perf-runs/20260603-024506-delivery-group-large/`
+  - `docs/development/perf-runs/20260603-024741-delivery-smoke/`
+  - Final clean sequence on the final dirty worktree:
+    `docs/development/perf-runs/20260603-030615-delivery-smoke/`,
+    `docs/development/perf-runs/20260603-030724-delivery-group/`,
+    `docs/development/perf-runs/20260603-030950-delivery-group-large/`
+  - Manager admission backpressure smoke:
+    `docs/development/perf-runs/20260603-091751-delivery-smoke-backpressure/`
+  - Manager admission slot lifecycle smoke:
+    `docs/development/perf-runs/20260603-093854-delivery-smoke-admission-slots/`
+
+Findings:
+- Manager admission slot lifecycle smoke passed after adding explicit queue-slot
+  admission and Stop lifecycle re-checks: actual `10` QPS, `send_success=200`,
+  `send_errors=0`, `sendack_error_rate=0`, `recv_verify_error_rate=0`, p99
+  `50.691166ms`, and all delivery admission overflow/error and retry/drop
+  counters at `0`.
+- Manager admission backpressure smoke passed after replacing immediate queue
+  overflow with bounded-queue waiting: actual `10` QPS, `send_success=200`,
+  `send_errors=0`, `sendack_error_rate=0`, `recv_verify_error_rate=0`, p99
+  `37.64ms`, and all delivery admission overflow/error and retry/drop counters
+  at `0`.
+- Final smoke baseline with sampled recv correctness passed at `10` QPS:
+  `send_success=200`, `send_errors=0`, `sendack_error_rate=0`,
+  `recv_verify_error_rate=0`, p99 `40.265416ms`, and all delivery
+  overflow/error/retry/drop counters at `0`.
+- Final group fanout passed at actual `500` QPS: `send_success=30000`,
+  `send_errors=0`, p99 `90.0025ms`, `resolve_routes=1550000`,
+  `push_routes=1519000`, and all delivery overflow/error/retry/drop counters
+  at `0`.
+- Final large group fanout passed at actual `200` QPS with `200` members per
+  group: `send_success=12000`, `send_errors=0`, p99 `83.253125ms`,
+  `resolve_routes=2600000`, `push_routes=2587000`, and all delivery
+  overflow/error/retry/drop counters at `0`.
+- Smoke with sampled recv correctness passed at `10` QPS: `send_success=200`, `send_errors=0`, `sendack_error_rate=0`, `recv_verify_error_rate=0`, and p99 `42.322667ms`.
+- Group fanout at `500` QPS passed with actual `500` QPS, `send_success=30000`, no connect/sendack/recv verification errors, p99 `87.90875ms`, and all delivery overflow/error/retry/drop counters at `0`.
+- Group fanout at `800` offered QPS passed without errors after grouping SEND batch appends by channel and appending independent channel groups concurrently. Actual throughput was about `780.25` QPS and p99 remained high (`1.903050583s`), so the run is stable but latency-bound.
+- A `1000` offered QPS group run passed without protocol errors but actual throughput was about `779.97` QPS, with p50 `796.943334ms` and p99 `2.224273083s`. Delivery counters stayed clean; ChannelV2 append/gateway SEND metrics showed the bottleneck moved to quorum append wait, not delivery fanout.
+- Large group fanout isolated delivery pressure: `200` QPS with `200` members per group passed at actual `200` QPS, `send_success=12000`, measured run p99 `86.215958ms`, `resolve_routes=2600000`, `push_routes=2587000`, and all delivery overflow/error/retry/drop counters at `0`.
+- Fixed issues encountered during the loop: encrypted WKProto inbound SEND decrypt/MsgKey validation, decoded inbound SEND payload aliasing in both gateway adapter and wkbench client buffers, auto recvack starving foreground sendack reads, transient presence route not-leader retry without backoff, serial SendBatch append across independent channels, manager admission dropping committed delivery events when the async queue was full, manager admission late-enqueue risk during Stop, and benchmark channel/subscriber mutation routes accepting empty setup when no real data writer was configured.
+
+Classification:
+- Category: delivery fanout path is healthy for the current local three-node shape. The delivery-specific benchmark script is fixed to the local `cmd/wukongimv2` three-node target addresses. The remaining high-QPS tail is SEND -> ChannelV2 quorum append/gateway SEND handling backpressure rather than delivery runtime saturation.
+- Follow-up: if lower sendack p99 is required beyond the delivery scope, start the next loop from ChannelV2 runtime append wait and forwarded append metrics. Keep delivery acceptance gates on real-storage subscriber injection, sampled recv correctness, `delivery_event_queue_total{result="ok"}`, and zero delivery overflow/error/retry/drop counters.
+
 ## 2026-06-02 wukongimv2 Three-Node 1000-Channel QPS Bench
 
 Environment:

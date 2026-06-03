@@ -561,6 +561,8 @@ type matchingPersonClient struct {
 	foregroundWaiters     int
 	autoRecvAck           bool
 	autoRecvAckBufferRecv bool
+	autoRecvAckReader     bool
+	autoRecvAckReadErr    error
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -600,6 +602,21 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			c.buffer = append(c.buffer[:idx], c.buffer[idx+1:]...)
 			c.mu.Unlock()
 			return f, nil
+		}
+		if c.autoRecvAck && (c.autoRecvAckReader || c.autoRecvAckReadErr != nil) {
+			if c.autoRecvAckReadErr != nil {
+				err := c.autoRecvAckReadErr
+				c.mu.Unlock()
+				return nil, err
+			}
+			notify := c.notifyLocked()
+			c.mu.Unlock()
+			select {
+			case <-notify:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			continue
 		}
 		if c.reading {
 			notify := c.notifyLocked()
@@ -667,6 +684,8 @@ func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, 
 	}
 	c.autoRecvAck = true
 	c.autoRecvAckBufferRecv = opts.BufferRecvFrames
+	c.autoRecvAckReader = true
+	c.autoRecvAckReadErr = nil
 	c.mu.Unlock()
 	go c.autoRecvAckLoop(ctx)
 }
@@ -680,6 +699,10 @@ func (c *matchingPersonClient) autoRecvAckLoop(ctx context.Context) {
 			if isAutoRecvAckIdleTimeout(err) {
 				continue
 			}
+			c.mu.Lock()
+			c.autoRecvAckReadErr = err
+			c.signalLocked()
+			c.mu.Unlock()
 			return
 		}
 	}
@@ -696,10 +719,6 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-	}
-	if c.foregroundWaiters > 0 {
-		c.mu.Unlock()
-		return waitAutoRecvAckYield(ctx)
 	}
 	c.reading = true
 	c.mu.Unlock()

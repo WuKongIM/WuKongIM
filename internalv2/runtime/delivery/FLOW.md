@@ -6,8 +6,8 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the runtime facade
-used by app adapters. `Manager` supports a sync unit-test mode and a bounded
-async mode for app wiring. Runtime `Observer` and
+used by app adapters. `Manager` owns bounded async admission when fanout ports
+are configured. Runtime `Observer` and
 `ManagerObserver` events describe fanout routing, UID route resolution, owner
 push attempts, manager admission, and terminal async outcomes with bounded
 result and error-class labels; concrete metrics remain an app concern.
@@ -25,13 +25,12 @@ Committed-message fanout flow:
 
 1. A committed message event enters `Manager.SubmitCommitted`.
 2. `Manager` converts the event into an independent `Envelope`.
-3. When async manager mode is enabled, `Manager` admits the envelope into a
-   bounded queue only while started; overflow and closed states return explicit
-   admission errors and observer events.
-4. In async manager mode, workers consume accepted envelopes, call
-   `Manager.runEnvelope` with an execution context independent from admission,
-   and emit terminal observations with bounded result, error-class, and queue
-   depth labels.
+3. `Manager` admits the envelope into a bounded queue only while started. A
+   full queue applies backpressure until a queue slot opens, the caller context
+   expires, or the manager closes.
+4. Workers consume accepted envelopes, call `Manager.runEnvelope` with an
+   execution context independent from admission, and emit terminal observations
+   with bounded result, error-class, and queue depth labels.
 5. `Planner.Plan` creates one `FanoutTask` per authority `Partition`, or a
    single default task when no partitioner is wired.
 6. `Manager` runs planned tasks sequentially through its configured `FanoutTaskRunner`.
@@ -42,7 +41,7 @@ Committed-message fanout flow:
 9. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.
 10. `FanoutWorker` emits a resolve observation for each UID page.
 11. Online routes are grouped by `OwnerNodeID`, split by push batch size, and sent through `Pusher.Push`.
-12. `FanoutWorker` emits a push observation for each owner-node batch and classifies retryable push results as `ErrRetryablePushRoutes`.
+12. `FanoutWorker` emits a push observation for each owner-node batch, continues after retryable push results, and returns aggregated retryable routes as `ErrRetryablePushRoutes` after all remaining owner batches are attempted.
 13. `FanoutTaskRouter` emits a task observation for local or remote task execution. Remote forwarding failures are wrapped with `ErrRetryableFanoutTask`.
 14. `RetryScheduler` enqueues retryable task failures until `MaxAttempts` is reached. Push-route retries are narrowed to the retryable route UIDs before re-enqueueing.
 15. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
@@ -51,12 +50,15 @@ Committed-message fanout flow:
 Async manager flow:
 
 1. `Manager.Start` opens a bounded queue and launches a small worker set.
-2. `Manager.SubmitCommitted` clones the committed event and tries bounded
-   admission.
+2. `Manager.SubmitCommitted` clones the committed event and uses bounded
+   admission; it does not fall back to synchronous fanout.
 3. Accepted work is later planned and run through the existing runner.
-4. Queue overflow and closed admission return typed errors to the caller.
-5. Every accepted command emits exactly one terminal observation.
-6. `Manager.Stop` rejects new admission and drains accepted work until the
+4. A full queue waits for capacity; if that admission wait is interrupted by
+   caller context expiry, the manager emits an overflow admission observation
+   and returns the context error.
+5. Closed admission returns `ErrManagerClosed` to the caller.
+6. Every accepted command emits exactly one terminal observation.
+7. `Manager.Stop` rejects new admission and drains accepted work until the
    caller context expires.
 
 Retry scheduler lifecycle:

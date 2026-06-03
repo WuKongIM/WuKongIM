@@ -5,7 +5,11 @@
 `internalv2/access/api` exposes the minimal HTTP target surface needed to
 benchmark the phase-1 `SEND -> SENDACK` skeleton. It owns HTTP routing,
 request/response DTOs, and benchmark-only validation, but it does not mutate
-message, delivery, conversation, or management business state.
+message, conversation, or management business state directly. When the
+composition root provides a benchmark data writer, `/bench/v1/channels` and
+`/bench/v1/channels/subscribers` forward setup mutations through that writer;
+for `cmd/wukongimv2` delivery benchmarks the writer persists real clusterv2
+Slot metadata.
 
 ## Routes
 
@@ -32,10 +36,16 @@ benchmark environments.
 
 ## Phase-1 Semantics
 
-The bench mutation routes are intentionally restricted to setup acknowledgments
-for black-box `wkbench` compatibility. The current `wukongimv2` gateway does not
-enable token authentication, and delivery/fanout are phase-1 non-goals, so these
-routes do not prove user-token, subscriber, or delivery performance.
+The user-token mutation route is intentionally restricted to setup
+acknowledgments for black-box `wkbench` compatibility. The current
+`wukongimv2` gateway does not enable token authentication, so this route does
+not prove user-token persistence.
+
+`/bench/v1/channels` and `/bench/v1/channels/subscribers` require a benchmark
+data writer from the composition root. Without that writer, capabilities do not
+advertise channel mutation support and mutation requests fail closed with
+`501`. With a writer, they inject real channel metadata and subscriber rows
+through the composition root. Subscriber reset requests remain unsupported.
 
 `/bench/v1/presence/snapshot` is a read-only diagnostic route. It reports
 owner-local route counts and authority-side virtual route counts for wkbench

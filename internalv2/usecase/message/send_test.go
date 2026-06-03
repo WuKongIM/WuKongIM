@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func TestSendBatchAllocatesIDsAppendsAndPreservesOrder(t *testing.T) {
 	}
 }
 
-func TestSendBatchSplitsAdjacentChannelSegments(t *testing.T) {
+func TestSendBatchGroupsSameChannelAcrossBatch(t *testing.T) {
 	appender := &recordingAppender{}
 	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 1}})
 
@@ -94,28 +95,63 @@ func TestSendBatchSplitsAdjacentChannelSegments(t *testing.T) {
 	if len(results) != 3 {
 		t.Fatalf("results = %d, want 3", len(results))
 	}
-	if appender.calls != 3 {
-		t.Fatalf("append calls = %d, want 3 adjacent segments", appender.calls)
+	if appender.calls != 2 {
+		t.Fatalf("append calls = %d, want 2 channel groups", appender.calls)
+	}
+	requests := appender.requestsByChannel()
+	aReq := requests[ChannelID{ID: "a", Type: 1}]
+	if got := len(aReq.Messages); got != 2 {
+		t.Fatalf("channel a messages = %d, want 2", got)
+	}
+	if got := string(aReq.Messages[0].Payload); got != "a1" {
+		t.Fatalf("first channel a payload = %q, want a1", got)
+	}
+	if got := string(aReq.Messages[1].Payload); got != "a2" {
+		t.Fatalf("second channel a payload = %q, want a2", got)
 	}
 }
 
-func TestSplitSegmentsReusesPreparedBackingArray(t *testing.T) {
-	items := []preparedSend{
-		{cmd: SendCommand{ChannelID: "a", ChannelType: 1}},
-		{cmd: SendCommand{ChannelID: "a", ChannelType: 1}},
-		{cmd: SendCommand{ChannelID: "b", ChannelType: 1}},
-		{cmd: SendCommand{ChannelID: "b", ChannelType: 1}},
+func TestSendBatchAppendsIndependentChannelsConcurrently(t *testing.T) {
+	release := make(chan struct{})
+	appender := &blockingAppender{
+		started: make(chan ChannelID, 2),
+		release: release,
 	}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 1}})
+	done := make(chan []SendBatchItemResult, 1)
 
-	segments := splitSegments(items)
-	if got, want := len(segments), 2; got != want {
-		t.Fatalf("segments = %d, want %d", got, want)
+	go func() {
+		done <- app.SendBatch([]SendBatchItem{
+			{Command: SendCommand{FromUID: "u1", ChannelID: "a", ChannelType: 1, Payload: []byte("a1")}},
+			{Command: SendCommand{FromUID: "u1", ChannelID: "b", ChannelType: 1, Payload: []byte("b1")}},
+		})
+	}()
+
+	waitStarted := func(label string) ChannelID {
+		t.Helper()
+		select {
+		case ch := <-appender.started:
+			return ch
+		case <-time.After(100 * time.Millisecond):
+			close(release)
+			<-done
+			t.Fatalf("%s append did not start before the first append completed", label)
+			return ChannelID{}
+		}
 	}
-	if &segments[0].items[0] != &items[0] || &segments[0].items[1] != &items[1] {
-		t.Fatalf("first segment does not reuse prepared backing array")
+	first := waitStarted("first")
+	second := waitStarted("second")
+	if first == second {
+		close(release)
+		<-done
+		t.Fatalf("started channel twice: %#v", first)
 	}
-	if &segments[1].items[0] != &items[2] || &segments[1].items[1] != &items[3] {
-		t.Fatalf("second segment does not reuse prepared backing array")
+	close(release)
+	results := <-done
+	for i, result := range results {
+		if result.Err != nil || result.Result.Reason != ReasonSuccess {
+			t.Fatalf("result[%d] = %#v, want success", i, result)
+		}
 	}
 }
 
@@ -489,21 +525,55 @@ func TestSendReturnsErrorWhenAppenderOrAllocatorMissing(t *testing.T) {
 }
 
 type recordingAppender struct {
+	mu       sync.Mutex
 	calls    int
 	requests []AppendBatchRequest
 	itemErrs []error
 }
 
 func (a *recordingAppender) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	a.mu.Lock()
 	a.calls++
 	a.requests = append(a.requests, cloneAppendRequest(req))
+	itemErrs := append([]error(nil), a.itemErrs...)
+	a.mu.Unlock()
 	items := make([]AppendBatchItemResult, len(req.Messages))
 	for i, msg := range req.Messages {
 		msg.MessageSeq = uint64(i + 1)
 		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
-		if i < len(a.itemErrs) {
-			items[i].Err = a.itemErrs[i]
+		if i < len(itemErrs) {
+			items[i].Err = itemErrs[i]
 		}
+	}
+	return AppendBatchResult{Items: items}, nil
+}
+
+func (a *recordingAppender) requestsByChannel() map[ChannelID]AppendBatchRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make(map[ChannelID]AppendBatchRequest, len(a.requests))
+	for _, req := range a.requests {
+		out[req.ChannelID] = cloneAppendRequest(req)
+	}
+	return out
+}
+
+type blockingAppender struct {
+	started chan ChannelID
+	release <-chan struct{}
+}
+
+func (a *blockingAppender) AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	a.started <- req.ChannelID
+	select {
+	case <-a.release:
+	case <-ctx.Done():
+		return AppendBatchResult{}, ctx.Err()
+	}
+	items := make([]AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		msg.MessageSeq = uint64(i + 1)
+		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 	}
 	return AppendBatchResult{Items: items}, nil
 }

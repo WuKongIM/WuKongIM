@@ -1,6 +1,7 @@
 package wkproto_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -89,6 +90,93 @@ func TestAdapterDecodeStickyFrames(t *testing.T) {
 	}
 	if len(frames) != 2 {
 		t.Fatalf("expected two frames, got %d", len(frames))
+	}
+}
+
+func TestAdapterDecryptsInboundSendPacketWhenSessionIsEncrypted(t *testing.T) {
+	adapter := adapterpkg.New()
+	sess := testkit.NewProtocolSession()
+	keys := wkprotoenc.SessionKeys{
+		AESKey: []byte("1234567890abcdef"),
+		AESIV:  []byte("abcdef1234567890"),
+	}
+	sessionCrypto, err := wkprotoenc.NewSessionCrypto(keys)
+	if err != nil {
+		t.Fatalf("NewSessionCrypto() error = %v", err)
+	}
+	sess.SetValue(gateway.SessionValueProtocolVersion, uint8(frame.LatestVersion))
+	sess.SetValue(gateway.SessionValueEncryptionEnabled, true)
+	sess.SetValue(gateway.SessionValueAESKey, keys.AESKey)
+	sess.SetValue(gateway.SessionValueAESIV, keys.AESIV)
+	sess.SetValue(gateway.SessionValueCrypto, sessionCrypto)
+
+	send := &frame.SendPacket{
+		ClientSeq:   7,
+		ClientMsgNo: "m1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hello"),
+	}
+	send.Payload, err = wkprotoenc.EncryptPayloadWithCrypto(send.Payload, sessionCrypto)
+	if err != nil {
+		t.Fatalf("EncryptPayloadWithCrypto() error = %v", err)
+	}
+	send.MsgKey, err = wkprotoenc.SendMsgKeyWithCrypto(send, sessionCrypto)
+	if err != nil {
+		t.Fatalf("SendMsgKeyWithCrypto() error = %v", err)
+	}
+	wire, err := codec.New().EncodeFrame(send, frame.LatestVersion)
+	if err != nil {
+		t.Fatalf("EncodeFrame() error = %v", err)
+	}
+
+	frames, consumed, err := adapter.Decode(sess, wire)
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if consumed != len(wire) || len(frames) != 1 {
+		t.Fatalf("Decode() consumed=%d frames=%d, want consumed=%d frames=1", consumed, len(frames), len(wire))
+	}
+	decoded, ok := frames[0].(*frame.SendPacket)
+	if !ok {
+		t.Fatalf("decoded frame = %T, want *frame.SendPacket", frames[0])
+	}
+	if got, want := string(decoded.Payload), "hello"; got != want {
+		t.Fatalf("decoded payload = %q, want %q", got, want)
+	}
+}
+
+func TestAdapterDecodeDetachesInboundSendPayloadFromInputBuffer(t *testing.T) {
+	adapter := adapterpkg.New()
+	sess := testkit.NewProtocolSession()
+	sess.SetValue(gateway.SessionValueProtocolVersion, uint8(frame.LatestVersion))
+
+	wire, err := codec.New().EncodeFrame(&frame.SendPacket{
+		ClientSeq:   7,
+		ClientMsgNo: "m1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hello"),
+	}, frame.LatestVersion)
+	if err != nil {
+		t.Fatalf("EncodeFrame() error = %v", err)
+	}
+
+	frames, consumed, err := adapter.Decode(sess, wire)
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if consumed != len(wire) || len(frames) != 1 {
+		t.Fatalf("Decode() consumed=%d frames=%d, want consumed=%d frames=1", consumed, len(frames), len(wire))
+	}
+	decoded, ok := frames[0].(*frame.SendPacket)
+	if !ok {
+		t.Fatalf("decoded frame = %T, want *frame.SendPacket", frames[0])
+	}
+
+	copy(wire, bytes.Repeat([]byte("x"), len(wire)))
+	if got, want := string(decoded.Payload), "hello"; got != want {
+		t.Fatalf("decoded payload after input mutation = %q, want %q", got, want)
 	}
 }
 
