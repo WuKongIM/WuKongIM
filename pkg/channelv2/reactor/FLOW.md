@@ -22,6 +22,7 @@ organized by the local node's role in the interaction.
 Control
   EventApplyMeta
   EventCheckState
+  EventLookupCommittedMessage
   EventCancelWaiter
   EventClose
 
@@ -158,8 +159,27 @@ the follower's latest local LEO is promptly piggybacked as `AckOffset`.
 When the leader serves records to a follower that is still behind, it schedules a
 bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
 resume hint, and the append hot path opportunistically sends it when the retry is
-already due, so hot mailboxes do not starve follower wakeups. A later `AckOffset`
-that catches up to the leader LEO retires the hint state.
+already due, so hot mailboxes do not starve follower wakeups. If a quorum append
+waiter remains pending after the leader's durable append and a follower is still
+behind without an inflight or scheduled hint, the leader schedules the same
+bounded resume retry even when that follower recently pulled. If a pending
+quorum waiter is still blocked and the follower has not pulled for at least the
+hint retry interval, the append path moves any future resume retry to immediate
+due so stale follower silence is retried without waiting for the caller timeout.
+The due check is still rate-limited by the most recent Pull or PullHint time, so
+successful wakeup delivery cannot be bypassed by every subsequent append while
+the follower is still silent.
+A later `AckOffset` or leader-observed follower progress that catches up to the
+leader LEO retires the hint state; merely observing a follower Pull does not
+retire it while the follower remains behind. The append-cancellation sweep also
+nudges overdue resume hints for channels with pending quorum waiters, so a
+delayed due tick cannot leave an already scheduled follower wakeup dormant until
+the caller timeout.
+If a caught-up follower receives another matching PullHint while it still has a
+locally durable `ackReturnOffset` that the leader has not observed, it submits
+one Pull carrying that AckOffset instead of treating the hint as a pure no-op.
+This wakeup only returns already-applied follower progress; HW advancement and
+append completion still go through the leader's normal quorum checks.
 
 Follower replication stage metrics use `wukongim_channelv2_replication_stage_duration_seconds`
 with low-cardinality `stage/result` labels. `follower_pull_hint_to_submit`
@@ -182,6 +202,9 @@ still behind, the leader keeps a bounded resume retry scheduled; ordinary
 follower pull progress or an `AckOffset` that reaches the leader LEO retires the
 hint. This only repeats wakeups and never advances HW or completes append
 futures without the existing quorum progress checks.
+Append waiter cancellation snapshots include leader-visible follower state,
+including `last_hint_ms`, to distinguish stale follower pulls from recently
+delivered wakeups that are still waiting for the next bounded retry.
 
 Leader PullHint requests carry only the channel key, channel ID, epoch,
 leader epoch, leader, leader LEO, activity version, and reason. If the follower
@@ -210,9 +233,10 @@ successful, retried, and failed NeedMeta pulls.
 When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the
-parked state and schedules immediate pull; otherwise a deterministic jittered
-recovery probe runs at the configured send-timeout-bounded interval. The runtime
-default is 2s plus up to 1s jitter.
+parked state and schedules immediate pull when the hint exposes leader progress
+or the follower still needs to return a durable AckOffset; otherwise a
+deterministic jittered recovery probe runs at the configured
+send-timeout-bounded interval. The runtime default is 2s plus up to 1s jitter.
 
 ## Worker Completion Routing
 
@@ -243,6 +267,12 @@ before removing the waiter from reactor and machine state. This diagnostic is
 not a high-cardinality metric; app-level observers can log it on rare timeout
 paths to preserve the exact LEO/HW/target, queue, in-flight, and quorum progress
 state that normal latency histograms cannot show.
+
+`EventLookupCommittedMessage` is a read-only path for timeout recovery and
+diagnostics. The owning reactor reads the optional store message-id index, then
+returns a message only if its sequence is positive and `sequence <= HW` for the
+current runtime fence. It never mutates progress and cannot mark locally durable
+but uncommitted rows as successful.
 
 ## Bench Runtime Events
 

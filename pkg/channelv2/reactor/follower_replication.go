@@ -63,7 +63,9 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		AckOffset:   rc.state.LEO,
 		MaxBytes:    r.cfg.PullMaxBytes,
 	}
-	if err := r.submitRPCPull(context.Background(), rc.state.Leader, fence, req); err != nil {
+	pullCtx, cancelPull := r.followerPullContext()
+	if err := r.submitRPCPull(pullCtx, rc.state.Leader, fence, req); err != nil {
+		cancelPull()
 		if !rc.replication.hintedAt.IsZero() && req.NextOffset <= rc.replication.hintedLeaderLEO {
 			r.observeReplicationStage(replicationStagePullHintToSubmit, "err", now.Sub(rc.replication.hintedAt))
 		}
@@ -76,6 +78,7 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	}
 	rc.replication.pullInflight = true
 	rc.replication.pullOpID = opID
+	rc.replication.pullCancel = cancelPull
 	rc.replication.pullSubmittedAt = now
 	rc.replication.pullSubmittedAckOffset = req.AckOffset
 	rc.replication.dirty = false
@@ -90,6 +93,25 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	} else {
 		rc.replication.recoveryProbeInflight = false
 	}
+}
+
+func (r *Reactor) followerPullContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), r.followerPullRPCTimeout())
+}
+
+func (r *Reactor) followerPullRPCTimeout() time.Duration {
+	interval := r.cfg.PullHintRetryInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	timeout := interval * 2
+	if timeout <= 0 {
+		timeout = time.Second
+	}
+	if timeout > time.Second {
+		timeout = time.Second
+	}
+	return timeout
 }
 
 func (r *Reactor) trySubmitPendingApply(rc *runtimeChannel, now time.Time) {
@@ -239,6 +261,16 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 	if req.LeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0
 		rc.replication.hintedAt = time.Time{}
+		if rc.replication.ackReturnOffset > 0 {
+			wasParked := rc.replication.parked
+			rc.replication.clearParkedForHint(now)
+			r.observeFollowerParkedCountIfChanged(wasParked, rc)
+			r.tickFollowerReplication(rc, now)
+			if event.Future != nil {
+				event.Future.Complete(Result{})
+			}
+			return
+		}
 		if rc.replication.parked && rc.replication.recoveryProbe && rc.replication.nextPullAt.IsZero() {
 			rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
 			r.observeFollowerParkedCount(r.countParkedFollowers())

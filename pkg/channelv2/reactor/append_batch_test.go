@@ -712,6 +712,163 @@ func TestSuccessfulPullHintSchedulesResumeUntilFollowerProgress(t *testing.T) {
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
 }
 
+func TestAppendSchedulesResumeForLaggingActiveFollowerWithPendingQuorum(t *testing.T) {
+	factory := newCountingStoreFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("active-follower-pending-quorum-resume", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	follower.lastPullAt = time.Now()
+
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+
+	require.Contains(t, rc.state.PendingAppends, ch.OpID(1))
+	requireFuturePending(t, future)
+	require.Less(t, follower.match, rc.state.LEO)
+	require.NotZero(t, follower.hint.retryAt)
+}
+
+func TestPendingQuorumStaleFollowerPullOverridesFutureHintRetry(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("pending-quorum-stale-follower-resume", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Second,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	now := time.Now()
+	follower.lastPullAt = now
+
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+
+	require.Contains(t, rc.state.PendingAppends, ch.OpID(1))
+	requireFuturePending(t, future)
+	require.Equal(t, 0, tr.pullHintCount(2))
+	follower.lastPullAt = now.Add(-2 * time.Second)
+	follower.hint.retryAt = now.Add(time.Hour)
+	follower.lastHintVersion = rc.lifecycle.version
+
+	r.sendPullHintsForAppend(rc, now)
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1 && tr.lastPullHintVersion(2) == rc.lifecycle.version
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+}
+
+func TestPendingQuorumStaleFollowerPullDoesNotBypassFreshHintRetry(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("pending-quorum-stale-follower-throttled-resume", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Second,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	now := time.Now()
+	follower.lastPullAt = now.Add(-2 * time.Second)
+
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	require.NotZero(t, follower.hint.retryAt)
+
+	r.sendPullHintsForAppend(rc, now.Add(100*time.Millisecond))
+	r.scheduleLaggingFollowerResumeHints(rc, now.Add(100*time.Millisecond))
+
+	require.Equal(t, 1, tr.pullHintCount(2))
+	require.True(t, now.Add(100*time.Millisecond).Before(follower.hint.retryAt))
+}
+
+func TestAppendCancellationSweepSendsOverdueResumeHint(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("sweep-overdue-resume-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	follower.lastPullAt = time.Now()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Context = ctx
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	requireFuturePending(t, future)
+
+	require.Equal(t, 0, tr.pullHintCount(2))
+	follower.hint.retryAt = time.Now().Add(-time.Millisecond)
+
+	r.sweepAppendCancellationsForChannel(rc)
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1 && tr.lastPullHintVersion(2) == rc.lifecycle.version
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+}
+
 func TestLeaderSchedulesResumePullHintAfterPartialFollowerPull(t *testing.T) {
 	factory := newCountingStoreFactory()
 	tr := newTask3PullHintTransport()

@@ -21,7 +21,7 @@ type Config struct {
 	Transport   transport.Client
 	// MetaResolver is ignored; PullHint metadata bootstrap now uses NeedMeta pulls from the channel leader.
 	MetaResolver ch.MetaResolver
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 100ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration

@@ -14,7 +14,16 @@ func (r *Reactor) sendPullHintsForAppend(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	r.syncFollowerMatches(rc)
+	pendingQuorum := hasPendingQuorumAppendWaiter(rc)
 	for node, follower := range rc.lifecycle.followers {
+		if follower == nil {
+			continue
+		}
+		if pendingQuorum && followerResumeRetryDueForPendingQuorum(follower, rc.state.LEO, now, r.cfg.PullHintRetryInterval) && !follower.hint.inflight {
+			if follower.hint.retryAt.IsZero() || now.Before(follower.hint.retryAt) {
+				follower.hint.retryAt = now
+			}
+		}
 		immediate := rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO)
 		retryDue := rc.lifecycle.followerNeedsHintRetry(node, rc.state.LEO) && !now.Before(follower.hint.retryAt)
 		if !immediate && !retryDue {
@@ -26,6 +35,69 @@ func (r *Reactor) sendPullHintsForAppend(rc *runtimeChannel, now time.Time) {
 		}
 		r.trySubmitPullHint(rc, node, follower, reason, now)
 	}
+}
+
+func (r *Reactor) scheduleLaggingFollowerResumeHints(rc *runtimeChannel, now time.Time) {
+	if r == nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || !hasPendingQuorumAppendWaiter(rc) {
+		return
+	}
+	r.syncFollowerMatches(rc)
+	scheduled := false
+	for _, follower := range rc.lifecycle.followers {
+		if follower == nil || follower.match >= rc.state.LEO || follower.hint.inflight {
+			continue
+		}
+		if followerResumeRetryDueForPendingQuorum(follower, rc.state.LEO, now, r.cfg.PullHintRetryInterval) {
+			if follower.hint.retryAt.IsZero() || now.Before(follower.hint.retryAt) {
+				follower.hint.retryAt = now
+				scheduled = true
+			}
+			continue
+		}
+		if !follower.hint.retryAt.IsZero() {
+			continue
+		}
+		follower.hint.retryAt = retryDue(now, r.cfg.PullHintRetryInterval)
+		scheduled = true
+	}
+	if scheduled {
+		r.scheduleLifecycleFromState(rc, now)
+	}
+}
+
+func hasPendingQuorumAppendWaiter(rc *runtimeChannel) bool {
+	if rc == nil || rc.state == nil || len(rc.state.PendingAppends) == 0 {
+		return false
+	}
+	for _, waiter := range rc.state.PendingAppends {
+		if waiter != nil && waiter.CommitMode == ch.CommitModeQuorum && rc.state.HW < waiter.Target {
+			return true
+		}
+	}
+	return false
+}
+
+// followerResumeRetryDueForPendingQuorum reports whether stale follower silence is due for another wakeup.
+func followerResumeRetryDueForPendingQuorum(follower *lifecycleFollower, leaderLEO uint64, now time.Time, interval time.Duration) bool {
+	if follower == nil || follower.match >= leaderLEO || follower.lastPullAt.IsZero() {
+		return false
+	}
+	base := follower.lastPullAt
+	if !follower.lastHintAt.IsZero() && !follower.lastHintAt.Before(follower.lastPullAt) {
+		base = follower.lastHintAt
+	}
+	if interval <= 0 {
+		return true
+	}
+	return !now.Before(base.Add(interval))
+}
+
+func (r *Reactor) nudgePendingQuorumFollowers(rc *runtimeChannel, now time.Time) {
+	if r == nil || rc == nil || rc.state == nil || !hasPendingQuorumAppendWaiter(rc) {
+		return
+	}
+	r.sendPullHintsForAppend(rc, now)
+	r.scheduleLaggingFollowerResumeHints(rc, now)
 }
 
 func (r *Reactor) tickLifecycleController(rc *runtimeChannel, now time.Time) {
@@ -155,7 +227,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}
-	rc.lifecycle.beginPullHint(node, opID, version, reason)
+	rc.lifecycle.beginPullHint(node, opID, version, reason, now)
 	r.observePullHintResult(reason, "submitted", nil)
 	r.observePullHintSent(rc.state.Key, node, reason)
 }

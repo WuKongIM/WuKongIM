@@ -539,6 +539,8 @@ func (r *Reactor) sweepAppendCancellationsForChannel(rc *runtimeChannel) {
 	if r == nil || rc == nil || len(rc.appendCancelContexts) == 0 {
 		return
 	}
+	now := time.Now()
+	r.nudgePendingQuorumFollowers(rc, now)
 	for opID, ctx := range rc.appendCancelContexts {
 		if ctx == nil {
 			continue

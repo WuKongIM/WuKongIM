@@ -9,7 +9,7 @@ import (
 )
 
 const defaultTransportQueueSize = 1024
-const defaultTransportPoolSize = 4
+const defaultTransportPoolSize = 16
 
 // TransportServerConfig configures a transport-backed clusterv2 RPC server.
 type TransportServerConfig struct {
@@ -103,7 +103,12 @@ func NewTransportClient(cfg TransportClientConfig) *TransportClient {
 
 // Call invokes serviceID on nodeID.
 func (c *TransportClient) Call(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
-	return c.client.RPCService(ctx, nodeID, serviceShardKey(serviceID), serviceID, payload)
+	return c.CallShard(ctx, nodeID, serviceID, serviceShardKey(serviceID), payload)
+}
+
+// CallShard invokes serviceID on nodeID using shardKey for connection selection.
+func (c *TransportClient) CallShard(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
+	return c.client.RPCService(ctx, nodeID, shardKey, serviceID, payload)
 }
 
 // Send sends serviceID to nodeID without waiting for a response.

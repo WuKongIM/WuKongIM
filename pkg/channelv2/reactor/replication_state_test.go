@@ -17,12 +17,14 @@ import (
 
 func TestDefaultConfigSetsFollowerRecoveryProbe(t *testing.T) {
 	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory()})
+	require.Equal(t, 100*time.Millisecond, cfg.ReplicationIdlePollInterval)
 	require.Equal(t, 2*time.Second, cfg.FollowerRecoveryProbeInterval)
 	require.Equal(t, time.Second, cfg.FollowerRecoveryProbeJitter)
 }
 
 func TestDefaultReactorConfigSetsFollowerRecoveryProbe(t *testing.T) {
 	cfg := defaultReactorConfig(ReactorConfig{LocalNode: 1, Store: store.NewMemoryFactory()})
+	require.Equal(t, 100*time.Millisecond, cfg.ReplicationIdlePollInterval)
 	require.Equal(t, 2*time.Second, cfg.FollowerRecoveryProbeInterval)
 	require.Equal(t, time.Second, cfg.FollowerRecoveryProbeJitter)
 }
@@ -497,6 +499,47 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Millisecond)}))
 	require.Equal(t, 1, net.PullCalls())
+}
+
+func TestFollowerPullRPCTimeoutClearsInflightForRetry(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	net.BlockPulls()
+	defer net.UnblockPulls()
+
+	meta := followerTestMeta("pull-rpc-timeout")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		PullHintRetryInterval:         5 * time.Millisecond,
+		ReplicationMinBackoff:         time.Millisecond,
+		ReplicationMaxBackoff:         time.Millisecond,
+		ReplicationIdlePollInterval:   time.Hour,
+		FollowerRecoveryProbeInterval: time.Hour,
+		FollowerRecoveryProbeJitter:   0,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+
+	r.tickFollowerReplication(rc, time.Now())
+	require.True(t, rc.replication.pullInflight)
+	result := sink.awaitResultKind(t, worker.TaskRPCPull)
+	require.ErrorIs(t, result.Err, context.DeadlineExceeded)
+
+	r.handleRPCPullResult(result)
+
+	require.False(t, rc.replication.pullInflight)
+	require.Zero(t, rc.replication.pullOpID)
+	require.ErrorIs(t, rc.replication.lastError, context.DeadlineExceeded)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+}
+
+func TestFollowerPullRPCTimeoutCapsDefaultRetryInterval(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: store.NewMemoryFactory(), MailboxSize: 16})
+
+	require.Equal(t, time.Second, r.followerPullRPCTimeout())
 }
 
 func TestFollowerEmptyPullWithLeaderLEOAheadAdvancesHWAndRetriesAfterBackoff(t *testing.T) {
@@ -1074,6 +1117,49 @@ func TestFollowerIgnoresCaughtUpPullHint(t *testing.T) {
 	require.Equal(t, 0, net.PullCalls())
 	require.False(t, rc.replication.dirty)
 	require.True(t, rc.replication.parked)
+}
+
+func TestFollowerCaughtUpPullHintReturnsPendingAckOffset(t *testing.T) {
+	net := newCapturingTransport()
+	meta := followerTestMeta("caught-up-hint-with-ack")
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 5
+	rc.state.HW = 5
+	rc.replication.dirty = false
+	rc.replication.parked = true
+	rc.replication.nextPullAt = time.Now().Add(time.Hour)
+	rc.replication.ackReturnOffset = 5
+	rc.replication.ackReturnStartedAt = time.Now().Add(-time.Second)
+
+	future := NewFuture()
+	r.handleFollowerPullHint(Event{
+		Kind:   EventPullHint,
+		Key:    meta.Key,
+		Future: future,
+		PullHint: transport.PullHintRequest{
+			ChannelKey:      meta.Key,
+			ChannelID:       meta.ID,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			Leader:          meta.Leader,
+			LeaderLEO:       5,
+			ActivityVersion: 6,
+			Reason:          transport.PullHintReasonResume,
+		},
+	})
+
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	require.Equal(t, uint64(5), net.LastPull().AckOffset)
+	require.Equal(t, uint64(6), net.LastPull().NextOffset)
+	require.True(t, rc.replication.pullInflight)
+	require.False(t, rc.replication.parked)
 }
 
 func TestFollowerPullHintInterruptsParked(t *testing.T) {

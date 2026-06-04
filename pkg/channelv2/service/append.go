@@ -50,27 +50,44 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		return ch.AppendBatchResult{}, err
 	}
 	started = time.Now()
-	select {
-	case <-future.Done():
-		result := future.Result()
+	result, completed := awaitAppendFuture(ctx, future)
+	if completed {
 		c.observeAppendStage("runtime_append_wait", result.Err, time.Since(started))
 		if result.Err != nil {
 			return ch.AppendBatchResult{}, result.Err
 		}
 		return result.AppendBatch, nil
+	}
+	c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
+	// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
+	cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
+	if err == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
+		_, err = cleanup.Await(cleanupCtx)
+		cleanupCancel()
+	}
+	if err != nil {
+		future.Complete(reactor.Result{Err: ctx.Err()})
+	}
+	return ch.AppendBatchResult{}, ctx.Err()
+}
+
+func awaitAppendFuture(ctx context.Context, future *reactor.Future) (reactor.Result, bool) {
+	select {
+	case <-future.Done():
+		return future.Result(), true
+	default:
+	}
+	select {
+	case <-future.Done():
+		return future.Result(), true
 	case <-ctx.Done():
-		c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
-		// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
-		cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
-		if err == nil {
-			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
-			_, err = cleanup.Await(cleanupCtx)
-			cleanupCancel()
+		select {
+		case <-future.Done():
+			return future.Result(), true
+		default:
+			return reactor.Result{}, false
 		}
-		if err != nil {
-			future.Complete(reactor.Result{Err: ctx.Err()})
-		}
-		return ch.AppendBatchResult{}, ctx.Err()
 	}
 }
 

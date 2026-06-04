@@ -14,6 +14,12 @@ type Cluster interface {
 	Close() error
 }
 
+// CommittedMessageLookup verifies whether a message is locally visible under the committed frontier.
+type CommittedMessageLookup interface {
+	// LookupCommittedMessage returns a message only when the local HW covers its sequence.
+	LookupCommittedMessage(context.Context, ChannelID, uint64) (Message, bool, error)
+}
+
 // MetaResolver is retained for older adapters; PullHint metadata bootstrap uses NeedMeta pulls from the channel leader.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
@@ -60,7 +66,7 @@ type Config struct {
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
 	FollowerRecoveryProbeJitter time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 100ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration

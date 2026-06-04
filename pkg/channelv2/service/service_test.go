@@ -462,6 +462,77 @@ func TestAppendBatchContextCancelAfterAdmissionCleansQueuedWaiter(t *testing.T) 
 	require.Equal(t, 0, factory.appendCalls(meta.Key))
 }
 
+func TestAwaitAppendFuturePrefersCompletedResultOverCanceledContext(t *testing.T) {
+	future := reactor.NewFuture()
+	future.Complete(reactor.Result{AppendBatch: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageID: 9, MessageSeq: 3}}}})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, ok := awaitAppendFuture(ctx, future)
+
+	require.True(t, ok)
+	require.NoError(t, result.Err)
+	require.Len(t, result.AppendBatch.Items, 1)
+	require.Equal(t, uint64(9), result.AppendBatch.Items[0].MessageID)
+}
+
+func TestLookupCommittedMessageRequiresHWCoverage(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:lookup-hw"),
+		ID:          ch.ChannelID{ID: "lookup-hw", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+
+	_, err = clusterAPI.AppendBatch(context.Background(), ch.AppendBatchRequest{
+		ChannelID:  meta.ID,
+		CommitMode: ch.CommitModeLocal,
+		Messages:   []ch.Message{{MessageID: 101, Payload: []byte("local-only")}},
+	})
+	require.NoError(t, err)
+
+	lookup := clusterAPI.(ch.CommittedMessageLookup)
+	msg, ok, err := lookup.LookupCommittedMessage(context.Background(), meta.ID, 101)
+	require.NoError(t, err)
+	require.False(t, ok, "message exists locally but is not quorum committed")
+	require.Zero(t, msg.MessageSeq)
+}
+
+func TestLookupCommittedMessageReturnsHWCoveredMessage(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+
+	meta := ch.Meta{Key: ch.ChannelKey("1:lookup-committed"), ID: ch.ChannelID{ID: "lookup-committed", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, clusterAPI.ApplyMeta(meta))
+
+	_, err = clusterAPI.AppendBatch(context.Background(), ch.AppendBatchRequest{
+		ChannelID: meta.ID,
+		Messages:  []ch.Message{{MessageID: 202, Payload: []byte("committed")}},
+	})
+	require.NoError(t, err)
+
+	lookup := clusterAPI.(ch.CommittedMessageLookup)
+	msg, ok, err := lookup.LookupCommittedMessage(context.Background(), meta.ID, 202)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(202), msg.MessageID)
+	require.Equal(t, uint64(1), msg.MessageSeq)
+	require.Equal(t, []byte("committed"), msg.Payload)
+}
+
 func TestAppendBatchContextCancelReturnsContextErrorWhenCleanupBackpressured(t *testing.T) {
 	factory := newServiceCountingStoreFactory()
 	clusterAPI, err := New(Config{

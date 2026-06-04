@@ -19,6 +19,8 @@ type replicationState struct {
 	pullInflight bool
 	// pullOpID fences the currently running pull RPC.
 	pullOpID ch.OpID
+	// pullCancel releases the current pull RPC timeout context.
+	pullCancel context.CancelFunc
 	// pullSubmittedAt records when the current pull RPC was submitted.
 	pullSubmittedAt time.Time
 	// pullSubmittedAckOffset is the AckOffset carried by the current pull RPC.
@@ -183,7 +185,15 @@ func (s *replicationState) clearParkedForHint(now time.Time) {
 
 // reset clears follower-only replication state when metadata moves away from an active follower role.
 func (s *replicationState) reset() {
+	s.cancelPull()
 	*s = replicationState{}
+}
+
+func (s *replicationState) cancelPull() {
+	if s.pullCancel != nil {
+		s.pullCancel()
+		s.pullCancel = nil
+	}
 }
 
 // applyPullResult applies only the currently fenced pull result and leaves newer inflight state intact on stale completions.
@@ -194,6 +204,7 @@ func (s *replicationState) applyPullResult(result worker.Result, current ch.Fenc
 	if !s.pullInflight || s.pullOpID != current.OpID {
 		return false
 	}
+	s.cancelPull()
 	s.pullInflight = false
 	s.pullOpID = 0
 	if result.Err != nil {

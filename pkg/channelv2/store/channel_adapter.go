@@ -163,6 +163,20 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	return ReadCommittedResult{Messages: out, NextSeq: next}, nil
 }
 
+func (a *messageDBChannelStoreAdapter) LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return ch.Message{}, false, err
+	}
+	if messageID == 0 {
+		return ch.Message{}, false, nil
+	}
+	msg, ok, err := a.store.GetMessageByMessageID(messageID)
+	if err != nil || !ok {
+		return ch.Message{}, ok, err
+	}
+	return fromDBMessage(msg), true, nil
+}
+
 func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ReadLogResult{}, err

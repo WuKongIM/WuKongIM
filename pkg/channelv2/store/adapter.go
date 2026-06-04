@@ -24,6 +24,12 @@ type ChannelStore interface {
 	Close() error
 }
 
+// MessageLookup is an optional point lookup surface for rare timeout recovery paths.
+type MessageLookup interface {
+	// LookupMessageByID returns a durable row without applying any committed-HW check.
+	LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error)
+}
+
 // InitialState is the durable state loaded before a channel becomes ready.
 type InitialState struct {
 	LEO          uint64

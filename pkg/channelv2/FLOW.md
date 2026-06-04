@@ -133,6 +133,11 @@ channel key, op id, commit mode, LEO/HW/target offset, queue and in-flight
 counts, and quorum progress booleans so timeout triage can distinguish slow
 storage, missing follower progress, and lost waiter completion.
 
+Committed-message lookup is a read-only recovery/diagnostic path. It asks the
+owning reactor to read a durable row by message id, then returns it only when
+the row has a positive sequence and the local HW covers that sequence. It never
+advances HW, creates rows, or turns an uncommitted local write into success.
+
 ## Channel Runtime Lifecycle Model
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.

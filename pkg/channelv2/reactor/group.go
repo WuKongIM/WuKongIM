@@ -16,7 +16,7 @@ import (
 const (
 	defaultStoreAppendWorkerMultiplier = 2
 	defaultStoreApplyWorkerMultiplier  = 2
-	defaultReplicationIdlePollInterval = 250 * time.Millisecond
+	defaultReplicationIdlePollInterval = 100 * time.Millisecond
 )
 
 // Config wires a group of channel-keyed reactors.
@@ -47,7 +47,7 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 100ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration
@@ -277,6 +277,26 @@ func (g *Group) HasChannelState(ctx context.Context, key ch.ChannelKey) (bool, e
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// LookupCommittedMessage returns a message only when the owning reactor's HW covers it.
+func (g *Group) LookupCommittedMessage(ctx context.Context, id ch.ChannelID, messageID uint64) (ch.Message, bool, error) {
+	if g == nil || g.closed.Load() {
+		return ch.Message{}, false, ch.ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	key := ch.ChannelKeyForID(id)
+	future, err := g.Submit(ctx, key, Event{Kind: EventLookupCommittedMessage, Key: key, Context: ctx, MessageID: messageID})
+	if err != nil {
+		return ch.Message{}, false, err
+	}
+	result, err := future.Await(ctx)
+	if err != nil {
+		return ch.Message{}, false, err
+	}
+	return result.LookupMessage, result.LookupFound, nil
 }
 
 // Complete routes a blocking worker result back to the owning reactor.

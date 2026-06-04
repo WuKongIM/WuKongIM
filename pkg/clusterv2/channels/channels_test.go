@@ -692,6 +692,25 @@ func TestTransportClientPreservesForwardApplicationErrors(t *testing.T) {
 	}
 }
 
+func TestTransportClientShardsForwardAppendBatchByChannel(t *testing.T) {
+	caller := &recordingShardCaller{response: mustEncodeAppendBatchResponse(t, ch.AppendBatchResult{})}
+	client := NewTransportClient(caller)
+
+	_, err := client.ForwardAppendBatch(context.Background(), 2, ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room-a", Type: 2}})
+	require.NoError(t, err)
+	require.Equal(t, clusternet.RPCChannelAppendBatch, caller.lastServiceID)
+	firstShard := caller.lastShardKey
+
+	_, err = client.ForwardAppendBatch(context.Background(), 2, ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room-a", Type: 2}})
+	require.NoError(t, err)
+	require.Equal(t, firstShard, caller.lastShardKey)
+
+	_, err = client.ForwardAppendBatch(context.Background(), 2, ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room-b", Type: 2}})
+	require.NoError(t, err)
+	require.NotEqual(t, firstShard, caller.lastShardKey)
+	require.Zero(t, caller.unshardedCalls)
+}
+
 func TestTransportClientDispatchesPull(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	runtime := &fakeRuntime{pull: channeltransport.PullResponse{ChannelKey: "1:room", LeaderHW: 9}}
@@ -975,6 +994,36 @@ func TestServiceForwardsAppendBatchToResolvedLeader(t *testing.T) {
 	}
 }
 
+func TestServiceRecoversCommittedForwardAppendBatchAfterDeadline(t *testing.T) {
+	id := ch.ChannelID{ID: "recover-forward", Type: 2}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	source := NewStaticMetaSource([]ch.Meta{meta})
+	runtime := &fakeRuntime{
+		committed: map[uint64]ch.Message{
+			10: {MessageID: 10, MessageSeq: 7, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("accepted")},
+		},
+	}
+	forward := &deadlineForwardClient{}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Forward: forward})
+	require.NoError(t, err)
+
+	res, err := svc.AppendBatch(context.Background(), ch.AppendBatchRequest{
+		ChannelID: id,
+		Messages: []ch.Message{
+			{MessageID: 10, Payload: []byte("accepted")},
+			{MessageID: 11, Payload: []byte("missing")},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Items, 2)
+	require.NoError(t, res.Items[0].Err)
+	require.Equal(t, uint64(10), res.Items[0].MessageID)
+	require.Equal(t, uint64(7), res.Items[0].MessageSeq)
+	require.ErrorIs(t, res.Items[1].Err, context.DeadlineExceeded)
+	require.Equal(t, 2, runtime.lookupCalls)
+	require.Equal(t, 1, forward.batchCalls)
+}
+
 type clusterOnlyRuntime struct{}
 
 func (clusterOnlyRuntime) ApplyMeta(ch.Meta) error { return nil }
@@ -993,11 +1042,14 @@ type fakeRuntime struct {
 	appendErr          error
 	appendBatch        ch.AppendBatchResult
 	appendBatchErr     error
+	committed          map[uint64]ch.Message
+	lookupErr          error
 	lastApplied        ch.Meta
 	pullCalls          int
 	applyCalls         int
 	appendCalls        int
 	appendBatchCalls   int
+	lookupCalls        int
 	appendRequireApply bool
 }
 
@@ -1037,6 +1089,27 @@ func (f *fakeRuntime) HandlePullHint(context.Context, channeltransport.PullHintR
 	return nil
 }
 func (f *fakeRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error { return nil }
+func (f *fakeRuntime) LookupCommittedMessage(_ context.Context, _ ch.ChannelID, messageID uint64) (ch.Message, bool, error) {
+	f.lookupCalls++
+	if f.lookupErr != nil {
+		return ch.Message{}, false, f.lookupErr
+	}
+	msg, ok := f.committed[messageID]
+	return msg, ok, nil
+}
+
+type deadlineForwardClient struct {
+	batchCalls int
+}
+
+func (c *deadlineForwardClient) ForwardAppend(context.Context, ch.NodeID, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, context.DeadlineExceeded
+}
+
+func (c *deadlineForwardClient) ForwardAppendBatch(context.Context, ch.NodeID, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	c.batchCalls++
+	return ch.AppendBatchResult{}, context.DeadlineExceeded
+}
 
 type rpcErrorServer struct {
 	err error
@@ -1285,6 +1358,33 @@ type fakeDataNodeProvider struct {
 
 func (p fakeDataNodeProvider) DataNodes() []uint64 {
 	return append([]uint64(nil), p.nodes...)
+}
+
+type recordingShardCaller struct {
+	response         []byte
+	lastServiceID    uint8
+	lastShardKey     uint64
+	unshardedCalls   int
+	shardedCallCount int
+}
+
+func (c *recordingShardCaller) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	c.unshardedCalls++
+	return nil, errors.New("unsharded call")
+}
+
+func (c *recordingShardCaller) CallShard(_ context.Context, _ uint64, serviceID uint8, shardKey uint64, _ []byte) ([]byte, error) {
+	c.shardedCallCount++
+	c.lastServiceID = serviceID
+	c.lastShardKey = shardKey
+	return append([]byte(nil), c.response...), nil
+}
+
+func mustEncodeAppendBatchResponse(t *testing.T, res ch.AppendBatchResult) []byte {
+	t.Helper()
+	data, err := encodeAppendBatchResponse(res)
+	require.NoError(t, err)
+	return data
 }
 
 func nodeIDIn(nodes []ch.NodeID, node ch.NodeID) bool {

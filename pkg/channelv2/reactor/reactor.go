@@ -46,7 +46,7 @@ type ReactorConfig struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
-	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 250ms.
+	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 100ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
 	ReplicationMinBackoff time.Duration
@@ -299,6 +299,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleApplyMeta(event)
 	case EventCheckState:
 		r.handleCheckState(event)
+	case EventLookupCommittedMessage:
+		r.handleLookupCommittedMessage(event)
 	case EventRuntimeSnapshot:
 		r.handleRuntimeSnapshot(event)
 	case EventRuntimeProbe:
@@ -467,6 +469,50 @@ func resetFollowerStopLifecycle(rc *runtimeChannel) {
 func (r *Reactor) handleCheckState(event Event) {
 	_, err := r.lookup(event.Key)
 	event.Future.Complete(Result{Err: err})
+}
+
+func (r *Reactor) handleLookupCommittedMessage(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if rc == nil || rc.state == nil || rc.store == nil {
+		event.Future.Complete(Result{Err: ch.ErrChannelNotFound})
+		return
+	}
+	if event.MessageID == 0 || rc.state.HW == 0 {
+		event.Future.Complete(Result{})
+		return
+	}
+	lookup, ok := rc.store.(store.MessageLookup)
+	if !ok {
+		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
+		return
+	}
+	ctx := event.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	msg, found, err := lookup.LookupMessageByID(ctx, event.MessageID)
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if !found || msg.MessageSeq == 0 || msg.MessageSeq > rc.state.HW {
+		event.Future.Complete(Result{})
+		return
+	}
+	if msg.MessageID == 0 {
+		msg.MessageID = event.MessageID
+	}
+	if msg.ChannelID == "" {
+		msg.ChannelID = rc.state.ID.ID
+	}
+	if msg.ChannelType == 0 {
+		msg.ChannelType = rc.state.ID.Type
+	}
+	event.Future.Complete(Result{LookupMessage: msg, LookupFound: true})
 }
 
 func (r *Reactor) handleApplyMetaToPending(event Event, rc *runtimeChannel) {
@@ -913,6 +959,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 			}
 		}
 		r.sendPullHintsForAppend(rc, now)
+		r.scheduleLaggingFollowerResumeHints(rc, now)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
 	if current {

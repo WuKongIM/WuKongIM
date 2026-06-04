@@ -275,6 +275,7 @@ type lifecycleFollower struct {
 	match              uint64
 	lastPullAt         time.Time
 	nextExpectedPullAt time.Time
+	lastHintAt         time.Time
 	lastHintVersion    uint64
 	pendingHintVersion uint64
 	hint               lifecycleEffect
@@ -313,6 +314,7 @@ func (f *lifecycleFollower) resetStop() {
 }
 
 func (f *lifecycleFollower) resetHint() {
+	f.lastHintAt = time.Time{}
 	f.lastHintVersion = 0
 	f.pendingHintVersion = 0
 	f.hint.reset()
@@ -438,13 +440,15 @@ func (lc *channelRuntimeLifecycle) recordFollowerPull(node ch.NodeID, nextOffset
 	follower.stoppedZero = false
 	follower.stoppedVersion = 0
 	follower.nextExpectedPullAt = time.Time{}
-	lc.retirePullHints(node)
 	if nextOffset == 0 || nextOffset > leo+1 {
 		return
 	}
 	match := nextOffset - 1
 	if match > follower.match {
 		follower.match = match
+	}
+	if follower.match >= leo {
+		lc.retirePullHints(node)
 	}
 }
 
@@ -491,7 +495,7 @@ func (lc *channelRuntimeLifecycle) followerNeedsHintRetry(node ch.NodeID, leader
 }
 
 // beginPullHint records an inflight PullHint worker operation.
-func (lc *channelRuntimeLifecycle) beginPullHint(node ch.NodeID, opID ch.OpID, version uint64, reason transport.PullHintReason) {
+func (lc *channelRuntimeLifecycle) beginPullHint(node ch.NodeID, opID ch.OpID, version uint64, reason transport.PullHintReason, now time.Time) {
 	if lc == nil {
 		return
 	}
@@ -502,6 +506,7 @@ func (lc *channelRuntimeLifecycle) beginPullHint(node ch.NodeID, opID ch.OpID, v
 	follower.hint.inflight = true
 	follower.hint.opID = opID
 	follower.hint.retryAt = time.Time{}
+	follower.lastHintAt = now
 	follower.lastHintVersion = version
 	follower.pendingHintVersion = 0
 	if lc.pullHintInflight == nil {

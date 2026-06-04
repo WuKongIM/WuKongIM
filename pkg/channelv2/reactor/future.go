@@ -12,6 +12,8 @@ import (
 type Result struct {
 	Append          ch.AppendResult
 	AppendBatch     ch.AppendBatchResult
+	LookupMessage   ch.Message
+	LookupFound     bool
 	Pull            transport.PullResponse
 	RuntimeSnapshot ch.RuntimeReactorSnapshot
 	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.

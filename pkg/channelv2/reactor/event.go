@@ -17,6 +17,8 @@ const (
 	EventApplyMeta EventKind = iota + 1
 	// EventCheckState asks the owning reactor whether it has channel state loaded.
 	EventCheckState
+	// EventLookupCommittedMessage asks the owning reactor to verify one committed message id.
+	EventLookupCommittedMessage
 	// EventRuntimeSnapshot asks one reactor to summarize loaded runtime state.
 	EventRuntimeSnapshot
 	// EventRuntimeProbe asks one reactor to inspect selected loaded runtimes.
@@ -56,9 +58,11 @@ type Event struct {
 	Pull    transport.PullRequest
 	Ack     transport.AckRequest
 	// Notify is the legacy transport compatibility nudge payload.
-	Notify    transport.NotifyRequest
-	PullHint  transport.PullHintRequest
-	OpID      ch.OpID
+	Notify   transport.NotifyRequest
+	PullHint transport.PullHintRequest
+	OpID     ch.OpID
+	// MessageID selects a durable message for EventLookupCommittedMessage.
+	MessageID uint64
 	CancelOp  ch.OpID
 	CancelErr error
 	TickNow   time.Time

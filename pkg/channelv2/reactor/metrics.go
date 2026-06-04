@@ -1,6 +1,9 @@
 package reactor
 
 import (
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -89,6 +92,8 @@ type AppendWaitCancelSnapshot struct {
 	AppendStoreBlocked bool
 	// PullWaiters is the number of leader-side pull waiters on the same channel.
 	PullWaiters int
+	// FollowerStates summarizes leader-visible follower replication state for rare cancellation diagnostics.
+	FollowerStates string
 	// Err is the cancellation reason observed by the reactor.
 	Err error
 }
@@ -341,6 +346,9 @@ func (r *Reactor) appendWaitCancelSnapshot(rc *runtimeChannel, opID ch.OpID, err
 			snapshot.AppendInflightOpID = rc.state.InflightAppend.OpID
 			snapshot.AppendInflightWaiters = len(rc.state.InflightAppend.WaiterOpIDs)
 		}
+		if rc.state.Role == ch.RoleLeader {
+			snapshot.FollowerStates = leaderFollowerCancelSummary(rc, time.Now())
+		}
 	}
 	if timing, ok := rc.appendTimings[opID]; ok {
 		if snapshot.CommitMode == 0 {
@@ -356,6 +364,58 @@ func (r *Reactor) appendWaitCancelSnapshot(rc *runtimeChannel, opID ch.OpID, err
 		snapshot.HWAdvanced = !timing.hwAdvancedAt.IsZero()
 	}
 	return snapshot
+}
+
+func leaderFollowerCancelSummary(rc *runtimeChannel, now time.Time) string {
+	if rc == nil || rc.state == nil || len(rc.lifecycle.followers) == 0 {
+		return ""
+	}
+	nodes := make([]int, 0, len(rc.lifecycle.followers))
+	for node := range rc.lifecycle.followers {
+		nodes = append(nodes, int(node))
+	}
+	sort.Ints(nodes)
+	parts := make([]string, 0, len(nodes))
+	for _, rawNode := range nodes {
+		node := ch.NodeID(rawNode)
+		follower := rc.lifecycle.followers[node]
+		if follower == nil {
+			continue
+		}
+		lag := uint64(0)
+		if rc.state.LEO > follower.match {
+			lag = rc.state.LEO - follower.match
+		}
+		lastPullMS := int64(-1)
+		if !follower.lastPullAt.IsZero() {
+			lastPullMS = now.Sub(follower.lastPullAt).Milliseconds()
+		}
+		lastHintMS := int64(-1)
+		if !follower.lastHintAt.IsZero() {
+			lastHintMS = now.Sub(follower.lastHintAt).Milliseconds()
+		}
+		nextPullMS := int64(-1)
+		if !follower.nextExpectedPullAt.IsZero() {
+			nextPullMS = follower.nextExpectedPullAt.Sub(now).Milliseconds()
+		}
+		parts = append(parts, fmt.Sprintf(
+			"%d:match=%d,lag=%d,hint_inflight=%t,hint_retry=%t,last_hint=%d,last_hint_ms=%d,pending_hint=%d,parked=%t,stop_offered=%t,stopped=%t,last_pull_ms=%d,next_pull_ms=%d",
+			node,
+			follower.match,
+			lag,
+			follower.hint.inflight,
+			!follower.hint.retryAt.IsZero(),
+			follower.lastHintVersion,
+			lastHintMS,
+			follower.pendingHintVersion,
+			follower.parked,
+			follower.stopOfferedZero || follower.stopOfferedVersion != 0,
+			follower.stoppedZero || follower.stoppedVersion != 0,
+			lastPullMS,
+			nextPullMS,
+		))
+	}
+	return strings.Join(parts, ";")
 }
 
 func (rc *runtimeChannel) hasAppendWaiterState(opID ch.OpID) bool {

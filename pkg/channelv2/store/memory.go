@@ -142,6 +142,24 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	return ReadCommittedResult{Messages: messages, NextSeq: next}, nil
 }
 
+// LookupMessageByID returns one durable in-memory message by message id.
+func (s *MemoryChannelStore) LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return ch.Message{}, false, err
+	}
+	if messageID == 0 {
+		return ch.Message{}, false, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, record := range s.records {
+		if record.ID == messageID {
+			return messageFromRecord(s.id, record), true, nil
+		}
+	}
+	return ch.Message{}, false, nil
+}
+
 // ReadLog returns raw records for replication.
 func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := ctx.Err(); err != nil {

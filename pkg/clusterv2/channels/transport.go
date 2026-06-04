@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"hash/fnv"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
@@ -82,7 +83,7 @@ func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req
 	if err != nil {
 		return ch.AppendResult{}, err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAppend, payload)
+	resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppend, channelForwardShardKey(req.ChannelID), payload)
 	if err != nil {
 		return ch.AppendResult{}, err
 	}
@@ -95,11 +96,25 @@ func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAppendBatch, payload)
+	resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppendBatch, channelForwardShardKey(req.ChannelID), payload)
 	if err != nil {
 		return ch.AppendBatchResult{}, err
 	}
 	return decodeAppendBatchResponse(resp)
+}
+
+func (c *TransportClient) callShard(ctx context.Context, node uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
+	if caller, ok := c.caller.(clusternet.ShardCaller); ok {
+		return caller.CallShard(ctx, node, serviceID, shardKey, payload)
+	}
+	return c.caller.Call(ctx, node, serviceID, payload)
+}
+
+func channelForwardShardKey(id ch.ChannelID) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte{id.Type})
+	_, _ = h.Write([]byte(id.ID))
+	return h.Sum64()
 }
 
 // RegisterHandlersOn registers ChannelV2 replication handlers on registrar.

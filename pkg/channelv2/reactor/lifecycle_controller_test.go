@@ -132,14 +132,35 @@ func TestLifecycleControllerUnofferedStoppedAckCompatibility(t *testing.T) {
 }
 
 func TestLifecycleControllerRecordFollowerProgressRetiresHintsWhenCaughtUp(t *testing.T) {
+	now := time.Unix(100, 0)
 	lc := newChannelRuntimeLifecycle(time.Unix(100, 0), 7)
 	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
-	lc.beginPullHint(2, ch.OpID(11), 7, transport.PullHintReasonAppend)
+	lc.beginPullHint(2, ch.OpID(11), 7, transport.PullHintReasonAppend, now)
 
 	lc.recordFollowerProgress(2, 7, 7)
 
 	require.Equal(t, uint64(7), lc.followers[2].match)
 	require.Empty(t, lc.pullHintInflight)
+	require.False(t, lc.followers[2].hint.active())
+}
+
+func TestLifecycleControllerRecordFollowerPullKeepsHintsUntilCaughtUp(t *testing.T) {
+	now := time.Unix(100, 0)
+	retryAt := now.Add(time.Second)
+	lc := newChannelRuntimeLifecycle(now, 7)
+	addLifecycleFollower(&lc, 2, &lifecycleFollower{match: 3})
+	lc.followers[2].hint.retryAt = retryAt
+	lc.followers[2].lastHintVersion = 7
+
+	lc.recordFollowerPull(2, 4, 7, now)
+
+	require.Equal(t, uint64(3), lc.followers[2].match)
+	require.Equal(t, retryAt, lc.followers[2].hint.retryAt)
+	require.Equal(t, uint64(7), lc.followers[2].lastHintVersion)
+
+	lc.recordFollowerPull(2, 8, 7, now)
+
+	require.Equal(t, uint64(7), lc.followers[2].match)
 	require.False(t, lc.followers[2].hint.active())
 }
 
@@ -155,16 +176,17 @@ func TestLifecycleControllerPullHintLifecycle(t *testing.T) {
 	require.True(t, lc.followerNeedsImmediateProgress(2, 7))
 
 	opID := ch.OpID(11)
-	lc.beginPullHint(2, opID, 7, transport.PullHintReasonAppend)
+	lc.beginPullHint(2, opID, 7, transport.PullHintReasonAppend, now)
 	require.True(t, lc.followers[2].hint.inflight)
 	require.Equal(t, uint64(7), lc.followers[2].lastHintVersion)
+	require.Equal(t, now, lc.followers[2].lastHintAt)
 
 	inflight, ok := lc.finishPullHint(opID)
 	require.True(t, ok)
 	require.Equal(t, ch.NodeID(2), inflight.follower)
 	require.False(t, lc.followers[2].hint.inflight)
 
-	lc.beginPullHint(2, ch.OpID(12), 8, transport.PullHintReasonResume)
+	lc.beginPullHint(2, ch.OpID(12), 8, transport.PullHintReasonResume, now)
 	lc.retirePullHints(2)
 	require.Empty(t, lc.pullHintInflight)
 	require.False(t, lc.followers[2].hint.active())

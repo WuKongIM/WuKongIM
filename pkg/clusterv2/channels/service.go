@@ -14,6 +14,8 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
+const forwardAppendRecoveryTimeout = 100 * time.Millisecond
+
 type channelRuntime interface {
 	ch.Cluster
 	channeltransport.Server
@@ -177,6 +179,21 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			started := time.Now()
 			res, err := s.forward.ForwardAppend(ctx, meta.Leader, req)
 			s.observeAppendStage("forward_append", err, time.Since(started))
+			if err != nil {
+				recoverStarted := time.Now()
+				batch, recovered := s.recoverForwardAppendBatch(ctx, meta, ch.AppendBatchRequest{
+					ChannelID:            req.ChannelID,
+					Messages:             []ch.Message{req.Message},
+					CommitMode:           req.CommitMode,
+					ExpectedChannelEpoch: req.ExpectedChannelEpoch,
+					ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
+				}, err)
+				s.observeAppendStage("forward_append_recover", recoveredAppendError(recovered, err), time.Since(recoverStarted))
+				if recovered && len(batch.Items) == 1 && batch.Items[0].Err == nil {
+					item := batch.Items[0]
+					return ch.AppendResult{MessageID: item.MessageID, MessageSeq: item.MessageSeq, Message: item.Message}, nil
+				}
+			}
 			return res, err
 		}
 		started := time.Now()
@@ -222,6 +239,14 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			started := time.Now()
 			res, err := s.forward.ForwardAppendBatch(ctx, meta.Leader, req)
 			s.observeAppendStage("forward_append", err, time.Since(started))
+			if err != nil {
+				recoverStarted := time.Now()
+				recovered, ok := s.recoverForwardAppendBatch(ctx, meta, req, err)
+				s.observeAppendStage("forward_append_recover", recoveredAppendError(ok, err), time.Since(recoverStarted))
+				if ok {
+					return recovered, nil
+				}
+			}
 			return res, err
 		}
 		started := time.Now()
@@ -235,6 +260,66 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 	res, err := s.runtime.AppendBatch(ctx, req)
 	s.observeAppendStage("runtime_append", err, time.Since(started))
 	return res, err
+}
+
+func (s *Service) recoverForwardAppendBatch(_ context.Context, meta ch.Meta, req ch.AppendBatchRequest, forwardErr error) (ch.AppendBatchResult, bool) {
+	if !recoverableForwardDeadline(forwardErr) || !localNodeIsReplica(meta, s.localNode) {
+		return ch.AppendBatchResult{}, false
+	}
+	lookup, ok := s.runtime.(ch.CommittedMessageLookup)
+	if !ok {
+		return ch.AppendBatchResult{}, false
+	}
+	recoverCtx, cancel := context.WithTimeout(context.Background(), forwardAppendRecoveryTimeout)
+	defer cancel()
+	items := make([]ch.AppendBatchItemResult, len(req.Messages))
+	recovered := false
+	for i, msg := range req.Messages {
+		items[i].Err = forwardErr
+		if msg.MessageID == 0 {
+			continue
+		}
+		committed, ok, err := lookup.LookupCommittedMessage(recoverCtx, req.ChannelID, msg.MessageID)
+		if err != nil {
+			if recovered {
+				return ch.AppendBatchResult{Items: items}, true
+			}
+			return ch.AppendBatchResult{}, false
+		}
+		if !ok {
+			continue
+		}
+		items[i] = ch.AppendBatchItemResult{
+			MessageID:  committed.MessageID,
+			MessageSeq: committed.MessageSeq,
+			Message:    committed,
+		}
+		recovered = true
+	}
+	if !recovered {
+		return ch.AppendBatchResult{}, false
+	}
+	return ch.AppendBatchResult{Items: items}, true
+}
+
+func recoverableForwardDeadline(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || (err != nil && strings.Contains(err.Error(), context.DeadlineExceeded.Error()))
+}
+
+func localNodeIsReplica(meta ch.Meta, local ch.NodeID) bool {
+	for _, replica := range meta.Replicas {
+		if replica == local {
+			return true
+		}
+	}
+	return false
+}
+
+func recoveredAppendError(recovered bool, err error) error {
+	if recovered {
+		return nil
+	}
+	return err
 }
 
 func (s *Service) resolveAppendMetaCached(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, bool, error) {
