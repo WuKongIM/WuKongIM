@@ -35,8 +35,6 @@ type CommitCoordinatorConfig struct {
 	MaxRecords int
 	// MaxBytes caps approximate payload bytes per physical commit when positive.
 	MaxBytes int
-	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
-	NoSync bool
 	// Observer receives cross-channel group-commit queue and batch measurements.
 	Observer CommitCoordinatorObserver
 }
@@ -252,7 +250,6 @@ func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
 		MaxRequests: cfg.MaxRequests,
 		MaxRecords:  cfg.MaxRecords,
 		MaxBytes:    cfg.MaxBytes,
-		NoSync:      cfg.NoSync,
 		Observer:    commitCoordinatorObserver(cfg.Observer),
 	}
 }

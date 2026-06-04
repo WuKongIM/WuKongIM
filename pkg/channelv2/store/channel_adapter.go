@@ -23,8 +23,6 @@ type MessageDBFactory struct {
 
 // MessageDBFactoryOptions configures the message DB adapter.
 type MessageDBFactoryOptions struct {
-	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
-	CommitNoSync bool
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
 	CommitFlushWindow time.Duration
 	// CommitMaxRequests caps logical append requests in one grouped physical commit.
@@ -53,7 +51,6 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 		MaxRequests: opts.CommitMaxRequests,
 		MaxRecords:  opts.CommitMaxRecords,
 		MaxBytes:    opts.CommitMaxBytes,
-		NoSync:      opts.CommitNoSync,
 		Observer:    opts.CommitObserver,
 	})
 	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}

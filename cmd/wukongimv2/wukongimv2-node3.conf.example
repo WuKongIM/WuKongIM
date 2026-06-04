@@ -42,10 +42,6 @@ WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
 
-# Controls physical fsync for grouped channel appends. Keep true for durable writes;
-# set false only for controlled benchmark or cache-like deployments that accept loss
-# of the latest acknowledged messages on process or host crash.
-WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true
 # Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.

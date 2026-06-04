@@ -77,10 +77,6 @@ WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
-# Controls physical fsync for grouped channel appends. Keep true for durable writes;
-# set false only for controlled benchmark or cache-like deployments that accept loss
-# of the latest acknowledged messages on process or host crash.
-WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true
 WK_CLUSTER_DATA_PLANE_POOL_SIZE=1
 WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT=2
 WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH=2

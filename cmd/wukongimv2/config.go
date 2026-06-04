@@ -42,7 +42,6 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
-	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
 	"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
@@ -316,7 +315,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		if err != nil {
 			return app.Config{}, err
 		}
-		cfg.Cluster.Storage.CommitNoSync = !syncCommit
+		if !syncCommit {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_SYNC: durable sync is always enabled")
+		}
 	}
 	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"); raw != "" {
 		flushWindow, err := parseDuration("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", raw)

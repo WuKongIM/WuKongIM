@@ -690,7 +690,7 @@ Decision:
 
 Environment:
 - Local `cmd/wukongimv2` single-node cluster from `scripts/start-wukongimv2-single-node.sh`, clean `data/wukongimv2-node-1`, metrics and pprof enabled, `WK_CLUSTER_CHANNEL_REACTOR_COUNT=32`, gateway async SEND workers 128.
-- One variable changed from the durable-sync run: `WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false`, which skips physical fsync for grouped channel appends.
+- One internal no-sync control was used to skip physical fsync for grouped channel appends.
 - Workload: custom `wkbench run`, 1000 fixed group channels, 4096 online users, 10 members per channel, 128-byte payloads, SEND -> SENDACK only, receive verification disabled, 10s warmup, 15s measured window.
 
 Evidence:
@@ -705,7 +705,7 @@ Classification:
 
 Decision:
 - Keep durable sync as the default.
-- Expose `WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false` as an explicit benchmark/performance mode for controlled environments that accept loss of latest acknowledged messages on process or host crash.
+- Do not expose no-sync channel append commits as a runtime configuration. Data safety takes priority over benchmark-only throughput wins.
 
 ## 2026-05-30 wukongimv2 Three-Node 10k Channel Activation
 

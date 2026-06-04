@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -63,22 +64,10 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 	}
 }
 
-func TestNodeDefaultChannelsUseConfiguredCommitNoSync(t *testing.T) {
-	cfg := validNodeConfig(t)
-	cfg.Storage.CommitNoSync = true
-	node, err := New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	if err := node.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	if node.defaultChannelStore == nil {
-		t.Fatal("defaultChannelStore = nil, want default store")
-	}
-	if !node.defaultChannelStore.CommitCoordinatorConfig().NoSync {
-		t.Fatal("default channel store commit NoSync = false, want configured true")
+func TestStorageConfigDoesNotExposeCommitNoSync(t *testing.T) {
+	_, ok := reflect.TypeOf(StorageConfig{}).FieldByName("CommitNoSync")
+	if ok {
+		t.Fatal("StorageConfig exposes CommitNoSync, want durable sync fixed on")
 	}
 }
 

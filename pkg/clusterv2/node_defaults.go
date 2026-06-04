@@ -63,7 +63,6 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	createdDefaultChannels := false
 	if n.channels == nil {
 		storeFactory := channelstore.NewMessageDBFactoryWithOptions(n.defaultChannelStorePath(), channelstore.MessageDBFactoryOptions{
-			CommitNoSync:      n.cfg.Storage.CommitNoSync,
 			CommitFlushWindow: n.cfg.Storage.CommitFlushWindow,
 			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
 			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,

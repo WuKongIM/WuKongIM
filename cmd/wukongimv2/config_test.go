@@ -112,7 +112,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=500us",
 		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s",
 		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s",
-		"WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false",
 		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=750us",
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=16",
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=256",
@@ -185,9 +184,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.FollowerRecoveryProbeJitter != time.Second {
 		t.Fatalf("Channel.FollowerRecoveryProbeJitter = %s, want 1s", cfg.Cluster.Channel.FollowerRecoveryProbeJitter)
-	}
-	if !cfg.Cluster.Storage.CommitNoSync {
-		t.Fatalf("Storage.CommitNoSync = false, want true when WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
 	}
 	if cfg.Cluster.Storage.CommitFlushWindow != 750*time.Microsecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 750us", cfg.Cluster.Storage.CommitFlushWindow)
@@ -360,7 +356,6 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", "2")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
-	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", "false")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
@@ -408,9 +403,6 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.AppendBatchMaxWait != 750*time.Microsecond {
 		t.Fatalf("Channel.AppendBatchMaxWait = %s, want 750us", cfg.Cluster.Channel.AppendBatchMaxWait)
-	}
-	if !cfg.Cluster.Storage.CommitNoSync {
-		t.Fatalf("Storage.CommitNoSync = false, want env override")
 	}
 	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)
@@ -486,6 +478,55 @@ func TestLoadConfigJSONListeners(t *testing.T) {
 	assertListeners(t, cfg.Gateway.Listeners, []gateway.ListenerOptions{
 		binding.TCPWKProto("tcp-test", "127.0.0.1:5101"),
 	})
+}
+
+func TestLoadConfigIgnoresCommitCoordinatorSyncEnv(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", "false")
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, requiredConfigLines(dir)...)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsCommitCoordinatorSyncFalseInFile(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	lines := append(requiredConfigLines(dir), "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, lines...)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil {
+		t.Fatal("loadConfig() error = nil, want WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false rejected")
+	}
+	if !strings.Contains(err.Error(), "WK_CLUSTER_COMMIT_COORDINATOR_SYNC") {
+		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_COMMIT_COORDINATOR_SYNC", err)
+	}
+}
+
+func TestConfigExamplesDoNotExposeCommitCoordinatorSync(t *testing.T) {
+	files := []string{
+		"wukongimv2.conf.example",
+		"wukongimv2-node1.conf.example",
+		"wukongimv2-node2.conf.example",
+		"wukongimv2-node3.conf.example",
+	}
+	for _, file := range files {
+		t.Run(file, func(t *testing.T) {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("ReadFile(%s): %v", file, err)
+			}
+			if strings.Contains(string(content), "WK_CLUSTER_COMMIT_COORDINATOR_SYNC") {
+				t.Fatalf("%s exposes WK_CLUSTER_COMMIT_COORDINATOR_SYNC", file)
+			}
+		})
+	}
 }
 
 func TestLoadConfigExampleFile(t *testing.T) {

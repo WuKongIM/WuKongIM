@@ -109,8 +109,6 @@ type ChannelConfig struct {
 
 // StorageConfig contains node-local store tuning for clusterv2-owned runtimes.
 type StorageConfig struct {
-	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
-	CommitNoSync bool
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
 	CommitFlushWindow time.Duration
 	// CommitMaxRequests caps logical append requests in one grouped physical commit.

@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"encoding/binary"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+func TestCommitCoordinatorConfigDoesNotExposeNoSync(t *testing.T) {
+	if _, ok := reflect.TypeOf(CommitCoordinatorConfig{}).FieldByName("NoSync"); ok {
+		t.Fatal("CommitCoordinatorConfig exposes NoSync, want durable sync fixed on")
+	}
+}
 
 func TestCompatEngineAppendReadAndIdempotency(t *testing.T) {
 	engine, err := Open(t.TempDir())

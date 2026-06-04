@@ -108,7 +108,7 @@
 - `pkg/channelv2` append is local-runtime only: clusterv2 must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
 - In wukongimv2 three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
 - wukongimv2 single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
-- SENDACK must only follow a crash-safe durable message commit; `NoSync` is diagnostic/unsafe for this guarantee. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
+- SENDACK must only follow a crash-safe durable message commit; message append `NoSync` is unsafe for this guarantee and must not be exposed as runtime/user configuration. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
 
 ## Cluster Membership
 

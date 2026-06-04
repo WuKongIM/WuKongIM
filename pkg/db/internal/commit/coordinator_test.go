@@ -3,6 +3,7 @@ package commit_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/commit"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
+
+func TestConfigDoesNotExposeNoSync(t *testing.T) {
+	if _, ok := reflect.TypeOf(commit.Config{}).FieldByName("NoSync"); ok {
+		t.Fatal("Config exposes NoSync, want durable sync fixed on")
+	}
+}
 
 func TestCoordinatorPublishesAfterCommit(t *testing.T) {
 	db := openTestDB(t)

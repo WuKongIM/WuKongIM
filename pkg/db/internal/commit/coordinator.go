@@ -78,8 +78,6 @@ type Config struct {
 	MaxRecords int
 	// MaxBytes caps approximate payload bytes per physical commit when positive.
 	MaxBytes int
-	// NoSync skips the physical fsync for grouped commits. Keep false for durable writes.
-	NoSync bool
 	// Observer receives grouped commit batch and queue-depth measurements.
 	Observer Observer
 }
@@ -133,8 +131,7 @@ func NewCoordinator(db *engine.DB, cfg Config) *Coordinator {
 		stopCh:   make(chan struct{}),
 		doneCh:   make(chan struct{}),
 	}
-	syncPhysical := !cfg.NoSync
-	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(syncPhysical) }
+	c.commitFunc = func(batch *engine.Batch) error { return batch.Commit(true) }
 	go c.run()
 	return c
 }
