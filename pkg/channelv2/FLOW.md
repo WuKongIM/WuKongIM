@@ -84,6 +84,9 @@ Leader reactors keep a small configurable recent-record suffix cache for durable
 
 Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains only for stopped-follower lifecycle confirmation, not for the hot replication path.
 
+Follower-side replication uses the message DB adapter's trusted contiguous apply
+path after the reactor has validated pull fencing and continuous follower
+offsets, avoiding redundant existing-index reads in the hot replication path.
 Follower-side replication stage metrics split PullHint wakeup, pull RPC wait,
 store apply wait, and apply-to-`AckOffset` return wait. These complement the
 leader-side quorum append wait stages: leader stages show when an append becomes
@@ -119,6 +122,11 @@ through durable store completion, while `post_store_commit_wait` covers durable
 store completion through local/quorum waiter completion. Quorum post-store
 sub-stages further separate follower pull service, leader-side `AckOffset`
 observation, HW advancement, and final future completion.
+When an admitted append waiter is canceled by the caller, the reactor emits a
+low-volume `AppendWaitCancelSnapshot` before cleanup. The snapshot captures the
+channel key, op id, commit mode, LEO/HW/target offset, queue and in-flight
+counts, and quorum progress booleans so timeout triage can distinguish slow
+storage, missing follower progress, and lost waiter completion.
 
 ## Channel Runtime Lifecycle Model
 
@@ -178,8 +186,9 @@ allowed at capacity.
 
 Caught-up followers park instead of polling the leader on a short idle interval.
 The leader wakes followers with PullHint on new activity, while followers keep a
-low-frequency jittered recovery probe so a lost hint cannot leave a channel
-stale forever.
+send-timeout-bounded jittered recovery probe so a lost hint can recover before
+the caller's sendack budget expires. The runtime default is 2s plus up to 1s
+jitter.
 
 ```mermaid
 stateDiagram-v2

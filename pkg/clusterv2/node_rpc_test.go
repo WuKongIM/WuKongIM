@@ -49,3 +49,16 @@ func TestNodeRegisterRPCAfterDefaultTransportIsIdempotent(t *testing.T) {
 		t.Fatalf("registeredRPCHandlers len = %d, want 1", got)
 	}
 }
+
+func TestNodeDefaultTransportUsesClusterSizedClientPool(t *testing.T) {
+	node, err := New(Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.ensureDefaultTransport(); err != nil {
+		t.Fatalf("ensureDefaultTransport() error = %v", err)
+	}
+	if got := node.transportClient.PoolSize(); got != 4 {
+		t.Fatalf("default transport pool size = %d, want 4", got)
+	}
+}

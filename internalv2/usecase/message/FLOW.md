@@ -21,6 +21,9 @@ SendBatch(items)
   -> append active channel groups through Appender.AppendBatch with bounded
      channel-level concurrency
      (omit result payloads when no committed sink is configured)
+     (retry transient batch-level route errors within the active item deadline)
+  -> record per-message append observations through the optional observer,
+     including batch-level, item-level, and short-result append errors
   -> submit committed-message events after successful append when a sink is configured
      (including sender identity and request-scoped delivery UIDs)
   -> return item-aligned SendBatchItemResult values

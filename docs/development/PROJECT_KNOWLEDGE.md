@@ -8,7 +8,7 @@
 - New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
 - Runnable `wukongimv2` helper-script configs live under `scripts/wukongimv2/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND metrics with ChannelV2 reactor/worker metrics. `/bench/v1/snapshot` remains a benchmark setup counter surface.
-- `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus low-frequency recovery probes, not short-interval empty pull polling.
+- `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `clusterv2/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internalv2/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.

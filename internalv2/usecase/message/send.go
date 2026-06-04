@@ -13,7 +13,12 @@ import (
 const channelTypePerson uint8 = 1
 
 // maxConcurrentAppendSegments bounds channel-level append fanout inside one gateway batch.
-const maxConcurrentAppendSegments = 16
+const maxConcurrentAppendSegments = 64
+
+const appendRetryInitialBackoff = 5 * time.Millisecond
+const appendRetryMaxBackoff = 100 * time.Millisecond
+
+const appendMetricPathChannelPlane = "channelplane"
 
 // Send processes one send command.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
@@ -157,8 +162,51 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 	if len(active) == 0 {
 		return
 	}
+	backoff := appendRetryInitialBackoff
+	for {
+		req := a.appendRequest(segment.channel, active)
+		ctx, cancel := segmentContext(active)
+		startedAt := time.Now()
+		res, err := a.appender.AppendBatch(ctx, req)
+		appendDur := time.Since(startedAt)
+		cancel()
+		if err != nil {
+			if retryableAppendBatchError(err) {
+				nextBackoff, ok := waitBeforeAppendRetry(active, backoff)
+				if ok {
+					backoff = nextBackoff
+					continue
+				}
+			}
+			for _, item := range active {
+				a.observeAppend(appendMetricPathChannelPlane, err, appendDur)
+				results[item.index] = SendBatchItemResult{Err: err}
+			}
+			return
+		}
+		for i, item := range active {
+			if i >= len(res.Items) {
+				a.observeAppend(appendMetricPathChannelPlane, ErrAppendResultMissing, appendDur)
+				results[item.index] = SendBatchItemResult{Err: ErrAppendResultMissing}
+				continue
+			}
+			appended := res.Items[i]
+			a.observeAppend(appendMetricPathChannelPlane, appended.Err, appendDur)
+			if appended.Err != nil {
+				results[item.index] = SendBatchItemResult{Result: SendResult{Reason: reasonForAppendError(appended.Err)}}
+				continue
+			}
+			result := SendResult{MessageID: appended.MessageID, MessageSeq: appended.MessageSeq, Reason: ReasonSuccess}
+			a.submitCommitted(item.ctx, item.cmd, appended)
+			results[item.index] = SendBatchItemResult{Result: result}
+		}
+		return
+	}
+}
+
+func (a *App) appendRequest(channel ChannelID, active []preparedSend) AppendBatchRequest {
 	req := AppendBatchRequest{
-		ChannelID:         segment.channel,
+		ChannelID:         channel,
 		Messages:          make([]Message, 0, len(active)),
 		CommitMode:        CommitModeQuorum,
 		OmitResultPayload: a == nil || a.committed == nil,
@@ -173,29 +221,66 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 			Payload:     cloneBytes(item.cmd.Payload),
 		})
 	}
-	ctx, cancel := segmentContext(active)
+	return req
+}
+
+func retryableAppendBatchError(err error) bool {
+	return errors.Is(err, ErrRouteNotReady) || errors.Is(err, ErrNotLeader) || errors.Is(err, ErrStaleRoute)
+}
+
+func waitBeforeAppendRetry(items []preparedSend, backoff time.Duration) (time.Duration, bool) {
+	if !segmentHasDeadline(items) {
+		return backoff, false
+	}
+	ctx, cancel := segmentContext(items)
 	defer cancel()
-	res, err := a.appender.AppendBatch(ctx, req)
-	if err != nil {
-		for _, item := range active {
-			results[item.index] = SendBatchItemResult{Err: err}
+	if err := ctx.Err(); err != nil {
+		return backoff, false
+	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nextAppendRetryBackoff(backoff), true
+	case <-ctx.Done():
+		return backoff, false
+	}
+}
+
+func nextAppendRetryBackoff(backoff time.Duration) time.Duration {
+	next := backoff * 2
+	if next < appendRetryInitialBackoff {
+		return appendRetryInitialBackoff
+	}
+	if next > appendRetryMaxBackoff {
+		return appendRetryMaxBackoff
+	}
+	return next
+}
+
+func segmentHasDeadline(items []preparedSend) bool {
+	for _, item := range items {
+		if !item.deadline.IsZero() {
+			return true
 		}
+		if item.ctx != nil {
+			if _, ok := item.ctx.Deadline(); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (a *App) observeAppend(path string, err error, dur time.Duration) {
+	if a == nil || a.observer == nil {
 		return
 	}
-	for i, item := range active {
-		if i >= len(res.Items) {
-			results[item.index] = SendBatchItemResult{Err: ErrAppendFailed}
-			continue
-		}
-		appended := res.Items[i]
-		if appended.Err != nil {
-			results[item.index] = SendBatchItemResult{Result: SendResult{Reason: reasonForAppendError(appended.Err)}}
-			continue
-		}
-		result := SendResult{MessageID: appended.MessageID, MessageSeq: appended.MessageSeq, Reason: ReasonSuccess}
-		a.submitCommitted(item.ctx, item.cmd, appended)
-		results[item.index] = SendBatchItemResult{Result: result}
+	observer, ok := a.observer.(AppendObserver)
+	if !ok {
+		return
 	}
+	observer.AppendFinished(path, err, dur)
 }
 
 func activeSegmentItems(segment segment, results []SendBatchItemResult) []preparedSend {

@@ -63,8 +63,12 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 	createdDefaultChannels := false
 	if n.channels == nil {
 		storeFactory := channelstore.NewMessageDBFactoryWithOptions(n.defaultChannelStorePath(), channelstore.MessageDBFactoryOptions{
-			CommitNoSync:   n.cfg.Storage.CommitNoSync,
-			CommitObserver: n.cfg.Storage.CommitObserver,
+			CommitNoSync:      n.cfg.Storage.CommitNoSync,
+			CommitFlushWindow: n.cfg.Storage.CommitFlushWindow,
+			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
+			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,
+			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
+			CommitObserver:    n.cfg.Storage.CommitObserver,
 		})
 		var transport *channels.TransportClient
 		if n.transportClient != nil {
@@ -75,6 +79,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			ReactorCount:                  n.cfg.Channel.ReactorCount,
 			MailboxSize:                   n.cfg.Channel.MailboxSize,
 			MaxChannels:                   n.cfg.Channel.MaxChannels,
+			AppendBatchMaxRecords:         n.cfg.Channel.AppendBatchMaxRecords,
+			AppendBatchMaxWait:            n.cfg.Channel.AppendBatchMaxWait,
 			FollowerRecoveryProbeInterval: n.cfg.Channel.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   n.cfg.Channel.FollowerRecoveryProbeJitter,
 			Observer:                      n.cfg.Channel.Observer,
@@ -107,7 +113,7 @@ func (n *Node) ensureDefaultTransport() error {
 		n.discovery.Update(controlVoterNodes(n.cfg.Control.Voters))
 	}
 	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{})
-	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery, PoolSize: 1})
+	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery})
 	n.defaultTransport = true
 	n.registeredRPCHandlers = make(map[uint8]struct{})
 	return nil

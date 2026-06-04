@@ -21,4 +21,6 @@ var (
 	ErrBackpressured = errors.New("internalv2/message: backpressured")
 	// ErrAppendFailed wraps unexpected append failures.
 	ErrAppendFailed = errors.New("internalv2/message: append failed")
+	// ErrAppendResultMissing reports a successful batch append response without a matching item result.
+	ErrAppendResultMissing = errors.New("internalv2/message: append result missing")
 )

@@ -33,15 +33,25 @@ WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 # Maximum loaded ChannelV2 runtimes on this node. 0 keeps unlimited behavior.
 WK_CLUSTER_MAX_CHANNELS=0
 
+# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
+
 # Parked follower recovery probe base interval and deterministic jitter.
-# Caught-up followers primarily wake through PullHint; probes prevent permanent sleep if hints are lost.
-WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=60s
-WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=30s
+# Keep interval+jitter below WK_GATEWAY_SEND_TIMEOUT so lost hints recover before sendack timeout.
+WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
+WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
 
 # Controls physical fsync for grouped channel appends. Keep true for durable writes;
 # set false only for controlled benchmark or cache-like deployments that accept loss
 # of the latest acknowledged messages on process or host crash.
 WK_CLUSTER_COMMIT_COORDINATOR_SYNC=true
+# Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
+WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
+# Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
 
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
 WK_API_LISTEN_ADDR=127.0.0.1:5013

@@ -18,14 +18,17 @@ READY_TIMEOUT="${WK_BENCH_THREE_NODE_READY_TIMEOUT:-90}"
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-4096}"
 GROUP_MEMBERS="${WK_BENCH_GROUP_MEMBERS:-10}"
-CONCURRENCY="${WK_BENCH_CONCURRENCY:-1000}"
+CONCURRENCY="${WK_BENCH_CONCURRENCY:-5000}"
 PAYLOAD_BYTES="${WK_BENCH_PAYLOAD_BYTES:-128}"
 DURATION="${WK_BENCH_DURATION:-15s}"
 WARMUP="${WK_BENCH_WARMUP:-5s}"
 COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
+ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
+RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-first_online}"
+PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -52,12 +55,16 @@ Options:
   --channels N           Fixed group channel count. Default: 1000.
   --users N              Online user pool. Default: 4096.
   --members N            Members per group channel. Default: 10.
-  --concurrency N        wkbench send concurrency. Default: 1000.
+  --concurrency N        wkbench send concurrency. Default: 5000.
   --duration DURATION    Measured run duration. Default: 15s.
   --warmup DURATION      Warmup duration. Default: 5s.
   --cooldown DURATION    Cooldown duration. Default: 2s.
   --stable-p99 DURATION  Soft p99 gate written into scenarios. Default: 400ms.
+  --ack-timeout DURATION Per-SEND sendack wait timeout in generated traffic. Default: 15s.
+  --phase-poll-timeout DURATION
+                         Base wkbench worker phase poll timeout. Default: 30s.
   --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
+  --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
   --sender-pick MODE     Group sender selection: first_online or round_robin. Default: first_online.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
@@ -190,6 +197,21 @@ while [[ $# -gt 0 ]]; do
       STABLE_P99="$2"
       shift 2
       ;;
+    --ack-timeout)
+      [[ $# -ge 2 ]] || die '--ack-timeout requires a value'
+      ACK_TIMEOUT="$2"
+      shift 2
+      ;;
+    --phase-poll-timeout)
+      [[ $# -ge 2 ]] || die '--phase-poll-timeout requires a value'
+      PHASE_POLL_TIMEOUT="$2"
+      shift 2
+      ;;
+    --recv-ack)
+      [[ $# -ge 2 ]] || die '--recv-ack requires a value'
+      RECV_ACK="$2"
+      shift 2
+      ;;
     --profile-seconds)
       [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
       PROFILE_SECONDS="$2"
@@ -238,6 +260,13 @@ case "$SENDER_PICK" in
     die "--sender-pick must be first_online or round_robin: $SENDER_PICK"
     ;;
 esac
+case "$RECV_ACK" in
+  true|false)
+    ;;
+  *)
+    die "--recv-ack must be true or false: $RECV_ACK"
+    ;;
+esac
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
@@ -279,8 +308,15 @@ start_cluster() {
   WK_PPROF_ENABLE="${WK_PPROF_ENABLE:-true}" \
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
-  WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-32}" \
-  WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-256}" \
+  WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
+  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}" \
+  WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-0}" \
+  WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-512}" \
+  WK_GATEWAY_SEND_TIMEOUT="${WK_GATEWAY_SEND_TIMEOUT:-15s}" \
   WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}" \
     "$START_SCRIPT" "${clean_arg[@]}" --ready-timeout "$READY_TIMEOUT" \
       >"$OUT_DIR/cluster-start.log" 2>&1 &
@@ -289,18 +325,34 @@ start_cluster() {
 
 ensure_wkbench_binary() {
   if [[ -x "$WK_BENCH_BIN" ]]; then
-    return
+    local newer_source
+    newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"
+    if [[ -z "$newer_source" ]]; then
+      return
+    fi
+    log "rebuilding stale wkbench: $WK_BENCH_BIN"
+  else
+    log "building wkbench: $WK_BENCH_BIN"
   fi
-  log "building wkbench: $WK_BENCH_BIN"
   mkdir -p "$(dirname "$WK_BENCH_BIN")"
   (
     cd "$ROOT_DIR"
-    go build -o "$WK_BENCH_BIN" ./cmd/wkbench
+    GOWORK="${GOWORK:-off}" go build -o "$WK_BENCH_BIN" ./cmd/wkbench
   )
 }
 
 worker_ready() {
   curl -fsS --max-time 2 "${WORKER_ADDR%/}/healthz" >/dev/null 2>&1
+}
+
+gateway_ready() {
+  local addr="$1"
+  local host="${addr%:*}"
+  local port="${addr##*:}"
+  if [[ -z "$host" || -z "$port" || "$host" == "$addr" ]]; then
+    return 1
+  fi
+  ( : >/dev/tcp/"$host"/"$port" ) >/dev/null 2>&1
 }
 
 ensure_worker() {
@@ -330,7 +382,7 @@ ensure_worker() {
 
 check_cluster_ready() {
   local deadline=$((SECONDS + READY_TIMEOUT))
-  local api all_ready
+  local api gateway all_ready
   while (( SECONDS <= deadline )); do
     if [[ -n "$CLUSTER_PID" ]] && ! kill -0 "$CLUSTER_PID" 2>/dev/null; then
       tail -n 120 "$OUT_DIR/cluster-start.log" >&2 || true
@@ -343,6 +395,14 @@ check_cluster_ready() {
         break
       fi
     done
+    if [[ "$all_ready" -eq 1 ]]; then
+      for gateway in "${GATEWAY_VALUES[@]}"; do
+        if ! gateway_ready "$gateway"; then
+          all_ready=0
+          break
+        fi
+      done
+    fi
     if [[ "$all_ready" -eq 1 ]]; then
       log "cluster ready"
       return
@@ -481,8 +541,9 @@ messages:
       channel_ref: thousand-groups
       rate_per_channel: ${rate}/s
       concurrency: $CONCURRENCY
+      ack_timeout: $ACK_TIMEOUT
       sender_pick: $SENDER_PICK
-      recv_ack: false
+      recv_ack: $RECV_ACK
       verify:
         recv:
           mode: none
@@ -633,6 +694,7 @@ run_attempt() {
     --target "$OUT_DIR/target.yaml" \
     --scenario "$OUT_DIR/scenario-${tag}.yaml" \
     --workers "$OUT_DIR/workers.yaml" \
+    --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
   scrape_metrics "$tag" after
   classify_metrics "$tag"
@@ -683,6 +745,9 @@ DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
+ACK_TIMEOUT=$ACK_TIMEOUT
+RECV_ACK=$RECV_ACK
+PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 SENDER_PICK=$SENDER_PICK
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
@@ -690,6 +755,16 @@ METRICS_ADDRS=$METRICS_ADDRS
 WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
+CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}
+CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
+CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
+CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-0}
+CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
+GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-512}
+GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-15s}
 START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
 PROFILE_SECONDS=$PROFILE_SECONDS

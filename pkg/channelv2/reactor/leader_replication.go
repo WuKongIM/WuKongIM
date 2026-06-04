@@ -321,6 +321,9 @@ func (r *Reactor) updateLeaderPullFollowerState(rc *runtimeChannel, waiter *pull
 		} else {
 			follower.parked = false
 			follower.nextExpectedPullAt = time.Time{}
+			if len(records) > 0 && follower.match < rc.state.LEO && !follower.hint.inflight {
+				follower.hint.retryAt = retryDue(now, r.cfg.PullHintRetryInterval)
+			}
 		}
 	}
 }

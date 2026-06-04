@@ -17,13 +17,16 @@ READY_TIMEOUT="${WK_BENCH_THREE_NODE_READY_TIMEOUT:-90}"
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-4096}"
 GROUP_MEMBERS="${WK_BENCH_GROUP_MEMBERS:-10}"
-CONCURRENCY="${WK_BENCH_CONCURRENCY:-1000}"
+CONCURRENCY="${WK_BENCH_CONCURRENCY:-5000}"
 PAYLOAD_BYTES="${WK_BENCH_PAYLOAD_BYTES:-128}"
 DURATION="${WK_BENCH_DURATION:-30s}"
 WARMUP="${WK_BENCH_WARMUP:-10s}"
 COOLDOWN="${WK_BENCH_COOLDOWN:-3s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
+ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
+RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
+PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -45,12 +48,16 @@ Options:
   --channels N               Fixed group channel count. Default: 1000.
   --users N                  Online user pool. Default: 4096.
   --members N                Members per group channel. Default: 10.
-  --concurrency N            wkbench send concurrency. Default: 1000.
+  --concurrency N            wkbench send concurrency. Default: 5000.
   --payload-bytes N          Message payload bytes. Default: 128.
   --duration DURATION        Measured run duration. Default: 30s.
   --warmup DURATION          Warmup duration. Default: 10s.
   --cooldown DURATION        Cooldown duration. Default: 3s.
   --stable-p99 DURATION      p99 latency gate. Default: 400ms.
+  --ack-timeout DURATION     Per-SEND sendack wait timeout. Default: 15s.
+  --phase-poll-timeout DURATION
+                             Base wkbench worker phase poll timeout. Default: 30s.
+  --recv-ack BOOL            Whether group recv frames are acknowledged. Default: true.
   --profile-seconds N        Capture final CPU pprof for each node when N > 0. Default: 0.
   --wkbench-bin PATH         wkbench binary path. Default: data/wkbench-test.
   --start-script PATH        Three-node startup script. Default: scripts/start-wukongimv2-three-nodes.sh.
@@ -193,6 +200,21 @@ while [[ $# -gt 0 ]]; do
       STABLE_P99="$2"
       shift 2
       ;;
+    --ack-timeout)
+      [[ $# -ge 2 ]] || die '--ack-timeout requires a value'
+      ACK_TIMEOUT="$2"
+      shift 2
+      ;;
+    --phase-poll-timeout)
+      [[ $# -ge 2 ]] || die '--phase-poll-timeout requires a value'
+      PHASE_POLL_TIMEOUT="$2"
+      shift 2
+      ;;
+    --recv-ack)
+      [[ $# -ge 2 ]] || die '--recv-ack requires a value'
+      RECV_ACK="$2"
+      shift 2
+      ;;
     --profile-seconds)
       [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
       PROFILE_SECONDS="$2"
@@ -253,6 +275,13 @@ case "$SENDER_PICK" in
     die "--sender-pick must be first_online or round_robin: $SENDER_PICK"
     ;;
 esac
+case "$RECV_ACK" in
+  true|false)
+    ;;
+  *)
+    die "--recv-ack must be true or false: $RECV_ACK"
+    ;;
+esac
 [[ -x "$BASE_SCRIPT" ]] || die "base script is not executable: $BASE_SCRIPT"
 
 declare -a QPS_VALUES
@@ -276,8 +305,20 @@ DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
+ACK_TIMEOUT=$ACK_TIMEOUT
+RECV_ACK=$RECV_ACK
+PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 MIN_ACTUAL_RATIO=$MIN_ACTUAL_RATIO
 SENDER_PICK=$SENDER_PICK
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
+CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}
+CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
+CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
+CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-0}
+CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
+GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-512}
+GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-15s}
 API_ADDRS=$API_ADDRS
 GATEWAY_ADDRS=$GATEWAY_ADDRS
 METRICS_ADDRS=$METRICS_ADDRS
@@ -392,6 +433,7 @@ write_markdown_summary() {
 - users: $USERS
 - group_members: $GROUP_MEMBERS
 - sender_pick: $SENDER_PICK
+- recv_ack: $RECV_ACK
 - min_actual_ratio: $MIN_ACTUAL_RATIO
 - duration: $DURATION
 - warmup: $WARMUP
@@ -434,6 +476,9 @@ run_attempt() {
       --warmup "$WARMUP" \
       --cooldown "$COOLDOWN" \
       --stable-p99 "$STABLE_P99" \
+      --ack-timeout "$ACK_TIMEOUT" \
+      --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
+      --recv-ack "$RECV_ACK" \
       --profile-seconds "$PROFILE_SECONDS" \
       --sender-pick "$SENDER_PICK" \
       --api "$API_ADDRS" \

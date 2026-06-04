@@ -50,6 +50,32 @@ func TestPersonWorkloadSendOneBuildsRecipientSendPacket(t *testing.T) {
 	require.Contains(t, sent.ClientMsgNo, "msg7")
 }
 
+func TestPersonWorkloadSendOneRejectsSendackWithoutExpectedClientMsgNo(t *testing.T) {
+	sender := newRecordingPersonClient()
+	recipient := newRecordingPersonClient()
+	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
+		ClientSeq:  7,
+		ReasonCode: frame.ReasonSuccess,
+	})
+
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+	}, map[string]PersonClient{
+		"u1": sender,
+		"u2": recipient,
+	})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 7)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "sendack not received")
+}
+
 func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testing.T) {
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()
@@ -217,8 +243,35 @@ func TestPersonWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 	err = workload.SendOne(context.Background(), 1)
 
 	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Equal(t, []string{"u1"}, SessionErrorUIDs(err))
+	require.Contains(t, err.Error(), "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
 	require.True(t, workload.Metrics().CounterValue("person_send_error_total", personSendLabels("run", "profile-a", "traffic-a")) > 0)
+	require.NotEmpty(t, workload.Metrics().ErrorSamples())
+	require.Contains(t, workload.Metrics().ErrorSamples()[0].Message, "bench-msg-run-a-profile-a-traffic-a-run-ch1-msg1")
+}
+
+func TestPersonWorkloadDoesNotCountPhaseCancellationAsSendError(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.readErrors = append(sender.readErrors, context.Canceled)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = workload.SendOne(ctx, 1)
+
+	require.Error(t, err)
+	require.Zero(t, workload.Metrics().CounterValue("person_send_error_total", personSendLabels("run", "profile-a", "traffic-a")))
+	require.Empty(t, workload.Metrics().ErrorSamples())
 }
 
 func TestPersonWorkloadConnectsAssignedPairClients(t *testing.T) {
@@ -521,6 +574,40 @@ func TestAutoRecvAckReadMatcherDropsUnverifiedRecvFrames(t *testing.T) {
 	require.Empty(t, wrapped.buffer)
 }
 
+func TestAutoRecvAckReadMatcherCanDrainWithoutRecvAck(t *testing.T) {
+	raw := &orderedPersonClient{frames: []frame.Frame{
+		&frame.RecvPacket{
+			MessageID:   47,
+			MessageSeq:  12,
+			ClientMsgNo: "msg-drain-only",
+			FromUID:     "sender",
+			ChannelID:   "channel-a",
+			ChannelType: frame.ChannelTypeGroup,
+		},
+		&frame.SendackPacket{
+			ClientSeq:   3,
+			ClientMsgNo: "sendack-a",
+			ReasonCode:  frame.ReasonSuccess,
+		},
+	}}
+	wrapped := &matchingPersonClient{
+		client:                raw,
+		bufferLimit:           defaultMatchingBufferLimit,
+		autoRecvAck:           true,
+		autoRecvAckBufferRecv: false,
+		autoRecvAckDisableAck: true,
+	}
+
+	got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		ack, ok := f.(*frame.SendackPacket)
+		return ok && ack.ClientMsgNo == "sendack-a"
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sendack-a", got.(*frame.SendackPacket).ClientMsgNo)
+	require.Empty(t, raw.recvAckCalls)
+	require.Empty(t, wrapped.buffer)
+}
+
 type orderedPersonClient struct {
 	frames       []frame.Frame
 	recvAckCalls []recvAckCall
@@ -618,10 +705,14 @@ func TestAutoRecvAckIdleReadDoesNotInjectReadDeadline(t *testing.T) {
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
-func TestAutoRecvAckKeepsBackgroundReaderWhileSendackWaiterIsPending(t *testing.T) {
+func TestAutoRecvAckDrainOnlyYieldsBackgroundReaderWhileSendackWaiterIsPending(t *testing.T) {
+	previousYieldDelay := autoRecvAckYieldDelay
+	autoRecvAckYieldDelay = 50 * time.Millisecond
+	t.Cleanup(func() { autoRecvAckYieldDelay = previousYieldDelay })
+
 	raw := newControlledReadPersonClient()
 	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
-	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false, DisableRecvAck: true})
 	defer stop()
 
 	require.Equal(t, readStart{count: 1, hasDeadline: false}, raw.waitReadStart(t, time.Second))
@@ -642,14 +733,19 @@ func TestAutoRecvAckKeepsBackgroundReaderWhileSendackWaiterIsPending(t *testing.
 		done <- nil
 	}()
 
+	matching := wrapped.(*matchingPersonClient)
+	require.Eventually(t, func() bool {
+		matching.mu.Lock()
+		defer matching.mu.Unlock()
+		return matching.foregroundWaiters > 0
+	}, time.Second, time.Millisecond)
+
 	raw.pushFrame(&frame.RecvPacket{MessageID: 50, MessageSeq: 1, ClientMsgNo: "recv-a"})
-	require.Equal(t, readStart{count: 2, hasDeadline: false}, raw.waitReadStart(t, time.Second))
-	raw.pushFrame(&frame.RecvPacket{MessageID: 51, MessageSeq: 2, ClientMsgNo: "recv-b"})
-	require.Equal(t, readStart{count: 3, hasDeadline: false}, raw.waitReadStart(t, time.Second))
+	require.Equal(t, readStart{count: 2, hasDeadline: true}, raw.waitReadStart(t, time.Second))
 	raw.pushFrame(&frame.SendackPacket{ClientSeq: 9, ClientMsgNo: "sendack-a", ReasonCode: frame.ReasonSuccess})
 
 	require.NoError(t, <-done)
-	require.Equal(t, []recvAckCall{{messageID: 50, messageSeq: 1}, {messageID: 51, messageSeq: 2}}, raw.recvAckSnapshot())
+	require.Empty(t, raw.recvAckSnapshot())
 }
 
 func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {

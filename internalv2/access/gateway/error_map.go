@@ -41,3 +41,26 @@ func reasonForError(err error) message.Reason {
 		return message.ReasonSystemError
 	}
 }
+
+func sendackErrorClassForError(err error) string {
+	switch {
+	case err == nil:
+		return sendackErrorClassNone
+	case errors.Is(err, message.ErrChannelNotFound):
+		return sendackErrorClassChannelNotFound
+	case errors.Is(err, message.ErrNotLeader):
+		return sendackErrorClassNotLeader
+	case errors.Is(err, message.ErrStaleRoute):
+		return sendackErrorClassStaleRoute
+	case errors.Is(err, message.ErrRouteNotReady):
+		return sendackErrorClassRouteNotReady
+	case errors.Is(err, message.ErrInvalidCommand):
+		return sendackErrorClassInvalidRequest
+	case errors.Is(err, context.Canceled):
+		return sendackErrorClassCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return sendackErrorClassTimeout
+	default:
+		return sendackErrorClassOther
+	}
+}

@@ -3,15 +3,20 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
 
+	gatewayadapter "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
+	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
@@ -106,6 +111,34 @@ func (o gatewayMetricsObserver) OnAsyncSendDispatchWait(event accessgateway.Asyn
 		return
 	}
 	o.metrics.Gateway.ObserveAsyncSendDispatchWait(event.Protocol, event.Duration)
+}
+
+func (o gatewayMetricsObserver) SendackWritten(event gatewayadapter.SendackEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Gateway.Sendack(gatewaySendackReasonLabel(event.Reason), event.Source, event.ErrorClass)
+}
+
+func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
+	switch reason {
+	case messageusecase.ReasonSuccess:
+		return "success"
+	case messageusecase.ReasonInvalidRequest:
+		return "invalid_request"
+	case messageusecase.ReasonAuthFail:
+		return "auth_fail"
+	case messageusecase.ReasonChannelNotExist:
+		return "channel_not_exist"
+	case messageusecase.ReasonNodeNotMatch:
+		return "node_not_match"
+	case messageusecase.ReasonSystemError:
+		return "system_error"
+	case messageusecase.ReasonUnsupported:
+		return "unsupported"
+	default:
+		return "unknown"
+	}
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
@@ -236,6 +269,49 @@ func (o channelV2MetricsObserver) ObserveAppendWaitStage(stage string, mode ch.C
 		return
 	}
 	o.metrics.ChannelV2.ObserveAppendWaitStage(stage, channelV2CommitModeLabel(mode), result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.AppendWaitCancelSnapshot) {
+	if o.metrics == nil {
+		return
+	}
+	log.Print(channelV2AppendWaitCancelLogLine(snapshot))
+}
+
+func channelV2AppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot) string {
+	return fmt.Sprintf(
+		"internalv2/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d err=%v",
+		snapshot.ReactorID,
+		snapshot.Key,
+		snapshot.ChannelID.ID,
+		snapshot.ChannelID.Type,
+		snapshot.OpID,
+		channelV2CommitModeLabel(snapshot.CommitMode),
+		channelV2RoleLabel(snapshot.Role),
+		snapshot.Leader,
+		snapshot.Epoch,
+		snapshot.LeaderEpoch,
+		snapshot.LEO,
+		snapshot.HW,
+		snapshot.TargetOffset,
+		snapshot.StoreSubmitted,
+		snapshot.StoreCompleted,
+		snapshot.FollowerPullServed,
+		snapshot.AckOffsetObserved,
+		snapshot.HWAdvanced,
+		snapshot.Waiters,
+		snapshot.PendingAppends,
+		snapshot.PendingAppendOrder,
+		snapshot.AppendQueuePending,
+		snapshot.AppendQueueRecords,
+		snapshot.AppendQueueBytes,
+		snapshot.AppendInflight,
+		snapshot.AppendInflightOpID,
+		snapshot.AppendInflightWaiters,
+		snapshot.AppendStoreBlocked,
+		snapshot.PullWaiters,
+		snapshot.Err,
+	)
 }
 
 func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
@@ -548,6 +624,15 @@ func (o multiChannelV2Observer) ObserveAppendWaitStage(stage string, mode ch.Com
 	}
 }
 
+func (o multiChannelV2Observer) ObserveAppendWaitCanceled(snapshot reactor.AppendWaitCancelSnapshot) {
+	for _, observer := range o {
+		appendCancelObserver, ok := observer.(reactor.AppendWaitCancelObserver)
+		if ok {
+			appendCancelObserver.ObserveAppendWaitCanceled(snapshot)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	for _, observer := range o {
 		observer.ObserveWorkerResult(kind, err, d)
@@ -671,14 +756,57 @@ func channelV2PullHintErrorLabel(err error) string {
 	}
 }
 
+func messageAppendErrorLabel(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, messageusecase.ErrBackpressured) || strings.Contains(message, messageusecase.ErrBackpressured.Error()) || strings.Contains(message, ch.ErrBackpressured.Error()):
+		return "backpressured"
+	case errors.Is(err, messageusecase.ErrRouteNotReady) || strings.Contains(message, messageusecase.ErrRouteNotReady.Error()) || strings.Contains(message, ch.ErrNotReady.Error()):
+		return "route_not_ready"
+	case errors.Is(err, messageusecase.ErrStaleRoute) || strings.Contains(message, messageusecase.ErrStaleRoute.Error()) || strings.Contains(message, ch.ErrStaleMeta.Error()):
+		return "stale_route"
+	case errors.Is(err, messageusecase.ErrNotLeader) || strings.Contains(message, messageusecase.ErrNotLeader.Error()) || strings.Contains(message, ch.ErrNotLeader.Error()):
+		return "not_leader"
+	case errors.Is(err, messageusecase.ErrChannelNotFound) || strings.Contains(message, messageusecase.ErrChannelNotFound.Error()) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
+		return "channel_not_found"
+	case errors.Is(err, messageusecase.ErrAppendResultMissing) || strings.Contains(message, messageusecase.ErrAppendResultMissing.Error()):
+		return "short_result"
+	case errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, clusterv2.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()) || strings.Contains(message, clusterv2.ErrInvalidConfig.Error()):
+		return "invalid_config"
+	case errors.Is(err, ch.ErrClosed) || errors.Is(err, clusterv2.ErrStopping) || strings.Contains(message, ch.ErrClosed.Error()) || strings.Contains(message, clusterv2.ErrStopping.Error()):
+		return "closed"
+	case errors.Is(err, ch.ErrTooManyChannels) || strings.Contains(message, ch.ErrTooManyChannels.Error()):
+		return "too_many_channels"
+	case errors.Is(err, clusterv2.ErrNotStarted) || strings.Contains(message, clusterv2.ErrNotStarted.Error()):
+		return "not_started"
+	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(message, "deadline exceeded"):
+		return "timeout"
+	case strings.Contains(message, "remote error"):
+		return "remote_error"
+	case errors.Is(err, messageusecase.ErrAppendFailed) || strings.Contains(message, messageusecase.ErrAppendFailed.Error()):
+		return "append_failed"
+	default:
+		return "other"
+	}
+}
+
 var _ accessgateway.Observer = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
+var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
 var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
 var _ reactor.PendingMetaObserver = channelV2MetricsObserver{}
+var _ reactor.AppendWaitCancelObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
@@ -688,6 +816,7 @@ var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
+var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}

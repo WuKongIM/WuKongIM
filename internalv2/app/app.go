@@ -247,17 +247,20 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		}
 		if app.cfg.Delivery.Enabled {
 			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
+		}
+		if app.cfg.Delivery.Enabled || app.metrics != nil {
 			messageOpts.Observer = deliveryMessageObserver{app: app}
 		}
 		app.messages = message.New(messageOpts)
 	}
 	if app.handler == nil {
 		app.handler = accessgateway.New(accessgateway.Options{
-			Messages:    app.messages,
-			Presence:    app.gatewayPresenceUsecase(),
-			Delivery:    app.delivery,
-			OwnerNodeID: clusterCfg.NodeID,
-			SendTimeout: cfg.Gateway.SendTimeout,
+			Messages:        app.messages,
+			Presence:        app.gatewayPresenceUsecase(),
+			Delivery:        app.delivery,
+			OwnerNodeID:     clusterCfg.NodeID,
+			SendTimeout:     cfg.Gateway.SendTimeout,
+			SendackObserver: app.sendackObserver(),
 		})
 	}
 	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
@@ -359,6 +362,13 @@ func (a *App) metricsHandler() http.Handler {
 }
 
 func (a *App) gatewayObserver() gateway.Observer {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return gatewayMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) sendackObserver() accessgateway.SendackObserver {
 	if a == nil || a.metrics == nil {
 		return nil
 	}

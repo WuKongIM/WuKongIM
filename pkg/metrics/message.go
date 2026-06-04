@@ -21,6 +21,7 @@ type MessageMetrics struct {
 	metaRefreshDuration            *prometheus.HistogramVec
 	appendTotal                    *prometheus.CounterVec
 	appendDuration                 *prometheus.HistogramVec
+	appendErrorTotal               *prometheus.CounterVec
 	committedDispatchQueueDepth    *prometheus.GaugeVec
 	committedDispatchEnqueueTotal  *prometheus.CounterVec
 	committedDispatchOverflowTotal *prometheus.CounterVec
@@ -55,6 +56,11 @@ func newMessageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"path", "result"}),
+		appendErrorTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_message_append_errors_total",
+			Help:        "Total number of failed message append attempts grouped by path and error class.",
+			ConstLabels: labels,
+		}, []string{"path", "class"}),
 		committedDispatchQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_message_committed_dispatch_queue_depth",
 			Help:        "Current committed message dispatch queue depth grouped by shard.",
@@ -90,6 +96,7 @@ func newMessageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.metaRefreshDuration,
 		m.appendTotal,
 		m.appendDuration,
+		m.appendErrorTotal,
 		m.committedDispatchQueueDepth,
 		m.committedDispatchEnqueueTotal,
 		m.committedDispatchOverflowTotal,
@@ -116,6 +123,17 @@ func (m *MessageMetrics) ObserveAppend(path, result string, dur time.Duration) {
 	}
 	m.appendTotal.WithLabelValues(path, result).Inc()
 	m.appendDuration.WithLabelValues(path, result).Observe(dur.Seconds())
+}
+
+// ObserveAppendError records a failed message append attempt by low-cardinality class.
+func (m *MessageMetrics) ObserveAppendError(path, class string) {
+	if m == nil {
+		return
+	}
+	if class == "" {
+		class = "unknown"
+	}
+	m.appendErrorTotal.WithLabelValues(path, class).Inc()
 }
 
 // SetCommittedDispatchQueueDepth sets the current committed dispatch queue depth for a shard.

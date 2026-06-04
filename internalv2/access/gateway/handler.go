@@ -63,15 +63,18 @@ type Options struct {
 	OwnerNodeID uint64
 	// SendTimeout bounds each gateway SEND request.
 	SendTimeout time.Duration
+	// SendackObserver receives low-cardinality SEND acknowledgement diagnostics.
+	SendackObserver SendackObserver
 }
 
 // Handler adapts pkg/gateway frames to internalv2 message usecases.
 type Handler struct {
-	messages    MessageUsecase
-	presence    PresenceUsecase
-	delivery    DeliveryUsecase
-	ownerNodeID uint64
-	sendTimeout time.Duration
+	messages        MessageUsecase
+	presence        PresenceUsecase
+	delivery        DeliveryUsecase
+	ownerNodeID     uint64
+	sendTimeout     time.Duration
+	sendackObserver SendackObserver
 }
 
 // New creates a gateway Handler.
@@ -80,11 +83,12 @@ func New(opts Options) *Handler {
 		opts.SendTimeout = defaultSendTimeout
 	}
 	return &Handler{
-		messages:    opts.Messages,
-		presence:    opts.Presence,
-		delivery:    opts.Delivery,
-		ownerNodeID: opts.OwnerNodeID,
-		sendTimeout: opts.SendTimeout,
+		messages:        opts.Messages,
+		presence:        opts.Presence,
+		delivery:        opts.Delivery,
+		ownerNodeID:     opts.OwnerNodeID,
+		sendTimeout:     opts.SendTimeout,
+		sendackObserver: opts.SendackObserver,
 	}
 }
 
@@ -166,19 +170,19 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, true)
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticatedSession) {
-			return writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail})
+			return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail}, sendackSourceSingleResult, sendackErrorClassUnauthenticated)
 		}
 		return err
 	}
 	if ctx == nil || ctx.RequestContext == nil {
-		return writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError})
+		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
 	defer cancel()
 
-	result := h.sendOne(reqCtx, cmd)
-	return writeSendack(ctx, pkt, result)
+	result, source, class := h.sendOne(reqCtx, cmd)
+	return h.writeSendack(ctx, pkt, result, source, class)
 }
 
 func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -197,15 +201,26 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 	})
 }
 
-func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) message.SendResult {
+func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) (message.SendResult, string, string) {
 	if h == nil || h.messages == nil {
-		return message.SendResult{Reason: message.ReasonSystemError}
+		return message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleResult, sendackErrorClassOther
 	}
 	result, err := h.messages.Send(ctx, cmd)
 	if err != nil {
 		result.Reason = reasonForError(err)
+		return result, sendackSourceSingleError, sendackErrorClassForError(err)
 	}
-	return result
+	return result, sendackSourceSingleResult, sendackErrorClassNone
+}
+
+func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult, source string, class string) error {
+	if err := writeSendack(ctx, pkt, result); err != nil {
+		return err
+	}
+	if h != nil && h.sendackObserver != nil {
+		h.sendackObserver.SendackWritten(SendackEvent{Reason: result.Reason, Source: source, ErrorClass: class})
+	}
+	return nil
 }
 
 var _ coregateway.Handler = (*Handler)(nil)

@@ -102,6 +102,32 @@ func TestNodeDefaultChannelsUseConfiguredCommitObserver(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultChannelsUseConfiguredCommitCoordinatorTuning(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Storage.CommitFlushWindow = 750 * time.Microsecond
+	cfg.Storage.CommitMaxRequests = 16
+	cfg.Storage.CommitMaxRecords = 256
+	cfg.Storage.CommitMaxBytes = 128 * 1024
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	if node.defaultChannelStore == nil {
+		t.Fatal("defaultChannelStore = nil, want default store")
+	}
+	commitCfg := node.defaultChannelStore.CommitCoordinatorConfig()
+	if commitCfg.FlushWindow != 750*time.Microsecond {
+		t.Fatalf("FlushWindow = %s, want 750us", commitCfg.FlushWindow)
+	}
+	if commitCfg.MaxRequests != 16 || commitCfg.MaxRecords != 256 || commitCfg.MaxBytes != 128*1024 {
+		t.Fatalf("commit coordinator max = requests:%d records:%d bytes:%d", commitCfg.MaxRequests, commitCfg.MaxRecords, commitCfg.MaxBytes)
+	}
+}
+
 func TestChannelReplicaCountDefaultsToSlotReplicaCount(t *testing.T) {
 	cfg := Config{}
 	cfg.Control.Voters = []ControlVoter{

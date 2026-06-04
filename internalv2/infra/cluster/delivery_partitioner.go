@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -18,6 +19,13 @@ type DeliveryRouteNode interface {
 type DeliveryPartitioner struct {
 	// node provides the current cluster route table.
 	node DeliveryRouteNode
+	mu   sync.RWMutex
+	// cachedRevision is the control-state revision that produced cachedPartitions.
+	cachedRevision uint64
+	// cachedHashSlotCount is the hash-slot count that produced cachedPartitions.
+	cachedHashSlotCount uint16
+	// cachedPartitions is the last valid partition layout.
+	cachedPartitions []runtimedelivery.Partition
 }
 
 // NewDeliveryPartitioner creates a route-table-backed delivery partitioner.
@@ -34,7 +42,13 @@ func (p *DeliveryPartitioner) Partitions(ctx context.Context) ([]runtimedelivery
 		ctx = context.Background()
 	}
 	snapshot := p.node.Snapshot()
+	if partitions, ok := p.cached(snapshot); ok {
+		return partitions, nil
+	}
 	if !snapshot.RoutesReady || snapshot.HashSlotCount == 0 {
+		if partitions, ok := p.lastValid(); ok {
+			return partitions, nil
+		}
 		return nil, fmt.Errorf("%w: routes=%t hashSlotCount=%d", runtimedelivery.ErrRouteNotReady, snapshot.RoutesReady, snapshot.HashSlotCount)
 	}
 
@@ -51,9 +65,15 @@ func (p *DeliveryPartitioner) Partitions(ctx context.Context) ([]runtimedelivery
 		}
 		route, err := p.node.RouteHashSlot(hashSlot)
 		if err != nil {
+			if partitions, ok := p.lastValid(); ok {
+				return partitions, nil
+			}
 			return nil, mapDeliveryRouteError(err)
 		}
 		if route.Leader == 0 {
+			if partitions, ok := p.lastValid(); ok {
+				return partitions, nil
+			}
 			return nil, fmt.Errorf("%w: hash slot %d leader is unknown", runtimedelivery.ErrRouteNotReady, hashSlot)
 		}
 		if current.ID == 0 {
@@ -78,7 +98,47 @@ func (p *DeliveryPartitioner) Partitions(ctx context.Context) ([]runtimedelivery
 		}
 	}
 	flush()
-	return partitions, nil
+	p.store(snapshot, partitions)
+	return cloneDeliveryPartitions(partitions), nil
+}
+
+func (p *DeliveryPartitioner) cached(snapshot clusterv2.Snapshot) ([]runtimedelivery.Partition, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if len(p.cachedPartitions) == 0 {
+		return nil, false
+	}
+	if !snapshot.RoutesReady || snapshot.HashSlotCount == 0 {
+		return nil, false
+	}
+	if p.cachedRevision != snapshot.StateRevision || p.cachedHashSlotCount != snapshot.HashSlotCount {
+		return nil, false
+	}
+	return cloneDeliveryPartitions(p.cachedPartitions), true
+}
+
+func (p *DeliveryPartitioner) lastValid() ([]runtimedelivery.Partition, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if len(p.cachedPartitions) == 0 {
+		return nil, false
+	}
+	return cloneDeliveryPartitions(p.cachedPartitions), true
+}
+
+func (p *DeliveryPartitioner) store(snapshot clusterv2.Snapshot, partitions []runtimedelivery.Partition) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cachedRevision = snapshot.StateRevision
+	p.cachedHashSlotCount = snapshot.HashSlotCount
+	p.cachedPartitions = cloneDeliveryPartitions(partitions)
+}
+
+func cloneDeliveryPartitions(partitions []runtimedelivery.Partition) []runtimedelivery.Partition {
+	if len(partitions) == 0 {
+		return nil
+	}
+	return append([]runtimedelivery.Partition(nil), partitions...)
 }
 
 func mapDeliveryRouteError(err error) error {

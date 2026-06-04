@@ -223,8 +223,8 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 		return err
 	}
 	var cancelAutoRecvAck context.CancelFunc
-	if assignmentWantsRecvAck(assignment) {
-		cancelAutoRecvAck = benchworkload.StartAutoRecvAckWithOptions(clients, autoRecvAckOptionsForAssignment(assignment))
+	if assignmentWantsRecvDrain(assignment) {
+		cancelAutoRecvAck = benchworkload.StartAutoRecvAckWithOptions(autoRecvAckClients(clients, plan.users, groupPlan.users), autoRecvAckOptionsForAssignment(assignment))
 	}
 	r.store(assignment.RunID, manager, workloads, groupWorkloads, cancelAutoRecvAck)
 	return nil
@@ -449,6 +449,8 @@ func buildPersonWorkloads(assignment Assignment, bundles []personWorkloadBundle,
 			RunDuration:      assignment.Scenario.Run.Duration,
 			WarmupDuration:   assignment.Scenario.Run.Warmup,
 			CooldownDuration: assignment.Scenario.Run.Cooldown,
+			AckTimeout:       bundle.traffic.AckTimeout,
+			RecvTimeout:      bundle.traffic.RecvTimeout,
 			VerifyRecvMode:   bundle.traffic.Verify.Recv.Mode,
 			RecvAck:          bundle.traffic.RecvAck,
 			Pairs:            bundle.pairs,
@@ -715,10 +717,41 @@ func assignmentWantsRecvAck(assignment Assignment) bool {
 	return false
 }
 
+func assignmentWantsRecvDrain(assignment Assignment) bool {
+	for _, traffic := range assignment.Scenario.Messages.Traffic {
+		if strings.TrimSpace(traffic.ChannelRef) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func autoRecvAckOptionsForAssignment(assignment Assignment) benchworkload.AutoRecvAckOptions {
 	return benchworkload.AutoRecvAckOptions{
 		BufferRecvFrames: assignmentWantsRecvVerification(assignment),
+		DisableRecvAck:   !assignmentWantsRecvAck(assignment),
 	}
+}
+
+func autoRecvAckClients(clients map[string]benchworkload.PersonClient, userGroups ...[]benchworkload.ConnectionUser) map[string]benchworkload.PersonClient {
+	if len(clients) == 0 {
+		return nil
+	}
+	selected := make(map[string]benchworkload.PersonClient)
+	for _, users := range userGroups {
+		for _, user := range users {
+			uid := strings.TrimSpace(user.UID)
+			if uid == "" {
+				continue
+			}
+			client, ok := clients[uid]
+			if !ok || client == nil {
+				continue
+			}
+			selected[uid] = client
+		}
+	}
+	return selected
 }
 
 func assignmentWantsRecvVerification(assignment Assignment) bool {

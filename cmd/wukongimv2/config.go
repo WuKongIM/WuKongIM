@@ -38,9 +38,15 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_SLOT_REPLICA_N",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
 	"WK_CLUSTER_MAX_CHANNELS",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
 	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
+	"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
 	"WK_API_LISTEN_ADDR",
 	"WK_BENCH_API_ENABLE",
 	"WK_BENCH_API_MAX_BATCH_SIZE",
@@ -265,6 +271,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Cluster.Channel.MaxChannels = maxChannels
 	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"); raw != "" {
+		maxRecords, err := parseInt("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRecords < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchMaxRecords = maxRecords
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchMaxWait = maxWait
+	}
 	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"); raw != "" {
 		interval, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL", raw)
 		if err != nil {
@@ -291,6 +317,46 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Cluster.Storage.CommitNoSync = !syncCommit
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"); raw != "" {
+		flushWindow, err := parseDuration("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if flushWindow <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW: value must be > 0")
+		}
+		cfg.Cluster.Storage.CommitFlushWindow = flushWindow
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS"); raw != "" {
+		maxRequests, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRequests < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxRequests = maxRequests
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"); raw != "" {
+		maxRecords, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRecords < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxRecords = maxRecords
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"); raw != "" {
+		maxBytes, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxBytes < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxBytes = maxBytes
 	}
 	cfg.API.ListenAddr = configValue(values, "WK_API_LISTEN_ADDR")
 	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")

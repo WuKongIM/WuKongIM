@@ -31,6 +31,73 @@ type Observer interface {
 	ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration)
 }
 
+// AppendWaitCancelSnapshot captures reactor-local append state at caller cancellation time.
+type AppendWaitCancelSnapshot struct {
+	// ReactorID is the reactor partition that owns the channel key.
+	ReactorID int
+	// Key is the stable channel partition key.
+	Key ch.ChannelKey
+	// ChannelID is the human-facing channel identity.
+	ChannelID ch.ChannelID
+	// OpID identifies the canceled append waiter.
+	OpID ch.OpID
+	// CommitMode is the waiter commit mode when it is still known.
+	CommitMode ch.CommitMode
+	// Role is the local runtime role when the snapshot was taken.
+	Role ch.Role
+	// Leader is the metadata leader known by this runtime.
+	Leader ch.NodeID
+	// Epoch is the channel metadata epoch known by this runtime.
+	Epoch uint64
+	// LeaderEpoch is the channel leader epoch known by this runtime.
+	LeaderEpoch uint64
+	// LEO is the local log end offset at cancellation time.
+	LEO uint64
+	// HW is the local high watermark at cancellation time.
+	HW uint64
+	// TargetOffset is the append waiter target offset when assigned.
+	TargetOffset uint64
+	// StoreSubmitted reports whether the waiter reached the store append worker.
+	StoreSubmitted bool
+	// StoreCompleted reports whether the waiter completed durable local append.
+	StoreCompleted bool
+	// FollowerPullServed reports whether any follower pull covered TargetOffset.
+	FollowerPullServed bool
+	// AckOffsetObserved reports whether an AckOffset covering TargetOffset reached the leader.
+	AckOffsetObserved bool
+	// HWAdvanced reports whether HW advancement covered TargetOffset before cancellation.
+	HWAdvanced bool
+	// Waiters is the number of reactor futures still registered before cancellation cleanup.
+	Waiters int
+	// PendingAppends is the number of machine append waiters before cancellation cleanup.
+	PendingAppends int
+	// PendingAppendOrder is the pending append order length before cancellation cleanup.
+	PendingAppendOrder int
+	// AppendQueuePending is the number of queued append requests before cancellation cleanup.
+	AppendQueuePending int
+	// AppendQueueRecords is the number of queued append records before cancellation cleanup.
+	AppendQueueRecords int
+	// AppendQueueBytes is the queued append payload size before cancellation cleanup.
+	AppendQueueBytes int
+	// AppendInflight reports whether a durable append batch is still in flight.
+	AppendInflight bool
+	// AppendInflightOpID is the durable append batch operation id when in flight.
+	AppendInflightOpID ch.OpID
+	// AppendInflightWaiters is the number of client waiters in the in-flight batch.
+	AppendInflightWaiters int
+	// AppendStoreBlocked reports whether append flushing is blocked behind store submission retry or in-flight work.
+	AppendStoreBlocked bool
+	// PullWaiters is the number of leader-side pull waiters on the same channel.
+	PullWaiters int
+	// Err is the cancellation reason observed by the reactor.
+	Err error
+}
+
+// AppendWaitCancelObserver receives low-volume append cancellation diagnostics.
+type AppendWaitCancelObserver interface {
+	ObserveAppendWaitCanceled(snapshot AppendWaitCancelSnapshot)
+}
+
 // AppendWaitStageObserver receives optional append future wait sub-stage metrics.
 type AppendWaitStageObserver interface {
 	ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration)
@@ -222,6 +289,100 @@ func (r *Reactor) observeAppendWaitStage(stage string, mode ch.CommitMode, resul
 	if observer, ok := r.cfg.Observer.(AppendWaitStageObserver); ok {
 		observer.ObserveAppendWaitStage(stage, mode, result, d)
 	}
+}
+
+func (r *Reactor) observeAppendWaitCanceled(rc *runtimeChannel, opID ch.OpID, err error) {
+	if r == nil || rc == nil || !rc.hasAppendWaiterState(opID) {
+		return
+	}
+	observer, ok := r.cfg.Observer.(AppendWaitCancelObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveAppendWaitCanceled(r.appendWaitCancelSnapshot(rc, opID, err))
+}
+
+func (r *Reactor) appendWaitCancelSnapshot(rc *runtimeChannel, opID ch.OpID, err error) AppendWaitCancelSnapshot {
+	snapshot := AppendWaitCancelSnapshot{OpID: opID, Err: err}
+	if r != nil {
+		snapshot.ReactorID = r.cfg.ID
+	}
+	if rc == nil {
+		return snapshot
+	}
+	snapshot.Waiters = len(rc.waiters)
+	snapshot.AppendQueuePending = len(rc.appendQ.pending)
+	snapshot.AppendQueueRecords = rc.appendQ.records
+	snapshot.AppendQueueBytes = rc.appendQ.bytes
+	snapshot.AppendStoreBlocked = rc.appendStoreBlocked || rc.appendQ.storeBlocked
+	snapshot.PullWaiters = len(rc.pullWaiters)
+	if rc.appendInflight != nil {
+		snapshot.AppendInflight = true
+		snapshot.AppendInflightOpID = rc.appendInflight.batchOpID
+		snapshot.AppendInflightWaiters = len(rc.appendInflight.requests)
+	}
+	if rc.state != nil {
+		snapshot.Key = rc.state.Key
+		snapshot.ChannelID = rc.state.ID
+		snapshot.Role = rc.state.Role
+		snapshot.Leader = rc.state.Leader
+		snapshot.Epoch = rc.state.Epoch
+		snapshot.LeaderEpoch = rc.state.LeaderEpoch
+		snapshot.LEO = rc.state.LEO
+		snapshot.HW = rc.state.HW
+		snapshot.PendingAppends = len(rc.state.PendingAppends)
+		snapshot.PendingAppendOrder = len(rc.state.PendingAppendOrder)
+		if waiter := rc.state.PendingAppends[opID]; waiter != nil {
+			snapshot.TargetOffset = waiter.Target
+			snapshot.CommitMode = waiter.CommitMode
+		}
+		if rc.state.InflightAppend != nil {
+			snapshot.AppendInflight = true
+			snapshot.AppendInflightOpID = rc.state.InflightAppend.OpID
+			snapshot.AppendInflightWaiters = len(rc.state.InflightAppend.WaiterOpIDs)
+		}
+	}
+	if timing, ok := rc.appendTimings[opID]; ok {
+		if snapshot.CommitMode == 0 {
+			snapshot.CommitMode = timing.mode
+		}
+		if snapshot.TargetOffset == 0 {
+			snapshot.TargetOffset = timing.targetOffset
+		}
+		snapshot.StoreSubmitted = !timing.storeSubmittedAt.IsZero()
+		snapshot.StoreCompleted = !timing.storeCompletedAt.IsZero()
+		snapshot.FollowerPullServed = !timing.followerPullServedAt.IsZero()
+		snapshot.AckOffsetObserved = !timing.ackOffsetObservedAt.IsZero()
+		snapshot.HWAdvanced = !timing.hwAdvancedAt.IsZero()
+	}
+	return snapshot
+}
+
+func (rc *runtimeChannel) hasAppendWaiterState(opID ch.OpID) bool {
+	if rc == nil {
+		return false
+	}
+	if _, ok := rc.waiters[opID]; ok {
+		return true
+	}
+	for i := range rc.appendQ.pending {
+		if rc.appendQ.pending[i].opID == opID {
+			return true
+		}
+	}
+	if rc.state != nil {
+		if _, ok := rc.state.PendingAppends[opID]; ok {
+			return true
+		}
+		if rc.state.InflightAppend != nil {
+			for _, waiterOpID := range rc.state.InflightAppend.WaiterOpIDs {
+				if waiterOpID == opID {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func appendWaitResult(err error) string {

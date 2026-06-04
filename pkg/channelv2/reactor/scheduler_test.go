@@ -66,6 +66,38 @@ func TestDueSchedulerLifecycleTickDoesNotScanLoadedIdleLeaders(t *testing.T) {
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
 }
 
+func TestProcessDueHandlesEveryReadyItem(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	now := time.Unix(110, 0)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 10, AppendBatchMaxWait: time.Hour})
+	keys := make(map[ch.ChannelKey]struct{})
+	for i := 0; i < 2; i++ {
+		meta := testMeta("ready-due-"+strconv.Itoa(i), 1, 1)
+		require.NoError(t, applyMetaDirect(t, r, meta))
+		future := NewFuture()
+		r.handleAppend(appendEventWithFuture(meta, uint64(i+1), "payload", future))
+		requireFuturePending(t, future)
+		rc := r.channels[meta.Key]
+		require.NotNil(t, rc)
+		require.Len(t, rc.appendQ.pending, 1)
+		rc.appendQ.flushDue = now
+		rc.appendFlushDueVersion++
+		r.due.push(dueItem{key: meta.Key, kind: dueAppendFlush, due: now, version: rc.appendFlushDueVersion})
+		keys[meta.Key] = struct{}{}
+	}
+
+	r.processDue(now)
+	for i := 0; i < 2; i++ {
+		result := sink.awaitResultKind(t, worker.TaskStoreAppend)
+		delete(keys, result.Fence.ChannelKey)
+	}
+	require.Empty(t, keys)
+}
+
 func TestDueSchedulerCoalescesSameKindAndKey(t *testing.T) {
 	var s dueScheduler
 	now := time.Unix(20, 0)

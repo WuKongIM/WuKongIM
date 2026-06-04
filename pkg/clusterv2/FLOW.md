@@ -34,7 +34,13 @@ surface for upper-layer internalv2 adapters. Handlers registered before the
 default transport starts are replayed during transport construction; later
 registrations are installed idempotently. Internalv2 delivery uses this surface
 for owner-node push RPC and partition-leader fanout RPC; clusterv2 only routes
-the payload and does not inspect delivery DTOs.
+the payload and does not inspect delivery DTOs. The default transport-backed
+typed RPC client uses a larger per-priority write queue than the generic
+transport default so short foreground RPC fanout bursts are absorbed before
+local enqueue backpressure is returned to the send path. It also opens multiple
+outbound connections per peer and shards typed RPCs by service class, keeping
+foreground ChannelV2 append forwarding off the same connection used by follower
+pull and pull-hint traffic.
 
 `WatchRouteAuthorities` publishes hash-slot authority changes derived from the
 installed routing table. Each `RouteAuthority` carries
@@ -142,7 +148,7 @@ metadata for PullHint receive; client append admission still uses
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
+When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.AppendBatchMaxRecords` and `Config.Channel.AppendBatchMaxWait` pass through to the hosted ChannelV2 runtime; zero keeps the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
 
 ## Non-Goals For V1
 

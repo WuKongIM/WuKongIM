@@ -26,10 +26,10 @@ Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/clust
 
 ```text
 channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> message.ErrNotLeader
-channelv2.ErrStaleMeta                               -> message.ErrStaleRoute
+channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> message.ErrStaleRoute
 channelv2.ErrChannelNotFound                         -> message.ErrChannelNotFound
 channelv2.ErrBackpressured                           -> message.ErrBackpressured
-clusterv2.ErrRouteNotReady / channelv2.ErrNotReady   -> message.ErrRouteNotReady
+clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> message.ErrRouteNotReady
 context cancellation/deadline                        -> unchanged
 other errors                                         -> message.ErrAppendFailed wrapping source
 ```
@@ -63,10 +63,10 @@ observed during flush. The adapter sends the batch locally when the target
 leader is this node and uses access/node RPC for remote leaders.
 
 If route resolution reports route-not-ready, stale routing, or not-leader, the
-adapter waits a short bounded backoff and resolves a fresh `RouteKey` a few
-bounded times. Authority calls retry stale routing and not-leader the same way,
-while authority-side route-not-ready is returned as its original bounded
-presence error so pending token cleanup semantics stay explicit.
+adapter waits a short bounded backoff and resolves a fresh `RouteKey` within a
+bounded retry window. Authority calls retry stale routing and not-leader the
+same way, while authority-side route-not-ready is returned as its original
+bounded presence error so pending token cleanup semantics stay explicit.
 
 Best-effort unregister calls are bounded by a short context timeout so gateway
 close and rollback paths do not block indefinitely on route lookup or node RPC.
@@ -94,9 +94,12 @@ normal retry policy.
 ## Delivery Fanout Partition Flow
 
 `DeliveryPartitioner` adapts the clusterv2 UID hash-slot route table to
-`runtime/delivery.Partitioner`. It reads the current snapshot hash-slot count,
-routes each hash slot through `RouteHashSlot`, and merges contiguous hash-slot
-ranges with the same leader into delivery partitions.
+`runtime/delivery.Partitioner`. It caches the last valid partition layout by
+route revision and hash-slot count, reuses the cached layout for repeated reads,
+and falls back to the last valid layout when the route table is momentarily not
+ready. On a cache miss, it reads the current snapshot hash-slot count, routes
+each hash slot through `RouteHashSlot`, and merges contiguous hash-slot ranges
+with the same leader into delivery partitions.
 
 ```text
 clusterv2 Snapshot.HashSlotCount
@@ -106,5 +109,6 @@ clusterv2 Snapshot.HashSlotCount
 ```
 
 Route-table-not-ready, no-leader, and route lookup failures map to
-`runtime/delivery.ErrRouteNotReady`, so the async delivery sink can record the
-failure without adding cluster-specific errors to the runtime package.
+`runtime/delivery.ErrRouteNotReady` only when no last valid partition layout is
+available, so the async delivery sink can record the failure without adding
+cluster-specific errors to the runtime package.

@@ -43,7 +43,7 @@ type PresenceAuthorityClient struct {
 
 const (
 	defaultPresenceUnregisterTimeout  = 3 * time.Second
-	defaultPresenceRouteRetryAttempts = 5
+	defaultPresenceRouteRetryAttempts = 100
 	defaultPresenceRouteRetryBackoff  = 5 * time.Millisecond
 )
 

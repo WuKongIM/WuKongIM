@@ -716,6 +716,7 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	rc.replication.markDirty(now)
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	rc.replication.nextPullAt = now
+	r.tickFollowerReplication(rc, now)
 }
 
 func (r *Reactor) handleRPCAckResult(result worker.Result) {

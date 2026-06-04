@@ -19,6 +19,12 @@ func TestLabelsValidateRejectsForbiddenUID(t *testing.T) {
 	}
 }
 
+func TestLabelsValidateAcceptsLowCardinalityReason(t *testing.T) {
+	if err := (Labels{"phase": "run", "reason": "pending_window_expired"}).Validate(); err != nil {
+		t.Fatalf("expected reason label to be accepted: %v", err)
+	}
+}
+
 func TestRegistrySnapshotIncludesCountersGaugesAndHistogramSummaries(t *testing.T) {
 	r := NewRegistry()
 	r.AddCounter("sendack_total", Labels{"worker_id": "w1", "phase": "run"}, 2)
@@ -152,6 +158,70 @@ wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store
 	}
 	if report.GatewayDispatchWaitP99Seconds <= 0 {
 		t.Fatalf("gateway dispatch p99 = %v, want > 0", report.GatewayDispatchWaitP99Seconds)
+	}
+}
+
+func TestAnalyzeWukongIMV2PrometheusReportsMessageAppendErrorCounters(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_message_append_errors_total{path="channelplane",class="route_not_ready"} 2
+wukongim_message_append_errors_total{path="channelplane",class="timeout"} 1
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_message_append_errors_total{path="channelplane",class="route_not_ready"} 5
+wukongim_message_append_errors_total{path="channelplane",class="timeout"} 3
+wukongim_message_append_errors_total{path="channelplane",class="append_failed"} 4
+wukongim_message_append_errors_total{path="channelplane",class="short_result"} 1
+wukongim_message_append_errors_total{path="channelplane",class="invalid_config"} 2
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.MessageAppendErrorCount != 12 {
+		t.Fatalf("message append errors = %v, want 12", report.MessageAppendErrorCount)
+	}
+	if report.MessageAppendRouteNotReadyErrCount != 3 || report.MessageAppendTimeoutErrCount != 2 || report.MessageAppendAppendFailedErrCount != 4 || report.MessageAppendShortResultErrCount != 1 || report.MessageAppendInvalidConfigErrCount != 2 {
+		t.Fatalf("message append class counters = route:%v timeout:%v append_failed:%v short_result:%v invalid_config:%v", report.MessageAppendRouteNotReadyErrCount, report.MessageAppendTimeoutErrCount, report.MessageAppendAppendFailedErrCount, report.MessageAppendShortResultErrCount, report.MessageAppendInvalidConfigErrCount)
+	}
+	if !strings.Contains(strings.Join(report.Reasons, "\n"), "message append route_not_ready errors were observed") {
+		t.Fatalf("expected message append reason, got %#v", report.Reasons)
+	}
+}
+
+func TestAnalyzeWukongIMV2PrometheusReportsGatewaySendackCounters(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_sendacks_total{reason="system_error",source="batch_result_error",class="timeout"} 1
+wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="none"} 10
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_sendacks_total{reason="system_error",source="batch_result_error",class="timeout"} 4
+wukongim_gateway_sendacks_total{reason="system_error",source="batch_result_error",class="canceled"} 2
+wukongim_gateway_sendacks_total{reason="system_error",source="batch_missing_request_context",class="missing_request_context"} 2
+wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="none"} 30
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMV2Prometheus(before, after)
+	if report.GatewaySendackSystemErrorCount != 7 {
+		t.Fatalf("gateway system sendacks = %v, want 7", report.GatewaySendackSystemErrorCount)
+	}
+	if report.GatewaySendackBatchResultErrorCount != 5 || report.GatewaySendackBatchMissingRequestContextCount != 2 {
+		t.Fatalf("gateway system sources = result_err:%v missing_ctx:%v, want 5 and 2", report.GatewaySendackBatchResultErrorCount, report.GatewaySendackBatchMissingRequestContextCount)
+	}
+	if report.GatewaySendackBatchResultTimeoutCount != 3 || report.GatewaySendackBatchResultCanceledCount != 2 {
+		t.Fatalf("gateway result error classes = timeout:%v canceled:%v, want 3 and 2", report.GatewaySendackBatchResultTimeoutCount, report.GatewaySendackBatchResultCanceledCount)
+	}
+	if !strings.Contains(strings.Join(report.Reasons, "\n"), "gateway system-error sendacks were observed") {
+		t.Fatalf("expected gateway sendack reason, got %#v", report.Reasons)
 	}
 }
 

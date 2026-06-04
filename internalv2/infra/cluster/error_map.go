@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -17,17 +18,21 @@ func mapAppendError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case errors.Is(err, channelv2.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
+	case appendErrorMatches(err, channelv2.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
 		return fmt.Errorf("%w: %w", message.ErrNotLeader, err)
-	case errors.Is(err, channelv2.ErrStaleMeta):
+	case appendErrorMatches(err, channelv2.ErrStaleMeta), appendErrorMatches(err, channelv2.ErrNotReplica):
 		return fmt.Errorf("%w: %w", message.ErrStaleRoute, err)
-	case errors.Is(err, channelv2.ErrChannelNotFound):
+	case appendErrorMatches(err, channelv2.ErrChannelNotFound):
 		return fmt.Errorf("%w: %w", message.ErrChannelNotFound, err)
-	case errors.Is(err, channelv2.ErrBackpressured):
+	case appendErrorMatches(err, channelv2.ErrBackpressured):
 		return fmt.Errorf("%w: %w", message.ErrBackpressured, err)
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, channelv2.ErrNotReady):
+	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady):
 		return fmt.Errorf("%w: %w", message.ErrRouteNotReady, err)
 	default:
 		return fmt.Errorf("%w: %w", message.ErrAppendFailed, err)
 	}
+}
+
+func appendErrorMatches(err error, sentinel error) bool {
+	return errors.Is(err, sentinel) || (err != nil && sentinel != nil && strings.Contains(err.Error(), sentinel.Error()))
 }

@@ -13,7 +13,14 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-const defaultReactorDrain = 128
+const (
+	defaultReactorDrain = 128
+
+	// defaultFollowerRecoveryProbeInterval keeps lost PullHint recovery within the gateway send timeout budget.
+	defaultFollowerRecoveryProbeInterval = 2 * time.Second
+	// defaultFollowerRecoveryProbeJitter spreads recovery probes without exceeding the send timeout budget.
+	defaultFollowerRecoveryProbeJitter = time.Second
+)
 
 // ReactorConfig wires one reactor.
 type ReactorConfig struct {

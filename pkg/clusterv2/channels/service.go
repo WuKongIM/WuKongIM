@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -43,6 +44,10 @@ type Config struct {
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
+	// AppendBatchMaxRecords is the queued ChannelV2 record count that triggers a store append flush.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing.
+	AppendBatchMaxWait time.Duration
 	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
@@ -84,6 +89,8 @@ func NewService(cfg Config) (*Service, error) {
 			ReactorCount:                  cfg.ReactorCount,
 			MailboxSize:                   cfg.MailboxSize,
 			MaxChannels:                   cfg.MaxChannels,
+			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
+			AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
 			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
 			Store:                         cfg.Store,
@@ -257,10 +264,15 @@ func (s *Service) resolveAppendMetaFresh(ctx context.Context, id ch.ChannelID) (
 }
 
 func retryableMetaCacheError(err error) bool {
-	return errors.Is(err, ch.ErrStaleMeta) ||
-		errors.Is(err, ch.ErrChannelNotFound) ||
-		errors.Is(err, ch.ErrNotLeader) ||
-		errors.Is(err, ch.ErrNotReady)
+	return channelErrorMatches(err, ch.ErrStaleMeta) ||
+		channelErrorMatches(err, ch.ErrChannelNotFound) ||
+		channelErrorMatches(err, ch.ErrNotLeader) ||
+		channelErrorMatches(err, ch.ErrNotReplica) ||
+		channelErrorMatches(err, ch.ErrNotReady)
+}
+
+func channelErrorMatches(err error, sentinel error) bool {
+	return errors.Is(err, sentinel) || (err != nil && sentinel != nil && strings.Contains(err.Error(), sentinel.Error()))
 }
 
 func (s *Service) observeMetaCache(result string) {

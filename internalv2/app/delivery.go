@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -12,6 +14,8 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
+	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -80,6 +84,26 @@ func (o deliveryMessageObserver) CommittedSinkError(_ message.SendCommand, err e
 	if o.app != nil {
 		o.app.recordDeliveryError(err)
 	}
+}
+
+func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time.Duration) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "error"
+		label := messageAppendErrorLabel(err)
+		o.app.metrics.Message.ObserveAppendError(path, label)
+		if label == "append_failed" {
+			log.Print(appendFailureLogLine(path, err))
+		}
+	}
+	o.app.metrics.Message.ObserveAppend(path, result, dur)
+}
+
+func appendFailureLogLine(path string, err error) string {
+	return fmt.Sprintf("internalv2/app: message append failed path=%s err=%v", path, err)
 }
 
 func (a *App) recordDeliveryError(err error) {
@@ -152,6 +176,8 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 	if p.pendingAckTTL > 0 && p.delivery != nil {
 		p.delivery.ExpirePendingAcks(p.pendingAckTTL)
 	}
+	payload := append([]byte(nil), cmd.Envelope.Payload...)
+	timestamp := int32(time.Now().Unix())
 	var result runtimedelivery.PushResult
 	for _, route := range cmd.Routes {
 		session, ok := p.localSession(route)
@@ -159,7 +185,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
-		packet, err := buildRecvPacket(cmd.Envelope, route.UID)
+		packet, err := buildRecvPacket(cmd.Envelope, route.UID, payload, timestamp)
 		if err != nil {
 			result.Dropped = append(result.Dropped, route)
 			continue
@@ -184,7 +210,11 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 					MessageID: cmd.Envelope.MessageID,
 				})
 			}
-			result.Retryable = append(result.Retryable, route)
+			if terminalLocalDeliveryWriteError(err) {
+				result.Dropped = append(result.Dropped, route)
+			} else {
+				result.Retryable = append(result.Retryable, route)
+			}
 			continue
 		}
 		result.Accepted = append(result.Accepted, route)
@@ -210,7 +240,12 @@ func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.Loca
 	return session, true
 }
 
-func buildRecvPacket(env runtimedelivery.Envelope, uid string) (*frame.RecvPacket, error) {
+func terminalLocalDeliveryWriteError(err error) bool {
+	return errors.Is(err, gatewaysession.ErrSessionClosed) ||
+		errors.Is(err, gatewaytransport.ErrOutboundBytesExceeded)
+}
+
+func buildRecvPacket(env runtimedelivery.Envelope, uid string, payload []byte, timestamp int32) (*frame.RecvPacket, error) {
 	if env.MessageID > uint64(1<<63-1) {
 		return nil, errRecvMessageIDOverflow
 	}
@@ -225,11 +260,11 @@ func buildRecvPacket(env runtimedelivery.Envelope, uid string) (*frame.RecvPacke
 		MessageID:   int64(env.MessageID),
 		MessageSeq:  env.MessageSeq,
 		ClientMsgNo: env.ClientMsgNo,
-		Timestamp:   int32(time.Now().Unix()),
+		Timestamp:   timestamp,
 		ChannelID:   channelID,
 		ChannelType: env.ChannelType,
 		FromUID:     env.FromUID,
-		Payload:     append([]byte(nil), env.Payload...),
+		Payload:     payload,
 	}, nil
 }
 

@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -155,6 +156,56 @@ func TestSendBatchAppendsIndependentChannelsConcurrently(t *testing.T) {
 	}
 }
 
+func TestSendBatchUsesWideIndependentChannelFanout(t *testing.T) {
+	const channelCount = 64
+	release := make(chan struct{})
+	appender := &blockingAppender{
+		started: make(chan ChannelID, channelCount),
+		release: release,
+	}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 1}})
+	items := make([]SendBatchItem, 0, channelCount)
+	for i := 0; i < channelCount; i++ {
+		items = append(items, SendBatchItem{Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   fmt.Sprintf("c-%02d", i),
+			ChannelType: 1,
+			Payload:     []byte("payload"),
+		}})
+	}
+	done := make(chan []SendBatchItemResult, 1)
+	go func() {
+		done <- app.SendBatch(items)
+	}()
+
+	started := make(map[ChannelID]struct{}, channelCount)
+	timeout := time.After(100 * time.Millisecond)
+	released := false
+	releaseAll := func() {
+		if !released {
+			close(release)
+			released = true
+		}
+	}
+	for len(started) < channelCount {
+		select {
+		case ch := <-appender.started:
+			started[ch] = struct{}{}
+		case <-timeout:
+			releaseAll()
+			<-done
+			t.Fatalf("started independent channel appends = %d, want %d", len(started), channelCount)
+		}
+	}
+	releaseAll()
+	results := <-done
+	for i, result := range results {
+		if result.Err != nil || result.Result.Reason != ReasonSuccess {
+			t.Fatalf("result[%d] = %#v, want success", i, result)
+		}
+	}
+}
+
 func TestActiveSegmentItemsReusesSegmentWhenNoneCanceled(t *testing.T) {
 	results := make([]SendBatchItemResult, 2)
 	items := []preparedSend{
@@ -298,6 +349,100 @@ func TestSendBatchMapsAppendItemErrorsToReasons(t *testing.T) {
 	}
 	if results[1].Err != nil {
 		t.Fatalf("second err = %v, want nil business result", results[1].Err)
+	}
+}
+
+func TestSendBatchObservesAppendItemResults(t *testing.T) {
+	observer := &recordingObserver{}
+	appender := &recordingAppender{itemErrs: []error{nil, ErrBackpressured}}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}, Observer: observer})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("ok")}},
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("retry")}},
+	})
+
+	if results[0].Result.Reason != ReasonSuccess || results[1].Result.Reason != ReasonSystemError {
+		t.Fatalf("results = %#v, want success then system error", results)
+	}
+	if got := len(observer.appendEvents); got != 2 {
+		t.Fatalf("append events = %d, want 2", got)
+	}
+	if observer.appendEvents[0].path != appendMetricPathChannelPlane || observer.appendEvents[0].err != nil {
+		t.Fatalf("first append event = %#v, want channelplane success", observer.appendEvents[0])
+	}
+	if !errors.Is(observer.appendEvents[1].err, ErrBackpressured) {
+		t.Fatalf("second append event err = %v, want backpressured", observer.appendEvents[1].err)
+	}
+}
+
+func TestSendBatchObservesShortAppendResult(t *testing.T) {
+	observer := &recordingObserver{}
+	appender := &recordingAppender{resultLimit: 1}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}, Observer: observer})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+	})
+
+	if results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("first result = %#v, want success", results[0])
+	}
+	if !errors.Is(results[1].Err, ErrAppendResultMissing) {
+		t.Fatalf("second err = %v, want append result missing", results[1].Err)
+	}
+	if got := len(observer.appendEvents); got != 2 {
+		t.Fatalf("append events = %d, want 2", got)
+	}
+	if !errors.Is(observer.appendEvents[1].err, ErrAppendResultMissing) {
+		t.Fatalf("second append event err = %v, want append result missing", observer.appendEvents[1].err)
+	}
+}
+
+func TestSendBatchRetriesTransientBatchAppendErrorsBeforeDeadline(t *testing.T) {
+	appender := &recordingAppender{errs: []error{ErrRouteNotReady}}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}})
+	deadline := time.Now().Add(time.Second)
+
+	results := app.SendBatch([]SendBatchItem{
+		{Deadline: deadline, Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		{Deadline: deadline, Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+	})
+
+	for i, result := range results {
+		if result.Err != nil {
+			t.Fatalf("result[%d] error = %v, want retry success", i, result.Err)
+		}
+		if result.Result.Reason != ReasonSuccess {
+			t.Fatalf("result[%d] reason = %v, want success", i, result.Result.Reason)
+		}
+	}
+	if appender.calls != 2 {
+		t.Fatalf("append calls = %d, want initial attempt plus retry", appender.calls)
+	}
+}
+
+func TestSendBatchObservesBatchAppendErrorsPerActiveItem(t *testing.T) {
+	observer := &recordingObserver{}
+	appender := &recordingAppender{err: ErrRouteNotReady}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}, Observer: observer})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		{Command: SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+	})
+
+	if !errors.Is(results[0].Err, ErrRouteNotReady) || !errors.Is(results[1].Err, ErrRouteNotReady) {
+		t.Fatalf("results = %#v, want route-not-ready errors", results)
+	}
+	if got := len(observer.appendEvents); got != 2 {
+		t.Fatalf("append events = %d, want 2", got)
+	}
+	for i, event := range observer.appendEvents {
+		if event.path != appendMetricPathChannelPlane || !errors.Is(event.err, ErrRouteNotReady) {
+			t.Fatalf("append event[%d] = %#v, want route-not-ready channelplane", i, event)
+		}
 	}
 }
 
@@ -525,20 +670,35 @@ func TestSendReturnsErrorWhenAppenderOrAllocatorMissing(t *testing.T) {
 }
 
 type recordingAppender struct {
-	mu       sync.Mutex
-	calls    int
-	requests []AppendBatchRequest
-	itemErrs []error
+	mu          sync.Mutex
+	calls       int
+	requests    []AppendBatchRequest
+	err         error
+	errs        []error
+	itemErrs    []error
+	resultLimit int
 }
 
 func (a *recordingAppender) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
 	a.mu.Lock()
 	a.calls++
 	a.requests = append(a.requests, cloneAppendRequest(req))
+	err := a.err
+	if a.calls <= len(a.errs) {
+		err = a.errs[a.calls-1]
+	}
 	itemErrs := append([]error(nil), a.itemErrs...)
+	resultLimit := a.resultLimit
 	a.mu.Unlock()
-	items := make([]AppendBatchItemResult, len(req.Messages))
-	for i, msg := range req.Messages {
+	if err != nil {
+		return AppendBatchResult{}, err
+	}
+	itemCount := len(req.Messages)
+	if resultLimit > 0 && resultLimit < itemCount {
+		itemCount = resultLimit
+	}
+	items := make([]AppendBatchItemResult, itemCount)
+	for i, msg := range req.Messages[:itemCount] {
 		msg.MessageSeq = uint64(i + 1)
 		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 		if i < len(itemErrs) {
@@ -647,8 +807,21 @@ func (c *capturingCommitted) Submit(_ context.Context, event messageevents.Messa
 	return nil
 }
 
-type recordingObserver struct{ committedErrors int }
+type appendObservation struct {
+	path string
+	err  error
+	dur  time.Duration
+}
+
+type recordingObserver struct {
+	committedErrors int
+	appendEvents    []appendObservation
+}
 
 func (o *recordingObserver) CommittedSinkError(SendCommand, error) {
 	o.committedErrors++
+}
+
+func (o *recordingObserver) AppendFinished(path string, err error, dur time.Duration) {
+	o.appendEvents = append(o.appendEvents, appendObservation{path: path, err: err, dur: dur})
 }

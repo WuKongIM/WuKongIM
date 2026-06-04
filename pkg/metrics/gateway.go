@@ -25,6 +25,7 @@ type GatewayMetrics struct {
 	messagesReceivedBytes    *prometheus.CounterVec
 	messagesDeliveredTotal   *prometheus.CounterVec
 	messagesDeliveredBytes   *prometheus.CounterVec
+	sendacksTotal            *prometheus.CounterVec
 	frameHandleDuration      *prometheus.HistogramVec
 	asyncSendQueueDepth      prometheus.Gauge
 	asyncSendQueueCapacity   prometheus.Gauge
@@ -84,6 +85,11 @@ func newGatewayMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Total payload bytes delivered to gateway clients.",
 			ConstLabels: labels,
 		}, []string{"protocol"}),
+		sendacksTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_gateway_sendacks_total",
+			Help:        "Total number of SEND acknowledgements written by result reason, source, and error class.",
+			ConstLabels: labels,
+		}, []string{"reason", "source", "class"}),
 		frameHandleDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_gateway_frame_handle_duration_seconds",
 			Help:        "Gateway frame handling latency in seconds.",
@@ -137,6 +143,7 @@ func newGatewayMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.messagesReceivedBytes,
 		m.messagesDeliveredTotal,
 		m.messagesDeliveredBytes,
+		m.sendacksTotal,
 		m.frameHandleDuration,
 		m.asyncSendQueueDepth,
 		m.asyncSendQueueCapacity,
@@ -243,6 +250,65 @@ func (m *GatewayMetrics) MessageDelivered(protocol string, bytes int) {
 	}
 	m.messagesDeliveredTotal.WithLabelValues(protocol).Inc()
 	m.messagesDeliveredBytes.WithLabelValues(protocol).Add(float64(bytes))
+}
+
+// Sendack records one SEND acknowledgement by low-cardinality reason, source, and error class.
+func (m *GatewayMetrics) Sendack(reason, source string, class string) {
+	if m == nil {
+		return
+	}
+	m.sendacksTotal.WithLabelValues(normalizeGatewaySendackReason(reason), normalizeGatewaySendackSource(source), normalizeGatewaySendackClass(class)).Inc()
+}
+
+func normalizeGatewaySendackReason(reason string) string {
+	switch reason {
+	case "success",
+		"invalid_request",
+		"auth_fail",
+		"channel_not_exist",
+		"node_not_match",
+		"system_error",
+		"unsupported":
+		return reason
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeGatewaySendackSource(source string) string {
+	switch source {
+	case "single_result",
+		"single_error",
+		"single_missing_request_context",
+		"batch_precheck",
+		"batch_missing_request_context",
+		"batch_result",
+		"batch_result_error",
+		"batch_fallback_result",
+		"batch_fallback_error":
+		return source
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeGatewaySendackClass(class string) string {
+	switch class {
+	case "none",
+		"unauthenticated",
+		"missing_request_context",
+		"channel_not_found",
+		"not_leader",
+		"stale_route",
+		"route_not_ready",
+		"invalid_request",
+		"canceled",
+		"timeout",
+		"other":
+		return class
+	default:
+		return "unknown"
+	}
 }
 
 func (m *GatewayMetrics) FrameHandled(frameType string, dur time.Duration) {

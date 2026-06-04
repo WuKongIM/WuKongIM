@@ -304,7 +304,7 @@ func (d *Directory) validateTargetLocked(shard *directoryShard, target RouteTarg
 		return nil, ErrNotLeader
 	}
 	slot := shard.slots[target.HashSlot]
-	if slot == nil || slot.target != target {
+	if slot == nil || !sameAuthorityEpoch(slot.target, target) {
 		return nil, ErrNotLeader
 	}
 	return slot, nil

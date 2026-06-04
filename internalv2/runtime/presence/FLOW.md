@@ -7,14 +7,15 @@
 ## Authority Fencing
 
 Every mutation and lookup carries a `RouteTarget`. The directory accepts the
-operation only when the target exactly matches the installed `(HashSlot, SlotID,
-LeaderNodeID, RouteRevision, AuthorityEpoch)`.
+operation only when the target matches the installed authority identity:
+`(HashSlot, SlotID, LeaderNodeID, AuthorityEpoch)`.
 
 `BecomeAuthority` installs a fresh authority identity and clears previous
 active, pending, and owner-sequence state for that hash slot. Route-revision-only
 updates with the same slot, leader, and `AuthorityEpoch` preserve state while
-advancing the accepted target fence. `LoseAuthority` removes the hash-slot state
-so stale callers receive `ErrNotLeader`.
+advancing the observed target. In-flight callers using the same authority epoch
+are still accepted across revision-only updates. `LoseAuthority` removes the
+hash-slot state so stale callers receive `ErrNotLeader`.
 
 ## Register And Conflicts
 

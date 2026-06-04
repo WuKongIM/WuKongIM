@@ -12,7 +12,7 @@ import (
 
 func TestDeliveryPartitionerGroupsContiguousHashSlotsByLeader(t *testing.T) {
 	node := &fakeDeliveryRouteNode{
-		snapshot: clusterv2.Snapshot{RoutesReady: true, HashSlotCount: 5},
+		snapshot: clusterv2.Snapshot{StateRevision: 7, RoutesReady: true, HashSlotCount: 5},
 		routes: map[uint16]clusterv2.Route{
 			0: {HashSlot: 0, Leader: 1},
 			1: {HashSlot: 1, Leader: 1},
@@ -38,6 +38,70 @@ func TestDeliveryPartitionerGroupsContiguousHashSlotsByLeader(t *testing.T) {
 	}
 }
 
+func TestDeliveryPartitionerCachesPartitionsForSameRevision(t *testing.T) {
+	node := &fakeDeliveryRouteNode{
+		snapshot: clusterv2.Snapshot{StateRevision: 8, RoutesReady: true, HashSlotCount: 2},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, Leader: 1},
+			1: {HashSlot: 1, Leader: 2},
+		},
+	}
+	partitioner := NewDeliveryPartitioner(node)
+
+	first, err := partitioner.Partitions(context.Background())
+	if err != nil {
+		t.Fatalf("first Partitions() error = %v", err)
+	}
+	if node.routeCalls != 2 {
+		t.Fatalf("route calls after first read = %d, want 2", node.routeCalls)
+	}
+
+	node.routes = nil
+	second, err := partitioner.Partitions(context.Background())
+	if err != nil {
+		t.Fatalf("second Partitions() error = %v", err)
+	}
+	if node.routeCalls != 2 {
+		t.Fatalf("route calls after cache hit = %d, want 2", node.routeCalls)
+	}
+	if !reflect.DeepEqual(second, first) {
+		t.Fatalf("cached partitions = %#v, want %#v", second, first)
+	}
+	second[0].LeaderNodeID = 99
+	third, err := partitioner.Partitions(context.Background())
+	if err != nil {
+		t.Fatalf("third Partitions() error = %v", err)
+	}
+	if third[0].LeaderNodeID == 99 {
+		t.Fatalf("cached partitions share memory with caller: %#v", third)
+	}
+}
+
+func TestDeliveryPartitionerUsesLastValidPartitionsWhenSnapshotTemporarilyUnready(t *testing.T) {
+	node := &fakeDeliveryRouteNode{
+		snapshot: clusterv2.Snapshot{StateRevision: 9, RoutesReady: true, HashSlotCount: 2},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, Leader: 1},
+			1: {HashSlot: 1, Leader: 1},
+		},
+	}
+	partitioner := NewDeliveryPartitioner(node)
+	want, err := partitioner.Partitions(context.Background())
+	if err != nil {
+		t.Fatalf("first Partitions() error = %v", err)
+	}
+
+	node.snapshot = clusterv2.Snapshot{StateRevision: 10, RoutesReady: false, HashSlotCount: 0}
+	node.err = clusterv2.ErrRouteNotReady
+	got, err := partitioner.Partitions(context.Background())
+	if err != nil {
+		t.Fatalf("Partitions() with cached fallback error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("fallback partitions = %#v, want %#v", got, want)
+	}
+}
+
 func TestDeliveryPartitionerReturnsRouteNotReadyForUnreadySnapshot(t *testing.T) {
 	partitioner := NewDeliveryPartitioner(&fakeDeliveryRouteNode{
 		snapshot: clusterv2.Snapshot{RoutesReady: false, HashSlotCount: 0},
@@ -50,9 +114,10 @@ func TestDeliveryPartitionerReturnsRouteNotReadyForUnreadySnapshot(t *testing.T)
 }
 
 type fakeDeliveryRouteNode struct {
-	snapshot clusterv2.Snapshot
-	routes   map[uint16]clusterv2.Route
-	err      error
+	snapshot   clusterv2.Snapshot
+	routes     map[uint16]clusterv2.Route
+	err        error
+	routeCalls int
 }
 
 func (f *fakeDeliveryRouteNode) Snapshot() clusterv2.Snapshot {
@@ -60,6 +125,7 @@ func (f *fakeDeliveryRouteNode) Snapshot() clusterv2.Snapshot {
 }
 
 func (f *fakeDeliveryRouteNode) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+	f.routeCalls++
 	if f.err != nil {
 		return clusterv2.Route{}, f.err
 	}

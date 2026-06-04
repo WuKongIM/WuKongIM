@@ -444,13 +444,13 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 		cfg.FollowerRecoveryProbeInterval = 0
 	}
 	if cfg.FollowerRecoveryProbeInterval == 0 {
-		cfg.FollowerRecoveryProbeInterval = time.Minute
+		cfg.FollowerRecoveryProbeInterval = defaultFollowerRecoveryProbeInterval
 	}
 	if cfg.FollowerRecoveryProbeJitter < 0 {
 		cfg.FollowerRecoveryProbeJitter = 0
 	}
 	if cfg.FollowerRecoveryProbeJitter == 0 {
-		cfg.FollowerRecoveryProbeJitter = 30 * time.Second
+		cfg.FollowerRecoveryProbeJitter = defaultFollowerRecoveryProbeJitter
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
@@ -556,6 +556,7 @@ func (r *Reactor) cancelAppendWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr
 	if cancelErr == nil {
 		cancelErr = context.Canceled
 	}
+	r.observeAppendWaitCanceled(rc, opID, cancelErr)
 	r.unregisterAppendCancelContext(rc, opID)
 	if req, ok := rc.appendQ.remove(opID); ok {
 		future := req.future

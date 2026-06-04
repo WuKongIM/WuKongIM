@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
@@ -39,6 +40,11 @@ type CommittedSink interface {
 // Observer receives non-fatal send path observations.
 type Observer interface {
 	CommittedSinkError(SendCommand, error)
+}
+
+// AppendObserver receives per-message durable append observations.
+type AppendObserver interface {
+	AppendFinished(path string, err error, dur time.Duration)
 }
 
 type allowAllAuthorizer struct{}

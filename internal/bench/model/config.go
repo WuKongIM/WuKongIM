@@ -321,6 +321,10 @@ type TrafficConfig struct {
 	RatePerChannel Rate `json:"rate_per_channel" yaml:"rate_per_channel"`
 	// Concurrency is the maximum in-flight send operations for this traffic stream; zero preserves sequential sends.
 	Concurrency int `json:"concurrency" yaml:"concurrency"`
+	// AckTimeout bounds one sendack wait for this traffic stream; zero uses the worker default.
+	AckTimeout time.Duration `json:"ack_timeout" yaml:"ack_timeout"`
+	// RecvTimeout bounds one recv verification wait for this traffic stream; zero uses the worker default.
+	RecvTimeout time.Duration `json:"recv_timeout" yaml:"recv_timeout"`
 	// SenderPick selects how senders are chosen.
 	SenderPick string `json:"sender_pick" yaml:"sender_pick"`
 	// RecvAck controls whether simulated clients send receive acknowledgements.

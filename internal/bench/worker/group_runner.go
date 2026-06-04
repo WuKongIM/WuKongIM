@@ -166,6 +166,8 @@ func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, c
 			RunDuration:            assignment.Scenario.Run.Duration,
 			WarmupDuration:         assignment.Scenario.Run.Warmup,
 			CooldownDuration:       assignment.Scenario.Run.Cooldown,
+			AckTimeout:             bundle.traffic.AckTimeout,
+			RecvTimeout:            bundle.traffic.RecvTimeout,
 			VerifyRecvMode:         bundle.traffic.Verify.Recv.Mode,
 			RecvSampleSize:         bundle.traffic.Verify.Recv.SampleSizePerMessage,
 			RecvAck:                bundle.traffic.RecvAck,

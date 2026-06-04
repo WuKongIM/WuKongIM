@@ -205,25 +205,27 @@ func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
 	require.Equal(t, fence, events[0].Worker.Fence)
 }
 
-func TestDefaultWorkerPoolsUseExtraStoreAppendWorkers(t *testing.T) {
+func TestDefaultWorkerPoolsUseExtraStoreWorkers(t *testing.T) {
 	pools := defaultWorkerPools(Config{ReactorCount: 32, MailboxSize: 16})
 
 	require.Equal(t, 64, pools.StoreAppend.Workers)
 	require.Equal(t, 32, pools.StoreRead.Workers)
-	require.Equal(t, 32, pools.StoreApply.Workers)
+	require.Equal(t, 64, pools.StoreApply.Workers)
 	require.Equal(t, 32, pools.RPC.Workers)
 }
 
-func TestDefaultWorkerPoolsPreserveExplicitStoreAppendWorkers(t *testing.T) {
+func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
 	pools := defaultWorkerPools(Config{
 		ReactorCount: 32,
 		MailboxSize:  16,
 		WorkerPools: worker.PoolsConfig{
 			StoreAppend: worker.PoolConfig{Workers: 7},
+			StoreApply:  worker.PoolConfig{Workers: 9},
 		},
 	})
 
 	require.Equal(t, 7, pools.StoreAppend.Workers)
+	require.Equal(t, 9, pools.StoreApply.Workers)
 }
 
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {
@@ -268,6 +270,26 @@ func TestEventWorkerResultPriorityBeatsNormalAppendPressure(t *testing.T) {
 	events := reactor.mailbox.Drain(2)
 	require.Len(t, events, 2)
 	require.Equal(t, EventWorkerResult, events[0].Kind)
+	require.Equal(t, EventAppend, events[1].Kind)
+}
+
+func TestEventPullPriorityBeatsNormalAppendPressure(t *testing.T) {
+	meta := testMeta("pull-priority", 1, 1)
+	reactor := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 1})
+	require.NoError(t, reactor.Submit(eventPriority(EventAppend), appendEvent(meta, 1, "normal")))
+
+	err := reactor.Submit(eventPriority(EventPull), Event{
+		Kind:   EventPull,
+		Key:    meta.Key,
+		OpID:   ch.OpID(2),
+		Pull:   transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+		Future: NewFuture(),
+	})
+	require.NoError(t, err)
+
+	events := reactor.mailbox.Drain(2)
+	require.Len(t, events, 2)
+	require.Equal(t, EventPull, events[0].Kind)
 	require.Equal(t, EventAppend, events[1].Kind)
 }
 

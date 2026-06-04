@@ -16,6 +16,8 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 
 	contexts := make([]coregateway.Context, len(items))
 	results := make([]message.SendResult, len(items))
+	sources := make([]string, len(items))
+	classes := make([]string, len(items))
 	validIndexes := make([]int, 0, len(items))
 	validItems := make([]message.SendBatchItem, 0, len(items))
 	deadline := time.Now().Add(h.sendTimeout)
@@ -30,12 +32,16 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		if err != nil {
 			if errors.Is(err, ErrUnauthenticatedSession) {
 				results[i].Reason = message.ReasonAuthFail
+				sources[i] = sendackSourceBatchPrecheck
+				classes[i] = sendackErrorClassUnauthenticated
 				continue
 			}
 			return err
 		}
 		if ctx.RequestContext == nil {
 			results[i].Reason = message.ReasonSystemError
+			sources[i] = sendackSourceBatchMissingRequestContext
+			classes[i] = sendackErrorClassMissingRequestContext
 			continue
 		}
 		validIndexes = append(validIndexes, i)
@@ -51,6 +57,11 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			result := batchResults[j].Result
 			if batchResults[j].Err != nil {
 				result.Reason = reasonForError(batchResults[j].Err)
+				sources[index] = sendackSourceBatchResultError
+				classes[index] = sendackErrorClassForError(batchResults[j].Err)
+			} else {
+				sources[index] = sendackSourceBatchResult
+				classes[index] = sendackErrorClassNone
 			}
 			results[index] = result
 		}
@@ -58,13 +69,21 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		for j, index := range validIndexes {
 			item := validItems[j]
 			reqCtx, cancel := context.WithDeadline(item.Context, item.Deadline)
-			results[index] = h.sendOne(reqCtx, item.Command)
+			result, source, class := h.sendOne(reqCtx, item.Command)
+			if source == sendackSourceSingleError {
+				source = sendackSourceBatchFallbackError
+			} else {
+				source = sendackSourceBatchFallbackResult
+			}
+			results[index] = result
+			sources[index] = source
+			classes[index] = class
 			cancel()
 		}
 	}
 
 	for i, item := range items {
-		if err := writeSendack(&contexts[i], item.Frame, results[i]); err != nil {
+		if err := h.writeSendack(&contexts[i], item.Frame, results[i], sources[i], classes[i]); err != nil {
 			return err
 		}
 	}

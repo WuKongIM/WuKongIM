@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -253,7 +254,31 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"channelv2_metrics_summary",
 		"scripts/channelv2-metrics-summary.awk",
 		"channelv2_metrics_summary.tsv",
+		`newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"`,
 		"write_evidence_summary",
+		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
+		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,
+		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
+		"ack_timeout: $ACK_TIMEOUT",
+		"recv_ack: $RECV_ACK",
+		`--phase-poll-timeout "$PHASE_POLL_TIMEOUT"`,
+		"--recv-ack BOOL",
+		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}"`,
+		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}"`,
+		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-0}"`,
+		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}`,
+		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}`,
+		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}`,
+		`CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}`,
+		`GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-512}`,
+		`GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-15s}`,
+		"gateway_ready()",
+		`>/dev/tcp/"$host"/"$port"`,
+		`for gateway in "${GATEWAY_VALUES[@]}"`,
 		"/debug/pprof/goroutine?debug=2",
 		"/debug/pprof/heap",
 		"summary.md",
@@ -264,6 +289,85 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 	if strings.Contains(script, "docker compose") {
 		t.Fatalf("three-node bench script should use local startup scripts, not docker compose")
+	}
+}
+
+func TestWukongIMV2ThreeNodeRealQPSScriptUsesHighConcurrencyDefault(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-real-qps.sh"))
+
+	for _, want := range []string{
+		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-5000}"`,
+		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
+		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,
+		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
+		"--concurrency N            wkbench send concurrency. Default: 5000.",
+		"--ack-timeout DURATION     Per-SEND sendack wait timeout. Default: 15s.",
+		`--phase-poll-timeout "$PHASE_POLL_TIMEOUT"`,
+		"--recv-ack BOOL            Whether group recv frames are acknowledged. Default: true.",
+		`--recv-ack "$RECV_ACK"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("real-qps script missing high-concurrency default %q", want)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	wkbenchPath := filepath.Join(binDir, "wkbench")
+	writeFakeThreeNode1000Wkbench(t, wkbenchPath, callsDir, "old")
+	old := time.Unix(946684800, 0)
+	if err := os.Chtimes(wkbenchPath, old, old); err != nil {
+		t.Fatal(err)
+	}
+	writeFakeThreeNode1000GoBuildWkbench(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", wkbenchPath,
+		"--qps", "100",
+		"--channels", "10",
+		"--users", "20",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--gateway", gatewayAddr,
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
+	if !strings.Contains(goCalls, "build -o "+wkbenchPath+" ./cmd/wkbench") {
+		t.Fatalf("stale wkbench binary should be rebuilt, calls:\n%s", goCalls)
+	}
+	wkbenchCalls := readFile(t, filepath.Join(callsDir, "wkbench.calls"))
+	if !strings.Contains(wkbenchCalls, "rebuilt run ") {
+		t.Fatalf("script should use rebuilt wkbench binary, calls:\n%s", wkbenchCalls)
+	}
+	classify := readFile(t, filepath.Join(outDir, "metrics", "000100", "127_0_0_1_5011-classify.txt"))
+	if !strings.Contains(classify, "classification: rebuilt") {
+		t.Fatalf("classification should use rebuilt wkbench binary:\n%s", classify)
+	}
+	scenario := readFile(t, filepath.Join(outDir, "scenario-000100.yaml"))
+	if !strings.Contains(scenario, "recv_ack: true") {
+		t.Fatalf("generated scenario should ack drained group recv frames by default:\n%s", scenario)
 	}
 }
 
@@ -1080,6 +1184,147 @@ env | LC_ALL=C sort | grep -E '^(WK_BENCH_|WK_CLUSTER_|WK_PPROF_)' > "` + callsD
 	}
 }
 
+func writeFakeThreeNode1000Wkbench(t *testing.T, path string, callsDir string, label string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '` + label + ` %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
+  echo 'classification: ` + label + `'
+  exit 0
+fi
+if [[ "${1:-}" == "run" ]]; then
+  scenario=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --scenario)
+        scenario="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  report_dir="$(awk '$1 == "report_dir:" { print $2 }' "$scenario")"
+  if [[ -z "$report_dir" ]]; then
+    echo "missing report_dir in scenario" >&2
+    exit 2
+  fi
+  mkdir -p "$report_dir"
+  cat > "$report_dir/report.json" <<'JSON'
+{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
+JSON
+  exit 0
+fi
+echo "unexpected wkbench args: $*" >&2
+exit 2
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeThreeNode1000GoBuildWkbench(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" >> "` + callsDir + `/go.calls"
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$out" ]]; then
+  echo "missing -o" >&2
+  exit 2
+fi
+mkdir -p "$(dirname "$out")"
+cat > "$out" <<'WKFAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf 'rebuilt %s\n' "$*" >> "` + callsDir + `/wkbench.calls"
+if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
+  echo 'classification: rebuilt'
+  exit 0
+fi
+if [[ "${1:-}" == "run" ]]; then
+  scenario=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --scenario)
+        scenario="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  report_dir="$(awk '$1 == "report_dir:" { print $2 }' "$scenario")"
+  if [[ -z "$report_dir" ]]; then
+    echo "missing report_dir in scenario" >&2
+    exit 2
+  fi
+  mkdir -p "$report_dir"
+  cat > "$report_dir/report.json" <<'JSON'
+{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
+JSON
+  exit 0
+fi
+echo "unexpected wkbench args: $*" >&2
+exit 2
+WKFAKE
+chmod +x "$out"
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeThreeNode1000Curl(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+echo "$*" >> "` + callsDir + `/curl.calls"
+url="${@: -1}"
+case "$url" in
+  http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz|http://127.0.0.1:19130/v1/stop)
+    echo 'ok'
+    ;;
+  http://127.0.0.1:501*/metrics)
+    cat <<'OUT'
+wukongim_channelv2_rpc_pull_total 1
+OUT
+    ;;
+  http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)
+    echo 'goroutine profile'
+    ;;
+  http://127.0.0.1:501*/debug/pprof/heap)
+    echo 'heap profile'
+    ;;
+  *)
+    echo "unexpected curl url: $url" >&2
+    exit 2
+    ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeFakeActivateWkbench(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -1691,4 +1936,28 @@ func requireNonEmptyFile(t *testing.T, path string) {
 	if len(data) == 0 {
 		t.Fatalf("expected non-empty file %s", path)
 	}
+}
+
+func listenLocalTCP(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	t.Cleanup(func() {
+		_ = ln.Close()
+		<-done
+	})
+	return ln.Addr().String()
 }

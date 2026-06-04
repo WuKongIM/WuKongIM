@@ -100,6 +100,57 @@ func TestTransportLoopbackRPC(t *testing.T) {
 	}
 }
 
+func TestTransportClientUsesClusterSizedQueuesByDefault(t *testing.T) {
+	client := NewTransportClient(TransportClientConfig{})
+	defer client.Stop()
+
+	want := [3]int{1024, 1024, 1024}
+	if client.queueSizes != want {
+		t.Fatalf("QueueSizes = %#v, want %#v", client.queueSizes, want)
+	}
+}
+
+func TestTransportClientUsesClusterPoolSizeByDefault(t *testing.T) {
+	client := NewTransportClient(TransportClientConfig{})
+	defer client.Stop()
+
+	if client.poolSize != defaultTransportPoolSize {
+		t.Fatalf("poolSize = %d, want %d", client.poolSize, defaultTransportPoolSize)
+	}
+}
+
+func TestTransportClientShardsRPCsByService(t *testing.T) {
+	server := NewTransportServer(TransportServerConfig{})
+	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelPullHint, RPCChannelAppendBatch} {
+		serviceID := serviceID
+		server.Register(serviceID, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return append([]byte{serviceID}, payload...), nil
+		}))
+	}
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 4})
+	defer client.Stop()
+
+	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelPullHint, RPCChannelAppendBatch} {
+		if _, err := client.Call(context.Background(), 2, serviceID, []byte("ping")); err != nil {
+			t.Fatalf("Call(service=%d) error = %v", serviceID, err)
+		}
+	}
+	stats := client.pool.Stats()
+	if len(stats) != 1 {
+		t.Fatalf("pool stats = %#v, want one peer", stats)
+	}
+	if stats[0].Active < 3 {
+		t.Fatalf("active connections = %d, want at least 3 services sharded across pool", stats[0].Active)
+	}
+}
+
 func TestTransportLoopbackSendDoesNotWaitForResponse(t *testing.T) {
 	server := NewTransportServer(TransportServerConfig{})
 	received := make(chan []byte, 1)

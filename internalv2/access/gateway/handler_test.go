@@ -649,6 +649,54 @@ func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
 	}
 }
 
+func TestOnSendBatchObservesSendackSourcesAndReasons(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	observer := &recordingSendackObserver{}
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Err: context.DeadlineExceeded},
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, SendackObserver: observer})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch1", ChannelType: 2, Payload: []byte("three")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(written) != 3 {
+		t.Fatalf("written sendacks = %d, want 3", len(written))
+	}
+	want := []SendackEvent{
+		{Reason: message.ReasonSystemError, Source: sendackSourceBatchResultError, ErrorClass: sendackErrorClassTimeout},
+		{Reason: message.ReasonSuccess, Source: sendackSourceBatchResult, ErrorClass: sendackErrorClassNone},
+		{Reason: message.ReasonSystemError, Source: sendackSourceBatchMissingRequestContext, ErrorClass: sendackErrorClassMissingRequestContext},
+	}
+	if len(observer.events) != len(want) {
+		t.Fatalf("sendack events = %#v, want %#v", observer.events, want)
+	}
+	for i := range want {
+		if observer.events[i] != want[i] {
+			t.Fatalf("sendack event[%d] = %#v, want %#v", i, observer.events[i], want[i])
+		}
+	}
+}
+
 func TestOnSendBatchNilMessagesWritesSystemErrorSendacks(t *testing.T) {
 	var written []frame.Frame
 	var metas []session.OutboundMeta
@@ -792,6 +840,14 @@ func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (m
 		err = m.errs[index]
 	}
 	return result, err
+}
+
+type recordingSendackObserver struct {
+	events []SendackEvent
+}
+
+func (o *recordingSendackObserver) SendackWritten(event SendackEvent) {
+	o.events = append(o.events, event)
 }
 
 type recordingDelivery struct {

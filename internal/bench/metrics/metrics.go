@@ -19,6 +19,7 @@ var allowedLabelKeys = map[string]struct{}{
 	"traffic":      {},
 	"error_kind":   {},
 	"reason_code":  {},
+	"reason":       {},
 }
 
 var forbiddenLabelKeys = map[string]struct{}{

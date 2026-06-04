@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
@@ -198,6 +199,8 @@ func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[st
 type AutoRecvAckOptions struct {
 	// BufferRecvFrames keeps drained recv frames available for explicit verification waiters.
 	BufferRecvFrames bool
+	// DisableRecvAck drains recv frames without acknowledging them.
+	DisableRecvAck bool
 }
 
 // StartAutoRecvAck continuously drains recv frames and sends protocol receive acks.
@@ -285,13 +288,16 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
 	if w.cfg.MaxConcurrency > 1 {
-		return runScheduledMessagesByKey(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(messageOffset int) string {
+		stats := &scheduledMessageStats{}
+		err := runScheduledMessagesByKeyWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(messageOffset int) string {
 			pair := w.pairs[messageOffset%len(w.pairs)]
 			return pair.SenderUID
 		}, func(ctx context.Context, messageOffset int) error {
 			pair := w.pairs[messageOffset%len(w.pairs)]
 			return w.sendPairInPhase(ctx, pair, phase, messageOffset)
-		})
+		}, stats)
+		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+		return err
 	}
 	for messageOffset := 0; messageOffset < totalMessages; messageOffset++ {
 		select {
@@ -335,7 +341,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		channelIndex = messageIndex
 	}
 	payload := w.buildPayload(phase, channelIndex, messageIndex)
-	clientSeq := uint64(messageIndex)
+	clientSeq := nextSendClientSeq(sender, uint64(messageIndex))
 	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
 		ClientSeq:   clientSeq,
@@ -347,15 +353,28 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 
 	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
+	unlockSendack, err := lockSendackOperation(ctx, sender)
+	if err != nil {
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("person_send_error", err)
+			w.metrics.IncCounter("person_send_error_total", sendLabels)
+		}
+		return sessionOperationError(pair.SenderUID, "person sendack lock", err)
+	}
+	defer unlockSendack()
 	if err := sender.Send(ctx, pkt); err != nil {
-		w.recordError("person_send_error", err)
-		w.metrics.IncCounter("person_send_error_total", sendLabels)
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("person_send_error", err)
+			w.metrics.IncCounter("person_send_error_total", sendLabels)
+		}
 		return sessionOperationError(pair.SenderUID, "person send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
-		w.recordError("person_send_error", err)
-		w.metrics.IncCounter("person_send_error_total", sendLabels)
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("person_send_error", err)
+			w.metrics.IncCounter("person_send_error_total", sendLabels)
+		}
 		return sessionOperationError(pair.SenderUID, "person sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -450,16 +469,10 @@ func (w *PersonWorkload) waitForSendack(ctx context.Context, client PersonClient
 	defer cancel()
 	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		ack, ok := f.(*frame.SendackPacket)
-		if !ok {
-			return false
-		}
-		return ack.ClientSeq == clientSeq && ack.ClientMsgNo == clientMsgNo
+		return ok && matchesExpectedSendack(ack, clientSeq, clientMsgNo)
 	})
 	if err != nil {
-		if err == io.EOF {
-			return nil, fmt.Errorf("person workload: sendack not received for %q: %w", clientMsgNo, err)
-		}
-		return nil, err
+		return nil, fmt.Errorf("person workload: sendack not received for %q: %w", clientMsgNo, err)
 	}
 	return f.(*frame.SendackPacket), nil
 }
@@ -550,19 +563,37 @@ type matchingFrameReader interface {
 	readFrameMatching(context.Context, func(frame.Frame) bool) (frame.Frame, error)
 }
 
+type sendackOperationLocker interface {
+	lockSendackOperation(context.Context) (func(), error)
+}
+
+type sendClientSeqAllocator interface {
+	nextSendClientSeq() uint64
+}
+
 type matchingPersonClient struct {
 	client      PersonClient
 	bufferLimit int
 	mu          sync.Mutex
+	clientSeq   atomic.Uint64
 	buffer      []frame.Frame
 	reading     bool
 	notify      chan struct{}
+	// foregroundMatchers tracks explicit matchers that should own socket reads until they return.
+	foregroundMatchers int
 	// foregroundWaiters tracks explicit matchers blocked behind the active read.
 	foregroundWaiters     int
 	autoRecvAck           bool
 	autoRecvAckBufferRecv bool
+	autoRecvAckDisableAck bool
 	autoRecvAckReader     bool
 	autoRecvAckReadErr    error
+	debugReadFrames       uint64
+	debugReadSendacks     uint64
+	debugReadRecvs        uint64
+	debugDroppedSendacks  uint64
+	debugDroppedRecvs     uint64
+	debugLastFrames       []string
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -573,6 +604,14 @@ func (c *matchingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) 
 	return c.client.Send(ctx, pkt)
 }
 
+func (c *matchingPersonClient) lockSendackOperation(ctx context.Context) (func(), error) {
+	return func() {}, nil
+}
+
+func (c *matchingPersonClient) nextSendClientSeq() uint64 {
+	return c.clientSeq.Add(1)
+}
+
 func (c *matchingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	return c.readFrameMatching(ctx, func(frame.Frame) bool { return true })
 }
@@ -580,8 +619,9 @@ func (c *matchingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, erro
 func (c *matchingPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
 	c.mu.Lock()
 	autoAck := c.autoRecvAck
+	disableAck := c.autoRecvAckDisableAck
 	c.mu.Unlock()
-	if autoAck {
+	if autoAck && !disableAck {
 		// The matching reader sends the ack when it returns or buffers a recv frame.
 		return nil
 	}
@@ -593,6 +633,15 @@ func (c *matchingPersonClient) Close() error {
 }
 
 func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func(frame.Frame) bool) (frame.Frame, error) {
+	c.mu.Lock()
+	c.foregroundMatchers++
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.foregroundMatchers--
+		c.signalLocked()
+		c.mu.Unlock()
+	}()
 	for {
 		c.mu.Lock()
 		for idx, f := range c.buffer {
@@ -610,11 +659,22 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 				return nil, err
 			}
 			notify := c.notifyLocked()
+			c.foregroundWaiters++
 			c.mu.Unlock()
+			var waitErr error
 			select {
 			case <-notify:
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				waitErr = ctx.Err()
+			}
+			c.mu.Lock()
+			c.foregroundWaiters--
+			if waitErr != nil {
+				waitErr = c.debugReadErrorLocked(waitErr)
+			}
+			c.mu.Unlock()
+			if waitErr != nil {
+				return nil, waitErr
 			}
 			continue
 		}
@@ -630,6 +690,9 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			}
 			c.mu.Lock()
 			c.foregroundWaiters--
+			if waitErr != nil {
+				waitErr = c.debugReadErrorLocked(waitErr)
+			}
 			c.mu.Unlock()
 			if waitErr != nil {
 				return nil, waitErr
@@ -643,15 +706,18 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 		c.mu.Lock()
 		c.reading = false
 		if err != nil {
+			err = c.debugReadErrorLocked(err)
 			c.signalLocked()
 			c.mu.Unlock()
 			return nil, err
 		}
+		c.observeReadFrameLocked(f)
 		autoAck := c.autoRecvAck
+		ackRecv := autoAck && !c.autoRecvAckDisableAck
 		if match(f) {
 			c.signalLocked()
 			c.mu.Unlock()
-			c.autoAckRecvFrame(ctx, f, autoAck)
+			c.autoAckRecvFrame(ctx, f, ackRecv)
 			return f, nil
 		}
 		if _, ok := f.(*frame.PongPacket); ok {
@@ -668,7 +734,7 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 		}
 		c.signalLocked()
 		c.mu.Unlock()
-		c.autoAckRecvFrame(ctx, f, autoAck)
+		c.autoAckRecvFrame(ctx, f, ackRecv)
 	}
 }
 
@@ -684,6 +750,7 @@ func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, 
 	}
 	c.autoRecvAck = true
 	c.autoRecvAckBufferRecv = opts.BufferRecvFrames
+	c.autoRecvAckDisableAck = opts.DisableRecvAck
 	c.autoRecvAckReader = true
 	c.autoRecvAckReadErr = nil
 	c.mu.Unlock()
@@ -710,6 +777,12 @@ func (c *matchingPersonClient) autoRecvAckLoop(ctx context.Context) {
 
 func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 	c.mu.Lock()
+	if c.shouldYieldToForegroundLocked() {
+		c.autoRecvAckReader = false
+		c.signalLocked()
+		c.mu.Unlock()
+		return c.finishAutoRecvAckYield(ctx)
+	}
 	if c.reading {
 		notify := c.notifyLocked()
 		c.mu.Unlock()
@@ -731,21 +804,71 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 		c.mu.Unlock()
 		return err
 	}
+	c.observeReadFrameLocked(f)
 	if _, ok := f.(*frame.PongPacket); ok {
+		yield := c.shouldYieldToForegroundLocked()
+		if yield {
+			c.autoRecvAckReader = false
+		}
 		c.signalLocked()
 		c.mu.Unlock()
+		if yield {
+			return c.finishAutoRecvAckYield(ctx)
+		}
 		return nil
 	}
+	ackRecv := c.autoRecvAck && !c.autoRecvAckDisableAck
 	if _, ok := f.(*frame.RecvPacket); ok && !c.autoRecvAckBufferRecv {
+		yield := c.shouldYieldToForegroundLocked()
+		if yield {
+			c.autoRecvAckReader = false
+		}
 		c.signalLocked()
 		c.mu.Unlock()
-		c.autoAckRecvFrame(ctx, f, true)
+		c.autoAckRecvFrame(ctx, f, ackRecv)
+		if yield {
+			return c.finishAutoRecvAckYield(ctx)
+		}
 		return nil
 	}
 	c.bufferFrameLocked(f)
+	yield := c.shouldYieldToForegroundLocked()
+	if yield {
+		c.autoRecvAckReader = false
+	}
 	c.signalLocked()
 	c.mu.Unlock()
-	c.autoAckRecvFrame(ctx, f, true)
+	c.autoAckRecvFrame(ctx, f, ackRecv)
+	if yield {
+		return c.finishAutoRecvAckYield(ctx)
+	}
+	return nil
+}
+
+func (c *matchingPersonClient) shouldYieldToForegroundLocked() bool {
+	return c.foregroundMatchers > 0
+}
+
+func (c *matchingPersonClient) finishAutoRecvAckYield(ctx context.Context) error {
+	if err := waitAutoRecvAckYield(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	for c.autoRecvAck && c.autoRecvAckReadErr == nil && c.foregroundMatchers > 0 {
+		notify := c.notifyLocked()
+		c.mu.Unlock()
+		select {
+		case <-notify:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		c.mu.Lock()
+	}
+	if c.autoRecvAck && c.autoRecvAckReadErr == nil {
+		c.autoRecvAckReader = true
+		c.signalLocked()
+	}
+	c.mu.Unlock()
 	return nil
 }
 
@@ -791,11 +914,84 @@ func (c *matchingPersonClient) dropBufferedFrameLocked() {
 	}
 	for idx, f := range c.buffer {
 		if _, ok := f.(*frame.RecvPacket); ok {
+			c.debugDroppedRecvs++
 			c.buffer = append(c.buffer[:idx], c.buffer[idx+1:]...)
 			return
 		}
 	}
+	if _, ok := c.buffer[0].(*frame.SendackPacket); ok {
+		c.debugDroppedSendacks++
+	}
 	c.buffer = c.buffer[1:]
+}
+
+func (c *matchingPersonClient) observeReadFrameLocked(f frame.Frame) {
+	c.debugReadFrames++
+	switch f.(type) {
+	case *frame.SendackPacket:
+		c.debugReadSendacks++
+	case *frame.RecvPacket:
+		c.debugReadRecvs++
+	}
+	summary := debugFrameSummary(f)
+	if summary == "" {
+		return
+	}
+	const limit = 8
+	if len(c.debugLastFrames) >= limit {
+		copy(c.debugLastFrames, c.debugLastFrames[1:])
+		c.debugLastFrames[len(c.debugLastFrames)-1] = summary
+		return
+	}
+	c.debugLastFrames = append(c.debugLastFrames, summary)
+}
+
+func (c *matchingPersonClient) debugReadErrorLocked(err error) error {
+	if err == nil {
+		return nil
+	}
+	sendacksBuffered := 0
+	recvsBuffered := 0
+	for _, f := range c.buffer {
+		switch f.(type) {
+		case *frame.SendackPacket:
+			sendacksBuffered++
+		case *frame.RecvPacket:
+			recvsBuffered++
+		}
+	}
+	return fmt.Errorf(
+		"%w; matching_client frames=%d sendacks=%d recvs=%d buffered=%d buffered_sendacks=%d buffered_recvs=%d dropped_sendacks=%d dropped_recvs=%d auto_reader=%t foreground=%d waiters=%d last=%s",
+		err,
+		c.debugReadFrames,
+		c.debugReadSendacks,
+		c.debugReadRecvs,
+		len(c.buffer),
+		sendacksBuffered,
+		recvsBuffered,
+		c.debugDroppedSendacks,
+		c.debugDroppedRecvs,
+		c.autoRecvAckReader,
+		c.foregroundMatchers,
+		c.foregroundWaiters,
+		strings.Join(c.debugLastFrames, ","),
+	)
+}
+
+func debugFrameSummary(f frame.Frame) string {
+	switch pkt := f.(type) {
+	case *frame.SendackPacket:
+		return fmt.Sprintf("sendack(seq=%d,msg=%s,reason=%s)", pkt.ClientSeq, pkt.ClientMsgNo, pkt.ReasonCode)
+	case *frame.RecvPacket:
+		return fmt.Sprintf("recv(seq=%d,msg=%s,ch=%s)", pkt.MessageSeq, pkt.ClientMsgNo, pkt.ChannelID)
+	case *frame.PongPacket:
+		return "pong"
+	default:
+		if f == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("%T", f)
+	}
 }
 
 func isAutoRecvAckIdleTimeout(err error) bool {
@@ -837,6 +1033,30 @@ func readFrameMatching(ctx context.Context, client PersonClient, match func(fram
 			return f, nil
 		}
 	}
+}
+
+func lockSendackOperation(ctx context.Context, client PersonClient) (func(), error) {
+	if locker, ok := client.(sendackOperationLocker); ok && locker != nil {
+		return locker.lockSendackOperation(ctx)
+	}
+	return func() {}, nil
+}
+
+func nextSendClientSeq(client PersonClient, fallback uint64) uint64 {
+	if allocator, ok := client.(sendClientSeqAllocator); ok && allocator != nil {
+		return allocator.nextSendClientSeq()
+	}
+	return fallback
+}
+
+func matchesExpectedSendack(ack *frame.SendackPacket, clientSeq uint64, clientMsgNo string) bool {
+	if ack == nil || ack.ClientSeq != clientSeq {
+		return false
+	}
+	if clientMsgNo == "" {
+		return true
+	}
+	return ack.ClientMsgNo == clientMsgNo
 }
 
 func (w *PersonWorkload) deviceID(uid string) string {

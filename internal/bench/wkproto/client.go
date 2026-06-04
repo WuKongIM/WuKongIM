@@ -13,7 +13,10 @@ import (
 	protocolenc "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
-const defaultOperationTimeout = 5 * time.Second
+const (
+	defaultOperationTimeout = 5 * time.Second
+	defaultFrameBufferSize  = 1024
+)
 
 var errClientNotConnected = errors.New("wkproto client: not connected")
 
@@ -29,6 +32,8 @@ type ClientConfig struct {
 	}
 	// OperationTimeout bounds handshake, read, and write operations when ctx has no deadline.
 	OperationTimeout time.Duration
+	// FrameBufferSize bounds decoded inbound frames queued by the background reader.
+	FrameBufferSize int
 }
 
 // Client is a black-box WKProto client used by wkbench workers.
@@ -38,6 +43,7 @@ type Client struct {
 		DialContext(context.Context, string, string) (net.Conn, error)
 	}
 	operationTimeout time.Duration
+	frameBufferSize  int
 	proto            *codec.WKProto
 	token            string
 
@@ -46,9 +52,16 @@ type Client struct {
 	writeMu       sync.Mutex
 	conn          net.Conn
 	readBuf       []byte
+	frameCh       chan frameResult
+	readLoopStop  chan struct{}
+	readErr       error
 	privateKey    [32]byte
 	publicKey     [32]byte
 	sessionCrypto *protocolenc.SessionCrypto
+}
+
+type frameResult struct {
+	frame frame.Frame
 }
 
 // NewClient builds a WKProto client for a single gateway address.
@@ -62,6 +75,9 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = defaultOperationTimeout
 	}
+	if cfg.FrameBufferSize <= 0 {
+		cfg.FrameBufferSize = defaultFrameBufferSize
+	}
 	private, public, err := protocolenc.GenerateKeyPair()
 	if err != nil {
 		return nil, err
@@ -70,6 +86,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		addr:             cfg.Addr,
 		dialer:           cfg.Dialer,
 		operationTimeout: cfg.OperationTimeout,
+		frameBufferSize:  cfg.FrameBufferSize,
 		proto:            codec.New(),
 		token:            cfg.Token,
 		privateKey:       private,
@@ -90,12 +107,20 @@ func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
 		return err
 	}
 	c.mu.Lock()
-	if c.conn != nil {
-		_ = c.conn.Close()
-	}
+	oldConn := c.conn
+	oldStop := c.readLoopStop
 	c.conn = conn
 	c.sessionCrypto = nil
+	c.frameCh = nil
+	c.readLoopStop = nil
+	c.readErr = nil
 	c.mu.Unlock()
+	if oldStop != nil {
+		close(oldStop)
+	}
+	if oldConn != nil {
+		_ = oldConn.Close()
+	}
 	c.readMu.Lock()
 	c.readBuf = c.readBuf[:0]
 	c.readMu.Unlock()
@@ -127,6 +152,7 @@ func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
 		_ = c.Close()
 		return fmt.Errorf("wkproto connect: unexpected reason code %s", connack.ReasonCode)
 	}
+	c.startReadLoop()
 	return nil
 }
 
@@ -162,6 +188,24 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
+	ch, err := c.currentFrameQueue()
+	if err != nil {
+		return nil, err
+	}
+	if ch != nil {
+		select {
+		case result, ok := <-ch:
+			if !ok {
+				if err := c.currentReadErr(); err != nil {
+					return nil, err
+				}
+				return nil, errClientNotConnected
+			}
+			return result.frame, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return c.readFrame(ctx)
 }
 
@@ -188,13 +232,48 @@ func (c *Client) Close() error {
 	}
 	c.mu.Lock()
 	conn := c.conn
+	stop := c.readLoopStop
 	c.conn = nil
+	c.frameCh = nil
+	c.readLoopStop = nil
+	c.readErr = errClientNotConnected
 	c.sessionCrypto = nil
 	c.mu.Unlock()
+	if stop != nil {
+		close(stop)
+	}
 	if conn == nil {
 		return nil
 	}
 	return conn.Close()
+}
+
+func (c *Client) startReadLoop() {
+	ch := make(chan frameResult, c.frameBufferSize)
+	stop := make(chan struct{})
+	c.mu.Lock()
+	c.frameCh = ch
+	c.readLoopStop = stop
+	c.readErr = nil
+	c.mu.Unlock()
+	go c.readLoop(ch, stop)
+}
+
+func (c *Client) readLoop(ch chan<- frameResult, stop <-chan struct{}) {
+	defer close(ch)
+	for {
+		f, err := c.readFrame(context.Background())
+		if err != nil {
+			c.setReadErr(err)
+			return
+		}
+		select {
+		case ch <- frameResult{frame: f}:
+		case <-stop:
+			c.setReadErr(errClientNotConnected)
+			return
+		}
+	}
 }
 
 func (c *Client) writeFrame(ctx context.Context, f frame.Frame) error {
@@ -368,6 +447,30 @@ func (c *Client) currentConn() (net.Conn, error) {
 		return nil, errClientNotConnected
 	}
 	return c.conn, nil
+}
+
+func (c *Client) currentFrameQueue() (<-chan frameResult, error) {
+	if c == nil {
+		return nil, errClientNotConnected
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn == nil {
+		return nil, errClientNotConnected
+	}
+	return c.frameCh, nil
+}
+
+func (c *Client) setReadErr(err error) {
+	c.mu.Lock()
+	c.readErr = err
+	c.mu.Unlock()
+}
+
+func (c *Client) currentReadErr() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.readErr
 }
 
 func (c *Client) currentCrypto() *protocolenc.SessionCrypto {

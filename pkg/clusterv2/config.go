@@ -93,6 +93,10 @@ type ChannelConfig struct {
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
+	// AppendBatchMaxRecords is the queued ChannelV2 record count that triggers a store append flush. Zero keeps the runtime default.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing. Zero keeps the runtime default.
+	AppendBatchMaxWait time.Duration
 	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the ChannelV2 runtime default.
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the ChannelV2 runtime default.
@@ -107,6 +111,14 @@ type ChannelConfig struct {
 type StorageConfig struct {
 	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
 	CommitNoSync bool
+	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
+	CommitFlushWindow time.Duration
+	// CommitMaxRequests caps logical append requests in one grouped physical commit.
+	CommitMaxRequests int
+	// CommitMaxRecords caps message records in one grouped physical commit.
+	CommitMaxRecords int
+	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
+	CommitMaxBytes int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
 }
@@ -189,6 +201,12 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MaxChannels < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchMaxRecords < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchMaxWait < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.ReplicaCount == 0 {

@@ -286,6 +286,59 @@ func TestClientReadFrameRetainsPartialFrameAfterTimeout(t *testing.T) {
 	}
 }
 
+func TestClientConnectStartsBackgroundReader(t *testing.T) {
+	ack1 := &frame.SendackPacket{
+		MessageID:   11,
+		MessageSeq:  12,
+		ClientSeq:   13,
+		ClientMsgNo: "client-13",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	ack2 := &frame.SendackPacket{
+		MessageID:   21,
+		MessageSeq:  22,
+		ClientSeq:   23,
+		ClientMsgNo: "client-23",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	conn := newChunkedReadConn([][]byte{
+		mustEncodeFrame(t, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion}),
+		append(mustEncodeFrame(t, ack1), mustEncodeFrame(t, ack2)...),
+	})
+	client, err := NewClient(ClientConfig{
+		Addr:             "127.0.0.1:5100",
+		Dialer:           staticDialer{conn: conn},
+		OperationTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if !conn.waitReads(2, time.Second) {
+		t.Fatal("background reader did not consume queued sendacks")
+	}
+
+	for _, want := range []*frame.SendackPacket{ack1, ack2} {
+		f, err := client.ReadFrame(ctx)
+		if err != nil {
+			t.Fatalf("ReadFrame() error = %v", err)
+		}
+		ack, ok := f.(*frame.SendackPacket)
+		if !ok {
+			t.Fatalf("ReadFrame() = %T, want *frame.SendackPacket", f)
+		}
+		if ack.ClientSeq != want.ClientSeq || ack.ClientMsgNo != want.ClientMsgNo || ack.MessageSeq != want.MessageSeq {
+			t.Fatalf("sendack = %#v, want %#v", ack, want)
+		}
+	}
+}
+
 func TestClientReadFrameReportsRecvDecryptContext(t *testing.T) {
 	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
 		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
@@ -518,6 +571,98 @@ type timeoutAfterReadConn struct {
 	timeoutAfter int
 	timedOut     bool
 	closed       bool
+}
+
+type chunkedReadConn struct {
+	mu       sync.Mutex
+	chunks   [][]byte
+	index    int
+	closed   bool
+	readCh   chan struct{}
+	writeBuf []byte
+}
+
+func newChunkedReadConn(chunks [][]byte) *chunkedReadConn {
+	copied := make([][]byte, 0, len(chunks))
+	for _, chunk := range chunks {
+		copied = append(copied, append([]byte(nil), chunk...))
+	}
+	return &chunkedReadConn{chunks: copied, readCh: make(chan struct{}, len(copied)+1)}
+}
+
+func (c *chunkedReadConn) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return 0, net.ErrClosed
+	}
+	if c.index >= len(c.chunks) {
+		return 0, io.EOF
+	}
+	chunk := c.chunks[c.index]
+	n := copy(p, chunk)
+	if n == len(chunk) {
+		c.index++
+	} else {
+		c.chunks[c.index] = chunk[n:]
+	}
+	select {
+	case c.readCh <- struct{}{}:
+	default:
+	}
+	return n, nil
+}
+
+func (c *chunkedReadConn) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return 0, net.ErrClosed
+	}
+	c.writeBuf = append(c.writeBuf, p...)
+	return len(p), nil
+}
+
+func (c *chunkedReadConn) waitReads(want int, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	reads := 0
+	for reads < want {
+		select {
+		case <-c.readCh:
+			reads++
+		case <-timer.C:
+			return false
+		}
+	}
+	return true
+}
+
+func (c *chunkedReadConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	return nil
+}
+
+func (c *chunkedReadConn) LocalAddr() net.Addr {
+	return fakeAddr("local")
+}
+
+func (c *chunkedReadConn) RemoteAddr() net.Addr {
+	return fakeAddr("remote")
+}
+
+func (c *chunkedReadConn) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (c *chunkedReadConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (c *chunkedReadConn) SetWriteDeadline(time.Time) error {
+	return nil
 }
 
 func newTimeoutAfterReadConn(data []byte, timeoutAfter int) *timeoutAfterReadConn {

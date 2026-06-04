@@ -3,6 +3,71 @@
 This document records issues found while running the Docker Compose `wk-sim`
 load loop. Keep entries concise so the final review is easy to scan.
 
+## 2026-06-03 wukongimv2 Send Path Real-QPS Loop
+
+Environment:
+- Local `cmd/wukongimv2` clean three-node cluster started by
+  `scripts/bench-wukongimv2-three-nodes-real-qps.sh`.
+- Workload: 1000 group channels, 4096 users, 10 members per channel, 128B
+  payload, `sender_pick=round_robin`, 30s measured run, 10s warmup, 3s
+  cooldown, `actual/offered >= 0.95`, `send_errors=0`, and p99 gate `400ms`.
+- Evidence:
+  - `docs/development/perf-runs/20260603-123803-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-124048-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-124504-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-124919-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-125326-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-125451-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-125657-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-130334-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-130453-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-130727-three-node-real-qps/`
+  - `docs/development/perf-runs/20260603-132113-three-node-real-qps/`
+
+Findings:
+- Baseline `1600` and `2000` offered QPS passed cleanly. The first reproduced
+  `2400` failure stopped during connect with one gateway auth
+  `activation_not_leader` failure.
+- Presence authority route retries were too short for local controller/slot
+  leader handoff under connect bursts. Extending the bounded not-leader/stale
+  route retry window fixed the reproduced `2400` and later `4600` connect-phase
+  failures. A clean `4600` run passed with actual `4600.0` QPS, p99
+  `282.3ms`, and zero send/connect/sendack errors.
+- The `3800` default run exposed ChannelV2/gateway mixed backpressure. Raising
+  gateway async workers alone did not help, while raising the ChannelV2 reactor
+  count from `32` to `64` passed the same shape; the local three-node script now
+  defaults to `WK_CLUSTER_CHANNEL_REACTOR_COUNT=64`. The default `3800` rerun
+  passed with actual `3800.0` QPS and p99 `255.7ms`.
+- After both fixes, clean `5000` and `5400` offered QPS passed the script gates:
+  `5000` reached actual `4931.7` QPS with p99 `267.1ms`; `5400` reached actual
+  `5140.8` QPS with p99 `268.6ms`.
+- At `5800`, service p99 stayed healthy in some samples (`245.4ms`) but
+  actual/offered fell below the real-QPS gate (`0.946`). At `6200`, the default
+  run failed warmup with SENDACK timeouts; a 512 gateway-worker experiment
+  cleared the timeout but reduced actual/offered to `0.801`, so simple gateway
+  worker inflation is not a fix.
+- Increasing send concurrency to `2000` did not fix throughput and pushed p99
+  to `487.6ms`; increasing ChannelV2 reactors to `128` improved p99 to
+  `241.4ms` but did not restore actual/offered (`0.934`).
+- Manual run-phase CPU sampling at `5800` showed each server process mostly
+  around `63-94%` of one CPU core while the single wkbench worker stayed around
+  `16-28%`. A run-phase pprof sample was dominated by `kevent`, syscall, and
+  scheduler time rather than one concentrated Go hot function. Treat the current
+  high-end boundary as server-side CPU/scheduler/IO pressure, not as a wkbench
+  worker CPU bottleneck.
+
+Classification:
+- Category: two concrete send-path stability bottlenecks fixed: transient
+  presence authority not-leader retry window and local script ChannelV2 reactor
+  default. The current local single-machine three-node shape is stable through
+  about `5400` offered QPS under the real-QPS gates. Higher offered loads are
+  bounded by server-side CPU/scheduler/IO pressure and closed-loop SENDACK
+  latency rather than a delivery runtime or wkbench worker CPU issue.
+- Follow-up: if capacity above the current local boundary is required, collect
+  lower-overhead run-phase CPU/block/mutex profiles or split nodes/workers
+  across machines before changing code. Start from gateway async dispatch wait,
+  ChannelV2 append wait, and netpoll/syscall scheduler attribution.
+
 ## 2026-06-03 internalv2 Delivery Three-Node Real-Storage Bench
 
 Environment:

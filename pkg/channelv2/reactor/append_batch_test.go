@@ -460,6 +460,66 @@ func TestAppendContextCancelSweepsPostStoreQuorumWaiterWithoutCancelEvent(t *tes
 	require.Equal(t, 1, completions)
 }
 
+func TestAppendCancelObserverReceivesPostStoreWaiterSnapshot(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := ch.Meta{
+		Key:         ch.ChannelKey("1:append-cancel-snapshot"),
+		ID:          ch.ChannelID{ID: "append-cancel-snapshot", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	obs := &appendCancelSnapshotObserver{}
+	sink := captureCompletionSink{results: make(chan worker.Result, 4)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handle(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Contains(t, rc.waiters, ch.OpID(1))
+	require.Contains(t, rc.state.PendingAppends, ch.OpID(1))
+
+	r.handleCancelWaiter(Event{Kind: EventCancelWaiter, Key: meta.Key, CancelOp: 1, CancelErr: context.DeadlineExceeded, Future: NewFuture()})
+	err := awaitFutureError(t, future)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	events := obs.Events()
+	require.Len(t, events, 1)
+	got := events[0]
+	require.Equal(t, r.cfg.ID, got.ReactorID)
+	require.Equal(t, meta.Key, got.Key)
+	require.Equal(t, meta.ID, got.ChannelID)
+	require.Equal(t, ch.OpID(1), got.OpID)
+	require.Equal(t, ch.RoleLeader, got.Role)
+	require.Equal(t, ch.NodeID(1), got.Leader)
+	require.Equal(t, uint64(1), got.Epoch)
+	require.Equal(t, uint64(1), got.LeaderEpoch)
+	require.Equal(t, uint64(1), got.LEO)
+	require.Equal(t, uint64(0), got.HW)
+	require.Equal(t, uint64(1), got.TargetOffset)
+	require.True(t, got.StoreSubmitted)
+	require.True(t, got.StoreCompleted)
+	require.False(t, got.HWAdvanced)
+	require.Equal(t, 1, got.Waiters)
+	require.Equal(t, 1, got.PendingAppends)
+	require.Equal(t, 1, got.PendingAppendOrder)
+	require.Equal(t, 0, got.AppendQueuePending)
+	require.False(t, got.AppendInflight)
+	require.ErrorIs(t, got.Err, context.DeadlineExceeded)
+}
+
 func TestAppendContextCancelSweptByUnrelatedEventWithoutCancelEvent(t *testing.T) {
 	factory := newCountingStoreFactory()
 	meta := testMeta("append-cancel-busy-queued", 1, 1)
@@ -614,6 +674,73 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	}, time.Second, time.Millisecond)
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
 	requirePullHintResult(t, obs.Events(), transport.PullHintReasonResume, "ok", nil)
+}
+
+func TestLeaderSchedulesResumePullHintAfterPartialFollowerPull(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("partial-pull-resume-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		PullHintRetryInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 5
+	rc.lifecycle.version = 5
+	r.syncLeaderFollowers(rc)
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	follower.match = 0
+	follower.lastPullAt = time.Now().Add(-time.Second)
+
+	now := time.Now()
+	r.updateLeaderPullFollowerState(rc, &pullWaiter{follower: 2, nextOffset: 1}, []ch.Record{{ID: 1, Index: 1, Payload: []byte("a"), SizeBytes: 1}}, transport.PullControlContinue, 0, now)
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: now.Add(2 * time.Millisecond), Future: NewFuture()})
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1 && tr.lastPullHintVersion(2) == 5
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+}
+
+func TestAppendOpportunisticallySendsDueResumePullHint(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("append-due-resume-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		PullHintRetryInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 5
+	rc.lifecycle.version = 5
+	r.syncLeaderFollowers(rc)
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	follower.match = 0
+	follower.lastPullAt = time.Now().Add(-time.Second)
+	follower.hint.retryAt = time.Now().Add(-time.Millisecond)
+
+	r.sendPullHintsForAppend(rc, time.Now())
+
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 1 && tr.lastPullHintVersion(2) == 5
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
 }
 
 func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) {
@@ -1287,6 +1414,24 @@ func (o *appendWaitStageObserver) Events() []appendWaitStageEvent {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]appendWaitStageEvent(nil), o.events...)
+}
+
+type appendCancelSnapshotObserver struct {
+	captureObserver
+	mu     sync.Mutex
+	events []AppendWaitCancelSnapshot
+}
+
+func (o *appendCancelSnapshotObserver) ObserveAppendWaitCanceled(snapshot AppendWaitCancelSnapshot) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, snapshot)
+}
+
+func (o *appendCancelSnapshotObserver) Events() []AppendWaitCancelSnapshot {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]AppendWaitCancelSnapshot(nil), o.events...)
 }
 
 func requireAppendWaitStage(t *testing.T, events []appendWaitStageEvent, stage string, mode ch.CommitMode, result string) {

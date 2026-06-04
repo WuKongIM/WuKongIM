@@ -482,6 +482,14 @@ func (lc *channelRuntimeLifecycle) followerNeedsImmediateProgress(node ch.NodeID
 		follower.lastPullAt.IsZero()
 }
 
+func (lc *channelRuntimeLifecycle) followerNeedsHintRetry(node ch.NodeID, leaderLEO uint64) bool {
+	if lc == nil {
+		return false
+	}
+	follower := lc.followers[node]
+	return follower != nil && follower.match < leaderLEO && !follower.hint.retryAt.IsZero()
+}
+
 // beginPullHint records an inflight PullHint worker operation.
 func (lc *channelRuntimeLifecycle) beginPullHint(node ch.NodeID, opID ch.OpID, version uint64, reason transport.PullHintReason) {
 	if lc == nil {

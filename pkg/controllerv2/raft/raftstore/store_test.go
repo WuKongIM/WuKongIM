@@ -2,7 +2,9 @@ package raftstore
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -63,6 +65,23 @@ func TestStoreSnapshotAndCompactBoundsStartupSuffix(t *testing.T) {
 	loaded, err := reopened.Snapshot()
 	require.NoError(t, err)
 	require.Equal(t, uint64(8), loaded.Metadata.Index)
+}
+
+func TestStoreSaveReadySkipsMetadataRewriteWhenReadyHasNoDurableState(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only directory permissions are platform-specific")
+	}
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "controller-raft")
+	store, err := Open(ctx, Config{Dir: dir, NodeID: 1, SegmentSize: 1 << 20})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0o755)
+		_ = store.Close()
+	})
+	require.NoError(t, os.Chmod(dir, 0o555))
+
+	require.NoError(t, store.SaveReady(ctx, raftpb.HardState{}, nil, raftpb.Snapshot{}))
 }
 
 func mustConfChangeData(t *testing.T, nodeID uint64) []byte {

@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -24,6 +25,14 @@ type MessageDBFactory struct {
 type MessageDBFactoryOptions struct {
 	// CommitNoSync skips physical fsync for grouped channel appends. Keep false for durable writes.
 	CommitNoSync bool
+	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
+	CommitFlushWindow time.Duration
+	// CommitMaxRequests caps logical append requests in one grouped physical commit.
+	CommitMaxRequests int
+	// CommitMaxRecords caps message records in one grouped physical commit.
+	CommitMaxRecords int
+	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
+	CommitMaxBytes int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
 }
@@ -39,7 +48,14 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 	if err != nil {
 		return &MessageDBFactory{}
 	}
-	engine.ConfigureCommitCoordinator(messagedb.CommitCoordinatorConfig{NoSync: opts.CommitNoSync, Observer: opts.CommitObserver})
+	engine.ConfigureCommitCoordinator(messagedb.CommitCoordinatorConfig{
+		FlushWindow: opts.CommitFlushWindow,
+		MaxRequests: opts.CommitMaxRequests,
+		MaxRecords:  opts.CommitMaxRecords,
+		MaxBytes:    opts.CommitMaxBytes,
+		NoSync:      opts.CommitNoSync,
+		Observer:    opts.CommitObserver,
+	})
 	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}
 }
 
@@ -123,7 +139,7 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	leo, err := a.store.StoreApplyFetch(channel.ApplyFetchStoreRequest{Records: a.encodeRecords(req.Records)})
+	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{Records: a.encodeRecords(req.Records)})
 	if err != nil {
 		return ApplyFollowerResult{}, err
 	}
@@ -204,6 +220,21 @@ func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []chan
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
 	return out
+}
+
+type applyFetchStore interface {
+	StoreApplyFetch(channel.ApplyFetchStoreRequest) (uint64, error)
+}
+
+type trustedApplyFetchStore interface {
+	StoreApplyFetchTrusted(channel.ApplyFetchStoreRequest) (uint64, error)
+}
+
+func storeApplyFetchRecords(store applyFetchStore, req channel.ApplyFetchStoreRequest) (uint64, error) {
+	if trusted, ok := store.(trustedApplyFetchStore); ok {
+		return trusted.StoreApplyFetchTrusted(req)
+	}
+	return store.StoreApplyFetch(req)
 }
 
 func fromDBRecord(record channel.Record) ch.Record {

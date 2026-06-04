@@ -15,6 +15,7 @@ import (
 
 const (
 	defaultStoreAppendWorkerMultiplier = 2
+	defaultStoreApplyWorkerMultiplier  = 2
 	defaultReplicationIdlePollInterval = 250 * time.Millisecond
 )
 
@@ -209,13 +210,13 @@ func defaultConfig(cfg Config) Config {
 		cfg.FollowerRecoveryProbeInterval = 0
 	}
 	if cfg.FollowerRecoveryProbeInterval == 0 {
-		cfg.FollowerRecoveryProbeInterval = time.Minute
+		cfg.FollowerRecoveryProbeInterval = defaultFollowerRecoveryProbeInterval
 	}
 	if cfg.FollowerRecoveryProbeJitter < 0 {
 		cfg.FollowerRecoveryProbeJitter = 0
 	}
 	if cfg.FollowerRecoveryProbeJitter == 0 {
-		cfg.FollowerRecoveryProbeJitter = 30 * time.Second
+		cfg.FollowerRecoveryProbeJitter = defaultFollowerRecoveryProbeJitter
 	}
 	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
@@ -348,7 +349,7 @@ func (g *Group) Close() error {
 
 func eventPriority(kind EventKind) Priority {
 	switch kind {
-	case EventApplyMeta, EventCancelWaiter, EventWorkerResult, EventNotify, EventPullHint, EventClose:
+	case EventApplyMeta, EventCancelWaiter, EventWorkerResult, EventPull, EventNotify, EventPullHint, EventClose:
 		return PriorityHigh
 	case EventTick:
 		return PriorityLow
@@ -360,11 +361,12 @@ func eventPriority(kind EventKind) Priority {
 func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	workers := max(1, cfg.ReactorCount)
 	storeAppendWorkers := workers * defaultStoreAppendWorkerMultiplier
+	storeApplyWorkers := workers * defaultStoreApplyWorkerMultiplier
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
 	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", storeAppendWorkers, queueSize)
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, "channelv2-store-read", workers, queueSize)
-	pools.StoreApply = defaultPoolConfig(pools.StoreApply, "channelv2-store-apply", workers, queueSize)
+	pools.StoreApply = defaultPoolConfig(pools.StoreApply, "channelv2-store-apply", storeApplyWorkers, queueSize)
 	pools.RPC = defaultPoolConfig(pools.RPC, "channelv2-rpc", workers, queueSize)
 	return pools
 }

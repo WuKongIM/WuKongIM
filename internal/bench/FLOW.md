@@ -20,13 +20,18 @@
 The WKProto bench client keeps a per-connection decode buffer so socket read
 timeouts never discard a partial frame. Decoded payload slices are detached
 before the buffer is compacted, because codec `BinaryAll` payloads point into
-the shared read buffer. Worker clients are additionally wrapped by a matching
-reader: when automatic recv-ack is enabled, one background reader continuously
-drains the connection, auto-acks unverified `RECV` frames, and buffers
-`SENDACK`/verified frames for foreground waiters. Foreground sendack waiters do
-not take over socket reads while that background reader is active, which keeps
-high-fanout delivery traffic from putting large `RECV` backlogs in front of
-`SENDACK` matching.
+the shared read buffer. After connect, the client starts a bounded background
+reader that continuously decodes the socket into an inbound frame queue, so
+sendack waiters do not perform socket reads on the hot path. Worker clients are
+additionally wrapped by a matching reader that buffers unmatched frames for
+foreground waiters and applies the recv-ack policy selected by the scenario.
+Scheduled traffic uses per-key pending queues plus a ready-key queue when a
+workload supplies a serialization key. That keeps one busy client or channel
+from forcing a linear scan across a large pending list. Person/group timed
+traffic supplies the sender UID as the key in high-concurrency mode, preserving
+one in-flight `Send -> Sendack` operation per simulated TCP client. Wrapped
+clients allocate connection-local monotonic ClientSeq values so each waiter
+matches by ClientSeq plus ClientMsgNo.
 
 ## Coordinator Run Flow
 
@@ -119,9 +124,11 @@ instead of a pure login or burst-ingress test. Increase `--users`,
 only when the experiment intentionally adds those pressure dimensions.
 
 When the three-node helper script captures before/after Prometheus snapshots,
-`wkbench metrics classify` reports gateway dispatch wait, ControllerV2 Raft
-Step queue/enqueue pressure, ChannelV2 append and cold-activation stages, and
-storage commit p99s. The 10,000-channel helper also fails the run when the
+`wkbench metrics classify` reports gateway dispatch wait, message append error
+classes such as route-not-ready, short-result, invalid-config, and timeout,
+ControllerV2 Raft Step queue/enqueue pressure, ChannelV2 append and
+cold-activation stages, and storage commit p99s. The 10,000-channel helper also
+fails the run when the
 classification cannot prove a healthy ChannelV2 bootstrap: PendingMeta must
 drain to zero with no releases, NeedMeta submitted and ok counts must match
 with no retry/error counts, and PullHint send/receive error counts must remain
@@ -155,6 +162,18 @@ runtime create/apply, append admission, reactor mailbox submit, admitted future
 wait, append batching behavior, durable append wait, and post-store local/quorum
 commit wait. The follower replication split localizes quorum tails after a
 leader has already durably stored an append.
+
+The 1,000-channel real-QPS helper overrides ChannelV2 append batching with
+`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=128` and
+`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=250us`, runs with 5,000 send
+concurrency, uses a 15s sendack timeout, gives wkbench worker phases a 30s base
+poll timeout, and starts the local gateway with 512 async SEND dispatch workers
+and a 15s gateway send timeout. In that scenario each channel is relatively low
+frequency while global QPS is high, so the shorter due-flush window avoids
+per-channel tail latency while preserving the runtime's normal batch-size
+ceiling. The longer timeout budget covers rare quorum tails after the measured
+p99 remains healthy. General configs keep the runtime defaults unless this
+benchmark-specific environment override is set.
 
 ## Worker Control Flow
 
@@ -249,17 +268,17 @@ Connect
 
 Each worker keeps its assigned `online.total_users` identity range connected even when some generated users are not referenced by a traffic profile. Profile-derived users are still merged in so existing group overlap behavior remains compatible.
 
-The client wrapper serializes access to each underlying `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames.
+The client wrapper serializes access to each underlying queued `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames. The wrapper also allocates monotonically increasing ClientSeq values per simulated TCP client, and each waiter still matches the exact ClientSeq and ClientMsgNo.
 
 When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
 
 The WKProto benchmark client keeps a per-connection decode buffer and only
 discards bytes after `DecodeFrame` returns a complete frame. Read-deadline
 timeouts may therefore return an error while retaining partial frame bytes for
-the next read. The background drainer still avoids injecting short socket read
-deadlines; when a background read returns naturally and foreground sendack/recv
-matchers are queued, the drainer briefly yields the shared reader instead of
-immediately reacquiring it.
+the next read when tests or pre-connect handshakes use direct reads. Connected
+sessions use the client's background reader and bounded frame queue; the
+receive-ack drainer consumes that queue and briefly yields to foreground
+sendack/recv matchers when they are queued.
 
 ### Warmup, Run, Cooldown
 

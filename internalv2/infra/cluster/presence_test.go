@@ -207,6 +207,67 @@ func TestPresenceClientBacksOffBeforeRetryingTransientNotLeader(t *testing.T) {
 	}
 }
 
+func TestPresenceClientRidesOutShortNotLeaderBurst(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+	}
+	local := &fakePresenceAuthority{
+		registerErrs: []error{
+			authoritypresence.ErrNotLeader,
+			authoritypresence.ErrNotLeader,
+			authoritypresence.ErrNotLeader,
+			authoritypresence.ErrNotLeader,
+			authoritypresence.ErrNotLeader,
+			authoritypresence.ErrNotLeader,
+			nil,
+		},
+	}
+	client := NewPresenceAuthorityClient(cluster, local)
+	sleepCalls := 0
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		sleepCalls++
+		return nil
+	}
+
+	if _, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101)); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if sleepCalls != 6 {
+		t.Fatalf("retry sleeps = %d, want 6", sleepCalls)
+	}
+	if len(local.registerCalls) != 7 {
+		t.Fatalf("local register calls = %d, want 7", len(local.registerCalls))
+	}
+}
+
+func TestPresenceClientRidesOutLongerNotLeaderBurstWithinActivationWindow(t *testing.T) {
+	cluster := &fakePresenceCluster{
+		nodeID: 1,
+		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+	}
+	const notLeaderCount = 30
+	local := &fakePresenceAuthority{
+		registerErrs: append(repeatedPresenceErrors(authoritypresence.ErrNotLeader, notLeaderCount), nil),
+	}
+	client := NewPresenceAuthorityClient(cluster, local)
+	sleepCalls := 0
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		sleepCalls++
+		return nil
+	}
+
+	if _, err := client.RegisterRoute(context.Background(), testInfraPresenceRoute("u1", 101)); err != nil {
+		t.Fatalf("RegisterRoute() error = %v", err)
+	}
+	if sleepCalls != notLeaderCount {
+		t.Fatalf("retry sleeps = %d, want %d", sleepCalls, notLeaderCount)
+	}
+	if len(local.registerCalls) != notLeaderCount+1 {
+		t.Fatalf("local register calls = %d, want %d", len(local.registerCalls), notLeaderCount+1)
+	}
+}
+
 func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
@@ -566,4 +627,12 @@ func testInfraPresenceRoute(uid string, sessionID uint64) presence.Route {
 		Listener:      "tcp",
 		ConnectedUnix: 1777777777,
 	}
+}
+
+func repeatedPresenceErrors(err error, count int) []error {
+	errs := make([]error, count)
+	for i := range errs {
+		errs[i] = err
+	}
+	return errs
 }

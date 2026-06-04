@@ -15,10 +15,16 @@ func (r *Reactor) sendPullHintsForAppend(rc *runtimeChannel, now time.Time) {
 	}
 	r.syncFollowerMatches(rc)
 	for node, follower := range rc.lifecycle.followers {
-		if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) {
+		immediate := rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO)
+		retryDue := rc.lifecycle.followerNeedsHintRetry(node, rc.state.LEO) && !now.Before(follower.hint.retryAt)
+		if !immediate && !retryDue {
 			continue
 		}
-		r.trySubmitPullHint(rc, node, follower, transport.PullHintReasonAppend, now)
+		reason := transport.PullHintReasonAppend
+		if !immediate && retryDue {
+			reason = transport.PullHintReasonResume
+		}
+		r.trySubmitPullHint(rc, node, follower, reason, now)
 	}
 }
 
@@ -32,7 +38,7 @@ func (r *Reactor) tickLifecycleController(rc *runtimeChannel, now time.Time) {
 		if follower == nil || follower.hint.inflight || follower.hint.retryAt.IsZero() || now.Before(follower.hint.retryAt) {
 			continue
 		}
-		if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) {
+		if !rc.lifecycle.followerNeedsImmediateProgress(node, rc.state.LEO) && !rc.lifecycle.followerNeedsHintRetry(node, rc.state.LEO) {
 			follower.hint.retryAt = time.Time{}
 			continue
 		}

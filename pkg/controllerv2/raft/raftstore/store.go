@@ -106,6 +106,9 @@ func (s *Store) Close() error {
 func (s *Store) SaveReady(ctx context.Context, hs raftpb.HardState, entries []raftpb.Entry, snap raftpb.Snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if raft.IsEmptyHardState(hs) && len(entries) == 0 && raft.IsEmptySnap(snap) {
+		return nil
+	}
 	meta := raftpb.SnapshotMetadata{}
 	if !raft.IsEmptySnap(snap) {
 		meta = cloneSnapshotMetadata(snap.Metadata)

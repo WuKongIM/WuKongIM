@@ -17,8 +17,14 @@ import (
 
 func TestDefaultConfigSetsFollowerRecoveryProbe(t *testing.T) {
 	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory()})
-	require.Equal(t, time.Minute, cfg.FollowerRecoveryProbeInterval)
-	require.Equal(t, 30*time.Second, cfg.FollowerRecoveryProbeJitter)
+	require.Equal(t, 2*time.Second, cfg.FollowerRecoveryProbeInterval)
+	require.Equal(t, time.Second, cfg.FollowerRecoveryProbeJitter)
+}
+
+func TestDefaultReactorConfigSetsFollowerRecoveryProbe(t *testing.T) {
+	cfg := defaultReactorConfig(ReactorConfig{LocalNode: 1, Store: store.NewMemoryFactory()})
+	require.Equal(t, 2*time.Second, cfg.FollowerRecoveryProbeInterval)
+	require.Equal(t, time.Second, cfg.FollowerRecoveryProbeJitter)
 }
 
 func TestFollowerRecoveryProbeDelayIsDeterministicAndBounded(t *testing.T) {
@@ -218,6 +224,44 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 		return pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
 	require.Equal(t, 0, net.AckCalls())
+}
+
+func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPull(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("apply-immediate-ack-pull")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+		Records:     []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+	})
+
+	require.NoError(t, submitPullHintDirect(t, r, meta, 1))
+	r.handleRPCPullResult(sink.awaitResultKind(t, worker.TaskRPCPull))
+	applyResult := sink.awaitResultKind(t, worker.TaskStoreApply)
+	net.SetPullResponse(transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    1,
+		LeaderLEO:   1,
+	})
+
+	r.handleStoreApplyResult(applyResult)
+
+	require.Eventually(t, func() bool {
+		pull := net.LastPull()
+		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
+	}, 100*time.Millisecond, time.Millisecond)
 }
 
 func TestKeyedTickHandlesManuallyDirtyFollowerWithoutSeparateSchedule(t *testing.T) {

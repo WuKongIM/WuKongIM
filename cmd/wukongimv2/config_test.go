@@ -108,9 +108,15 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
 		"WK_CLUSTER_MAX_CHANNELS=10000",
-		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=60s",
-		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=30s",
+		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=1",
+		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=500us",
+		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s",
+		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s",
 		"WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false",
+		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=750us",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=16",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=256",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072",
 		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
 		"WK_BENCH_API_ENABLE=true",
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
@@ -168,14 +174,32 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Cluster.Channel.MaxChannels != 10000 {
 		t.Fatalf("Channel.MaxChannels = %d, want 10000", cfg.Cluster.Channel.MaxChannels)
 	}
-	if cfg.Cluster.Channel.FollowerRecoveryProbeInterval != 60*time.Second {
-		t.Fatalf("Channel.FollowerRecoveryProbeInterval = %s, want 60s", cfg.Cluster.Channel.FollowerRecoveryProbeInterval)
+	if cfg.Cluster.Channel.AppendBatchMaxRecords != 1 {
+		t.Fatalf("Channel.AppendBatchMaxRecords = %d, want 1", cfg.Cluster.Channel.AppendBatchMaxRecords)
 	}
-	if cfg.Cluster.Channel.FollowerRecoveryProbeJitter != 30*time.Second {
-		t.Fatalf("Channel.FollowerRecoveryProbeJitter = %s, want 30s", cfg.Cluster.Channel.FollowerRecoveryProbeJitter)
+	if cfg.Cluster.Channel.AppendBatchMaxWait != 500*time.Microsecond {
+		t.Fatalf("Channel.AppendBatchMaxWait = %s, want 500us", cfg.Cluster.Channel.AppendBatchMaxWait)
+	}
+	if cfg.Cluster.Channel.FollowerRecoveryProbeInterval != 2*time.Second {
+		t.Fatalf("Channel.FollowerRecoveryProbeInterval = %s, want 2s", cfg.Cluster.Channel.FollowerRecoveryProbeInterval)
+	}
+	if cfg.Cluster.Channel.FollowerRecoveryProbeJitter != time.Second {
+		t.Fatalf("Channel.FollowerRecoveryProbeJitter = %s, want 1s", cfg.Cluster.Channel.FollowerRecoveryProbeJitter)
 	}
 	if !cfg.Cluster.Storage.CommitNoSync {
 		t.Fatalf("Storage.CommitNoSync = false, want true when WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false")
+	}
+	if cfg.Cluster.Storage.CommitFlushWindow != 750*time.Microsecond {
+		t.Fatalf("Storage.CommitFlushWindow = %s, want 750us", cfg.Cluster.Storage.CommitFlushWindow)
+	}
+	if cfg.Cluster.Storage.CommitMaxRequests != 16 {
+		t.Fatalf("Storage.CommitMaxRequests = %d, want 16", cfg.Cluster.Storage.CommitMaxRequests)
+	}
+	if cfg.Cluster.Storage.CommitMaxRecords != 256 {
+		t.Fatalf("Storage.CommitMaxRecords = %d, want 256", cfg.Cluster.Storage.CommitMaxRecords)
+	}
+	if cfg.Cluster.Storage.CommitMaxBytes != 131072 {
+		t.Fatalf("Storage.CommitMaxBytes = %d, want 131072", cfg.Cluster.Storage.CommitMaxBytes)
 	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -334,7 +358,13 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "env-node"))
 	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7002")
 	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
+	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", "2")
+	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", "false")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "262144")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", "256")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
@@ -373,8 +403,20 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Cluster.Channel.ReactorCount != 6 {
 		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Cluster.Channel.ReactorCount)
 	}
+	if cfg.Cluster.Channel.AppendBatchMaxRecords != 2 {
+		t.Fatalf("Channel.AppendBatchMaxRecords = %d, want 2", cfg.Cluster.Channel.AppendBatchMaxRecords)
+	}
+	if cfg.Cluster.Channel.AppendBatchMaxWait != 750*time.Microsecond {
+		t.Fatalf("Channel.AppendBatchMaxWait = %s, want 750us", cfg.Cluster.Channel.AppendBatchMaxWait)
+	}
 	if !cfg.Cluster.Storage.CommitNoSync {
 		t.Fatalf("Storage.CommitNoSync = false, want env override")
+	}
+	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
+		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)
+	}
+	if cfg.Cluster.Storage.CommitMaxRequests != 32 || cfg.Cluster.Storage.CommitMaxRecords != 512 || cfg.Cluster.Storage.CommitMaxBytes != 262144 {
+		t.Fatalf("Storage commit max env override = requests:%d records:%d bytes:%d", cfg.Cluster.Storage.CommitMaxRequests, cfg.Cluster.Storage.CommitMaxRecords, cfg.Cluster.Storage.CommitMaxBytes)
 	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -518,9 +560,19 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
 		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=many", wantKey: "WK_CLUSTER_MAX_CHANNELS"},
+		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=many", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
+		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},
 		{name: "follower recovery probe interval", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"},
 		{name: "follower recovery probe jitter", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"},
 		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
+		{name: "commit coordinator flush window", line: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=soon", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"},
+		{name: "commit coordinator flush window zero", line: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=0s", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"},
+		{name: "commit coordinator max requests", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS"},
+		{name: "commit coordinator max requests negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS"},
+		{name: "commit coordinator max records", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"},
+		{name: "commit coordinator max records negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"},
+		{name: "commit coordinator max bytes", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
+		{name: "commit coordinator max bytes negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
@@ -586,18 +638,30 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 }
 
 func TestLoadConfigRejectsNegativeChannelV2Limits(t *testing.T) {
-	unsetLoadConfigEnv(t)
-	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
-	writeConf(t, path,
-		"WK_NODE_ID=1",
-		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
-		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
-		"WK_CLUSTER_MAX_CHANNELS=-1",
-	)
-	_, err := loadConfig([]string{"-config", path})
-	if err == nil || !strings.Contains(err.Error(), "WK_CLUSTER_MAX_CHANNELS") {
-		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_MAX_CHANNELS validation", err)
+	for _, tt := range []struct {
+		name string
+		line string
+		key  string
+	}{
+		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=-1", key: "WK_CLUSTER_MAX_CHANNELS"},
+		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=-1", key: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
+		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=-1ms", key: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetLoadConfigEnv(t)
+			dir := t.TempDir()
+			path := filepath.Join(dir, "wukongim.conf")
+			writeConf(t, path,
+				"WK_NODE_ID=1",
+				"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+				"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+				tt.line,
+			)
+			_, err := loadConfig([]string{"-config", path})
+			if err == nil || !strings.Contains(err.Error(), tt.key) {
+				t.Fatalf("loadConfig() error = %v, want %s validation", err, tt.key)
+			}
+		})
 	}
 }
 

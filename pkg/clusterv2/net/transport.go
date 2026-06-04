@@ -8,6 +8,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
+const defaultTransportQueueSize = 1024
+const defaultTransportPoolSize = 4
+
 // TransportServerConfig configures a transport-backed clusterv2 RPC server.
 type TransportServerConfig struct {
 	// MaxPayload rejects inbound RPC payloads larger than this many bytes when positive.
@@ -63,39 +66,75 @@ type TransportClientConfig struct {
 	PoolSize int
 	// DialTimeout bounds outbound dials.
 	DialTimeout time.Duration
+	// QueueSize is the per-priority outbound write queue size for each connection.
+	// Non-positive values use the clusterv2 default, which is sized to absorb
+	// short foreground RPC fanout bursts before returning transport backpressure.
+	QueueSize int
 }
 
 // TransportClient sends typed clusterv2 RPCs over pkg/transport.
 type TransportClient struct {
-	pool   *transport.Pool
-	client *transport.Client
+	pool       *transport.Pool
+	client     *transport.Client
+	poolSize   int
+	queueSizes [3]int
 }
 
 // NewTransportClient creates a TransportClient.
 func NewTransportClient(cfg TransportClientConfig) *TransportClient {
 	if cfg.PoolSize <= 0 {
-		cfg.PoolSize = 1
+		cfg.PoolSize = defaultTransportPoolSize
 	}
 	if cfg.DialTimeout == 0 {
 		cfg.DialTimeout = 5 * time.Second
 	}
-	pool := transport.NewPool(transport.PoolConfig{Discovery: cfg.Discovery, Size: cfg.PoolSize, DialTimeout: cfg.DialTimeout})
-	return &TransportClient{pool: pool, client: transport.NewClient(pool)}
+	if cfg.QueueSize <= 0 {
+		cfg.QueueSize = defaultTransportQueueSize
+	}
+	queueSizes := [3]int{cfg.QueueSize, cfg.QueueSize, cfg.QueueSize}
+	pool := transport.NewPool(transport.PoolConfig{
+		Discovery:   cfg.Discovery,
+		Size:        cfg.PoolSize,
+		DialTimeout: cfg.DialTimeout,
+		QueueSizes:  queueSizes,
+	})
+	return &TransportClient{pool: pool, client: transport.NewClient(pool), poolSize: cfg.PoolSize, queueSizes: queueSizes}
 }
 
 // Call invokes serviceID on nodeID.
 func (c *TransportClient) Call(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
-	return c.client.RPCService(ctx, nodeID, 0, serviceID, payload)
+	return c.client.RPCService(ctx, nodeID, serviceShardKey(serviceID), serviceID, payload)
 }
 
 // Send sends serviceID to nodeID without waiting for a response.
 func (c *TransportClient) Send(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) error {
-	return c.client.SendService(ctx, nodeID, 0, serviceID, payload)
+	return c.client.SendService(ctx, nodeID, serviceShardKey(serviceID), serviceID, payload)
+}
+
+// PoolSize returns the configured outbound connection count per peer.
+func (c *TransportClient) PoolSize() int {
+	if c == nil {
+		return 0
+	}
+	return c.poolSize
 }
 
 // Stop closes outbound transport connections.
 func (c *TransportClient) Stop() {
 	if c != nil && c.client != nil {
 		c.client.Stop()
+	}
+}
+
+func serviceShardKey(serviceID uint8) uint64 {
+	switch serviceID {
+	case RPCChannelAppend, RPCChannelAppendBatch:
+		return 0
+	case RPCChannelPull:
+		return 1
+	case RPCChannelAck, RPCChannelPullHint, RPCChannelNotify:
+		return 2
+	default:
+		return uint64(serviceID) + 3
 	}
 }

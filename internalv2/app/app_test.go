@@ -30,6 +30,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -243,6 +244,58 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; !ok {
 		t.Fatalf("delivery fanout rpc service was not registered")
 	}
+}
+
+func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	app, err := New(
+		Config{
+			Cluster:       clusterv2.Config{NodeID: 3},
+			Observability: ObservabilityConfig{MetricsEnabled: true},
+			Delivery:      DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.messages == nil {
+		t.Fatal("message usecase was not wired")
+	}
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room-metrics",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hello"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonSuccess {
+		t.Fatalf("send reason = %v, want success", result.Reason)
+	}
+
+	families, err := app.metrics.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != "wukongim_message_append_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["path"] == "channelplane" && labels["result"] == "ok" && metric.GetCounter().GetValue() == 1 {
+				return
+			}
+		}
+	}
+	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
 func TestDeliveryWorkerGroupStopKeepsDependenciesRunningWhenDrainFails(t *testing.T) {
@@ -598,6 +651,74 @@ func TestDeliveryMetaStoreWritesBenchDataAndFiltersSubscriberPages(t *testing.T)
 	}
 }
 
+func TestDeliveryMetaStoreCachesSubscriberSnapshotAcrossPartitions(t *testing.T) {
+	const hashSlotCount = 16
+	slotThreeUID := testUIDForHashSlot(t, 3, hashSlotCount)
+	slotNineUID := testUIDForHashSlot(t, 9, hashSlotCount)
+	node := &recordingDeliveryMetaNode{
+		snapshot:    readyFakeClusterSnapshot(1, hashSlotCount),
+		subscribers: map[string][]string{"g1": []string{slotThreeUID, slotNineUID}},
+	}
+	store := newDeliveryMetaStore(node)
+
+	first, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Partition:   runtimedelivery.Partition{HashSlotStart: 3, HashSlotEnd: 3},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListSubscribers(first) error = %v", err)
+	}
+	second, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Partition:   runtimedelivery.Partition{HashSlotStart: 9, HashSlotEnd: 9},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListSubscribers(second) error = %v", err)
+	}
+
+	if len(first.UIDs) != 1 || first.UIDs[0] != slotThreeUID || len(second.UIDs) != 1 || second.UIDs[0] != slotNineUID {
+		t.Fatalf("partition pages first=%#v second=%#v, want cached slot-specific results", first, second)
+	}
+	if node.listCalls != 1 {
+		t.Fatalf("subscriber list calls = %d, want one cached channel snapshot read", node.listCalls)
+	}
+}
+
+func TestDeliveryMetaStoreInvalidatesSubscriberCacheAfterMutation(t *testing.T) {
+	node := &recordingDeliveryMetaNode{
+		snapshot:    readyFakeClusterSnapshot(1, 16),
+		subscribers: map[string][]string{"g1": []string{"u1"}},
+	}
+	store := newDeliveryMetaStore(node)
+	if _, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Limit: 10}); err != nil {
+		t.Fatalf("ListSubscribers(before) error = %v", err)
+	}
+	if _, err := store.AddSubscribers(context.Background(), []accessapi.BenchSubscriberMutation{{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Subscribers: []string{"u2"},
+	}}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	node.mu.Lock()
+	node.subscribers["g1"] = []string{"u1", "u2"}
+	node.mu.Unlock()
+	after, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListSubscribers(after) error = %v", err)
+	}
+	if len(after.UIDs) != 2 || after.UIDs[1] != "u2" {
+		t.Fatalf("after mutation page = %#v, want refreshed subscribers", after)
+	}
+	if node.listCalls != 2 {
+		t.Fatalf("subscriber list calls = %d, want cache miss after mutation", node.listCalls)
+	}
+}
+
 func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) {
 	cluster := &recordingDeliveryMetaNode{
 		fakeCluster: fakeCluster{calls: &[]string{}},
@@ -824,6 +945,47 @@ func TestLocalOwnerPusherMarksWriteErrorRetryable(t *testing.T) {
 	}
 	if pusher.delivery.PendingAckCount() != 0 {
 		t.Fatalf("pending ack count = %d, want 0 after write error", pusher.delivery.PendingAckCount())
+	}
+}
+
+func TestLocalOwnerPusherDropsTerminalWriteErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "session closed", err: session.ErrSessionClosed},
+		{name: "outbound overflow", err: gatewaytransport.ErrOutboundBytesExceeded},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+			sessionHandle := &recordingSessionHandle{writeErr: tt.err}
+			route := online.OwnerRoute{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101, ConnectedUnix: 1001}
+			if err := reg.RegisterPending(online.LocalSession{Route: route, Session: sessionHandle}); err != nil {
+				t.Fatalf("RegisterPending() error = %v", err)
+			}
+			if err := reg.MarkActive(route.SessionID); err != nil {
+				t.Fatalf("MarkActive() error = %v", err)
+			}
+			manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
+			pusher := localOwnerPusher{online: reg, delivery: manager}
+
+			result, err := pusher.Push(context.Background(), runtimedelivery.PushCommand{
+				OwnerNodeID: 1,
+				Envelope:    runtimedelivery.Envelope{MessageID: 1, MessageSeq: 1},
+				Routes:      []runtimedelivery.Route{{UID: "u1", OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11, SessionID: 101}},
+			})
+			if err != nil {
+				t.Fatalf("Push() error = %v", err)
+			}
+			if len(result.Dropped) != 1 || len(result.Accepted) != 0 || len(result.Retryable) != 0 {
+				t.Fatalf("push result = %#v, want one dropped", result)
+			}
+			if manager.PendingAckCount() != 0 {
+				t.Fatalf("pending ack count = %d, want 0 after terminal write error", manager.PendingAckCount())
+			}
+		})
 	}
 }
 
@@ -1773,6 +1935,7 @@ type recordingDeliveryMetaNode struct {
 	upserted    []metadb.Channel
 	added       []recordedSubscriberMutation
 	subscribers map[string][]string
+	listCalls   int
 }
 
 type recordedSubscriberMutation struct {
@@ -1838,6 +2001,7 @@ func (n *recordingDeliveryMetaNode) AddChannelSubscribers(_ context.Context, cha
 
 func (n *recordingDeliveryMetaNode) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
 	n.mu.Lock()
+	n.listCalls++
 	uids := append([]string(nil), n.subscribers[channelID]...)
 	n.mu.Unlock()
 	start := 0

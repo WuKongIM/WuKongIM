@@ -334,7 +334,8 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
 	if w.cfg.MaxConcurrency > 1 {
-		return runScheduledMessagesByKey(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(localOffset int) string {
+		stats := &scheduledMessageStats{}
+		err := runScheduledMessagesByKeyWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(localOffset int) string {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 			return w.senderUID(ch, messageIndex)
@@ -342,7 +343,9 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 			ch := w.channels[localOffset%len(w.channels)]
 			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 			return w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex)
-		})
+		}, stats)
+		recordSchedulerStats(w.metrics, w.sendMetricLabels(phase), stats)
+		return err
 	}
 	for localOffset := 0; localOffset < totalMessages; localOffset++ {
 		select {
@@ -383,7 +386,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 	senderUID := w.senderUID(ch, messageIndex)
 	sender := w.clients[senderUID]
 	payload := w.buildPayload(phase, channelIndex, messageIndex)
-	clientSeq := uint64(messageIndex)
+	clientSeq := nextSendClientSeq(sender, uint64(messageIndex))
 	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
 		ClientSeq:   clientSeq,
@@ -395,15 +398,28 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 
 	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
+	unlockSendack, err := lockSendackOperation(ctx, sender)
+	if err != nil {
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("group_send_error", err)
+			w.metrics.IncCounter("group_send_error_total", sendLabels)
+		}
+		return sessionOperationError(senderUID, "group sendack lock", err)
+	}
+	defer unlockSendack()
 	if err := sender.Send(ctx, pkt); err != nil {
-		w.recordError("group_send_error", err)
-		w.metrics.IncCounter("group_send_error_total", sendLabels)
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("group_send_error", err)
+			w.metrics.IncCounter("group_send_error_total", sendLabels)
+		}
 		return sessionOperationError(senderUID, "group send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
-		w.recordError("group_send_error", err)
-		w.metrics.IncCounter("group_send_error_total", sendLabels)
+		if shouldRecordPhaseOperationError(ctx, err) {
+			w.recordError("group_send_error", err)
+			w.metrics.IncCounter("group_send_error_total", sendLabels)
+		}
 		return sessionOperationError(senderUID, "group sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -772,16 +788,10 @@ func (w *GroupWorkload) waitForSendack(ctx context.Context, client PersonClient,
 	defer cancel()
 	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		ack, ok := f.(*frame.SendackPacket)
-		if !ok {
-			return false
-		}
-		return ack.ClientSeq == clientSeq && ack.ClientMsgNo == clientMsgNo
+		return ok && matchesExpectedSendack(ack, clientSeq, clientMsgNo)
 	})
 	if err != nil {
-		if err == io.EOF {
-			return nil, fmt.Errorf("group workload: sendack not received for %q: %w", clientMsgNo, err)
-		}
-		return nil, err
+		return nil, fmt.Errorf("group workload: sendack not received for %q: %w", clientMsgNo, err)
 	}
 	return f.(*frame.SendackPacket), nil
 }

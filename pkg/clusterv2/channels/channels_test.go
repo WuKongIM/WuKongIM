@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -72,6 +73,37 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 	if meta.MinISR != 2 || !meta.LeaseUntil.Equal(leaseUntil) || meta.Status != ch.StatusActive {
 		t.Fatalf("meta quorum/lease/status = %#v", meta)
 	}
+}
+
+func TestServicePassesAppendBatchTuningToRuntime(t *testing.T) {
+	id := ch.ChannelID{ID: "batch-tuning", Type: 1}
+	meta := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+	}
+	service, err := NewService(Config{
+		LocalNode:             1,
+		Store:                 channelstore.NewMemoryFactory(),
+		MetaSource:            NewStaticMetaSource([]ch.Meta{meta}),
+		ReactorCount:          1,
+		AppendBatchMaxRecords: 10,
+		AppendBatchMaxWait:    time.Hour,
+	})
+	require.NoError(t, err)
+	defer service.Close()
+	require.NoError(t, service.ApplyMeta(meta))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err = service.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("wait-for-batch")}})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestSlotMetaSourceEnsuresExistingRuntimeMeta(t *testing.T) {
@@ -792,7 +824,7 @@ func TestServiceInvalidatesAppendMetaCacheAndRetriesOnce(t *testing.T) {
 }
 
 func TestServiceInvalidatesAppendMetaCacheOnRetryableErrors(t *testing.T) {
-	for _, retryErr := range []error{ch.ErrNotLeader, ch.ErrNotReady, ch.ErrChannelNotFound} {
+	for _, retryErr := range []error{ch.ErrNotLeader, ch.ErrNotReady, ch.ErrChannelNotFound, ch.ErrNotReplica} {
 		t.Run(retryErr.Error(), func(t *testing.T) {
 			id := ch.ChannelID{ID: "retryable", Type: 1}
 			stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
@@ -811,6 +843,24 @@ func TestServiceInvalidatesAppendMetaCacheOnRetryableErrors(t *testing.T) {
 			require.Equal(t, 3, runtime.appendCalls)
 		})
 	}
+}
+
+func TestServiceInvalidatesAppendMetaCacheOnTextualRetryableErrors(t *testing.T) {
+	id := ch.ChannelID{ID: "textual-retryable", Type: 1}
+	stale := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	fresh := stale
+	fresh.LeaderEpoch = 2
+	source := &countingMetaSource{metas: []ch.Meta{stale, fresh}}
+	runtime := &retryableOnceRuntime{err: errors.New(ch.ErrNotReplica.Error()), result: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 3}}}}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("warm")}}})
+	require.NoError(t, err)
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("retry")}}})
+	require.NoError(t, err)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 3, runtime.appendCalls)
 }
 
 func TestServiceDoesNotCacheInvalidAppendMeta(t *testing.T) {

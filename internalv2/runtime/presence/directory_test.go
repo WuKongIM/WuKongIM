@@ -342,8 +342,25 @@ func TestDirectoryRouteRevisionUpdatePreservesAuthorityState(t *testing.T) {
 	if len(routes) != 1 || routes[0].SessionID != route.SessionID {
 		t.Fatalf("routes = %#v, want existing route preserved", routes)
 	}
-	if _, err := dir.EndpointsByUID(first, "u1"); !errors.Is(err, ErrNotLeader) {
-		t.Fatalf("EndpointsByUID(old revision) error = %v, want ErrNotLeader", err)
+	if routes, err := dir.EndpointsByUID(first, "u1"); err != nil || len(routes) != 1 {
+		t.Fatalf("EndpointsByUID(old revision) routes=%#v error=%v, want preserved route", routes, err)
+	}
+	lateRoute := Route{UID: "u2", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 11, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
+	if _, err := dir.RegisterRoute(first, lateRoute); err != nil {
+		t.Fatalf("RegisterRoute(old revision same epoch) error = %v", err)
+	}
+}
+
+func TestDirectoryAcceptsSameEpochTargetBeforeRevisionUpdateEvent(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	current := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	next := current
+	next.RouteRevision = 2
+	dir.BecomeAuthority(current)
+
+	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
+	if _, err := dir.RegisterRoute(next, route); err != nil {
+		t.Fatalf("RegisterRoute(new revision same epoch before BecomeAuthority) error = %v", err)
 	}
 }
 

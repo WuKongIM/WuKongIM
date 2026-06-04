@@ -183,8 +183,9 @@ func TestHandlePullHintBootstrapsFollowerWithNeedMeta(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(0), resolver.calls.Load())
 	require.Eventually(t, func() bool {
-		return net.PullCalls() == 1 && net.LastPull().NeedMeta
+		return net.NeedMetaPullCalls() >= 1
 	}, time.Second, time.Millisecond)
+	require.Equal(t, meta.Key, net.LastNeedMetaPull().ChannelKey)
 
 	require.Eventually(t, func() bool {
 		loaded, err := svc.group.HasChannelState(context.Background(), meta.Key)
@@ -591,10 +592,12 @@ func (r *failingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.Chan
 }
 
 type serviceCaptureTransport struct {
-	mu       sync.Mutex
-	pulls    int
-	lastPull transport.PullRequest
-	pullResp transport.PullResponse
+	mu               sync.Mutex
+	pulls            int
+	needMetaPulls    int
+	lastPull         transport.PullRequest
+	lastNeedMetaPull transport.PullRequest
+	pullResp         transport.PullResponse
 }
 
 func newServiceCaptureTransport() *serviceCaptureTransport {
@@ -605,6 +608,10 @@ func (t *serviceCaptureTransport) Pull(ctx context.Context, node ch.NodeID, req 
 	t.mu.Lock()
 	t.pulls++
 	t.lastPull = req
+	if req.NeedMeta {
+		t.needMetaPulls++
+		t.lastNeedMetaPull = req
+	}
 	resp := t.pullResp
 	t.mu.Unlock()
 	if resp.ChannelKey == "" {
@@ -641,6 +648,18 @@ func (t *serviceCaptureTransport) LastPull() transport.PullRequest {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.lastPull
+}
+
+func (t *serviceCaptureTransport) NeedMetaPullCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.needMetaPulls
+}
+
+func (t *serviceCaptureTransport) LastNeedMetaPull() transport.PullRequest {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastNeedMetaPull
 }
 
 func awaitServiceTick(t *testing.T, cluster *cluster, key ch.ChannelKey, now time.Time) bool {

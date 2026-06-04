@@ -194,6 +194,8 @@ messages:
     - name: hot-group-send
       channel_ref: group-hot
       rate_per_channel: 5/s
+      ack_timeout: 10s
+      recv_timeout: 11s
       sender_pick: random_online
       recv_ack: true
       verify:
@@ -231,6 +233,8 @@ messages:
 	require.Equal(t, 256, scenario.Messages.Payload.SizeBytes)
 	require.Len(t, scenario.Messages.Traffic, 1)
 	require.Equal(t, 5.0, scenario.Messages.Traffic[0].RatePerChannel.PerSecond)
+	require.Equal(t, 10*time.Second, scenario.Messages.Traffic[0].AckTimeout)
+	require.Equal(t, 11*time.Second, scenario.Messages.Traffic[0].RecvTimeout)
 	require.Equal(t, 3, scenario.Messages.Traffic[0].Verify.Recv.SampleSizePerMessage)
 }
 

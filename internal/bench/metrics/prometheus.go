@@ -52,6 +52,32 @@ type WukongIMV2Attribution struct {
 	GatewayQueueRatio                               float64
 	GatewayDispatchWaitP99Seconds                   float64
 	GatewayBatchRecordsP50                          float64
+	GatewaySendackSystemErrorCount                  float64
+	GatewaySendackSingleErrorCount                  float64
+	GatewaySendackSingleMissingRequestContextCount  float64
+	GatewaySendackBatchPrecheckCount                float64
+	GatewaySendackBatchMissingRequestContextCount   float64
+	GatewaySendackBatchResultErrorCount             float64
+	GatewaySendackBatchResultTimeoutCount           float64
+	GatewaySendackBatchResultCanceledCount          float64
+	GatewaySendackBatchResultOtherCount             float64
+	GatewaySendackBatchFallbackErrorCount           float64
+	MessageAppendErrorCount                         float64
+	MessageAppendBackpressuredErrCount              float64
+	MessageAppendRouteNotReadyErrCount              float64
+	MessageAppendStaleRouteErrCount                 float64
+	MessageAppendNotLeaderErrCount                  float64
+	MessageAppendChannelNotFoundErrCount            float64
+	MessageAppendShortResultErrCount                float64
+	MessageAppendInvalidConfigErrCount              float64
+	MessageAppendClosedErrCount                     float64
+	MessageAppendTooManyChannelsErrCount            float64
+	MessageAppendNotStartedErrCount                 float64
+	MessageAppendCanceledErrCount                   float64
+	MessageAppendTimeoutErrCount                    float64
+	MessageAppendAppendFailedErrCount               float64
+	MessageAppendRemoteErrCount                     float64
+	MessageAppendOtherErrCount                      float64
 	ControllerRaftStepQueueDepth                    float64
 	ControllerRaftStepQueueCapacity                 float64
 	ControllerRaftStepQueueRatio                    float64
@@ -278,6 +304,32 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 	report.GatewayDispatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_gateway_async_send_dispatch_wait_duration_seconds")
 	report.GatewayBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_gateway_async_send_batch_records")
+	report.GatewaySendackSystemErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"reason": "system_error"})
+	report.GatewaySendackSingleErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "single_error"})
+	report.GatewaySendackSingleMissingRequestContextCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "single_missing_request_context"})
+	report.GatewaySendackBatchPrecheckCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_precheck"})
+	report.GatewaySendackBatchMissingRequestContextCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_missing_request_context"})
+	report.GatewaySendackBatchResultErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_result_error"})
+	report.GatewaySendackBatchResultTimeoutCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_result_error", "class": "timeout"})
+	report.GatewaySendackBatchResultCanceledCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_result_error", "class": "canceled"})
+	report.GatewaySendackBatchResultOtherCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_result_error", "class": "other"})
+	report.GatewaySendackBatchFallbackErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "batch_fallback_error"})
+	report.MessageAppendErrorCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", nil)
+	report.MessageAppendBackpressuredErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "backpressured"})
+	report.MessageAppendRouteNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "route_not_ready"})
+	report.MessageAppendStaleRouteErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "stale_route"})
+	report.MessageAppendNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "not_leader"})
+	report.MessageAppendChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "channel_not_found"})
+	report.MessageAppendShortResultErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "short_result"})
+	report.MessageAppendInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "invalid_config"})
+	report.MessageAppendClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "closed"})
+	report.MessageAppendTooManyChannelsErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "too_many_channels"})
+	report.MessageAppendNotStartedErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "not_started"})
+	report.MessageAppendCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "canceled"})
+	report.MessageAppendTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "timeout"})
+	report.MessageAppendAppendFailedErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "append_failed"})
+	report.MessageAppendRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "remote_error"})
+	report.MessageAppendOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_message_append_errors_total", map[string]string{"class": "other"})
 
 	report.ControllerRaftStepQueueDepth, _ = after.maxGauge("wukongim_controller_raft_step_queue_depth")
 	report.ControllerRaftStepQueueCapacity, _ = after.maxGauge("wukongim_controller_raft_step_queue_capacity")
@@ -389,6 +441,57 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.GatewayDispatchWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
 		gatewayPressure = true
 		report.Reasons = append(report.Reasons, "gateway async SEND dispatch wait p99 is high")
+	}
+	if report.GatewaySendackSystemErrorCount > 0 {
+		report.Reasons = append(report.Reasons, "gateway system-error sendacks were observed")
+	}
+	if report.MessageAppendErrorCount > 0 {
+		report.Reasons = append(report.Reasons, "message append errors were observed")
+	}
+	if report.MessageAppendBackpressuredErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append backpressured errors were observed")
+	}
+	if report.MessageAppendRouteNotReadyErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append route_not_ready errors were observed")
+	}
+	if report.MessageAppendStaleRouteErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append stale_route errors were observed")
+	}
+	if report.MessageAppendNotLeaderErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append not_leader errors were observed")
+	}
+	if report.MessageAppendChannelNotFoundErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append channel_not_found errors were observed")
+	}
+	if report.MessageAppendShortResultErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append short_result errors were observed")
+	}
+	if report.MessageAppendInvalidConfigErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append invalid_config errors were observed")
+	}
+	if report.MessageAppendClosedErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append closed errors were observed")
+	}
+	if report.MessageAppendTooManyChannelsErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append too_many_channels errors were observed")
+	}
+	if report.MessageAppendNotStartedErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append not_started errors were observed")
+	}
+	if report.MessageAppendCanceledErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append canceled errors were observed")
+	}
+	if report.MessageAppendTimeoutErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append timeout errors were observed")
+	}
+	if report.MessageAppendAppendFailedErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append append_failed errors were observed")
+	}
+	if report.MessageAppendRemoteErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append remote errors were observed")
+	}
+	if report.MessageAppendOtherErrCount > 0 {
+		report.Reasons = append(report.Reasons, "message append other errors were observed")
 	}
 
 	controllerPressure := false

@@ -371,6 +371,52 @@ func TestWorkerDefaultRunnerStartsAutoRecvAckDrain(t *testing.T) {
 	require.Equal(t, []workerRecvAckCall{{messageID: 88, messageSeq: 9}}, recipient.recvAckSnapshot())
 }
 
+func TestWorkerDefaultRunnerStartsRecvDrainWithoutRecvAck(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	pool.initialFrames = map[string][]frame.Frame{
+		"bench-u-7": {
+			&frame.RecvPacket{MessageID: 89, MessageSeq: 10, ClientMsgNo: "msg-drain"},
+		},
+	}
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic[0].RecvAck = false
+	assignment.Scenario.Messages.Traffic[0].Verify.Recv.Mode = "none"
+
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+	recipient := pool.client("bench-u-7")
+	require.Eventually(t, func() bool {
+		return recipient.readFrameCount() == 0
+	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, recipient.recvAckSnapshot())
+}
+
+func TestWorkerDefaultRunnerStartsRecvDrainOnlyForTrafficUsers(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	pool.initialFrames = map[string][]frame.Frame{
+		"bench-u-1": {
+			&frame.RecvPacket{MessageID: 90, MessageSeq: 11, ClientMsgNo: "msg-member"},
+		},
+		"bench-u-99": {
+			&frame.RecvPacket{MessageID: 91, MessageSeq: 12, ClientMsgNo: "msg-idle"},
+		},
+	}
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := idleHeavyGroupAssignment()
+
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+
+	member := pool.client("bench-u-1")
+	require.NotNil(t, member)
+	require.Eventually(t, func() bool {
+		return member.readFrameCount() == 0
+	}, time.Second, 10*time.Millisecond)
+
+	idle := pool.client("bench-u-99")
+	require.NotNil(t, idle)
+	require.Equal(t, 1, idle.readFrameCount())
+}
+
 func TestWorkerAutoRecvAckDropsFramesWhenRecvVerificationDisabled(t *testing.T) {
 	assignment := personShardAssignment()
 	assignment.Scenario.Messages.Traffic[0].RecvAck = true
@@ -379,6 +425,19 @@ func TestWorkerAutoRecvAckDropsFramesWhenRecvVerificationDisabled(t *testing.T) 
 	opts := autoRecvAckOptionsForAssignment(assignment)
 
 	require.False(t, opts.BufferRecvFrames)
+	require.False(t, opts.DisableRecvAck)
+}
+
+func TestWorkerAutoRecvDrainDisablesAckWhenRecvAckDisabled(t *testing.T) {
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic[0].RecvAck = false
+	assignment.Scenario.Messages.Traffic[0].Verify.Recv.Mode = "none"
+
+	opts := autoRecvAckOptionsForAssignment(assignment)
+
+	require.False(t, opts.BufferRecvFrames)
+	require.True(t, opts.DisableRecvAck)
+	require.True(t, assignmentWantsRecvDrain(assignment))
 }
 
 func TestWorkerAutoRecvAckBuffersFramesWhenAnyTrafficVerifiesRecv(t *testing.T) {
@@ -389,6 +448,7 @@ func TestWorkerAutoRecvAckBuffersFramesWhenAnyTrafficVerifiesRecv(t *testing.T) 
 	opts := autoRecvAckOptionsForAssignment(assignment)
 
 	require.True(t, opts.BufferRecvFrames)
+	require.False(t, opts.DisableRecvAck)
 }
 
 func TestWorkerDefaultRunnerConnectsAssignedIdentityRange(t *testing.T) {
@@ -706,6 +766,27 @@ func TestBuildGroupWorkloadsUsesTrafficRatePerStream(t *testing.T) {
 		require.NoError(t, wl.Run(context.Background()))
 	}
 	require.Len(t, clients["bench-u-0"].(*workerPersonClient).sentFrames, 2)
+}
+
+func TestBuildGroupWorkloadsAppliesTrafficAckTimeout(t *testing.T) {
+	assignment := groupShardAssignment("http://target.invalid")
+	assignment.Scenario.Run.Duration = time.Second
+	assignment.Scenario.Messages.Traffic = []model.TrafficConfig{
+		{Name: "group-send", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 1}, AckTimeout: 25 * time.Millisecond},
+	}
+	clients := map[string]benchworkload.PersonClient{
+		"bench-u-0": &deadlineObservingPersonClient{observed: make(chan time.Duration, 1)},
+		"bench-u-1": &workerPersonClient{},
+		"bench-u-2": &workerPersonClient{},
+		"bench-u-3": &workerPersonClient{},
+	}
+
+	workloads, err := buildGroupWorkloads(assignment, groupBundlesForTest(t, assignment), clients)
+	require.NoError(t, err)
+
+	require.Error(t, workloads[0].Run(context.Background()))
+	observed := <-clients["bench-u-0"].(*deadlineObservingPersonClient).observed
+	require.Less(t, observed, 100*time.Millisecond)
 }
 
 func TestWorkerDefaultRunnerUsesChannelOwnersForHugeGroupPrepare(t *testing.T) {
@@ -1027,6 +1108,45 @@ func connectionOnlyAssignment(duration time.Duration) Assignment {
 	}
 }
 
+func idleHeavyGroupAssignment() Assignment {
+	return Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name:        "group-a",
+				ChannelType: model.ChannelTypeGroup,
+				Count:       1,
+				Members:     model.MembersConfig{Count: 2, Overlap: "disallowed"},
+				Online:      model.ChannelOnlineConfig{MemberRatio: 1},
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{
+				Name:       "group-send",
+				ChannelRef: "group-a",
+				RecvAck:    false,
+				Verify:     model.VerifyConfig{Recv: model.RecvVerifyConfig{Mode: "none"}},
+			}}},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID:      "worker-a",
+			IdentityRange: model.Range{Start: 0, End: 100},
+			Profiles: map[string]model.ProfileShard{
+				"group-a": {
+					Name:              "group-a",
+					ChannelType:       model.ChannelTypeGroup,
+					ChannelRange:      model.Range{Start: 0, End: 1},
+					MemberRange:       model.Range{Start: 0, End: 2},
+					MemberReusePolicy: "disallowed",
+				},
+			},
+		},
+	}
+}
+
 func groupBundlesForTest(t *testing.T, assignment Assignment) []groupWorkloadBundle {
 	t.Helper()
 	plan, err := buildGroupExecutionPlan(assignment)
@@ -1207,6 +1327,7 @@ type workerPersonClient struct {
 	sentFrames   []*frame.SendPacket
 	readFrames   []frame.Frame
 	recvAckCalls []workerRecvAckCall
+	notify       chan struct{}
 	pingCalls    atomic.Int32
 }
 
@@ -1219,25 +1340,63 @@ type workerRecvAckCall struct {
 	messageSeq uint64
 }
 
+type deadlineObservingPersonClient struct {
+	workerPersonClient
+	observed chan time.Duration
+}
+
+func (c *deadlineObservingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	deadline, ok := ctx.Deadline()
+	if ok {
+		c.observed <- time.Until(deadline)
+	} else {
+		c.observed <- time.Hour
+	}
+	return nil, context.DeadlineExceeded
+}
+
 func (c *workerPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
 	c.connected = append(c.connected, workerConnectCall{uid: uid, deviceID: deviceID})
 	return nil
 }
 
 func (c *workerPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	cloned := *pkt
 	c.sentFrames = append(c.sentFrames, &cloned)
 	c.readFrames = append(c.readFrames, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
+	c.signalLocked()
 	return nil
 }
 
 func (c *workerPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
-	if len(c.readFrames) == 0 {
-		return nil, io.EOF
+	for {
+		c.mu.Lock()
+		if len(c.readFrames) > 0 {
+			f := c.readFrames[0]
+			c.readFrames = c.readFrames[1:]
+			c.mu.Unlock()
+			return f, nil
+		}
+		if c.closed > 0 {
+			c.mu.Unlock()
+			return nil, io.EOF
+		}
+		notify := c.notifyLocked()
+		c.mu.Unlock()
+		select {
+		case <-notify:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
-	f := c.readFrames[0]
-	c.readFrames = c.readFrames[1:]
-	return f, nil
+}
+
+func (c *workerPersonClient) readFrameCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.readFrames)
 }
 
 func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
@@ -1265,8 +1424,26 @@ func (c *workerPersonClient) Ping(ctx context.Context) error {
 }
 
 func (c *workerPersonClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.closed++
+	c.signalLocked()
 	return nil
+}
+
+func (c *workerPersonClient) notifyLocked() <-chan struct{} {
+	if c.notify == nil {
+		c.notify = make(chan struct{})
+	}
+	return c.notify
+}
+
+func (c *workerPersonClient) signalLocked() {
+	if c.notify == nil {
+		return
+	}
+	close(c.notify)
+	c.notify = make(chan struct{})
 }
 
 var _ benchworkload.PersonClient = (*workerPersonClient)(nil)

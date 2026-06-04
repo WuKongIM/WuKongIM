@@ -6,6 +6,9 @@
 reactor goroutine is the writer for each loaded channel runtime. Blocking store
 and RPC work leaves the reactor through bounded worker pools and returns as
 fenced worker completions.
+Store append and follower apply pools default to twice the reactor count because
+quorum traffic produces both leader appends and follower apply work; read and
+RPC pools default to the reactor count unless explicitly configured.
 
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
@@ -106,6 +109,9 @@ validates the current role, channel id, epoch, leader epoch, follower replica,
 and range. Empty caught-up responses may pace the follower or offer
 `PullControlStop` when idle eviction guards pass. Leader-visible follower state
 used by these guards lives under `channelRuntimeLifecycle`.
+Leader-side `EventPull` uses the high-priority mailbox so quorum follower pulls
+can still reach the leader while foreground append submissions are pressuring
+the normal-priority queue.
 
 ```text
 remote follower stopped Ack RPC
@@ -142,8 +148,13 @@ tickFollowerReplication
 
 The follower keeps at most one pull RPC, one pending pull response, one store
 apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
-apply schedules the next pull immediately so the follower's latest local LEO is
-piggybacked as `AckOffset`.
+apply directly drives the next pull, instead of waiting for the due scheduler, so
+the follower's latest local LEO is promptly piggybacked as `AckOffset`.
+When the leader serves records to a follower that is still behind, it schedules a
+bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
+resume hint, and the append hot path opportunistically sends it when the retry is
+already due, so hot mailboxes do not starve follower wakeups. A later `AckOffset`
+that catches up to the leader LEO retires the hint state.
 
 Follower replication stage metrics use `wukongim_channelv2_replication_stage_duration_seconds`
 with low-cardinality `stage/result` labels. `follower_pull_hint_to_submit`
@@ -189,7 +200,8 @@ When a follower observes an empty pull response and both `LeaderLEO` and the
 latest hinted leader LEO are covered by local LEO, it enters parked state.
 Parked followers do not schedule ordinary idle pulls. A valid PullHint clears the
 parked state and schedules immediate pull; otherwise a deterministic jittered
-recovery probe runs at the configured low-frequency interval.
+recovery probe runs at the configured send-timeout-bounded interval. The runtime
+default is 2s plus up to 1s jitter.
 
 ## Worker Completion Routing
 
@@ -215,6 +227,11 @@ the leader first serves records covering the append target to a follower,
 `quorum_ack_offset_wait` observes when the leader receives an `AckOffset`
 covering the target, `quorum_hw_advance_wait` observes HW covering the target,
 and `quorum_final_complete_wait` observes HW coverage through future completion.
+Caller cancellation after append admission emits `AppendWaitCancelSnapshot`
+before removing the waiter from reactor and machine state. This diagnostic is
+not a high-cardinality metric; app-level observers can log it on rare timeout
+paths to preserve the exact LEO/HW/target, queue, in-flight, and quorum progress
+state that normal latency histograms cannot show.
 
 ## Bench Runtime Events
 

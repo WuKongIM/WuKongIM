@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -13,6 +14,8 @@ import (
 )
 
 const deliveryMetaMutationConcurrency = 32
+const deliveryMetaSubscriberCacheMaxChannels = 4096
+const deliveryMetaSubscriberCacheLoadPageSize = 1024
 
 type deliveryMetaNode interface {
 	Snapshot() clusterv2.Snapshot
@@ -26,6 +29,9 @@ type deliveryMetaStore struct {
 	// node owns the real replicated Slot metadata store.
 	node    deliveryMetaNode
 	version atomic.Uint64
+
+	mu              sync.RWMutex
+	subscriberCache map[deliveryMetaSubscriberKey]deliveryMetaSubscriberCacheEntry
 }
 
 func newDeliveryMetaStore(node deliveryMetaNode) *deliveryMetaStore {
@@ -59,6 +65,11 @@ func (s *deliveryMetaStore) UpsertChannels(ctx context.Context, mutations []acce
 type deliveryMetaSubscriberKey struct {
 	channelID   string
 	channelType uint8
+}
+
+type deliveryMetaSubscriberCacheEntry struct {
+	version uint64
+	uids    []string
 }
 
 func (s *deliveryMetaStore) AddSubscribers(ctx context.Context, mutations []accessapi.BenchSubscriberMutation) (int, error) {
@@ -158,27 +169,90 @@ func (s *deliveryMetaStore) ListSubscribers(ctx context.Context, req runtimedeli
 	if limit <= 0 {
 		limit = 1
 	}
-	cursor := req.Cursor
-	out := make([]string, 0, limit)
-	for len(out) < limit {
-		remaining := limit - len(out)
-		uids, nextCursor, done, err := s.node.ListChannelSubscribersPage(ctx, req.ChannelID, int64(req.ChannelType), cursor, remaining)
+	key := deliveryMetaSubscriberKey{channelID: req.ChannelID, channelType: req.ChannelType}
+	snapshot, err := s.subscriberSnapshot(ctx, key)
+	if err != nil {
+		return runtimedelivery.UIDPage{}, err
+	}
+	filtered := s.filterPartition(snapshot, req.Partition)
+	return subscriberPageFromSnapshot(filtered, req.Cursor, limit)
+}
+
+func (s *deliveryMetaStore) subscriberSnapshot(ctx context.Context, key deliveryMetaSubscriberKey) ([]string, error) {
+	version := s.version.Load()
+	if uids, ok := s.cachedSubscribers(key, version); ok {
+		return uids, nil
+	}
+	uids, err := s.loadSubscriberSnapshot(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return s.storeSubscriberSnapshot(key, version, uids), nil
+}
+
+func (s *deliveryMetaStore) cachedSubscribers(key deliveryMetaSubscriberKey, version uint64) ([]string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry, ok := s.subscriberCache[key]
+	if !ok || entry.version != version {
+		return nil, false
+	}
+	return entry.uids, true
+}
+
+func (s *deliveryMetaStore) storeSubscriberSnapshot(key deliveryMetaSubscriberKey, version uint64, uids []string) []string {
+	snapshot := append([]string(nil), uids...)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.subscriberCache == nil {
+		s.subscriberCache = make(map[deliveryMetaSubscriberKey]deliveryMetaSubscriberCacheEntry)
+	}
+	if _, ok := s.subscriberCache[key]; !ok && len(s.subscriberCache) >= deliveryMetaSubscriberCacheMaxChannels {
+		s.subscriberCache = make(map[deliveryMetaSubscriberKey]deliveryMetaSubscriberCacheEntry)
+	}
+	s.subscriberCache[key] = deliveryMetaSubscriberCacheEntry{version: version, uids: snapshot}
+	return snapshot
+}
+
+func (s *deliveryMetaStore) loadSubscriberSnapshot(ctx context.Context, key deliveryMetaSubscriberKey) ([]string, error) {
+	var out []string
+	cursor := ""
+	for {
+		uids, nextCursor, done, err := s.node.ListChannelSubscribersPage(ctx, key.channelID, int64(key.channelType), cursor, deliveryMetaSubscriberCacheLoadPageSize)
 		if err != nil {
-			return runtimedelivery.UIDPage{}, err
+			return nil, err
 		}
-		out = append(out, s.filterPartition(uids, req.Partition)...)
-		if len(out) > limit {
-			out = out[:limit]
-		}
+		out = append(out, uids...)
 		if done {
-			return runtimedelivery.UIDPage{UIDs: out, Done: true}, nil
+			return out, nil
 		}
 		if nextCursor == "" || nextCursor == cursor {
-			return runtimedelivery.UIDPage{}, runtimedelivery.ErrInvalidSubscriberCursor
+			return nil, runtimedelivery.ErrInvalidSubscriberCursor
 		}
 		cursor = nextCursor
 	}
-	return runtimedelivery.UIDPage{UIDs: out, NextCursor: cursor}, nil
+}
+
+func subscriberPageFromSnapshot(uids []string, cursor string, limit int) (runtimedelivery.UIDPage, error) {
+	start := 0
+	if cursor != "" {
+		offset, err := strconv.Atoi(cursor)
+		if err != nil || offset < 0 {
+			return runtimedelivery.UIDPage{}, runtimedelivery.ErrInvalidSubscriberCursor
+		}
+		start = offset
+	}
+	if start >= len(uids) {
+		return runtimedelivery.UIDPage{Done: true}, nil
+	}
+	end := start + limit
+	if end >= len(uids) {
+		return runtimedelivery.UIDPage{UIDs: append([]string(nil), uids[start:]...), Done: true}, nil
+	}
+	return runtimedelivery.UIDPage{
+		UIDs:       append([]string(nil), uids[start:end]...),
+		NextCursor: strconv.Itoa(end),
+	}, nil
 }
 
 func (s *deliveryMetaStore) filterPartition(uids []string, partition runtimedelivery.Partition) []string {

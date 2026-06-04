@@ -39,8 +39,8 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
-     and delivery committed sink only when delivery is enabled and messages
-     were not overridden
+     delivery committed sink, and append metrics observer only when delivery is
+     enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server with optional bench presence snapshot controller
      and real benchmark channel/subscriber data writer when API.ListenAddr is configured
@@ -59,6 +59,12 @@ fanout failures are counted with normalized delivery error classes. Retryable
 fanout failures enter a bounded in-memory retry scheduler with a small fixed
 attempt cap; retry queue overflow is surfaced as `queue_full`. Owner-local
 pushes write `RecvPacket` values through `online.SessionHandle.WriteDelivery`.
+Each owner push snapshots the immutable envelope payload once and reuses that
+snapshot across recipient packets; closed-session and outbound-overflow write
+errors are terminal drops, while unknown write errors remain retryable. The same
+message observer records per-message append success/error latency and classifies
+append failures with low-cardinality labels for benchmark triage, including
+typed ChannelV2/cluster errors and short append results.
 
 The delivery adapter scopes unscoped person-channel committed events to the two
 channel participants before they enter runtime partition planning. This keeps a
@@ -71,10 +77,12 @@ when the cluster runtime exposes it. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation
-order within the same channel. Group fanout then pages the real channel
-subscriber table and filters UIDs by the task's UID hash-slot partition before
-presence resolution. Scoped UID delivery still bypasses subscriber scan and
-flows through presence resolution plus the local or RPC owner pusher.
+order within the same channel. Group fanout then pages a cached channel
+subscriber snapshot backed by the real subscriber table and filters UIDs by the
+task's UID hash-slot partition before presence resolution; subscriber mutations
+advance the cache version and force a fresh snapshot. Scoped UID delivery still
+bypasses subscriber scan and flows through presence resolution plus the local or
+RPC owner pusher.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
@@ -85,6 +93,12 @@ owner node. Runtime fanout task, resolve, and push observations are translated
 by app-level metrics adapters; retry enqueue, attempt, drop, and queue-depth
 observations use the same adapter. The delivery runtime itself stays
 independent from Prometheus.
+
+The ChannelV2 metrics observer also logs rare admitted-append cancellation
+snapshots emitted by the reactor. These lines include the channel key, op id,
+commit mode, LEO/HW/target offset, queue and in-flight counts, and quorum
+progress flags so benchmark timeout triage can identify the stuck append phase
+without adding high-cardinality Prometheus labels.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

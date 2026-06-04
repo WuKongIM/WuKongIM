@@ -37,6 +37,9 @@ WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 # 0 preserves unlimited behavior; set a positive per-node budget to fail closed
 # before channel runtime goroutines grow unbounded.
 WK_CLUSTER_MAX_CHANNELS=0
+# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 # Evicts cold local channel runtimes after this idle duration. 0 disables eviction;
 # enable together with WK_CLUSTER_MAX_CHANNELS to keep long-lived working sets bounded.
 WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=0
