@@ -127,7 +127,10 @@ When the three-node helper script captures before/after Prometheus snapshots,
 `wkbench metrics classify` reports gateway dispatch wait, message append error
 classes such as route-not-ready, short-result, invalid-config, and timeout,
 ControllerV2 Raft Step queue/enqueue pressure, ChannelV2 append and
-cold-activation stages, and storage commit p99s. The 10,000-channel helper also
+cold-activation stages, worker queue/current in-flight/peak in-flight by pool,
+and storage commit request p99/tail counts by `leader_append` /
+`follower_apply` lane plus batch p99s. The
+10,000-channel helper also
 fails the run when the
 classification cannot prove a healthy ChannelV2 bootstrap: PendingMeta must
 drain to zero with no releases, NeedMeta submitted and ok counts must match
@@ -142,7 +145,9 @@ zero. ChannelV2 high-level stage labels include `meta_resolve`,
 `quorum_hw_advance_wait`, and `quorum_final_complete_wait`; follower replication
 metrics include `follower_pull_hint_to_submit`, `follower_pull_rpc`,
 `follower_need_meta_pull_rpc`, `follower_store_apply`, and
-`follower_apply_to_ack_return`; PendingMeta and NeedMeta counters include the
+`follower_apply_to_ack_return`, where the final label covers either the
+post-apply progress ACK RPC or the fallback Pull `AckOffset` return; PendingMeta
+and NeedMeta counters include the
 current outstanding PendingMeta gauge, created/converted/released shell counts,
 NeedMeta submitted/ok/retry/err counts, and stable NeedMeta error classes such
 as timeout and not ready; PullHint result counters include submitted, ok, total

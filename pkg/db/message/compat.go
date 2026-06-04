@@ -21,6 +21,10 @@ import (
 const (
 	defaultCommitCoordinatorFlushWindow = 200 * time.Microsecond
 	defaultCommitCoordinatorQueueSize   = 1024
+
+	commitLaneLeaderAppend  = "leader_append"
+	commitLaneFollowerApply = "follower_apply"
+	commitLaneMessageAppend = "message_append"
 )
 
 // CommitCoordinatorConfig keeps the legacy channel-store tuning surface.
@@ -61,12 +65,32 @@ type CommitCoordinatorBatchEvent struct {
 	Err error
 }
 
+// CommitCoordinatorRequestEvent describes one caller-visible commit request wait.
+type CommitCoordinatorRequestEvent struct {
+	// Lane is the low-cardinality logical commit lane name.
+	Lane string
+	// Records is the logical message record count carried by the request.
+	Records int
+	// Bytes is the approximate payload byte count carried by the request.
+	Bytes int
+	// Duration is the caller-visible time spent inside the commit coordinator.
+	Duration time.Duration
+	// Result is a low-cardinality classification of the Submit result.
+	Result string
+}
+
 // CommitCoordinatorObserver receives low-cardinality message DB group-commit measurements.
 type CommitCoordinatorObserver interface {
 	// SetCommitCoordinatorQueueDepth reports the current logical commit queue depth.
 	SetCommitCoordinatorQueueDepth(depth int)
 	// ObserveCommitCoordinatorBatch reports one grouped physical commit attempt.
 	ObserveCommitCoordinatorBatch(event CommitCoordinatorBatchEvent)
+}
+
+// CommitCoordinatorRequestObserver receives optional logical request wait measurements.
+type CommitCoordinatorRequestObserver interface {
+	// ObserveCommitCoordinatorRequest reports one Submit call without changing commit behavior.
+	ObserveCommitCoordinatorRequest(event CommitCoordinatorRequestEvent)
 }
 
 // Engine is the compatibility entry point used by existing channel callers.
@@ -289,6 +313,47 @@ func (a commitObserverAdapter) ObserveBatch(event commit.BatchEvent) {
 	})
 }
 
+func (a commitObserverAdapter) ObserveRequest(event commit.RequestEvent) {
+	if a.observer == nil {
+		return
+	}
+	observer, ok := a.observer.(CommitCoordinatorRequestObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveCommitCoordinatorRequest(CommitCoordinatorRequestEvent{
+		Lane:     commitCoordinatorLaneName(event.Lane),
+		Records:  event.Records,
+		Bytes:    event.Bytes,
+		Duration: event.Duration,
+		Result:   commitCoordinatorRequestResult(event.Err),
+	})
+}
+
+func commitCoordinatorLaneName(lane commit.Lane) string {
+	if lane.Name == "" {
+		return "default"
+	}
+	return lane.Name
+}
+
+func commitCoordinatorRequestResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, commit.ErrClosed):
+		return "closed"
+	case errors.Is(err, dberrors.ErrInvalidArgument):
+		return "invalid"
+	default:
+		return "err"
+	}
+}
+
 func (e *Engine) commitCoordinator() *commit.Coordinator {
 	if e == nil {
 		return nil
@@ -339,7 +404,7 @@ func (s *ChannelStore) appendRecords(ctx context.Context, records []channel.Reco
 	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
 		return 0, err
 	}
-	if err := s.commitRowsLocked(ctx, rows, nil, nil, base+uint64(len(rows))); err != nil {
+	if err := s.commitRowsLocked(ctx, rows, nil, nil, base+uint64(len(rows)), commitLaneLeaderAppend); err != nil {
 		return 0, err
 	}
 	return base, nil
@@ -654,7 +719,7 @@ func (s *ChannelStore) applyFetchedRecords(ctx context.Context, req channel.Appl
 		converted := checkpointFromChannel(*req.Checkpoint)
 		checkpoint = &converted
 	}
-	if err := s.commitRowsLocked(ctx, rows, checkpoint, point, nextLEO); err != nil {
+	if err := s.commitRowsLocked(ctx, rows, checkpoint, point, nextLEO, commitLaneFollowerApply); err != nil {
 		return 0, err
 	}
 	return nextLEO, nil
@@ -1169,12 +1234,12 @@ func (s *ChannelStore) validateRowsForAppend(ctx context.Context, rows []message
 	return nil
 }
 
-func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64) error {
+func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	if committer := s.engine.commitCoordinator(); committer != nil {
-		return s.commitRowsWithCoordinator(ctx, committer, rows, checkpoint, point, nextLEO)
+		return s.commitRowsWithCoordinator(ctx, committer, rows, checkpoint, point, nextLEO, lane)
 	}
 	batch := s.log.db.engine.NewBatch()
 	defer batch.Close()
@@ -1188,9 +1253,9 @@ func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, 
 	return nil
 }
 
-func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64) error {
+func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {
 	err := committer.Submit(ctx, commit.Request{
-		Lane:      commit.Lane{Name: "message-append", Priority: commit.PriorityHigh},
+		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
 		Partition: string(s.key),
 		Records:   len(rows),
 		Bytes:     messageRowsBytes(rows),
@@ -1206,6 +1271,13 @@ func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer 
 		return toChannelError(err)
 	}
 	return nil
+}
+
+func commitRowsLaneName(lane string) string {
+	if lane == "" {
+		return commitLaneMessageAppend
+	}
+	return lane
 }
 
 func (s *ChannelStore) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint) error {

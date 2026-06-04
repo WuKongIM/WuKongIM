@@ -119,15 +119,19 @@ func (r *Reactor) handleLeaderAck(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if !event.Ack.Stopped {
-		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
-		return
-	}
 	if rc.state.Role != ch.RoleLeader || event.Ack.ChannelKey != rc.state.Key || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
 	r.syncLeaderFollowers(rc)
+	if !event.Ack.Stopped {
+		if err := r.applyLeaderProgressAck(rc, event.Ack); err != nil {
+			event.Future.Complete(Result{Err: err})
+			return
+		}
+		event.Future.Complete(Result{})
+		return
+	}
 	if event.Ack.ActivityVersion != rc.lifecycle.version || event.Ack.MatchOffset != rc.state.LEO {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
@@ -149,6 +153,23 @@ func (r *Reactor) handleLeaderAck(event Event) {
 	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventLeaderStoppedAck, now: now})
 	r.scheduleLifecycleFromState(rc, now)
 	event.Future.Complete(Result{})
+}
+
+func (r *Reactor) applyLeaderProgressAck(rc *runtimeChannel, req transport.AckRequest) error {
+	if req.MatchOffset == 0 {
+		return nil
+	}
+	if req.MatchOffset > rc.state.LEO {
+		return ch.ErrStaleMeta
+	}
+	oldHW := rc.state.HW
+	now := time.Now()
+	r.markAppendAckOffsetObserved(rc, req.MatchOffset, now)
+	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: req.Follower, MatchOffset: req.MatchOffset})
+	r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
+	rc.lifecycle.recordFollowerProgress(req.Follower, req.MatchOffset, rc.state.LEO)
+	r.completeReplies(rc, decision.Replies, nil)
+	return nil
 }
 
 func (r *Reactor) applyLeaderPullAckOffset(rc *runtimeChannel, req transport.PullRequest) error {

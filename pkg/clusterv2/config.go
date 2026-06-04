@@ -89,6 +89,10 @@ type ChannelConfig struct {
 	ReplicaCount uint16
 	// ReactorCount is the number of ChannelV2 reactor partitions. Zero derives a CPU-aware default.
 	ReactorCount int
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
+	StoreAppendWorkers int
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
+	StoreApplyWorkers int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
@@ -193,6 +197,12 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.ReactorCount < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.StoreAppendWorkers < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.StoreApplyWorkers < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MailboxSize < 0 {

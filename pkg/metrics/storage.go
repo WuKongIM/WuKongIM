@@ -14,13 +14,16 @@ var storageStores = []string{
 	"controller_raft",
 }
 
+var storageCommitRequestDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 30}
+
 type StorageMetrics struct {
-	diskUsageBytes      *prometheus.GaugeVec
-	commitQueueDepth    *prometheus.GaugeVec
-	commitBatchRecords  *prometheus.HistogramVec
-	commitBatchBytes    *prometheus.HistogramVec
-	commitBatchRequests *prometheus.HistogramVec
-	commitBatchDuration *prometheus.HistogramVec
+	diskUsageBytes        *prometheus.GaugeVec
+	commitQueueDepth      *prometheus.GaugeVec
+	commitBatchRecords    *prometheus.HistogramVec
+	commitBatchBytes      *prometheus.HistogramVec
+	commitBatchRequests   *prometheus.HistogramVec
+	commitBatchDuration   *prometheus.HistogramVec
+	commitRequestDuration *prometheus.HistogramVec
 }
 
 // StorageCommitBatchObservation describes one grouped storage commit attempt.
@@ -33,6 +36,13 @@ type StorageCommitBatchObservation struct {
 	CommitDuration  time.Duration
 	PublishDuration time.Duration
 	TotalDuration   time.Duration
+}
+
+// StorageCommitRequestObservation describes one logical storage commit request wait.
+type StorageCommitRequestObservation struct {
+	Records  int
+	Bytes    int
+	Duration time.Duration
 }
 
 func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels) *StorageMetrics {
@@ -71,6 +81,12 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"store", "stage", "result"}),
+		commitRequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_storage_commit_request_duration_seconds",
+			Help:        "Caller-visible logical storage commit request latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     storageCommitRequestDurationBuckets,
+		}, []string{"store", "lane", "result"}),
 	}
 
 	registry.MustRegister(
@@ -80,6 +96,7 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.commitBatchRecords,
 		m.commitBatchBytes,
 		m.commitBatchDuration,
+		m.commitRequestDuration,
 	)
 
 	for _, store := range storageStores {
@@ -135,4 +152,20 @@ func (m *StorageMetrics) ObserveCommitBatch(store string, result string, obs Sto
 	m.commitBatchDuration.WithLabelValues(store, "commit", result).Observe(obs.CommitDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "publish", result).Observe(obs.PublishDuration.Seconds())
 	m.commitBatchDuration.WithLabelValues(store, "total", result).Observe(obs.TotalDuration.Seconds())
+}
+
+func (m *StorageMetrics) ObserveCommitRequest(store string, lane string, result string, obs StorageCommitRequestObservation) {
+	if m == nil {
+		return
+	}
+	if store == "" {
+		store = "unknown"
+	}
+	if lane == "" {
+		lane = "default"
+	}
+	if result == "" {
+		result = "unknown"
+	}
+	m.commitRequestDuration.WithLabelValues(store, lane, result).Observe(obs.Duration.Seconds())
 }

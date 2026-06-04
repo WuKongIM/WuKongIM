@@ -614,6 +614,11 @@ wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_apply"} 0
+wukongim_channelv2_worker_inflight{pool="store_append"} 0
+wukongim_channelv2_worker_inflight{pool="store_apply"} 0
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 0
+wukongim_channelv2_worker_inflight_peak{pool="store_apply"} 0
 wukongim_storage_commit_queue_depth{store="message"} 0
 wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 0
 wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 0
@@ -621,6 +626,18 @@ wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 0
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.01"} 0
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.05"} 0
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="+Inf"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.01"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.25"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="1"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="5"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="10"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="+Inf"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="0.01"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="0.25"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="1"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="5"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="10"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="+Inf"} 0
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(before): %v", err)
@@ -630,6 +647,11 @@ wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_apply"} 0
+wukongim_channelv2_worker_inflight{pool="store_append"} 256
+wukongim_channelv2_worker_inflight{pool="store_apply"} 256
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
+wukongim_channelv2_worker_inflight_peak{pool="store_apply"} 256
 wukongim_storage_commit_queue_depth{store="message"} 5
 wukongim_storage_commit_batch_records_bucket{store="message",le="1"} 10
 wukongim_storage_commit_batch_records_bucket{store="message",le="4"} 100
@@ -637,6 +659,18 @@ wukongim_storage_commit_batch_records_bucket{store="message",le="+Inf"} 100
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.01"} 10
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="0.05"} 100
 wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="commit",result="ok",le="+Inf"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.01"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.25"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="1"} 195
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="5"} 198
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="10"} 199
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="+Inf"} 200
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="0.01"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="0.25"} 50
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="1"} 97
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="5"} 98
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="10"} 98
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="apply",result="ok",le="+Inf"} 100
 `))
 	if err != nil {
 		t.Fatalf("ParsePrometheusText(after): %v", err)
@@ -654,6 +688,24 @@ wukongim_storage_commit_batch_duration_seconds_bucket{store="message",stage="com
 	}
 	if report.StorageCommitBatchRecordsP50 <= 0 {
 		t.Fatalf("storage commit batch records p50 = %v, want > 0", report.StorageCommitBatchRecordsP50)
+	}
+	if report.StorageCommitRequestP99Seconds <= 0 || report.StorageCommitRequestOKP99Seconds <= 0 {
+		t.Fatalf("storage commit request p99s not parsed: %+v", report)
+	}
+	if report.ChannelV2WorkerInflightByPool["store_append"] != 256 || report.ChannelV2WorkerInflightByPool["store_apply"] != 256 {
+		t.Fatalf("worker inflight by pool not parsed: %+v", report.ChannelV2WorkerInflightByPool)
+	}
+	if report.ChannelV2WorkerInflightPeakByPool["store_append"] != 256 || report.ChannelV2WorkerInflightPeakByPool["store_apply"] != 256 {
+		t.Fatalf("worker inflight peak by pool not parsed: %+v", report.ChannelV2WorkerInflightPeakByPool)
+	}
+	if report.StorageCommitRequestOver1sCount != 8 || report.StorageCommitRequestOver5sCount != 4 || report.StorageCommitRequestOver10sCount != 3 {
+		t.Fatalf("storage commit request tail counts not parsed: %+v", report)
+	}
+	if report.StorageCommitRequestOver10sCountByLane["append"] != 1 || report.StorageCommitRequestOver10sCountByLane["apply"] != 2 {
+		t.Fatalf("storage commit request tail counts by lane not parsed: %+v", report.StorageCommitRequestOver10sCountByLane)
+	}
+	if report.StorageCommitRequestP99SecondsByLane["append"] <= 0 || report.StorageCommitRequestP99SecondsByLane["apply"] <= 0 {
+		t.Fatalf("storage commit request p99 by lane not parsed: %+v", report.StorageCommitRequestP99SecondsByLane)
 	}
 }
 

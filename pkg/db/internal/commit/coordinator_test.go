@@ -160,6 +160,41 @@ func TestCoordinatorObservesCommitBatch(t *testing.T) {
 	}
 }
 
+func TestCoordinatorObservesSubmitRequest(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Millisecond,
+		QueueSize:   8,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	err := c.Submit(context.Background(), commit.Request{
+		Lane:    commit.Lane{Name: "append", Priority: commit.PriorityHigh},
+		Records: 2,
+		Bytes:   32,
+		Build:   func(batch *engine.Batch) error { return batch.Set([]byte("k"), []byte("v")) },
+	})
+	if err != nil {
+		t.Fatalf("Submit(): %v", err)
+	}
+
+	event := observer.onlyRequest(t)
+	if event.Lane.Name != "append" || event.Lane.Priority != commit.PriorityHigh {
+		t.Fatalf("request lane = %#v, want append/high", event.Lane)
+	}
+	if event.Records != 2 || event.Bytes != 32 {
+		t.Fatalf("request sizing = records:%d bytes:%d, want 2/32", event.Records, event.Bytes)
+	}
+	if event.Duration <= 0 {
+		t.Fatalf("request duration = %v, want positive", event.Duration)
+	}
+	if event.Err != nil {
+		t.Fatalf("request err = %v, want nil", event.Err)
+	}
+}
+
 func TestCoordinatorCloseRejectsSubmit(t *testing.T) {
 	db := openTestDB(t)
 	c := commit.NewCoordinator(db, commit.Config{FlushWindow: time.Millisecond, QueueSize: 8})
@@ -181,9 +216,10 @@ func openTestDB(t *testing.T) *engine.DB {
 }
 
 type recordingObserver struct {
-	mu      sync.Mutex
-	batches []commit.BatchEvent
-	depths  []int
+	mu       sync.Mutex
+	batches  []commit.BatchEvent
+	requests []commit.RequestEvent
+	depths   []int
 }
 
 func (o *recordingObserver) SetQueueDepth(depth int) {
@@ -198,6 +234,12 @@ func (o *recordingObserver) ObserveBatch(event commit.BatchEvent) {
 	o.batches = append(o.batches, event)
 }
 
+func (o *recordingObserver) ObserveRequest(event commit.RequestEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.requests = append(o.requests, event)
+}
+
 func (o *recordingObserver) onlyBatch(t *testing.T) commit.BatchEvent {
 	t.Helper()
 	o.mu.Lock()
@@ -206,6 +248,16 @@ func (o *recordingObserver) onlyBatch(t *testing.T) commit.BatchEvent {
 		t.Fatalf("observed batches = %d, want 1", len(o.batches))
 	}
 	return o.batches[0]
+}
+
+func (o *recordingObserver) onlyRequest(t *testing.T) commit.RequestEvent {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.requests) != 1 {
+		t.Fatalf("observed requests = %d, want 1", len(o.requests))
+	}
+	return o.requests[0]
 }
 
 func (o *recordingObserver) depthsSnapshot() []int {

@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
 // Config wires the v0 channelv2 service facade.
@@ -15,6 +16,10 @@ type Config struct {
 	LocalNode    ch.NodeID
 	ReactorCount int
 	MailboxSize  int
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the reactor default.
+	StoreAppendWorkers int
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the reactor default.
+	StoreApplyWorkers int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
 	MaxChannels int
 	Store       store.Factory
@@ -77,8 +82,13 @@ func New(cfg Config) (ch.Cluster, error) {
 	if cfg.LocalNode == 0 || cfg.Store == nil {
 		return nil, ch.ErrInvalidConfig
 	}
+	workerPools := worker.PoolsConfig{
+		StoreAppend: worker.PoolConfig{Workers: cfg.StoreAppendWorkers},
+		StoreApply:  worker.PoolConfig{Workers: cfg.StoreApplyWorkers},
+	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,
+		WorkerPools:                   workerPools,
 		AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
 		AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,
 		AppendBatchMaxWait:            cfg.AppendBatchMaxWait,

@@ -26,6 +26,7 @@ COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
 ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
 RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
+HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-first_online}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
@@ -65,6 +66,7 @@ Options:
                          Base wkbench worker phase poll timeout. Default: 30s.
   --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
   --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
+  --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
   --sender-pick MODE     Group sender selection: first_online or round_robin. Default: first_online.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
@@ -212,6 +214,11 @@ while [[ $# -gt 0 ]]; do
       RECV_ACK="$2"
       shift 2
       ;;
+    --heartbeat)
+      [[ $# -ge 2 ]] || die '--heartbeat requires a value'
+      HEARTBEAT_ENABLED="$2"
+      shift 2
+      ;;
     --profile-seconds)
       [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
       PROFILE_SECONDS="$2"
@@ -267,6 +274,13 @@ case "$RECV_ACK" in
     die "--recv-ack must be true or false: $RECV_ACK"
     ;;
 esac
+case "$HEARTBEAT_ENABLED" in
+  true|false)
+    ;;
+  *)
+    die "--heartbeat must be true or false: $HEARTBEAT_ENABLED"
+    ;;
+esac
 
 declare -a QPS_VALUES API_VALUES GATEWAY_VALUES METRICS_VALUES
 split_csv "$QPS_LIST" QPS_VALUES
@@ -311,6 +325,8 @@ start_cluster() {
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
+  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}" \
+  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}" \
   WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}" \
@@ -516,7 +532,7 @@ online:
   connect_rate: 1000/s
   gateway_balance: round_robin
   heartbeat:
-    enabled: true
+    enabled: $HEARTBEAT_ENABLED
     interval: 30s
     timeout: 5s
 channels:
@@ -750,6 +766,7 @@ COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
 ACK_TIMEOUT=$ACK_TIMEOUT
 RECV_ACK=$RECV_ACK
+HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 SENDER_PICK=$SENDER_PICK
 API_ADDRS=$API_ADDRS
@@ -759,6 +776,8 @@ WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
+CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}
+CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
 CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}

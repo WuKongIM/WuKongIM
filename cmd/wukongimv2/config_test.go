@@ -107,6 +107,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=24",
+		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=20",
 		"WK_CLUSTER_MAX_CHANNELS=10000",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=1",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=500us",
@@ -142,6 +144,14 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
 		"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=777",
 		"WK_DELIVERY_EVENT_QUEUE_SIZE=2048",
+		"WK_LOG_LEVEL=debug",
+		"WK_LOG_DIR="+filepath.Join(dir, "logs"),
+		"WK_LOG_MAX_SIZE=64",
+		"WK_LOG_MAX_AGE=7",
+		"WK_LOG_MAX_BACKUPS=3",
+		"WK_LOG_COMPRESS=false",
+		"WK_LOG_CONSOLE=false",
+		"WK_LOG_FORMAT=json",
 	)
 
 	cfg, err := loadConfig([]string{"-config", path})
@@ -169,6 +179,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.ReactorCount != 12 {
 		t.Fatalf("Channel.ReactorCount = %d, want 12", cfg.Cluster.Channel.ReactorCount)
+	}
+	if cfg.Cluster.Channel.StoreAppendWorkers != 24 {
+		t.Fatalf("Channel.StoreAppendWorkers = %d, want 24", cfg.Cluster.Channel.StoreAppendWorkers)
+	}
+	if cfg.Cluster.Channel.StoreApplyWorkers != 20 {
+		t.Fatalf("Channel.StoreApplyWorkers = %d, want 20", cfg.Cluster.Channel.StoreApplyWorkers)
 	}
 	if cfg.Cluster.Channel.MaxChannels != 10000 {
 		t.Fatalf("Channel.MaxChannels = %d, want 10000", cfg.Cluster.Channel.MaxChannels)
@@ -229,6 +245,21 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Delivery.EventQueueSize != 2048 {
 		t.Fatalf("Delivery.EventQueueSize = %d, want 2048", cfg.Delivery.EventQueueSize)
+	}
+	if cfg.Log.Level != "debug" {
+		t.Fatalf("Log.Level = %q, want debug", cfg.Log.Level)
+	}
+	if cfg.Log.Dir != filepath.Join(dir, "logs") {
+		t.Fatalf("Log.Dir = %q", cfg.Log.Dir)
+	}
+	if cfg.Log.MaxSize != 64 || cfg.Log.MaxAge != 7 || cfg.Log.MaxBackups != 3 {
+		t.Fatalf("Log rotation = size:%d age:%d backups:%d", cfg.Log.MaxSize, cfg.Log.MaxAge, cfg.Log.MaxBackups)
+	}
+	if cfg.Log.Compress || cfg.Log.Console {
+		t.Fatalf("Log booleans = compress:%t console:%t, want both false", cfg.Log.Compress, cfg.Log.Console)
+	}
+	if cfg.Log.Format != "json" {
+		t.Fatalf("Log.Format = %q, want json", cfg.Log.Format)
 	}
 	if cfg.API.ListenAddr != "127.0.0.1:5042" {
 		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
@@ -354,6 +385,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "env-node"))
 	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7002")
 	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
+	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", "11")
+	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", "13")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", "2")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
@@ -376,6 +409,14 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", "256")
 	t.Setenv("WK_DELIVERY_EVENT_QUEUE_SIZE", "512")
+	t.Setenv("WK_LOG_LEVEL", "warn")
+	t.Setenv("WK_LOG_DIR", filepath.Join(dir, "env-logs"))
+	t.Setenv("WK_LOG_MAX_SIZE", "32")
+	t.Setenv("WK_LOG_MAX_AGE", "6")
+	t.Setenv("WK_LOG_MAX_BACKUPS", "2")
+	t.Setenv("WK_LOG_COMPRESS", "false")
+	t.Setenv("WK_LOG_CONSOLE", "false")
+	t.Setenv("WK_LOG_FORMAT", "json")
 	t.Setenv("WK_API_LISTEN_ADDR", "127.0.0.1:5002")
 	t.Setenv("WK_BENCH_API_ENABLE", "true")
 	t.Setenv("WK_METRICS_ENABLE", "true")
@@ -397,6 +438,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.ReactorCount != 6 {
 		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Cluster.Channel.ReactorCount)
+	}
+	if cfg.Cluster.Channel.StoreAppendWorkers != 11 || cfg.Cluster.Channel.StoreApplyWorkers != 13 {
+		t.Fatalf("Channel store workers = append:%d apply:%d, want append:11 apply:13", cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers)
 	}
 	if cfg.Cluster.Channel.AppendBatchMaxRecords != 2 {
 		t.Fatalf("Channel.AppendBatchMaxRecords = %d, want 2", cfg.Cluster.Channel.AppendBatchMaxRecords)
@@ -429,6 +473,11 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
+	}
+	if cfg.Log.Level != "warn" || cfg.Log.Dir != filepath.Join(dir, "env-logs") ||
+		cfg.Log.MaxSize != 32 || cfg.Log.MaxAge != 6 || cfg.Log.MaxBackups != 2 ||
+		cfg.Log.Compress || cfg.Log.Console || cfg.Log.Format != "json" {
+		t.Fatalf("Log env override = %#v", cfg.Log)
 	}
 	if cfg.Gateway.Transport.Gnet.NumEventLoop != 5 {
 		t.Fatalf("Gnet.NumEventLoop = %d, want 5", cfg.Gateway.Transport.Gnet.NumEventLoop)
@@ -600,6 +649,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
+		{name: "store append workers", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"},
+		{name: "store append workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"},
+		{name: "store apply workers", line: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"},
+		{name: "store apply workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"},
 		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=many", wantKey: "WK_CLUSTER_MAX_CHANNELS"},
 		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=many", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
 		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},
@@ -641,6 +694,11 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "delivery pending ack max per session negative", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=-1", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
 		{name: "delivery event queue size", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=many", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
 		{name: "delivery event queue size negative", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=-1", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
+		{name: "log max size", line: "WK_LOG_MAX_SIZE=many", wantKey: "WK_LOG_MAX_SIZE"},
+		{name: "log max age", line: "WK_LOG_MAX_AGE=many", wantKey: "WK_LOG_MAX_AGE"},
+		{name: "log max backups", line: "WK_LOG_MAX_BACKUPS=many", wantKey: "WK_LOG_MAX_BACKUPS"},
+		{name: "log compress", line: "WK_LOG_COMPRESS=maybe", wantKey: "WK_LOG_COMPRESS"},
+		{name: "log console", line: "WK_LOG_CONSOLE=maybe", wantKey: "WK_LOG_CONSOLE"},
 		{name: "bench api enable", line: "WK_BENCH_API_ENABLE=maybe", wantKey: "WK_BENCH_API_ENABLE"},
 		{name: "bench api max batch size", line: "WK_BENCH_API_MAX_BATCH_SIZE=many", wantKey: "WK_BENCH_API_MAX_BATCH_SIZE"},
 		{name: "bench api max payload bytes", line: "WK_BENCH_API_MAX_PAYLOAD_BYTES=large", wantKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES"},

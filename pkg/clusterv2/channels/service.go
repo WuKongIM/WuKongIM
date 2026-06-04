@@ -42,6 +42,10 @@ type Config struct {
 	LocalNode ch.NodeID
 	// ReactorCount is the number of ChannelV2 reactor partitions.
 	ReactorCount int
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
+	StoreAppendWorkers int
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
+	StoreApplyWorkers int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
@@ -89,6 +93,8 @@ func NewService(cfg Config) (*Service, error) {
 		cluster, err := channelservice.New(channelservice.Config{
 			LocalNode:                     cfg.LocalNode,
 			ReactorCount:                  cfg.ReactorCount,
+			StoreAppendWorkers:            cfg.StoreAppendWorkers,
+			StoreApplyWorkers:             cfg.StoreApplyWorkers,
 			MailboxSize:                   cfg.MailboxSize,
 			MaxChannels:                   cfg.MaxChannels,
 			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,

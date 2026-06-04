@@ -7,7 +7,9 @@
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
 - Runnable `wukongimv2` helper-script configs live under `scripts/wukongimv2/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
-- `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND metrics with ChannelV2 reactor/worker metrics. `/bench/v1/snapshot` remains a benchmark setup counter surface.
+- `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
+- `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
+- ChannelV2 ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
 - `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `clusterv2/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.

@@ -58,12 +58,32 @@ type BatchEvent struct {
 	Err error
 }
 
+// RequestEvent describes one logical commit request as observed by the caller.
+type RequestEvent struct {
+	// Lane identifies the logical commit lane.
+	Lane Lane
+	// Records is the logical record count carried by the request.
+	Records int
+	// Bytes is the approximate payload byte count carried by the request.
+	Bytes int
+	// Duration is the caller-visible time spent inside Submit.
+	Duration time.Duration
+	// Err is the Submit result observed by the caller.
+	Err error
+}
+
 // Observer receives low-cardinality coordinator runtime measurements.
 type Observer interface {
 	// SetQueueDepth reports the current logical commit queue depth.
 	SetQueueDepth(depth int)
 	// ObserveBatch reports one grouped physical commit attempt.
 	ObserveBatch(event BatchEvent)
+}
+
+// RequestObserver receives caller-visible logical request measurements.
+type RequestObserver interface {
+	// ObserveRequest reports one Submit call without changing commit behavior.
+	ObserveRequest(event RequestEvent)
 }
 
 // Config controls group commit behavior.
@@ -147,19 +167,30 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 }
 
 // Submit queues one logical request and waits for its result.
-func (c *Coordinator) Submit(ctx context.Context, req Request) error {
+func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 	if c == nil || c.db == nil || req.Build == nil {
 		return dberrors.ErrInvalidArgument
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	startedAt := time.Now()
+	defer func() {
+		c.observeRequest(RequestEvent{
+			Lane:     req.Lane,
+			Records:  req.Records,
+			Bytes:    req.Bytes,
+			Duration: time.Since(startedAt),
+			Err:      err,
+		})
+	}()
 	pending := pendingRequest{Request: req, done: make(chan error, 1)}
 
 	c.acceptMu.RLock()
 	if c.closed {
 		c.acceptMu.RUnlock()
-		return ErrClosed
+		err = ErrClosed
+		return err
 	}
 	select {
 	case c.requests <- pending:
@@ -167,23 +198,27 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) error {
 		c.observeQueueDepth()
 	case <-ctx.Done():
 		c.acceptMu.RUnlock()
-		return ctx.Err()
+		err = ctx.Err()
+		return err
 	case <-c.stopCh:
 		c.acceptMu.RUnlock()
-		return ErrClosed
+		err = ErrClosed
+		return err
 	}
 
 	select {
-	case err := <-pending.done:
+	case err = <-pending.done:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		err = ctx.Err()
+		return err
 	case <-c.doneCh:
 		select {
-		case err := <-pending.done:
+		case err = <-pending.done:
 			return err
 		default:
-			return ErrClosed
+			err = ErrClosed
+			return err
 		}
 	}
 }
@@ -405,6 +440,17 @@ func (c *Coordinator) observeBatch(event BatchEvent) {
 		return
 	}
 	c.cfg.Observer.ObserveBatch(event)
+}
+
+func (c *Coordinator) observeRequest(event RequestEvent) {
+	if c == nil || c.cfg.Observer == nil {
+		return
+	}
+	observer, ok := c.cfg.Observer.(RequestObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveRequest(event)
 }
 
 func (c *Coordinator) wouldExceed(batch requestBatch, req pendingRequest) bool {

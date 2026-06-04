@@ -25,6 +25,7 @@ COOLDOWN="${WK_BENCH_COOLDOWN:-3s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
 ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
 RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
+HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 
@@ -58,6 +59,7 @@ Options:
   --phase-poll-timeout DURATION
                              Base wkbench worker phase poll timeout. Default: 30s.
   --recv-ack BOOL            Whether group recv frames are acknowledged. Default: true.
+  --heartbeat BOOL           Whether benchmark clients send heartbeat pings. Default: true.
   --profile-seconds N        Capture final CPU pprof for each node when N > 0. Default: 0.
   --wkbench-bin PATH         wkbench binary path. Default: data/wkbench-test.
   --start-script PATH        Three-node startup script. Default: scripts/start-wukongimv2-three-nodes.sh.
@@ -215,6 +217,11 @@ while [[ $# -gt 0 ]]; do
       RECV_ACK="$2"
       shift 2
       ;;
+    --heartbeat)
+      [[ $# -ge 2 ]] || die '--heartbeat requires a value'
+      HEARTBEAT_ENABLED="$2"
+      shift 2
+      ;;
     --profile-seconds)
       [[ $# -ge 2 ]] || die '--profile-seconds requires a value'
       PROFILE_SECONDS="$2"
@@ -282,6 +289,13 @@ case "$RECV_ACK" in
     die "--recv-ack must be true or false: $RECV_ACK"
     ;;
 esac
+case "$HEARTBEAT_ENABLED" in
+  true|false)
+    ;;
+  *)
+    die "--heartbeat must be true or false: $HEARTBEAT_ENABLED"
+    ;;
+esac
 [[ -x "$BASE_SCRIPT" ]] || die "base script is not executable: $BASE_SCRIPT"
 
 declare -a QPS_VALUES
@@ -307,9 +321,13 @@ COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
 ACK_TIMEOUT=$ACK_TIMEOUT
 RECV_ACK=$RECV_ACK
+HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 MIN_ACTUAL_RATIO=$MIN_ACTUAL_RATIO
 SENDER_PICK=$SENDER_PICK
+CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
+CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}
+CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
 CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}
@@ -435,6 +453,7 @@ write_markdown_summary() {
 - group_members: $GROUP_MEMBERS
 - sender_pick: $SENDER_PICK
 - recv_ack: $RECV_ACK
+- heartbeat: $HEARTBEAT_ENABLED
 - min_actual_ratio: $MIN_ACTUAL_RATIO
 - duration: $DURATION
 - warmup: $WARMUP
@@ -480,6 +499,7 @@ run_attempt() {
       --ack-timeout "$ACK_TIMEOUT" \
       --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
       --recv-ack "$RECV_ACK" \
+      --heartbeat "$HEARTBEAT_ENABLED" \
       --profile-seconds "$PROFILE_SECONDS" \
       --sender-pick "$SENDER_PICK" \
       --api "$API_ADDRS" \

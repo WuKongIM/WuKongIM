@@ -31,7 +31,10 @@ Current flow:
 12. The compatibility `Engine` / `ChannelStore` surface adapts legacy
     `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
     query callers onto the typed `ChannelLog` core while keeping seq/offset
-    conversion at the channel boundary.
+    conversion at the channel boundary. Its commit coordinator observer emits
+    low-cardinality batch and logical request wait measurements, splitting
+    leader append and follower apply lanes, without changing durable commit
+    semantics.
 13. Compatibility durable payloads continue to use FNV-64a payload hashes so
     handler idempotency checks compare the same value that was encoded into the
     `channel.Record` payload.

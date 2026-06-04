@@ -76,6 +76,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		service, err := channels.NewService(channels.Config{
 			LocalNode:                     channelv2.NodeID(n.cfg.NodeID),
 			ReactorCount:                  n.cfg.Channel.ReactorCount,
+			StoreAppendWorkers:            n.cfg.Channel.StoreAppendWorkers,
+			StoreApplyWorkers:             n.cfg.Channel.StoreApplyWorkers,
 			MailboxSize:                   n.cfg.Channel.MailboxSize,
 			MaxChannels:                   n.cfg.Channel.MaxChannels,
 			AppendBatchMaxRecords:         n.cfg.Channel.AppendBatchMaxRecords,

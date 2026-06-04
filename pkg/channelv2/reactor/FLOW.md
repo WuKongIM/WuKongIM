@@ -8,7 +8,10 @@ and RPC work leaves the reactor through bounded worker pools and returns as
 fenced worker completions.
 Store append and follower apply pools default to twice the reactor count because
 quorum traffic produces both leader appends and follower apply work; read and
-RPC pools default to the reactor count unless explicitly configured.
+RPC pools default to the reactor count unless explicitly configured. Production
+composition roots may cap store append/apply worker counts to reduce pressure on
+the shared message DB commit coordinator; this only limits blocking task
+concurrency and does not relax store sync, quorum progress, or waiter fencing.
 
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
@@ -120,16 +123,19 @@ can still reach the leader while foreground append submissions are pressuring
 the normal-priority queue.
 
 ```text
-remote follower stopped Ack RPC
+remote follower Ack RPC
   -> Group.Submit(EventAck)
   -> handleLeaderAck
   -> ApplyFollowerAck
-  -> record stopped follower state for stopped ACKs
-  -> schedule leader lifecycle
+  -> ordinary progress ACK: complete quorum append waiters when HW advances
+  -> stopped ACK: record stopped follower state and schedule leader lifecycle
 ```
 
 Ordinary follower progress is accepted from `PullRequest.AckOffset` before the
-leader serves the requested range. Stopped ACKs must stay on the standalone ACK
+leader serves the requested range, and from standalone progress ACKs whose
+`MatchOffset` does not exceed the leader LEO. A progress ACK only reports
+already-durable follower state; HW advancement and append completion still go
+through the normal quorum checks. Stopped ACKs must stay on the standalone ACK
 RPC and must match the current activity version and leader LEO. Accepted stopped
 ACK state, including zero-version stopped ACKs, is recorded in
 `channelRuntimeLifecycle`.
@@ -153,9 +159,12 @@ tickFollowerReplication
 ```
 
 The follower keeps at most one pull RPC, one pending pull response, one store
-apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
-apply directly drives the next pull, instead of waiting for the due scheduler, so
-the follower's latest local LEO is promptly piggybacked as `AckOffset`.
+apply, one ordinary progress ACK RPC, and one stopped ACK RPC in flight.
+Ordinary durable progress after store apply submits a standalone progress ACK
+after the records are persisted, then directly drives the next pull instead of
+waiting for the due scheduler. The pull still piggybacks the follower's latest
+local LEO as `AckOffset`, so ACK submission errors or stale ACK completions fall
+back to the existing pull-based progress return.
 When the leader serves records to a follower that is still behind, it schedules a
 bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
 resume hint, and the append hot path opportunistically sends it when the retry is
@@ -191,8 +200,9 @@ measures accepted PullHint wakeup through pull RPC submission,
 `follower_need_meta_pull_rpc` measures the bootstrap `Pull{NeedMeta=true}` path
 without mixing it into ordinary follower pull latency,
 `follower_store_apply` measures follower store-apply submission through result,
-and `follower_apply_to_ack_return` measures successful apply through the return
-of the next pull carrying the new `AckOffset`.
+and `follower_apply_to_ack_return` measures successful apply through the first
+successful progress return, either the standalone progress ACK or the fallback
+pull carrying the new `AckOffset`.
 
 Leader PullHint result counters use `wukongim_channelv2_pull_hint_total` with
 low-cardinality `reason/result/error` labels. `submitted` counts accepted worker

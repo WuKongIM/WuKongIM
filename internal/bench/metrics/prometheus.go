@@ -86,6 +86,9 @@ type WukongIMV2Attribution struct {
 	ControllerRaftStepEnqueueErrCount               float64
 	ChannelV2ReactorMailboxDepthMax                 float64
 	ChannelV2WorkerQueueDepthMax                    float64
+	ChannelV2WorkerQueueDepthByPool                 map[string]float64
+	ChannelV2WorkerInflightByPool                   map[string]float64
+	ChannelV2WorkerInflightPeakByPool               map[string]float64
 	ChannelV2AppendP99Seconds                       float64
 	ChannelV2MetaResolveP99Seconds                  float64
 	ChannelV2MetaSlotReadP99Seconds                 float64
@@ -170,12 +173,26 @@ type WukongIMV2Attribution struct {
 	ChannelV2NeedMetaPullRemoteErrCount             float64
 	ChannelV2NeedMetaPullOtherErrCount              float64
 	ChannelV2WorkerTaskP99Seconds                   float64
+	ChannelV2WorkerTaskP99SecondsByKind             map[string]float64
 	ChannelV2AppendBatchRecordsP50                  float64
 	StorageCommitQueueDepthMax                      float64
 	StorageCommitBatchRequestsP50                   float64
 	StorageCommitBatchRecordsP50                    float64
 	StorageCommitP99Seconds                         float64
 	StorageCommitTotalP99Seconds                    float64
+	StorageCommitRequestP99Seconds                  float64
+	StorageCommitRequestOKP99Seconds                float64
+	StorageCommitRequestTimeoutCount                float64
+	StorageCommitRequestCanceledCount               float64
+	StorageCommitRequestClosedCount                 float64
+	StorageCommitRequestErrCount                    float64
+	StorageCommitRequestOver1sCount                 float64
+	StorageCommitRequestOver5sCount                 float64
+	StorageCommitRequestOver10sCount                float64
+	StorageCommitRequestP99SecondsByLane            map[string]float64
+	StorageCommitRequestOver1sCountByLane           map[string]float64
+	StorageCommitRequestOver5sCountByLane           map[string]float64
+	StorageCommitRequestOver10sCountByLane          map[string]float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -295,7 +312,15 @@ func splitPrometheusLabels(raw string) []string {
 // AnalyzeWukongIMV2Prometheus classifies gateway vs ChannelV2 pressure between two snapshots.
 func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Attribution {
 	report := WukongIMV2Attribution{
-		Classification: WukongIMV2BottleneckUnobserved,
+		Classification:                         WukongIMV2BottleneckUnobserved,
+		ChannelV2WorkerQueueDepthByPool:        map[string]float64{},
+		ChannelV2WorkerInflightByPool:          map[string]float64{},
+		ChannelV2WorkerInflightPeakByPool:      map[string]float64{},
+		ChannelV2WorkerTaskP99SecondsByKind:    map[string]float64{},
+		StorageCommitRequestP99SecondsByLane:   map[string]float64{},
+		StorageCommitRequestOver1sCountByLane:  map[string]float64{},
+		StorageCommitRequestOver5sCountByLane:  map[string]float64{},
+		StorageCommitRequestOver10sCountByLane: map[string]float64{},
 	}
 	report.GatewayQueueDepth, _ = after.maxGauge("wukongim_gateway_async_send_queue_depth")
 	report.GatewayQueueCapacity, _ = after.maxGauge("wukongim_gateway_async_send_queue_capacity")
@@ -342,6 +367,9 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 
 	report.ChannelV2ReactorMailboxDepthMax, _ = after.maxGauge("wukongim_channelv2_reactor_mailbox_depth")
 	report.ChannelV2WorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
+	report.ChannelV2WorkerQueueDepthByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_queue_depth", "pool")
+	report.ChannelV2WorkerInflightByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight", "pool")
+	report.ChannelV2WorkerInflightPeakByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight_peak", "pool")
 	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
 	report.ChannelV2MetaResolveP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_resolve"})
 	report.ChannelV2MetaSlotReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_slot_read"})
@@ -426,12 +454,29 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	report.ChannelV2NeedMetaPullRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "remote_error"})
 	report.ChannelV2NeedMetaPullOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "other"})
 	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
+	report.ChannelV2WorkerTaskP99SecondsByKind = histogramQuantileDeltaByLabel(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds", "kind")
 	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
 	report.StorageCommitBatchRequestsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_requests")
 	report.StorageCommitBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_records")
 	report.StorageCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "commit"})
 	report.StorageCommitTotalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "total"})
+	report.StorageCommitRequestP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_storage_commit_request_duration_seconds")
+	report.StorageCommitRequestOKP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "ok"})
+	report.StorageCommitRequestTimeoutCount, _ = histogramCountDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "timeout"})
+	report.StorageCommitRequestCanceledCount, _ = histogramCountDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "canceled"})
+	report.StorageCommitRequestClosedCount, _ = histogramCountDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "closed"})
+	report.StorageCommitRequestErrCount, _ = histogramCountDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "err"})
+	report.StorageCommitRequestOver1sCount, _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", nil, 1)
+	report.StorageCommitRequestOver5sCount, _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", nil, 5)
+	report.StorageCommitRequestOver10sCount, _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", nil, 10)
+	for _, lane := range histogramLabelValues(before, after, "wukongim_storage_commit_request_duration_seconds", "lane") {
+		labels := map[string]string{"lane": lane}
+		report.StorageCommitRequestP99SecondsByLane[lane], _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_request_duration_seconds", labels)
+		report.StorageCommitRequestOver1sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 1)
+		report.StorageCommitRequestOver5sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 5)
+		report.StorageCommitRequestOver10sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 10)
+	}
 
 	gatewayPressure := false
 	if report.GatewayQueueRatio >= wukongIMV2GatewayQueuePressureRatio {
@@ -748,6 +793,38 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		storagePressure = true
 		report.Reasons = append(report.Reasons, "storage grouped commit total p99 is high")
 	}
+	if report.StorageCommitRequestP99Seconds >= wukongIMV2LatencyPressureSeconds {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit request p99 is high")
+	}
+	if report.StorageCommitRequestTimeoutCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit request timeouts were observed")
+	}
+	if report.StorageCommitRequestCanceledCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit request cancellations were observed")
+	}
+	if report.StorageCommitRequestClosedCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit request closed errors were observed")
+	}
+	if report.StorageCommitRequestErrCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit request errors were observed")
+	}
+	if report.StorageCommitRequestOver1sCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit requests exceeded 1s")
+	}
+	if report.StorageCommitRequestOver5sCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit requests exceeded 5s")
+	}
+	if report.StorageCommitRequestOver10sCount > 0 {
+		storagePressure = true
+		report.Reasons = append(report.Reasons, "storage logical commit requests exceeded 10s")
+	}
 
 	switch {
 	case gatewayPressure && (controllerPressure || channelPressure || storagePressure):
@@ -781,6 +858,24 @@ func (s PrometheusSnapshot) maxGauge(name string) (float64, bool) {
 	return maxValue, found
 }
 
+func (s PrometheusSnapshot) maxGaugeByLabel(name string, label string) map[string]float64 {
+	out := map[string]float64{}
+	for _, sample := range s.Samples {
+		if sample.Name != name {
+			continue
+		}
+		value := sample.Labels[label]
+		if value == "" {
+			continue
+		}
+		current, ok := out[value]
+		if !ok || sample.Value > current {
+			out[value] = sample.Value
+		}
+	}
+	return out
+}
+
 type histogramBucket struct {
 	le    float64
 	count float64
@@ -788,6 +883,43 @@ type histogramBucket struct {
 
 func histogramQuantileDelta(q float64, before, after PrometheusSnapshot, family string) (float64, bool) {
 	return histogramQuantileDeltaMatching(q, before, after, family, nil)
+}
+
+func histogramQuantileDeltaByLabel(q float64, before, after PrometheusSnapshot, family string, label string) map[string]float64 {
+	out := map[string]float64{}
+	for _, value := range histogramLabelValues(before, after, family, label) {
+		quantile, ok := histogramQuantileDeltaMatching(q, before, after, family, map[string]string{label: value})
+		if ok {
+			out[value] = quantile
+		}
+	}
+	return out
+}
+
+func histogramLabelValues(before, after PrometheusSnapshot, family string, label string) []string {
+	values := map[string]struct{}{}
+	before.collectHistogramLabelValues(family, label, values)
+	after.collectHistogramLabelValues(family, label, values)
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (s PrometheusSnapshot) collectHistogramLabelValues(family string, label string, values map[string]struct{}) {
+	bucketName := family + "_bucket"
+	for _, sample := range s.Samples {
+		if sample.Name != bucketName {
+			continue
+		}
+		value := sample.Labels[label]
+		if value == "" {
+			continue
+		}
+		values[value] = struct{}{}
+	}
 }
 
 func histogramCountDeltaMatching(before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {
@@ -802,6 +934,50 @@ func histogramCountDeltaMatching(before, after PrometheusSnapshot, family string
 		delta = 0
 	}
 	return delta, true
+}
+
+func histogramCountAboveDeltaMatching(before, after PrometheusSnapshot, family string, labels map[string]string, threshold float64) (float64, bool) {
+	beforeBuckets := before.histogramBucketsMatching(family, labels)
+	afterBuckets := after.histogramBucketsMatching(family, labels)
+	afterTotal, ok := afterBuckets[math.Inf(1)]
+	if !ok {
+		return 0, false
+	}
+	totalDelta := afterTotal - beforeBuckets[math.Inf(1)]
+	if totalDelta < 0 {
+		totalDelta = 0
+	}
+	beforeLE, beforeOK := histogramCumulativeAtOrBelow(beforeBuckets, threshold)
+	afterLE, afterOK := histogramCumulativeAtOrBelow(afterBuckets, threshold)
+	if !beforeOK && !afterOK {
+		return totalDelta, true
+	}
+	leDelta := afterLE - beforeLE
+	if leDelta < 0 {
+		leDelta = 0
+	}
+	above := totalDelta - leDelta
+	if above < 0 {
+		above = 0
+	}
+	return above, true
+}
+
+func histogramCumulativeAtOrBelow(buckets map[float64]float64, threshold float64) (float64, bool) {
+	found := false
+	bestLE := 0.0
+	value := 0.0
+	for le, count := range buckets {
+		if math.IsInf(le, 1) || le > threshold {
+			continue
+		}
+		if !found || le > bestLE {
+			found = true
+			bestLE = le
+			value = count
+		}
+	}
+	return value, found
 }
 
 func counterDeltaMatching(before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {

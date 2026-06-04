@@ -85,6 +85,29 @@ func TestConfigRejectsNegativeChannelReactorCount(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsNegativeChannelStoreWorkers(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config ChannelConfig
+	}{
+		{name: "append", config: ChannelConfig{StoreAppendWorkers: -1}},
+		{name: "apply", config: ChannelConfig{StoreApplyWorkers: -1}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				NodeID:     1,
+				ListenAddr: "127.0.0.1:0",
+				DataDir:    t.TempDir(),
+				Channel:    tt.config,
+			}
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+			}
+		})
+	}
+}
+
 func TestConfigRejectsNegativeChannelAppendBatchTuning(t *testing.T) {
 	for _, tt := range []struct {
 		name   string

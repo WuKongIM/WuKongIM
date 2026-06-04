@@ -289,8 +289,14 @@ wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkpr
 wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 0
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_worker_inflight{pool="store_append"} 0
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 0
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.01"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="1"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="10"} 0
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="+Inf"} 0
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
@@ -302,8 +308,14 @@ wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkpr
 wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{protocol="wkproto",le="+Inf"} 100
 wukongim_channelv2_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
 wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
+wukongim_channelv2_worker_inflight{pool="store_append"} 128
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="0.01"} 100
 wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",result="ok",le="+Inf"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="0.01"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="1"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="10"} 100
+wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="append",result="ok",le="+Inf"} 100
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -331,6 +343,21 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_apply",resul
 	}
 	if !strings.Contains(stderr.String(), "channelv2_append_store_wait_p99_seconds:") {
 		t.Fatalf("expected channel append store wait metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "storage_commit_request_p99_seconds:") {
+		t.Fatalf("expected storage commit request metric in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "storage_commit_request_over_10s_count:") {
+		t.Fatalf("expected storage commit request tail count in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_worker_inflight{pool=\"store_append\"}: 128") {
+		t.Fatalf("expected channel worker inflight in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "channelv2_worker_inflight_peak{pool=\"store_append\"}: 256") {
+		t.Fatalf("expected channel worker inflight peak in output, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "storage_commit_request_over_10s_count{lane=\"append\"}: 0") {
+		t.Fatalf("expected storage commit request lane tail count in output, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "channelv2_append_post_store_commit_wait_p99_seconds:") {
 		t.Fatalf("expected channel append post-store commit wait metric in output, got %q", stderr.String())

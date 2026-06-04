@@ -162,6 +162,31 @@ func TestCompatChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.
 	}
 }
 
+func TestCommitCoordinatorRequestObserverSplitsAppendAndApplyLanes(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitRequestCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
+
+	store := engine.ForChannel(channel.ChannelKey("lane:1"), channel.ChannelID{ID: "lane", Type: 1})
+	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2001, "lane", "client-append")}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if _, err := store.StoreApplyFetchTrusted(channel.ApplyFetchStoreRequest{
+		Records: []channel.Record{compatTestRecord(t, 2002, "lane", "client-apply")},
+	}); err != nil {
+		t.Fatalf("StoreApplyFetchTrusted() error = %v", err)
+	}
+
+	lanes := observer.Lanes()
+	if !containsString(lanes, "leader_append") || !containsString(lanes, "follower_apply") {
+		t.Fatalf("request lanes = %v, want leader_append and follower_apply", lanes)
+	}
+}
+
 func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	t.Helper()
 	payload := make([]byte, 0, channel.DurableMessageHeaderSize+64)
@@ -181,6 +206,40 @@ func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	payload = appendCompatTestString(payload, msg.FromUID)
 	payload = appendCompatTestBytes(payload, msg.Payload)
 	return payload
+}
+
+type commitRequestCapture struct {
+	mu     sync.Mutex
+	events []CommitCoordinatorRequestEvent
+}
+
+func (c *commitRequestCapture) SetCommitCoordinatorQueueDepth(int) {}
+
+func (c *commitRequestCapture) ObserveCommitCoordinatorBatch(CommitCoordinatorBatchEvent) {}
+
+func (c *commitRequestCapture) ObserveCommitCoordinatorRequest(event CommitCoordinatorRequestEvent) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.events = append(c.events, event)
+}
+
+func (c *commitRequestCapture) Lanes() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	lanes := make([]string, 0, len(c.events))
+	for _, event := range c.events {
+		lanes = append(lanes, event.Lane)
+	}
+	return lanes
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func compatTestRecord(t *testing.T, messageID uint64, channelID string, clientMsgNo string) channel.Record {

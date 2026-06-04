@@ -155,6 +155,20 @@ func (o channelV2MetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
 	o.metrics.ChannelV2.SetWorkerQueueDepth(pool, depth)
 }
 
+func (o channelV2MetricsObserver) SetWorkerInflight(pool string, inflight int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetWorkerInflight(pool, inflight)
+}
+
+func (o channelV2MetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetWorkerInflightPeak(pool, peak)
+}
+
 func (o channelV2MetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
 	if o.metrics == nil {
 		return
@@ -366,6 +380,17 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messag
 	})
 }
 
+func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Storage.ObserveCommitRequest("message", event.Lane, event.Result, obsmetrics.StorageCommitRequestObservation{
+		Records:  event.Records,
+		Bytes:    event.Bytes,
+		Duration: event.Duration,
+	})
+}
+
 func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
 	if o.metrics == nil {
 		return
@@ -481,6 +506,24 @@ func (o multiChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority s
 func (o multiChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
 	for _, observer := range o {
 		observer.SetWorkerQueueDepth(pool, depth)
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerInflight(pool string, inflight int) {
+	for _, observer := range o {
+		inflightObserver, ok := observer.(worker.InflightObserver)
+		if ok {
+			inflightObserver.SetWorkerInflight(pool, inflight)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerInflightPeak(pool string, peak int) {
+	for _, observer := range o {
+		inflightObserver, ok := observer.(worker.InflightObserver)
+		if ok {
+			inflightObserver.SetWorkerInflightPeak(pool, peak)
+		}
 	}
 }
 
@@ -663,6 +706,16 @@ func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorBatch(event mess
 	}
 }
 
+func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
+	for _, observer := range o {
+		requestObserver, ok := observer.(messagedb.CommitCoordinatorRequestObserver)
+		if !ok {
+			continue
+		}
+		requestObserver.ObserveCommitCoordinatorRequest(event)
+	}
+}
+
 func channelV2CommitModeLabel(mode ch.CommitMode) string {
 	switch mode {
 	case ch.CommitModeLocal:
@@ -807,6 +860,7 @@ var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
 var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
 var _ reactor.PendingMetaObserver = channelV2MetricsObserver{}
 var _ reactor.AppendWaitCancelObserver = channelV2MetricsObserver{}
+var _ worker.InflightObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
@@ -817,8 +871,11 @@ var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
 var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
+var _ worker.InflightObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
+var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}

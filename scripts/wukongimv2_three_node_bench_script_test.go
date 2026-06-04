@@ -259,13 +259,18 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
 		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,
 		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
+		`HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"`,
 		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
 		"--concurrency N        wkbench send concurrency. Default: 2800.",
 		"ack_timeout: $ACK_TIMEOUT",
 		"recv_ack: $RECV_ACK",
+		"enabled: $HEARTBEAT_ENABLED",
 		`--phase-poll-timeout "$PHASE_POLL_TIMEOUT"`,
 		"--recv-ack BOOL",
+		"--heartbeat BOOL",
 		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}"`,
+		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}"`,
+		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}"`,
@@ -275,6 +280,8 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"`,
 		`WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}"`,
 		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}`,
+		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}`,
+		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}`,
 		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}`,
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}`,
@@ -307,12 +314,17 @@ func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
 		`PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"`,
 		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
+		`HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"`,
 		"--concurrency N            wkbench send concurrency. Default: 2800.",
 		"--ack-timeout DURATION     Per-SEND sendack wait timeout. Default: 15s.",
 		`--phase-poll-timeout "$PHASE_POLL_TIMEOUT"`,
 		"--recv-ack BOOL            Whether group recv frames are acknowledged. Default: true.",
+		"--heartbeat BOOL           Whether benchmark clients send heartbeat pings. Default: true.",
 		`--recv-ack "$RECV_ACK"`,
+		`--heartbeat "$HEARTBEAT_ENABLED"`,
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1100us}`,
+		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-0}`,
+		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-0}`,
 		`CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}`,
 		`GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-1024}`,
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
@@ -379,6 +391,60 @@ func TestWukongIMV2ThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) 
 	scenario := readFile(t, filepath.Join(outDir, "scenario-000100.yaml"))
 	if !strings.Contains(scenario, "recv_ack: true") {
 		t.Fatalf("generated scenario should ack drained group recv frames by default:\n%s", scenario)
+	}
+	if !strings.Contains(scenario, "enabled: true") {
+		t.Fatalf("generated scenario should enable heartbeat by default:\n%s", scenario)
+	}
+}
+
+func TestWukongIMV2ThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--qps", "100",
+		"--channels", "10",
+		"--users", "20",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--heartbeat", "false",
+		"--gateway", gatewayAddr,
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	scenario := readFile(t, filepath.Join(outDir, "scenario-000100.yaml"))
+	for _, want := range []string{
+		"heartbeat:",
+		"enabled: false",
+		"recv_ack: true",
+	} {
+		if !strings.Contains(scenario, want) {
+			t.Fatalf("generated scenario missing %q:\n%s", want, scenario)
+		}
+	}
+	env := readFile(t, filepath.Join(outDir, "env.txt"))
+	if !strings.Contains(env, "HEARTBEAT_ENABLED=false") {
+		t.Fatalf("env metadata should record disabled heartbeat:\n%s", env)
 	}
 }
 

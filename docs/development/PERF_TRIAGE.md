@@ -99,18 +99,28 @@ append facade time; its sub-stages split append reservation, reactor mailbox
 submit, and admitted future wait. Append batch wait and record metrics show
 whether that admitted future wait is mostly batching delay; append store and
 post-store commit waits split durable append from local/quorum completion. When
+storage is suspected, compare
+`storage_commit_request_p99_seconds` against
+`storage_commit_total_p99_seconds`: a high request p99 with low grouped commit
+total points at caller-visible queue/admission wait, while both rising points at
+the physical batch path.
+When
 post-store quorum wait rises, use
 `channelv2_append_quorum_follower_pull_wait_p99_seconds`,
 `channelv2_append_quorum_ack_offset_wait_p99_seconds`,
 `channelv2_append_quorum_hw_advance_wait_p99_seconds`, and
 `channelv2_append_quorum_final_complete_p99_seconds` to separate follower pull,
-leader AckOffset processing, HW advancement, and final waiter completion. Then
+leader progress-ACK/AckOffset processing, HW advancement, and final waiter
+completion. Then
 use `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
 `channelv2_replication_follower_pull_rpc_p99_seconds`,
 `channelv2_need_meta_pull_rpc_p99_seconds`,
 `channelv2_replication_follower_store_apply_p99_seconds`, and
 `channelv2_replication_follower_apply_to_ack_return_p99_seconds` to localize
-the follower-side step that delayed quorum coverage. During cold activation,
+the follower-side step that delayed quorum coverage. Ordinary follower progress
+ACKs are sent only after follower store apply succeeds; Pull `AckOffset` remains
+the fallback progress return and leader HW still advances only through normal
+quorum checks. During cold activation,
 also check `channelv2_pending_meta_current_max`,
 `channelv2_pending_meta_created_count`,
 `channelv2_pending_meta_converted_count`,
@@ -341,6 +351,8 @@ ChannelV2 append pressure:
 ```promql
 sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
 sum by (pool) (wukongim_channelv2_worker_queue_depth)
+sum by (pool) (wukongim_channelv2_worker_inflight)
+sum by (pool) (wukongim_channelv2_worker_inflight_peak)
 sum by (result) (rate(wukongim_channelv2_rpc_pull_total[1m]))
 sum by (reason, result, error) (rate(wukongim_channelv2_pull_hint_total[1m]))
 histogram_quantile(0.99, sum by (le, commit_mode) (rate(wukongim_channelv2_append_duration_seconds_bucket[1m])))
@@ -351,12 +363,23 @@ histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_work
 histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
 ```
 
+Storage commit pressure:
+
+```promql
+wukongim_storage_commit_queue_depth
+histogram_quantile(0.99, sum by (le, store, lane, result) (rate(wukongim_storage_commit_request_duration_seconds_bucket[1m])))
+histogram_quantile(0.99, sum by (le, store, stage, result) (rate(wukongim_storage_commit_batch_duration_seconds_bucket[1m])))
+histogram_quantile(0.50, sum by (le, store) (rate(wukongim_storage_commit_batch_requests_bucket[1m])))
+histogram_quantile(0.50, sum by (le, store) (rate(wukongim_storage_commit_batch_records_bucket[1m])))
+```
+
 Interpretation matrix:
 
 | Evidence | Classification | Next check |
 | --- | --- | --- |
 | Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
 | Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
+| ChannelV2 worker queue is low but `channelv2_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
 | `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
 | `channelv2_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
 | `channelv2_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |
@@ -376,16 +399,19 @@ Interpretation matrix:
 | `channelv2_runtime_append_wait_p99_seconds` rises | admitted append future bottleneck | append batching wait, store append, quorum replication, worker result handling |
 | `channelv2_append_batch_wait_p99_seconds` rises | append batching delay | append batch max wait, batch formation, per-reactor channel distribution |
 | `channelv2_append_store_wait_p99_seconds` rises | durable append wait | store append worker queue/run time, message DB group commit, fsync/storage latency |
+| `storage_commit_request_p99_seconds` rises while `storage_commit_total_p99_seconds` stays low | commit queue/admission wait | commit queue depth, lane-specific `leader_append` / `follower_apply` request tails, caller context budget, submit goroutine pprof |
+| `storage_commit_request_over_10s_count{lane="leader_append"}` or `{lane="follower_apply"}` rises | rare caller-visible storage tail | match lane to `channelv2_worker_inflight_peak`, worker task p99, and blocked goroutine stacks |
+| `storage_commit_request_p99_seconds` and `storage_commit_total_p99_seconds` both rise | grouped commit path bottleneck | batch collect/build/publish split, Pebble sync/fsync, storage device latency |
 | `channelv2_append_post_store_commit_wait_p99_seconds` rises | post-store commit wait | follower pull/apply cadence, AckOffset handling, HW advancement, quorum completion |
 | `channelv2_append_quorum_follower_pull_wait_p99_seconds` rises | follower pull service wait | pull hints, follower parking/recovery probe, leader recent cache/store-read path |
-| `channelv2_append_quorum_ack_offset_wait_p99_seconds` rises | follower apply or ack return wait | follower store apply, immediate next pull, RPC path back to leader |
+| `channelv2_append_quorum_ack_offset_wait_p99_seconds` rises | follower apply or ack return wait | follower store apply, progress ACK RPC, fallback next-pull AckOffset path |
 | `channelv2_append_quorum_hw_advance_wait_p99_seconds` rises | leader HW advancement wait | follower match progress, ISR/MinISR rules, leader ack processing |
 | `channelv2_append_quorum_final_complete_p99_seconds` rises | waiter completion wait | reactor reply completion, future wakeup, caller-side blocked receive |
 | `channelv2_replication_follower_pull_hint_to_submit_p99_seconds` rises | follower wakeup/scheduling wait | PullHint delivery, parked follower state, inflight pull suppression, due scheduler |
 | `channelv2_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
 | `channelv2_need_meta_pull_rpc_p99_seconds` rises | follower bootstrap metadata pull wait | NeedMeta leader pull handling, metadata clone path, transport RPC latency |
 | `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, follower message DB commit latency |
-| `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower AckOffset return wait | immediate next pull scheduling, pull RPC back to leader, leader ack response path |
+| `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower progress return wait | progress ACK RPC, fallback next-pull AckOffset path, leader ack response path |
 | `channelv2_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
 | `channelv2_need_meta_pull_retry_count` or `channelv2_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |
 | `channelv2_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
@@ -416,7 +442,15 @@ Change one variable per run.
 
 - Workload variables: `WK_SIM_RATE`, `WK_SIM_TRAFFIC_CONCURRENCY`, `WK_SIM_WARMUP`, `WK_SIM_VERIFY_RECV`, person/group channel counts, group members.
 - Environment variables: clean vs accumulated data, build freshness, concurrent host load, metrics/diagnostics enabled.
-- Service config: data-plane pool, gateway event loops, append batching, delivery ack batching, cache TTLs.
+- Service config: data-plane pool, gateway event loops, append batching, ChannelV2 store append/apply worker caps, delivery ack batching, cache TTLs.
+
+Use `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and
+`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` only as a bounded-concurrency
+experiment when `channelv2_worker_inflight_peak` reaches the store pool limit
+and storage request tails show `leader_append` / `follower_apply` pressure. The
+caps do not change durable commit, sync, quorum, or ACK semantics; they only
+control how many blocking store calls enter the shared message DB commit
+coordinator at once.
 
 Prefer workload experiments before configuration experiments. Prefer configuration experiments before code changes.
 

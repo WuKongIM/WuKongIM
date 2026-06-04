@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -160,6 +161,9 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "controller_raft_step_enqueue_err_count: %.0f\n", report.ControllerRaftStepEnqueueErrCount)
 	fmt.Fprintf(w, "channelv2_reactor_mailbox_depth_max: %.0f\n", report.ChannelV2ReactorMailboxDepthMax)
 	fmt.Fprintf(w, "channelv2_worker_queue_depth_max: %.0f\n", report.ChannelV2WorkerQueueDepthMax)
+	printLabeledFloatMap(w, "channelv2_worker_queue_depth", "pool", report.ChannelV2WorkerQueueDepthByPool, "%.0f")
+	printLabeledFloatMap(w, "channelv2_worker_inflight", "pool", report.ChannelV2WorkerInflightByPool, "%.0f")
+	printLabeledFloatMap(w, "channelv2_worker_inflight_peak", "pool", report.ChannelV2WorkerInflightPeakByPool, "%.0f")
 	fmt.Fprintf(w, "channelv2_append_p99_seconds: %.6f\n", report.ChannelV2AppendP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_resolve_p99_seconds: %.6f\n", report.ChannelV2MetaResolveP99Seconds)
 	fmt.Fprintf(w, "channelv2_meta_slot_read_p99_seconds: %.6f\n", report.ChannelV2MetaSlotReadP99Seconds)
@@ -245,17 +249,45 @@ func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attri
 	fmt.Fprintf(w, "channelv2_need_meta_pull_remote_err_count: %.0f\n", report.ChannelV2NeedMetaPullRemoteErrCount)
 	fmt.Fprintf(w, "channelv2_need_meta_pull_other_err_count: %.0f\n", report.ChannelV2NeedMetaPullOtherErrCount)
 	fmt.Fprintf(w, "channelv2_worker_task_p99_seconds: %.6f\n", report.ChannelV2WorkerTaskP99Seconds)
+	printLabeledFloatMap(w, "channelv2_worker_task_p99_seconds", "kind", report.ChannelV2WorkerTaskP99SecondsByKind, "%.6f")
 	fmt.Fprintf(w, "storage_commit_queue_depth_max: %.0f\n", report.StorageCommitQueueDepthMax)
 	fmt.Fprintf(w, "storage_commit_batch_requests_p50: %.3f\n", report.StorageCommitBatchRequestsP50)
 	fmt.Fprintf(w, "storage_commit_batch_records_p50: %.3f\n", report.StorageCommitBatchRecordsP50)
 	fmt.Fprintf(w, "storage_commit_p99_seconds: %.6f\n", report.StorageCommitP99Seconds)
 	fmt.Fprintf(w, "storage_commit_total_p99_seconds: %.6f\n", report.StorageCommitTotalP99Seconds)
+	fmt.Fprintf(w, "storage_commit_request_p99_seconds: %.6f\n", report.StorageCommitRequestP99Seconds)
+	printLabeledFloatMap(w, "storage_commit_request_p99_seconds", "lane", report.StorageCommitRequestP99SecondsByLane, "%.6f")
+	fmt.Fprintf(w, "storage_commit_request_ok_p99_seconds: %.6f\n", report.StorageCommitRequestOKP99Seconds)
+	fmt.Fprintf(w, "storage_commit_request_timeout_count: %.0f\n", report.StorageCommitRequestTimeoutCount)
+	fmt.Fprintf(w, "storage_commit_request_canceled_count: %.0f\n", report.StorageCommitRequestCanceledCount)
+	fmt.Fprintf(w, "storage_commit_request_closed_count: %.0f\n", report.StorageCommitRequestClosedCount)
+	fmt.Fprintf(w, "storage_commit_request_err_count: %.0f\n", report.StorageCommitRequestErrCount)
+	fmt.Fprintf(w, "storage_commit_request_over_1s_count: %.0f\n", report.StorageCommitRequestOver1sCount)
+	printLabeledFloatMap(w, "storage_commit_request_over_1s_count", "lane", report.StorageCommitRequestOver1sCountByLane, "%.0f")
+	fmt.Fprintf(w, "storage_commit_request_over_5s_count: %.0f\n", report.StorageCommitRequestOver5sCount)
+	printLabeledFloatMap(w, "storage_commit_request_over_5s_count", "lane", report.StorageCommitRequestOver5sCountByLane, "%.0f")
+	fmt.Fprintf(w, "storage_commit_request_over_10s_count: %.0f\n", report.StorageCommitRequestOver10sCount)
+	printLabeledFloatMap(w, "storage_commit_request_over_10s_count", "lane", report.StorageCommitRequestOver10sCountByLane, "%.0f")
 	if len(report.Reasons) == 0 {
 		return
 	}
 	fmt.Fprintln(w, "reasons:")
 	for _, reason := range report.Reasons {
 		fmt.Fprintf(w, "- %s\n", reason)
+	}
+}
+
+func printLabeledFloatMap(w io.Writer, name string, label string, values map[string]float64, format string) {
+	if len(values) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Fprintf(w, "%s{%s=%q}: "+format+"\n", name, label, key, values[key])
 	}
 }
 

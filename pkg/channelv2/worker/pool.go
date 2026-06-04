@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -11,6 +12,12 @@ import (
 // QueueObserver receives bounded worker queue depth samples.
 type QueueObserver interface {
 	SetWorkerQueueDepth(pool string, depth int)
+}
+
+// InflightObserver receives current and peak running worker counts.
+type InflightObserver interface {
+	SetWorkerInflight(pool string, inflight int)
+	SetWorkerInflightPeak(pool string, peak int)
 }
 
 type noopQueueObserver struct{}
@@ -26,16 +33,18 @@ type PoolConfig struct {
 
 // Pool runs blocking tasks with bounded concurrency and admission.
 type Pool struct {
-	cfg    PoolConfig
-	deps   Deps
-	sink   CompletionSink
-	queue  chan Task
-	stop   chan struct{}
-	ctx    context.Context
-	cancel context.CancelFunc
-	obs    QueueObserver
-	once   sync.Once
-	wg     sync.WaitGroup
+	cfg          PoolConfig
+	deps         Deps
+	sink         CompletionSink
+	queue        chan Task
+	stop         chan struct{}
+	ctx          context.Context
+	cancel       context.CancelFunc
+	obs          QueueObserver
+	inflight     atomic.Int64
+	inflightPeak atomic.Int64
+	once         sync.Once
+	wg           sync.WaitGroup
 }
 
 // NewPool starts a bounded worker pool.
@@ -122,14 +131,42 @@ func (p *Pool) observeQueueDepth() {
 	p.obs.SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
 }
 
+func (p *Pool) observeInflight(inflight int) {
+	obs, ok := p.obs.(InflightObserver)
+	if !ok {
+		return
+	}
+	obs.SetWorkerInflight(p.cfg.Name, inflight)
+	peak := p.updateInflightPeak(inflight)
+	obs.SetWorkerInflightPeak(p.cfg.Name, peak)
+}
+
+func (p *Pool) updateInflightPeak(inflight int) int {
+	value := int64(inflight)
+	for {
+		peak := p.inflightPeak.Load()
+		if value <= peak {
+			return int(peak)
+		}
+		if p.inflightPeak.CompareAndSwap(peak, value) {
+			return inflight
+		}
+	}
+}
+
 func (p *Pool) run() {
 	defer p.wg.Done()
 	for {
 		select {
 		case task := <-p.queue:
+			p.observeQueueDepth()
+			running := int(p.inflight.Add(1))
+			p.observeInflight(running)
 			started := time.Now()
 			result := task.Run(p.ctx, p.deps)
 			result.Duration = time.Since(started)
+			running = int(p.inflight.Add(-1))
+			p.observeInflight(running)
 			p.sink.Complete(result)
 		case <-p.stop:
 			return

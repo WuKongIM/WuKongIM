@@ -14,6 +14,8 @@ var channelV2DurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05
 type ChannelV2Metrics struct {
 	reactorMailboxDepth      *prometheus.GaugeVec
 	workerQueueDepth         *prometheus.GaugeVec
+	workerInflight           *prometheus.GaugeVec
+	workerInflightPeak       *prometheus.GaugeVec
 	activeRuntimes           *prometheus.GaugeVec
 	activationRejectedTotal  *prometheus.CounterVec
 	followerParked           *prometheus.GaugeVec
@@ -46,6 +48,16 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		workerQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelv2_worker_queue_depth",
 			Help:        "Number of pending tasks in each ChannelV2 worker pool.",
+			ConstLabels: labels,
+		}, []string{"pool"}),
+		workerInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_worker_inflight",
+			Help:        "Number of currently running tasks in each ChannelV2 worker pool.",
+			ConstLabels: labels,
+		}, []string{"pool"}),
+		workerInflightPeak: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_worker_inflight_peak",
+			Help:        "Peak number of concurrently running tasks observed in each ChannelV2 worker pool since process start.",
 			ConstLabels: labels,
 		}, []string{"pool"}),
 		activeRuntimes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -161,6 +173,8 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 	registry.MustRegister(
 		m.reactorMailboxDepth,
 		m.workerQueueDepth,
+		m.workerInflight,
+		m.workerInflightPeak,
 		m.activeRuntimes,
 		m.activationRejectedTotal,
 		m.followerParked,
@@ -198,6 +212,20 @@ func (m *ChannelV2Metrics) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	m.workerQueueDepth.WithLabelValues(pool).Set(float64(depth))
+}
+
+func (m *ChannelV2Metrics) SetWorkerInflight(pool string, inflight int) {
+	if m == nil {
+		return
+	}
+	m.workerInflight.WithLabelValues(pool).Set(float64(inflight))
+}
+
+func (m *ChannelV2Metrics) SetWorkerInflightPeak(pool string, peak int) {
+	if m == nil {
+		return
+	}
+	m.workerInflightPeak.WithLabelValues(pool).Set(float64(peak))
 }
 
 func (m *ChannelV2Metrics) SetChannelRuntimeCount(reactorID int, role string, count int) {

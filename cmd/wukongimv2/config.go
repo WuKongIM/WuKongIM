@@ -37,6 +37,8 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
+	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
+	"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS",
 	"WK_CLUSTER_MAX_CHANNELS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
@@ -73,6 +75,14 @@ var supportedConfigKeys = []string{
 	"WK_DELIVERY_PENDING_ACK_TTL",
 	"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION",
 	"WK_DELIVERY_EVENT_QUEUE_SIZE",
+	"WK_LOG_LEVEL",
+	"WK_LOG_DIR",
+	"WK_LOG_MAX_SIZE",
+	"WK_LOG_MAX_AGE",
+	"WK_LOG_MAX_BACKUPS",
+	"WK_LOG_COMPRESS",
+	"WK_LOG_CONSOLE",
+	"WK_LOG_FORMAT",
 }
 
 const (
@@ -259,6 +269,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_REACTOR_COUNT: value must be >= 0")
 		}
 		cfg.Cluster.Channel.ReactorCount = reactorCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreAppendWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreApplyWorkers = workers
 	}
 	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
 		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)
@@ -465,6 +495,45 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Gateway.SendTimeout = sendTimeout
 	}
+	cfg.Log.Level = configValue(values, "WK_LOG_LEVEL")
+	cfg.Log.Dir = configValue(values, "WK_LOG_DIR")
+	if raw := configValue(values, "WK_LOG_MAX_SIZE"); raw != "" {
+		maxSize, err := parseInt("WK_LOG_MAX_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxSize = maxSize
+	}
+	if raw := configValue(values, "WK_LOG_MAX_AGE"); raw != "" {
+		maxAge, err := parseInt("WK_LOG_MAX_AGE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxAge = maxAge
+	}
+	if raw := configValue(values, "WK_LOG_MAX_BACKUPS"); raw != "" {
+		maxBackups, err := parseInt("WK_LOG_MAX_BACKUPS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxBackups = maxBackups
+	}
+	if raw := configValue(values, "WK_LOG_COMPRESS"); raw != "" {
+		compress, err := parseBool("WK_LOG_COMPRESS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.Compress = compress
+	}
+	if raw := configValue(values, "WK_LOG_CONSOLE"); raw != "" {
+		console, err := parseBool("WK_LOG_CONSOLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.Console = console
+	}
+	cfg.Log.Format = configValue(values, "WK_LOG_FORMAT")
+	cfg.Log.SetExplicitFlags(configValue(values, "WK_LOG_COMPRESS") != "", configValue(values, "WK_LOG_CONSOLE") != "")
 	if raw := configValue(values, "WK_PRESENCE_ACTIVATION_TIMEOUT"); raw != "" {
 		activationTimeout, err := parseDuration("WK_PRESENCE_ACTIVATION_TIMEOUT", raw)
 		if err != nil {

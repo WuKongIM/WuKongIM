@@ -33,6 +33,10 @@ WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
 # ChannelV2 reactor partitions used by the wukongimv2 append runtime. 0 derives
 # a CPU-aware default from GOMAXPROCS with a minimum of 4.
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
+# Caps blocking ChannelV2 leader append and follower apply store workers. 0 keeps
+# the runtime default derived from the reactor count.
+WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
+WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
 # Limits active local legacy channel runtimes and ChannelV2 runtimes on this node.
 # 0 preserves unlimited behavior; set a positive per-node budget to fail closed
 # before channel runtime goroutines grow unbounded.

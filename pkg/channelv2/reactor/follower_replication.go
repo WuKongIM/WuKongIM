@@ -196,6 +196,33 @@ func (r *Reactor) trySubmitStoppedAck(rc *runtimeChannel, now time.Time) bool {
 	return true
 }
 
+func (r *Reactor) trySubmitProgressAck(rc *runtimeChannel, now time.Time) bool {
+	if rc == nil || rc.state == nil || rc.replication.progressAckInflight || rc.state.LEO == 0 {
+		return false
+	}
+	opID := r.nextOpID()
+	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
+	req := transport.AckRequest{
+		ChannelKey:  rc.state.Key,
+		Epoch:       rc.state.Epoch,
+		LeaderEpoch: rc.state.LeaderEpoch,
+		Follower:    r.cfg.LocalNode,
+		MatchOffset: rc.state.LEO,
+	}
+	if err := r.submitRPCAck(context.Background(), rc.state.Leader, fence, req); err != nil {
+		rc.replication.lastError = err
+		return false
+	}
+	rc.replication.progressAckInflight = true
+	rc.replication.progressAckOpID = opID
+	rc.replication.progressAckMatchOffset = req.MatchOffset
+	if rc.replication.ackReturnStartedAt.IsZero() {
+		rc.replication.ackReturnStartedAt = now
+		rc.replication.ackReturnOffset = req.MatchOffset
+	}
+	return true
+}
+
 // tryEvictStoppedFollower retries runtime deletion after the stopped ACK has already reached the leader.
 func (r *Reactor) tryEvictStoppedFollower(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.lifecycle.stage != lifecycleFollowerReadyToEvict {
@@ -748,6 +775,7 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	rc.replication.markDirty(now)
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 	rc.replication.nextPullAt = now
+	r.trySubmitProgressAck(rc, now)
 	r.tickFollowerReplication(rc, now)
 }
 
@@ -765,11 +793,34 @@ func (r *Reactor) handleRPCAckResult(result worker.Result) {
 		r.handleStoppedAckResult(rc, result)
 		return
 	}
+	if rc.replication.progressAckInflight &&
+		result.Fence.ChannelKey == rc.state.Key &&
+		result.Fence.Generation == rc.state.Generation &&
+		result.Fence.Epoch == rc.state.Epoch &&
+		result.Fence.LeaderEpoch == rc.state.LeaderEpoch &&
+		result.Fence.OpID == rc.replication.progressAckOpID {
+		r.handleProgressAckResult(rc, result)
+		return
+	}
 }
 
 func (r *Reactor) handleStoppedAckResult(rc *runtimeChannel, result worker.Result) {
 	now := time.Now()
 	r.driveLifecycle(rc, lifecycleEvent{kind: lifecycleEventStoppedAckDone, now: now, err: result.Err})
+}
+
+func (r *Reactor) handleProgressAckResult(rc *runtimeChannel, result worker.Result) {
+	now := time.Now()
+	matchOffset := rc.replication.progressAckMatchOffset
+	rc.replication.progressAckInflight = false
+	rc.replication.progressAckOpID = 0
+	rc.replication.progressAckMatchOffset = 0
+	if result.Err != nil {
+		rc.replication.lastError = result.Err
+		return
+	}
+	rc.replication.lastError = nil
+	r.observeFollowerAckReturnWait(rc, matchOffset, rc.replication.ackReturnOffset, rc.replication.ackReturnStartedAt, now)
 }
 
 func (r *Reactor) backoffPull(rc *runtimeChannel, err error, now time.Time) {

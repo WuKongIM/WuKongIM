@@ -50,6 +50,41 @@ func TestPoolReturnsBackpressureWhenQueueFull(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrBackpressured)
 }
 
+func TestPoolReportsInflightCurrentAndPeak(t *testing.T) {
+	sink := &captureSink{}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 1}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	obs := &captureWorkerObserver{}
+	pool.SetQueueObserver(obs)
+
+	block := make(chan struct{})
+	release := sync.Once{}
+	defer release.Do(func() { close(block) })
+	started := make(chan struct{})
+	fence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
+	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence, RunFunc: func(context.Context) Result {
+		close(started)
+		<-block
+		return Result{Fence: fence}
+	}}))
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-started:
+		default:
+			return false
+		}
+		return obs.Inflight("test") == 1 && obs.InflightPeak("test") == 1
+	}, time.Second, time.Millisecond)
+
+	release.Do(func() { close(block) })
+	require.Eventually(t, func() bool {
+		return obs.Inflight("test") == 0 && obs.InflightPeak("test") == 1
+	}, time.Second, time.Millisecond)
+}
+
 func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
 	sink := &captureSink{}
 	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 1}, Deps{}, sink)
@@ -146,4 +181,42 @@ func (s *captureSink) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.results)
+}
+
+type captureWorkerObserver struct {
+	mu       sync.Mutex
+	inflight map[string]int
+	peak     map[string]int
+}
+
+func (o *captureWorkerObserver) SetWorkerQueueDepth(string, int) {}
+
+func (o *captureWorkerObserver) SetWorkerInflight(pool string, inflight int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.inflight == nil {
+		o.inflight = map[string]int{}
+	}
+	o.inflight[pool] = inflight
+}
+
+func (o *captureWorkerObserver) SetWorkerInflightPeak(pool string, peak int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.peak == nil {
+		o.peak = map[string]int{}
+	}
+	o.peak[pool] = peak
+}
+
+func (o *captureWorkerObserver) Inflight(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.inflight[pool]
+}
+
+func (o *captureWorkerObserver) InflightPeak(pool string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.peak[pool]
 }

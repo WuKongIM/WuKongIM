@@ -237,6 +237,8 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 
 	reg.ChannelV2.SetReactorMailboxDepth(2, "normal", 9)
 	reg.ChannelV2.SetWorkerQueueDepth("store_append", 4)
+	reg.ChannelV2.SetWorkerInflight("store_append", 3)
+	reg.ChannelV2.SetWorkerInflightPeak("store_append", 7)
 	reg.ChannelV2.ObserveAppendBatch(16, 1024, 3*time.Millisecond)
 	reg.ChannelV2.ObserveAppendLatency("local", 7*time.Millisecond)
 	reg.ChannelV2.ObserveAppendStage("meta_apply", "ok", 5*time.Millisecond)
@@ -278,6 +280,24 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"pool":      "store_append",
 	})
 	require.Equal(t, float64(4), workerQueue.GetMetric()[0].GetGauge().GetValue())
+
+	workerInflight := requireMetricFamily(t, families, "wukongim_channelv2_worker_inflight")
+	require.Len(t, workerInflight.GetMetric(), 1)
+	requireMetricLabels(t, workerInflight.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"pool":      "store_append",
+	})
+	require.Equal(t, float64(3), workerInflight.GetMetric()[0].GetGauge().GetValue())
+
+	workerInflightPeak := requireMetricFamily(t, families, "wukongim_channelv2_worker_inflight_peak")
+	require.Len(t, workerInflightPeak.GetMetric(), 1)
+	requireMetricLabels(t, workerInflightPeak.GetMetric()[0], map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"pool":      "store_append",
+	})
+	require.Equal(t, float64(7), workerInflightPeak.GetMetric()[0].GetGauge().GetValue())
 
 	requireMetricFamily(t, families, "wukongim_channelv2_append_batch_records")
 	requireMetricFamily(t, families, "wukongim_channelv2_append_batch_bytes")
@@ -769,6 +789,11 @@ func TestStorageMetricsTrackCommitCoordinator(t *testing.T) {
 		PublishDuration: 4 * time.Millisecond,
 		TotalDuration:   10 * time.Millisecond,
 	})
+	reg.Storage.ObserveCommitRequest("message", "append", "ok", StorageCommitRequestObservation{
+		Records:  2,
+		Bytes:    32,
+		Duration: 11 * time.Millisecond,
+	})
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -798,6 +823,11 @@ func TestStorageMetricsTrackCommitCoordinator(t *testing.T) {
 	require.Len(t, duration.GetMetric(), 5)
 	commitDuration := findMetricByLabels(t, duration, map[string]string{"store": "message", "stage": "commit", "result": "ok"})
 	require.NotNil(t, commitDuration.GetHistogram())
+
+	requestDuration := requireMetricFamily(t, families, "wukongim_storage_commit_request_duration_seconds")
+	require.Len(t, requestDuration.GetMetric(), 1)
+	request := findMetricByLabels(t, requestDuration, map[string]string{"store": "message", "lane": "append", "result": "ok"})
+	require.NotNil(t, request.GetHistogram())
 }
 
 func TestRegistryExposesMessageMetrics(t *testing.T) {

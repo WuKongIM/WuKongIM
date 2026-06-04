@@ -36,6 +36,53 @@ func TestSingleNodeAppendStoresMessage(t *testing.T) {
 	require.Equal(t, uint64(1), messages[0].MessageSeq)
 }
 
+func TestNewLimitsStoreAppendWorkersWhenConfigured(t *testing.T) {
+	factory := newServiceBlockingAppendFactory()
+	observer := &serviceWorkerInflightObserver{}
+	cluster, err := New(Config{
+		LocalNode:             1,
+		Store:                 factory,
+		ReactorCount:          4,
+		AppendBatchMaxRecords: 1,
+		StoreAppendWorkers:    1,
+		Observer:              observer,
+	})
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	for i := 0; i < 3; i++ {
+		meta := ch.Meta{Key: ch.ChannelKey("1:append-limit-" + string(rune('a'+i))), ID: ch.ChannelID{ID: "append-limit-" + string(rune('a'+i)), Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+		require.NoError(t, cluster.ApplyMeta(meta))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	errs := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			channelID := ch.ChannelID{ID: "append-limit-" + string(rune('a'+i)), Type: 1}
+			_, err := cluster.Append(ctx, ch.AppendRequest{ChannelID: channelID, Message: ch.Message{Payload: []byte("hello")}})
+			errs <- err
+		}()
+	}
+
+	factory.WaitAppendStarted(t)
+	require.Never(t, func() bool {
+		return observer.Peak("channelv2-store-append") > 1
+	}, 50*time.Millisecond, 5*time.Millisecond)
+	factory.UnblockAppends()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	require.Equal(t, int64(1), observer.Peak("channelv2-store-append"))
+}
+
 func TestAppendRequiresLoadedChannelState(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	meta := ch.Meta{Key: ch.ChannelKey("1:not-loaded"), ID: ch.ChannelID{ID: "not-loaded", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
@@ -339,7 +386,7 @@ func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	}
 }
 
-func TestHandleAckRejectsOrdinaryAckWithoutCompletingQuorumAppend(t *testing.T) {
+func TestHandleAckRejectsOrdinaryAckAboveLEOWithoutCompletingQuorumAppend(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})
 	require.NoError(t, err)
@@ -385,13 +432,13 @@ func TestHandleAckRejectsOrdinaryAckWithoutCompletingQuorumAppend(t *testing.T) 
 		Epoch:       meta.Epoch,
 		LeaderEpoch: meta.LeaderEpoch,
 		Follower:    2,
-		MatchOffset: 1,
+		MatchOffset: 2,
 	})
-	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 
 	select {
 	case outcome := <-appendDone:
-		t.Fatalf("append completed after unsupported ordinary ack: result=%+v err=%v", outcome.result, outcome.err)
+		t.Fatalf("append completed after stale ordinary ack: result=%+v err=%v", outcome.result, outcome.err)
 	default:
 	}
 
@@ -907,6 +954,82 @@ func (s *serviceBlockingReadLogStore) ReadLog(ctx context.Context, req store.Rea
 		return store.ReadLogResult{}, ctx.Err()
 	}
 	return s.ChannelStore.ReadLog(ctx, req)
+}
+
+type serviceBlockingAppendFactory struct {
+	base    *store.MemoryFactory
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func newServiceBlockingAppendFactory() *serviceBlockingAppendFactory {
+	return &serviceBlockingAppendFactory{
+		base:    store.NewMemoryFactory(),
+		started: make(chan struct{}, 16),
+		unblock: make(chan struct{}),
+	}
+}
+
+func (f *serviceBlockingAppendFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	inner, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &serviceBlockingAppendStore{ChannelStore: inner, parent: f}, nil
+}
+
+func (f *serviceBlockingAppendFactory) WaitAppendStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for AppendLeader to start")
+	}
+}
+
+func (f *serviceBlockingAppendFactory) UnblockAppends() {
+	select {
+	case <-f.unblock:
+	default:
+		close(f.unblock)
+	}
+}
+
+type serviceBlockingAppendStore struct {
+	store.ChannelStore
+	parent *serviceBlockingAppendFactory
+}
+
+func (s *serviceBlockingAppendStore) AppendLeader(ctx context.Context, req store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	select {
+	case s.parent.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-s.parent.unblock:
+	case <-ctx.Done():
+		return store.AppendLeaderResult{}, ctx.Err()
+	}
+	return s.ChannelStore.AppendLeader(ctx, req)
+}
+
+type serviceWorkerInflightObserver struct {
+	serviceAppendStageObserver
+	peaks sync.Map
+}
+
+func (o *serviceWorkerInflightObserver) SetWorkerInflight(string, int) {}
+
+func (o *serviceWorkerInflightObserver) SetWorkerInflightPeak(pool string, peak int) {
+	o.peaks.Store(pool, int64(peak))
+}
+
+func (o *serviceWorkerInflightObserver) Peak(pool string) int64 {
+	value, ok := o.peaks.Load(pool)
+	if !ok {
+		return 0
+	}
+	return value.(int64)
 }
 
 type serviceAppendStageObserver struct {

@@ -225,7 +225,10 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 		pull := net.LastPull()
 		return pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, 0, net.AckCalls())
+	require.Eventually(t, func() bool {
+		ack := net.LastAck()
+		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
+	}, time.Second, time.Millisecond)
 }
 
 func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPull(t *testing.T) {
@@ -259,6 +262,16 @@ func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPull(t *testing.T) {
 	})
 
 	r.handleStoreApplyResult(applyResult)
+
+	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
+	require.Equal(t, transport.AckRequest{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		Follower:    2,
+		MatchOffset: 1,
+	}, net.LastAck())
+	r.handleRPCAckResult(ack)
 
 	require.Eventually(t, func() bool {
 		pull := net.LastPull()
@@ -1244,7 +1257,10 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
 		pull := net.LastPull()
 		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, 0, net.AckCalls())
+	require.Eventually(t, func() bool {
+		ack := net.LastAck()
+		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
+	}, time.Second, time.Millisecond)
 
 	cs, err := factory.ChannelStore(meta.Key, meta.ID)
 	require.NoError(t, err)
@@ -1953,7 +1969,10 @@ func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
 		pull := net.LastPull()
 		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, 0, net.AckCalls())
+	require.Eventually(t, func() bool {
+		ack := net.LastAck()
+		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
+	}, time.Second, time.Millisecond)
 }
 
 func TestFollowerStoreApplyErrorRetriesSamePendingPull(t *testing.T) {
@@ -2000,9 +2019,9 @@ func TestStaleStoreApplyCompletionDoesNotClearNewerApplyInflight(t *testing.T) {
 	require.Zero(t, rc.state.LEO)
 }
 
-func TestOrdinaryApplyDoesNotUseAckPool(t *testing.T) {
+func TestOrdinaryApplyUsesProgressAckAfterDurableApply(t *testing.T) {
 	net := newCapturingTransport()
-	meta := followerTestMeta("ordinary-no-ack-pool")
+	meta := followerTestMeta("ordinary-progress-ack")
 	net.SetPullResponse(transport.PullResponse{
 		ChannelKey:  meta.Key,
 		Epoch:       meta.Epoch,
@@ -2035,7 +2054,10 @@ func TestOrdinaryApplyDoesNotUseAckPool(t *testing.T) {
 		_ = awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Millisecond)})
 		return net.PullCalls() >= 2 && net.LastPull().AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, 0, net.AckCalls())
+	require.Eventually(t, func() bool {
+		ack := net.LastAck()
+		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
+	}, time.Second, time.Millisecond)
 }
 
 func TestStaleRPCPullCompletionDoesNotClearNewerPullInflight(t *testing.T) {
@@ -2677,6 +2699,94 @@ func TestLeaderPullAckOffsetAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
 	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
 }
 
+func TestLeaderProgressAckAdvancesHWAndCompletesQuorumWaiter(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	obs := &appendWaitStageObserver{}
+
+	meta := ch.Meta{
+		Key:         "1:progress-ack-complete",
+		ID:          ch.ChannelID{ID: "progress-ack-complete", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1, 2},
+		ISR:         []ch.NodeID{1, 2},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+	}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, Observer: obs})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	appendFuture := NewFuture()
+	r.handleAppend(Event{
+		Kind:   EventAppend,
+		Key:    meta.Key,
+		OpID:   1,
+		Future: appendFuture,
+		Append: ch.AppendBatchRequest{
+			ChannelID:  meta.ID,
+			CommitMode: ch.CommitModeQuorum,
+			Messages: []ch.Message{{
+				MessageID:   10,
+				ChannelID:   meta.ID.ID,
+				ChannelType: meta.ID.Type,
+				Payload:     []byte("a"),
+			}},
+		},
+	})
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: sink.awaitResultKind(t, worker.TaskStoreAppend)})
+	requireFuturePending(t, appendFuture)
+
+	pullFuture := NewFuture()
+	r.handleLeaderPull(Event{
+		Kind:   EventPull,
+		Key:    meta.Key,
+		OpID:   2,
+		Future: pullFuture,
+		Pull: transport.PullRequest{
+			ChannelKey:  meta.Key,
+			ChannelID:   meta.ID,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Follower:    2,
+			NextOffset:  1,
+			MaxBytes:    1024,
+		},
+	})
+	require.NoError(t, awaitFutureResult(t, pullFuture).Err)
+	requireFuturePending(t, appendFuture)
+
+	ackFuture := NewFuture()
+	r.handleLeaderAck(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Future: ackFuture,
+		Ack: transport.AckRequest{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Follower:    2,
+			MatchOffset: 1,
+		},
+	})
+
+	require.NoError(t, awaitFutureResult(t, ackFuture).Err)
+	appendResult := awaitFutureResult(t, appendFuture)
+	require.NoError(t, appendResult.Err)
+	require.Len(t, appendResult.AppendBatch.Items, 1)
+	require.Equal(t, uint64(1), appendResult.AppendBatch.Items[0].MessageSeq)
+	requireAppendWaitStage(t, obs.Events(), "quorum_ack_offset_wait", ch.CommitModeQuorum, "ok")
+	requireAppendWaitStage(t, obs.Events(), "quorum_hw_advance_wait", ch.CommitModeQuorum, "ok")
+	requireAppendWaitStage(t, obs.Events(), "quorum_final_complete_wait", ch.CommitModeQuorum, "ok")
+	requireAppendWaitStage(t, obs.Events(), "post_store_commit_wait", ch.CommitModeQuorum, "ok")
+	rc := r.channels[meta.Key]
+	require.Equal(t, uint64(1), rc.state.HW)
+	require.Equal(t, uint64(1), rc.state.Progress[2].Match)
+}
+
 func TestLeaderPullRejectsAckOffsetAboveLeaderLEO(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
@@ -2699,6 +2809,35 @@ func TestLeaderPullRejectsAckOffsetAboveLeaderLEO(t *testing.T) {
 			NextOffset:  1,
 			AckOffset:   1,
 			MaxBytes:    1024,
+		},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Equal(t, uint64(0), rc.state.HW)
+	require.Equal(t, uint64(0), rc.state.Progress[2].Match)
+}
+
+func TestLeaderProgressAckRejectsMatchAboveLEO(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("progress-ack-above-leo")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventAck,
+		Key:  meta.Key,
+		Ack: transport.AckRequest{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Follower:    2,
+			MatchOffset: 1,
 		},
 	})
 	require.NoError(t, err)
@@ -3060,7 +3199,7 @@ func TestLeaderRejectsOrdinaryAckAfterLeaderEpochBump(t *testing.T) {
 	meta.LeaderEpoch = 2
 	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
 	err = awaitSubmit(g, meta.Key, staleAck)
-	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 
 	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-current-ack"))
 	require.NoError(t, err)
@@ -3082,7 +3221,7 @@ func TestLeaderRejectsOrdinaryAckFromUnknownFollower(t *testing.T) {
 	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: 1, LeaderEpoch: 1, Follower: 99, MatchOffset: 1}})
 	require.NoError(t, err)
 	_, err = ackFuture.Await(context.Background())
-	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	requireFuturePending(t, future)
 }
 
@@ -3101,7 +3240,7 @@ func TestLeaderRejectsOrdinaryAckWithMismatchedChannelKey(t *testing.T) {
 	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: "1:other", Epoch: 1, LeaderEpoch: 1, Follower: 2, MatchOffset: 1}})
 	require.NoError(t, err)
 	_, err = ackFuture.Await(context.Background())
-	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 	requireFuturePending(t, future)
 }
 

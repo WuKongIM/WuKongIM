@@ -64,7 +64,7 @@ type PullResponse struct {
 	Records []ch.Record
 }
 
-// AckRequest confirms stopped-follower lifecycle progress to the leader.
+// AckRequest reports follower progress to the leader.
 type AckRequest struct {
 	// ChannelKey identifies the replicated channel.
 	ChannelKey ch.ChannelKey
@@ -74,11 +74,12 @@ type AckRequest struct {
 	LeaderEpoch uint64
 	// Follower is the node reporting stopped lifecycle progress.
 	Follower ch.NodeID
-	// MatchOffset is the follower offset at the stopped lifecycle boundary.
+	// MatchOffset is the highest offset the follower has durably applied.
 	MatchOffset uint64
 	// ActivityVersion fences stopped acknowledgements for idle eviction.
 	ActivityVersion uint64
 	// Stopped reports that the follower has checkpointed and unloaded runtime state.
+	// When false, the request is an ordinary durable progress acknowledgement.
 	Stopped bool
 }
 

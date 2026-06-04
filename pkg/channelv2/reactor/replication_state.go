@@ -65,6 +65,12 @@ type replicationState struct {
 	ackReturnStartedAt time.Time
 	// ackReturnOffset is the follower LEO that must be carried back to the leader.
 	ackReturnOffset uint64
+	// progressAckInflight records whether one ordinary progress ACK RPC is currently running.
+	progressAckInflight bool
+	// progressAckOpID fences the currently running ordinary progress ACK RPC.
+	progressAckOpID ch.OpID
+	// progressAckMatchOffset is the durable follower LEO carried by the current progress ACK.
+	progressAckMatchOffset uint64
 }
 
 // pendingMetaState is a reactor-owned follower bootstrap shell awaiting authoritative metadata.

@@ -456,7 +456,7 @@ func TestAppendContextCancelSweepsPostStoreQuorumWaiterWithoutCancelEvent(t *tes
 		Future: ackFuture,
 	})
 	_, err = ackFuture.Await(context.Background())
-	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.NoError(t, err)
 	require.Equal(t, 1, completions)
 }
 
