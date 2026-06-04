@@ -79,7 +79,11 @@ type Message struct {
 	ChannelType uint8
 	FromUID     string
 	ClientMsgNo string
-	Payload     []byte
+	// TraceID correlates diagnostics events for this transient append message.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier for this transient append message.
+	ChannelKey string
+	Payload    []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -131,8 +135,16 @@ type AppendResult struct {
 
 // AppendBatchRequest appends messages to one channel in request order.
 type AppendBatchRequest struct {
-	ChannelID            ChannelID
-	Messages             []Message
+	ChannelID ChannelID
+	Messages  []Message
+
+	// TraceID correlates diagnostics events for this append batch.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier for this append batch.
+	ChannelKey string
+	// Attempt is the one-based append attempt associated with diagnostics metadata.
+	Attempt int
+
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64

@@ -18,7 +18,8 @@ SendBatch(items)
   -> allocate message IDs for durable gateway-origin sends
   -> group sends by canonical channel while preserving per-channel order
   -> clone payloads at the appender boundary and propagate sendtrace metadata
-     to request-level and per-message append payload fields
+     plus one-based append attempt to request-level and per-message append
+     payload fields
   -> append active channel groups through Appender.AppendBatch with bounded
      channel-level concurrency
      (omit result payloads when no committed sink is configured)

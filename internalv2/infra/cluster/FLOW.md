@@ -11,7 +11,9 @@ package that maps message DTOs to `pkg/channelv2` DTOs.
 ```text
 message.AppendBatchRequest
   -> channelv2.AppendBatchRequest
+     (trace id, diagnostics channel key, append attempt, and per-message trace metadata stay transient)
   -> ChannelAppendNode.AppendChannelBatch
+  -> record sendtrace `channel.append.local` for traced messages after completion
   -> channelv2.AppendBatchResult
   -> message.AppendBatchResult
 ```
@@ -19,6 +21,9 @@ message.AppendBatchRequest
 Payloads are cloned in both directions unless the message usecase marks result
 payloads as unnecessary for SENDACK-only flows. Commit mode and typed errors are
 mapped at this boundary so the message usecase stays cluster-agnostic.
+The adapter records channel append sendtrace events only when tracing is enabled
+and the request carries trace metadata, so untraced appends do not pay extra
+timing or event-allocation cost.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

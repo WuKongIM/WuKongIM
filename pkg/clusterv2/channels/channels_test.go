@@ -455,6 +455,8 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 		ChannelType: 1,
 		FromUID:     "u1",
 		ClientMsgNo: "m1",
+		TraceID:     "trace-message",
+		ChannelKey:  "channel/key-message",
 		Payload:     []byte("message-payload"),
 	}
 
@@ -559,12 +561,15 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 		{
 			name: "append batch request",
 			encode: func() ([]byte, error) {
-				return encodeAppendBatchRequest(ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Messages: []ch.Message{sampleMessage}, CommitMode: ch.CommitModeLocal, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2, OmitResultPayload: true})
+				return encodeAppendBatchRequest(ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Messages: []ch.Message{sampleMessage}, TraceID: "trace-request", ChannelKey: "channel/key-request", Attempt: 3, CommitMode: ch.CommitModeLocal, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2, OmitResultPayload: true})
 			},
 			decode: func(data []byte) {
 				got, err := decodeAppendBatchRequest(data)
 				require.NoError(t, err)
 				require.Equal(t, []ch.Message{sampleMessage}, got.Messages)
+				require.Equal(t, "trace-request", got.TraceID)
+				require.Equal(t, "channel/key-request", got.ChannelKey)
+				require.Equal(t, 3, got.Attempt)
 				require.True(t, got.OmitResultPayload)
 			},
 		},

@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
@@ -23,6 +24,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 					ChannelType: 1,
 					FromUID:     "u1",
 					ClientMsgNo: "m1",
+					TraceID:     "trace-result-1",
+					ChannelKey:  "channel/key-result-1",
 					Payload:     []byte("accepted-1"),
 				},
 			},
@@ -36,6 +39,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 					ChannelType: 1,
 					FromUID:     "u2",
 					ClientMsgNo: "m2",
+					TraceID:     "trace-result-2",
+					ChannelKey:  "channel/key-result-2",
 					Payload:     []byte("accepted-2"),
 				},
 			},
@@ -45,6 +50,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 
 	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
 		ChannelID:         message.ChannelID{ID: "room", Type: 1},
+		TraceID:           "trace-request",
+		ChannelKey:        "channel/key-request",
+		Attempt:           4,
 		CommitMode:        message.CommitModeQuorum,
 		OmitResultPayload: true,
 		Messages: []message.Message{
@@ -55,6 +63,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 				ChannelType: 1,
 				FromUID:     "u1",
 				ClientMsgNo: "m1",
+				TraceID:     "trace-message-1",
+				ChannelKey:  "channel/key-message-1",
 				Payload:     []byte("hello"),
 			},
 			{
@@ -64,6 +74,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 				ChannelType: 1,
 				FromUID:     "u2",
 				ClientMsgNo: "m2",
+				TraceID:     "trace-message-2",
+				ChannelKey:  "channel/key-message-2",
 				Payload:     []byte("world"),
 			},
 		},
@@ -81,6 +93,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	if req.CommitMode != channelv2.CommitModeQuorum {
 		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelv2.CommitModeQuorum)
 	}
+	if req.TraceID != "trace-request" || req.ChannelKey != "channel/key-request" || req.Attempt != 4 {
+		t.Fatalf("trace fields = %q/%q attempt %d, want trace-request/channel/key-request attempt 4", req.TraceID, req.ChannelKey, req.Attempt)
+	}
 	if !req.OmitResultPayload {
 		t.Fatalf("OmitResultPayload = false, want true")
 	}
@@ -94,6 +109,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 		ChannelType: 1,
 		FromUID:     "u1",
 		ClientMsgNo: "m1",
+		TraceID:     "trace-message-1",
+		ChannelKey:  "channel/key-message-1",
 		Payload:     []byte("hello"),
 	})
 	assertChannelMessage(t, req.Messages[1], channelv2.Message{
@@ -103,6 +120,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 		ChannelType: 1,
 		FromUID:     "u2",
 		ClientMsgNo: "m2",
+		TraceID:     "trace-message-2",
+		ChannelKey:  "channel/key-message-2",
 		Payload:     []byte("world"),
 	})
 	if len(res.Items) != 2 {
@@ -118,6 +137,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 			ChannelType: 1,
 			FromUID:     "u1",
 			ClientMsgNo: "m1",
+			TraceID:     "trace-result-1",
+			ChannelKey:  "channel/key-result-1",
 			Payload:     []byte("accepted-1"),
 		},
 	})
@@ -131,9 +152,114 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 			ChannelType: 1,
 			FromUID:     "u2",
 			ClientMsgNo: "m2",
+			TraceID:     "trace-result-2",
+			ChannelKey:  "channel/key-result-2",
 			Payload:     []byte("accepted-2"),
 		},
 	})
+}
+
+func TestChannelAppenderRecordsChannelAppendTraceOnSuccess(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	node := &recordingNode{
+		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
+			{MessageID: 10, MessageSeq: 101, Message: channelv2.Message{MessageID: 10, MessageSeq: 101}},
+		}},
+	}
+	appender := NewChannelAppender(node)
+
+	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
+		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+		TraceID:    "trace-1",
+		ChannelKey: "channel/key-1",
+		Attempt:    2,
+		Messages: []message.Message{
+			{
+				MessageID:   10,
+				ChannelID:   "room",
+				ChannelType: 1,
+				FromUID:     "u1",
+				ClientMsgNo: "client-1",
+				TraceID:     "trace-1",
+				ChannelKey:  "channel/key-1",
+				Payload:     []byte("hello"),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() error = %v", err)
+	}
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("sendtrace events = %#v, want 1", events)
+	}
+	requireChannelAppendTraceEvent(t, events[0], "trace-1", "channel/key-1", "client-1", "u1", 101, 2, 1, sendtrace.ResultOK, "")
+}
+
+func TestChannelAppenderRecordsChannelAppendTraceOnBatchError(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrBackpressured})
+
+	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
+		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+		TraceID:    "trace-error",
+		ChannelKey: "channel/key-error",
+		Attempt:    3,
+		Messages: []message.Message{
+			{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-error", TraceID: "trace-error", ChannelKey: "channel/key-error"},
+		},
+	})
+	if !errors.Is(err, message.ErrBackpressured) {
+		t.Fatalf("AppendBatch() error = %v, want backpressured", err)
+	}
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("sendtrace events = %#v, want 1", events)
+	}
+	requireChannelAppendTraceEvent(t, events[0], "trace-error", "channel/key-error", "client-error", "u1", 0, 3, 1, sendtrace.ResultError, "backpressured")
+}
+
+func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	appender := NewChannelAppender(&recordingNode{
+		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
+			{MessageID: 10, MessageSeq: 101},
+		}},
+	})
+
+	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
+		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+		ChannelKey: "channel/key-1",
+		Messages:   []message.Message{{MessageID: 10, ClientMsgNo: "client-1"}},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() without trace id error = %v", err)
+	}
+	if events := sink.snapshot(); len(events) != 0 {
+		t.Fatalf("sendtrace events = %#v, want none without trace id", events)
+	}
+
+	restore()
+	_, err = appender.AppendBatch(context.Background(), message.AppendBatchRequest{
+		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+		TraceID:    "trace-disabled",
+		ChannelKey: "channel/key-disabled",
+		Messages:   []message.Message{{MessageID: 10, TraceID: "trace-disabled", ClientMsgNo: "client-disabled"}},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() without active sink error = %v", err)
+	}
+	if events := sink.snapshot(); len(events) != 0 {
+		t.Fatalf("sendtrace events = %#v, want none without active sink", events)
+	}
 }
 
 func TestChannelAppenderClonesPayloadsBothDirections(t *testing.T) {
@@ -295,6 +421,8 @@ func assertChannelMessage(t *testing.T, got, want channelv2.Message) {
 		got.ChannelType != want.ChannelType ||
 		got.FromUID != want.FromUID ||
 		got.ClientMsgNo != want.ClientMsgNo ||
+		got.TraceID != want.TraceID ||
+		got.ChannelKey != want.ChannelKey ||
 		string(got.Payload) != string(want.Payload) {
 		t.Fatalf("message = %#v, want %#v", got, want)
 	}
@@ -310,8 +438,42 @@ func assertMessageResult(t *testing.T, got, want message.AppendBatchItemResult) 
 		got.Message.ChannelType != want.Message.ChannelType ||
 		got.Message.FromUID != want.Message.FromUID ||
 		got.Message.ClientMsgNo != want.Message.ClientMsgNo ||
+		got.Message.TraceID != want.Message.TraceID ||
+		got.Message.ChannelKey != want.Message.ChannelKey ||
 		string(got.Message.Payload) != string(want.Message.Payload) ||
 		!errors.Is(got.Err, want.Err) {
 		t.Fatalf("result = %#v, want %#v", got, want)
+	}
+}
+
+type recordingSendtraceSink struct {
+	events []sendtrace.Event
+}
+
+func (s *recordingSendtraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.events = append(s.events, event)
+}
+
+func (s *recordingSendtraceSink) snapshot() []sendtrace.Event {
+	return append([]sendtrace.Event(nil), s.events...)
+}
+
+func requireChannelAppendTraceEvent(t *testing.T, event sendtrace.Event, traceID, channelKey, clientMsgNo, fromUID string, messageSeq uint64, attempt, recordCount int, result sendtrace.Result, errorCode string) {
+	t.Helper()
+	if event.Stage != sendtrace.StageChannelAppendLocal {
+		t.Fatalf("stage = %q, want %q", event.Stage, sendtrace.StageChannelAppendLocal)
+	}
+	if event.TraceID != traceID || event.ChannelKey != channelKey || event.ClientMsgNo != clientMsgNo || event.FromUID != fromUID {
+		t.Fatalf("trace fields = %q/%q/%q/%q, want %q/%q/%q/%q",
+			event.TraceID, event.ChannelKey, event.ClientMsgNo, event.FromUID, traceID, channelKey, clientMsgNo, fromUID)
+	}
+	if event.MessageSeq != messageSeq {
+		t.Fatalf("MessageSeq = %d, want %d", event.MessageSeq, messageSeq)
+	}
+	if event.Attempt != attempt || event.RecordCount != recordCount {
+		t.Fatalf("attempt/record count = %d/%d, want %d/%d", event.Attempt, event.RecordCount, attempt, recordCount)
+	}
+	if event.Result != result || event.ErrorCode != errorCode {
+		t.Fatalf("outcome = %q/%q, want %q/%q", event.Result, event.ErrorCode, result, errorCode)
 	}
 }

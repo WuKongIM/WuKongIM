@@ -18,6 +18,7 @@ const maxConcurrentAppendSegments = 64
 
 const appendRetryInitialBackoff = 5 * time.Millisecond
 const appendRetryMaxBackoff = 100 * time.Millisecond
+const appendInitialAttempt = 1
 
 const appendMetricPathChannelPlane = "channelplane"
 
@@ -177,8 +178,9 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 		return
 	}
 	backoff := appendRetryInitialBackoff
+	attempt := appendInitialAttempt
 	for {
-		req := a.appendRequest(segment.channel, active)
+		req := a.appendRequest(segment.channel, active, attempt)
 		ctx, cancel := segmentContext(active)
 		measureAppendDur := a.needsAppendDuration(active)
 		var startedAt time.Time
@@ -196,6 +198,7 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 				nextBackoff, ok := waitBeforeAppendRetry(active, backoff)
 				if ok {
 					backoff = nextBackoff
+					attempt++
 					continue
 				}
 			}
@@ -229,10 +232,14 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 	}
 }
 
-func (a *App) appendRequest(channel ChannelID, active []preparedSend) AppendBatchRequest {
+func (a *App) appendRequest(channel ChannelID, active []preparedSend, attempt int) AppendBatchRequest {
+	if attempt <= 0 {
+		attempt = appendInitialAttempt
+	}
 	req := AppendBatchRequest{
 		ChannelID:         channel,
 		Messages:          make([]Message, 0, len(active)),
+		Attempt:           attempt,
 		CommitMode:        CommitModeQuorum,
 		OmitResultPayload: a == nil || a.committed == nil,
 	}

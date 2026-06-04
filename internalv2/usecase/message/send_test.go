@@ -106,6 +106,9 @@ func TestAppendRequestCarriesSendTraceMetadata(t *testing.T) {
 	if req.TraceID != "trace-two" || req.ChannelKey != "channel/key-two" {
 		t.Fatalf("request trace fields = %q/%q, want trace-two/channel/key-two", req.TraceID, req.ChannelKey)
 	}
+	if req.Attempt != 1 {
+		t.Fatalf("request attempt = %d, want 1", req.Attempt)
+	}
 	if req.Messages[0].TraceID != "" || req.Messages[0].ChannelKey != "" {
 		t.Fatalf("first message trace fields = %q/%q, want empty", req.Messages[0].TraceID, req.Messages[0].ChannelKey)
 	}
@@ -596,6 +599,9 @@ func TestSendBatchRetriesTransientBatchAppendErrorsBeforeDeadline(t *testing.T) 
 	}
 	if appender.calls != 2 {
 		t.Fatalf("append calls = %d, want initial attempt plus retry", appender.calls)
+	}
+	if got := []int{appender.requests[0].Attempt, appender.requests[1].Attempt}; got[0] != 1 || got[1] != 2 {
+		t.Fatalf("append attempts = %v, want [1 2]", got)
 	}
 }
 

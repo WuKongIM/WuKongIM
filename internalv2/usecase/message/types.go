@@ -141,6 +141,8 @@ type AppendBatchRequest struct {
 	TraceID string
 	// ChannelKey is the first non-empty diagnostics-safe channel identifier among request messages.
 	ChannelKey string
+	// Attempt is the one-based append attempt associated with diagnostics metadata.
+	Attempt int
 	// CommitMode controls the durability requirement for this append.
 	CommitMode CommitMode
 	// OmitResultPayload lets appenders skip payloads in successful item results when callers only need id and sequence.
