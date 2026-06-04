@@ -17,13 +17,16 @@ SendBatch(items)
      is set by an entry adapter
   -> allocate message IDs for durable gateway-origin sends
   -> group sends by canonical channel while preserving per-channel order
-  -> clone payloads at the appender boundary
+  -> clone payloads at the appender boundary and propagate sendtrace metadata
+     to request-level and per-message append payload fields
   -> append active channel groups through Appender.AppendBatch with bounded
      channel-level concurrency
      (omit result payloads when no committed sink is configured)
      (retry transient batch-level route errors within the active item deadline)
   -> record per-message append observations through the optional observer,
      including batch-level, item-level, and short-result append errors
+  -> record `message.send_durable` sendtrace events for traced active items,
+     including successful sequences and stable append error classes
   -> submit committed-message events after successful append when a sink is configured
      (including sender identity and request-scoped delivery UIDs)
   -> return item-aligned SendBatchItemResult values

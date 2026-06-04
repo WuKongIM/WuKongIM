@@ -123,6 +123,10 @@ type Message struct {
 	FromUID string
 	// ClientMsgNo is the client idempotency key.
 	ClientMsgNo string
+	// TraceID correlates diagnostics events for this message append when sendtrace is enabled.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier propagated with this message append.
+	ChannelKey string
 	// Payload is the durable message body.
 	Payload []byte
 }
@@ -133,6 +137,10 @@ type AppendBatchRequest struct {
 	ChannelID ChannelID
 	// Messages are the durable messages for the target channel.
 	Messages []Message
+	// TraceID is the first non-empty diagnostics trace identifier among request messages.
+	TraceID string
+	// ChannelKey is the first non-empty diagnostics-safe channel identifier among request messages.
+	ChannelKey string
 	// CommitMode controls the durability requirement for this append.
 	CommitMode CommitMode
 	// OmitResultPayload lets appenders skip payloads in successful item results when callers only need id and sequence.
