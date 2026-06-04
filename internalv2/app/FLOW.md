@@ -22,6 +22,10 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, message DB grouped commits, and delivery fanout)
+  -> when Observability.Diagnostics.Enabled=true:
+       create a bounded node-local diagnostics store, runtime tracking rules,
+       sampler, and sendtrace sink; install the process-wide sendtrace sink
+       without exposing HTTP debug APIs
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
@@ -134,6 +138,7 @@ Start(ctx)
   -> gateway.Start()
 
 Stop(ctx)
+  -> restore diagnostics sendtrace sink
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler

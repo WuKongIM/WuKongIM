@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"sort"
@@ -44,6 +45,7 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
+	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
 	"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
@@ -54,6 +56,12 @@ var supportedConfigKeys = []string{
 	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 	"WK_METRICS_ENABLE",
 	"WK_PPROF_ENABLE",
+	"WK_DIAGNOSTICS_ENABLE",
+	"WK_DIAGNOSTICS_BUFFER_SIZE",
+	"WK_DIAGNOSTICS_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS",
+	"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_DEBUG_MATCHES",
 	"WK_EXTERNAL_TCPADDR",
 	"WK_EXTERNAL_WSADDR",
 	"WK_EXTERNAL_WSSADDR",
@@ -428,6 +436,64 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.PProfEnabled = pprofEnable
 	}
+	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
+	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""
+	diagnosticsErrorSampleRateSet := configValue(values, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != ""
+	if raw := configValue(values, "WK_DIAGNOSTICS_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_DIAGNOSTICS_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.Enabled = enabled
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_BUFFER_SIZE"); raw != "" {
+		bufferSize, err := parseInt("WK_DIAGNOSTICS_BUFFER_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if bufferSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_BUFFER_SIZE: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.BufferSize = bufferSize
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE"); raw != "" {
+		sampleRate, err := parseFloat("WK_DIAGNOSTICS_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if !validSampleRate(sampleRate) {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.SampleRate = sampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_SLOW_THRESHOLD_MS"); raw != "" {
+		slowThresholdMS, err := parseInt("WK_DIAGNOSTICS_SLOW_THRESHOLD_MS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if slowThresholdMS < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_SLOW_THRESHOLD_MS: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.SlowThreshold = time.Duration(slowThresholdMS) * time.Millisecond
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE"); raw != "" {
+		errorSampleRate, err := parseFloat("WK_DIAGNOSTICS_ERROR_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if !validSampleRate(errorSampleRate) {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_ERROR_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.ErrorSampleRate = errorSampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_MATCHES"); raw != "" {
+		debugMatches, err := parseDiagnosticsDebugMatches(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.DebugMatches = debugMatches
+	}
+	cfg.Observability.SetDiagnosticsExplicitFlags(diagnosticsEnabledSet, diagnosticsSampleRateSet, diagnosticsErrorSampleRateSet)
 	if raw := configValue(values, "WK_GATEWAY_LISTENERS"); raw != "" {
 		listeners, err := parseListeners(raw)
 		if err != nil {
@@ -680,6 +746,22 @@ func parseClusterNodes(raw string) ([]clusterNodeConfig, error) {
 	return nodes, nil
 }
 
+func parseDiagnosticsDebugMatches(raw string) ([]app.DiagnosticsDebugMatchConfig, error) {
+	var matches []app.DiagnosticsDebugMatchConfig
+	if err := json.Unmarshal([]byte(raw), &matches); err != nil {
+		return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES as JSON: %w", err)
+	}
+	for _, match := range matches {
+		if !validSampleRate(match.SampleRate) {
+			return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES: sample_rate must be between 0 and 1")
+		}
+		if match.TTLSeconds < 0 {
+			return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES: ttl_seconds must be >= 0")
+		}
+	}
+	return matches, nil
+}
+
 func clusterVoters(nodes []clusterNodeConfig) []clusterv2.ControlVoter {
 	voters := make([]clusterv2.ControlVoter, 0, len(nodes))
 	for _, node := range nodes {
@@ -749,6 +831,21 @@ func parseInt64(key, raw string) (int64, error) {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}
 	return value, nil
+}
+
+func parseFloat(key, raw string) (float64, error) {
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("parse %s: value must be finite", key)
+	}
+	return value, nil
+}
+
+func validSampleRate(rate float64) bool {
+	return !math.IsNaN(rate) && !math.IsInf(rate, 0) && rate >= 0 && rate <= 1
 }
 
 func parseDuration(key, raw string) (time.Duration, error) {

@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -84,6 +85,54 @@ type ObservabilityConfig struct {
 	MetricsEnabled bool
 	// PProfEnabled exposes net/http/pprof endpoints on the API listener.
 	PProfEnabled bool
+	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
+	Diagnostics DiagnosticsConfig
+
+	diagnosticsEnabledSet         bool
+	diagnosticsSampleRateSet      bool
+	diagnosticsErrorSampleRateSet bool
+}
+
+// SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
+func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRateSet, errorSampleRateSet bool) {
+	if c == nil {
+		return
+	}
+	c.diagnosticsEnabledSet = enabledSet
+	c.diagnosticsSampleRateSet = sampleRateSet
+	c.diagnosticsErrorSampleRateSet = errorSampleRateSet
+}
+
+// DiagnosticsConfig controls local diagnostics event retention and sampling.
+type DiagnosticsConfig struct {
+	// Enabled turns local diagnostics event capture on or off.
+	Enabled bool
+	// BufferSize is the maximum number of diagnostics events retained in memory.
+	BufferSize int
+	// SampleRate is the baseline keep probability for successful diagnostics events.
+	SampleRate float64
+	// SlowThreshold keeps successful events whose duration is at least this threshold.
+	SlowThreshold time.Duration
+	// ErrorSampleRate is the keep probability for diagnostics events with non-ok results.
+	ErrorSampleRate float64
+	// DebugMatches configures temporary high-priority sampling rules.
+	DebugMatches []DiagnosticsDebugMatchConfig
+}
+
+// DiagnosticsDebugMatchConfig defines one temporary diagnostics sampling override rule.
+type DiagnosticsDebugMatchConfig struct {
+	// UID matches the sender UID when it is set.
+	UID string `json:"uid,omitempty"`
+	// ChannelKey matches the diagnostics-safe channel identifier when it is set.
+	ChannelKey string `json:"channel_key,omitempty"`
+	// ClientMsgNo matches the client message number when it is set.
+	ClientMsgNo string `json:"client_msg_no,omitempty"`
+	// TraceID matches the trace identifier when it is set.
+	TraceID string `json:"trace_id,omitempty"`
+	// TTLSeconds controls how long the temporary debug sampling rule stays active.
+	TTLSeconds int `json:"ttl_seconds,omitempty"`
+	// SampleRate is the keep probability applied when the rule matches.
+	SampleRate float64 `json:"sample_rate,omitempty"`
 }
 
 // LogConfig defines zap and lumberjack logging settings.
@@ -184,6 +233,25 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	return cfg
 }
 
+func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
+	if !cfg.diagnosticsEnabledSet {
+		cfg.Diagnostics.Enabled = true
+	}
+	if cfg.Diagnostics.BufferSize <= 0 {
+		cfg.Diagnostics.BufferSize = 50000
+	}
+	if cfg.Diagnostics.SampleRate == 0 && !cfg.diagnosticsSampleRateSet {
+		cfg.Diagnostics.SampleRate = 0.01
+	}
+	if cfg.Diagnostics.SlowThreshold <= 0 {
+		cfg.Diagnostics.SlowThreshold = 500 * time.Millisecond
+	}
+	if cfg.Diagnostics.ErrorSampleRate == 0 && !cfg.diagnosticsErrorSampleRateSet {
+		cfg.Diagnostics.ErrorSampleRate = 1.0
+	}
+	return cfg
+}
+
 func defaultLogConfig(cfg LogConfig) LogConfig {
 	if cfg.Level == "" {
 		cfg.Level = "info"
@@ -245,4 +313,26 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
 	}
 	return nil
+}
+
+func validateObservabilityConfig(cfg ObservabilityConfig) error {
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.SampleRate) {
+		return fmt.Errorf("%w: diagnostics sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.ErrorSampleRate) {
+		return fmt.Errorf("%w: diagnostics error sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	for _, match := range cfg.Diagnostics.DebugMatches {
+		if !validDiagnosticsSampleRate(match.SampleRate) {
+			return fmt.Errorf("%w: diagnostics debug match sample rate must be between 0 and 1", ErrInvalidConfig)
+		}
+		if match.TTLSeconds < 0 {
+			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
+		}
+	}
+	return nil
+}
+
+func validDiagnosticsSampleRate(rate float64) bool {
+	return !math.IsNaN(rate) && !math.IsInf(rate, 0) && rate >= 0 && rate <= 1
 }

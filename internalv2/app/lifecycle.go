@@ -100,6 +100,7 @@ func (a *App) Stop(ctx context.Context) error {
 	defer a.lifecycleMu.Unlock()
 
 	a.stopped = true
+	a.restoreDiagnosticsSink()
 	if !a.started {
 		return a.syncLogger()
 	}
