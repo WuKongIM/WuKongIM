@@ -18,6 +18,40 @@ func (s *recordingSink) RecordSendTrace(event Event) {
 	s.events = append(s.events, event)
 }
 
+func TestChannelKeyFromID(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelID   string
+		channelType uint8
+		want        string
+	}{
+		{
+			name:        "encodes diagnostics-safe channel key",
+			channelID:   "room/a b",
+			channelType: 2,
+			want:        "channel/2/cm9vbS9hIGI",
+		},
+		{
+			name:        "empty channel id returns empty key",
+			channelID:   "",
+			channelType: 2,
+			want:        "",
+		},
+		{
+			name:        "zero channel type returns empty key",
+			channelID:   "room/a b",
+			channelType: 0,
+			want:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ChannelKeyFromID(tt.channelID, tt.channelType))
+		})
+	}
+}
+
 func TestSetSinkRestoreHandlesNilPrevious(t *testing.T) {
 	sink := &recordingSink{}
 	restore := SetSink(sink)

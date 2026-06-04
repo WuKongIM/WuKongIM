@@ -1,6 +1,8 @@
 package sendtrace
 
 import (
+	"encoding/base64"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
@@ -105,6 +107,20 @@ func Elapsed(start, end time.Time) time.Duration {
 		return 0
 	}
 	return end.Sub(start)
+}
+
+// ChannelKeyFromID returns the diagnostics-safe channel key for a channel id and type.
+func ChannelKeyFromID(channelID string, channelType uint8) string {
+	if channelID == "" || channelType == 0 {
+		return ""
+	}
+	encodedID := base64.RawURLEncoding.EncodeToString([]byte(channelID))
+	buf := make([]byte, 0, len("channel/")+4+1+len(encodedID))
+	buf = append(buf, "channel/"...)
+	buf = strconv.AppendUint(buf, uint64(channelType), 10)
+	buf = append(buf, '/')
+	buf = append(buf, encodedID...)
+	return string(buf)
 }
 
 // Sink receives send trace events from hot-path instrumentation.
