@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -22,6 +23,12 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	validIndexes := make([]int, 0, len(items))
 	validItems := make([]message.SendBatchItem, 0, len(items))
 	deadline := time.Now().Add(h.sendTimeout)
+	var traceIDGenerator TraceIDGenerator
+	var traceFields []sendTraceFields
+	if sendtrace.Enabled() {
+		traceIDGenerator = h.traceIDGenerator
+		traceFields = make([]sendTraceFields, len(items))
+	}
 
 	for i, item := range items {
 		contexts[i] = item.Context
@@ -29,7 +36,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			contexts[i].ReplyToken = item.ReplyToken
 		}
 		ctx := &contexts[i]
-		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, false)
+		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, false, traceIDGenerator)
 		if err != nil {
 			if errors.Is(err, ErrUnauthenticatedSession) {
 				results[i].Reason = message.ReasonAuthFail
@@ -39,6 +46,9 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			}
 			h.logSendMappingFailure(ctx, item.Frame, err)
 			return err
+		}
+		if traceFields != nil {
+			traceFields[i] = sendTraceFieldsFromCommand(cmd)
 		}
 		if ctx.RequestContext == nil {
 			results[i].Reason = message.ReasonSystemError
@@ -52,7 +62,15 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	}
 
 	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
+		var startedAt time.Time
+		if traceFields != nil {
+			startedAt = time.Now()
+		}
 		batchResults := batcher.SendBatch(validItems)
+		duration := time.Duration(0)
+		if traceFields != nil {
+			duration = sendtraceElapsedSince(startedAt)
+		}
 		if len(batchResults) != len(validItems) {
 			h.frameLogger().Error("gateway send batch result count mismatch",
 				wklog.Event("internalv2.access.gateway.send_batch_result_count_mismatch"),
@@ -75,6 +93,9 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 				classes[index] = sendackErrorClassNone
 			}
 			results[index] = result
+			if traceFields != nil {
+				recordGatewayMessagesSend(validItems[j].Command, result, classes[index], duration)
+			}
 		}
 	} else {
 		for j, index := range validIndexes {
@@ -94,7 +115,11 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	}
 
 	for i, item := range items {
-		if err := h.writeSendack(&contexts[i], item.Frame, results[i], sources[i], classes[i]); err != nil {
+		var trace sendTraceFields
+		if traceFields != nil {
+			trace = traceFields[i]
+		}
+		if err := h.writeSendack(&contexts[i], item.Frame, results[i], sources[i], classes[i], trace); err != nil {
 			return err
 		}
 	}

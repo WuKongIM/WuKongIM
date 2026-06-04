@@ -2,7 +2,11 @@ package gateway
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -28,6 +32,11 @@ var (
 )
 
 const defaultSendTimeout = 5 * time.Second
+
+var fallbackTraceIDCounter uint64
+
+// TraceIDGenerator creates one diagnostics trace id for a gateway SEND.
+type TraceIDGenerator func() string
 
 // MessageUsecase is the single-message entry used by the gateway adapter.
 type MessageUsecase interface {
@@ -66,19 +75,22 @@ type Options struct {
 	SendTimeout time.Duration
 	// SendackObserver receives low-cardinality SEND acknowledgement diagnostics.
 	SendackObserver SendackObserver
+	// TraceIDGenerator creates sendtrace trace ids when diagnostics tracing is enabled.
+	TraceIDGenerator TraceIDGenerator
 	// Logger records gateway boundary errors that otherwise terminate in adapter callbacks.
 	Logger wklog.Logger
 }
 
 // Handler adapts pkg/gateway frames to internalv2 message usecases.
 type Handler struct {
-	messages        MessageUsecase
-	presence        PresenceUsecase
-	delivery        DeliveryUsecase
-	ownerNodeID     uint64
-	sendTimeout     time.Duration
-	sendackObserver SendackObserver
-	logger          wklog.Logger
+	messages         MessageUsecase
+	presence         PresenceUsecase
+	delivery         DeliveryUsecase
+	ownerNodeID      uint64
+	sendTimeout      time.Duration
+	sendackObserver  SendackObserver
+	traceIDGenerator TraceIDGenerator
+	logger           wklog.Logger
 }
 
 // New creates a gateway Handler.
@@ -89,15 +101,29 @@ func New(opts Options) *Handler {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
-	return &Handler{
-		messages:        opts.Messages,
-		presence:        opts.Presence,
-		delivery:        opts.Delivery,
-		ownerNodeID:     opts.OwnerNodeID,
-		sendTimeout:     opts.SendTimeout,
-		sendackObserver: opts.SendackObserver,
-		logger:          opts.Logger,
+	if opts.TraceIDGenerator == nil {
+		opts.TraceIDGenerator = defaultTraceIDGenerator
 	}
+	return &Handler{
+		messages:         opts.Messages,
+		presence:         opts.Presence,
+		delivery:         opts.Delivery,
+		ownerNodeID:      opts.OwnerNodeID,
+		sendTimeout:      opts.SendTimeout,
+		sendackObserver:  opts.SendackObserver,
+		traceIDGenerator: opts.TraceIDGenerator,
+		logger:           opts.Logger,
+	}
+}
+
+// defaultTraceIDGenerator returns a random trace id with a monotonic time fallback.
+func defaultTraceIDGenerator() string {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err == nil {
+		return hex.EncodeToString(buf[:])
+	}
+	next := atomic.AddUint64(&fallbackTraceIDCounter, 1)
+	return strconv.FormatInt(time.Now().UnixNano(), 36) + "-" + strconv.FormatUint(next, 36)
 }
 
 func (h *Handler) OnListenerError(listener string, err error) {
@@ -223,24 +249,24 @@ func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {
-	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, true)
+	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, true, h.traceIDGenerator)
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticatedSession) {
-			return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail}, sendackSourceSingleResult, sendackErrorClassUnauthenticated)
+			return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail}, sendackSourceSingleResult, sendackErrorClassUnauthenticated, sendTraceFields{})
 		}
 		h.logSendMappingFailure(ctx, pkt, err)
 		return err
 	}
 	if ctx == nil || ctx.RequestContext == nil {
 		h.logMissingRequestContext(ctx, pkt, sendackSourceSingleMissingRequestContext)
-		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext)
+		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext, sendTraceFieldsFromCommand(cmd))
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
 	defer cancel()
 
 	result, source, class := h.sendOne(reqCtx, cmd)
-	return h.writeSendack(ctx, pkt, result, source, class)
+	return h.writeSendack(ctx, pkt, result, source, class, sendTraceFieldsFromCommand(cmd))
 }
 
 func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -271,6 +297,10 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 }
 
 func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) (message.SendResult, string, string) {
+	var startedAt time.Time
+	if cmd.TraceID != "" {
+		startedAt = time.Now()
+	}
 	if h == nil || h.messages == nil {
 		if h != nil {
 			h.frameLogger().Error("gateway message usecase missing",
@@ -278,20 +308,37 @@ func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) (message
 				wklog.SourceModule("message.send"),
 			)
 		}
-		return message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleResult, sendackErrorClassOther
+		result := message.SendResult{Reason: message.ReasonSystemError}
+		if cmd.TraceID != "" {
+			recordGatewayMessagesSend(cmd, result, sendackErrorClassOther, sendtraceElapsedSince(startedAt))
+		}
+		return result, sendackSourceSingleResult, sendackErrorClassOther
 	}
 	result, err := h.messages.Send(ctx, cmd)
 	if err != nil {
 		result.Reason = reasonForError(err)
 		class := sendackErrorClassForError(err)
 		h.logSendFailure(cmd, sendackSourceSingleError, class, err)
+		if cmd.TraceID != "" {
+			recordGatewayMessagesSend(cmd, result, class, sendtraceElapsedSince(startedAt))
+		}
 		return result, sendackSourceSingleError, class
+	}
+	if cmd.TraceID != "" {
+		recordGatewayMessagesSend(cmd, result, sendackErrorClassNone, sendtraceElapsedSince(startedAt))
 	}
 	return result, sendackSourceSingleResult, sendackErrorClassNone
 }
 
-func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult, source string, class string) error {
+func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult, source string, class string, trace sendTraceFields) error {
+	var startedAt time.Time
+	if trace.traceID != "" {
+		startedAt = time.Now()
+	}
 	if err := writeSendack(ctx, pkt, result); err != nil {
+		if trace.traceID != "" {
+			recordGatewayWriteSendack(trace, result, err, sendtraceElapsedSince(startedAt))
+		}
 		fields := append([]wklog.Field{
 			wklog.Event("internalv2.access.gateway.sendack_write_failed"),
 			wklog.SourceModule("gateway.write_sendack"),
@@ -301,6 +348,9 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 		fields = append(fields, wklog.Error(err))
 		h.frameLogger().Warn("gateway sendack write failed", fields...)
 		return err
+	}
+	if trace.traceID != "" {
+		recordGatewayWriteSendack(trace, result, nil, sendtraceElapsedSince(startedAt))
 	}
 	if h != nil && h.sendackObserver != nil {
 		h.sendackObserver.SendackWritten(SendackEvent{Reason: result.Reason, Source: source, ErrorClass: class})

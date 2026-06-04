@@ -32,19 +32,24 @@ OnSessionActivateRollback(Context, err)
 ```text
 OnFrame(SendPacket)
   -> map session and frame fields into message.SendCommand
+  -> when sendtrace is enabled and the packet has a channel id/type, generate one trace id and attach diagnostics channel key
   -> stamp the configured owner node id for sender echo suppression
   -> request person-channel canonicalization when ChannelType is person
   -> call message.Send
+  -> record gateway.messages_send when trace metadata exists
   -> map usecase result/error to frame.ReasonCode
   -> write SendackPacket
+  -> record gateway.write_sendack after the write attempt when trace metadata exists
 
 OnSendBatch([]SendBatchItem)
   -> compute one shared send deadline for the gateway micro-batch
   -> map valid packet items into message.SendBatchItem
-     (including person-channel canonicalization requests)
+     (including person-channel canonicalization requests and sendtrace metadata only when enabled)
   -> call message.SendBatch when available
   -> require item-aligned result count
+  -> record gateway.messages_send once per valid item when trace metadata exists
   -> write one SendackPacket for every input item
+  -> record gateway.write_sendack after each write attempt when trace metadata exists
 
 OnFrame(PingPacket)
   -> best-effort touch presence activity for the gateway session

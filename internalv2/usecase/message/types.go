@@ -55,6 +55,10 @@ type SendCommand struct {
 	ClientSeq uint64
 	// ClientMsgNo is the client idempotency key echoed in Sendack.
 	ClientMsgNo string
+	// TraceID correlates diagnostics events for this SEND when sendtrace is enabled.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier used by sendtrace.
+	ChannelKey string
 	// ChannelID is the client-visible channel id.
 	ChannelID string
 	// ChannelType is the protocol channel category.
