@@ -869,6 +869,75 @@ func TestAppendCancellationSweepSendsOverdueResumeHint(t *testing.T) {
 	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
 }
 
+func TestAppendCancellationSweepThrottlesResumeNudge(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("sweep-throttles-resume-hint", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1, 2}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	follower.lastPullAt = time.Now().Add(-2 * time.Hour)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 1, "a", future)
+	event.Context = ctx
+	event.Append.CommitMode = ch.CommitModeQuorum
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	requireFuturePending(t, future)
+
+	follower.hint.retryAt = time.Now().Add(-time.Millisecond)
+	r.sweepAppendCancellationsForChannel(rc)
+	require.Eventually(t, func() bool { return tr.pullHintCount(2) == 1 }, time.Second, time.Millisecond)
+	firstNextNudge := rc.appendCancelNudgeNextAt
+	require.NotZero(t, firstNextNudge)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+
+	follower.hint.retryAt = time.Now().Add(-time.Millisecond)
+	r.sweepAppendCancellationsForChannel(rc)
+
+	require.Equal(t, 1, tr.pullHintCount(2))
+	require.Equal(t, firstNextNudge, rc.appendCancelNudgeNextAt)
+}
+
+func TestAppendCancellationGlobalSweepThrottlesContextScan(t *testing.T) {
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, MailboxSize: 16})
+	key := ch.ChannelKey("global-sweep-throttle")
+	ctx := &countingContext{done: make(chan struct{})}
+	rc := &runtimeChannel{
+		state:                &machine.ChannelState{Key: key},
+		appendCancelContexts: map[ch.OpID]context.Context{1: ctx},
+	}
+	r.appendCancelChannels = map[ch.ChannelKey]*runtimeChannel{key: rc}
+
+	now := time.Now()
+	r.sweepAppendCancellationsAt(now)
+	require.Equal(t, 1, ctx.ErrCalls())
+
+	r.sweepAppendCancellationsAt(now.Add(defaultAppendCancelSweepInterval / 2))
+	require.Equal(t, 1, ctx.ErrCalls())
+
+	r.sweepAppendCancellationsForChannelAt(rc, now.Add(defaultAppendCancelSweepInterval/2))
+	require.Equal(t, 2, ctx.ErrCalls())
+
+	r.sweepAppendCancellationsAt(now.Add(defaultAppendCancelSweepInterval))
+	require.Equal(t, 3, ctx.ErrCalls())
+}
+
 func TestLeaderSchedulesResumePullHintAfterPartialFollowerPull(t *testing.T) {
 	factory := newCountingStoreFactory()
 	tr := newTask3PullHintTransport()
@@ -1625,6 +1694,32 @@ func (o *appendCancelSnapshotObserver) Events() []AppendWaitCancelSnapshot {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]AppendWaitCancelSnapshot(nil), o.events...)
+}
+
+type countingContext struct {
+	done     chan struct{}
+	err      error
+	mu       sync.Mutex
+	errCalls int
+}
+
+func (c *countingContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+
+func (c *countingContext) Done() <-chan struct{} { return c.done }
+
+func (c *countingContext) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.errCalls++
+	return c.err
+}
+
+func (c *countingContext) Value(any) any { return nil }
+
+func (c *countingContext) ErrCalls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.errCalls
 }
 
 func requireAppendWaitStage(t *testing.T, events []appendWaitStageEvent, stage string, mode ch.CommitMode, result string) {

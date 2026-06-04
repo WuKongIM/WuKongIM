@@ -174,7 +174,10 @@ leader LEO retires the hint state; merely observing a follower Pull does not
 retire it while the follower remains behind. The append-cancellation sweep also
 nudges overdue resume hints for channels with pending quorum waiters, so a
 delayed due tick cannot leave an already scheduled follower wakeup dormant until
-the caller timeout.
+the caller timeout. This cancellation-driven wakeup is rate-limited per channel,
+and global append-cancellation scans are rate-limited during hot mailboxes; the
+direct per-channel sweep before append flush is still immediate so canceled
+queued appends are not flushed because of the global scan throttle.
 If a caught-up follower receives another matching PullHint while it still has a
 locally durable `ackReturnOffset` that the leader has not observed, it submits
 one Pull carrying that AckOffset instead of treating the hint as a pure no-op.

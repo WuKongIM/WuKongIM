@@ -195,6 +195,7 @@ func (r *Reactor) clearAppendCancelContexts(rc *runtimeChannel) {
 		return
 	}
 	rc.appendCancelContexts = nil
+	rc.appendCancelNudgeNextAt = time.Time{}
 	if r.appendCancelChannels != nil && rc.state != nil {
 		delete(r.appendCancelChannels, rc.state.Key)
 	}
@@ -468,7 +469,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	defer r.scheduleAppendFlushFromState(rc)
-	r.sweepAppendCancellationsForChannel(rc)
+	r.sweepAppendCancellationsForChannelAt(rc, now)
 	if rc.appendInflight != nil {
 		return
 	}
@@ -520,15 +521,23 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 }
 
 func (r *Reactor) sweepAppendCancellations() {
+	r.sweepAppendCancellationsAt(time.Now())
+}
+
+func (r *Reactor) sweepAppendCancellationsAt(now time.Time) {
 	if r == nil || len(r.appendCancelChannels) == 0 {
 		return
 	}
+	if !r.appendCancelSweepNextAt.IsZero() && now.Before(r.appendCancelSweepNextAt) {
+		return
+	}
+	r.appendCancelSweepNextAt = now.Add(defaultAppendCancelSweepInterval)
 	for key, rc := range r.appendCancelChannels {
 		if rc == nil || len(rc.appendCancelContexts) == 0 {
 			delete(r.appendCancelChannels, key)
 			continue
 		}
-		r.sweepAppendCancellationsForChannel(rc)
+		r.sweepAppendCancellationsForChannelAt(rc, now)
 		if len(rc.appendCancelContexts) == 0 {
 			delete(r.appendCancelChannels, key)
 		}
@@ -536,11 +545,14 @@ func (r *Reactor) sweepAppendCancellations() {
 }
 
 func (r *Reactor) sweepAppendCancellationsForChannel(rc *runtimeChannel) {
+	r.sweepAppendCancellationsForChannelAt(rc, time.Now())
+}
+
+func (r *Reactor) sweepAppendCancellationsForChannelAt(rc *runtimeChannel, now time.Time) {
 	if r == nil || rc == nil || len(rc.appendCancelContexts) == 0 {
 		return
 	}
-	now := time.Now()
-	r.nudgePendingQuorumFollowers(rc, now)
+	r.nudgePendingQuorumFollowersFromCancellationSweep(rc, now)
 	for opID, ctx := range rc.appendCancelContexts {
 		if ctx == nil {
 			continue
@@ -549,6 +561,21 @@ func (r *Reactor) sweepAppendCancellationsForChannel(rc *runtimeChannel) {
 			r.cancelAppendWaiter(rc, opID, err)
 		}
 	}
+}
+
+func (r *Reactor) nudgePendingQuorumFollowersFromCancellationSweep(rc *runtimeChannel, now time.Time) {
+	if r == nil || rc == nil {
+		return
+	}
+	if !rc.appendCancelNudgeNextAt.IsZero() && now.Before(rc.appendCancelNudgeNextAt) {
+		return
+	}
+	interval := r.cfg.PullHintRetryInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	rc.appendCancelNudgeNextAt = now.Add(interval)
+	r.nudgePendingQuorumFollowers(rc, now)
 }
 
 func (r *Reactor) cancelAppendWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr error) bool {

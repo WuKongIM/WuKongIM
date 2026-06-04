@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	defaultReactorDrain = 128
+	defaultReactorDrain              = 128
+	defaultAppendCancelSweepInterval = 5 * time.Millisecond
 
 	// defaultFollowerRecoveryProbeInterval keeps lost PullHint recovery within the gateway send timeout budget.
 	defaultFollowerRecoveryProbeInterval = 2 * time.Second
@@ -88,6 +89,8 @@ type Reactor struct {
 	channels map[ch.ChannelKey]*runtimeChannel
 	// appendCancelChannels indexes channels that have admitted append contexts to sweep.
 	appendCancelChannels map[ch.ChannelKey]*runtimeChannel
+	// appendCancelSweepNextAt rate-limits global append cancellation scans during hot mailboxes.
+	appendCancelSweepNextAt time.Time
 	// pullCancelChannels indexes leader pull waiters with cancellable caller contexts.
 	pullCancelChannels map[ch.ChannelKey]*runtimeChannel
 	// due schedules channel maintenance without scanning every loaded channel.
@@ -127,6 +130,8 @@ type runtimeChannel struct {
 	appendRetryAt time.Time
 	// appendCancelContexts tracks admitted append caller contexts across queued, inflight, and post-store states.
 	appendCancelContexts map[ch.OpID]context.Context
+	// appendCancelNudgeNextAt rate-limits cancellation-sweep follower wakeups.
+	appendCancelNudgeNextAt time.Time
 	// appendTimings tracks accepted append requests until their futures complete.
 	appendTimings map[ch.OpID]appendTiming
 	// replication owns follower pull, apply, and ack scheduling state.
