@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const versionV1 = "bench/v1"
@@ -99,6 +100,8 @@ type Options struct {
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
 	PProfEnabled bool
+	// Logger records HTTP API failures that are not otherwise visible to callers.
+	Logger wklog.Logger
 }
 
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
@@ -119,6 +122,7 @@ type Server struct {
 	benchData            BenchData
 	metricsHandler       http.Handler
 	pprofEnabled         bool
+	logger               wklog.Logger
 	counts               map[string]int
 	started              bool
 }
@@ -138,7 +142,11 @@ func New(opts Options) *Server {
 		benchData:            opts.BenchData,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
+		logger:               opts.Logger,
 		counts:               map[string]int{},
+	}
+	if s.logger == nil {
+		s.logger = wklog.NewNop()
 	}
 	s.registerRoutes()
 	return s
@@ -191,11 +199,21 @@ func (s *Server) Start() error {
 	s.mu.Unlock()
 	go func() {
 		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			// The lifecycle owner observes startup errors synchronously; runtime serve
-			// errors are intentionally kept local for this benchmark-only surface.
+			s.httpLogger().Error("api http serve failed",
+				wklog.Event("internalv2.access.api.serve_failed"),
+				wklog.String("addr", s.Addr()),
+				wklog.Error(serveErr),
+			)
 		}
 	}()
 	return nil
+}
+
+func (s *Server) httpLogger() wklog.Logger {
+	if s == nil || s.logger == nil {
+		return wklog.NewNop()
+	}
+	return s.logger.Named("http")
 }
 
 // Stop gracefully shuts down the HTTP API.
@@ -366,6 +384,7 @@ func (s *Server) handleBenchPresenceSnapshot(w http.ResponseWriter, r *http.Requ
 	}
 	resp, err := s.benchPresence.Snapshot(r.Context())
 	if err != nil {
+		s.logBenchFailure(r, "internalv2.access.api.bench_presence_failed", "presence_snapshot", err)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -464,6 +483,11 @@ func (s *Server) handleBenchChannels(w http.ResponseWriter, r *http.Request) {
 	}
 	accepted, err := s.benchData.UpsertChannels(r.Context(), mutations)
 	if err != nil {
+		s.logBenchFailure(r, "internalv2.access.api.bench_channels_failed", "channels_upsert", err,
+			wklog.String("runID", req.RunID),
+			wklog.String("batchID", req.BatchID),
+			wklog.Int("channels", len(mutations)),
+		)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -513,6 +537,11 @@ func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) 
 	}
 	acceptedSubscribers, err := s.benchData.AddSubscribers(r.Context(), mutations)
 	if err != nil {
+		s.logBenchFailure(r, "internalv2.access.api.bench_subscribers_failed", "subscribers_add", err,
+			wklog.String("runID", req.RunID),
+			wklog.String("batchID", req.BatchID),
+			wklog.Int("items", len(mutations)),
+		)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -524,6 +553,29 @@ func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) 
 		Accepted:            len(req.Items),
 		AcceptedSubscribers: acceptedSubscribers,
 	})
+}
+
+func (s *Server) logBenchFailure(r *http.Request, event, op string, err error, fields ...wklog.Field) {
+	if err == nil {
+		return
+	}
+	path := ""
+	method := ""
+	if r != nil {
+		method = r.Method
+		if r.URL != nil {
+			path = r.URL.Path
+		}
+	}
+	all := []wklog.Field{
+		wklog.Event(event),
+		wklog.String("op", op),
+		wklog.String("method", method),
+		wklog.String("path", path),
+	}
+	all = append(all, fields...)
+	all = append(all, wklog.Error(err))
+	s.httpLogger().Error("bench api request failed", all...)
 }
 
 type mutationResponse struct {

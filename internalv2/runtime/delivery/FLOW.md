@@ -10,7 +10,8 @@ used by app adapters. `Manager` owns bounded async admission when fanout ports
 are configured. Runtime `Observer` and
 `ManagerObserver` events describe fanout routing, UID route resolution, owner
 push attempts, manager admission, and terminal async outcomes with bounded
-result and error-class labels; concrete metrics remain an app concern.
+result and error-class labels; concrete metrics and logging remain app
+concerns.
 `RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
 retry queue. It executes the first attempt inline; retryable failures are
 queued for background workers, while non-retryable failures and queue overflow

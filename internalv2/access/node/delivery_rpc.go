@@ -6,6 +6,7 @@ import (
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // DeliveryPushRPCServiceID is the clusterv2 RPC service for owner-node delivery batches.
@@ -18,6 +19,11 @@ const DeliveryFanoutRPCServiceID uint8 = clusternet.RPCDeliveryFanout
 func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	req, err := decodeDeliveryPushRequest(payload)
 	if err != nil {
+		a.rpcLogger().Warn("delivery push rpc decode failed",
+			wklog.Event("internalv2.access.node.delivery_push_decode_failed"),
+			wklog.Int("payloadBytes", len(payload)),
+			wklog.Error(err),
+		)
 		return nil, err
 	}
 	if a == nil || a.delivery == nil {
@@ -25,6 +31,16 @@ func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]
 	}
 	result, err := a.delivery.Push(ctx, req.Command)
 	if err != nil {
+		a.rpcLogger().Warn("delivery push rpc rejected",
+			wklog.Event("internalv2.access.node.delivery_push_rejected"),
+			wklog.Uint64("ownerNodeID", req.Command.OwnerNodeID),
+			wklog.ChannelID(req.Command.Envelope.ChannelID),
+			wklog.ChannelType(int64(req.Command.Envelope.ChannelType)),
+			wklog.Uint64("messageID", req.Command.Envelope.MessageID),
+			wklog.MessageSeq(req.Command.Envelope.MessageSeq),
+			wklog.Int("routes", len(req.Command.Routes)),
+			wklog.Error(err),
+		)
 		return encodeDeliveryPushResponse(deliveryPushResponse{Status: rpcStatusRejected})
 	}
 	return encodeDeliveryPushResponse(deliveryPushResponse{Status: rpcStatusOK, Result: result})
@@ -34,12 +50,28 @@ func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]
 func (a *Adapter) HandleDeliveryFanoutRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	req, err := decodeDeliveryFanoutRequest(payload)
 	if err != nil {
+		a.rpcLogger().Warn("delivery fanout rpc decode failed",
+			wklog.Event("internalv2.access.node.delivery_fanout_decode_failed"),
+			wklog.Int("payloadBytes", len(payload)),
+			wklog.Error(err),
+		)
 		return nil, err
 	}
 	if a == nil || a.deliveryFanout == nil {
 		return encodeDeliveryFanoutResponse(deliveryFanoutResponse{Status: rpcStatusRejected})
 	}
 	if err := a.deliveryFanout.RunTask(ctx, req.Task); err != nil {
+		a.rpcLogger().Warn("delivery fanout rpc rejected",
+			wklog.Event("internalv2.access.node.delivery_fanout_rejected"),
+			wklog.Uint64("targetNodeID", req.Task.Partition.LeaderNodeID),
+			wklog.Int("partitionID", int(req.Task.Partition.ID)),
+			wklog.ChannelID(req.Task.Envelope.ChannelID),
+			wklog.ChannelType(int64(req.Task.Envelope.ChannelType)),
+			wklog.Uint64("messageID", req.Task.Envelope.MessageID),
+			wklog.MessageSeq(req.Task.Envelope.MessageSeq),
+			wklog.Attempt(req.Task.Attempt),
+			wklog.Error(err),
+		)
 		return encodeDeliveryFanoutResponse(deliveryFanoutResponse{Status: rpcStatusRejected})
 	}
 	return encodeDeliveryFanoutResponse(deliveryFanoutResponse{Status: rpcStatusOK})

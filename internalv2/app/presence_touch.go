@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // presenceTouchLocalRegistry drains owner-local routes with pending activity updates.
@@ -56,6 +57,8 @@ type presenceTouchWorkerOptions struct {
 	BatchSize int
 	// RouteTTL bounds authority-side route liveness since the latest touch.
 	RouteTTL time.Duration
+	// Logger records background touch failures that are retried by requeueing.
+	Logger wklog.Logger
 }
 
 // presenceTouchWorker watches authority changes and periodically flushes owner touches.
@@ -74,6 +77,9 @@ func newPresenceTouchWorker(opts presenceTouchWorkerOptions) *presenceTouchWorke
 	}
 	if opts.BatchSize <= 0 {
 		opts.BatchSize = 512
+	}
+	if opts.Logger == nil {
+		opts.Logger = wklog.NewNop()
 	}
 	return &presenceTouchWorker{
 		opts:   opts,
@@ -136,6 +142,11 @@ func (w *presenceTouchWorker) watch(ctx context.Context, events <-chan clusterv2
 			return
 		case event, ok := <-events:
 			if !ok {
+				if ctx.Err() == nil {
+					w.logger().Warn("presence authority watch closed",
+						wklog.Event("internalv2.app.presence_authority_watch_closed"),
+					)
+				}
 				return
 			}
 			for _, authority := range event.Authorities {
@@ -237,6 +248,13 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		target, err := w.opts.Authority.ResolveRouteTarget(conn.UID)
 		if err != nil {
 			w.opts.Local.RequeueTouched([]online.OwnerRoute{conn})
+			w.logger().Warn("presence touch route target resolve failed",
+				wklog.Event("internalv2.app.presence_touch_resolve_failed"),
+				wklog.UID(conn.UID),
+				wklog.Int("hashSlot", int(conn.HashSlot)),
+				wklog.SessionID(conn.SessionID),
+				wklog.Error(err),
+			)
 			continue
 		}
 		groups[target] = append(groups[target], routeFromOwnerRoute(conn))
@@ -248,9 +266,26 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		}
 		if err := w.opts.Authority.TouchRoutesTo(ctx, target, routes); err != nil {
 			w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
+			w.logger().Warn("presence touch flush failed",
+				wklog.Event("internalv2.app.presence_touch_failed"),
+				wklog.Int("hashSlot", int(target.HashSlot)),
+				wklog.Uint64("slotID", uint64(target.SlotID)),
+				wklog.LeaderNodeID(target.LeaderNodeID),
+				wklog.Uint64("routeRevision", target.RouteRevision),
+				wklog.Uint64("authorityEpoch", target.AuthorityEpoch),
+				wklog.Int("routes", len(routes)),
+				wklog.Error(err),
+			)
 		}
 		delete(groups, target)
 	}
+}
+
+func (w *presenceTouchWorker) logger() wklog.Logger {
+	if w == nil || w.opts.Logger == nil {
+		return wklog.NewNop()
+	}
+	return w.opts.Logger
 }
 
 func (w *presenceTouchWorker) requeueRouteGroups(groups map[presence.RouteTarget][]presence.Route) {

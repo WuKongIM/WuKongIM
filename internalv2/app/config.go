@@ -34,6 +34,8 @@ type Config struct {
 	Bench BenchConfig
 	// Observability configures metrics and diagnostics surfaces.
 	Observability ObservabilityConfig
+	// Log configures application logging output.
+	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
 	// Presence configures connection-route activation and authority touch behavior.
@@ -82,6 +84,38 @@ type ObservabilityConfig struct {
 	MetricsEnabled bool
 	// PProfEnabled exposes net/http/pprof endpoints on the API listener.
 	PProfEnabled bool
+}
+
+// LogConfig defines zap and lumberjack logging settings.
+type LogConfig struct {
+	// Level is the minimum log level accepted by the logger: debug, info, warn, or error.
+	Level string
+	// Dir is the directory where rolling log files are created.
+	Dir string
+	// MaxSize is the maximum size in megabytes before one log file is rotated.
+	MaxSize int
+	// MaxAge is the maximum number of days to retain rotated log files.
+	MaxAge int
+	// MaxBackups is the maximum number of rotated files retained for each log.
+	MaxBackups int
+	// Compress enables gzip compression for rotated log files.
+	Compress bool
+	// Console enables an additional stdout sink for interactive runs.
+	Console bool
+	// Format selects the file encoder format; json writes structured JSON and other values use console encoding.
+	Format string
+
+	compressSet bool
+	consoleSet  bool
+}
+
+// SetExplicitFlags records whether log booleans were explicitly configured.
+func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
+	if c == nil {
+		return
+	}
+	c.compressSet = compressSet
+	c.consoleSet = consoleSet
 }
 
 // MessageConfig contains message usecase settings.
@@ -146,6 +180,34 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	}
 	if cfg.EventQueueSize == 0 {
 		cfg.EventQueueSize = 1024
+	}
+	return cfg
+}
+
+func defaultLogConfig(cfg LogConfig) LogConfig {
+	if cfg.Level == "" {
+		cfg.Level = "info"
+	}
+	if cfg.Dir == "" {
+		cfg.Dir = "./logs"
+	}
+	if cfg.MaxSize <= 0 {
+		cfg.MaxSize = 100
+	}
+	if cfg.MaxAge <= 0 {
+		cfg.MaxAge = 30
+	}
+	if cfg.MaxBackups <= 0 {
+		cfg.MaxBackups = 10
+	}
+	if cfg.Format == "" {
+		cfg.Format = "console"
+	}
+	if !cfg.Compress && !cfg.compressSet {
+		cfg.Compress = true
+	}
+	if !cfg.Console && !cfg.consoleSet {
+		cfg.Console = true
 	}
 	return cfg
 }

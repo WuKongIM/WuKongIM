@@ -103,6 +103,7 @@ internalv2/
     node/                新架构节点间 presence authority/owner-action RPC codec、handler、client
   contracts/             新架构跨用例/运行时轻量事件合约
     messageevents/       消息提交事件合约
+  log/                   新架构应用日志配置与 zap/lumberjack 封装
   runtime/               新架构节点内运行时原语
     online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记
     presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing

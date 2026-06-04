@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type fakeChannelRuntimeBenchController struct {
@@ -208,8 +209,10 @@ func TestBenchChannelRuntimeRoutesUnavailableWithoutController(t *testing.T) {
 }
 
 func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testing.T) {
+	logger := newRecordingAPILogger("internalv2.access.api")
 	srv := New(Options{
 		BenchEnabled: true,
+		Logger:       logger,
 		BenchRuntime: &fakeChannelRuntimeBenchController{
 			probeErr: errors.New("runtime probe failed"),
 		},
@@ -218,4 +221,64 @@ func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testi
 	t.Cleanup(httpSrv.Close)
 
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusInternalServerError)
+	requireAPILogEntry(t, logger, "ERROR", "internalv2.access.api.http", "internalv2.access.api.bench_runtime_failed")
+}
+
+type recordedAPILogEntry struct {
+	level  string
+	module string
+	fields []wklog.Field
+}
+
+type recordingAPILogger struct {
+	module  string
+	base    []wklog.Field
+	entries *[]recordedAPILogEntry
+}
+
+func newRecordingAPILogger(module string) *recordingAPILogger {
+	entries := make([]recordedAPILogEntry, 0)
+	return &recordingAPILogger{module: module, entries: &entries}
+}
+
+func (r *recordingAPILogger) Debug(msg string, fields ...wklog.Field) { r.log("DEBUG", fields...) }
+func (r *recordingAPILogger) Info(msg string, fields ...wklog.Field)  { r.log("INFO", fields...) }
+func (r *recordingAPILogger) Warn(msg string, fields ...wklog.Field)  { r.log("WARN", fields...) }
+func (r *recordingAPILogger) Error(msg string, fields ...wklog.Field) { r.log("ERROR", fields...) }
+func (r *recordingAPILogger) Fatal(msg string, fields ...wklog.Field) { r.log("FATAL", fields...) }
+
+func (r *recordingAPILogger) Named(name string) wklog.Logger {
+	module := name
+	if r.module != "" && name != "" {
+		module = r.module + "." + name
+	}
+	return &recordingAPILogger{module: module, base: append([]wklog.Field(nil), r.base...), entries: r.entries}
+}
+
+func (r *recordingAPILogger) With(fields ...wklog.Field) wklog.Logger {
+	base := append(append([]wklog.Field(nil), r.base...), fields...)
+	return &recordingAPILogger{module: r.module, base: base, entries: r.entries}
+}
+
+func (r *recordingAPILogger) Sync() error { return nil }
+
+func (r *recordingAPILogger) log(level string, fields ...wklog.Field) {
+	all := append(append([]wklog.Field(nil), r.base...), fields...)
+	*r.entries = append(*r.entries, recordedAPILogEntry{level: level, module: r.module, fields: all})
+}
+
+func requireAPILogEntry(t *testing.T, logger *recordingAPILogger, level, module, event string) recordedAPILogEntry {
+	t.Helper()
+	for _, entry := range *logger.entries {
+		if entry.level != level || entry.module != module {
+			continue
+		}
+		for _, field := range entry.fields {
+			if field.Key == "event" && field.Value == event {
+				return entry
+			}
+		}
+	}
+	t.Fatalf("missing api log level=%s module=%s event=%s entries=%#v", level, module, event, *logger.entries)
+	return recordedAPILogEntry{}
 }

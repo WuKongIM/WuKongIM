@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -92,6 +93,7 @@ func TestChannelV2AppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
 		AppendInflightWaiters: 0,
 		AppendStoreBlocked:    false,
 		PullWaiters:           3,
+		FollowerStates:        "2:match=7,lag=2,hint_inflight=false,hint_retry=true",
 		Err:                   context.DeadlineExceeded,
 	})
 	for _, want := range []string{
@@ -114,6 +116,7 @@ func TestChannelV2AppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
 		"waiters=1",
 		"pending_appends=1",
 		"pull_waiters=3",
+		"follower_states=\"2:match=7,lag=2,hint_inflight=false,hint_retry=true\"",
 		"err=context deadline exceeded",
 	} {
 		if !strings.Contains(line, want) {
@@ -168,4 +171,58 @@ func TestAppendFailureLogLineIncludesRawError(t *testing.T) {
 	if !strings.Contains(got, "storage worker returned boom") {
 		t.Fatalf("appendFailureLogLine() = %q, want raw error", got)
 	}
+}
+
+func TestMessageAppendErrorLogPolicyIncludesTimeout(t *testing.T) {
+	cases := []struct {
+		label string
+		want  bool
+	}{
+		{label: "append_failed", want: true},
+		{label: "timeout", want: true},
+		{label: "route_not_ready", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			if got := shouldLogMessageAppendError(tc.label); got != tc.want {
+				t.Fatalf("shouldLogMessageAppendError(%q) = %v, want %v", tc.label, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
+	logger := &recordingAppLogger{}
+	observer := deliveryMetricsObserver{logger: logger}
+
+	observer.ObserveRetry(runtimedelivery.RetryEvent{
+		Event:      runtimedelivery.DeliveryRetryEventDrop,
+		Result:     runtimedelivery.DeliveryResultMaxAttempts,
+		ErrorClass: runtimedelivery.DeliveryErrorClassRetryable,
+		Attempt:    3,
+		QueueDepth: 7,
+	})
+	observer.ObserveManagerTerminal(runtimedelivery.ManagerTerminalEvent{
+		Result:     runtimedelivery.DeliveryResultError,
+		ErrorClass: runtimedelivery.DeliveryErrorClassError,
+		QueueDepth: 1,
+	})
+
+	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.retry_failed")
+	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.manager_terminal_failed")
+}
+
+func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event string) {
+	t.Helper()
+	for _, entry := range logger.entries {
+		if entry.level != level {
+			continue
+		}
+		for _, field := range entry.fields {
+			if field.Key == "event" && field.Value == event {
+				return
+			}
+		}
+	}
+	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, logger.entries)
 }

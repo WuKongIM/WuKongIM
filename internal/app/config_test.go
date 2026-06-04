@@ -727,8 +727,8 @@ func TestConfigGatewayDefaultsSendBatchOptions(t *testing.T) {
 	cfg.Gateway.DefaultSession = gateway.SessionOptions{}
 
 	require.NoError(t, cfg.ApplyDefaultsAndValidate())
-	require.Equal(t, 500*time.Microsecond, cfg.Gateway.DefaultSession.AsyncSendBatchMaxWait)
-	require.Equal(t, 128, cfg.Gateway.DefaultSession.AsyncSendBatchMaxRecords)
+	require.Equal(t, time.Millisecond, cfg.Gateway.DefaultSession.AsyncSendBatchMaxWait)
+	require.Equal(t, 512, cfg.Gateway.DefaultSession.AsyncSendBatchMaxRecords)
 	require.Equal(t, 512*1024, cfg.Gateway.DefaultSession.AsyncSendBatchMaxBytes)
 }
 

@@ -17,6 +17,7 @@ storage, or routing branches that bypass cluster semantics.
 | `access/api` | Minimal health, readiness, and bench/v1 target HTTP surface for phase-1 SEND -> SENDACK benchmarking. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `access/node` | Node RPC adapter for presence authority calls between internalv2 nodes. |
+| `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |
 | `usecase/message` | Entry-agnostic SEND orchestration, batching, validation, message ID allocation, append ports, and committed event submission. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
@@ -30,7 +31,7 @@ storage, or routing branches that bypass cluster semantics.
 access -> usecase
 usecase -> contracts and usecase-defined ports
 infra -> pkg/clusterv2 and pkg/channelv2, implementing usecase ports
-app -> access, usecase, infra, pkg composition dependencies
+app -> access, usecase, infra, log, pkg composition dependencies
 ```
 
 `internalv2/usecase/message` must remain protocol- and cluster-agnostic. It

@@ -23,6 +23,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type gatewayMetricsObserver struct {
@@ -43,6 +44,7 @@ type storageCommitMetricsObserver struct {
 
 type deliveryMetricsObserver struct {
 	metrics *obsmetrics.Registry
+	logger  wklog.Logger
 }
 
 type multiChannelV2Observer []reactor.Observer
@@ -294,7 +296,7 @@ func (o channelV2MetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.App
 
 func channelV2AppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot) string {
 	return fmt.Sprintf(
-		"internalv2/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d err=%v",
+		"internalv2/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
 		snapshot.ReactorID,
 		snapshot.Key,
 		snapshot.ChannelID.ID,
@@ -324,6 +326,7 @@ func channelV2AppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot)
 		snapshot.AppendInflightWaiters,
 		snapshot.AppendStoreBlocked,
 		snapshot.PullWaiters,
+		snapshot.FollowerStates,
 		snapshot.Err,
 	)
 }
@@ -392,50 +395,107 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event mess
 }
 
 func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
+		o.observeError(event.ErrorClass)
 	}
-	o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
-	o.observeError(event.ErrorClass)
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout task failed",
+			wklog.Event("internalv2.app.delivery.fanout_task_failed"),
+			wklog.TargetNodeID(event.TargetNodeID),
+			wklog.Int("partitionID", int(event.PartitionID)),
+			wklog.String("path", event.Path),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveResolve(deliveryChannelTypeLabel(event.ChannelType), event.Result, event.Duration, event.Pages, event.Routes)
+		o.observeError(event.ErrorClass)
 	}
-	o.metrics.Delivery.ObserveResolve(deliveryChannelTypeLabel(event.ChannelType), event.Result, event.Duration, event.Pages, event.Routes)
-	o.observeError(event.ErrorClass)
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout resolve failed",
+			wklog.Event("internalv2.app.delivery.fanout_resolve_failed"),
+			wklog.ChannelType(int64(event.ChannelType)),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+			wklog.Int("pages", event.Pages),
+			wklog.Int("uids", event.UIDs),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), event.Result, event.Duration, event.Routes)
+		o.observeError(event.ErrorClass)
 	}
-	o.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), event.Result, event.Duration, event.Routes)
-	o.observeError(event.ErrorClass)
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout push failed",
+			wklog.Event("internalv2.app.delivery.fanout_push_failed"),
+			wklog.Uint64("ownerNodeID", event.OwnerNodeID),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+			wklog.Int("routes", event.Routes),
+			wklog.Int("accepted", event.Accepted),
+			wklog.Int("retryable", event.Retryable),
+			wklog.Int("dropped", event.Dropped),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveRetry(event.Event, event.Result)
+		o.metrics.Delivery.SetRetryQueueDepth(event.QueueDepth)
+		o.observeError(event.ErrorClass)
 	}
-	o.metrics.Delivery.ObserveRetry(event.Event, event.Result)
-	o.metrics.Delivery.SetRetryQueueDepth(event.QueueDepth)
-	o.observeError(event.ErrorClass)
+	if event.Result == runtimedelivery.DeliveryResultDropped ||
+		event.Result == runtimedelivery.DeliveryResultOverflow ||
+		event.Result == runtimedelivery.DeliveryResultMaxAttempts ||
+		(event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone && event.Event == runtimedelivery.DeliveryRetryEventDrop) {
+		o.loggerOrNop().Warn("delivery retry failed",
+			wklog.Event("internalv2.app.delivery.retry_failed"),
+			wklog.String("retryEvent", event.Event),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Attempt(event.Attempt),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveEventQueue(event.Result)
 	}
-	o.metrics.Delivery.ObserveEventQueue(event.Result)
+	if event.Result != runtimedelivery.DeliveryResultOK {
+		o.loggerOrNop().Warn("delivery manager admission failed",
+			wklog.Event("internalv2.app.delivery.manager_admission_failed"),
+			wklog.Result(event.Result),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
-	if o.metrics == nil {
-		return
+	if o.metrics != nil {
+		o.observeError(event.ErrorClass)
 	}
-	o.observeError(event.ErrorClass)
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery manager terminal failed",
+			wklog.Event("internalv2.app.delivery.manager_terminal_failed"),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
 }
 
 func (o deliveryMetricsObserver) observeError(class string) {
@@ -446,10 +506,21 @@ func (o deliveryMetricsObserver) observeError(class string) {
 }
 
 func (a *App) deliveryObserver() runtimedelivery.Observer {
-	if a == nil || a.metrics == nil {
+	if a == nil || (a.metrics == nil && a.logger == nil) {
 		return nil
 	}
-	return deliveryMetricsObserver{metrics: a.metrics}
+	var logger wklog.Logger
+	if a.logger != nil {
+		logger = a.logger.Named("delivery")
+	}
+	return deliveryMetricsObserver{metrics: a.metrics, logger: logger}
+}
+
+func (o deliveryMetricsObserver) loggerOrNop() wklog.Logger {
+	if o.logger == nil {
+		return wklog.NewNop()
+	}
+	return o.logger
 }
 
 func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer {

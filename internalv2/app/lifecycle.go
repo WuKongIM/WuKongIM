@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
@@ -38,12 +39,17 @@ func (a *App) Start(ctx context.Context) error {
 		return ErrAlreadyStarted
 	}
 	if err := a.cluster.Start(ctx); err != nil {
+		a.logLifecycleError("cluster", "start", err)
 		return err
 	}
 	a.started = true
 	a.clusterStarted = true
 	if err := a.waitClusterWriteReady(ctx); err != nil {
 		stopErr := a.cluster.Stop(ctx)
+		a.logLifecycleError("cluster_write_ready", "start", err)
+		if stopErr != nil {
+			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
+		}
 		if stopErr == nil {
 			a.started = false
 			a.clusterStarted = false
@@ -52,6 +58,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.presenceWorker != nil {
 		if err := a.presenceWorker.Start(ctx); err != nil {
+			a.logLifecycleError("presence_worker", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
@@ -59,6 +66,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
+			a.logLifecycleError("delivery_worker", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
@@ -66,6 +74,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
+			a.logLifecycleError("api", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
@@ -73,6 +82,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.gateway != nil {
 		if err := a.gateway.Start(); err != nil {
+			a.logLifecycleError("gateway", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
@@ -91,11 +101,12 @@ func (a *App) Stop(ctx context.Context) error {
 
 	a.stopped = true
 	if !a.started {
-		return nil
+		return a.syncLogger()
 	}
 	var err error
 	if a.gatewayStarted && a.gateway != nil {
 		if stopErr := a.gateway.Stop(); stopErr != nil {
+			a.logLifecycleWarn("gateway", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.gatewayStarted = false
@@ -103,6 +114,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.apiStarted && a.api != nil {
 		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("api", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.apiStarted = false
@@ -110,6 +122,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
 		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("delivery_worker", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
@@ -117,6 +130,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.presenceStarted && a.presenceWorker != nil {
 		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("presence_worker", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.presenceStarted = false
@@ -124,6 +138,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("cluster", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.clusterStarted = false
@@ -132,13 +147,22 @@ func (a *App) Stop(ctx context.Context) error {
 	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
+	err = errors.Join(err, a.syncLogger())
 	return err
+}
+
+func (a *App) syncLogger() error {
+	if a == nil || a.logger == nil {
+		return nil
+	}
+	return a.logger.Sync()
 }
 
 func (a *App) rollbackStarted(ctx context.Context) error {
 	var err error
 	if a.apiStarted && a.api != nil {
 		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("api", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.apiStarted = false
@@ -146,6 +170,7 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
 		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("delivery_worker", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
@@ -153,6 +178,7 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 	}
 	if a.presenceStarted && a.presenceWorker != nil {
 		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("presence_worker", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.presenceStarted = false
@@ -160,6 +186,7 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.clusterStarted = false
@@ -169,6 +196,41 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		a.started = false
 	}
 	return err
+}
+
+func (a *App) logLifecycleError(component, phase string, err error) {
+	if err == nil {
+		return
+	}
+	a.lifecycleLogger().Error("app lifecycle component failed",
+		wklog.Event("internalv2.app.lifecycle_start_failed"),
+		wklog.String("component", component),
+		wklog.String("phase", phase),
+		wklog.Error(err),
+	)
+}
+
+func (a *App) logLifecycleWarn(component, phase string, err error) {
+	if err == nil {
+		return
+	}
+	event := "internalv2.app.lifecycle_stop_failed"
+	if phase == "rollback_stop" {
+		event = "internalv2.app.lifecycle_rollback_failed"
+	}
+	a.lifecycleLogger().Warn("app lifecycle component stop failed",
+		wklog.Event(event),
+		wklog.String("component", component),
+		wklog.String("phase", phase),
+		wklog.Error(err),
+	)
+}
+
+func (a *App) lifecycleLogger() wklog.Logger {
+	if a == nil || a.logger == nil {
+		return wklog.NewNop()
+	}
+	return a.logger.Named("lifecycle")
 }
 
 func (a *App) readyzReport(context.Context) (bool, any) {

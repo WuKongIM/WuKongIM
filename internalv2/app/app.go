@@ -15,6 +15,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -24,6 +25,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // ClusterRuntime is the cluster lifecycle surface used by the app root.
@@ -73,6 +75,7 @@ type App struct {
 	presenceDirectory   *authoritypresence.Directory
 	presenceWorker      WorkerRuntime
 	metrics             *obsmetrics.Registry
+	logger              wklog.Logger
 
 	lifecycleMu     sync.Mutex
 	started         bool
@@ -96,17 +99,35 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
 		return nil, err
 	}
+	app.cfg.Log = defaultLogConfig(app.cfg.Log)
+	for _, opt := range opts {
+		if opt != nil {
+			opt(app)
+		}
+	}
+	cfg = app.cfg
+	if app.logger == nil {
+		logger, err := applog.NewLogger(applog.Config{
+			Level:      cfg.Log.Level,
+			Dir:        cfg.Log.Dir,
+			MaxSize:    cfg.Log.MaxSize,
+			MaxAge:     cfg.Log.MaxAge,
+			MaxBackups: cfg.Log.MaxBackups,
+			Compress:   cfg.Log.Compress,
+			Console:    cfg.Log.Console,
+			Format:     cfg.Log.Format,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("internalv2/app: create logger: %w", err)
+		}
+		app.logger = logger
+	}
 	clusterCfg := defaultClusterConfig(cfg)
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: app.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: app.metrics})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{metrics: app.metrics})
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(app)
-		}
 	}
 	if app.cluster == nil {
 		node, err := clusterv2.New(clusterCfg)
@@ -131,7 +152,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		ownerActions := presenceOwnerActions{local: app.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
-		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions})
+		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: app.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
 		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
 		if app.presence == nil {
@@ -162,11 +183,12 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				FlushInterval: app.cfg.Presence.TouchFlushInterval,
 				BatchSize:     app.cfg.Presence.TouchBatchSize,
 				RouteTTL:      app.cfg.Presence.RouteTTL,
+				Logger:        app.logger.Named("presence_touch"),
 			})
 		}
 	}
 	if app.cfg.Delivery.Enabled && app.delivery == nil {
-		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL}
+		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL, logger: app.logger.Named("delivery.owner")}
 		deliveryObserver := app.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
 		var fanoutRemote runtimedelivery.FanoutTaskForwarder
@@ -235,7 +257,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager}
 		}
 		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker})
+			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker, Logger: app.logger.Named("node")})
 			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
 			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
 		}
@@ -261,6 +283,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			OwnerNodeID:     clusterCfg.NodeID,
 			SendTimeout:     cfg.Gateway.SendTimeout,
 			SendackObserver: app.sendackObserver(),
+			Logger:          app.logger.Named("access.gateway"),
 		})
 	}
 	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
@@ -276,6 +299,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchData:            app.deliveryMeta,
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
+			Logger:               app.logger.Named("access.api"),
 		})
 	}
 	if app.gateway == nil && len(cfg.Gateway.Listeners) > 0 {
@@ -286,6 +310,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			DefaultSession: cfg.Gateway.Session,
 			Transport:      cfg.Gateway.Transport,
 			Observer:       app.gatewayObserver(),
+			Logger:         app.logger.Named("gateway"),
 		})
 		if err != nil {
 			return nil, err
@@ -328,6 +353,11 @@ func WithOnlineRegistry(reg *online.Registry) Option {
 // WithDeliverySubscriberSource overrides the durable subscriber source used by delivery fanout.
 func WithDeliverySubscriberSource(source runtimedelivery.ChannelSubscriberSource) Option {
 	return func(a *App) { a.deliverySubscribers = source }
+}
+
+// WithLogger overrides the root logger used by the app.
+func WithLogger(logger wklog.Logger) Option {
+	return func(a *App) { a.logger = logger }
 }
 
 // Handler returns the gateway access handler.

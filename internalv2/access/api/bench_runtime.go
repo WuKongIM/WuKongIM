@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const maxBenchRuntimeRange = 100000
@@ -31,6 +32,7 @@ func (s *Server) handleBenchChannelRuntimeSnapshot(w http.ResponseWriter, r *htt
 	}
 	resp, err := s.benchRuntime.Snapshot(r.Context(), query)
 	if err != nil {
+		s.logBenchRuntimeFailure(r, "snapshot", query, err)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -57,6 +59,7 @@ func (s *Server) handleBenchChannelRuntimeProbe(w http.ResponseWriter, r *http.R
 	}
 	resp, err := s.benchRuntime.Probe(r.Context(), query)
 	if err != nil {
+		s.logBenchRuntimeFailure(r, "probe", query, err)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -83,6 +86,7 @@ func (s *Server) handleBenchChannelRuntimeEvict(w http.ResponseWriter, r *http.R
 	}
 	resp, err := s.benchRuntime.Evict(r.Context(), query)
 	if err != nil {
+		s.logBenchRuntimeFailure(r, "evict", query, err)
 		writeBenchError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -90,6 +94,32 @@ func (s *Server) handleBenchChannelRuntimeEvict(w http.ResponseWriter, r *http.R
 		resp.Version = versionV1
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) logBenchRuntimeFailure(r *http.Request, op string, query model.ChannelRuntimeQuery, err error) {
+	if err == nil {
+		return
+	}
+	path := ""
+	method := ""
+	if r != nil {
+		method = r.Method
+		if r.URL != nil {
+			path = r.URL.Path
+		}
+	}
+	s.httpLogger().Error("bench channel runtime request failed",
+		wklog.Event("internalv2.access.api.bench_runtime_failed"),
+		wklog.String("op", op),
+		wklog.String("method", method),
+		wklog.String("path", path),
+		wklog.String("runID", query.RunID),
+		wklog.String("profile", query.Profile),
+		wklog.ChannelType(int64(query.ChannelType)),
+		wklog.Int("rangeStart", query.Range.Start),
+		wklog.Int("rangeEnd", query.Range.End),
+		wklog.Error(err),
+	)
 }
 
 func runtimeQueryFromSnapshotRequest(r *http.Request) (model.ChannelRuntimeQuery, error) {

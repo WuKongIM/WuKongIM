@@ -32,13 +32,20 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
+
+func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
+	t.Helper()
+	opts = append([]Option{WithLogger(wklog.NewNop())}, opts...)
+	return New(cfg, opts...)
+}
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
 	calls := make([]string, 0, 2)
 	cluster := &fakeCluster{calls: &calls}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -57,7 +64,8 @@ func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	calls := make([]string, 0, 3)
 	cluster := &fakeCluster{calls: &calls}
 	gateway := &fakeGateway{calls: &calls, startErr: gatewayErr}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	logger := &recordingAppLogger{}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway), WithLogger(logger))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -69,6 +77,7 @@ func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	if got := joinCalls(calls); got != "cluster.start,gateway.start,cluster.stop" {
 		t.Fatalf("calls = %s, want cluster.start,gateway.start,cluster.stop", got)
 	}
+	requireAppLogEvent(t, logger, "ERROR", "internalv2.app.lifecycle_start_failed")
 }
 
 func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
@@ -76,7 +85,7 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 	cluster := &fakeCluster{calls: &calls}
 	api := &fakeAPI{calls: &calls}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -196,9 +205,52 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestNewBuildsRootLogger(t *testing.T) {
+	calls := make([]string, 0, 2)
+	cfg := Config{Log: LogConfig{Dir: t.TempDir(), Console: false, Format: "json"}}
+	cfg.Log.SetExplicitFlags(false, true)
+	app, err := New(
+		cfg,
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.logger == nil {
+		t.Fatal("logger was not wired")
+	}
+	if app.logger.Named("internalv2") == nil {
+		t.Fatal("named logger is nil")
+	}
+}
+
+func TestStopSyncsLogger(t *testing.T) {
+	calls := make([]string, 0, 4)
+	logger := &recordingAppLogger{}
+	app, err := New(
+		Config{},
+		WithCluster(&fakeCluster{calls: &calls}),
+		WithGateway(&fakeGateway{calls: &calls}),
+		WithLogger(logger),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if logger.syncCalls != 1 {
+		t.Fatalf("Sync calls = %d, want 1", logger.syncCalls)
+	}
+}
+
 func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster:  clusterv2.Config{NodeID: 1},
 			Delivery: DeliveryConfig{Enabled: true},
@@ -248,7 +300,7 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 
 func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster:       clusterv2.Config{NodeID: 3},
 			Observability: ObservabilityConfig{MetricsEnabled: true},
@@ -421,7 +473,7 @@ func waitAppFanoutTasks(t *testing.T, runner *appRecordingFanoutRunner, want int
 func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster: clusterv2.Config{NodeID: 1},
 			Delivery: DeliveryConfig{
@@ -496,7 +548,7 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 			{UIDs: []string{"u2"}, Done: true},
 		},
 	}
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster: clusterv2.Config{NodeID: 1},
 			Delivery: DeliveryConfig{
@@ -725,7 +777,7 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 		snapshot:    readyFakeClusterSnapshot(1, 16),
 		subscribers: map[string][]string{},
 	}
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster:  clusterv2.Config{NodeID: 1},
 			Delivery: DeliveryConfig{Enabled: true},
@@ -745,7 +797,7 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 
 func TestNewDoesNotOverwriteWithMessagesWhenDeliveryEnabled(t *testing.T) {
 	override := message.New(message.Options{})
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{Cluster: clusterv2.Config{NodeID: 1}, Delivery: DeliveryConfig{Enabled: true}},
 		WithCluster(newFakePresenceCluster(1, nil)),
 		WithMessages(override),
@@ -763,7 +815,7 @@ func TestNewWiresPresenceWhenGatewayEnabled(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	gatewayRuntime := &fakeGateway{calls: &[]string{}}
 
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			Cluster: clusterv2.Config{NodeID: 1},
 			Gateway: GatewayConfig{Listeners: []gateway.ListenerOptions{{
@@ -1091,7 +1143,7 @@ func TestLocalOwnerPusherDropsIncompleteRouteIdentity(t *testing.T) {
 
 func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
-	app, err := New(Config{Cluster: clusterv2.Config{NodeID: 1}}, WithCluster(cluster))
+	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 1}}, WithCluster(cluster))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1143,7 +1195,7 @@ func TestStartOrderStartsClusterThenPresenceWorkerThenGateway(t *testing.T) {
 	cluster.calls = &calls
 	cluster.snapshot = clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1161,7 +1213,7 @@ func TestStartSeedsPresenceAuthorityFromCurrentRoutes(t *testing.T) {
 	events := make(chan clusterv2.RouteAuthorityEvent)
 	cluster := newFakePresenceCluster(1, events)
 	cluster.snapshot = clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 10}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(&fakeGateway{calls: &[]string{}}))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(&fakeGateway{calls: &[]string{}}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1248,10 +1300,12 @@ func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 		targets: map[string]presence.RouteTarget{"u1": {HashSlot: 9, SlotID: 1, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 2}},
 		err:     errors.New("touch failed"),
 	}
+	logger := &recordingAppLogger{}
 	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		Local:     reg,
 		Authority: authority,
 		BatchSize: 10,
+		Logger:    logger,
 	})
 
 	worker.flushOnce(context.Background(), time.Now())
@@ -1263,6 +1317,7 @@ func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 	if requeued[0].SessionID != conn.SessionID || requeued[0].UID != conn.UID {
 		t.Fatalf("requeued route = %#v, want session %d uid %s", requeued[0], conn.SessionID, conn.UID)
 	}
+	requireAppLogEvent(t, logger, "WARN", "internalv2.app.presence_touch_failed")
 }
 
 func TestPresenceTouchWorkerRequeuesAllGroupsWhenContextCancelsAfterDrain(t *testing.T) {
@@ -1552,7 +1607,7 @@ func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
 }
 
 func TestNewWiresBenchRuntimeControllerWhenClusterSupportsIt(t *testing.T) {
-	app, err := New(
+	app, err := newTestApp(t,
 		Config{
 			API:   APIConfig{ListenAddr: "127.0.0.1:0"},
 			Bench: BenchConfig{APIEnabled: true},
@@ -1602,7 +1657,7 @@ func TestGatewayStartFailureStopsAPIThenCluster(t *testing.T) {
 	cluster := &fakeCluster{calls: &calls}
 	api := &fakeAPI{calls: &calls}
 	gateway := &fakeGateway{calls: &calls, startErr: gatewayErr}
-	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1628,7 +1683,7 @@ func TestStartWaitsForClusterWriteReadinessBeforeGateway(t *testing.T) {
 		},
 	}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1651,7 +1706,7 @@ func TestClusterWriteReadinessFailureStopsClusterBeforeGateway(t *testing.T) {
 		},
 	}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{Cluster: clusterv2.Config{Timeouts: clusterv2.TimeoutConfig{Start: time.Millisecond}}}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{Timeouts: clusterv2.TimeoutConfig{Start: time.Millisecond}}}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1669,7 +1724,7 @@ func TestStopOrderIsGatewayThenCluster(t *testing.T) {
 	calls := make([]string, 0, 4)
 	cluster := &fakeCluster{calls: &calls}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1691,7 +1746,7 @@ func TestStopOrderIncludesAPIBeforeCluster(t *testing.T) {
 	cluster := &fakeCluster{calls: &calls}
 	api := &fakeAPI{calls: &calls}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := New(Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1711,7 +1766,7 @@ func TestStopOrderIncludesAPIBeforeCluster(t *testing.T) {
 func TestConcurrentStartStopCannotLeaveGatewayRunningAfterStopReturns(t *testing.T) {
 	cluster := newBlockingCluster()
 	gateway := newStateGateway()
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1747,7 +1802,7 @@ func TestRollbackStopFailureLeavesClusterCleanupRetryPossible(t *testing.T) {
 	calls := make([]string, 0, 4)
 	cluster := &fakeCluster{calls: &calls, stopErr: rollbackErr}
 	gateway := &fakeGateway{calls: &calls, startErr: gatewayErr}
-	app, err := New(Config{}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1766,7 +1821,7 @@ func TestRollbackStopFailureLeavesClusterCleanupRetryPossible(t *testing.T) {
 }
 
 func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
-	app, err := New(Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(&fakeCluster{}))
+	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(&fakeCluster{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -1807,7 +1862,7 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 				Timeouts: clusterv2.TimeoutConfig{Start: 5 * time.Second},
 			},
 		}
-		app, err := New(cfg)
+		app, err := newTestApp(t, cfg)
 		if err != nil {
 			t.Fatalf("New(node=%d) error = %v", voter.NodeID, err)
 		}
@@ -2317,6 +2372,42 @@ func (f *fakeGateway) Start() error {
 func (f *fakeGateway) Stop() error {
 	*f.calls = append(*f.calls, "gateway.stop")
 	return f.stopErr
+}
+
+type recordingAppLogger struct {
+	syncCalls int
+	entries   []recordedAppLogEntry
+}
+
+type recordedAppLogEntry struct {
+	level  string
+	fields []wklog.Field
+}
+
+func (r *recordingAppLogger) Debug(_ string, fields ...wklog.Field) { r.log("DEBUG", fields...) }
+func (r *recordingAppLogger) Info(_ string, fields ...wklog.Field)  { r.log("INFO", fields...) }
+func (r *recordingAppLogger) Warn(_ string, fields ...wklog.Field)  { r.log("WARN", fields...) }
+func (r *recordingAppLogger) Error(_ string, fields ...wklog.Field) { r.log("ERROR", fields...) }
+func (r *recordingAppLogger) Fatal(_ string, fields ...wklog.Field) { r.log("FATAL", fields...) }
+
+func (r *recordingAppLogger) Named(string) wklog.Logger {
+	return r
+}
+
+func (r *recordingAppLogger) With(...wklog.Field) wklog.Logger {
+	return r
+}
+
+func (r *recordingAppLogger) log(level string, fields ...wklog.Field) {
+	r.entries = append(r.entries, recordedAppLogEntry{
+		level:  level,
+		fields: append([]wklog.Field(nil), fields...),
+	})
+}
+
+func (r *recordingAppLogger) Sync() error {
+	r.syncCalls++
+	return nil
 }
 
 type fakeAPI struct {

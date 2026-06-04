@@ -3,10 +3,10 @@
 ## Responsibility
 
 `internalv2/app` is the only composition root for the new skeleton. It wires
-phase-1 config, `pkg/clusterv2`, the message usecase, the optional delivery
-usecase/runtime, the presence usecase, the gateway handler, the optional HTTP
-API runtime, the optional Prometheus metrics registry, and the optional gateway
-runtime. The phase-1 runtime supports
+phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
+usecase, the optional delivery usecase/runtime, the presence usecase, the
+gateway handler, the optional HTTP API runtime, the optional Prometheus metrics
+registry, and the optional gateway runtime. The phase-1 runtime supports
 single-node clusters and static multi-node clusters for the `SEND -> SENDACK`
 write path, UID connection-route authority, and opt-in local online delivery.
 
@@ -18,7 +18,9 @@ and protocol details stay in access packages.
 ```text
 New(Config)
   -> derive effective clusterv2 config from Config.Cluster with top-level fallbacks
-  -> create metrics registry and runtime observers when Observability.MetricsEnabled=true
+  -> create a root logger from Config.Log unless a test/harness override is supplied
+  -> create metrics registry when Observability.MetricsEnabled=true and attach
+     runtime observers for metrics/logging
      (gateway, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint stages, message DB grouped commits, and delivery fanout)
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
@@ -35,7 +37,7 @@ New(Config)
        resolver, local/cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
        create runtime/delivery Manager in bounded async mode around the runner
-       attach delivery metrics observers when metrics are enabled
+       attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
@@ -90,15 +92,21 @@ router runs local partitions through the in-process fanout worker and forwards
 remote partitions through access/node Delivery Fanout RPC. The remote node then
 uses its own subscriber source and still pushes resolved online routes by
 owner node. Runtime fanout task, resolve, and push observations are translated
-by app-level metrics adapters; retry enqueue, attempt, drop, and queue-depth
-observations use the same adapter. The delivery runtime itself stays
-independent from Prometheus.
+by app-level metrics/logging adapters; retry enqueue, attempt, drop, and
+queue-depth observations use the same adapter. The delivery runtime itself stays
+independent from Prometheus and concrete logging backends.
 
 The ChannelV2 metrics observer also logs rare admitted-append cancellation
 snapshots emitted by the reactor. These lines include the channel key, op id,
 commit mode, LEO/HW/target offset, queue and in-flight counts, and quorum
-progress flags so benchmark timeout triage can identify the stuck append phase
-without adding high-cardinality Prometheus labels.
+progress flags plus a compact leader-visible follower summary so benchmark
+timeout triage can identify the stuck append phase without adding
+high-cardinality Prometheus labels.
+
+Message append observations record low-cardinality metrics for every durable
+append attempt and log rare append failures, including gateway deadline
+timeouts, with path, error class, duration, and raw error. These diagnostics do
+not change append admission, durable write, or quorum ACK rules.
 
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real

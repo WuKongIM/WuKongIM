@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -17,6 +16,7 @@ import (
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id overflows recv packet")
@@ -83,27 +83,55 @@ type deliveryMessageObserver struct {
 func (o deliveryMessageObserver) CommittedSinkError(_ message.SendCommand, err error) {
 	if o.app != nil {
 		o.app.recordDeliveryError(err)
+		if err != nil {
+			o.app.deliveryLogger().Warn("delivery committed sink failed",
+				wklog.Event("internalv2.app.delivery.committed_sink_failed"),
+				wklog.String("errorClass", runtimedelivery.DeliveryErrorClass(err)),
+				wklog.Error(err),
+			)
+		}
 	}
 }
 
 func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time.Duration) {
-	if o.app == nil || o.app.metrics == nil {
+	if o.app == nil {
 		return
 	}
 	result := "ok"
 	if err != nil {
 		result = "error"
 		label := messageAppendErrorLabel(err)
-		o.app.metrics.Message.ObserveAppendError(path, label)
-		if label == "append_failed" {
-			log.Print(appendFailureLogLine(path, err))
+		if o.app.metrics != nil {
+			o.app.metrics.Message.ObserveAppendError(path, label)
+		}
+		if shouldLogMessageAppendError(label) {
+			o.app.deliveryLogger().Error("message append failed",
+				wklog.Event("internalv2.app.delivery.message_append_failed"),
+				wklog.String("path", path),
+				wklog.String("errorClass", label),
+				wklog.Duration("duration", dur),
+				wklog.Error(err),
+			)
 		}
 	}
-	o.app.metrics.Message.ObserveAppend(path, result, dur)
+	if o.app.metrics != nil {
+		o.app.metrics.Message.ObserveAppend(path, result, dur)
+	}
 }
 
 func appendFailureLogLine(path string, err error) string {
 	return fmt.Sprintf("internalv2/app: message append failed path=%s err=%v", path, err)
+}
+
+func shouldLogMessageAppendError(label string) bool {
+	return label == "append_failed" || label == "timeout"
+}
+
+func (a *App) deliveryLogger() wklog.Logger {
+	if a == nil || a.logger == nil {
+		return wklog.NewNop()
+	}
+	return a.logger.Named("delivery")
 }
 
 func (a *App) recordDeliveryError(err error) {
@@ -170,6 +198,8 @@ type localOwnerPusher struct {
 	delivery *runtimedelivery.Manager
 	// pendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	pendingAckTTL time.Duration
+	// logger records owner-local delivery failures before they become retryable or dropped results.
+	logger wklog.Logger
 }
 
 func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
@@ -187,6 +217,16 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 		}
 		packet, err := buildRecvPacket(cmd.Envelope, route.UID, payload, timestamp)
 		if err != nil {
+			p.loggerOrNop().Warn("delivery recv packet build failed",
+				wklog.Event("internalv2.app.delivery.recv_packet_build_failed"),
+				wklog.UID(route.UID),
+				wklog.SessionID(route.SessionID),
+				wklog.ChannelID(cmd.Envelope.ChannelID),
+				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
+				wklog.Uint64("messageID", cmd.Envelope.MessageID),
+				wklog.MessageSeq(cmd.Envelope.MessageSeq),
+				wklog.Error(err),
+			)
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
@@ -199,18 +239,47 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			ChannelType: cmd.Envelope.ChannelType,
 		}
 		if p.delivery != nil && !p.delivery.BindPendingAck(pending) {
+			p.loggerOrNop().Warn("delivery pending ack limit reached",
+				wklog.Event("internalv2.app.delivery.pending_ack_limit_reached"),
+				wklog.UID(route.UID),
+				wklog.SessionID(route.SessionID),
+				wklog.ChannelID(cmd.Envelope.ChannelID),
+				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
+				wklog.Uint64("messageID", cmd.Envelope.MessageID),
+				wklog.MessageSeq(cmd.Envelope.MessageSeq),
+			)
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
 		if err := session.Session.WriteDelivery(packet); err != nil {
 			if p.delivery != nil {
-				_ = p.delivery.Recvack(context.Background(), runtimedelivery.Recvack{
+				if ackErr := p.delivery.Recvack(context.Background(), runtimedelivery.Recvack{
 					UID:       route.UID,
 					SessionID: route.SessionID,
 					MessageID: cmd.Envelope.MessageID,
-				})
+				}); ackErr != nil {
+					p.loggerOrNop().Warn("delivery pending ack cleanup failed",
+						wklog.Event("internalv2.app.delivery.pending_ack_cleanup_failed"),
+						wklog.UID(route.UID),
+						wklog.SessionID(route.SessionID),
+						wklog.Uint64("messageID", cmd.Envelope.MessageID),
+						wklog.Error(ackErr),
+					)
+				}
 			}
-			if terminalLocalDeliveryWriteError(err) {
+			terminal := terminalLocalDeliveryWriteError(err)
+			p.loggerOrNop().Warn("delivery write failed",
+				wklog.Event("internalv2.app.delivery.write_failed"),
+				wklog.UID(route.UID),
+				wklog.SessionID(route.SessionID),
+				wklog.ChannelID(cmd.Envelope.ChannelID),
+				wklog.ChannelType(int64(cmd.Envelope.ChannelType)),
+				wklog.Uint64("messageID", cmd.Envelope.MessageID),
+				wklog.MessageSeq(cmd.Envelope.MessageSeq),
+				wklog.Bool("terminal", terminal),
+				wklog.Error(err),
+			)
+			if terminal {
 				result.Dropped = append(result.Dropped, route)
 			} else {
 				result.Retryable = append(result.Retryable, route)
@@ -220,6 +289,13 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 		result.Accepted = append(result.Accepted, route)
 	}
 	return result, nil
+}
+
+func (p localOwnerPusher) loggerOrNop() wklog.Logger {
+	if p.logger == nil {
+		return wklog.NewNop()
+	}
+	return p.logger
 }
 
 func (p localOwnerPusher) localSession(route runtimedelivery.Route) (online.LocalSession, bool) {

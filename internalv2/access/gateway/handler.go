@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 var (
@@ -65,6 +66,8 @@ type Options struct {
 	SendTimeout time.Duration
 	// SendackObserver receives low-cardinality SEND acknowledgement diagnostics.
 	SendackObserver SendackObserver
+	// Logger records gateway boundary errors that otherwise terminate in adapter callbacks.
+	Logger wklog.Logger
 }
 
 // Handler adapts pkg/gateway frames to internalv2 message usecases.
@@ -75,12 +78,16 @@ type Handler struct {
 	ownerNodeID     uint64
 	sendTimeout     time.Duration
 	sendackObserver SendackObserver
+	logger          wklog.Logger
 }
 
 // New creates a gateway Handler.
 func New(opts Options) *Handler {
 	if opts.SendTimeout <= 0 {
 		opts.SendTimeout = defaultSendTimeout
+	}
+	if opts.Logger == nil {
+		opts.Logger = wklog.NewNop()
 	}
 	return &Handler{
 		messages:        opts.Messages,
@@ -89,10 +96,20 @@ func New(opts Options) *Handler {
 		ownerNodeID:     opts.OwnerNodeID,
 		sendTimeout:     opts.SendTimeout,
 		sendackObserver: opts.SendackObserver,
+		logger:          opts.Logger,
 	}
 }
 
-func (h *Handler) OnListenerError(string, error) {}
+func (h *Handler) OnListenerError(listener string, err error) {
+	if err == nil {
+		return
+	}
+	h.connLogger().Error("gateway listener error",
+		wklog.Event("internalv2.access.gateway.listener_error"),
+		wklog.String("listener", listener),
+		wklog.Error(err),
+	)
+}
 
 func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPacket, error) {
 	if h == nil || h.presence == nil {
@@ -118,12 +135,28 @@ func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
 	var presenceErr error
 	if h.presence != nil {
 		presenceErr = h.presence.Deactivate(reqCtx, deactivateCommandFromContext(&ctx))
+		if presenceErr != nil {
+			fields := append([]wklog.Field{
+				wklog.Event("internalv2.access.gateway.session_close_presence_failed"),
+				wklog.SourceModule("presence.deactivate"),
+			}, gatewayContextFields(&ctx)...)
+			fields = append(fields, wklog.Error(presenceErr))
+			h.connLogger().Warn("gateway session presence cleanup failed", fields...)
+		}
 	}
 	var deliveryErr error
 	if h.delivery != nil && ctx.Session != nil {
 		uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
 		if uid != "" && ctx.Session.ID() != 0 {
 			deliveryErr = h.delivery.SessionClosed(reqCtx, delivery.SessionClosedCommand{UID: uid, SessionID: ctx.Session.ID()})
+			if deliveryErr != nil {
+				fields := append([]wklog.Field{
+					wklog.Event("internalv2.access.gateway.session_close_delivery_failed"),
+					wklog.SourceModule("delivery.session_closed"),
+				}, gatewayContextFields(&ctx)...)
+				fields = append(fields, wklog.Error(deliveryErr))
+				h.connLogger().Warn("gateway session delivery cleanup failed", fields...)
+			}
 		}
 	}
 	return errors.Join(presenceErr, deliveryErr)
@@ -133,10 +166,26 @@ func (h *Handler) OnSessionActivateRollback(ctx coregateway.Context, _ error) {
 	if h == nil || h.presence == nil {
 		return
 	}
-	_ = h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx))
+	if err := h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx)); err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("internalv2.access.gateway.activation_rollback_failed"),
+			wklog.SourceModule("presence.deactivate"),
+		}, gatewayContextFields(&ctx)...)
+		fields = append(fields, wklog.Error(err))
+		h.connLogger().Warn("gateway activation rollback failed", fields...)
+	}
 }
 
-func (h *Handler) OnSessionError(coregateway.Context, error) {}
+func (h *Handler) OnSessionError(ctx coregateway.Context, err error) {
+	if err == nil {
+		return
+	}
+	fields := append([]wklog.Field{
+		wklog.Event("internalv2.access.gateway.session_error"),
+	}, gatewayContextFields(&ctx)...)
+	fields = append(fields, wklog.Error(err))
+	h.connLogger().Warn("gateway session error", fields...)
+}
 
 func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 	switch pkt := f.(type) {
@@ -160,10 +209,17 @@ func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
 	if sessionID == 0 {
 		return
 	}
-	_ = h.presence.Touch(requestContextFromContext(ctx), presence.TouchCommand{
+	if err := h.presence.Touch(requestContextFromContext(ctx), presence.TouchCommand{
 		SessionID:    sessionID,
 		ActivityUnix: now.Unix(),
-	})
+	}); err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("internalv2.access.gateway.presence_touch_failed"),
+			wklog.SourceModule("presence.touch"),
+		}, gatewayContextFields(ctx)...)
+		fields = append(fields, wklog.Error(err))
+		h.frameLogger().Warn("gateway presence touch failed", fields...)
+	}
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {
@@ -172,9 +228,11 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		if errors.Is(err, ErrUnauthenticatedSession) {
 			return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail}, sendackSourceSingleResult, sendackErrorClassUnauthenticated)
 		}
+		h.logSendMappingFailure(ctx, pkt, err)
 		return err
 	}
 	if ctx == nil || ctx.RequestContext == nil {
+		h.logMissingRequestContext(ctx, pkt, sendackSourceSingleMissingRequestContext)
 		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext)
 	}
 
@@ -193,34 +251,161 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 	if uid == "" || ctx.Session.ID() == 0 || pkt.MessageID <= 0 {
 		return nil
 	}
-	return h.delivery.Recvack(requestContextFromContext(ctx), delivery.RecvackCommand{
+	err := h.delivery.Recvack(requestContextFromContext(ctx), delivery.RecvackCommand{
 		UID:        uid,
 		SessionID:  ctx.Session.ID(),
 		MessageID:  uint64(pkt.MessageID),
 		MessageSeq: pkt.MessageSeq,
 	})
+	if err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("internalv2.access.gateway.recvack_failed"),
+			wklog.SourceModule("delivery.recvack"),
+			wklog.MessageID(pkt.MessageID),
+			wklog.MessageSeq(uint64(pkt.MessageSeq)),
+		}, gatewayContextFields(ctx)...)
+		fields = append(fields, wklog.Error(err))
+		h.frameLogger().Warn("gateway recvack failed", fields...)
+	}
+	return err
 }
 
 func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) (message.SendResult, string, string) {
 	if h == nil || h.messages == nil {
+		if h != nil {
+			h.frameLogger().Error("gateway message usecase missing",
+				wklog.Event("internalv2.access.gateway.message_usecase_missing"),
+				wklog.SourceModule("message.send"),
+			)
+		}
 		return message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleResult, sendackErrorClassOther
 	}
 	result, err := h.messages.Send(ctx, cmd)
 	if err != nil {
 		result.Reason = reasonForError(err)
-		return result, sendackSourceSingleError, sendackErrorClassForError(err)
+		class := sendackErrorClassForError(err)
+		h.logSendFailure(cmd, sendackSourceSingleError, class, err)
+		return result, sendackSourceSingleError, class
 	}
 	return result, sendackSourceSingleResult, sendackErrorClassNone
 }
 
 func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult, source string, class string) error {
 	if err := writeSendack(ctx, pkt, result); err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("internalv2.access.gateway.sendack_write_failed"),
+			wklog.SourceModule("gateway.write_sendack"),
+			wklog.String("source", source),
+			wklog.String("errorClass", class),
+		}, gatewaySendFields(ctx, pkt)...)
+		fields = append(fields, wklog.Error(err))
+		h.frameLogger().Warn("gateway sendack write failed", fields...)
 		return err
 	}
 	if h != nil && h.sendackObserver != nil {
 		h.sendackObserver.SendackWritten(SendackEvent{Reason: result.Reason, Source: source, ErrorClass: class})
 	}
 	return nil
+}
+
+func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, err error) {
+	if err == nil || !shouldLogSendErrorClass(class) {
+		return
+	}
+	fields := []wklog.Field{
+		wklog.Event("internalv2.access.gateway.send_failed"),
+		wklog.SourceModule("message.send"),
+		wklog.String("source", source),
+		wklog.String("errorClass", class),
+		wklog.UID(cmd.FromUID),
+		wklog.ChannelID(cmd.ChannelID),
+		wklog.ChannelType(int64(cmd.ChannelType)),
+		wklog.Error(err),
+	}
+	if cmd.ClientMsgNo != "" {
+		fields = append(fields, wklog.ClientMsgNo(cmd.ClientMsgNo))
+	}
+	h.frameLogger().Warn("gateway send failed", fields...)
+}
+
+func (h *Handler) logSendMappingFailure(ctx *coregateway.Context, pkt *frame.SendPacket, err error) {
+	if err == nil {
+		return
+	}
+	fields := append([]wklog.Field{
+		wklog.Event("internalv2.access.gateway.send_rejected"),
+		wklog.SourceModule("gateway.map_send"),
+	}, gatewaySendFields(ctx, pkt)...)
+	fields = append(fields, wklog.Error(err))
+	h.frameLogger().Warn("gateway send rejected", fields...)
+}
+
+func (h *Handler) logMissingRequestContext(ctx *coregateway.Context, pkt *frame.SendPacket, source string) {
+	fields := append([]wklog.Field{
+		wklog.Event("internalv2.access.gateway.missing_request_context"),
+		wklog.SourceModule("gateway.request_context"),
+		wklog.String("source", source),
+		wklog.String("errorClass", sendackErrorClassMissingRequestContext),
+		wklog.Error(ErrMissingRequestContext),
+	}, gatewaySendFields(ctx, pkt)...)
+	h.frameLogger().Warn("gateway request context missing", fields...)
+}
+
+func shouldLogSendErrorClass(class string) bool {
+	switch class {
+	case sendackErrorClassNotLeader, sendackErrorClassStaleRoute, sendackErrorClassRouteNotReady,
+		sendackErrorClassCanceled, sendackErrorClassTimeout, sendackErrorClassOther,
+		sendackErrorClassMissingRequestContext:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Handler) connLogger() wklog.Logger {
+	if h == nil || h.logger == nil {
+		return wklog.NewNop()
+	}
+	return h.logger.Named("conn")
+}
+
+func (h *Handler) frameLogger() wklog.Logger {
+	if h == nil || h.logger == nil {
+		return wklog.NewNop()
+	}
+	return h.logger.Named("frame")
+}
+
+func gatewayContextFields(ctx *coregateway.Context) []wklog.Field {
+	if ctx == nil || ctx.Session == nil {
+		return nil
+	}
+	fields := []wklog.Field{wklog.SessionID(ctx.Session.ID())}
+	if uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string); uid != "" {
+		fields = append(fields, wklog.UID(uid))
+	}
+	if ctx.Listener != "" {
+		fields = append(fields, wklog.String("listener", ctx.Listener))
+	}
+	return fields
+}
+
+func gatewaySendFields(ctx *coregateway.Context, pkt *frame.SendPacket) []wklog.Field {
+	fields := gatewayContextFields(ctx)
+	if pkt == nil {
+		return fields
+	}
+	if pkt.ChannelID != "" {
+		fields = append(fields, wklog.ChannelID(pkt.ChannelID))
+	}
+	fields = append(fields,
+		wklog.ChannelType(int64(pkt.ChannelType)),
+		wklog.Int("clientSeq", int(pkt.ClientSeq)),
+	)
+	if pkt.ClientMsgNo != "" {
+		fields = append(fields, wklog.ClientMsgNo(pkt.ClientMsgNo))
+	}
+	return fields
 }
 
 var _ coregateway.Handler = (*Handler)(nil)
