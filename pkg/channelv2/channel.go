@@ -68,7 +68,7 @@ type Config struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
-	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 10.
+	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 128.
 	LeaderRecentRecordCacheSize int
 	// LeaderRecentRecordCacheBytes is a retained payload-byte soft cap for the per-channel leader log cache; the newest oversized record may exceed it.
 	LeaderRecentRecordCacheBytes int

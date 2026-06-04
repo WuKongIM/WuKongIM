@@ -1,7 +1,9 @@
 package reactor
 
 import (
+	"context"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -96,6 +98,50 @@ func TestProcessDueHandlesEveryReadyItem(t *testing.T) {
 		delete(keys, result.Fence.ChannelKey)
 	}
 	require.Empty(t, keys)
+}
+
+func TestReactorProcessesDueAppendFlushWhileMailboxBusy(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{
+		LocalNode:             1,
+		ReactorCount:          1,
+		MailboxSize:           8192,
+		Store:                 factory,
+		AppendBatchMaxRecords: 1024,
+		AppendBatchMaxWait:    20 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("busy-mailbox-due-append", 1, 1)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "payload"))
+	require.NoError(t, err)
+	reactor := g.reactors[0]
+	require.Eventually(t, func() bool {
+		rc := reactor.channels[meta.Key]
+		return rc != nil && len(rc.appendQ.pending) == 1 && !rc.appendQ.flushDue.IsZero()
+	}, time.Second, time.Millisecond)
+
+	var stop atomic.Bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for !stop.Load() {
+			_ = reactor.mailbox.Submit(PriorityNormal, Event{Kind: EventCheckState, Key: meta.Key, Future: NewFuture()})
+		}
+	}()
+	defer func() {
+		stop.Store(true)
+		<-done
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	result, err := appendFuture.Await(ctx)
+	require.NoError(t, err)
+	require.NoError(t, result.Err)
 }
 
 func TestDueSchedulerCoalescesSameKindAndKey(t *testing.T) {

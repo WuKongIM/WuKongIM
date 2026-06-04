@@ -49,6 +49,11 @@ Maintenance
   duePendingMeta
 ```
 
+The loop drains mailbox events in priority order and runs ready due work after
+each drained batch as well as while idle. This keeps append flushes, follower
+replication retries, lifecycle checks, and pending-meta deadlines from waiting
+for the mailbox to become completely empty during sustained load.
+
 ## Lifecycle Controller
 
 Each loaded runtime has exactly one `channelRuntimeLifecycle`, written by the
@@ -171,6 +176,12 @@ low-cardinality `reason/result/error` labels. `submitted` counts accepted worker
 submissions, `ok` counts completed PullHint RPCs, and `err` is classified by
 stable error classes such as `stale_meta`, `channel_not_found`, `not_ready`,
 `canceled`, `timeout`, `remote_error`, and `other`.
+Successful PullHint RPC completion means the follower wakeup was delivered, not
+that the follower has durably pulled the leader LEO. While the follower match is
+still behind, the leader keeps a bounded resume retry scheduled; ordinary
+follower pull progress or an `AckOffset` that reaches the leader LEO retires the
+hint. This only repeats wakeups and never advances HW or completes append
+futures without the existing quorum progress checks.
 
 Leader PullHint requests carry only the channel key, channel ID, epoch,
 leader epoch, leader, leader LEO, activity version, and reason. If the follower

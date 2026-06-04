@@ -55,7 +55,7 @@ type Config struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
-	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 10.
+	// LeaderRecentRecordCacheSize bounds recently appended leader log records kept for follower pulls; defaults to 128.
 	LeaderRecentRecordCacheSize int
 	// LeaderRecentRecordCacheBytes is a retained payload-byte soft cap for the per-channel leader log cache; the newest oversized record may exceed it.
 	LeaderRecentRecordCacheBytes int
@@ -181,7 +181,7 @@ func defaultConfig(cfg Config) Config {
 		cfg.PullMaxBytes = 64 * 1024
 	}
 	if cfg.LeaderRecentRecordCacheSize == 0 {
-		cfg.LeaderRecentRecordCacheSize = 10
+		cfg.LeaderRecentRecordCacheSize = 128
 	}
 	if cfg.LeaderRecentRecordCacheSize < 0 {
 		cfg.LeaderRecentRecordCacheBytes = 0

@@ -676,6 +676,42 @@ func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	requirePullHintResult(t, obs.Events(), transport.PullHintReasonResume, "ok", nil)
 }
 
+func TestSuccessfulPullHintSchedulesResumeUntilFollowerProgress(t *testing.T) {
+	factory := newCountingStoreFactory()
+	tr := newTask3PullHintTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+
+	meta := testMeta("pull-hint-success-resume", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.lifecycle.followers[2].parked = true
+
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
+
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	require.Equal(t, 1, tr.pullHintCount(2))
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	require.False(t, follower.hint.inflight)
+	require.NotZero(t, follower.hint.retryAt)
+	require.Less(t, follower.match, rc.state.LEO)
+
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: follower.hint.retryAt.Add(time.Millisecond), Future: NewFuture()})
+	require.Eventually(t, func() bool {
+		return tr.pullHintCount(2) == 2 && tr.lastPullHintVersion(2) == 1
+	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+}
+
 func TestLeaderSchedulesResumePullHintAfterPartialFollowerPull(t *testing.T) {
 	factory := newCountingStoreFactory()
 	tr := newTask3PullHintTransport()

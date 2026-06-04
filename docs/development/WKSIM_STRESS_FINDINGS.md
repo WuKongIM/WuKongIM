@@ -838,3 +838,26 @@ Healthy checks:
 Classification:
 - Category: healthy binary codec functional validation, no end-to-end activation latency improvement in this single A/B run.
 - Confidence: medium. The codec change appears to reduce small RPC encode/decode overhead, but default 10k cold activation sendack latency remains dominated by metadata create/propose and append/store/quorum waits, so the end-to-end benchmark did not improve.
+
+## 2026-06-04 wukongimv2 Three-Node 15k Real-QPS Reactor Due Scheduling
+
+Environment:
+- Local `cmd/wukongimv2` three-node cluster, clean child runs, 1000 group channels, 4096 online users, 10 members per channel, 128-byte payloads, 30s measured window, 15s SENDACK timeout, durable storage sync enabled.
+- Command shape: `GOWORK=off scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 15000 --profile-seconds 0`.
+
+Evidence:
+- Baseline evidence `docs/development/perf-runs/20260604-110348-three-node-real-qps/` failed 15k with actual `12396.2` QPS, ratio `0.826`, p99 `297.2ms`, and one SENDACK timeout. Logs showed `channelv2 append waiter canceled`; metrics classified mixed gateway/ChannelV2/storage/quorum backpressure.
+- A no-sync diagnostic improved raw throughput but was rejected as a fix because skipping physical fsync can lose acknowledged messages after a process or host crash. `WK_CLUSTER_COMMIT_COORDINATOR_SYNC=false` must remain invalid for this path.
+- Gateway batch-wait and reactor-count experiments changed the latency shape but did not produce stable safe capacity. Later failing samples still had `follower_pull_served=false`, durable store completion true, and no HW/ACK progress before the client timeout.
+- After changing the ChannelV2 reactor loop to process ready due work after every drained mailbox batch, the 15k result improved but still had one follower wakeup tail: evidence `docs/development/perf-runs/20260604-120521-three-node-real-qps/` reached actual `14249.9` QPS, ratio `0.950`, p99 `354.3ms`, and one send error.
+- Keeping successful PullHint completion from retiring the resume retry until follower progress is observed produced one clean pass (`docs/development/perf-runs/20260604-120840-three-node-real-qps/015000-qps/`, actual `14604.2`, ratio `0.974`, p99 `331.9ms`, `0` errors), but a repeat (`docs/development/perf-runs/20260604-121449-three-node-real-qps/015000-qps/`) still failed at actual `9124.9`, p99 `512.1ms`, and two send errors. That failure concentrated on leader node2 channels with `store_completed=true`, `follower_pull_served=false` or missing `AckOffset`, HW lagging LEO by several records, `follower_pull_rpc_p99` around `35-43ms`, and `follower_store_apply_p99` around `234-244ms`.
+- The final safe fix also raises the leader recent-record suffix cache default from `10` to `128` durable records. This keeps follower catch-up pulls on the leader memory suffix more often instead of falling through to `TaskStoreReadLog`; followers still ACK only after their own durable apply. Evidence `docs/development/perf-runs/20260604-122013-three-node-real-qps/015000-qps/` passed 15k with actual `14651.2`, ratio `0.977`, p95 `265.6ms`, p99 `335.7ms`, max `582.3ms`, and `0` errors. Repeat evidence `docs/development/perf-runs/20260604-122150-three-node-real-qps/015000-qps/` passed with actual `14583.5`, ratio `0.972`, p95 `253.7ms`, p99 `376.3ms`, max `885.2ms`, and `0` errors. Both runs kept `CLUSTER_COMMIT_COORDINATOR_SYNC=true` and had no `gateway send failed`, `append waiter canceled`, `context deadline exceeded`, or `batch_result_error` log/report samples.
+
+Classification:
+- Category: the 15k real-QPS failure combined ChannelV2 maintenance starvation under a continuously non-empty reactor mailbox, premature retirement of follower resume hints after the wakeup RPC completed, and too small a leader durable-record suffix cache for bursty follower catch-up. Append futures still wait for durable store and quorum HW progress; the fixes only make append flush, follower wakeup retries, and leader-side follower pull reads run on time.
+- Confidence: high for the local 15k target. The accepted fixes preserve durable sync and quorum semantics, and the final two passing evidence runs have zero send errors under the real-QPS gate.
+
+Decision:
+- Keep durable sync mandatory for acknowledged messages.
+- Use `250us` as the three-node real-QPS bench default for gateway async SEND batch max wait, and record it in parent and child evidence metadata.
+- Keep the ChannelV2 leader recent-record cache enabled by default with `128` durable records; it is a read-through performance cache and does not alter follower durable apply or leader HW advancement requirements.

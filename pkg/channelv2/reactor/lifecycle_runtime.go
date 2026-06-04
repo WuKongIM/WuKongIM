@@ -186,6 +186,9 @@ func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
 	if result.Err == nil {
 		r.observePullHintResult(inflight.reason, "ok", nil)
 		r.sendCurrentPullHintIfNeeded(rc, inflight.follower, follower, now)
+		if !follower.hint.inflight && follower.match < rc.state.LEO && follower.hint.retryAt.IsZero() {
+			follower.hint.retryAt = retryDue(now, r.cfg.PullHintRetryInterval)
+		}
 		r.scheduleLifecycleFromState(rc, now)
 		return
 	}

@@ -80,7 +80,12 @@ sequenceDiagram
     end
 ```
 
-Leader reactors keep a small configurable recent-record suffix cache for durable append records. Follower `Pull` requests that are covered by this suffix can complete from memory; older requests still use `TaskStoreReadLog`, and the leader may append a cache-covered suffix to the store prefix when doing so does not create gaps. The cache is cleared by metadata fences or role changes and is only a performance optimization.
+Leader reactors keep a configurable recent-record suffix cache for durable
+append records, defaulting to 128 records. Follower `Pull` requests that are
+covered by this suffix can complete from memory; older requests still use
+`TaskStoreReadLog`, and the leader may append a cache-covered suffix to the
+store prefix when doing so does not create gaps. The cache is cleared by
+metadata fences or role changes and is only a performance optimization.
 
 Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains only for stopped-follower lifecycle confirmation, not for the hot replication path.
 

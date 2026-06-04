@@ -415,7 +415,7 @@ func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
 		cfg.PullMaxBytes = 64 * 1024
 	}
 	if cfg.LeaderRecentRecordCacheSize == 0 {
-		cfg.LeaderRecentRecordCacheSize = 10
+		cfg.LeaderRecentRecordCacheSize = 128
 	}
 	if cfg.LeaderRecentRecordCacheSize < 0 {
 		cfg.LeaderRecentRecordCacheBytes = 0

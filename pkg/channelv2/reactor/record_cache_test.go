@@ -11,14 +11,14 @@ import (
 func TestDefaultConfigEnablesLeaderRecentRecordCache(t *testing.T) {
 	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory()})
 
-	require.Equal(t, 10, cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, 128, cfg.LeaderRecentRecordCacheSize)
 	require.Equal(t, cfg.PullMaxBytes, cfg.LeaderRecentRecordCacheBytes)
 }
 
 func TestDefaultReactorConfigEnablesLeaderRecentRecordCache(t *testing.T) {
 	cfg := defaultReactorConfig(ReactorConfig{LocalNode: 1, Store: store.NewMemoryFactory()})
 
-	require.Equal(t, 10, cfg.LeaderRecentRecordCacheSize)
+	require.Equal(t, 128, cfg.LeaderRecentRecordCacheSize)
 	require.Equal(t, cfg.PullMaxBytes, cfg.LeaderRecentRecordCacheBytes)
 }
 

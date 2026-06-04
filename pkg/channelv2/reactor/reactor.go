@@ -259,6 +259,7 @@ func (r *Reactor) loop() {
 			events[i] = Event{}
 		}
 		r.drainBuf = events[:0]
+		r.processDue(time.Now())
 	}
 }
 
