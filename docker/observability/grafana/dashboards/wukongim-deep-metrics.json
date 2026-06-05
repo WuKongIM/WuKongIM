@@ -1,0 +1,531 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_channelv2_reactor_mailbox_depth{node_name=~\"$node_name\"}) by (priority)",
+          "legendFormat": "mailbox {{priority}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_worker_queue_depth{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "worker queue {{pool}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_worker_inflight{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "worker inflight {{pool}}",
+          "refId": "C"
+        },
+        {
+          "expr": "max(wukongim_channelv2_worker_inflight_peak{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "worker peak {{pool}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_active_runtimes{node_name=~\"$node_name\"}) by (role)",
+          "legendFormat": "active {{role}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_follower_parked{node_name=~\"$node_name\"})",
+          "legendFormat": "parked followers",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_pending_meta_current{node_name=~\"$node_name\"})",
+          "legendFormat": "pending meta",
+          "refId": "G"
+        }
+      ],
+      "title": "ChannelV2 Runtime Gauges",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_channelv2_activation_rejected_total{node_name=~\"$node_name\"}[$__rate_interval])) by (reason)",
+          "legendFormat": "activation rejected {{reason}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_recovery_probe_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "recovery probe {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_pull_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result, empty)",
+          "legendFormat": "pull {{result}} empty={{empty}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_rpc_pull_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "rpc pull {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_pull_hint_total{node_name=~\"$node_name\"}[$__rate_interval])) by (reason, result, error)",
+          "legendFormat": "pull hint {{reason}} {{result}} {{error}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_pull_hint_receive_total{node_name=~\"$node_name\"}[$__rate_interval])) by (reason, stage, result, error)",
+          "legendFormat": "hint recv {{reason}} {{stage}} {{result}} {{error}}",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_pending_meta_total{node_name=~\"$node_name\"}[$__rate_interval])) by (event, error)",
+          "legendFormat": "pending meta {{event}} {{error}}",
+          "refId": "G"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_need_meta_pull_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result, error)",
+          "legendFormat": "need meta {{result}} {{error}}",
+          "refId": "H"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_meta_cache_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "meta cache {{result}}",
+          "refId": "I"
+        }
+      ],
+      "title": "ChannelV2 Replication Counters",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_records_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "append batch records p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_bytes_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "append batch bytes p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "append batch wait p95",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, commit_mode))",
+          "legendFormat": "append {{commit_mode}} p95",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "append stage {{stage}} {{result}} p95",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_wait_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, commit_mode, result))",
+          "legendFormat": "append wait {{stage}} {{commit_mode}} {{result}} p95",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_replication_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "replication {{stage}} {{result}} p95",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelv2_worker_task_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, kind, result))",
+          "legendFormat": "worker {{kind}} {{result}} p95",
+          "refId": "H"
+        }
+      ],
+      "title": "ChannelV2 Latency Histograms",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_gateway_async_send_queue_depth{node_name=~\"$node_name\"})",
+          "legendFormat": "async queue depth",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_gateway_async_send_queue_capacity{node_name=~\"$node_name\"})",
+          "legendFormat": "async queue capacity",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_gateway_connection_closes_total{node_name=~\"$node_name\"}[$__rate_interval])) by (protocol, reason)",
+          "legendFormat": "closes {{protocol}} {{reason}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_gateway_sendacks_total{node_name=~\"$node_name\"}[$__rate_interval])) by (reason, source, class)",
+          "legendFormat": "sendacks {{reason}} {{source}} {{class}}",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, protocol))",
+          "legendFormat": "dispatch wait {{protocol}} p95",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_gateway_async_send_batch_records_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "async batch records p95",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_gateway_async_send_batch_bytes_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "async batch bytes p95",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_gateway_async_send_batch_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le))",
+          "legendFormat": "async batch wait p95",
+          "refId": "H"
+        }
+      ],
+      "title": "Gateway Async SEND",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_delivery_event_queue_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "event queue {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_errors_total{node_name=~\"$node_name\"}[$__rate_interval])) by (class)",
+          "legendFormat": "delivery errors {{class}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_fanout_task_total{node_name=~\"$node_name\"}[$__rate_interval])) by (target_node, result)",
+          "legendFormat": "fanout {{target_node}} {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_fanout_task_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, target_node, result))",
+          "legendFormat": "fanout {{target_node}} {{result}} p95",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_retry_total{node_name=~\"$node_name\"}[$__rate_interval])) by (event, result)",
+          "legendFormat": "retry {{event}} {{result}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(wukongim_delivery_retry_queue_depth{node_name=~\"$node_name\"})",
+          "legendFormat": "retry queue depth",
+          "refId": "F"
+        }
+      ],
+      "title": "Delivery Queues And Fanout",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_message_append_errors_total{node_name=~\"$node_name\"}[$__rate_interval])) by (path, class)",
+          "legendFormat": "message append errors {{path}} {{class}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_controller_raft_step_queue_depth{node_name=~\"$node_name\"})",
+          "legendFormat": "controller step depth",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(wukongim_controller_raft_step_queue_capacity{node_name=~\"$node_name\"})",
+          "legendFormat": "controller step capacity",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "controller step enqueue {{result}} p95",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(wukongim_storage_commit_queue_depth{node_name=~\"$node_name\"}) by (store)",
+          "legendFormat": "storage queue {{store}}",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_requests_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, store))",
+          "legendFormat": "commit requests {{store}} p95",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_records_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, store))",
+          "legendFormat": "commit records {{store}} p95",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_bytes_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, store))",
+          "legendFormat": "commit bytes {{store}} p95",
+          "refId": "H"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, store, stage, result))",
+          "legendFormat": "commit batch {{store}} {{stage}} {{result}} p95",
+          "refId": "I"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_storage_commit_request_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, store, lane, result))",
+          "legendFormat": "commit request {{store}} {{lane}} {{result}} p95",
+          "refId": "J"
+        }
+      ],
+      "title": "Controller And Storage Queues",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": [
+    "wukongim",
+    "deep-metrics"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(wukongim_controller_nodes_alive, node_name)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Node",
+        "multi": true,
+        "name": "node_name",
+        "options": [],
+        "query": "label_values(wukongim_controller_nodes_alive, node_name)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "WuKongIM Deep Metrics",
+  "uid": "wukongim-deep-metrics",
+  "version": 1,
+  "weekStart": ""
+}

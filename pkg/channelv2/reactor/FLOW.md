@@ -127,18 +127,17 @@ remote follower Ack RPC
   -> Group.Submit(EventAck)
   -> handleLeaderAck
   -> ApplyFollowerAck
-  -> ordinary progress ACK: complete quorum append waiters when HW advances
+  -> legacy ordinary progress ACK: complete quorum append waiters when HW advances
   -> stopped ACK: record stopped follower state and schedule leader lifecycle
 ```
 
 Ordinary follower progress is accepted from `PullRequest.AckOffset` before the
-leader serves the requested range, and from standalone progress ACKs whose
-`MatchOffset` does not exceed the leader LEO. A progress ACK only reports
-already-durable follower state; HW advancement and append completion still go
-through the normal quorum checks. Stopped ACKs must stay on the standalone ACK
-RPC and must match the current activity version and leader LEO. Accepted stopped
-ACK state, including zero-version stopped ACKs, is recorded in
-`channelRuntimeLifecycle`.
+leader serves the requested range. The leader still accepts standalone ordinary
+progress ACKs for transport compatibility when `MatchOffset` does not exceed
+the leader LEO, but the follower hot path no longer sends them. Stopped ACKs
+must stay on the standalone ACK RPC and must match the current activity version
+and leader LEO. Accepted stopped ACK state, including zero-version stopped ACKs,
+is recorded in `channelRuntimeLifecycle`.
 
 ## Follower-Side Replication
 
@@ -159,12 +158,10 @@ tickFollowerReplication
 ```
 
 The follower keeps at most one pull RPC, one pending pull response, one store
-apply, one ordinary progress ACK RPC, and one stopped ACK RPC in flight.
-Ordinary durable progress after store apply submits a standalone progress ACK
-after the records are persisted, then directly drives the next pull instead of
-waiting for the due scheduler. The pull still piggybacks the follower's latest
-local LEO as `AckOffset`, so ACK submission errors or stale ACK completions fall
-back to the existing pull-based progress return.
+apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
+apply directly drives the next pull instead of waiting for the due scheduler.
+The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
+progress return does not depend on standalone ACK RPC delivery.
 When the leader serves records to a follower that is still behind, it schedules a
 bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
 resume hint, and the append hot path opportunistically sends it when the retry is
@@ -259,7 +256,7 @@ TaskStoreReadLog     -> leader pull completion
 TaskStoreCheckpoint  -> leader checkpoint or follower stop checkpoint
 TaskRPCPull          -> follower pull completion
 TaskStoreApply       -> follower apply completion
-TaskRPCAck           -> follower ACK completion
+TaskRPCAck           -> follower stopped ACK completion
 TaskRPCPullHint      -> leader pull-hint completion
 ```
 

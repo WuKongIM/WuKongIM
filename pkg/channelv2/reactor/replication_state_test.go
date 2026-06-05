@@ -225,13 +225,10 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 		pull := net.LastPull()
 		return pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Eventually(t, func() bool {
-		ack := net.LastAck()
-		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
-	}, time.Second, time.Millisecond)
+	require.Equal(t, 0, net.AckCalls())
 }
 
-func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPull(t *testing.T) {
+func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPullWithoutStandaloneAck(t *testing.T) {
 	net := newCapturingTransport()
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
@@ -263,20 +260,12 @@ func TestFollowerStoreApplyImmediatelyReturnsAckOffsetPull(t *testing.T) {
 
 	r.handleStoreApplyResult(applyResult)
 
-	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
-	require.Equal(t, transport.AckRequest{
-		ChannelKey:  meta.Key,
-		Epoch:       meta.Epoch,
-		LeaderEpoch: meta.LeaderEpoch,
-		Follower:    2,
-		MatchOffset: 1,
-	}, net.LastAck())
-	r.handleRPCAckResult(ack)
-
 	require.Eventually(t, func() bool {
 		pull := net.LastPull()
 		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
 	}, 100*time.Millisecond, time.Millisecond)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskRPCAck)
+	require.Equal(t, 0, net.AckCalls())
 }
 
 func TestKeyedTickHandlesManuallyDirtyFollowerWithoutSeparateSchedule(t *testing.T) {
@@ -1235,7 +1224,7 @@ func TestFollowerPullHintInterruptsParked(t *testing.T) {
 	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
 }
 
-func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
+func TestFollowerStoreApplyResultSchedulesPullAckOffsetWithoutStandaloneAck(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("apply-pull-ack")
 	net.SetPullResponse(transport.PullResponse{
@@ -1257,10 +1246,7 @@ func TestFollowerStoreApplyResultSchedulesPullAckOffset(t *testing.T) {
 		pull := net.LastPull()
 		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Eventually(t, func() bool {
-		ack := net.LastAck()
-		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
-	}, time.Second, time.Millisecond)
+	require.Equal(t, 0, net.AckCalls())
 
 	cs, err := factory.ChannelStore(meta.Key, meta.ID)
 	require.NoError(t, err)
@@ -1969,10 +1955,7 @@ func TestStoreApplyPoolFullKeepsOnePendingPullAndRetries(t *testing.T) {
 		pull := net.LastPull()
 		return net.PullCalls() >= 2 && pull.NextOffset == 2 && pull.AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Eventually(t, func() bool {
-		ack := net.LastAck()
-		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
-	}, time.Second, time.Millisecond)
+	require.Equal(t, 0, net.AckCalls())
 }
 
 func TestFollowerStoreApplyErrorRetriesSamePendingPull(t *testing.T) {
@@ -2019,7 +2002,7 @@ func TestStaleStoreApplyCompletionDoesNotClearNewerApplyInflight(t *testing.T) {
 	require.Zero(t, rc.state.LEO)
 }
 
-func TestOrdinaryApplyUsesProgressAckAfterDurableApply(t *testing.T) {
+func TestOrdinaryApplyReturnsProgressWithPullAckOffsetAfterDurableApply(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("ordinary-progress-ack")
 	net.SetPullResponse(transport.PullResponse{
@@ -2054,10 +2037,7 @@ func TestOrdinaryApplyUsesProgressAckAfterDurableApply(t *testing.T) {
 		_ = awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Millisecond)})
 		return net.PullCalls() >= 2 && net.LastPull().AckOffset == 1
 	}, time.Second, time.Millisecond)
-	require.Eventually(t, func() bool {
-		ack := net.LastAck()
-		return net.AckCalls() >= 1 && ack.MatchOffset == 1 && !ack.Stopped
-	}, time.Second, time.Millisecond)
+	require.Equal(t, 0, net.AckCalls())
 }
 
 func TestStaleRPCPullCompletionDoesNotClearNewerPullInflight(t *testing.T) {
