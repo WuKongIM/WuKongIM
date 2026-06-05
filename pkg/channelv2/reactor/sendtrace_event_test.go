@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,69 @@ func (s *reactorDetailSink) SendTraceDetailLimits() sendtrace.DetailLimits {
 type reactorRecordOnlySink struct{}
 
 func (reactorRecordOnlySink) RecordSendTrace(sendtrace.Event) {}
+
+type recordingTraceSink struct {
+	reactorDetailSink
+	events []sendtrace.Event
+}
+
+func (s *recordingTraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.events = append(s.events, event)
+}
+
+func TestReactorRecordsLeaderQueueAndLocalDurableTrace(t *testing.T) {
+	factory := newCountingStoreFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	traceSink := &recordingTraceSink{
+		reactorDetailSink: reactorDetailSink{
+			limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+			decisions: map[string]sendtrace.DetailDecision{
+				"trace-leader": {Keep: true, Reason: "debug"},
+			},
+		},
+	}
+	restore := sendtrace.SetSink(traceSink)
+	t.Cleanup(restore)
+
+	meta := testMeta("deep-trace-leader", 1, 1)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 10, "payload", future)
+	event.Append.TraceID = "trace-leader"
+	event.Append.ChannelKey = "channel/1/ZGVlcC10cmFjZS1sZWFkZXI"
+	event.Append.Attempt = 2
+	event.Append.Messages[0].TraceID = "trace-leader"
+	event.Append.Messages[0].ChannelKey = event.Append.ChannelKey
+	event.Append.Messages[0].ClientMsgNo = "client-1"
+	event.Append.Messages[0].FromUID = "u1"
+
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	result := awaitFutureResult(t, future)
+
+	require.NoError(t, result.Err)
+	requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderQueueWait, "trace-leader", 1)
+	requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderLocalDurable, "trace-leader", 1)
+}
+
+func requireTraceEvent(t *testing.T, events []sendtrace.Event, stage sendtrace.Stage, traceID string, messageSeq uint64) {
+	t.Helper()
+	for _, event := range events {
+		if event.Stage != stage || event.TraceID != traceID {
+			continue
+		}
+		require.Equal(t, messageSeq, event.MessageSeq)
+		require.Equal(t, sendtrace.ResultOK, event.Result)
+		require.Equal(t, 2, event.Attempt)
+		require.Equal(t, "client-1", event.ClientMsgNo)
+		require.Equal(t, "u1", event.FromUID)
+		return
+	}
+	t.Fatalf("trace event %s/%s not found in %#v", stage, traceID, events)
+}
 
 func TestAppendTraceBatchSelectionSelectsOnlyDetailKeptItems(t *testing.T) {
 	batch := appendBatch{

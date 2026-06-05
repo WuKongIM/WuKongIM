@@ -501,6 +501,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	task := decision.Tasks[0]
 	batch.fence = task.Fence
 	batch.records = task.StoreAppend.Records
+	batch.trace = selectAppendTraceBatch(batch)
 	if err := r.submitStoreAppend(context.Background(), batch.requests[0].req.ChannelID, task); err != nil {
 		rc.state.AbortAppendBatchProposal(batch.batchOpID)
 		if errors.Is(err, ch.ErrBackpressured) {

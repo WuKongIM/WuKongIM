@@ -1,6 +1,10 @@
 package reactor
 
 import (
+	"context"
+	"errors"
+	"time"
+
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
@@ -64,6 +68,131 @@ func selectAppendTraceBatch(batch appendBatch) appendTraceBatch {
 		}
 	}
 	return appendTraceBatch{items: items}
+}
+
+func traceItemsForRequest(items []appendTraceItem, reqIdx int) []appendTraceItem {
+	var out []appendTraceItem
+	for _, item := range items {
+		if item.requestIdx != reqIdx {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func (r *Reactor) recordLeaderQueueAndLocalDurableTrace(req appendRequest, timing appendTiming, batch appendBatch, completedAt time.Time, baseOffset uint64, err error) {
+	items := timing.traceItems
+	if len(items) == 0 {
+		items = lazyTraceItemsForStoreStage(req, batch, timing, completedAt, err)
+	}
+	if len(items) == 0 {
+		return
+	}
+	queueDur := sendtrace.Elapsed(req.enqueuedAt, timing.storeSubmittedAt)
+	localDur := sendtrace.Elapsed(timing.storeSubmittedAt, completedAt)
+	for _, item := range items {
+		var seq uint64
+		if baseOffset > 0 {
+			seq = baseOffset + uint64(item.localRecordIdx)
+		}
+		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderQueueWait, completedAt, item, seq, queueDur, len(batch.records), nil)
+		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderLocalDurable, completedAt, item, seq, localDur, len(batch.records), err)
+	}
+}
+
+func recordLeaderTraceEvent(stage sendtrace.Stage, at time.Time, item appendTraceItem, messageSeq uint64, duration time.Duration, recordCount int, err error) {
+	result, errorCode := leaderTraceOutcome(err)
+	event := sendtrace.Event{
+		Stage:       stage,
+		TraceID:     item.traceID,
+		At:          at,
+		Duration:    duration,
+		ChannelKey:  item.channelKey,
+		ClientMsgNo: item.clientMsgNo,
+		MessageSeq:  messageSeq,
+		FromUID:     item.fromUID,
+		Result:      result,
+		ErrorCode:   errorCode,
+		Attempt:     item.attempt,
+		RecordCount: recordCount,
+	}
+	if err != nil {
+		event.Error = err.Error()
+	}
+	sendtrace.Record(event)
+}
+
+func leaderTraceOutcome(err error) (sendtrace.Result, string) {
+	switch {
+	case err == nil:
+		return sendtrace.ResultOK, ""
+	case errors.Is(err, context.Canceled):
+		return sendtrace.ResultCanceled, channelAppendTraceErrorCodeCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return sendtrace.ResultTimeout, channelAppendTraceErrorCodeTimeout
+	case errors.Is(err, ch.ErrNotLeader):
+		return sendtrace.ResultError, channelAppendTraceErrorCodeNotLeader
+	case errors.Is(err, ch.ErrChannelNotFound):
+		return sendtrace.ResultError, channelAppendTraceErrorCodeChannelNotFound
+	case errors.Is(err, ch.ErrBackpressured):
+		return sendtrace.ResultError, channelAppendTraceErrorCodeBackpressured
+	default:
+		return sendtrace.ResultError, channelAppendTraceErrorCodeOther
+	}
+}
+
+func lazyTraceItemsForStoreStage(req appendRequest, batch appendBatch, timing appendTiming, completedAt time.Time, err error) []appendTraceItem {
+	limits, ok := sendtrace.ActiveDetailLimits()
+	if !ok || limits.MaxItemsPerBatch <= 0 {
+		return nil
+	}
+	queueDur := sendtrace.Elapsed(req.enqueuedAt, timing.storeSubmittedAt)
+	localDur := sendtrace.Elapsed(timing.storeSubmittedAt, completedAt)
+	if err == nil && (limits.SlowThreshold <= 0 || (queueDur < limits.SlowThreshold && localDur < limits.SlowThreshold)) {
+		return nil
+	}
+	return lazyTraceItemsForRequest(req, batch, limits.MaxItemsPerBatch)
+}
+
+func lazyTraceItemsForRequest(req appendRequest, batch appendBatch, limit int) []appendTraceItem {
+	if limit <= 0 || len(req.req.Messages) == 0 {
+		return nil
+	}
+	reqIdx := appendRequestIndex(batch.requests, req.opID)
+	if reqIdx < 0 {
+		return nil
+	}
+	items := make([]appendTraceItem, 0, minInt(limit, len(req.req.Messages)))
+	for msgIdx, msg := range req.req.Messages {
+		if len(items) >= limit {
+			return items
+		}
+		key := appendMessageDetailKey(req.req, msg)
+		if key.TraceID == "" {
+			continue
+		}
+		items = append(items, appendTraceItem{
+			traceID:        key.TraceID,
+			channelKey:     key.ChannelKey,
+			clientMsgNo:    key.ClientMsgNo,
+			fromUID:        key.FromUID,
+			attempt:        normalizedAppendAttempt(req.req.Attempt),
+			requestIdx:     reqIdx,
+			recordIdx:      appendRequestRecordIndex(batch.requests, reqIdx, msgIdx),
+			localRecordIdx: msgIdx,
+		})
+	}
+	return items
+}
+
+func appendRequestIndex(requests []appendRequest, opID ch.OpID) int {
+	for idx, req := range requests {
+		if req.opID == opID {
+			return idx
+		}
+	}
+	return -1
 }
 
 func appendBatchHasTrace(batch appendBatch) bool {
