@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -57,6 +58,28 @@ func TestConnSendWritesFrame(t *testing.T) {
 	if got := string(frame.Body.Bytes()); got != "hello" {
 		t.Fatalf("body = %q, want hello", got)
 	}
+}
+
+func TestConnWriteLoopSetsWriteDeadline(t *testing.T) {
+	raw := newDeadlineConn()
+	c := New(raw, Config{Limits: testLimitsWithWriteTimeout(50 * time.Millisecond)}, nil)
+
+	if err := c.Send(context.Background(), Outbound{
+		Priority:  core.PriorityRPC,
+		ServiceID: 8,
+		Payload:   core.CopyOwnedBuffer([]byte("deadline")),
+	}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	go c.writeLoop()
+	deadline := waitDeadline(t, raw.writeDeadlineCh)
+	if time.Until(deadline) <= 0 {
+		t.Fatalf("write deadline = %v, want future deadline", deadline)
+	}
+
+	c.shutdown(nil)
+	waitClosed(t, c.writeDone)
 }
 
 func TestConnDispatchesInboundFrame(t *testing.T) {
@@ -133,6 +156,76 @@ func TestConnCloseFailsPendingRPC(t *testing.T) {
 	if err := waitErr(t, callCh); !errors.Is(err, core.ErrStopped) {
 		t.Fatalf("Call() error = %v, want %v", err, core.ErrStopped)
 	}
+}
+
+func TestConnCallMapsCanceledContextBeforeSend(t *testing.T) {
+	raw, peer := net.Pipe()
+	defer peer.Close()
+	defer raw.Close()
+
+	c := New(raw, Config{Limits: testLimits()}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := c.Call(ctx, Outbound{
+		Priority:  core.PriorityRPC,
+		ServiceID: 4,
+		Payload:   core.CopyOwnedBuffer([]byte("request")),
+	})
+	if !errors.Is(err, core.ErrCanceled) {
+		t.Fatalf("Call() error = %v, want %v", err, core.ErrCanceled)
+	}
+}
+
+func TestConnCallSkipsQueuedRPCWhenContextCanceledBeforeWrite(t *testing.T) {
+	raw, peer := net.Pipe()
+	defer peer.Close()
+
+	c := New(raw, Config{Limits: testLimits()}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	callCh := make(chan error, 1)
+	go func() {
+		_, err := c.Call(ctx, Outbound{
+			Priority:  core.PriorityRPC,
+			ServiceID: 6,
+			Payload:   core.CopyOwnedBuffer([]byte("queued")),
+		})
+		callCh <- err
+	}()
+
+	waitPendingLen(t, c, 1)
+	cancel()
+	if err := waitErr(t, callCh); !errors.Is(err, core.ErrCanceled) {
+		t.Fatalf("Call() error = %v, want %v", err, core.ErrCanceled)
+	}
+
+	c.Start()
+	if err := peer.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
+		t.Fatalf("SetReadDeadline() error = %v", err)
+	}
+	frame, err := wire.ReadFrame(peer, testLimits().MaxFrameBodyBytes)
+	if err == nil {
+		frame.Body.Release()
+		t.Fatalf("ReadFrame() succeeded, want timeout because queued RPC was canceled")
+	}
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("ReadFrame() error = %v, want timeout", err)
+	}
+	c.Close(nil)
+}
+
+func TestConnCloseBeforeStartDoesNotHang(t *testing.T) {
+	raw, peer := net.Pipe()
+	defer peer.Close()
+
+	c := New(raw, Config{Limits: testLimits()}, nil)
+	done := make(chan struct{})
+	go func() {
+		c.Close(nil)
+		close(done)
+	}()
+	waitClosed(t, done)
 }
 
 func TestConnRPCResponseDecode(t *testing.T) {
@@ -239,6 +332,12 @@ func testLimits() core.Limits {
 	}
 }
 
+func testLimitsWithWriteTimeout(timeout time.Duration) core.Limits {
+	limits := testLimits()
+	limits.WriteTimeout = timeout
+	return limits
+}
+
 func waitErr(t *testing.T, ch <-chan error) error {
 	t.Helper()
 	select {
@@ -292,6 +391,43 @@ func waitCall(t *testing.T, ch <-chan struct {
 	}
 }
 
+func waitDeadline(t *testing.T, ch <-chan time.Time) time.Time {
+	t.Helper()
+	select {
+	case deadline := <-ch:
+		return deadline
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for write deadline")
+		return time.Time{}
+	}
+}
+
+func waitClosed(t *testing.T, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for close")
+	}
+}
+
+func waitPendingLen(t *testing.T, c *Conn, want int) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if got := c.pending.Len(); got == want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for pending len %d, got %d", want, c.pending.Len())
+		case <-ticker.C:
+		}
+	}
+}
+
 func readPeerFrame(t *testing.T, peer net.Conn) wire.Frame {
 	t.Helper()
 	frameCh := make(chan wire.Frame, 1)
@@ -316,4 +452,60 @@ func writePeerFrame(t *testing.T, peer net.Conn, frame wire.Frame) {
 	if err := waitErr(t, errCh); err != nil {
 		t.Fatalf("WriteFrame() error = %v", err)
 	}
+}
+
+type deadlineConn struct {
+	writeDeadlineCh chan time.Time
+}
+
+func newDeadlineConn() *deadlineConn {
+	return &deadlineConn{
+		writeDeadlineCh: make(chan time.Time, 1),
+	}
+}
+
+func (c *deadlineConn) Read(p []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (c *deadlineConn) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (c *deadlineConn) Close() error {
+	return nil
+}
+
+func (c *deadlineConn) LocalAddr() net.Addr {
+	return fakeAddr("local")
+}
+
+func (c *deadlineConn) RemoteAddr() net.Addr {
+	return fakeAddr("remote")
+}
+
+func (c *deadlineConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *deadlineConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *deadlineConn) SetWriteDeadline(t time.Time) error {
+	select {
+	case c.writeDeadlineCh <- t:
+	default:
+	}
+	return nil
+}
+
+type fakeAddr string
+
+func (a fakeAddr) Network() string {
+	return string(a)
+}
+
+func (a fakeAddr) String() string {
+	return string(a)
 }

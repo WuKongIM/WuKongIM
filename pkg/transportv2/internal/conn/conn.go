@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/rpc"
@@ -32,6 +33,8 @@ type Outbound struct {
 	RequestID uint64
 	// Payload is transferred to the connection on successful Send.
 	Payload core.OwnedBuffer
+	// writeCtx cancels queued RPC writes before they leave the connection.
+	writeCtx context.Context
 }
 
 // Inbound is one received frame transferred to Dispatch ownership.
@@ -51,6 +54,10 @@ type Inbound struct {
 }
 
 // Dispatch receives non-RPC-response inbound frames.
+//
+// Dispatch must return promptly. It owns and must release inbound payloads.
+// Blocking dispatch applies read-loop backpressure and can delay Close because
+// the connection invokes Dispatch synchronously from the read loop.
 type Dispatch interface {
 	Dispatch(context.Context, Inbound)
 }
@@ -143,11 +150,15 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
 	requestID := c.nextRequestID.Add(1)
 	outbound.Kind = core.FrameKindRPCRequest
 	outbound.RequestID = requestID
+	outbound.writeCtx = ctx
 
 	respCh := make(chan rpc.Response, 1)
 	c.pending.Store(requestID, respCh)
 	if err := c.Send(ctx, outbound); err != nil {
 		c.pending.Delete(requestID)
+		if errors.Is(err, context.Canceled) {
+			return nil, core.ErrCanceled
+		}
 		return nil, err
 	}
 
@@ -218,7 +229,12 @@ func (c *Conn) writeLoop() {
 			if !ok {
 				continue
 			}
-			writeErr := wire.WriteFrame(c.raw, outbound.toFrame(), c.cfg.Limits.MaxFrameBodyBytes)
+			if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
+				outbound.Payload.Release()
+				c.pending.Delete(outbound.RequestID)
+				continue
+			}
+			writeErr := c.writeOutbound(outbound)
 			outbound.Payload.Release()
 			if writeErr != nil {
 				releaseSchedItems(batch[i+1:])
@@ -227,6 +243,15 @@ func (c *Conn) writeLoop() {
 			}
 		}
 	}
+}
+
+func (c *Conn) writeOutbound(outbound Outbound) error {
+	if timeout := c.cfg.Limits.WriteTimeout; timeout > 0 {
+		if err := c.raw.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+			return err
+		}
+	}
+	return wire.WriteFrame(c.raw, outbound.toFrame(), c.cfg.Limits.MaxFrameBodyBytes)
 }
 
 func (c *Conn) shutdown(err error) {
