@@ -104,7 +104,7 @@ func (s *actorShard) schedule(state *connState) bool {
 		depth := len(s.ready)
 		s.mu.Unlock()
 		state.scheduled.Store(false)
-		state.observeTransport("actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "closed")
+		state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "closed")
 		return false
 	}
 	wasEmpty := len(s.ready) == 0
@@ -118,7 +118,7 @@ func (s *actorShard) schedule(state *connState) bool {
 		default:
 		}
 	}
-	state.observeTransport("actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "ok")
+	state.observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "ok")
 	return true
 }
 
@@ -157,6 +157,9 @@ func (s *actorShard) drainReady() {
 		batch := s.drain
 		s.mu.Unlock()
 
+		if len(batch) > 0 && batch[0] != nil {
+			batch[0].observeTransportForSource(actorPressureSource(s.id), "actor_ready", "ready", 0, actorReadyQueueSize, 0, 0, "")
+		}
 		for i, state := range batch {
 			if state != nil {
 				state.processReady()

@@ -22,6 +22,8 @@ type listenerRuntime struct {
 	active     bool
 	generation uint64
 	conns      map[*connState]struct{}
+
+	pressure *transportPressureAggregator
 }
 
 func (r *listenerRuntime) addr() string {
@@ -145,11 +147,13 @@ func newEngineGroup(specs []transport.ListenerSpec) *engineGroup {
 
 func newEngineGroupWithOptions(specs []transport.ListenerSpec, options Options) *engineGroup {
 	runtimes := make([]*listenerRuntime, 0, len(specs))
+	pressure := newTransportPressureAggregator()
 	for _, spec := range specs {
 		runtimes = append(runtimes, &listenerRuntime{
-			opts:    spec.Options,
-			handler: spec.Handler,
-			conns:   make(map[*connState]struct{}),
+			opts:     spec.Options,
+			handler:  spec.Handler,
+			conns:    make(map[*connState]struct{}),
+			pressure: pressure,
 		})
 	}
 

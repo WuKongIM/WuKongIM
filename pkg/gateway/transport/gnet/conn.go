@@ -2,6 +2,7 @@ package gnet
 
 import (
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"unicode/utf8"
@@ -230,7 +231,13 @@ func (s *connState) releaseEvent(event connEvent) {
 	if s.pendingBytes < 0 {
 		s.pendingBytes = 0
 	}
+	depth := len(s.queue)
+	bytes := int64(s.pendingBytes)
+	bytesCapacity := int64(s.maxPendingBytes)
 	s.mu.Unlock()
+	if s.maxPendingBytes > 0 {
+		s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "")
+	}
 }
 
 func (s *connState) processReady() {
@@ -284,6 +291,7 @@ func (s *connState) handleEvent(event connEvent) bool {
 		if s.runtime.handler != nil && s.shouldNotifyClose() {
 			s.runtime.handler.OnClose(s.transport, event.err)
 		}
+		s.runtime.clearTransportPressureSource(connPressureSource(s.id))
 		return true
 	}
 	return false
@@ -609,6 +617,30 @@ type transportPressureSnapshot struct {
 	result        string
 }
 
+type transportPressureSourceKey struct {
+	source string
+	name   string
+	queue  string
+}
+
+type transportPressureGroupKey struct {
+	name  string
+	queue string
+}
+
+type transportPressureAggregator struct {
+	mu       sync.Mutex
+	bySource map[transportPressureSourceKey]transportPressureSnapshot
+	totals   map[transportPressureGroupKey]transportPressureSnapshot
+}
+
+func newTransportPressureAggregator() *transportPressureAggregator {
+	return &transportPressureAggregator{
+		bySource: make(map[transportPressureSourceKey]transportPressureSnapshot),
+		totals:   make(map[transportPressureGroupKey]transportPressureSnapshot),
+	}
+}
+
 func (s *connState) observeTransportSnapshot(snapshot transportPressureSnapshot) {
 	if snapshot.name == "" {
 		return
@@ -620,15 +652,159 @@ func (s *connState) observeTransport(name, queue string, depth, capacity int, by
 	if s == nil || s.runtime == nil || s.runtime.opts.Observer == nil {
 		return
 	}
-	s.runtime.opts.Observer.OnTransportPressure(gatewaytypes.TransportPressureEvent{
-		Name:          name,
-		Queue:         queue,
-		Depth:         depth,
-		Capacity:      capacity,
-		Bytes:         bytes,
-		BytesCapacity: bytesCapacity,
-		Result:        result,
+	s.observeTransportForSource(connPressureSource(s.id), name, queue, depth, capacity, bytes, bytesCapacity, result)
+}
+
+func (s *connState) observeTransportForSource(source, name, queue string, depth, capacity int, bytes, bytesCapacity int64, result string) {
+	if s == nil || s.runtime == nil {
+		return
+	}
+	s.runtime.observeTransportPressure(source, transportPressureSnapshot{
+		name:          name,
+		queue:         queue,
+		depth:         depth,
+		capacity:      capacity,
+		bytes:         bytes,
+		bytesCapacity: bytesCapacity,
+		result:        result,
 	})
+}
+
+func (r *listenerRuntime) observeTransportPressure(source string, snapshot transportPressureSnapshot) {
+	if r == nil || r.opts.Observer == nil || snapshot.name == "" {
+		return
+	}
+	if source == "" {
+		source = "unknown"
+	}
+	event := r.transportPressureAggregator().apply(source, snapshot)
+	r.emitTransportPressureSnapshot(event)
+}
+
+func (r *listenerRuntime) emitTransportPressureSnapshot(event transportPressureSnapshot) {
+	if r == nil || r.opts.Observer == nil || event.name == "" {
+		return
+	}
+	r.opts.Observer.OnTransportPressure(gatewaytypes.TransportPressureEvent{
+		Name:          event.name,
+		Queue:         event.queue,
+		Depth:         event.depth,
+		Capacity:      event.capacity,
+		Bytes:         event.bytes,
+		BytesCapacity: event.bytesCapacity,
+		Result:        event.result,
+	})
+}
+
+func (a *transportPressureAggregator) apply(source string, snapshot transportPressureSnapshot) transportPressureSnapshot {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	sourceKey := transportPressureSourceKey{source: source, name: snapshot.name, queue: snapshot.queue}
+	groupKey := transportPressureGroupKey{name: snapshot.name, queue: snapshot.queue}
+	previous := a.bySource[sourceKey]
+	next := previous
+	next.name = snapshot.name
+	next.queue = snapshot.queue
+	if snapshot.result == "" || snapshot.result == "ok" {
+		next.depth = snapshot.depth
+		next.capacity = snapshot.capacity
+		next.bytes = snapshot.bytes
+		next.bytesCapacity = snapshot.bytesCapacity
+	} else {
+		if snapshot.capacity > 0 || next.capacity == 0 {
+			next.capacity = snapshot.capacity
+		}
+		if snapshot.bytesCapacity > 0 || next.bytesCapacity == 0 {
+			next.bytesCapacity = snapshot.bytesCapacity
+		}
+	}
+
+	total := a.totals[groupKey]
+	total.name = snapshot.name
+	total.queue = snapshot.queue
+	total.depth += next.depth - previous.depth
+	total.capacity += next.capacity - previous.capacity
+	total.bytes += next.bytes - previous.bytes
+	total.bytesCapacity += next.bytesCapacity - previous.bytesCapacity
+	total = clampTransportPressureSnapshot(total)
+	a.bySource[sourceKey] = next
+	a.totals[groupKey] = total
+	total.result = snapshot.result
+	return total
+}
+
+func (r *listenerRuntime) clearTransportPressureSource(source string) {
+	if r == nil || source == "" {
+		return
+	}
+	events := r.transportPressureAggregator().clear(source)
+	for _, event := range events {
+		r.emitTransportPressureSnapshot(event)
+	}
+}
+
+func (a *transportPressureAggregator) clear(source string) []transportPressureSnapshot {
+	var events []transportPressureSnapshot
+	a.mu.Lock()
+	for key, previous := range a.bySource {
+		if key.source != source {
+			continue
+		}
+		groupKey := transportPressureGroupKey{name: key.name, queue: key.queue}
+		total := a.totals[groupKey]
+		total.name = key.name
+		total.queue = key.queue
+		total.depth -= previous.depth
+		total.capacity -= previous.capacity
+		total.bytes -= previous.bytes
+		total.bytesCapacity -= previous.bytesCapacity
+		total = clampTransportPressureSnapshot(total)
+		a.totals[groupKey] = total
+		delete(a.bySource, key)
+		events = append(events, total)
+	}
+	a.mu.Unlock()
+	return events
+}
+
+func (r *listenerRuntime) transportPressureAggregator() *transportPressureAggregator {
+	if r.pressure != nil {
+		return r.pressure
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pressure == nil {
+		r.pressure = newTransportPressureAggregator()
+	}
+	return r.pressure
+}
+
+func clampTransportPressureSnapshot(snapshot transportPressureSnapshot) transportPressureSnapshot {
+	if snapshot.depth < 0 {
+		snapshot.depth = 0
+	}
+	if snapshot.capacity < 0 {
+		snapshot.capacity = 0
+	}
+	if snapshot.bytes < 0 {
+		snapshot.bytes = 0
+	}
+	if snapshot.bytesCapacity < 0 {
+		snapshot.bytesCapacity = 0
+	}
+	return snapshot
+}
+
+func connPressureSource(id uint64) string {
+	return "conn_" + strconv.FormatUint(id, 10)
+}
+
+func actorPressureSource(id int) string {
+	if id < 0 {
+		return "actor_unknown"
+	}
+	return "actor_" + strconv.Itoa(id)
 }
 
 func (s *connState) acquireOutboundWriteFrame() *wsWritevFrame {
@@ -732,8 +908,14 @@ func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
 	if conn != nil && err == nil {
 		s.outboundBufferedBytes = int64(conn.OutboundBuffered())
 	}
+	depth := len(s.outboundWriteSizes)
+	bytes := s.outboundPendingBytes + s.outboundBufferedBytes
+	bytesCapacity := s.maxOutboundBytes
 	s.outboundMu.Unlock()
 	s.releaseOutboundWriteFrame(frame)
+	if s.maxOutboundBytes > 0 {
+		s.observeTransport("outbound_pending", "outbound", depth, 0, bytes, bytesCapacity, "")
+	}
 }
 
 func (c *stateConn) Close() error {

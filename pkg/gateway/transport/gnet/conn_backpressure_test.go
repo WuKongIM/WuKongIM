@@ -77,8 +77,8 @@ func TestConnStateReportsInboundPressure(t *testing.T) {
 	if got := events[1].Result; got != "too_large" {
 		t.Fatalf("second pressure result = %q, want too_large", got)
 	}
-	if got := events[1].Bytes; got != 5 {
-		t.Fatalf("second pressure bytes = %d, want 5", got)
+	if got := events[1].Bytes; got != 2 {
+		t.Fatalf("second pressure bytes = %d, want 2", got)
 	}
 }
 
@@ -118,8 +118,103 @@ func TestConnStateReportsInboundPressureForWebSocketOpcodePath(t *testing.T) {
 	if got := events[1].Result; got != "too_large" {
 		t.Fatalf("second pressure result = %q, want too_large", got)
 	}
-	if got := events[1].Bytes; got != 5 {
-		t.Fatalf("second pressure bytes = %d, want 5", got)
+	if got := events[1].Bytes; got != 2 {
+		t.Fatalf("second pressure bytes = %d, want 2", got)
+	}
+}
+
+func TestListenerRuntimeAggregatesTransportPressureAcrossConnections(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+	first := &connState{id: 1, runtime: runtime, maxPendingBytes: 10}
+	second := &connState{id: 2, runtime: runtime, maxPendingBytes: 10}
+
+	if !first.enqueueCopiedData([]byte("ab")) {
+		t.Fatal("first enqueue rejected payload")
+	}
+	if !second.enqueueCopiedData([]byte("cde")) {
+		t.Fatal("second enqueue rejected payload")
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	last := events[1]
+	if got := last.Name; got != "inbound_pending" {
+		t.Fatalf("pressure name = %q, want inbound_pending", got)
+	}
+	if got := last.Depth; got != 2 {
+		t.Fatalf("aggregated depth = %d, want 2", got)
+	}
+	if got := last.Bytes; got != 5 {
+		t.Fatalf("aggregated bytes = %d, want 5", got)
+	}
+	if got := last.BytesCapacity; got != 20 {
+		t.Fatalf("aggregated byte capacity = %d, want 20", got)
+	}
+}
+
+func TestEngineGroupAggregatesTransportPressureAcrossListeners(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	group := newEngineGroup([]transport.ListenerSpec{
+		{Options: transport.ListenerOptions{Name: "tcp", Network: "tcp", Observer: observer}},
+		{Options: transport.ListenerOptions{Name: "ws", Network: "websocket", Observer: observer}},
+	})
+	first := &connState{id: 1, runtime: group.runtimes[0], maxPendingBytes: 10}
+	second := &connState{id: 2, runtime: group.runtimes[1], maxPendingBytes: 10}
+
+	if !first.enqueueCopiedData([]byte("ab")) {
+		t.Fatal("first enqueue rejected payload")
+	}
+	if !second.enqueueCopiedData([]byte("cde")) {
+		t.Fatal("second enqueue rejected payload")
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	last := events[1]
+	if got := last.Depth; got != 2 {
+		t.Fatalf("aggregated depth = %d, want 2", got)
+	}
+	if got := last.Bytes; got != 5 {
+		t.Fatalf("aggregated bytes = %d, want 5", got)
+	}
+	if got := last.BytesCapacity; got != 20 {
+		t.Fatalf("aggregated byte capacity = %d, want 20", got)
+	}
+}
+
+func TestConnCloseClearsTransportPressureAfterPendingRelease(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+	state := &connState{id: 1, runtime: runtime, maxPendingBytes: 10}
+
+	if !state.enqueueCopiedData([]byte("ab")) {
+		t.Fatal("enqueue rejected payload")
+	}
+	event, ok := state.nextEvent()
+	if !ok {
+		t.Fatal("nextEvent returned no data event")
+	}
+	state.enqueueClose(nil)
+	state.releaseEvent(event)
+	if done := state.handleEvent(connEvent{kind: connEventClose}); !done {
+		t.Fatal("close event did not finish connection")
+	}
+
+	events := observer.snapshot()
+	last := events[len(events)-1]
+	if got := last.Depth; got != 0 {
+		t.Fatalf("depth after close = %d, want 0", got)
+	}
+	if got := last.Bytes; got != 0 {
+		t.Fatalf("bytes after close = %d, want 0", got)
+	}
+	if got := last.BytesCapacity; got != 0 {
+		t.Fatalf("byte capacity after close = %d, want 0", got)
 	}
 }
 
@@ -165,8 +260,8 @@ func TestStateConnReportsOutboundPressure(t *testing.T) {
 	if got := events[1].Result; got != "full" {
 		t.Fatalf("second pressure result = %q, want full", got)
 	}
-	if got := events[1].Bytes; got != 5 {
-		t.Fatalf("second pressure bytes = %d, want 5", got)
+	if got := events[1].Bytes; got != 2 {
+		t.Fatalf("second pressure bytes = %d, want 2", got)
 	}
 }
 
