@@ -1,6 +1,9 @@
 package transport
 
-import "github.com/WuKongIM/WuKongIM/pkg/wklog"
+import (
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
 
 type ListenerOptions struct {
 	Name    string
@@ -11,6 +14,8 @@ type ListenerOptions struct {
 	MaxPendingBytes int
 	// MaxOutboundBytes bounds bytes buffered inside the transport after gateway queue dequeue.
 	MaxOutboundBytes int64
-	OnError          func(error)
-	Logger           wklog.Logger
+	// Observer receives aggregate transport pressure observations.
+	Observer gatewaytypes.TransportPressureObserver
+	OnError  func(error)
+	Logger   wklog.Logger
 }

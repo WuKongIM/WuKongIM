@@ -101,12 +101,15 @@ func (s *actorShard) schedule(state *connState) bool {
 
 	s.mu.Lock()
 	if s.stopped {
+		depth := len(s.ready)
 		s.mu.Unlock()
 		state.scheduled.Store(false)
+		state.observeTransport("actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "closed")
 		return false
 	}
 	wasEmpty := len(s.ready) == 0
 	s.ready = append(s.ready, state)
+	depth := len(s.ready)
 	s.mu.Unlock()
 
 	if wasEmpty {
@@ -115,6 +118,7 @@ func (s *actorShard) schedule(state *connState) bool {
 		default:
 		}
 	}
+	state.observeTransport("actor_ready", "ready", depth, actorReadyQueueSize, 0, 0, "ok")
 	return true
 }
 

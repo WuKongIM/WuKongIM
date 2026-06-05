@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	gnetv2 "github.com/panjf2000/gnet/v2"
 )
 
@@ -122,13 +123,21 @@ func (s *connState) enqueueDataWithOpcode(opcode byte, data []byte) bool {
 		return false
 	}
 	if s.maxPendingBytes > 0 && s.pendingBytes+len(data) > s.maxPendingBytes {
+		depth := len(s.queue)
+		bytes := int64(s.pendingBytes + len(data))
+		bytesCapacity := int64(s.maxPendingBytes)
 		s.mu.Unlock()
+		s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "too_large")
 		return false
 	}
 	s.pendingBytes += len(data)
 	s.queue = append(s.queue, connEvent{kind: connEventData, data: data, op: opcode})
+	depth := len(s.queue)
+	bytes := int64(s.pendingBytes)
+	bytesCapacity := int64(s.maxPendingBytes)
 	s.mu.Unlock()
 	s.signal()
+	s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "ok")
 	return true
 }
 
@@ -140,14 +149,22 @@ func (s *connState) enqueueCopiedData(data []byte) bool {
 		return false
 	}
 	if s.maxPendingBytes > 0 && s.pendingBytes+len(data) > s.maxPendingBytes {
+		depth := len(s.queue)
+		bytes := int64(s.pendingBytes + len(data))
+		bytesCapacity := int64(s.maxPendingBytes)
 		s.mu.Unlock()
+		s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "too_large")
 		return false
 	}
 	payload := append([]byte(nil), data...)
 	s.pendingBytes += len(payload)
 	s.queue = append(s.queue, connEvent{kind: connEventData, data: payload})
+	depth := len(s.queue)
+	bytes := int64(s.pendingBytes)
+	bytesCapacity := int64(s.maxPendingBytes)
 	s.mu.Unlock()
 	s.signal()
+	s.observeTransport("inbound_pending", "inbound", depth, 0, bytes, bytesCapacity, "ok")
 	return true
 }
 
@@ -508,8 +525,11 @@ func (c *stateConn) writeWebSocketVector(data []byte, messageType transport.WebS
 		return err
 	}
 	size := len(framed.bufs[0]) + len(framed.bufs[1])
+	var snapshot transportPressureSnapshot
 	if c.state.maxOutboundBytes > 0 {
-		if !c.state.beginOutboundWrite(size) {
+		var admitted bool
+		snapshot, admitted = c.state.beginOutboundWrite(size)
+		if !admitted {
 			c.state.releaseOutboundWriteFrame(framed)
 			return transport.ErrOutboundBytesExceeded
 		}
@@ -518,6 +538,8 @@ func (c *stateConn) writeWebSocketVector(data []byte, messageType transport.WebS
 	err = c.state.raw.AsyncWritev(framed.bufs[:], releaseOutboundWriteCallback)
 	if err != nil {
 		c.state.rollbackOutboundWriteFrame(framed, size)
+	} else {
+		c.state.observeTransportSnapshot(snapshot)
 	}
 	return err
 }
@@ -540,30 +562,73 @@ func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.Asyn
 	if c.state.maxOutboundBytes <= 0 || size <= 0 {
 		return write(nil)
 	}
-	if !c.state.beginOutboundWrite(size) {
+	snapshot, admitted := c.state.beginOutboundWrite(size)
+	if !admitted {
 		return transport.ErrOutboundBytesExceeded
 	}
 	err := write(releaseOutboundWriteCallback)
 	if err != nil {
 		c.state.finishNextOutboundWrite(nil, err)
+	} else {
+		c.state.observeTransportSnapshot(snapshot)
 	}
 	return err
 }
 
-func (s *connState) beginOutboundWrite(size int) bool {
+func (s *connState) beginOutboundWrite(size int) (transportPressureSnapshot, bool) {
 	if s.maxOutboundBytes <= 0 || size <= 0 {
-		return true
+		return transportPressureSnapshot{}, true
 	}
 
 	s.outboundMu.Lock()
-	defer s.outboundMu.Unlock()
 
 	if s.outboundPendingBytes+s.outboundBufferedBytes+int64(size) > s.maxOutboundBytes {
-		return false
+		depth := len(s.outboundWriteSizes)
+		bytes := s.outboundPendingBytes + s.outboundBufferedBytes + int64(size)
+		bytesCapacity := s.maxOutboundBytes
+		s.outboundMu.Unlock()
+		s.observeTransport("outbound_pending", "outbound", depth, 0, bytes, bytesCapacity, "full")
+		return transportPressureSnapshot{}, false
 	}
 	s.outboundPendingBytes += int64(size)
 	s.outboundWriteSizes = append(s.outboundWriteSizes, size)
-	return true
+	depth := len(s.outboundWriteSizes)
+	bytes := s.outboundPendingBytes + s.outboundBufferedBytes
+	bytesCapacity := s.maxOutboundBytes
+	s.outboundMu.Unlock()
+	return transportPressureSnapshot{name: "outbound_pending", queue: "outbound", depth: depth, bytes: bytes, bytesCapacity: bytesCapacity, result: "ok"}, true
+}
+
+type transportPressureSnapshot struct {
+	name          string
+	queue         string
+	depth         int
+	capacity      int
+	bytes         int64
+	bytesCapacity int64
+	result        string
+}
+
+func (s *connState) observeTransportSnapshot(snapshot transportPressureSnapshot) {
+	if snapshot.name == "" {
+		return
+	}
+	s.observeTransport(snapshot.name, snapshot.queue, snapshot.depth, snapshot.capacity, snapshot.bytes, snapshot.bytesCapacity, snapshot.result)
+}
+
+func (s *connState) observeTransport(name, queue string, depth, capacity int, bytes, bytesCapacity int64, result string) {
+	if s == nil || s.runtime == nil || s.runtime.opts.Observer == nil {
+		return
+	}
+	s.runtime.opts.Observer.OnTransportPressure(gatewaytypes.TransportPressureEvent{
+		Name:          name,
+		Queue:         queue,
+		Depth:         depth,
+		Capacity:      capacity,
+		Bytes:         bytes,
+		BytesCapacity: bytesCapacity,
+		Result:        result,
+	})
 }
 
 func (s *connState) acquireOutboundWriteFrame() *wsWritevFrame {

@@ -361,6 +361,38 @@ func TestServerAsyncSendDispatchObserverTracksQueueWaitAndBatch(t *testing.T) {
 	}
 }
 
+func TestAsyncSendReportsAdmissionResults(t *testing.T) {
+	observer := &recordingAsyncSendObserver{}
+	handler := &countingAsyncFrameHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options:    gatewaytypes.Options{Observer: observer},
+	}
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+	srv.asyncDispatch.Store(queue)
+
+	state := &sessionState{server: srv, key: connKey{connID: 1}}
+	send := &frame.SendPacket{ChannelID: "c1", ChannelType: 1}
+	if !queue.submitSend(state, "r1", send) {
+		t.Fatal("first submitSend failed")
+	}
+	srv.observeAsyncSendAdmission(queue, true)
+	if queue.submitSend(state, "r2", send) {
+		t.Fatal("second submitSend unexpectedly succeeded")
+	}
+	srv.observeAsyncSendAdmission(queue, false)
+
+	if len(observer.sendAdmissions) != 2 {
+		t.Fatalf("send admissions = %d, want 2", len(observer.sendAdmissions))
+	}
+	if got := observer.sendAdmissions[0].Result; got != "ok" {
+		t.Fatalf("first send admission result = %q, want ok", got)
+	}
+	if got := observer.sendAdmissions[1].Result; got != "full" {
+		t.Fatalf("second send admission result = %q, want full", got)
+	}
+}
+
 func TestAsyncSendBatchCollectHonorsMaxRecordsAndOrder(t *testing.T) {
 	tasks := make(chan asyncDispatchTask, 3)
 	tasks <- asyncSendBatchTestTask("m1", 1)
@@ -691,10 +723,14 @@ func (s *recordingSendTraceSink) snapshot() []sendtrace.Event {
 }
 
 type recordingAsyncSendObserver struct {
-	mu      sync.Mutex
-	queues  []gatewaytypes.AsyncSendQueueEvent
-	batches []gatewaytypes.AsyncSendBatchEvent
-	waits   []gatewaytypes.AsyncSendDispatchWaitEvent
+	mu             sync.Mutex
+	queues         []gatewaytypes.AsyncSendQueueEvent
+	batches        []gatewaytypes.AsyncSendBatchEvent
+	waits          []gatewaytypes.AsyncSendDispatchWaitEvent
+	authQueues     []gatewaytypes.AsyncAuthQueueEvent
+	authAdmissions []gatewaytypes.AsyncAuthAdmissionEvent
+	authWaits      []gatewaytypes.AsyncAuthWaitEvent
+	sendAdmissions []gatewaytypes.AsyncSendAdmissionEvent
 }
 
 func (o *recordingAsyncSendObserver) OnConnectionOpen(gatewaytypes.ConnectionEvent)  {}
@@ -718,6 +754,26 @@ func (o *recordingAsyncSendObserver) OnAsyncSendDispatchWait(event gatewaytypes.
 	defer o.mu.Unlock()
 	o.waits = append(o.waits, event)
 }
+func (o *recordingAsyncSendObserver) OnAsyncAuthQueue(event gatewaytypes.AsyncAuthQueueEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.authQueues = append(o.authQueues, event)
+}
+func (o *recordingAsyncSendObserver) OnAsyncAuthAdmission(event gatewaytypes.AsyncAuthAdmissionEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.authAdmissions = append(o.authAdmissions, event)
+}
+func (o *recordingAsyncSendObserver) OnAsyncAuthWait(event gatewaytypes.AsyncAuthWaitEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.authWaits = append(o.authWaits, event)
+}
+func (o *recordingAsyncSendObserver) OnAsyncSendAdmission(event gatewaytypes.AsyncSendAdmissionEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.sendAdmissions = append(o.sendAdmissions, event)
+}
 
 func (o *recordingAsyncSendObserver) queueEvents() []gatewaytypes.AsyncSendQueueEvent {
 	o.mu.Lock()
@@ -735,6 +791,12 @@ func (o *recordingAsyncSendObserver) waitEvents() []gatewaytypes.AsyncSendDispat
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]gatewaytypes.AsyncSendDispatchWaitEvent(nil), o.waits...)
+}
+
+func (o *recordingAsyncSendObserver) authWaitEvents() []gatewaytypes.AsyncAuthWaitEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.AsyncAuthWaitEvent(nil), o.authWaits...)
 }
 
 func (h *countingAsyncFrameHandler) OnListenerError(string, error) {}

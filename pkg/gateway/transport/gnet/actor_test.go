@@ -21,6 +21,44 @@ func TestActorShardSchedulesConnectionOnceWhilePending(t *testing.T) {
 	}
 }
 
+func TestActorShardReportsReadyPressure(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	runtime := &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}}
+	shard := newActorShard(0, nil)
+	state := &connState{runtime: runtime}
+
+	if !shard.schedule(state) {
+		t.Fatal("schedule returned false, want true")
+	}
+	shard.markStopped()
+	if shard.schedule(&connState{runtime: runtime}) {
+		t.Fatal("schedule returned true after shard stopped")
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	if got := events[0].Name; got != "actor_ready" {
+		t.Fatalf("first pressure name = %q, want actor_ready", got)
+	}
+	if got := events[0].Queue; got != "ready" {
+		t.Fatalf("first pressure queue = %q, want ready", got)
+	}
+	if got := events[0].Result; got != "ok" {
+		t.Fatalf("first pressure result = %q, want ok", got)
+	}
+	if got := events[0].Depth; got != 1 {
+		t.Fatalf("first pressure depth = %d, want 1", got)
+	}
+	if got := events[0].Capacity; got != actorReadyQueueSize {
+		t.Fatalf("first pressure capacity = %d, want %d", got, actorReadyQueueSize)
+	}
+	if got := events[1].Result; got != "closed" {
+		t.Fatalf("second pressure result = %q, want closed", got)
+	}
+}
+
 func TestGnetActorRuntimeDoesNotSpawnPerConnectionGoroutine(t *testing.T) {
 	spec := transport.ListenerSpec{
 		Options: transport.ListenerOptions{Name: "tcp-a", Network: "tcp", Address: "local"},

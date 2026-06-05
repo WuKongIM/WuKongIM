@@ -208,6 +208,68 @@ func TestAsyncAuthQueueCloseStopsWorker(t *testing.T) {
 	srv.workerWG.Wait()
 }
 
+func TestAsyncAuthReportsQueueAndAdmission(t *testing.T) {
+	observer := &recordingAsyncSendObserver{}
+	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
+	queue := newAsyncAuthQueueWithCapacity(1)
+	srv.asyncAuth.Store(queue)
+	state := &sessionState{}
+
+	if !queue.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
+		t.Fatal("first async auth submit failed")
+	}
+	srv.observeAsyncAuthQueue(queue)
+	srv.observeAsyncAuthAdmission(queue, true)
+	if queue.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u2"}}) {
+		t.Fatal("second async auth submit unexpectedly succeeded")
+	}
+	srv.observeAsyncAuthAdmission(queue, false)
+
+	if len(observer.authQueues) != 1 {
+		t.Fatalf("auth queue events = %d, want 1", len(observer.authQueues))
+	}
+	if got := observer.authQueues[0].Depth; got != 1 {
+		t.Fatalf("auth queue depth = %d, want 1", got)
+	}
+	if got := observer.authQueues[0].Capacity; got != 1 {
+		t.Fatalf("auth queue capacity = %d, want 1", got)
+	}
+	if got := observer.authQueues[0].Workers; got != 1 {
+		t.Fatalf("auth queue workers = %d, want 1", got)
+	}
+	if len(observer.authAdmissions) != 2 {
+		t.Fatalf("auth admissions = %d, want 2", len(observer.authAdmissions))
+	}
+	if got := observer.authAdmissions[0].Result; got != "ok" {
+		t.Fatalf("first auth admission result = %q, want ok", got)
+	}
+	if got := observer.authAdmissions[1].Result; got != "full" {
+		t.Fatalf("second auth admission result = %q, want full", got)
+	}
+}
+
+func TestAsyncAuthReportsWaitWithNonNegativeDuration(t *testing.T) {
+	observer := &recordingAsyncSendObserver{}
+	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
+	state := &sessionState{listener: &listenerRuntime{options: gatewaytypes.ListenerOptions{Name: "tcp", Network: "tcp"}}}
+
+	srv.observeAsyncAuthWait(asyncAuthTask{
+		state:      state,
+		enqueuedAt: time.Now().Add(24 * time.Hour),
+	})
+
+	events := observer.authWaitEvents()
+	if len(events) != 1 {
+		t.Fatalf("auth wait events = %d, want 1", len(events))
+	}
+	if got := events[0].Duration; got != 0 {
+		t.Fatalf("auth wait duration = %v, want 0", got)
+	}
+	if got := events[0].Listener; got != "tcp" {
+		t.Fatalf("auth wait listener = %q, want tcp", got)
+	}
+}
+
 type asyncAuthEncodeOnlyProtocol struct{}
 
 func (asyncAuthEncodeOnlyProtocol) Name() string { return "wkproto" }

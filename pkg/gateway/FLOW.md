@@ -132,6 +132,8 @@ failure class 记录认证失败指标；未知或未分类激活错误仍归为
 
 `AsyncSendObserver` 是可选观测扩展。实现方可以在不改变 `Observer` 基础接口的情况下接收 SEND async 队列深度、批处理大小/等待时间、以及单帧入队到分发的等待时间；这些事件用于 Prometheus 指标，不承载业务逻辑。
 
+Gateway pressure observers are optional extensions on top of the base Observer. They report async auth queue pressure, SEND admission outcomes, and gnet aggregate actor/inbound/outbound pressure without per-connection labels or behavior changes.
+
 ### 4.4 扩展接口
 
 ```go

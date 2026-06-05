@@ -3,9 +3,11 @@ package gnet
 import (
 	"bytes"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 )
 
 func TestConnStateRejectsDataOverPendingByteLimit(t *testing.T) {
@@ -36,6 +38,135 @@ func TestConnStateRejectsDataOverPendingByteLimit(t *testing.T) {
 	}
 	if !state.enqueueData([]byte("efgh")) {
 		t.Fatal("enqueueData rejected payload after pending bytes were released")
+	}
+}
+
+func TestConnStateReportsInboundPressure(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	state := &connState{
+		runtime:         &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}},
+		maxPendingBytes: 4,
+	}
+
+	if !state.enqueueCopiedData([]byte("ab")) {
+		t.Fatal("enqueueCopiedData rejected payload within pending byte limit")
+	}
+	if state.enqueueCopiedData([]byte("cde")) {
+		t.Fatal("enqueueCopiedData accepted payload over pending byte limit")
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	if got := events[0].Name; got != "inbound_pending" {
+		t.Fatalf("first pressure name = %q, want inbound_pending", got)
+	}
+	if got := events[0].Queue; got != "inbound" {
+		t.Fatalf("first pressure queue = %q, want inbound", got)
+	}
+	if got := events[0].Result; got != "ok" {
+		t.Fatalf("first pressure result = %q, want ok", got)
+	}
+	if got := events[0].Bytes; got != 2 {
+		t.Fatalf("first pressure bytes = %d, want 2", got)
+	}
+	if got := events[0].BytesCapacity; got != 4 {
+		t.Fatalf("first pressure byte capacity = %d, want 4", got)
+	}
+	if got := events[1].Result; got != "too_large" {
+		t.Fatalf("second pressure result = %q, want too_large", got)
+	}
+	if got := events[1].Bytes; got != 5 {
+		t.Fatalf("second pressure bytes = %d, want 5", got)
+	}
+}
+
+func TestConnStateReportsInboundPressureForWebSocketOpcodePath(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	state := &connState{
+		runtime:         &listenerRuntime{opts: transport.ListenerOptions{Observer: observer}},
+		maxPendingBytes: 4,
+	}
+
+	if !state.enqueueDataWithOpcode(wsOpcodeBinary, []byte("ab")) {
+		t.Fatal("enqueueDataWithOpcode rejected payload within pending byte limit")
+	}
+	if state.enqueueDataWithOpcode(wsOpcodeBinary, []byte("cde")) {
+		t.Fatal("enqueueDataWithOpcode accepted payload over pending byte limit")
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	if got := events[0].Name; got != "inbound_pending" {
+		t.Fatalf("first pressure name = %q, want inbound_pending", got)
+	}
+	if got := events[0].Queue; got != "inbound" {
+		t.Fatalf("first pressure queue = %q, want inbound", got)
+	}
+	if got := events[0].Result; got != "ok" {
+		t.Fatalf("first pressure result = %q, want ok", got)
+	}
+	if got := events[0].Bytes; got != 2 {
+		t.Fatalf("first pressure bytes = %d, want 2", got)
+	}
+	if got := events[0].BytesCapacity; got != 4 {
+		t.Fatalf("first pressure byte capacity = %d, want 4", got)
+	}
+	if got := events[1].Result; got != "too_large" {
+		t.Fatalf("second pressure result = %q, want too_large", got)
+	}
+	if got := events[1].Bytes; got != 5 {
+		t.Fatalf("second pressure bytes = %d, want 5", got)
+	}
+}
+
+func TestStateConnReportsOutboundPressure(t *testing.T) {
+	observer := &recordingTransportPressureObserver{}
+	raw := &allocTestGnetConn{}
+	state := &connState{
+		raw:              raw,
+		maxOutboundBytes: 4,
+		runtime: &listenerRuntime{opts: transport.ListenerOptions{
+			Network:  "tcp",
+			Observer: observer,
+		}},
+	}
+	conn := &stateConn{state: state}
+
+	if err := conn.Write([]byte("12")); err != nil {
+		t.Fatalf("first Write() error = %v", err)
+	}
+	if err := conn.Write([]byte("345")); !errors.Is(err, transport.ErrOutboundBytesExceeded) {
+		t.Fatalf("second Write() error = %v, want %v", err, transport.ErrOutboundBytesExceeded)
+	}
+
+	events := observer.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("pressure events = %d, want 2", len(events))
+	}
+	if got := events[0].Name; got != "outbound_pending" {
+		t.Fatalf("first pressure name = %q, want outbound_pending", got)
+	}
+	if got := events[0].Queue; got != "outbound" {
+		t.Fatalf("first pressure queue = %q, want outbound", got)
+	}
+	if got := events[0].Result; got != "ok" {
+		t.Fatalf("first pressure result = %q, want ok", got)
+	}
+	if got := events[0].Bytes; got != 2 {
+		t.Fatalf("first pressure bytes = %d, want 2", got)
+	}
+	if got := events[0].BytesCapacity; got != 4 {
+		t.Fatalf("first pressure byte capacity = %d, want 4", got)
+	}
+	if got := events[1].Result; got != "full" {
+		t.Fatalf("second pressure result = %q, want full", got)
+	}
+	if got := events[1].Bytes; got != 5 {
+		t.Fatalf("second pressure bytes = %d, want 5", got)
 	}
 }
 
@@ -227,4 +358,21 @@ func TestConnStateFailClearsQueuedPayloadReferences(t *testing.T) {
 	if got := state.pendingBytes; got != 0 {
 		t.Fatalf("pending bytes = %d, want 0", got)
 	}
+}
+
+type recordingTransportPressureObserver struct {
+	mu     sync.Mutex
+	events []gatewaytypes.TransportPressureEvent
+}
+
+func (o *recordingTransportPressureObserver) OnTransportPressure(event gatewaytypes.TransportPressureEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingTransportPressureObserver) snapshot() []gatewaytypes.TransportPressureEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]gatewaytypes.TransportPressureEvent(nil), o.events...)
 }

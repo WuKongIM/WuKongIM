@@ -295,6 +295,7 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 					Path:             runtime.options.Path,
 					MaxPendingBytes:  s.options.DefaultSession.MaxInboundBytes,
 					MaxOutboundBytes: int64(s.options.DefaultSession.MaxOutboundBytes),
+					Observer:         s.transportPressureObserver(),
 					OnError: func(err error) {
 						s.dispatcher.listenerError(runtime.options.Name, err)
 					},
@@ -641,7 +642,9 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 	}
 
 	queue := s.asyncDispatcher()
-	if queue != nil && queue.submitSend(state, replyToken, send) {
+	accepted := queue != nil && queue.submitSend(state, replyToken, send)
+	s.observeAsyncSendAdmission(queue, accepted)
+	if accepted {
 		s.observeAsyncSendQueue(queue)
 		return
 	}
@@ -688,7 +691,10 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	}
 
 	queue := s.asyncAuthenticator()
-	if queue != nil && queue.submit(asyncAuthTask{state: state, replyToken: replyToken, connect: connect}) {
+	accepted := queue != nil && queue.submit(asyncAuthTask{state: state, replyToken: replyToken, connect: connect})
+	s.observeAsyncAuthAdmission(queue, accepted)
+	s.observeAsyncAuthQueue(queue)
+	if accepted {
 		return true, nil
 	}
 
@@ -1068,6 +1074,7 @@ func (s *Server) startAsyncAuthenticator() {
 	for i := 0; i < workers; i++ {
 		go s.runAsyncAuthWorker(queue)
 	}
+	s.observeAsyncAuthQueue(queue)
 }
 
 func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
@@ -1077,6 +1084,8 @@ func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
 	}
 	for task := range queue.tasks {
 		queue.consume(1)
+		s.observeAsyncAuthQueue(queue)
+		s.observeAsyncAuthWait(task)
 		s.runAuthTask(task)
 	}
 }
@@ -1407,12 +1416,18 @@ type asyncAuthQueue struct {
 	mu       sync.RWMutex
 	tasks    chan asyncAuthTask
 	capacity int
+	workers  int
 	queued   atomic.Int64
 	closed   bool
 }
 
 func newAsyncAuthQueue(workers int) *asyncAuthQueue {
-	return newAsyncAuthQueueWithCapacity(asyncAuthQueueCapacity(workers))
+	if workers <= 0 {
+		workers = 1
+	}
+	queue := newAsyncAuthQueueWithCapacity(asyncAuthQueueCapacity(workers))
+	queue.workers = workers
+	return queue
 }
 
 func newAsyncAuthQueueWithCapacity(capacity int) *asyncAuthQueue {
@@ -1422,6 +1437,7 @@ func newAsyncAuthQueueWithCapacity(capacity int) *asyncAuthQueue {
 	return &asyncAuthQueue{
 		tasks:    make(chan asyncAuthTask, capacity),
 		capacity: capacity,
+		workers:  1,
 	}
 }
 
@@ -1485,6 +1501,24 @@ func (q *asyncAuthQueue) consume(count int) {
 		return
 	}
 	q.queued.Add(-remaining)
+}
+
+func (q *asyncAuthQueue) depth() int {
+	if q == nil {
+		return 0
+	}
+	depth := q.queued.Load()
+	if depth < 0 {
+		return 0
+	}
+	return int(depth)
+}
+
+func (q *asyncAuthQueue) totalCapacity() int {
+	if q == nil {
+		return 0
+	}
+	return q.capacity
 }
 
 func (q *asyncAuthQueue) close() {
@@ -1975,6 +2009,57 @@ func (s *Server) observeAsyncSendQueue(queue *asyncDispatchQueue) {
 	})
 }
 
+func (s *Server) observeAsyncAuthQueue(queue *asyncAuthQueue) {
+	observer := s.asyncAuthObserver()
+	if observer == nil || queue == nil {
+		return
+	}
+	observer.OnAsyncAuthQueue(gatewaytypes.AsyncAuthQueueEvent{
+		Depth:    queue.depth(),
+		Capacity: queue.totalCapacity(),
+		Workers:  queue.workers,
+	})
+}
+
+func (s *Server) observeAsyncAuthAdmission(_ *asyncAuthQueue, accepted bool) {
+	observer := s.asyncAuthObserver()
+	if observer == nil {
+		return
+	}
+	result := "full"
+	if accepted {
+		result = "ok"
+	}
+	observer.OnAsyncAuthAdmission(gatewaytypes.AsyncAuthAdmissionEvent{Result: result})
+}
+
+func (s *Server) observeAsyncAuthWait(task asyncAuthTask) {
+	observer := s.asyncAuthObserver()
+	if observer == nil || task.enqueuedAt.IsZero() {
+		return
+	}
+	duration := time.Since(task.enqueuedAt)
+	if duration < 0 {
+		duration = 0
+	}
+	observer.OnAsyncAuthWait(gatewaytypes.AsyncAuthWaitEvent{
+		ConnectionEvent: connectionEventForState(task.state),
+		Duration:        duration,
+	})
+}
+
+func (s *Server) observeAsyncSendAdmission(_ *asyncDispatchQueue, accepted bool) {
+	observer := s.asyncSendAdmissionObserver()
+	if observer == nil {
+		return
+	}
+	result := "full"
+	if accepted {
+		result = "ok"
+	}
+	observer.OnAsyncSendAdmission(gatewaytypes.AsyncSendAdmissionEvent{Result: result})
+}
+
 func (s *Server) observeAsyncSendBatch(batch []asyncDispatchTask) {
 	observer := s.asyncSendObserver()
 	if observer == nil || len(batch) == 0 {
@@ -2008,6 +2093,39 @@ func (s *Server) asyncSendObserver() gatewaytypes.AsyncSendObserver {
 		return nil
 	}
 	observer, ok := s.options.Observer.(gatewaytypes.AsyncSendObserver)
+	if !ok {
+		return nil
+	}
+	return observer
+}
+
+func (s *Server) asyncAuthObserver() gatewaytypes.AsyncAuthObserver {
+	if s == nil || s.options.Observer == nil {
+		return nil
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.AsyncAuthObserver)
+	if !ok {
+		return nil
+	}
+	return observer
+}
+
+func (s *Server) asyncSendAdmissionObserver() gatewaytypes.AsyncSendAdmissionObserver {
+	if s == nil || s.options.Observer == nil {
+		return nil
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.AsyncSendAdmissionObserver)
+	if !ok {
+		return nil
+	}
+	return observer
+}
+
+func (s *Server) transportPressureObserver() gatewaytypes.TransportPressureObserver {
+	if s == nil || s.options.Observer == nil {
+		return nil
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.TransportPressureObserver)
 	if !ok {
 		return nil
 	}
