@@ -115,6 +115,12 @@ type DiagnosticsConfig struct {
 	SlowThreshold time.Duration
 	// ErrorSampleRate is the keep probability for diagnostics events with non-ok results.
 	ErrorSampleRate float64
+	// DeepSampleRate is the keep probability for expensive reactor/store detail sidecars.
+	DeepSampleRate float64
+	// DeepSlowThreshold enables lazy deep trace selection for slow reactor/store stages.
+	DeepSlowThreshold time.Duration
+	// DeepMaxItemsPerBatch bounds how many traced messages one deep batch may expand into events.
+	DeepMaxItemsPerBatch int
 	// DebugMatches configures temporary high-priority sampling rules.
 	DebugMatches []DiagnosticsDebugMatchConfig
 }
@@ -249,6 +255,12 @@ func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
 	if cfg.Diagnostics.ErrorSampleRate == 0 && !cfg.diagnosticsErrorSampleRateSet {
 		cfg.Diagnostics.ErrorSampleRate = 1.0
 	}
+	if cfg.Diagnostics.DeepSlowThreshold <= 0 {
+		cfg.Diagnostics.DeepSlowThreshold = cfg.Diagnostics.SlowThreshold
+	}
+	if cfg.Diagnostics.DeepMaxItemsPerBatch <= 0 {
+		cfg.Diagnostics.DeepMaxItemsPerBatch = 16
+	}
 	return cfg
 }
 
@@ -321,6 +333,15 @@ func validateObservabilityConfig(cfg ObservabilityConfig) error {
 	}
 	if !validDiagnosticsSampleRate(cfg.Diagnostics.ErrorSampleRate) {
 		return fmt.Errorf("%w: diagnostics error sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.DeepSampleRate) {
+		return fmt.Errorf("%w: diagnostics deep sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if cfg.Diagnostics.DeepSlowThreshold < 0 {
+		return fmt.Errorf("%w: diagnostics deep slow threshold must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.Diagnostics.DeepMaxItemsPerBatch < 0 {
+		return fmt.Errorf("%w: diagnostics deep max items per batch must be >= 0", ErrInvalidConfig)
 	}
 	for _, match := range cfg.Diagnostics.DebugMatches {
 		if !validDiagnosticsSampleRate(match.SampleRate) {

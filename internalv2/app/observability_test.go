@@ -420,6 +420,15 @@ func TestDiagnosticsConfigDefaultsAndValidation(t *testing.T) {
 	if cfg.Observability.Diagnostics.ErrorSampleRate != 1 {
 		t.Fatalf("diagnostics error sample rate = %v, want 1", cfg.Observability.Diagnostics.ErrorSampleRate)
 	}
+	if cfg.Observability.Diagnostics.DeepSampleRate != 0 {
+		t.Fatalf("diagnostics deep sample rate = %v, want 0", cfg.Observability.Diagnostics.DeepSampleRate)
+	}
+	if cfg.Observability.Diagnostics.DeepSlowThreshold != cfg.Observability.Diagnostics.SlowThreshold {
+		t.Fatalf("diagnostics deep slow threshold = %v, want %v", cfg.Observability.Diagnostics.DeepSlowThreshold, cfg.Observability.Diagnostics.SlowThreshold)
+	}
+	if cfg.Observability.Diagnostics.DeepMaxItemsPerBatch != 16 {
+		t.Fatalf("diagnostics deep max items = %d, want 16", cfg.Observability.Diagnostics.DeepMaxItemsPerBatch)
+	}
 
 	explicit := ObservabilityConfig{
 		Diagnostics: DiagnosticsConfig{
@@ -450,6 +459,11 @@ func TestDiagnosticsConfigDefaultsAndValidation(t *testing.T) {
 		{name: "error sample rate low", cfg: DiagnosticsConfig{ErrorSampleRate: -0.1}},
 		{name: "error sample rate high", cfg: DiagnosticsConfig{ErrorSampleRate: 1.1}},
 		{name: "error sample rate inf", cfg: DiagnosticsConfig{ErrorSampleRate: math.Inf(1)}},
+		{name: "deep sample rate low", cfg: DiagnosticsConfig{DeepSampleRate: -0.1}},
+		{name: "deep sample rate high", cfg: DiagnosticsConfig{DeepSampleRate: 1.1}},
+		{name: "deep sample rate nan", cfg: DiagnosticsConfig{DeepSampleRate: math.NaN()}},
+		{name: "deep slow threshold negative", cfg: DiagnosticsConfig{DeepSlowThreshold: -time.Millisecond}},
+		{name: "deep max items negative", cfg: DiagnosticsConfig{DeepMaxItemsPerBatch: -1}},
 		{name: "debug match sample rate low", cfg: DiagnosticsConfig{DebugMatches: []DiagnosticsDebugMatchConfig{{SampleRate: -0.1}}}},
 		{name: "debug match sample rate high", cfg: DiagnosticsConfig{DebugMatches: []DiagnosticsDebugMatchConfig{{SampleRate: 1.1}}}},
 		{name: "debug match ttl", cfg: DiagnosticsConfig{DebugMatches: []DiagnosticsDebugMatchConfig{{TTLSeconds: -1}}}},

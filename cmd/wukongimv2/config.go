@@ -61,6 +61,9 @@ var supportedConfigKeys = []string{
 	"WK_DIAGNOSTICS_SAMPLE_RATE",
 	"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS",
 	"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS",
+	"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH",
 	"WK_DIAGNOSTICS_DEBUG_MATCHES",
 	"WK_EXTERNAL_TCPADDR",
 	"WK_EXTERNAL_WSADDR",
@@ -485,6 +488,36 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_ERROR_SAMPLE_RATE: value must be between 0 and 1")
 		}
 		cfg.Observability.Diagnostics.ErrorSampleRate = errorSampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE"); raw != "" {
+		deepSampleRate, err := parseFloat("WK_DIAGNOSTICS_DEEP_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepSampleRate < 0 || deepSampleRate > 1 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.DeepSampleRate = deepSampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS"); raw != "" {
+		deepSlowThresholdMS, err := parseInt("WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepSlowThresholdMS < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.DeepSlowThreshold = time.Duration(deepSlowThresholdMS) * time.Millisecond
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH"); raw != "" {
+		deepMaxItems, err := parseInt("WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepMaxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.DeepMaxItemsPerBatch = deepMaxItems
 	}
 	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_MATCHES"); raw != "" {
 		debugMatches, err := parseDiagnosticsDebugMatches(raw)

@@ -313,6 +313,9 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 		"WK_DIAGNOSTICS_SAMPLE_RATE=0.25",
 		"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=250",
 		"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=0.75",
+		"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0.02",
+		"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=125",
+		"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=7",
 		`WK_DIAGNOSTICS_DEBUG_MATCHES=[{"uid":"u1","channel_key":"person:u1:u2","client_msg_no":"c1","trace_id":"trace-1","ttl_seconds":60,"sample_rate":1},{"uid":"u2","sample_rate":0.5}]`,
 	)
 	writeConf(t, path, lines...)
@@ -337,6 +340,15 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 	}
 	if diagnostics.ErrorSampleRate != 0.75 {
 		t.Fatalf("Diagnostics.ErrorSampleRate = %v, want 0.75", diagnostics.ErrorSampleRate)
+	}
+	if diagnostics.DeepSampleRate != 0.02 {
+		t.Fatalf("Diagnostics.DeepSampleRate = %v, want 0.02", diagnostics.DeepSampleRate)
+	}
+	if diagnostics.DeepSlowThreshold != 125*time.Millisecond {
+		t.Fatalf("Diagnostics.DeepSlowThreshold = %s, want 125ms", diagnostics.DeepSlowThreshold)
+	}
+	if diagnostics.DeepMaxItemsPerBatch != 7 {
+		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 7", diagnostics.DeepMaxItemsPerBatch)
 	}
 	if len(diagnostics.DebugMatches) != 2 {
 		t.Fatalf("Diagnostics.DebugMatches len = %d, want 2: %#v", len(diagnostics.DebugMatches), diagnostics.DebugMatches)
@@ -477,6 +489,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DIAGNOSTICS_SAMPLE_RATE", "0.35")
 	t.Setenv("WK_DIAGNOSTICS_SLOW_THRESHOLD_MS", "275")
 	t.Setenv("WK_DIAGNOSTICS_ERROR_SAMPLE_RATE", "0.85")
+	t.Setenv("WK_DIAGNOSTICS_DEEP_SAMPLE_RATE", "0.02")
+	t.Setenv("WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS", "125")
+	t.Setenv("WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH", "7")
 	t.Setenv("WK_DIAGNOSTICS_DEBUG_MATCHES", `[{"trace_id":"env-trace","ttl_seconds":30,"sample_rate":1}]`)
 
 	cfg, err := loadConfig([]string{"-config", path})
@@ -577,6 +592,15 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Observability.Diagnostics.ErrorSampleRate != 0.85 {
 		t.Fatalf("Diagnostics.ErrorSampleRate = %v, want 0.85", cfg.Observability.Diagnostics.ErrorSampleRate)
+	}
+	if cfg.Observability.Diagnostics.DeepSampleRate != 0.02 {
+		t.Fatalf("Diagnostics.DeepSampleRate = %v, want 0.02", cfg.Observability.Diagnostics.DeepSampleRate)
+	}
+	if cfg.Observability.Diagnostics.DeepSlowThreshold != 125*time.Millisecond {
+		t.Fatalf("Diagnostics.DeepSlowThreshold = %s, want 125ms", cfg.Observability.Diagnostics.DeepSlowThreshold)
+	}
+	if cfg.Observability.Diagnostics.DeepMaxItemsPerBatch != 7 {
+		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 7", cfg.Observability.Diagnostics.DeepMaxItemsPerBatch)
 	}
 	if len(cfg.Observability.Diagnostics.DebugMatches) != 1 ||
 		cfg.Observability.Diagnostics.DebugMatches[0].TraceID != "env-trace" ||
@@ -819,6 +843,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "diagnostics error sample rate", line: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=always", wantKey: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE"},
 		{name: "diagnostics error sample rate negative", line: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=-0.1", wantKey: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE"},
 		{name: "diagnostics error sample rate nan", line: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=NaN", wantKey: "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE"},
+		{name: "diagnostics deep sample rate", line: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=often", wantKey: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE"},
+		{name: "diagnostics deep sample rate high", line: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=1.5", wantKey: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE"},
+		{name: "diagnostics deep slow threshold negative", line: "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=-1", wantKey: "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS"},
+		{name: "diagnostics deep max items negative", line: "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=-1", wantKey: "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH"},
 		{name: "diagnostics debug matches", line: "WK_DIAGNOSTICS_DEBUG_MATCHES=not-json", wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
 		{name: "diagnostics debug match sample rate negative", line: `WK_DIAGNOSTICS_DEBUG_MATCHES=[{"trace_id":"bad","ttl_seconds":1,"sample_rate":-0.1}]`, wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
 		{name: "diagnostics debug match ttl negative", line: `WK_DIAGNOSTICS_DEBUG_MATCHES=[{"trace_id":"bad","ttl_seconds":-1,"sample_rate":1}]`, wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
@@ -956,6 +984,15 @@ func assertExampleDiagnostics(t *testing.T, diagnostics app.DiagnosticsConfig) {
 	}
 	if diagnostics.ErrorSampleRate != 1 {
 		t.Fatalf("Diagnostics.ErrorSampleRate = %v, want 1", diagnostics.ErrorSampleRate)
+	}
+	if diagnostics.DeepSampleRate != 0 {
+		t.Fatalf("Diagnostics.DeepSampleRate = %v, want 0", diagnostics.DeepSampleRate)
+	}
+	if diagnostics.DeepSlowThreshold != 500*time.Millisecond {
+		t.Fatalf("Diagnostics.DeepSlowThreshold = %s, want 500ms", diagnostics.DeepSlowThreshold)
+	}
+	if diagnostics.DeepMaxItemsPerBatch != 16 {
+		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 16", diagnostics.DeepMaxItemsPerBatch)
 	}
 	if len(diagnostics.DebugMatches) != 0 {
 		t.Fatalf("Diagnostics.DebugMatches len = %d, want 0", len(diagnostics.DebugMatches))

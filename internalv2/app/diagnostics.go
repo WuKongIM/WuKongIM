@@ -80,11 +80,14 @@ func diagnosticsSamplerOptions(cfg Config) diagnostics.SamplerOptions {
 		})
 	}
 	return diagnostics.SamplerOptions{
-		SampleRate:         cfg.Observability.Diagnostics.SampleRate,
-		SlowThreshold:      cfg.Observability.Diagnostics.SlowThreshold,
-		ErrorSampleRate:    cfg.Observability.Diagnostics.ErrorSampleRate,
-		ErrorSampleRateSet: cfg.Observability.diagnosticsErrorSampleRateSet,
-		DebugMatches:       debugMatches,
+		SampleRate:           cfg.Observability.Diagnostics.SampleRate,
+		SlowThreshold:        cfg.Observability.Diagnostics.SlowThreshold,
+		ErrorSampleRate:      cfg.Observability.Diagnostics.ErrorSampleRate,
+		ErrorSampleRateSet:   cfg.Observability.diagnosticsErrorSampleRateSet,
+		DeepSampleRate:       cfg.Observability.Diagnostics.DeepSampleRate,
+		DeepSlowThreshold:    cfg.Observability.Diagnostics.DeepSlowThreshold,
+		DeepMaxItemsPerBatch: cfg.Observability.Diagnostics.DeepMaxItemsPerBatch,
+		DebugMatches:         debugMatches,
 	}
 }
 
