@@ -3,7 +3,7 @@ package wire
 import (
 	"io"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/buffer"
 )
 
 // ReadFrame reads one full frame, validating the header before allocating the body.
@@ -22,15 +22,16 @@ func ReadFrame(r io.Reader, maxBodyBytes int) (Frame, error) {
 	if err != nil {
 		return Frame{}, err
 	}
-	body := make([]byte, bodyLen)
-	if len(body) > 0 {
-		if _, err := io.ReadFull(r, body); err != nil {
+	body := buffer.DefaultSlabPool.Get(bodyLen)
+	if body.Len() > 0 {
+		if _, err := io.ReadFull(r, body.Bytes()); err != nil {
+			body.Release()
 			return Frame{}, err
 		}
 	}
 
 	return Frame{
 		Header: header,
-		Body:   core.NewOwnedBuffer(body, nil),
+		Body:   body,
 	}, nil
 }
