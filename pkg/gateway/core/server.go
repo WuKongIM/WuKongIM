@@ -840,12 +840,11 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 	status = authStatusOK
 	failure = authFailureNone
 	if !state.openWasDispatched() {
-		if state.isClosed() {
+		if !state.beginAuthenticatedOpen() {
 			s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
 			suppressObservation = true
 			return
 		}
-		state.markAuthenticatedAndOpenDispatched()
 		if err := s.dispatchSessionOpen(state); err != nil {
 			s.handleHandlerError(state, err)
 			return
@@ -2153,12 +2152,16 @@ func (st *sessionState) isAuthenticated() bool {
 	return st.authenticated
 }
 
-func (st *sessionState) markAuthenticatedAndOpenDispatched() {
+func (st *sessionState) beginAuthenticatedOpen() bool {
 	if st == nil {
-		return
+		return false
 	}
 
 	st.metaMu.Lock()
+	defer st.metaMu.Unlock()
+	if st.closing || st.authenticated || st.openDispatched {
+		return false
+	}
 	st.authenticated = true
 	st.authPending = false
 	st.openDispatched = true
@@ -2166,7 +2169,7 @@ func (st *sessionState) markAuthenticatedAndOpenDispatched() {
 	if st.openDone == nil {
 		st.openDone = make(chan struct{})
 	}
-	st.metaMu.Unlock()
+	return true
 }
 
 func (st *sessionState) beginAuth() bool {
