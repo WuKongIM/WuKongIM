@@ -35,11 +35,17 @@ const (
 	asyncDispatchMinQueuePerWorker = 128
 	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
 	asyncDispatchMaxBufferedTasks = 128 * 1024
+	asyncAuthQueuePerWorker       = 128
+	asyncAuthWorkersPerCPU        = 4
+	minAsyncAuthWorkers           = 16
+	maxAsyncAuthWorkers           = 64
+	asyncAuthMaxBufferedTasks     = 8 * 1024
 
 	authStatusOK   = "ok"
 	authStatusFail = "fail"
 
 	authFailureNone                    = "none"
+	authFailureQueueFull               = "auth_queue_full"
 	authFailureUnknown                 = "unknown"
 	authFailureProtocolViolation       = "protocol_violation"
 	authFailureAuthenticatorError      = "authenticator_error"
@@ -81,7 +87,9 @@ type Server struct {
 	idleMonitorStop chan struct{}
 	// asyncDispatch bounds SEND frame concurrency off the transport event loop.
 	asyncDispatch atomic.Pointer[asyncDispatchQueue]
-	workerWG      sync.WaitGroup
+	// asyncAuth bounds CONNECT authentication and activation off the transport event loop.
+	asyncAuth atomic.Pointer[asyncAuthQueue]
+	workerWG  sync.WaitGroup
 }
 
 type listenerRuntime struct {
@@ -1196,6 +1204,119 @@ func recordAsyncDispatchWait(task asyncDispatchTask) time.Duration {
 	return elapsed
 }
 
+type asyncAuthTask struct {
+	state      *sessionState
+	replyToken string
+	connect    *frame.ConnectPacket
+	enqueuedAt time.Time
+	queue      *asyncAuthQueue
+}
+
+type asyncAuthQueue struct {
+	mu       sync.RWMutex
+	tasks    chan asyncAuthTask
+	capacity int
+	queued   atomic.Int64
+	closed   bool
+}
+
+func newAsyncAuthQueue(workers int) *asyncAuthQueue {
+	return newAsyncAuthQueueWithCapacity(asyncAuthQueueCapacity(workers))
+}
+
+func newAsyncAuthQueueWithCapacity(capacity int) *asyncAuthQueue {
+	if capacity <= 0 {
+		capacity = asyncAuthQueuePerWorker
+	}
+	return &asyncAuthQueue{
+		tasks:    make(chan asyncAuthTask, capacity),
+		capacity: capacity,
+	}
+}
+
+func asyncAuthQueueCapacity(workers int) int {
+	if workers <= 0 {
+		workers = 1
+	}
+	capacity := workers * asyncAuthQueuePerWorker
+	if capacity > asyncAuthMaxBufferedTasks {
+		return asyncAuthMaxBufferedTasks
+	}
+	return capacity
+}
+
+func asyncAuthWorkerCount() int {
+	return adaptiveAsyncAuthWorkerCount(runtime.GOMAXPROCS(0))
+}
+
+func adaptiveAsyncAuthWorkerCount(gomaxprocs int) int {
+	if gomaxprocs <= 0 {
+		return minAsyncAuthWorkers
+	}
+	workers := gomaxprocs * asyncAuthWorkersPerCPU
+	if workers < minAsyncAuthWorkers {
+		return minAsyncAuthWorkers
+	}
+	if workers > maxAsyncAuthWorkers {
+		return maxAsyncAuthWorkers
+	}
+	return workers
+}
+
+func (q *asyncAuthQueue) submit(task asyncAuthTask) bool {
+	if q == nil || task.state == nil || task.connect == nil {
+		return false
+	}
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	if q.closed {
+		return false
+	}
+	task.connect = cloneAuthConnectPacket(task.connect)
+	task.enqueuedAt = time.Now()
+	task.queue = q
+	q.queued.Add(1)
+	select {
+	case q.tasks <- task:
+		return true
+	default:
+		q.queued.Add(-1)
+		return false
+	}
+}
+
+func (q *asyncAuthQueue) consume(count int) {
+	if q == nil || count <= 0 {
+		return
+	}
+	remaining := q.queued.Add(-int64(count))
+	if remaining >= 0 {
+		return
+	}
+	q.queued.Add(-remaining)
+}
+
+func (q *asyncAuthQueue) close() {
+	if q == nil {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return
+	}
+	q.closed = true
+	close(q.tasks)
+}
+
+func cloneAuthConnectPacket(connect *frame.ConnectPacket) *frame.ConnectPacket {
+	if connect == nil {
+		return nil
+	}
+	cloned := *connect
+	return &cloned
+}
+
 // asyncDispatchQueue shards SEND work by routing key to avoid a single shared hot queue.
 type asyncDispatchQueue struct {
 	mu       sync.RWMutex
@@ -1435,6 +1556,8 @@ func closeReasonForError(err error, fallback gatewaytypes.CloseReason) gatewayty
 	switch {
 	case errors.Is(err, gatewaytypes.ErrAsyncDispatchQueueFull):
 		return gatewaytypes.CloseReasonAsyncDispatchQueueFull
+	case errors.Is(err, gatewaytypes.ErrAsyncAuthQueueFull):
+		return gatewaytypes.CloseReasonAsyncAuthQueueFull
 	case errors.Is(err, transport.ErrOutboundBytesExceeded):
 		return gatewaytypes.CloseReasonOutboundOverflow
 	default:
