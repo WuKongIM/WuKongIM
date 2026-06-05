@@ -79,7 +79,9 @@ func TestManagerAcquireDialsOncePerSlot(t *testing.T) {
 func TestManagerConcurrentAcquireDialsOnce(t *testing.T) {
 	startDial := make(chan struct{})
 	releaseDial := make(chan struct{})
+	waitersReady := make(chan struct{})
 	var dials atomic.Int32
+	var blocked atomic.Int32
 	var serversMu sync.Mutex
 	var servers []net.Conn
 
@@ -90,6 +92,9 @@ func TestManagerConcurrentAcquireDialsOnce(t *testing.T) {
 		Dial: func(context.Context, string, string) (net.Conn, error) {
 			if dials.Add(1) == 1 {
 				close(startDial)
+			}
+			if blocked.Add(1) == 1 {
+				close(waitersReady)
 			}
 			<-releaseDial
 			client, server := net.Pipe()
@@ -122,9 +127,16 @@ func TestManagerConcurrentAcquireDialsOnce(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("dial did not start")
 	}
-	time.Sleep(20 * time.Millisecond)
+	waitFor(t, func() bool {
+		return blocked.Load() == 1
+	})
 	if got := dials.Load(); got != 1 {
 		t.Fatalf("dial count while waiters blocked = %d, want 1", got)
+	}
+	select {
+	case <-waitersReady:
+	default:
+		t.Fatal("owner dial did not block")
 	}
 	close(releaseDial)
 
@@ -135,6 +147,289 @@ func TestManagerConcurrentAcquireDialsOnce(t *testing.T) {
 	}
 	if got := dials.Load(); got != 1 {
 		t.Fatalf("final dial count = %d, want 1", got)
+	}
+}
+
+func TestManagerOwnerCancelDoesNotPoisonCooldown(t *testing.T) {
+	startDial := make(chan struct{})
+	var dials atomic.Int32
+	var serversMu sync.Mutex
+	var servers []net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			if dials.Add(1) == 1 {
+				close(startDial)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			client, server := net.Pipe()
+			serversMu.Lock()
+			servers = append(servers, server)
+			serversMu.Unlock()
+			return client, nil
+		},
+	})
+	defer m.Stop()
+	defer closeServers(&serversMu, &servers)
+
+	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	ownerResult := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(ownerCtx, 2, 0)
+		ownerResult <- err
+	}()
+	waitForChannel(t, startDial, "owner dial did not start")
+
+	waiterResult := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(context.Background(), 2, 0)
+		waiterResult <- err
+	}()
+	cancelOwner()
+
+	if err := <-ownerResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("owner Acquire() error = %v, want context.Canceled", err)
+	}
+	if err := <-waiterResult; err != nil {
+		t.Fatalf("waiter Acquire() error = %v, want nil", err)
+	}
+	if got := dials.Load(); got < 2 {
+		t.Fatalf("dial count = %d, want at least 2", got)
+	}
+}
+
+func TestManagerClosePeerWhileDialingReturnsStoppedAndClosesDialedConn(t *testing.T) {
+	startDial := make(chan struct{})
+	releaseDial := make(chan struct{})
+	var dialed net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			close(startDial)
+			<-releaseDial
+			client, server := net.Pipe()
+			dialed = client
+			_ = server.Close()
+			return client, nil
+		},
+	})
+	defer m.Stop()
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(context.Background(), 2, 0)
+		result <- err
+	}()
+	waitForChannel(t, startDial, "dial did not start")
+	m.ClosePeer(2)
+	close(releaseDial)
+
+	if err := <-result; !errors.Is(err, core.ErrStopped) {
+		t.Fatalf("Acquire() error = %v, want ErrStopped", err)
+	}
+	if dialed == nil {
+		t.Fatal("dial did not return a conn")
+	}
+	if _, err := dialed.Write([]byte("x")); err == nil {
+		t.Fatal("dialed conn was not closed")
+	}
+	stats := m.Stats()
+	if stats.Peers != 0 || stats.Connections != 0 {
+		t.Fatalf("Stats() = %+v, want no peers or conns", stats)
+	}
+}
+
+func TestManagerStopWhileDialingReturnsStoppedAndClosesDialedConn(t *testing.T) {
+	startDial := make(chan struct{})
+	releaseDial := make(chan struct{})
+	var dialed net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			close(startDial)
+			<-releaseDial
+			client, server := net.Pipe()
+			dialed = client
+			_ = server.Close()
+			return client, nil
+		},
+	})
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(context.Background(), 2, 0)
+		result <- err
+	}()
+	waitForChannel(t, startDial, "dial did not start")
+	m.Stop()
+	close(releaseDial)
+
+	if err := <-result; !errors.Is(err, core.ErrStopped) {
+		t.Fatalf("Acquire() error = %v, want ErrStopped", err)
+	}
+	if dialed == nil {
+		t.Fatal("dial did not return a conn")
+	}
+	if _, err := dialed.Write([]byte("x")); err == nil {
+		t.Fatal("dialed conn was not closed")
+	}
+}
+
+func TestManagerWaiterContextCancellation(t *testing.T) {
+	startDial := make(chan struct{})
+	releaseDial := make(chan struct{})
+	var serversMu sync.Mutex
+	var servers []net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			close(startDial)
+			<-releaseDial
+			client, server := net.Pipe()
+			serversMu.Lock()
+			servers = append(servers, server)
+			serversMu.Unlock()
+			return client, nil
+		},
+	})
+	defer m.Stop()
+	defer closeServers(&serversMu, &servers)
+
+	ownerResult := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(context.Background(), 2, 0)
+		ownerResult <- err
+	}()
+	waitForChannel(t, startDial, "dial did not start")
+
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiterResult := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(waiterCtx, 2, 0)
+		waiterResult <- err
+	}()
+	cancelWaiter()
+
+	if err := <-waiterResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("waiter Acquire() error = %v, want context.Canceled", err)
+	}
+	close(releaseDial)
+	if err := <-ownerResult; err != nil {
+		t.Fatalf("owner Acquire() error = %v", err)
+	}
+}
+
+func TestManagerDialFailureCooldown(t *testing.T) {
+	var dials atomic.Int32
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			dials.Add(1)
+			return nil, errors.New("dial boom")
+		},
+	})
+	defer m.Stop()
+
+	_, firstErr := m.Acquire(context.Background(), 2, 0)
+	if !errors.Is(firstErr, core.ErrDialFailed) {
+		t.Fatalf("first Acquire() error = %v, want ErrDialFailed", firstErr)
+	}
+	_, secondErr := m.Acquire(context.Background(), 2, 0)
+	if !errors.Is(secondErr, core.ErrDialFailed) {
+		t.Fatalf("second Acquire() error = %v, want ErrDialFailed", secondErr)
+	}
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("dial count during cooldown = %d, want 1", got)
+	}
+
+	time.Sleep(2 * testLimits().DialFailureCooldown)
+	_, thirdErr := m.Acquire(context.Background(), 2, 0)
+	if !errors.Is(thirdErr, core.ErrDialFailed) {
+		t.Fatalf("third Acquire() error = %v, want ErrDialFailed", thirdErr)
+	}
+	if got := dials.Load(); got != 2 {
+		t.Fatalf("dial count after cooldown = %d, want 2", got)
+	}
+}
+
+func TestManagerAcquireRedialsClosedConn(t *testing.T) {
+	var dials atomic.Int32
+	var serversMu sync.Mutex
+	var servers []net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			dials.Add(1)
+			client, server := net.Pipe()
+			serversMu.Lock()
+			servers = append(servers, server)
+			serversMu.Unlock()
+			return client, nil
+		},
+	})
+	defer m.Stop()
+	defer closeServers(&serversMu, &servers)
+
+	first, err := m.Acquire(context.Background(), 2, 0)
+	if err != nil {
+		t.Fatalf("Acquire() error = %v", err)
+	}
+	first.Close(core.ErrStopped)
+	second, err := m.Acquire(context.Background(), 2, 0)
+	if err != nil {
+		t.Fatalf("Acquire() after close error = %v", err)
+	}
+	if first == second {
+		t.Fatalf("Acquire() returned closed conn")
+	}
+	if got := dials.Load(); got != 2 {
+		t.Fatalf("dial count = %d, want 2", got)
+	}
+}
+
+func TestManagerStats(t *testing.T) {
+	var serversMu sync.Mutex
+	var servers []net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2", 3: "node-3"},
+		PoolSize:  2,
+		Limits:    testLimits(),
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			client, server := net.Pipe()
+			serversMu.Lock()
+			servers = append(servers, server)
+			serversMu.Unlock()
+			return client, nil
+		},
+	})
+	defer m.Stop()
+	defer closeServers(&serversMu, &servers)
+
+	if _, err := m.Acquire(context.Background(), 2, 0); err != nil {
+		t.Fatalf("Acquire() peer 2 slot 0 error = %v", err)
+	}
+	if _, err := m.Acquire(context.Background(), 2, 1); err != nil {
+		t.Fatalf("Acquire() peer 2 slot 1 error = %v", err)
+	}
+	if _, err := m.Acquire(context.Background(), 3, 0); err != nil {
+		t.Fatalf("Acquire() peer 3 error = %v", err)
+	}
+
+	stats := m.Stats()
+	if stats.Peers != 2 || stats.Connections != 3 {
+		t.Fatalf("Stats() = %+v, want 2 peers and 3 connections", stats)
+	}
+	m.ClosePeer(2)
+	stats = m.Stats()
+	if stats.Peers != 1 || stats.Connections != 1 {
+		t.Fatalf("Stats() after ClosePeer = %+v, want 1 peer and 1 connection", stats)
 	}
 }
 
@@ -157,6 +452,35 @@ func TestManagerStopPreventsDial(t *testing.T) {
 	}
 	if got := dials.Load(); got != 0 {
 		t.Fatalf("dial count = %d, want 0", got)
+	}
+}
+
+func closeServers(mu *sync.Mutex, servers *[]net.Conn) {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, server := range *servers {
+		_ = server.Close()
+	}
+}
+
+func waitFor(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition was not met before timeout")
+}
+
+func waitForChannel(t *testing.T, ch <-chan struct{}, msg string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal(msg)
 	}
 }
 

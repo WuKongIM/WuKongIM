@@ -3,6 +3,7 @@ package peer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -34,16 +35,28 @@ type Manager struct {
 }
 
 type peerState struct {
+	// slots are the connection slots for this peer generation.
 	slots []*slotState
+	// closed marks this peer generation terminal after ClosePeer or Stop.
+	closed bool
 }
 
 type slotState struct {
+	// conn is the installed connection for this slot, when live.
 	conn *conn.Conn
 
+	// dialing is true while the slot has an in-flight owner dial.
 	dialing bool
-	ready   chan struct{}
+	// ready is closed when the current owner dial reaches a terminal state.
+	ready chan struct{}
+	// readyClosed prevents double close when ClosePeer races with owner dial return.
+	readyClosed bool
+	// closed marks this slot generation terminal after ClosePeer or Stop.
+	closed bool
 
-	lastErr      error
+	// lastErr is the reusable non-context dial failure returned during cooldown.
+	lastErr error
+	// lastDialFail records when lastErr occurred for cooldown enforcement.
 	lastDialFail time.Time
 }
 
@@ -80,11 +93,15 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 			m.mu.Unlock()
 			return nil, core.ErrStopped
 		}
-		slot := m.slotLocked(nodeID, slotIndex)
+		peer, slot := m.slotLocked(nodeID, slotIndex)
 		if slot.conn != nil {
-			c := slot.conn
-			m.mu.Unlock()
-			return c, nil
+			if connDone(slot.conn) {
+				slot.conn = nil
+			} else {
+				c := slot.conn
+				m.mu.Unlock()
+				return c, nil
+			}
 		}
 		if m.inDialCooldownLocked(slot) {
 			err := slot.lastErr
@@ -104,23 +121,26 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 
 		slot.dialing = true
 		slot.ready = make(chan struct{})
-		ready := slot.ready
+		slot.readyClosed = false
 		m.mu.Unlock()
 
 		c, err := m.dialConn(ctx, nodeID)
 
 		m.mu.Lock()
+		installed := m.slotInstalledLocked(nodeID, slotIndex, peer, slot)
 		if err != nil {
-			slot.lastErr = err
-			slot.lastDialFail = time.Now()
-			slot.dialing = false
-			close(ready)
+			if installed {
+				if !isContextError(err) {
+					slot.lastErr = err
+					slot.lastDialFail = time.Now()
+				}
+				slot.dialing = false
+				m.notifyReadyLocked(slot)
+			}
 			m.mu.Unlock()
 			return nil, err
 		}
-		if m.stopped {
-			slot.dialing = false
-			close(ready)
+		if !installed {
 			m.mu.Unlock()
 			c.Close(core.ErrStopped)
 			return nil, core.ErrStopped
@@ -129,7 +149,7 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 		slot.lastErr = nil
 		slot.lastDialFail = time.Time{}
 		slot.dialing = false
-		close(ready)
+		m.notifyReadyLocked(slot)
 		m.mu.Unlock()
 		return c, nil
 	}
@@ -140,10 +160,15 @@ func (m *Manager) ClosePeer(nodeID core.NodeID) {
 	var conns []*conn.Conn
 	m.mu.Lock()
 	if peer := m.peers[nodeID]; peer != nil {
+		peer.closed = true
 		for _, slot := range peer.slots {
 			if slot.conn != nil {
 				conns = append(conns, slot.conn)
+				slot.conn = nil
 			}
+			slot.closed = true
+			slot.dialing = false
+			m.notifyReadyLocked(slot)
 		}
 		delete(m.peers, nodeID)
 	}
@@ -164,10 +189,15 @@ func (m *Manager) Stop() {
 	}
 	m.stopped = true
 	for _, peer := range m.peers {
+		peer.closed = true
 		for _, slot := range peer.slots {
 			if slot.conn != nil {
 				conns = append(conns, slot.conn)
+				slot.conn = nil
 			}
+			slot.closed = true
+			slot.dialing = false
+			m.notifyReadyLocked(slot)
 		}
 	}
 	m.peers = make(map[core.NodeID]*peerState)
@@ -186,7 +216,7 @@ func (m *Manager) Stats() core.Stats {
 	stats := core.Stats{Peers: len(m.peers)}
 	for _, peer := range m.peers {
 		for _, slot := range peer.slots {
-			if slot.conn != nil {
+			if slot.conn != nil && !connDone(slot.conn) {
 				stats.Connections++
 			}
 		}
@@ -194,7 +224,7 @@ func (m *Manager) Stats() core.Stats {
 	return stats
 }
 
-func (m *Manager) slotLocked(nodeID core.NodeID, slotIndex int) *slotState {
+func (m *Manager) slotLocked(nodeID core.NodeID, slotIndex int) (*peerState, *slotState) {
 	peer := m.peers[nodeID]
 	if peer == nil {
 		peer = &peerState{slots: make([]*slotState, m.cfg.PoolSize)}
@@ -203,7 +233,7 @@ func (m *Manager) slotLocked(nodeID core.NodeID, slotIndex int) *slotState {
 		}
 		m.peers[nodeID] = peer
 	}
-	return peer.slots[slotIndex]
+	return peer, peer.slots[slotIndex]
 }
 
 func (m *Manager) inDialCooldownLocked(slot *slotState) bool {
@@ -213,6 +243,21 @@ func (m *Manager) inDialCooldownLocked(slot *slotState) bool {
 	return time.Since(slot.lastDialFail) < m.cfg.Limits.DialFailureCooldown
 }
 
+func (m *Manager) slotInstalledLocked(nodeID core.NodeID, slotIndex int, peer *peerState, slot *slotState) bool {
+	if m.stopped || peer.closed || slot.closed {
+		return false
+	}
+	return m.peers[nodeID] == peer && peer.slots[slotIndex] == slot
+}
+
+func (m *Manager) notifyReadyLocked(slot *slotState) {
+	if slot.ready == nil || slot.readyClosed {
+		return
+	}
+	close(slot.ready)
+	slot.readyClosed = true
+}
+
 func (m *Manager) dialConn(ctx context.Context, nodeID core.NodeID) (*conn.Conn, error) {
 	addr, err := m.cfg.Discovery.Resolve(nodeID)
 	if err != nil {
@@ -220,9 +265,25 @@ func (m *Manager) dialConn(ctx context.Context, nodeID core.NodeID) (*conn.Conn,
 	}
 	raw, err := m.cfg.Dial(ctx, "tcp", addr)
 	if err != nil {
+		if isContextError(err) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: %v", core.ErrDialFailed, err)
 	}
 	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits}, nil)
 	c.Start()
 	return c, nil
+}
+
+func connDone(c *conn.Conn) bool {
+	select {
+	case <-c.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func isContextError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

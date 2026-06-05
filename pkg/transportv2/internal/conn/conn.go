@@ -121,6 +121,11 @@ func (c *Conn) Start() {
 	})
 }
 
+// Done returns a channel closed when the connection actor begins shutdown.
+func (c *Conn) Done() <-chan struct{} {
+	return c.ctx.Done()
+}
+
 // Send queues an outbound frame and transfers payload ownership on success.
 func (c *Conn) Send(ctx context.Context, outbound Outbound) error {
 	if outbound.Kind == 0 {
