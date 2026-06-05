@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,37 @@ type InflightObserver interface {
 	SetWorkerInflightPeak(pool string, peak int)
 }
 
+// QueueCapacityObserver receives configured worker queue capacity and worker count.
+// Implementations are called synchronously from pool paths and should be concurrency-safe and non-blocking.
+type QueueCapacityObserver interface {
+	SetWorkerQueueCapacity(pool string, capacity int)
+	SetWorkerWorkers(pool string, workers int)
+}
+
+// AdmissionObserver receives bounded worker enqueue outcomes.
+// Implementations are called synchronously from Submit and should be concurrency-safe and non-blocking.
+type AdmissionObserver interface {
+	ObserveWorkerAdmission(pool string, result string)
+}
+
+// WaitObserver receives queue wait time for accepted worker tasks.
+// Implementations are called synchronously from worker goroutines and should be concurrency-safe and non-blocking.
+type WaitObserver interface {
+	ObserveWorkerWait(pool string, kind TaskKind, d time.Duration)
+}
+
+// TaskObserver receives execution duration for worker tasks with pool context.
+// Implementations are called synchronously from worker goroutines and should be concurrency-safe and non-blocking.
+type TaskObserver interface {
+	ObserveWorkerTask(pool string, kind TaskKind, err error, d time.Duration)
+}
+
+// queuedTask carries enqueue timing for wait-duration observation.
+type queuedTask struct {
+	task       Task
+	enqueuedAt time.Time
+}
+
 type noopQueueObserver struct{}
 
 func (noopQueueObserver) SetWorkerQueueDepth(pool string, depth int) {}
@@ -36,7 +68,7 @@ type Pool struct {
 	cfg          PoolConfig
 	deps         Deps
 	sink         CompletionSink
-	queue        chan Task
+	queue        chan queuedTask
 	stop         chan struct{}
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -53,7 +85,7 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 		return nil, ch.ErrInvalidConfig
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan Task, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel, obs: noopQueueObserver{}}
+	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan queuedTask, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel, obs: noopQueueObserver{}}
 	p.wg.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
 		go p.run()
@@ -61,7 +93,7 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	return p, nil
 }
 
-// SetQueueObserver replaces the queue depth observer; nil restores the no-op observer.
+// SetQueueObserver replaces the queue pressure observer; nil restores the no-op observer.
 func (p *Pool) SetQueueObserver(observer QueueObserver) {
 	if p == nil {
 		return
@@ -70,6 +102,9 @@ func (p *Pool) SetQueueObserver(observer QueueObserver) {
 		observer = noopQueueObserver{}
 	}
 	p.obs = observer
+	p.observeQueueCapacity()
+	p.observeWorkers()
+	p.observeQueueDepth()
 }
 
 // Submit enqueues task or returns a typed backpressure/closed error.
@@ -77,23 +112,38 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	if p == nil {
 		return ch.ErrClosed
 	}
-	defer p.observeQueueDepth()
+	result := "ok"
+	defer func() {
+		p.observeAdmission(result)
+		p.observeQueueDepth()
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	select {
 	case <-p.stop:
+		result = "closed"
 		return ch.ErrClosed
 	default:
 	}
 	select {
-	case p.queue <- task:
-		return nil
-	case <-p.stop:
-		return ch.ErrClosed
 	case <-ctx.Done():
+		result = workerAdmissionResult(ctx.Err())
 		return ctx.Err()
 	default:
+	}
+	queued := queuedTask{task: task, enqueuedAt: time.Now()}
+	select {
+	case p.queue <- queued:
+		return nil
+	case <-p.stop:
+		result = "closed"
+		return ch.ErrClosed
+	case <-ctx.Done():
+		result = workerAdmissionResult(ctx.Err())
+		return ctx.Err()
+	default:
+		result = "full"
 		return ch.ErrBackpressured
 	}
 }
@@ -131,6 +181,46 @@ func (p *Pool) observeQueueDepth() {
 	p.obs.SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
 }
 
+func (p *Pool) observeQueueCapacity() {
+	obs, ok := p.obs.(QueueCapacityObserver)
+	if !ok {
+		return
+	}
+	obs.SetWorkerQueueCapacity(p.cfg.Name, p.cfg.QueueSize)
+}
+
+func (p *Pool) observeWorkers() {
+	obs, ok := p.obs.(QueueCapacityObserver)
+	if !ok {
+		return
+	}
+	obs.SetWorkerWorkers(p.cfg.Name, p.cfg.Workers)
+}
+
+func (p *Pool) observeAdmission(result string) {
+	obs, ok := p.obs.(AdmissionObserver)
+	if !ok {
+		return
+	}
+	obs.ObserveWorkerAdmission(p.cfg.Name, result)
+}
+
+func (p *Pool) observeWait(kind TaskKind, d time.Duration) {
+	obs, ok := p.obs.(WaitObserver)
+	if !ok {
+		return
+	}
+	obs.ObserveWorkerWait(p.cfg.Name, kind, nonNegativeDuration(d))
+}
+
+func (p *Pool) observeTask(kind TaskKind, err error, d time.Duration) {
+	obs, ok := p.obs.(TaskObserver)
+	if !ok {
+		return
+	}
+	obs.ObserveWorkerTask(p.cfg.Name, kind, err, nonNegativeDuration(d))
+}
+
 func (p *Pool) observeInflight(inflight int) {
 	obs, ok := p.obs.(InflightObserver)
 	if !ok {
@@ -158,13 +248,15 @@ func (p *Pool) run() {
 	defer p.wg.Done()
 	for {
 		select {
-		case task := <-p.queue:
+		case queued := <-p.queue:
 			p.observeQueueDepth()
+			p.observeWait(queued.task.Kind, time.Since(queued.enqueuedAt))
 			running := int(p.inflight.Add(1))
 			p.observeInflight(running)
 			started := time.Now()
-			result := task.Run(p.ctx, p.deps)
-			result.Duration = time.Since(started)
+			result := queued.task.Run(p.ctx, p.deps)
+			result.Duration = nonNegativeDuration(time.Since(started))
+			p.observeTask(queued.task.Kind, result.Err, result.Duration)
 			running = int(p.inflight.Add(-1))
 			p.observeInflight(running)
 			p.sink.Complete(result)
@@ -172,4 +264,24 @@ func (p *Pool) run() {
 			return
 		}
 	}
+}
+
+func workerAdmissionResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	default:
+		return "other"
+	}
+}
+
+func nonNegativeDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return 0
+	}
+	return d
 }
