@@ -3,7 +3,6 @@ package message
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -149,7 +148,7 @@ func TestSendBatchGroupsSameChannelAcrossBatch(t *testing.T) {
 	}
 }
 
-func TestSendBatchAppendsIndependentChannelsConcurrently(t *testing.T) {
+func TestSendBatchAppendsChannelGroupsSequentially(t *testing.T) {
 	release := make(chan struct{})
 	appender := &blockingAppender{
 		started: make(chan ChannelID, 2),
@@ -165,58 +164,18 @@ func TestSendBatchAppendsIndependentChannelsConcurrently(t *testing.T) {
 		})
 	}()
 
-	waitStarted := func(label string) ChannelID {
+	waitStarted := func(label string, cleanup func()) ChannelID {
 		t.Helper()
 		select {
 		case ch := <-appender.started:
 			return ch
 		case <-time.After(100 * time.Millisecond):
-			close(release)
-			<-done
+			cleanup()
 			t.Fatalf("%s append did not start before the first append completed", label)
 			return ChannelID{}
 		}
 	}
-	first := waitStarted("first")
-	second := waitStarted("second")
-	if first == second {
-		close(release)
-		<-done
-		t.Fatalf("started channel twice: %#v", first)
-	}
-	close(release)
-	results := <-done
-	for i, result := range results {
-		if result.Err != nil || result.Result.Reason != ReasonSuccess {
-			t.Fatalf("result[%d] = %#v, want success", i, result)
-		}
-	}
-}
 
-func TestSendBatchUsesWideIndependentChannelFanout(t *testing.T) {
-	const channelCount = 64
-	release := make(chan struct{})
-	appender := &blockingAppender{
-		started: make(chan ChannelID, channelCount),
-		release: release,
-	}
-	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 1}})
-	items := make([]SendBatchItem, 0, channelCount)
-	for i := 0; i < channelCount; i++ {
-		items = append(items, SendBatchItem{Command: SendCommand{
-			FromUID:     "u1",
-			ChannelID:   fmt.Sprintf("c-%02d", i),
-			ChannelType: 1,
-			Payload:     []byte("payload"),
-		}})
-	}
-	done := make(chan []SendBatchItemResult, 1)
-	go func() {
-		done <- app.SendBatch(items)
-	}()
-
-	started := make(map[ChannelID]struct{}, channelCount)
-	timeout := time.After(100 * time.Millisecond)
 	released := false
 	releaseAll := func() {
 		if !released {
@@ -224,17 +183,34 @@ func TestSendBatchUsesWideIndependentChannelFanout(t *testing.T) {
 			released = true
 		}
 	}
-	for len(started) < channelCount {
-		select {
-		case ch := <-appender.started:
-			started[ch] = struct{}{}
-		case <-timeout:
-			releaseAll()
-			<-done
-			t.Fatalf("started independent channel appends = %d, want %d", len(started), channelCount)
-		}
+	t.Cleanup(releaseAll)
+
+	first := waitStarted("first", func() {
+		releaseAll()
+		<-done
+	})
+	if first != (ChannelID{ID: "a", Type: 1}) {
+		releaseAll()
+		<-done
+		t.Fatalf("first append channel = %#v, want channel a", first)
 	}
+
+	select {
+	case second := <-appender.started:
+		releaseAll()
+		<-done
+		t.Fatalf("second append started before first append completed: %#v", second)
+	case <-time.After(50 * time.Millisecond):
+	}
+
 	releaseAll()
+	second := waitStarted("second", func() {
+		<-done
+	})
+	if second != (ChannelID{ID: "b", Type: 1}) {
+		<-done
+		t.Fatalf("second append channel = %#v, want channel b", second)
+	}
 	results := <-done
 	for i, result := range results {
 		if result.Err != nil || result.Result.Reason != ReasonSuccess {
@@ -250,7 +226,7 @@ func TestActiveSegmentItemsReusesSegmentWhenNoneCanceled(t *testing.T) {
 		{index: 1, ctx: context.Background()},
 	}
 
-	active := activeSegmentItems(segment{items: items}, results)
+	active := activeSegmentItems(channelAppendSegment{items: items}, results)
 	if len(active) != len(items) {
 		t.Fatalf("active items = %d, want %d", len(active), len(items))
 	}
@@ -263,7 +239,7 @@ func TestPrepareReusesCommandPayloadUntilAppendBoundary(t *testing.T) {
 	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 1}})
 	payload := []byte("hello")
 
-	prepared, done := app.prepare(context.Background(), SendCommand{
+	prepared, done := app.prepareSend(context.Background(), SendCommand{
 		FromUID:     "u1",
 		ChannelID:   "room",
 		ChannelType: 1,
@@ -283,7 +259,7 @@ func TestAppendSegmentClonesPayloadForAppenderBoundary(t *testing.T) {
 	app := New(Options{Appender: appender})
 
 	results := make([]SendBatchItemResult, 1)
-	app.appendSegment(segment{
+	app.appendSegment(channelAppendSegment{
 		channel: ChannelID{ID: "room", Type: 1},
 		items: []preparedSend{{
 			index: 0,
@@ -318,7 +294,7 @@ func TestAppendSegmentOmitsResultPayloadWhenNoCommittedSink(t *testing.T) {
 	app := New(Options{Appender: appender})
 	results := make([]SendBatchItemResult, 1)
 
-	app.appendSegment(segment{
+	app.appendSegment(channelAppendSegment{
 		channel: ChannelID{ID: "room", Type: 1},
 		items: []preparedSend{{
 			index: 0,
@@ -346,7 +322,7 @@ func TestAppendSegmentKeepsResultPayloadWhenCommittedSinkConfigured(t *testing.T
 	app := New(Options{Appender: appender, Committed: recordingCommitted{}})
 	results := make([]SendBatchItemResult, 1)
 
-	app.appendSegment(segment{
+	app.appendSegment(channelAppendSegment{
 		channel: ChannelID{ID: "room", Type: 1},
 		items: []preparedSend{{
 			index: 0,

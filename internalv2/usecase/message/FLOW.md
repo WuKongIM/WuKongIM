@@ -20,8 +20,8 @@ SendBatch(items)
   -> clone payloads at the appender boundary and propagate sendtrace metadata
      plus one-based append attempt to request-level and per-message append
      payload fields
-  -> append active channel groups through Appender.AppendBatch with bounded
-     channel-level concurrency
+  -> append active channel groups through Appender.AppendBatch in first-seen
+     channel order; gateway asynchronous dispatch owns outer concurrency
      (omit result payloads when no committed sink is configured)
      (retry transient batch-level route errors within the active item deadline)
   -> record per-message append observations through the optional observer,
