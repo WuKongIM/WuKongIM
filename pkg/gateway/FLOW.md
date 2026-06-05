@@ -8,7 +8,7 @@
 - TCP / WebSocket 客户端连接接入。
 - `wkproto`、`jsonrpc`、`wsmux` 协议适配到统一 `frame.Frame`。
 - Session 创建、关闭、直接出站写、出站限流、空闲检测与请求上下文取消。
-- WKProto CONNECT 认证、协议版本协商和可选端到端加密会话材料保存。
+- WKProto CONNECT 异步认证、协议版本协商和可选端到端加密会话材料保存。
 - 将认证后的 Frame 交给注入的 `Handler`，不理解业务含义。
 - 网关 drain admission、会话统计、连接/认证/帧处理观测事件。
 
@@ -28,7 +28,7 @@
 |------|--------------|------|
 | `.` | `gateway.New` → `Gateway` | 对外门面：注册内置 transport/protocol，创建 `core.Server`，暴露启停、监听地址、drain admission 和 session summary |
 | `binding/` | `TCPWKProto` / `WSJSONRPC` / `WSMux` | 内置 listener preset，统一生成 `ListenerOptions` |
-| `core/` | `core.NewServer` → `Server` | 网关核心：listener runtime、session state、认证流程、decode/dispatch/write loop、idle tracker、async SEND worker pool |
+| `core/` | `core.NewServer` → `Server` | 网关核心：listener runtime、session state、CONNECT 异步认证流程、decode/dispatch/write loop、idle tracker、async worker pool |
 | `protocol/` | `Adapter` | 协议适配接口：Decode/Encode/OnOpen/OnClose |
 | `protocol/wkproto/` | `wkproto.New` | WuKong 二进制协议适配，支持粘包拆包、版本协商和加密 RecvPacket 出站封装 |
 | `protocol/jsonrpc/` | `jsonrpc.New` | JSON-RPC 与 `frame.Frame` 互转，并保存 request id 作为 reply token |
@@ -122,7 +122,7 @@ type Context struct {
 failure class 记录认证失败指标；未知或未分类激活错误仍归为
 `activation_error`。
 
-`SessionActivationRollbacker` 是可选 hook。`SessionActivator` 已接受路由或在线状态后，如果成功 CONNACK 写出失败，`core` 会调用它回滚已接受的激活结果；认证失败或激活自身返回错误时不会调用 rollback。
+`SessionActivationRollbacker` 是可选 hook。`SessionActivator` 已接受路由或在线状态后，如果成功 CONNACK 写出失败，或连接在成功 CONNACK 写出前已关闭或正在关闭，`core` 会调用它回滚已接受的激活结果；认证失败、非 success Connack override 或激活自身返回错误时不会调用 rollback。
 
 `Handler` 的 `Context` 按值传递，避免热路径为每个 Frame 分配 context wrapper；handler 不应依赖 `Context` 指针身份。`SessionActivator` 仍使用指针参数以兼容认证/激活阶段的 nil 检查习惯。
 
@@ -159,12 +159,13 @@ Build([]transport.ListenerSpec) ([]transport.Listener, error)
 | 类型 | 文件 | 说明 |
 |------|------|------|
 | `Gateway` | `gateway.go` | 对 `core.Server` 的薄封装 |
-| `core.Server` | `core/server.go` | 网关核心状态机，管理 listener、session、decode/dispatch/write、idle monitor、async dispatch |
+| `core.Server` | `core/server.go` | 网关核心状态机，管理 listener、session、decode/dispatch/write、idle monitor、async CONNECT auth 和 async dispatch |
 | `core.Registry` | `core/registry.go` | transport factory 与 protocol adapter 注册表 |
 | `listenerRuntime` | `core/server.go` | 单个逻辑 listener 的 options、factory、adapter、reply token tracker 和实际 listener |
-| `sessionState` | `core/server.go` | 单连接运行时状态：transport conn、session、inbound buffer、认证状态、close reason、request context |
+| `sessionState` | `core/server.go` | 单连接运行时状态：transport conn、session、inbound buffer、认证状态、认证 pending 状态、open lifecycle gate、close reason、request context |
 | `dispatcher` | `core/dispatcher.go` | 把 session state 转为 `types.Context` 并调用业务 handler |
 | `idleTracker` | `core/idle_tracker.go` | 基于最小堆和 session 索引的读空闲 deadline 调度，刷新时原地更新 deadline，避免按 tick 全量扫描 session |
+| `asyncAuthQueue` | `core/server.go` | WKProto CONNECT 异步认证与激活队列，容量有界，满队列时写出 SystemError CONNACK 后关闭当前 session |
 | `asyncDispatchQueue` | `core/server.go` | SEND 帧异步分发队列，容量有界，满队列时关闭当前 session 形成背压 |
 | `asyncSendBatchCollector` | `core/server.go` | 单个 SEND shard 内的有界微批收集器，按等待时间、条数和 payload 字节数 flush，并用 pending slot 保留超限帧 |
 | `session.Session` | `session/session.go` | 会话抽象，持有 values，并通过 WriteFrameFn 直接写 transport |
@@ -190,9 +191,10 @@ app build:
 Gateway.Start:
   ④ buildListeners 按 transport factory 分组
   ⑤ 每个 factory.Build(specs) 必须按 spec 顺序返回 listener
-  ⑥ 逐个 listener.Start，失败时反向 Stop 已启动 listener
-  ⑦ 启动共享 idle monitor
-  ⑧ 启动有界 SEND worker pool
+  ⑥ 配置 Authenticator 时启动有界 CONNECT 认证 worker pool
+  ⑦ 启动有界 SEND worker pool
+  ⑧ 逐个 listener.Start，失败时反向 Stop 已启动 listener，并关闭已启动的 worker pool
+  ⑨ 启动共享 idle monitor
 ```
 
 默认配置来自 `cmd/wukongim/config.go`:
@@ -238,7 +240,12 @@ OnData:
      - 非认证协议在首次成功 decode 后补发 OnSessionOpen
   ⑤ 从 ReplyTokenTracker 取 JSON-RPC reply token
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
+     - 未认证且无认证 pending 时，只接受第一帧 ConnectPacket 并入 asyncAuthQueue
+     - 认证 pending 时再次收到任何 frame，直接按 policy_violation 关闭连接
+     - 首帧不是 ConnectPacket 时，直接按 policy_violation 关闭连接
+     - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭连接
   ⑦ 认证完成后的业务 frame:
+     - 若 OnSessionOpen 已开始但尚未返回，先等待 open lifecycle gate，保证 OnSessionOpen 先于 OnFrame
      - 记录 OnFrameIn
      - SEND: 浅拷贝 packet 元数据后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
        - shard 较多时按总缓冲槽位上限动态降低单 shard 容量，避免 worker 数扩张导致启动期常驻内存线性放大
@@ -252,28 +259,32 @@ OnData:
 
 ### 6.4 WKProto 认证与激活
 
-入口: `core.Server.handleAuthFrame`
+入口: `core.Server.handleAuthFrame` → `asyncAuthQueue` worker
 
 ```text
 WKProto CONNECT:
-  ① 未认证时只接受 ConnectPacket；其他 frame 按 policy_violation 关闭
-  ② Authenticator.Authenticate:
+  ① 未认证且未 pending 时只接受第一帧 ConnectPacket；其他 frame 按 policy_violation 关闭
+  ② ConnectPacket 入有界 asyncAuthQueue，Authenticator 与 SessionActivator 不在 transport event loop 上执行
+     - 认证 pending 期间再收到 CONNECT 或业务 frame，直接按 policy_violation 关闭
+     - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭
+  ③ worker 调用 Authenticator.Authenticate:
      - tokenAuthOn 且非 visitor 时校验 token
      - 可选 IsBanned
      - 协商 server protocol version
      - 加密开启时校验 client key，生成 server key / AES key / AES IV / SessionCrypto
-  ③ 写入 session values:
+  ④ 写入 session values:
      gateway.uid / device_id / device_flag / device_level / protocol_version
      gateway.encryption_enabled / aes_key / aes_iv / wkproto_crypto
-  ④ 若 Handler 实现 SessionActivator，调用 OnSessionActivate
+  ⑤ 若 Handler 实现 SessionActivator，调用 OnSessionActivate
      - access/gateway 或 internalv2/access/gateway 在这里调用 presence.Activate
      - 可返回 Connack override
-  ⑤ 写出 CONNACK；非 success 时关闭连接
-     - 若激活已成功但 success CONNACK 写出失败，调用 SessionActivationRollbacker 回滚激活，再关闭物理连接
-  ⑥ 标记 authenticated，并在首次认证成功后 dispatch OnSessionOpen
+  ⑥ 写出 CONNACK；非 success 时关闭连接
+     - 若激活已成功但 success CONNACK 写出失败，或写出前发现连接已关闭/正在关闭，调用 SessionActivationRollbacker 回滚激活，再关闭物理连接
+  ⑦ success CONNACK 写出后标记 authenticated，清理 authPending，并 dispatch OnSessionOpen
+  ⑧ 认证完成后到达的业务 frame 必须等待 OnSessionOpen 返回后，才记录 OnFrameIn 并进入 handler；认证 pending 期间到达的业务 frame 已在步骤 ② 按 policy_violation 关闭
 ```
 
-认证失败会尽量先写出对应 CONNACK，再关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error 与 SessionActivator error 会额外记录 warn 日志，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
+认证失败会尽量先写出对应 CONNACK，再关闭连接；认证 pending 期间的重复帧或非 CONNECT 首帧属于协议违规，直接关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error、SessionActivator error 和 async auth 队列满会使用不同 failure class，队列满的 failure class 为 `auth_queue_full`，关闭原因为 `async_auth_queue_full`，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
 
 ### 6.5 出站写入与 Reply
 
@@ -301,8 +312,8 @@ WriteFrame:
 
 ```text
 sessionState.close:
-  ① cancel requestContext
-  ② 保存 CloseReason
+  ① 标记 closing 并保存 CloseReason，使并发认证/写入路径立即感知关闭中状态
+  ② cancel requestContext
   ③ 记录 OnConnectionClose
   ④ 从 idleTracker、states、session.Manager 删除
   ⑤ 如 err 非空且已 dispatch OnSessionOpen，调用 OnSessionError(err)
@@ -371,7 +382,7 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 - 不要在 `pkg/gateway` 内写消息发送、频道路由、在线注册等业务规则。
 - 不要新增“单机直写”或“非集群模式”分支；单节点部署仍是单节点集群。
 - 不要让 protocol adapter 持有业务状态；adapter 只处理 wire format 和协议级临时状态。
-- 不要在 transport event loop 上执行长耗时业务；SEND 热路径统一进入按 ChannelID 分片的有界 async worker pool，并在 worker 内微批处理。
+- 不要在 transport event loop 上执行长耗时业务；CONNECT 认证和 SEND 热路径分别进入有界 async worker pool，SEND worker 在 shard 内微批处理。
 - 不要让出站写入刷新 idle timeout；idle 语义以客户端入站活跃为准。
 - 不要绕过 session encoded queue 直接并发写 conn，除认证 CONNACK 这类必须立即响应的握手帧外都走 `WriteFrame`。
 - 新增 listener preset 时保持 `Name`、`Network`、`Address`、`Transport`、`Protocol` 字段完整，并补 `options_test`。
