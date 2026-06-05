@@ -541,7 +541,11 @@ func (o transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		queue := transportV2ServiceQueueLabel(event.ServiceID)
 		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
 	case "service_inflight":
-		o.metrics.RuntimePressure.SetPoolInflight("transportv2", transportV2ServiceQueueLabel(event.ServiceID), event.Inflight)
+		pool := transportV2ServiceQueueLabel(event.ServiceID)
+		if event.Capacity > 0 {
+			o.metrics.RuntimePressure.SetPoolWorkers("transportv2", pool, event.Capacity)
+		}
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", pool, event.Inflight)
 	}
 }
 

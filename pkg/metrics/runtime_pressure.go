@@ -229,6 +229,8 @@ func NormalizeRuntimePressureResult(result string) string {
 		"dropped",
 		"coalesced",
 		"stopped",
+		"dirty",
+		"requeued",
 		"err":
 		return result
 	default:

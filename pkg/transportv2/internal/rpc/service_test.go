@@ -77,9 +77,20 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 		t.Fatalf("service_queue ok = %+v, want bounded queue dimensions", *queueEvent)
 	}
 
+	inflightStarted := findInflight(events, 42, 1)
+	if inflightStarted == nil {
+		t.Fatalf("missing service_inflight started event: %#v", events)
+	}
+	if inflightStarted.Capacity != 1 {
+		t.Fatalf("service_inflight started capacity = %d, want worker concurrency 1", inflightStarted.Capacity)
+	}
+
 	inflightDone := findInflight(events, 42, 0)
 	if inflightDone == nil {
 		t.Fatalf("missing service_inflight zero event: %#v", events)
+	}
+	if inflightDone.Capacity != 1 {
+		t.Fatalf("service_inflight zero capacity = %d, want worker concurrency 1", inflightDone.Capacity)
 	}
 
 	taskEvent := findEvent(events, "service_task", "ok")

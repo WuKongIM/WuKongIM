@@ -1050,6 +1050,8 @@ func TestNormalizeRuntimePressureResult(t *testing.T) {
 		{result: "dropped", want: "dropped"},
 		{result: "coalesced", want: "coalesced"},
 		{result: "stopped", want: "stopped"},
+		{result: "dirty", want: "dirty"},
+		{result: "requeued", want: "requeued"},
 		{result: "err", want: "err"},
 		{result: "", want: "other"},
 		{result: "raw uid leaked", want: "other"},

@@ -292,6 +292,7 @@ func (s *Service) observeInflight(inflight int) {
 		Name:      "service_inflight",
 		ServiceID: s.ID,
 		Result:    "ok",
+		Capacity:  s.opts.Concurrency,
 		Inflight:  inflight,
 	})
 }

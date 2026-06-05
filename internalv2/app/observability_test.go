@@ -96,6 +96,12 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 		Result:    "ok",
 		Duration:  time.Millisecond,
 	})
+	transportObserver.ObserveTransport(transportv2.Event{
+		Name:      "service_inflight",
+		ServiceID: 9,
+		Inflight:  2,
+		Capacity:  4,
+	})
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -182,6 +188,13 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 		"priority":  "none",
 		"result":    "full",
 	})
+	findAppMetricByLabels(t, admissions, map[string]string{
+		"component": "slot",
+		"pool":      "scheduler",
+		"queue":     "scheduler",
+		"priority":  "none",
+		"result":    "dirty",
+	})
 
 	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
 	channelWorkerInflight := findAppMetricByLabels(t, inflight, map[string]string{
@@ -190,6 +203,22 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 	})
 	if got := channelWorkerInflight.GetGauge().GetValue(); got != 2 {
 		t.Fatalf("channelv2 worker inflight = %v, want 2", got)
+	}
+	transportServiceInflight := findAppMetricByLabels(t, inflight, map[string]string{
+		"component": "transportv2",
+		"pool":      "service_9",
+	})
+	if got := transportServiceInflight.GetGauge().GetValue(); got != 2 {
+		t.Fatalf("transportv2 service inflight = %v, want 2", got)
+	}
+
+	workers := requireAppMetricFamily(t, families, "wukongim_runtime_pool_workers")
+	transportServiceWorkers := findAppMetricByLabels(t, workers, map[string]string{
+		"component": "transportv2",
+		"pool":      "service_9",
+	})
+	if got := transportServiceWorkers.GetGauge().GetValue(); got != 4 {
+		t.Fatalf("transportv2 service workers = %v, want 4", got)
 	}
 
 	waitDuration := requireAppMetricFamily(t, families, "wukongim_runtime_pool_wait_duration_seconds")
