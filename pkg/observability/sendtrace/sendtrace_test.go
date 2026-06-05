@@ -3,6 +3,7 @@ package sendtrace
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,6 +17,22 @@ func (s *recordingSink) RecordSendTrace(event Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, event)
+}
+
+type detailRecordingSink struct {
+	recordingSink
+	decision DetailDecision
+	limits   DetailLimits
+	keys     []DetailKey
+}
+
+func (s *detailRecordingSink) KeepSendTraceDetail(key DetailKey) DetailDecision {
+	s.keys = append(s.keys, key)
+	return s.decision
+}
+
+func (s *detailRecordingSink) SendTraceDetailLimits() DetailLimits {
+	return s.limits
 }
 
 func TestChannelKeyFromID(t *testing.T) {
@@ -94,4 +111,54 @@ func TestRecordCarriesBatchMetrics(t *testing.T) {
 	require.Equal(t, 17, sink.events[0].RecordCount)
 	require.Equal(t, 4096, sink.events[0].ByteCount)
 	require.Equal(t, 12, sink.events[0].QueueDepth)
+}
+
+func TestDetailDecisionDisabledWithoutDetailSink(t *testing.T) {
+	restore := SetSink(&recordingSink{})
+	t.Cleanup(restore)
+
+	decision, limits, ok := DetailDecisionFor(DetailKey{TraceID: "trace-1"})
+
+	require.False(t, ok)
+	require.False(t, decision.Keep)
+	require.Zero(t, limits.MaxItemsPerBatch)
+}
+
+func TestDetailDecisionUsesActiveDetailSink(t *testing.T) {
+	sink := &detailRecordingSink{
+		decision: DetailDecision{Keep: true, Reason: "debug"},
+		limits:   DetailLimits{SlowThreshold: time.Second, MaxItemsPerBatch: 3},
+	}
+	restore := SetSink(sink)
+	t.Cleanup(restore)
+
+	decision, limits, ok := DetailDecisionFor(DetailKey{
+		TraceID:     "trace-1",
+		ChannelKey:  "channel/1/cm9vbQ",
+		ClientMsgNo: "c1",
+		FromUID:     "u1",
+	})
+
+	require.True(t, ok)
+	require.Equal(t, DetailDecision{Keep: true, Reason: "debug"}, decision)
+	require.Equal(t, time.Second, limits.SlowThreshold)
+	require.Equal(t, 3, limits.MaxItemsPerBatch)
+	require.Equal(t, []DetailKey{{
+		TraceID:     "trace-1",
+		ChannelKey:  "channel/1/cm9vbQ",
+		ClientMsgNo: "c1",
+		FromUID:     "u1",
+	}}, sink.keys)
+}
+
+func TestDetailLimitsNormalizeNegativeValues(t *testing.T) {
+	sink := &detailRecordingSink{limits: DetailLimits{SlowThreshold: -time.Second, MaxItemsPerBatch: -1}}
+	restore := SetSink(sink)
+	t.Cleanup(restore)
+
+	limits, ok := ActiveDetailLimits()
+
+	require.True(t, ok)
+	require.Zero(t, limits.SlowThreshold)
+	require.Zero(t, limits.MaxItemsPerBatch)
 }
