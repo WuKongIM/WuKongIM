@@ -16,6 +16,7 @@ var (
 	ErrSessionClosed            = gatewaytypes.ErrSessionClosed
 	ErrInboundOverflow          = gatewaytypes.ErrInboundOverflow
 	ErrAsyncDispatchQueueFull   = gatewaytypes.ErrAsyncDispatchQueueFull
+	ErrAsyncAuthQueueFull       = gatewaytypes.ErrAsyncAuthQueueFull
 	ErrIdleTimeout              = gatewaytypes.ErrIdleTimeout
 )
 
@@ -28,6 +29,7 @@ const (
 	CloseReasonInboundOverflow        = gatewaytypes.CloseReasonInboundOverflow
 	CloseReasonPolicyViolation        = gatewaytypes.CloseReasonPolicyViolation
 	CloseReasonAsyncDispatchQueueFull = gatewaytypes.CloseReasonAsyncDispatchQueueFull
+	CloseReasonAsyncAuthQueueFull     = gatewaytypes.CloseReasonAsyncAuthQueueFull
 	CloseReasonOutboundOverflow       = gatewaytypes.CloseReasonOutboundOverflow
 	CloseReasonIdleTimeout            = gatewaytypes.CloseReasonIdleTimeout
 	CloseReasonHandlerError           = gatewaytypes.CloseReasonHandlerError

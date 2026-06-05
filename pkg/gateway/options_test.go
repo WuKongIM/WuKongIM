@@ -46,6 +46,18 @@ func TestOptionsValidateRejectsDuplicateListenerAddresses(t *testing.T) {
 	}
 }
 
+func TestGatewayExportsAsyncAuthQueueFullError(t *testing.T) {
+	if gateway.ErrAsyncAuthQueueFull != gatewaytypes.ErrAsyncAuthQueueFull {
+		t.Fatal("ErrAsyncAuthQueueFull is not gateway/types alias")
+	}
+	if gateway.CloseReasonAsyncAuthQueueFull != "async_auth_queue_full" {
+		t.Fatalf("CloseReasonAsyncAuthQueueFull = %q", gateway.CloseReasonAsyncAuthQueueFull)
+	}
+	if gateway.CloseReasonAsyncAuthQueueFull != gatewaytypes.CloseReasonAsyncAuthQueueFull {
+		t.Fatalf("CloseReasonAsyncAuthQueueFull = %q, want %q", gateway.CloseReasonAsyncAuthQueueFull, gatewaytypes.CloseReasonAsyncAuthQueueFull)
+	}
+}
+
 func TestBuiltinPresetsPopulateCanonicalFields(t *testing.T) {
 	tcp := binding.TCPWKProto("tcp-wkproto", ":5100")
 	if tcp.Network != "tcp" || tcp.Transport != "gnet" || tcp.Protocol != "wkproto" {
