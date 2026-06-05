@@ -60,6 +60,8 @@ type appendTiming struct {
 	followerPullServedAt time.Time
 	ackOffsetObservedAt  time.Time
 	hwAdvancedAt         time.Time
+	traceItems           []appendTraceItem
+	recordCount          int
 }
 
 // appendBatch is one durable store append assembled from queued requests.
@@ -68,6 +70,7 @@ type appendBatch struct {
 	fence     ch.Fence
 	requests  []appendRequest
 	records   []ch.Record
+	trace     appendTraceBatch
 }
 
 func newAppendQueue(cfg appendQueueConfig) appendQueue {
