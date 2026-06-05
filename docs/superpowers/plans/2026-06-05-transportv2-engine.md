@@ -909,8 +909,8 @@ func TestSlabGetUsesSmallestFittingClass(t *testing.T) {
 	if len(buf.Bytes()) != 9 {
 		t.Fatalf("len = %d, want 9", len(buf.Bytes()))
 	}
-	if cap(buf.Bytes()) != 16 {
-		t.Fatalf("cap = %d, want 16", cap(buf.Bytes()))
+	if cap(buf.Bytes()) != 9 {
+		t.Fatalf("cap = %d, want 9", cap(buf.Bytes()))
 	}
 	buf.Release()
 }
@@ -987,9 +987,10 @@ func (p *SlabPool) Get(n int) core.OwnedBuffer {
 	for i, size := range p.sizes {
 		if n <= size {
 			ptr := p.pools[i].Get().(*[]byte)
-			buf := (*ptr)[:size]
-			return core.NewOwnedBuffer(buf[:n], func([]byte) {
-				*ptr = buf[:size]
+			slab := (*ptr)[:size]
+			exposed := slab[:n:n]
+			return core.NewOwnedBuffer(exposed, func([]byte) {
+				*ptr = slab[:size]
 				p.pools[i].Put(ptr)
 			})
 		}
@@ -1003,7 +1004,9 @@ var DefaultSlabPool = NewSlabPool([]int{512, 4096, 65536, 1048576})
 
 - [ ] **Step 4: Use slab pool in wire reader**
 
-Modify `wire.ReadFrame` body allocation:
+Modify `wire.ReadFrame` body allocation. The exposed payload slice from the
+slab pool must have `len == cap == bodyLen`; the release closure owns the full
+slab internally so callers cannot reslice into stale bytes.
 
 ```go
 owned := buffer.DefaultSlabPool.Get(int(frame.BodyLen))
