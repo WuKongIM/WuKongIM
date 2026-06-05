@@ -3,6 +3,7 @@ package rpc
 import "sync"
 
 const defaultPendingShards = 16
+const invalidPendingChannelPanic = "transportv2/rpc: pending response channel must be buffered"
 
 // Response carries the payload or terminal error for a pending RPC request.
 type Response struct {
@@ -18,6 +19,12 @@ type PendingTable struct {
 	shards []pendingShard
 	// mask routes request ids to shards with id & mask.
 	mask uint64
+	// closeMu gates Store against FailAll so shutdown cannot leave new entries behind.
+	closeMu sync.RWMutex
+	// closed records that FailAll has moved the table into terminal failure state.
+	closed bool
+	// closeErr is delivered to later Store callers after the table is closed.
+	closeErr error
 }
 
 // pendingShard owns a subset of pending requests routed by request id.
@@ -45,11 +52,28 @@ func NewPendingTable(numShards int) *PendingTable {
 }
 
 // Store records the response channel for an in-flight RPC request.
+//
+// The caller must pass a non-nil buffered channel and must not close it while the
+// request is pending. PendingTable never closes caller-owned channels. After
+// FailAll closes the table, Store does not add an entry and instead attempts a
+// non-blocking error delivery to the provided channel.
 func (p *PendingTable) Store(id uint64, ch chan Response) {
+	if ch == nil || cap(ch) < 1 {
+		panic(invalidPendingChannelPanic)
+	}
+
+	p.closeMu.RLock()
+	if p.closed {
+		err := p.closeErr
+		p.closeMu.RUnlock()
+		trySend(ch, Response{Err: err})
+		return
+	}
 	shard := p.shardFor(id)
 	shard.mu.Lock()
 	shard.entries[id] = ch
 	shard.mu.Unlock()
+	p.closeMu.RUnlock()
 }
 
 // Delete removes a pending RPC request without sending a response.
@@ -60,7 +84,10 @@ func (p *PendingTable) Delete(id uint64) {
 	shard.mu.Unlock()
 }
 
-// Complete removes a pending RPC request and sends its response outside the shard lock.
+// Complete removes a pending RPC request and attempts non-blocking response delivery outside the shard lock.
+//
+// The return value reports whether the id existed and was removed, not whether
+// the response was delivered. Delivery is dropped when the caller channel is full.
 func (p *PendingTable) Complete(id uint64, resp Response) bool {
 	shard := p.shardFor(id)
 	shard.mu.Lock()
@@ -73,12 +100,20 @@ func (p *PendingTable) Complete(id uint64, resp Response) bool {
 	if !ok {
 		return false
 	}
-	ch <- resp
+	trySend(ch, resp)
 	return true
 }
 
-// FailAll removes all pending RPC requests and sends a non-blocking error response to each.
+// FailAll closes the table, removes all pending RPC requests, and attempts non-blocking error delivery.
+//
+// Once FailAll has run, later Store calls are rejected with the same terminal
+// error. Error delivery is dropped when a caller channel is full.
 func (p *PendingTable) FailAll(err error) {
+	p.closeMu.Lock()
+	if !p.closed {
+		p.closed = true
+		p.closeErr = err
+	}
 	for i := range p.shards {
 		shard := &p.shards[i]
 		shard.mu.Lock()
@@ -87,12 +122,10 @@ func (p *PendingTable) FailAll(err error) {
 		shard.mu.Unlock()
 
 		for _, ch := range entries {
-			select {
-			case ch <- Response{Err: err}:
-			default:
-			}
+			trySend(ch, Response{Err: err})
 		}
 	}
+	p.closeMu.Unlock()
 }
 
 // Len returns the total number of pending RPC requests across all shards.
@@ -113,4 +146,11 @@ func (p *PendingTable) shardFor(id uint64) *pendingShard {
 
 func isPowerOfTwo(n int) bool {
 	return n > 0 && n&(n-1) == 0
+}
+
+func trySend(ch chan Response, resp Response) {
+	select {
+	case ch <- resp:
+	default:
+	}
 }
