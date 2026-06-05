@@ -76,3 +76,55 @@ func TestClientSendWritesFrame(t *testing.T) {
 		t.Fatalf("body = %q, want hello", got)
 	}
 }
+
+func TestServerHandlesNotify(t *testing.T) {
+	server, err := NewServer(ServerConfig{
+		NodeID: 2,
+		Limits: DefaultLimits(),
+	})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	defer server.Stop()
+
+	received := make(chan []byte, 1)
+	if err := server.Handle(7, func(ctx context.Context, payload []byte) ([]byte, error) {
+		received <- append([]byte(nil), payload...)
+		return nil, nil
+	}, ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 1024}); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	if err := server.ListenAndServe("127.0.0.1:0"); err != nil {
+		t.Fatalf("ListenAndServe() error = %v", err)
+	}
+	if server.Addr() == "" {
+		t.Fatal("Addr() is empty after ListenAndServe")
+	}
+
+	client, err := NewClient(ClientConfig{
+		NodeID:    1,
+		Discovery: testDiscovery{2: server.Addr()},
+		PoolSize:  1,
+		Limits:    DefaultLimits(),
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Stop()
+
+	payload := []byte("notify")
+	if err := client.Notify(context.Background(), 2, 42, PriorityControl, 7, payload); err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
+	payload[0] = 'x'
+
+	select {
+	case got := <-received:
+		if string(got) != "notify" {
+			t.Fatalf("handler payload = %q, want notify", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for handler payload")
+	}
+}
