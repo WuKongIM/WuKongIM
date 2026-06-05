@@ -85,14 +85,22 @@ type Stats struct {
 
 // Limits bounds frame sizes, connection queues, batching, and I/O timeouts.
 type Limits struct {
-	MaxFrameBodyBytes     int
+	// MaxFrameBodyBytes is the maximum body size accepted for a single frame; it must be positive.
+	MaxFrameBodyBytes int
+	// MaxQueuedBytesPerConn is the per-connection queued byte budget; it must be positive.
 	MaxQueuedBytesPerConn int64
+	// MaxQueuedItemsPerConn is the per-connection queued item budget; it must be positive.
 	MaxQueuedItemsPerConn int
-	MaxBatchBytes         int
-	MaxBatchFrames        int
-	DialFailureCooldown   time.Duration
-	WriteTimeout          time.Duration
-	ReadIdleTimeout       time.Duration
+	// MaxBatchBytes is the maximum bytes written in one batch; it must be positive and no larger than MaxFrameBodyBytes.
+	MaxBatchBytes int
+	// MaxBatchFrames is the maximum frame count written in one batch; it must be positive.
+	MaxBatchFrames int
+	// DialFailureCooldown is the peer reconnect backoff after a dial failure; zero disables cooldown.
+	DialFailureCooldown time.Duration
+	// WriteTimeout bounds individual connection writes; zero disables the write deadline.
+	WriteTimeout time.Duration
+	// ReadIdleTimeout bounds idle reads; zero disables idle read timeout enforcement.
+	ReadIdleTimeout time.Duration
 }
 
 // Validate rejects impossible transport limits before runtime components start.
@@ -120,11 +128,16 @@ func (l Limits) Validate() error {
 
 // ServiceOptions configures a registered service worker pool and queue.
 type ServiceOptions struct {
-	Concurrency   int
-	QueueSize     int
+	// Concurrency is the number of workers for this service; it must be positive.
+	Concurrency int
+	// QueueSize is the maximum queued item count for this service; it must be positive.
+	QueueSize int
+	// MaxQueueBytes is the maximum queued payload bytes for this service; it must be positive.
 	MaxQueueBytes int64
-	Timeout       time.Duration
-	MaxPayload    int
+	// Timeout bounds handler execution for this service; zero disables per-request handler timeout.
+	Timeout time.Duration
+	// MaxPayload bounds accepted payload bytes for this service; zero means use the transport frame limit.
+	MaxPayload int
 }
 
 // Validate rejects service settings that would create unbounded or unusable work queues.
@@ -215,8 +228,10 @@ func (b OwnedBuffer) Release() {
 		return
 	}
 	b.state.once.Do(func() {
+		data := b.state.data
+		b.state.data = nil
 		if b.state.release != nil {
-			b.state.release(b.state.data)
+			b.state.release(data)
 		}
 	})
 }

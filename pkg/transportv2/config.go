@@ -19,21 +19,32 @@ type Dialer func(network, addr string, timeout time.Duration) (net.Conn, error)
 
 // ClientConfig configures outbound peer connections and limits.
 type ClientConfig struct {
-	NodeID      NodeID
-	Discovery   Discovery
-	PoolSize    int
+	// NodeID is the local cluster node ID used for outbound transport identity.
+	NodeID NodeID
+	// Discovery resolves remote node IDs before dialing; it is required.
+	Discovery Discovery
+	// PoolSize is the outbound connection count per peer; zero uses DefaultPoolSize.
+	PoolSize int
+	// DialTimeout bounds outbound dial attempts; zero uses DefaultDialTimeout.
 	DialTimeout time.Duration
-	Dialer      Dialer
-	Limits      Limits
-	Observer    Observer
+	// Dialer overrides the default network dial path; nil selects the package default.
+	Dialer Dialer
+	// Limits bounds frame, queue, batch, and timeout behavior; the all-zero value uses DefaultLimits.
+	Limits Limits
+	// Observer receives non-blocking transport observations; nil disables observation callbacks.
+	Observer Observer
 }
 
 // ServerConfig configures inbound transport service state.
 type ServerConfig struct {
-	NodeID   NodeID
-	Limits   Limits
+	// NodeID is the local cluster node ID used for inbound transport identity.
+	NodeID NodeID
+	// Limits bounds frame, queue, batch, and timeout behavior; the all-zero value uses DefaultLimits.
+	Limits Limits
+	// Observer receives non-blocking transport observations; nil disables observation callbacks.
 	Observer Observer
-	Logger   wklog.Logger
+	// Logger records server diagnostics; nil uses wklog.NewNop().
+	Logger wklog.Logger
 }
 
 // DefaultLimits returns conservative transport bounds for a single-node cluster or multi-node cluster.

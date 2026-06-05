@@ -29,6 +29,26 @@ func TestOwnedBufferReleaseOnce(t *testing.T) {
 	}
 }
 
+func TestOwnedBufferBytesAndLenAreEmptyAfterRelease(t *testing.T) {
+	original := []byte("abc")
+	var released []byte
+	buf := NewOwnedBuffer(original, func(data []byte) {
+		released = data
+	})
+
+	buf.Release()
+
+	if string(released) != "abc" {
+		t.Fatalf("released bytes = %q, want abc", released)
+	}
+	if got := buf.Bytes(); got != nil {
+		t.Fatalf("Bytes() after Release() = %q, want nil", got)
+	}
+	if got := buf.Len(); got != 0 {
+		t.Fatalf("Len() after Release() = %d, want 0", got)
+	}
+}
+
 func TestOwnedBufferCopyOwnsIndependentBytes(t *testing.T) {
 	src := []byte("payload")
 	copied := CopyOwnedBuffer(src)
