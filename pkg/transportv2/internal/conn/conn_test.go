@@ -251,7 +251,7 @@ func TestPendingRPCObservation(t *testing.T) {
 	defer peer.Close()
 
 	observer := &recordingObserver{}
-	c := New(raw, Config{Limits: testLimits(), Observer: observer, NodeID: 12}, nil)
+	c := New(raw, Config{Limits: testLimits(), Observer: observer, NodeID: 12, SourceID: 77}, nil)
 	c.Start()
 	defer c.Close(nil)
 
@@ -274,7 +274,7 @@ func TestPendingRPCObservation(t *testing.T) {
 	req := readPeerFrame(t, peer)
 	req.Body.Release()
 	waitConnEvent(t, observer, func(event core.Event) bool {
-		return event.Name == "pending_rpc" && event.NodeID == 12 && event.Inflight == 1
+		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 1
 	})
 
 	writePeerFrame(t, peer, wire.Frame{
@@ -294,7 +294,7 @@ func TestPendingRPCObservation(t *testing.T) {
 		t.Fatalf("payload = %q, want response", got.payload)
 	}
 	waitConnEvent(t, observer, func(event core.Event) bool {
-		return event.Name == "pending_rpc" && event.NodeID == 12 && event.Inflight == 0
+		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 0
 	})
 }
 

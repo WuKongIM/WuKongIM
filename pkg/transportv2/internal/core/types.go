@@ -69,6 +69,8 @@ type Event struct {
 	Name string
 	// NodeID is the peer or local node associated with the event.
 	NodeID NodeID
+	// SourceID identifies the connection-local source for aggregation; it is not exported as a metric label.
+	SourceID uint64
 	// Priority is the scheduling lane associated with the event.
 	Priority Priority
 	// ServiceID is the service associated with the event, when applicable.

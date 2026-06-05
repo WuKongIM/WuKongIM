@@ -27,6 +27,8 @@ type Config struct {
 	MaxBatchBytes int
 	// Observer receives scheduler pressure events; nil disables observation callbacks.
 	Observer core.Observer
+	// SourceID identifies the owning connection for aggregate metrics; it is not exported as a metric label.
+	SourceID uint64
 }
 
 // Item is one schedulable transport frame.
@@ -58,6 +60,7 @@ type Scheduler struct {
 	maxBatchFrames int
 	maxBatchBytes  int64
 	observer       core.Observer
+	sourceID       uint64
 
 	lanes       []lane
 	nextLane    int
@@ -87,6 +90,7 @@ func New(cfg Config) *Scheduler {
 		maxBatchFrames: maxBatchFrames,
 		maxBatchBytes:  int64(maxBatchBytes),
 		observer:       cfg.Observer,
+		sourceID:       cfg.SourceID,
 		lanes: []lane{
 			{priority: core.PriorityRaft, weight: 8},
 			{priority: core.PriorityControl, weight: 6},
@@ -196,10 +200,10 @@ func (s *Scheduler) WaitBatch() ([]Item, error) {
 // Stop marks the scheduler stopped, drains queued items back to caller ownership, and wakes all waiters.
 func (s *Scheduler) Stop(err error) []Item {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.stopped {
 		s.cond.Broadcast()
+		s.mu.Unlock()
 		return nil
 	}
 	if err == nil {
@@ -208,7 +212,11 @@ func (s *Scheduler) Stop(err error) []Item {
 	s.stopped = true
 	s.stopErr = err
 	drained := s.drainLocked()
+	events := s.stoppedQueueEventsLocked()
 	s.cond.Broadcast()
+	s.mu.Unlock()
+
+	s.observeAll(events)
 	return drained
 }
 
@@ -361,6 +369,7 @@ func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
 	}
 	return core.Event{
 		Name:          "scheduler_wait",
+		SourceID:      s.sourceID,
 		Priority:      item.Priority,
 		Result:        "ok",
 		Items:         s.queuedItems,
@@ -377,6 +386,7 @@ func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnaps
 	}
 	s.observer.ObserveTransport(core.Event{
 		Name:          "scheduler_admission",
+		SourceID:      s.sourceID,
 		Priority:      item.Priority,
 		Result:        result,
 		Items:         snapshot.items,
@@ -386,6 +396,7 @@ func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnaps
 	})
 	s.observer.ObserveTransport(core.Event{
 		Name:          "scheduler_queue",
+		SourceID:      s.sourceID,
 		Priority:      item.Priority,
 		Result:        result,
 		Items:         snapshot.items,
@@ -393,6 +404,21 @@ func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnaps
 		Bytes:         int(snapshot.bytes),
 		BytesCapacity: snapshot.bytesCapacity,
 	})
+}
+
+func (s *Scheduler) stoppedQueueEventsLocked() []core.Event {
+	events := make([]core.Event, 0, len(s.lanes))
+	for _, lane := range s.lanes {
+		events = append(events, core.Event{
+			Name:          "scheduler_queue",
+			SourceID:      s.sourceID,
+			Priority:      lane.priority,
+			Result:        "stopped",
+			Capacity:      s.maxItems,
+			BytesCapacity: s.maxBytes,
+		})
+	}
+	return events
 }
 
 func (s *Scheduler) observeAll(events []core.Event) {

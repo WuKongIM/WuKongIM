@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
@@ -42,6 +43,15 @@ type slotMetricsObserver struct {
 
 type transportV2MetricsObserver struct {
 	metrics *obsmetrics.Registry
+	mu      sync.Mutex
+
+	pendingRPCBySource     map[uint64]int
+	schedulerQueueBySource map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
+}
+
+type transportV2SchedulerQueueSource struct {
+	sourceID uint64
+	priority string
 }
 
 type controllerRaftMetricsObserver struct {
@@ -513,13 +523,13 @@ func (o slotMetricsObserver) ObserveSchedulerTask(task string, d time.Duration) 
 	o.metrics.RuntimePressure.ObserveTaskDuration("slot", "scheduler", task, "ok", d)
 }
 
-func (o transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
+func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 	if o.metrics == nil {
 		return
 	}
 	switch event.Name {
 	case "pending_rpc":
-		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", event.Inflight)
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", o.transportV2PendingRPCInflight(event))
 	case "peer_pool":
 		inflight := event.Inflight
 		if inflight == 0 {
@@ -528,7 +538,8 @@ func (o transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		o.metrics.RuntimePressure.SetPoolWorkers("transportv2", "peer_pool", event.Capacity)
 		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "peer_pool", inflight)
 	case "scheduler_queue":
-		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+		priority := transportV2PriorityLabel(event.Priority)
+		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
 	case "service_queue":
 		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
 	case "scheduler_admission":
@@ -547,6 +558,53 @@ func (o transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		}
 		o.metrics.RuntimePressure.SetPoolInflight("transportv2", pool, event.Inflight)
 	}
+}
+
+func (o *transportV2MetricsObserver) transportV2PendingRPCInflight(event transportv2.Event) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.pendingRPCBySource == nil {
+		o.pendingRPCBySource = make(map[uint64]int)
+	}
+	if event.Inflight <= 0 {
+		delete(o.pendingRPCBySource, event.SourceID)
+	} else {
+		o.pendingRPCBySource[event.SourceID] = event.Inflight
+	}
+	var total int
+	for _, inflight := range o.pendingRPCBySource {
+		total += inflight
+	}
+	return total
+}
+
+func (o *transportV2MetricsObserver) transportV2SchedulerQueue(priority string, event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.schedulerQueueBySource == nil {
+		o.schedulerQueueBySource = make(map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation)
+	}
+	key := transportV2SchedulerQueueSource{sourceID: event.SourceID, priority: priority}
+	switch event.Result {
+	case "closed", "stopped":
+		delete(o.schedulerQueueBySource, key)
+	default:
+		o.schedulerQueueBySource[key] = transportV2QueueObservation(event)
+	}
+
+	var total obsmetrics.RuntimePressureQueueObservation
+	for source, observation := range o.schedulerQueueBySource {
+		if source.priority != priority {
+			continue
+		}
+		total.Depth += observation.Depth
+		total.Capacity += observation.Capacity
+		total.Bytes += observation.Bytes
+		total.BytesCapacity += observation.BytesCapacity
+	}
+	return total
 }
 
 func (o controllerRaftMetricsObserver) SetStepQueueDepth(depth int, capacity int) {
@@ -1305,7 +1363,7 @@ var _ worker.TaskObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
-var _ transportv2.Observer = transportV2MetricsObserver{}
+var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}

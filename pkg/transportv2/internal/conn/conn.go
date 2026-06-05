@@ -23,6 +23,8 @@ type Config struct {
 	Observer core.Observer
 	// NodeID identifies the node associated with this connection's pressure events.
 	NodeID core.NodeID
+	// SourceID identifies this connection for aggregate metrics; zero assigns a process-local ID.
+	SourceID uint64
 }
 
 // Outbound is one caller-owned frame queued for connection writes.
@@ -95,9 +97,14 @@ type Conn struct {
 	writeDone chan struct{}
 }
 
+var nextSourceID atomic.Uint64
+
 // New creates a connection actor over raw.
 func New(raw net.Conn, cfg Config, dispatch Dispatch) *Conn {
 	ctx, cancel := context.WithCancel(context.Background())
+	if cfg.SourceID == 0 {
+		cfg.SourceID = nextSourceID.Add(1)
+	}
 	return &Conn{
 		raw:      raw,
 		cfg:      cfg,
@@ -108,6 +115,7 @@ func New(raw net.Conn, cfg Config, dispatch Dispatch) *Conn {
 			MaxBatchFrames: cfg.Limits.MaxBatchFrames,
 			MaxBatchBytes:  cfg.Limits.MaxBatchBytes,
 			Observer:       cfg.Observer,
+			SourceID:       cfg.SourceID,
 		}),
 		pending:   rpc.NewPendingTable(16),
 		ctx:       ctx,
@@ -312,6 +320,7 @@ func (c *Conn) observePendingRPC() {
 	c.cfg.Observer.ObserveTransport(core.Event{
 		Name:     "pending_rpc",
 		NodeID:   c.cfg.NodeID,
+		SourceID: c.cfg.SourceID,
 		Result:   "ok",
 		Inflight: c.pending.Len(),
 	})

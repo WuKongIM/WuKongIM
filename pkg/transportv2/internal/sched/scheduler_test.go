@@ -35,6 +35,7 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 		MaxBatchFrames: 1,
 		MaxBatchBytes:  10,
 		Observer:       observer,
+		SourceID:       77,
 	})
 
 	if err := s.Enqueue(context.Background(), Item{
@@ -62,7 +63,7 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 	if okAdmission == nil {
 		t.Fatalf("missing scheduler_admission ok event: %#v", events)
 	}
-	if okAdmission.Priority != core.PriorityRPC || okAdmission.Items != 1 || okAdmission.Capacity != 1 ||
+	if okAdmission.SourceID != 77 || okAdmission.Priority != core.PriorityRPC || okAdmission.Items != 1 || okAdmission.Capacity != 1 ||
 		okAdmission.Bytes != 3 || okAdmission.BytesCapacity != 10 {
 		t.Fatalf("scheduler_admission ok = %+v, want priority/items/capacity/bytes populated", *okAdmission)
 	}
@@ -71,7 +72,7 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 	if fullAdmission == nil {
 		t.Fatalf("missing scheduler_admission full event: %#v", events)
 	}
-	if fullAdmission.Priority != core.PriorityRPC || fullAdmission.Items != 1 || fullAdmission.Capacity != 1 ||
+	if fullAdmission.SourceID != 77 || fullAdmission.Priority != core.PriorityRPC || fullAdmission.Items != 1 || fullAdmission.Capacity != 1 ||
 		fullAdmission.Bytes != 3 || fullAdmission.BytesCapacity != 10 {
 		t.Fatalf("scheduler_admission full = %+v, want bounded full snapshot", *fullAdmission)
 	}
@@ -80,7 +81,7 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 	if queueEvent == nil {
 		t.Fatalf("missing scheduler_queue ok event: %#v", events)
 	}
-	if queueEvent.Priority != core.PriorityRPC || queueEvent.Items != 1 || queueEvent.Capacity != 1 ||
+	if queueEvent.SourceID != 77 || queueEvent.Priority != core.PriorityRPC || queueEvent.Items != 1 || queueEvent.Capacity != 1 ||
 		queueEvent.Bytes != 3 || queueEvent.BytesCapacity != 10 {
 		t.Fatalf("scheduler_queue ok = %+v, want queue state populated", *queueEvent)
 	}
@@ -89,14 +90,57 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 	if waitEvent == nil {
 		t.Fatalf("missing scheduler_wait ok event: %#v", events)
 	}
-	if waitEvent.Priority != core.PriorityRPC || waitEvent.Bytes != 3 || waitEvent.Duration < 0 {
+	if waitEvent.SourceID != 77 || waitEvent.Priority != core.PriorityRPC || waitEvent.Bytes != 3 || waitEvent.Duration < 0 {
 		t.Fatalf("scheduler_wait = %+v, want priority/bytes and non-negative duration", *waitEvent)
+	}
+}
+
+func TestSchedulerStopObservesSourceQueueClear(t *testing.T) {
+	observer := &recordingObserver{}
+	s := New(Config{
+		MaxItems:      4,
+		MaxBytes:      20,
+		MaxBatchBytes: 20,
+		Observer:      observer,
+		SourceID:      77,
+	})
+
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value:    "queued",
+	}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	drained := s.Stop(nil)
+	if len(drained) != 1 {
+		t.Fatalf("Stop() drained %d items, want 1", len(drained))
+	}
+
+	events := observer.snapshot()
+	stoppedQueue := findEventByPriority(events, "scheduler_queue", "stopped", core.PriorityRPC)
+	if stoppedQueue == nil {
+		t.Fatalf("missing scheduler_queue stopped event: %#v", events)
+	}
+	if stoppedQueue.SourceID != 77 || stoppedQueue.Priority != core.PriorityRPC ||
+		stoppedQueue.Items != 0 || stoppedQueue.Capacity != 4 ||
+		stoppedQueue.Bytes != 0 || stoppedQueue.BytesCapacity != 20 {
+		t.Fatalf("scheduler_queue stopped = %+v, want source-scoped zero queue", *stoppedQueue)
 	}
 }
 
 func findEvent(events []core.Event, name, result string) *core.Event {
 	for i := range events {
 		if events[i].Name == name && events[i].Result == result {
+			return &events[i]
+		}
+	}
+	return nil
+}
+
+func findEventByPriority(events []core.Event, name, result string, priority core.Priority) *core.Event {
+	for i := range events {
+		if events[i].Name == name && events[i].Result == result && events[i].Priority == priority {
 			return &events[i]
 		}
 	}
