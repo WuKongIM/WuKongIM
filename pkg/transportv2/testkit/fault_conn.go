@@ -34,7 +34,18 @@ func (c *BlockingConn) Read(_ []byte) (int, error) {
 func (c *BlockingConn) Write(p []byte) (int, error) {
 	closed, writeRelease := c.channels()
 	select {
+	case <-closed:
+		return 0, net.ErrClosed
+	default:
+	}
+
+	select {
 	case <-writeRelease:
+		select {
+		case <-closed:
+			return 0, net.ErrClosed
+		default:
+		}
 		return len(p), nil
 	case <-closed:
 		return 0, net.ErrClosed

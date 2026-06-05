@@ -16,6 +16,9 @@ func BenchmarkTransportV2RPC(b *testing.B) {
 
 	payload := []byte("benchmark-rpc")
 	ctx := context.Background()
+	if _, err := h.Client.Call(ctx, testkit.ServerNodeID, 0, transportv2.PriorityRPC, testkit.ServiceID, payload); err != nil {
+		b.Fatalf("warm-up Call() error = %v", err)
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
