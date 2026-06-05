@@ -145,6 +145,7 @@ pkg/
     multiraft/           Multi-Raft 基础库
     proxy/               基于 cluster 的分布式存储 / RPC facade
   transport/             节点间 transport / RPC 抽象与实现
+  transportv2/           新版节点间 transport / RPC 基础库，含 wire/conn/peer/rpc/sched/buffer/testkit
   wklog/                 通用日志接口与字段封装
 
 docs/
