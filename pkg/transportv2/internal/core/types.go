@@ -65,22 +65,34 @@ type Observer interface {
 
 // Event describes a transport lifecycle, scheduling, or service observation.
 type Event struct {
-	Name      string
-	NodeID    NodeID
-	Priority  Priority
+	// Name identifies the observed transport event.
+	Name string
+	// NodeID is the peer or local node associated with the event.
+	NodeID NodeID
+	// Priority is the scheduling lane associated with the event.
+	Priority Priority
+	// ServiceID is the service associated with the event, when applicable.
 	ServiceID uint16
-	Result    string
-	Bytes     int
-	Duration  time.Duration
+	// Result classifies the event outcome.
+	Result string
+	// Bytes is the payload or queue byte count associated with the event.
+	Bytes int
+	// Duration is the elapsed time associated with the event.
+	Duration time.Duration
 }
 
 // Stats is a point-in-time snapshot of transport counters.
 type Stats struct {
-	Peers       int
+	// Peers is the number of known peer nodes.
+	Peers int
+	// Connections is the number of active transport connections.
 	Connections int
+	// QueuedItems is the total number of queued outbound or service items.
 	QueuedItems int64
+	// QueuedBytes is the total number of queued payload bytes.
 	QueuedBytes int64
-	PendingRPC  int64
+	// PendingRPC is the number of RPC calls awaiting responses.
+	PendingRPC int64
 }
 
 // Limits bounds frame sizes, connection queues, batching, and I/O timeouts.
@@ -162,7 +174,9 @@ func (o ServiceOptions) Validate() error {
 
 // RemoteError is a structured error returned by a remote service handler.
 type RemoteError struct {
-	Code    string
+	// Code is a stable machine-readable remote error code.
+	Code string
+	// Message is the human-readable remote error detail.
 	Message string
 }
 
