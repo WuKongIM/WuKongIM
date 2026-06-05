@@ -34,6 +34,20 @@ type reactorRecordOnlySink struct{}
 
 func (reactorRecordOnlySink) RecordSendTrace(sendtrace.Event) {}
 
+type reactorDropDetailSink struct {
+	limits sendtrace.DetailLimits
+}
+
+func (s reactorDropDetailSink) RecordSendTrace(sendtrace.Event) {}
+
+func (s reactorDropDetailSink) KeepSendTraceDetail(sendtrace.DetailKey) sendtrace.DetailDecision {
+	return sendtrace.DetailDecision{}
+}
+
+func (s reactorDropDetailSink) SendTraceDetailLimits() sendtrace.DetailLimits {
+	return s.limits
+}
+
 type recordingTraceSink struct {
 	reactorDetailSink
 	events []sendtrace.Event
@@ -392,6 +406,60 @@ func TestAppendTraceBatchSelectionSkipsDetailDecisionForMessagesWithoutTraceID(t
 	require.Equal(t, "channel/1/cm9vbQ", sink.keys[0].ChannelKey)
 }
 
+func TestAppendTraceBatchSelectionDropDecisionDoesNotAllocateSidecars(t *testing.T) {
+	restore := sendtrace.SetSink(reactorDropDetailSink{
+		limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+	})
+	t.Cleanup(restore)
+	batch := appendBatch{
+		requests: []appendRequest{{
+			req: ch.AppendBatchRequest{
+				ChannelID:  ch.ChannelID{ID: "room", Type: 1},
+				ChannelKey: "channel/1/cm9vbQ",
+				Messages:   []ch.Message{{TraceID: "trace-drop", ChannelKey: "channel/1/cm9vbQ", Payload: []byte("x")}},
+			},
+			records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+		}},
+		records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+	}
+
+	traceBatch := selectAppendTraceBatch(batch)
+	require.Empty(t, traceBatch.items)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		_ = selectAppendTraceBatch(batch)
+	})
+	require.Zero(t, allocs)
+}
+
+func TestAppendTraceLazySelectionHonorsBatchMaxItemsAcrossRequests(t *testing.T) {
+	first := appendRequest{
+		opID: 1,
+		req: ch.AppendBatchRequest{
+			ChannelID:  ch.ChannelID{ID: "room", Type: 1},
+			ChannelKey: "channel/1/cm9vbQ",
+			Messages:   []ch.Message{{TraceID: "trace-earlier", ChannelKey: "channel/1/cm9vbQ"}},
+		},
+		records: []ch.Record{{ID: 1}},
+	}
+	second := appendRequest{
+		opID: 2,
+		req: ch.AppendBatchRequest{
+			ChannelID:  ch.ChannelID{ID: "room", Type: 1},
+			ChannelKey: "channel/1/cm9vbQ",
+			Messages:   []ch.Message{{TraceID: "trace-later", ChannelKey: "channel/1/cm9vbQ"}},
+		},
+		records: []ch.Record{{ID: 2}},
+	}
+	batch := appendBatch{
+		requests: []appendRequest{first, second},
+		records:  []ch.Record{{ID: 1}, {ID: 2}},
+	}
+
+	require.Len(t, lazyTraceItemsForRequest(first, batch, 1), 1)
+	require.Empty(t, lazyTraceItemsForRequest(second, batch, 1))
+}
+
 func TestAppendTraceDisabledPathDoesNotAllocate(t *testing.T) {
 	restore := sendtrace.SetSink(nil)
 	t.Cleanup(restore)
@@ -414,6 +482,8 @@ func TestAppendTraceDisabledPathDoesNotAllocate(t *testing.T) {
 }
 
 func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
+	restore := sendtrace.SetSink(nil)
+	t.Cleanup(restore)
 	batch := appendBatch{
 		requests: []appendRequest{{
 			req:     ch.AppendBatchRequest{Messages: []ch.Message{{TraceID: "trace-1"}}},
@@ -428,8 +498,8 @@ func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
 
 	require.Zero(t, allocs)
 
-	restore := sendtrace.SetSink(reactorRecordOnlySink{})
-	t.Cleanup(restore)
+	restoreRecordOnly := sendtrace.SetSink(reactorRecordOnlySink{})
+	t.Cleanup(restoreRecordOnly)
 
 	allocs = testing.AllocsPerRun(1000, func() {
 		_ = selectAppendTraceBatch(batch)
@@ -453,6 +523,7 @@ func BenchmarkAppendTraceSelectionDisabled(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = selectAppendTraceBatch(batch)
 	}

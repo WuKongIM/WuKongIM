@@ -56,9 +56,6 @@ func selectAppendTraceBatch(batch appendBatch) appendTraceBatch {
 	if !ok || limits.MaxItemsPerBatch <= 0 {
 		return appendTraceBatch{items: items}
 	}
-	if items == nil {
-		items = make([]appendTraceItem, 0, minInt(limits.MaxItemsPerBatch, requestsRecordCount(batch.requests)))
-	}
 	for reqIdx, req := range batch.requests {
 		if req.traceEvaluated {
 			continue
@@ -74,6 +71,9 @@ func selectAppendTraceBatch(batch appendBatch) appendTraceBatch {
 			decision, _, ok := sendtrace.DetailDecisionFor(key)
 			if !ok || !decision.Keep {
 				continue
+			}
+			if items == nil {
+				items = make([]appendTraceItem, 0, minInt(limits.MaxItemsPerBatch, requestsRecordCount(batch.requests)))
 			}
 			items = append(items, appendTraceItem{
 				traceID:        key.TraceID,
@@ -218,9 +218,13 @@ func lazyTraceItemsForRequest(req appendRequest, batch appendBatch, limit int) [
 	if reqIdx < 0 {
 		return nil
 	}
-	items := make([]appendTraceItem, 0, minInt(limit, len(req.req.Messages)))
+	remaining := limit - precedingLazyTraceCandidateCount(batch.requests, reqIdx, limit)
+	if remaining <= 0 {
+		return nil
+	}
+	items := make([]appendTraceItem, 0, minInt(remaining, len(req.req.Messages)))
 	for msgIdx, msg := range req.req.Messages {
-		if len(items) >= limit {
+		if len(items) >= remaining {
 			return items
 		}
 		key := appendMessageDetailKey(req.req, msg)
@@ -239,6 +243,26 @@ func lazyTraceItemsForRequest(req appendRequest, batch appendBatch, limit int) [
 		})
 	}
 	return items
+}
+
+func precedingLazyTraceCandidateCount(requests []appendRequest, beforeIdx int, limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	count := 0
+	for reqIdx := 0; reqIdx < beforeIdx && reqIdx < len(requests); reqIdx++ {
+		req := requests[reqIdx]
+		for _, msg := range req.req.Messages {
+			if appendMessageDetailKey(req.req, msg).TraceID == "" {
+				continue
+			}
+			count++
+			if count >= limit {
+				return count
+			}
+		}
+	}
+	return count
 }
 
 func appendRequestIndex(requests []appendRequest, opID ch.OpID) int {
