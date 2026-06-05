@@ -149,7 +149,7 @@ func BenchmarkServerSendDispatch(b *testing.B) {
 	b.ReportAllocs()
 	b.StartTimer()
 	for sent := 0; sent < b.N; {
-		// Keep a single-channel burst below the minimum shard capacity so the
+		// Keep a single-session burst below the minimum shard capacity so the
 		// benchmark measures dispatch cost instead of queue-overflow closure.
 		burst := min(sendDispatchBenchmarkBurst, b.N-sent)
 		handler.expectFrames(burst)

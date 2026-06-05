@@ -241,10 +241,25 @@ func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
 	}
 }
 
-func TestAdaptiveAsyncDispatchWorkerCountKeepsHotChannelBurstRoom(t *testing.T) {
+func TestAdaptiveAsyncDispatchWorkerCountKeepsSessionBurstRoom(t *testing.T) {
 	workers := adaptiveAsyncDispatchWorkerCount(10)
 	if got, want := asyncDispatchQueueCapacityPerShard(workers), asyncDispatchQueuePerWorker; got != want {
-		t.Fatalf("default shard capacity = %d, want %d for hot-channel bursts", got, want)
+		t.Fatalf("default shard capacity = %d, want %d for session bursts", got, want)
+	}
+}
+
+func TestAsyncSendDispatchShardsBySessionNotChannel(t *testing.T) {
+	const shards = 256
+	state := &sessionState{session: session.New(session.Config{ID: 42})}
+
+	first := asyncDispatchShardIndex(state, &frame.SendPacket{ChannelID: "channel-a", ChannelType: 2}, shards)
+	second := asyncDispatchShardIndex(state, &frame.SendPacket{ChannelID: "channel-b", ChannelType: 2}, shards)
+
+	if first != second {
+		t.Fatalf("shard indexes = %d/%d, want same session shard independent of channel", first, second)
+	}
+	if want := int(state.session.ID() % uint64(shards)); first != want {
+		t.Fatalf("shard index = %d, want session shard %d", first, want)
 	}
 }
 

@@ -248,9 +248,9 @@ OnData:
   ⑦ 认证完成后的业务 frame:
      - 若 OnSessionOpen 已开始但尚未返回，先等待 open lifecycle gate，保证 OnSessionOpen 先于 OnFrame
      - 记录 OnFrameIn
-     - SEND: 浅拷贝 packet 元数据后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
+     - SEND: 浅拷贝 packet 元数据后按 gateway session 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
        - shard 较多时按总缓冲槽位上限动态降低单 shard 容量，避免 worker 数扩张导致启动期常驻内存线性放大
-     - SEND 微批只作为入口批处理 hint；个人频道归一化、权限检查和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
+     - SEND 微批只作为入口批处理 hint；gateway 不按业务 channel 分组。个人频道归一化、权限检查、按 canonical channel 分组和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
      - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`
      - 其他 frame: 同步调用 dispatchFrame
      - SEND 队列满: 按 async_dispatch_queue_full 关闭当前 session

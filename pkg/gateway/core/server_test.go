@@ -1062,7 +1062,7 @@ func TestServer(t *testing.T) {
 		waitFor(t, func() bool { return handler.frameCount() == 2 })
 	})
 
-	t.Run("async SEND keeps same channel ordered on one shard", func(t *testing.T) {
+	t.Run("async SEND keeps same session ordered on one shard", func(t *testing.T) {
 		firstStarted := make(chan struct{})
 		releaseFirst := make(chan struct{})
 		secondStarted := make(chan struct{})
@@ -1121,7 +1121,7 @@ func TestServer(t *testing.T) {
 		}
 		select {
 		case <-secondStarted:
-			t.Fatal("second SEND for same channel started before first finished")
+			t.Fatal("second SEND for same session started before first finished")
 		case <-time.After(30 * time.Millisecond):
 		}
 

@@ -1508,7 +1508,7 @@ func cloneAuthConnectPacket(connect *frame.ConnectPacket) *frame.ConnectPacket {
 	return &cloned
 }
 
-// asyncDispatchQueue shards SEND work by routing key to avoid a single shared hot queue.
+// asyncDispatchQueue shards SEND work by gateway session to avoid a single shared hot queue.
 type asyncDispatchQueue struct {
 	mu       sync.RWMutex
 	shards   []asyncDispatchShard
@@ -1623,17 +1623,9 @@ func (q *asyncDispatchQueue) shardForSend(state *sessionState, send *frame.SendP
 	return q.shards[asyncDispatchShardIndex(state, send, len(q.shards))]
 }
 
-func asyncDispatchShardIndex(state *sessionState, f frame.Frame, shards int) int {
+func asyncDispatchShardIndex(state *sessionState, _ frame.Frame, shards int) int {
 	if shards <= 1 {
 		return 0
-	}
-
-	hash := uint64(1469598103934665603)
-	if send, ok := f.(*frame.SendPacket); ok && send != nil && send.ChannelID != "" {
-		hash = asyncDispatchHashString(hash, send.ChannelID)
-		hash ^= uint64(send.ChannelType)
-		hash *= 1099511628211
-		return int(hash % uint64(shards))
 	}
 
 	var id uint64
@@ -1646,14 +1638,6 @@ func asyncDispatchShardIndex(state *sessionState, f frame.Frame, shards int) int
 		return 0
 	}
 	return int(id % uint64(shards))
-}
-
-func asyncDispatchHashString(hash uint64, value string) uint64 {
-	for i := 0; i < len(value); i++ {
-		hash ^= uint64(value[i])
-		hash *= 1099511628211
-	}
-	return hash
 }
 
 func (q *asyncDispatchQueue) close() {

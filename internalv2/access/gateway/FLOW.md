@@ -61,6 +61,10 @@ OnFrame(RecvackPacket)
   -> call delivery.Recvack when delivery is configured
 ```
 
+`OnSendBatch` is a synchronous adapter. Gateway core already owns the bounded
+asynchronous SEND queue, so this package does not add another SEND queue or
+fire-and-forget SEND worker.
+
 Unauthenticated sends and nil message usecases are converted into sendacks
 instead of raw protocol errors. Unsupported frames other than SEND, PING, and
 RECVACK still return `ErrUnsupportedFrame`. Stale or malformed RECVACK frames
