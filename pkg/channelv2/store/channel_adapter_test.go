@@ -38,6 +38,35 @@ func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 2, HW: 8}, current)
 }
 
+func TestMessageDBTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "trace-not-persisted", Type: 1}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{ID: 10, Payload: []byte("payload"), SizeBytes: len("payload")}},
+		Sync:    true,
+	})
+	require.NoError(t, err)
+
+	committed, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, committed.Messages, 1)
+	require.Empty(t, committed.Messages[0].TraceID)
+	require.Empty(t, committed.Messages[0].ChannelKey)
+
+	lookup, ok := cs.(MessageLookup)
+	require.True(t, ok)
+	msg, found, err := lookup.LookupMessageByID(ctx, 10)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Empty(t, msg.TraceID)
+	require.Empty(t, msg.ChannelKey)
+}
+
 func TestMessageDBFactoryOptionsDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(MessageDBFactoryOptions{}).FieldByName("CommitNoSync")
 	require.False(t, ok)

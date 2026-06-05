@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -293,6 +295,126 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	}
 }
 
+func TestOnFrameSendTraceDisabledDoesNotGenerateTraceMetadata(t *testing.T) {
+	restore := sendtrace.SetSink(nil)
+	t.Cleanup(restore)
+	var generated int
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{Reason: message.ReasonSuccess},
+	}
+	handler := New(Options{
+		Messages:    usecase,
+		SendTimeout: time.Second,
+		TraceIDGenerator: func() string {
+			generated++
+			return "trace-disabled"
+		},
+	})
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "client-disabled", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if generated != 0 {
+		t.Fatalf("trace generator calls = %d, want 0 while sendtrace is disabled", generated)
+	}
+	if len(usecase.sendCommands) != 1 {
+		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
+	}
+	cmd := usecase.sendCommands[0]
+	if cmd.TraceID != "" || cmd.ChannelKey != "" {
+		t.Fatalf("trace fields = traceID:%q channelKey:%q, want empty", cmd.TraceID, cmd.ChannelKey)
+	}
+}
+
+func TestOnFrameSendTraceEnabledRecordsGatewaySendAndSendack(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{MessageID: 9, MessageSeq: 10, Reason: message.ReasonSuccess},
+	}
+	handler := New(Options{
+		Messages:         usecase,
+		SendTimeout:      time.Second,
+		OwnerNodeID:      7,
+		TraceIDGenerator: fixedTraceIDGenerator("trace-single"),
+	})
+	pkt := &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "client-traced", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+	wantChannelKey := sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(usecase.sendCommands) != 1 {
+		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
+	}
+	cmd := usecase.sendCommands[0]
+	if cmd.TraceID != "trace-single" || cmd.ChannelKey != wantChannelKey {
+		t.Fatalf("command trace fields = traceID:%q channelKey:%q, want trace-single/%q", cmd.TraceID, cmd.ChannelKey, wantChannelKey)
+	}
+	events := sink.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("sendtrace events = %#v, want 2", events)
+	}
+	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-single", wantChannelKey, "client-traced", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-single", wantChannelKey, "client-traced", "u1", sendtrace.ResultOK, "")
+	requireTraceNodeAndSeq(t, events[0], 7, 10)
+	requireTraceNodeAndSeq(t, events[1], 7, 10)
+}
+
+func TestWriteSendackTraceRecordsWriteError(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	writeErr := errors.New("write failed")
+	sess := session.New(session.Config{
+		ID: 100,
+		WriteFrameFn: func(frame.Frame, session.OutboundMeta) error {
+			return writeErr
+		},
+	})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{MessageID: 9, MessageSeq: 10, Reason: message.ReasonSuccess},
+	}
+	handler := New(Options{
+		Messages:         usecase,
+		SendTimeout:      time.Second,
+		OwnerNodeID:      8,
+		TraceIDGenerator: fixedTraceIDGenerator("trace-write-error"),
+	})
+	pkt := &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "client-write-error", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+	wantChannelKey := sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("OnFrame() error = %v, want %v", err, writeErr)
+	}
+	events := sink.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("sendtrace events = %#v, want 2", events)
+	}
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-write-error", wantChannelKey, "client-write-error", "u1", sendtrace.ResultError, "write_failed")
+	requireTraceNodeAndSeq(t, events[1], 8, 10)
+}
+
 func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 	sess := newTestSession(t, nil)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
@@ -536,6 +658,64 @@ func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	if got := metas[1].ReplyToken; got != "reply-2" {
 		t.Fatalf("second reply token = %q, want reply-2", got)
 	}
+}
+
+func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+			{Err: context.Canceled},
+		},
+	}
+	generator := sequenceTraceIDGenerator("trace-batch-")
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9, TraceIDGenerator: generator})
+	items := []coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch2", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch3", ChannelType: 2, Payload: []byte("three")},
+		},
+	}
+	wantFirstChannelKey := sendtrace.ChannelKeyFromID("ch1", 2)
+	wantSecondValidChannelKey := sendtrace.ChannelKeyFromID("ch3", 2)
+
+	err := handler.OnSendBatch(items)
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(usecase.batchItems) != 2 {
+		t.Fatalf("batch items = %d, want 2", len(usecase.batchItems))
+	}
+	if got := usecase.batchItems[0].Command; got.TraceID != "trace-batch-1" || got.ClientMsgNo != "a" || got.ChannelKey != wantFirstChannelKey {
+		t.Fatalf("first valid command trace alignment = %#v", got)
+	}
+	if got := usecase.batchItems[1].Command; got.TraceID != "trace-batch-3" || got.ClientMsgNo != "c" || got.ChannelKey != wantSecondValidChannelKey {
+		t.Fatalf("second valid command trace alignment = %#v", got)
+	}
+	events := sink.snapshot()
+	if len(events) != 5 {
+		t.Fatalf("sendtrace events = %#v, want 5", events)
+	}
+	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayMessagesSend, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultCanceled, sendackErrorClassCanceled)
+	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[3], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[4], sendtrace.StageGatewayWriteSendack, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultOK, "")
+	requireTraceNodeAndSeq(t, events[0], 9, 101)
+	requireTraceNodeAndSeq(t, events[2], 9, 101)
 }
 
 func TestOnSendBatchPassesSharedDeadlineWithoutReplacingRequestContext(t *testing.T) {
@@ -848,6 +1028,53 @@ type recordingSendackObserver struct {
 
 func (o *recordingSendackObserver) SendackWritten(event SendackEvent) {
 	o.events = append(o.events, event)
+}
+
+type recordingSendtraceSink struct {
+	events []sendtrace.Event
+}
+
+func (s *recordingSendtraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.events = append(s.events, event)
+}
+
+func (s *recordingSendtraceSink) snapshot() []sendtrace.Event {
+	return append([]sendtrace.Event(nil), s.events...)
+}
+
+func fixedTraceIDGenerator(traceID string) TraceIDGenerator {
+	return func() string {
+		return traceID
+	}
+}
+
+func sequenceTraceIDGenerator(prefix string) TraceIDGenerator {
+	var next int
+	return func() string {
+		next++
+		return prefix + strconv.Itoa(next)
+	}
+}
+
+func requireTraceEvent(t *testing.T, event sendtrace.Event, stage sendtrace.Stage, traceID, channelKey, clientMsgNo, fromUID string, result sendtrace.Result, errorCode string) {
+	t.Helper()
+	if event.Stage != stage {
+		t.Fatalf("trace event stage = %q, want %q in %#v", event.Stage, stage, event)
+	}
+	if event.TraceID != traceID || event.ChannelKey != channelKey || event.ClientMsgNo != clientMsgNo || event.FromUID != fromUID {
+		t.Fatalf("trace event identity = traceID:%q channelKey:%q clientMsgNo:%q fromUID:%q, want %q/%q/%q/%q",
+			event.TraceID, event.ChannelKey, event.ClientMsgNo, event.FromUID, traceID, channelKey, clientMsgNo, fromUID)
+	}
+	if event.Result != result || event.ErrorCode != errorCode {
+		t.Fatalf("trace event outcome = result:%q errorCode:%q, want %q/%q in %#v", event.Result, event.ErrorCode, result, errorCode, event)
+	}
+}
+
+func requireTraceNodeAndSeq(t *testing.T, event sendtrace.Event, nodeID uint64, messageSeq uint64) {
+	t.Helper()
+	if event.NodeID != nodeID || event.MessageSeq != messageSeq {
+		t.Fatalf("trace event node/seq = %d/%d, want %d/%d in %#v", event.NodeID, event.MessageSeq, nodeID, messageSeq, event)
+	}
 }
 
 type recordingDelivery struct {

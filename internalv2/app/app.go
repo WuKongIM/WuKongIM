@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
@@ -25,6 +26,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -75,7 +77,13 @@ type App struct {
 	presenceDirectory   *authoritypresence.Directory
 	presenceWorker      WorkerRuntime
 	metrics             *obsmetrics.Registry
-	logger              wklog.Logger
+	// diagnostics stores sampled send-path trace events for app-local queries.
+	diagnostics *obsdiagnostics.Store
+	// diagnosticsTracking stores dynamic diagnostics sampling rules.
+	diagnosticsTracking *obsdiagnostics.TrackingRules
+	// diagnosticsRestore restores the process-wide sendtrace sink installed by this app.
+	diagnosticsRestore func()
+	logger             wklog.Logger
 
 	lifecycleMu     sync.Mutex
 	started         bool
@@ -91,12 +99,22 @@ type App struct {
 // New creates an internalv2 App.
 func New(cfg Config, opts ...Option) (*App, error) {
 	app := &App{cfg: cfg}
+	constructionOK := false
+	defer func() {
+		if !constructionOK {
+			app.restoreDiagnosticsSink()
+		}
+	}()
 	app.cfg.Presence = defaultPresenceConfig(app.cfg.Presence)
 	if err := validatePresenceConfig(app.cfg.Presence); err != nil {
 		return nil, err
 	}
 	app.cfg.Delivery = defaultDeliveryConfig(app.cfg.Delivery)
 	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
+		return nil, err
+	}
+	app.cfg.Observability = defaultObservabilityConfig(app.cfg.Observability)
+	if err := validateObservabilityConfig(app.cfg.Observability); err != nil {
 		return nil, err
 	}
 	app.cfg.Log = defaultLogConfig(app.cfg.Log)
@@ -128,6 +146,17 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: app.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: app.metrics})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{metrics: app.metrics})
+	}
+	if cfg.Observability.Diagnostics.Enabled {
+		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
+		app.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
+		samplerOptions := diagnosticsSamplerOptions(cfg)
+		samplerOptions.TrackingRules = app.diagnosticsTracking
+		sink := obsdiagnostics.NewSendTraceSink(app.diagnostics, obsdiagnostics.NewSampler(samplerOptions))
+		if app.metrics != nil {
+			sink = sink.WithMetrics(app.metrics.Diagnostics)
+		}
+		app.diagnosticsRestore = sendtrace.SetSink(sink)
 	}
 	if app.cluster == nil {
 		node, err := clusterv2.New(clusterCfg)
@@ -317,6 +346,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		}
 		app.gateway = gw
 	}
+	constructionOK = true
 	return app, nil
 }
 

@@ -117,6 +117,17 @@ failure, and RPC latency path.
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.
+Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
+trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
+transient diagnostics data for sendtrace and RPC forwarding only. The reactor
+still converts messages to durable records using message id and payload, so
+trace metadata is not part of channel log storage, idempotency, or DB semantics.
+
+Leader-side deep sendtrace detail is gated by the active diagnostics detail
+sampler. The reactor builds bounded transient sidecars only for selected traced
+items, records leader queue/local durable/quorum wait stages from existing
+append timing points, and drops the sidecar before durable channel records or
+DB-compatible messages are written.
 
 The clusterv2-facing append stage metric keeps `runtime_append` as the aggregate
 facade call and also records service sub-stages: `runtime_append_reserve_wait`

@@ -24,11 +24,6 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer startCancel()
-	if err := app.Start(startCtx); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
 	t.Cleanup(func() {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stopCancel()
@@ -36,6 +31,11 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 	})
+	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
 
@@ -80,11 +80,6 @@ func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer startCancel()
-	if err := app.Start(startCtx); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
 	t.Cleanup(func() {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stopCancel()
@@ -92,6 +87,11 @@ func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 	})
+	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 	node, ok := app.cluster.(*clusterv2.Node)
 	if !ok {
 		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)

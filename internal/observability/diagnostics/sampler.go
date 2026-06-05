@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const DefaultDeepMaxItemsPerBatch = 16
+
 // SamplerOptions configures low-cost diagnostics event retention decisions.
 type SamplerOptions struct {
 	// SampleRate is the baseline keep probability for ordinary successful events.
@@ -22,6 +24,12 @@ type SamplerOptions struct {
 	TrackingRules *TrackingRules
 	// Now supplies time for debug-match TTL checks.
 	Now func() time.Time
+	// DeepSampleRate is the keep probability for expensive reactor/store detail sidecars.
+	DeepSampleRate float64
+	// DeepSlowThreshold enables lazy deep trace selection for slow reactor/store stages.
+	DeepSlowThreshold time.Duration
+	// DeepMaxItemsPerBatch bounds how many trace items one deep batch expands.
+	DeepMaxItemsPerBatch int
 }
 
 // DebugMatch defines one temporary high-priority diagnostics sampling rule.
@@ -35,22 +43,27 @@ type DebugMatch struct {
 }
 
 type debugRule struct {
-	match     DebugMatch
-	expiresAt time.Time
-	counter   atomic.Uint64
+	match         DebugMatch
+	expiresAt     time.Time
+	counter       atomic.Uint64
+	detailCounter atomic.Uint64
 }
 
 // Sampler makes bounded, lock-free keep/drop decisions after construction.
 type Sampler struct {
-	sampleRate         float64
-	slowThreshold      time.Duration
-	errorSampleRate    float64
-	errorSampleRateSet bool
-	debugRules         []*debugRule
-	trackingRules      *TrackingRules
-	now                func() time.Time
-	counter            atomic.Uint64
-	errorCounter       atomic.Uint64
+	sampleRate           float64
+	slowThreshold        time.Duration
+	errorSampleRate      float64
+	errorSampleRateSet   bool
+	deepSampleRate       float64
+	deepSlowThreshold    time.Duration
+	deepMaxItemsPerBatch int
+	debugRules           []*debugRule
+	trackingRules        *TrackingRules
+	now                  func() time.Time
+	counter              atomic.Uint64
+	errorCounter         atomic.Uint64
+	deepCounter          atomic.Uint64
 }
 
 // NewSampler builds an immutable sampler suitable for hot-path diagnostics calls.
@@ -66,14 +79,25 @@ func NewSampler(opts SamplerOptions) *Sampler {
 		}
 		rules = append(rules, &debugRule{match: match, expiresAt: now.Add(match.TTL)})
 	}
+	deepSlowThreshold := opts.DeepSlowThreshold
+	if deepSlowThreshold <= 0 {
+		deepSlowThreshold = opts.SlowThreshold
+	}
+	deepMaxItems := opts.DeepMaxItemsPerBatch
+	if deepMaxItems <= 0 {
+		deepMaxItems = DefaultDeepMaxItemsPerBatch
+	}
 	return &Sampler{
-		sampleRate:         opts.SampleRate,
-		slowThreshold:      opts.SlowThreshold,
-		errorSampleRate:    opts.ErrorSampleRate,
-		errorSampleRateSet: opts.ErrorSampleRateSet,
-		debugRules:         rules,
-		trackingRules:      opts.TrackingRules,
-		now:                opts.Now,
+		sampleRate:           opts.SampleRate,
+		slowThreshold:        opts.SlowThreshold,
+		errorSampleRate:      opts.ErrorSampleRate,
+		errorSampleRateSet:   opts.ErrorSampleRateSet,
+		deepSampleRate:       opts.DeepSampleRate,
+		deepSlowThreshold:    deepSlowThreshold,
+		deepMaxItemsPerBatch: deepMaxItems,
+		debugRules:           rules,
+		trackingRules:        opts.TrackingRules,
+		now:                  opts.Now,
 	}
 }
 
@@ -106,7 +130,40 @@ func (s *Sampler) Keep(event Event) (bool, string) {
 	return false, ""
 }
 
+// KeepDetail returns whether expensive deep SEND trace detail should be collected.
+func (s *Sampler) KeepDetail(event Event) (bool, string) {
+	if s == nil {
+		return false, ""
+	}
+	if s.trackingRules != nil && s.trackingRules.KeepDetail(event) {
+		return true, "debug"
+	}
+	if s.keepDebugDetail(event) {
+		return true, "debug"
+	}
+	if keepByRate(s.deepSampleRate, &s.deepCounter) {
+		return true, "sample"
+	}
+	return false, ""
+}
+
+// DetailLimits returns normalized slow-stage and item-count limits for deep tracing.
+func (s *Sampler) DetailLimits() (time.Duration, int) {
+	if s == nil {
+		return 0, 0
+	}
+	return s.deepSlowThreshold, s.deepMaxItemsPerBatch
+}
+
 func (s *Sampler) keepDebug(event Event) bool {
+	return s.keepDebugWithCounter(event, false)
+}
+
+func (s *Sampler) keepDebugDetail(event Event) bool {
+	return s.keepDebugWithCounter(event, true)
+}
+
+func (s *Sampler) keepDebugWithCounter(event Event, detail bool) bool {
 	if len(s.debugRules) == 0 {
 		return false
 	}
@@ -115,7 +172,11 @@ func (s *Sampler) keepDebug(event Event) bool {
 		if now.After(rule.expiresAt) || !debugMatches(rule.match, event) {
 			continue
 		}
-		if keepByRate(rule.match.SampleRate, &rule.counter) {
+		counter := &rule.counter
+		if detail {
+			counter = &rule.detailCounter
+		}
+		if keepByRate(rule.match.SampleRate, counter) {
 			return true
 		}
 	}

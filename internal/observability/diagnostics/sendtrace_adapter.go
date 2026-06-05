@@ -30,6 +30,30 @@ func (s *SendTraceSink) WithMetrics(metrics Metrics) *SendTraceSink {
 	return s
 }
 
+// KeepSendTraceDetail implements sendtrace.DetailSampler for expensive reactor/store detail.
+func (s *SendTraceSink) KeepSendTraceDetail(key sendtrace.DetailKey) sendtrace.DetailDecision {
+	if s == nil || s.sampler == nil {
+		return sendtrace.DetailDecision{}
+	}
+	keep, reason := s.sampler.KeepDetail(Event{
+		TraceID:     key.TraceID,
+		ChannelKey:  key.ChannelKey,
+		ClientMsgNo: key.ClientMsgNo,
+		FromUID:     key.FromUID,
+		Result:      ResultOK,
+	})
+	return sendtrace.DetailDecision{Keep: keep, Reason: reason}
+}
+
+// SendTraceDetailLimits implements sendtrace.DetailSampler.
+func (s *SendTraceSink) SendTraceDetailLimits() sendtrace.DetailLimits {
+	if s == nil || s.sampler == nil {
+		return sendtrace.DetailLimits{}
+	}
+	slow, maxItems := s.sampler.DetailLimits()
+	return sendtrace.DetailLimits{SlowThreshold: slow, MaxItemsPerBatch: maxItems}
+}
+
 // RecordSendTrace maps a sendtrace event into diagnostics and records it when sampled.
 func (s *SendTraceSink) RecordSendTrace(event sendtrace.Event) {
 	if s == nil || s.store == nil {

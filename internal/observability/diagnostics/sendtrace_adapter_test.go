@@ -90,6 +90,37 @@ func TestSendTraceAdapterUsesSenderTrackingAndRedactsUID(t *testing.T) {
 	require.Empty(t, result.Events[0].FromUID)
 }
 
+func TestSendTraceAdapterImplementsDetailSampler(t *testing.T) {
+	adapter := NewSendTraceSink(NewStore(StoreOptions{Capacity: 8}), NewSampler(SamplerOptions{
+		DeepSampleRate:       1,
+		DeepSlowThreshold:    750 * time.Millisecond,
+		DeepMaxItemsPerBatch: 4,
+	}))
+
+	decision := adapter.KeepSendTraceDetail(sendtrace.DetailKey{TraceID: "trace-detail"})
+	limits := adapter.SendTraceDetailLimits()
+
+	require.True(t, decision.Keep)
+	require.Equal(t, "sample", decision.Reason)
+	require.Equal(t, 750*time.Millisecond, limits.SlowThreshold)
+	require.Equal(t, 4, limits.MaxItemsPerBatch)
+}
+
+func TestSendTraceAdapterDetailSamplerUsesTrackingRules(t *testing.T) {
+	rules := NewTrackingRules(TrackingRulesOptions{})
+	_, err := rules.Add(TrackingRuleInput{ID: "channel", Target: TrackingTargetChannel, ChannelKey: "channel/1/cm9vbQ", TTL: time.Minute, SampleRate: 1})
+	require.NoError(t, err)
+	adapter := NewSendTraceSink(NewStore(StoreOptions{Capacity: 8}), NewSampler(SamplerOptions{
+		DeepSampleRate: 0,
+		TrackingRules:  rules,
+	}))
+
+	decision := adapter.KeepSendTraceDetail(sendtrace.DetailKey{ChannelKey: "channel/1/cm9vbQ"})
+
+	require.True(t, decision.Keep)
+	require.Equal(t, "debug", decision.Reason)
+}
+
 func BenchmarkSendTraceAdapterUnsampled(b *testing.B) {
 	store := NewStore(StoreOptions{Capacity: 1024})
 	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 0, SlowThreshold: time.Hour}))

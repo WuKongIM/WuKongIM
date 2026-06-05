@@ -10,6 +10,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 func TestSendRejectsInvalidCommandsAndDoesNotAppend(t *testing.T) {
@@ -80,6 +81,42 @@ func TestSendBatchAllocatesIDsAppendsAndPreservesOrder(t *testing.T) {
 	}
 	if got := string(appender.requests[0].Messages[0].Payload); got != "one" {
 		t.Fatalf("first appended payload = %q, want one", got)
+	}
+}
+
+func TestAppendRequestCarriesSendTraceMetadata(t *testing.T) {
+	appender := &recordingAppender{}
+	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 100}})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ClientMsgNo: "m1", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		{Command: SendCommand{FromUID: "u1", ClientMsgNo: "m2", TraceID: "trace-two", ChannelKey: "channel/key-two", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+		{Command: SendCommand{FromUID: "u1", ClientMsgNo: "m3", TraceID: "trace-three", ChannelKey: "channel/key-three", ChannelID: "room", ChannelType: 1, Payload: []byte("three")}},
+	})
+
+	for i, result := range results {
+		if result.Err != nil || result.Result.Reason != ReasonSuccess {
+			t.Fatalf("result[%d] = %#v, want success", i, result)
+		}
+	}
+	if got := len(appender.requests); got != 1 {
+		t.Fatalf("append requests = %d, want 1", got)
+	}
+	req := appender.requests[0]
+	if req.TraceID != "trace-two" || req.ChannelKey != "channel/key-two" {
+		t.Fatalf("request trace fields = %q/%q, want trace-two/channel/key-two", req.TraceID, req.ChannelKey)
+	}
+	if req.Attempt != 1 {
+		t.Fatalf("request attempt = %d, want 1", req.Attempt)
+	}
+	if req.Messages[0].TraceID != "" || req.Messages[0].ChannelKey != "" {
+		t.Fatalf("first message trace fields = %q/%q, want empty", req.Messages[0].TraceID, req.Messages[0].ChannelKey)
+	}
+	if req.Messages[1].TraceID != "trace-two" || req.Messages[1].ChannelKey != "channel/key-two" {
+		t.Fatalf("second message trace fields = %q/%q, want trace-two/channel/key-two", req.Messages[1].TraceID, req.Messages[1].ChannelKey)
+	}
+	if req.Messages[2].TraceID != "trace-three" || req.Messages[2].ChannelKey != "channel/key-three" {
+		t.Fatalf("third message trace fields = %q/%q, want trace-three/channel/key-three", req.Messages[2].TraceID, req.Messages[2].ChannelKey)
 	}
 }
 
@@ -376,6 +413,148 @@ func TestSendBatchObservesAppendItemResults(t *testing.T) {
 	}
 }
 
+func TestSendBatchRecordsDurableTraceOnSuccess(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 10}})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:      "u1",
+		SenderNodeID: 7,
+		ClientMsgNo:  "client-1",
+		TraceID:      "trace-1",
+		ChannelKey:   "channel/key-1",
+		ChannelID:    "room",
+		ChannelType:  1,
+		Payload:      []byte("payload"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess || result.MessageSeq != 1 {
+		t.Fatalf("Send() result = %#v, want success seq=1", result)
+	}
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("sendtrace events = %#v, want 1", events)
+	}
+	requireDurableTraceEvent(t, events[0], "trace-1", "channel/key-1", "client-1", "u1", 7, 1, sendtrace.ResultOK, "")
+}
+
+func TestSendBatchRecordsDurableTraceOnBatchAppendError(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	app := New(Options{Appender: &recordingAppender{err: ErrRouteNotReady}, MessageID: &sequenceIDs{next: 10}})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", SenderNodeID: 7, ClientMsgNo: "a", TraceID: "trace-a", ChannelKey: "channel/key-a", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		{Command: SendCommand{FromUID: "u1", SenderNodeID: 7, ClientMsgNo: "b", TraceID: "trace-b", ChannelKey: "channel/key-b", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+	})
+
+	for i, result := range results {
+		if !errors.Is(result.Err, ErrRouteNotReady) {
+			t.Fatalf("result[%d] err = %v, want route-not-ready", i, result.Err)
+		}
+	}
+	events := sink.snapshot()
+	if got := len(events); got != 2 {
+		t.Fatalf("sendtrace events = %#v, want 2", events)
+	}
+	requireDurableTraceEvent(t, events[0], "trace-a", "channel/key-a", "a", "u1", 7, 0, sendtrace.ResultError, "route_not_ready")
+	requireDurableTraceEvent(t, events[1], "trace-b", "channel/key-b", "b", "u1", 7, 0, sendtrace.ResultError, "route_not_ready")
+}
+
+func TestSendBatchRecordsDurableTraceOnItemErrorAndShortResult(t *testing.T) {
+	t.Run("item error", func(t *testing.T) {
+		sink := &recordingSendtraceSink{}
+		restore := sendtrace.SetSink(sink)
+		t.Cleanup(restore)
+		app := New(Options{Appender: &recordingAppender{itemErrs: []error{ErrBackpressured}}, MessageID: &sequenceIDs{next: 10}})
+
+		results := app.SendBatch([]SendBatchItem{
+			{Command: SendCommand{FromUID: "u1", SenderNodeID: 7, ClientMsgNo: "item", TraceID: "trace-item", ChannelKey: "channel/key-item", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+		})
+
+		if results[0].Result.Reason != ReasonSystemError {
+			t.Fatalf("result = %#v, want system error", results[0])
+		}
+		events := sink.snapshot()
+		if got := len(events); got != 1 {
+			t.Fatalf("sendtrace events = %#v, want 1", events)
+		}
+		requireDurableTraceEvent(t, events[0], "trace-item", "channel/key-item", "item", "u1", 7, 1, sendtrace.ResultError, "backpressured")
+	})
+
+	t.Run("short result", func(t *testing.T) {
+		sink := &recordingSendtraceSink{}
+		restore := sendtrace.SetSink(sink)
+		t.Cleanup(restore)
+		app := New(Options{Appender: &recordingAppender{resultLimit: 1}, MessageID: &sequenceIDs{next: 10}})
+
+		results := app.SendBatch([]SendBatchItem{
+			{Command: SendCommand{FromUID: "u1", SenderNodeID: 7, ClientMsgNo: "ok", TraceID: "trace-ok", ChannelKey: "channel/key-ok", ChannelID: "room", ChannelType: 1, Payload: []byte("one")}},
+			{Command: SendCommand{FromUID: "u1", SenderNodeID: 7, ClientMsgNo: "missing", TraceID: "trace-missing", ChannelKey: "channel/key-missing", ChannelID: "room", ChannelType: 1, Payload: []byte("two")}},
+		})
+
+		if results[0].Result.Reason != ReasonSuccess {
+			t.Fatalf("first result = %#v, want success", results[0])
+		}
+		if !errors.Is(results[1].Err, ErrAppendResultMissing) {
+			t.Fatalf("second err = %v, want append result missing", results[1].Err)
+		}
+		events := sink.snapshot()
+		if got := len(events); got != 2 {
+			t.Fatalf("sendtrace events = %#v, want 2", events)
+		}
+		requireDurableTraceEvent(t, events[0], "trace-ok", "channel/key-ok", "ok", "u1", 7, 1, sendtrace.ResultOK, "")
+		requireDurableTraceEvent(t, events[1], "trace-missing", "channel/key-missing", "missing", "u1", 7, 0, sendtrace.ResultError, "append_result_missing")
+	})
+}
+
+func TestSendBatchDoesNotRecordDurableTraceWithoutTraceIDOrSink(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 10}})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:      "u1",
+		SenderNodeID: 7,
+		ClientMsgNo:  "client-1",
+		ChannelKey:   "channel/key-1",
+		ChannelID:    "room",
+		ChannelType:  1,
+		Payload:      []byte("payload"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	if events := sink.snapshot(); len(events) != 0 {
+		t.Fatalf("sendtrace events = %#v, want none without trace id", events)
+	}
+
+	restore()
+	_, err = app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ClientMsgNo: "client-2",
+		TraceID:     "trace-disabled",
+		ChannelKey:  "channel/key-disabled",
+		ChannelID:   "room",
+		ChannelType: 1,
+		Payload:     []byte("payload"),
+	})
+	if err != nil {
+		t.Fatalf("Send() without active sink error = %v", err)
+	}
+}
+
 func TestSendBatchObservesShortAppendResult(t *testing.T) {
 	observer := &recordingObserver{}
 	appender := &recordingAppender{resultLimit: 1}
@@ -420,6 +599,9 @@ func TestSendBatchRetriesTransientBatchAppendErrorsBeforeDeadline(t *testing.T) 
 	}
 	if appender.calls != 2 {
 		t.Fatalf("append calls = %d, want initial attempt plus retry", appender.calls)
+	}
+	if got := []int{appender.requests[0].Attempt, appender.requests[1].Attempt}; got[0] != 1 || got[1] != 2 {
+		t.Fatalf("append attempts = %v, want [1 2]", got)
 	}
 }
 
@@ -824,4 +1006,41 @@ func (o *recordingObserver) CommittedSinkError(SendCommand, error) {
 
 func (o *recordingObserver) AppendFinished(path string, err error, dur time.Duration) {
 	o.appendEvents = append(o.appendEvents, appendObservation{path: path, err: err, dur: dur})
+}
+
+type recordingSendtraceSink struct {
+	mu     sync.Mutex
+	events []sendtrace.Event
+}
+
+func (s *recordingSendtraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, event)
+}
+
+func (s *recordingSendtraceSink) snapshot() []sendtrace.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]sendtrace.Event(nil), s.events...)
+}
+
+func requireDurableTraceEvent(t *testing.T, event sendtrace.Event, traceID, channelKey, clientMsgNo, fromUID string, nodeID uint64, messageSeq uint64, result sendtrace.Result, errorCode string) {
+	t.Helper()
+	if event.Stage != sendtrace.StageMessageSendDurable {
+		t.Fatalf("stage = %q, want %q", event.Stage, sendtrace.StageMessageSendDurable)
+	}
+	if event.TraceID != traceID || event.ChannelKey != channelKey || event.ClientMsgNo != clientMsgNo || event.FromUID != fromUID {
+		t.Fatalf("trace fields = %q/%q/%q/%q, want %q/%q/%q/%q",
+			event.TraceID, event.ChannelKey, event.ClientMsgNo, event.FromUID, traceID, channelKey, clientMsgNo, fromUID)
+	}
+	if event.NodeID != nodeID {
+		t.Fatalf("NodeID = %d, want %d", event.NodeID, nodeID)
+	}
+	if event.MessageSeq != messageSeq {
+		t.Fatalf("MessageSeq = %d, want %d", event.MessageSeq, messageSeq)
+	}
+	if event.Result != result || event.ErrorCode != errorCode {
+		t.Fatalf("outcome = %q/%q, want %q/%q", event.Result, event.ErrorCode, result, errorCode)
+	}
 }

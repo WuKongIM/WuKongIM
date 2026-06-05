@@ -72,3 +72,26 @@ func TestMemoryStoreApplyFollowerSkipsDuplicatePrefix(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, logRes.Records, 3)
 }
+
+func TestTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMemoryFactory()
+	id := ch.ChannelID{ID: "trace-not-persisted", Type: 1}
+	key := ch.ChannelKeyForID(id)
+	cs, err := factory.ChannelStore(key, id)
+	require.NoError(t, err)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{ID: 10, Payload: []byte("payload"), SizeBytes: len("payload")}},
+		Sync:    true,
+	})
+	require.NoError(t, err)
+
+	lookup, ok := cs.(MessageLookup)
+	require.True(t, ok)
+	msg, found, err := lookup.LookupMessageByID(ctx, 10)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Empty(t, msg.TraceID)
+	require.Empty(t, msg.ChannelKey)
+}

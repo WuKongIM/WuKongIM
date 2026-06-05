@@ -1,6 +1,8 @@
 package sendtrace
 
 import (
+	"encoding/base64"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
@@ -90,6 +92,40 @@ type Event struct {
 	QueueDepth int
 }
 
+// DetailKey identifies one high-cardinality SEND trace candidate before event construction.
+type DetailKey struct {
+	// TraceID correlates diagnostics events that belong to one SEND.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier.
+	ChannelKey string
+	// ClientMsgNo is the client idempotency key.
+	ClientMsgNo string
+	// FromUID is the sender UID used for debug/tracking matches.
+	FromUID string
+}
+
+// DetailDecision reports whether expensive deep trace detail should be collected.
+type DetailDecision struct {
+	// Keep reports whether the caller should build and retain a deep trace sidecar.
+	Keep bool
+	// Reason is a stable low-cardinality reason such as debug or sample.
+	Reason string
+}
+
+// DetailLimits bounds deep trace work in hot paths.
+type DetailLimits struct {
+	// SlowThreshold allows lazy deep trace selection for slow completed stages.
+	SlowThreshold time.Duration
+	// MaxItemsPerBatch bounds how many traced items one batch may expand into events.
+	MaxItemsPerBatch int
+}
+
+// DetailSampler is optionally implemented by sinks that can gate expensive deep trace detail.
+type DetailSampler interface {
+	KeepSendTraceDetail(DetailKey) DetailDecision
+	SendTraceDetailLimits() DetailLimits
+}
+
 func (e Event) ContainsMessageSeq(seq uint64) bool {
 	if e.MessageSeq == seq {
 		return true
@@ -105,6 +141,20 @@ func Elapsed(start, end time.Time) time.Duration {
 		return 0
 	}
 	return end.Sub(start)
+}
+
+// ChannelKeyFromID returns the diagnostics-safe channel key for a channel id and type.
+func ChannelKeyFromID(channelID string, channelType uint8) string {
+	if channelID == "" || channelType == 0 {
+		return ""
+	}
+	encodedID := base64.RawURLEncoding.EncodeToString([]byte(channelID))
+	buf := make([]byte, 0, len("channel/")+4+1+len(encodedID))
+	buf = append(buf, "channel/"...)
+	buf = strconv.AppendUint(buf, uint64(channelType), 10)
+	buf = append(buf, '/')
+	buf = append(buf, encodedID...)
+	return string(buf)
 }
 
 // Sink receives send trace events from hot-path instrumentation.
@@ -129,6 +179,47 @@ func SetSink(sink Sink) func() {
 func Enabled() bool {
 	holder := activeSink.Load()
 	return holder != nil && holder.sink != nil
+}
+
+// DetailDecisionFor asks the active sink whether deep detail should be collected for key.
+func DetailDecisionFor(key DetailKey) (DetailDecision, DetailLimits, bool) {
+	sampler, ok := activeDetailSampler()
+	if !ok {
+		return DetailDecision{}, DetailLimits{}, false
+	}
+	limits := normalizeDetailLimits(sampler.SendTraceDetailLimits())
+	return sampler.KeepSendTraceDetail(key), limits, true
+}
+
+// ActiveDetailLimits returns deep trace limits from the active sink when supported.
+func ActiveDetailLimits() (DetailLimits, bool) {
+	sampler, ok := activeDetailSampler()
+	if !ok {
+		return DetailLimits{}, false
+	}
+	return normalizeDetailLimits(sampler.SendTraceDetailLimits()), true
+}
+
+func activeDetailSampler() (DetailSampler, bool) {
+	holder := activeSink.Load()
+	if holder == nil || holder.sink == nil {
+		return nil, false
+	}
+	sampler, ok := holder.sink.(DetailSampler)
+	if !ok {
+		return nil, false
+	}
+	return sampler, true
+}
+
+func normalizeDetailLimits(limits DetailLimits) DetailLimits {
+	if limits.SlowThreshold < 0 {
+		limits.SlowThreshold = 0
+	}
+	if limits.MaxItemsPerBatch < 0 {
+		limits.MaxItemsPerBatch = 0
+	}
+	return limits
 }
 
 func Record(event Event) {

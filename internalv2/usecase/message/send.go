@@ -8,6 +8,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const channelTypePerson uint8 = 1
@@ -17,8 +18,22 @@ const maxConcurrentAppendSegments = 64
 
 const appendRetryInitialBackoff = 5 * time.Millisecond
 const appendRetryMaxBackoff = 100 * time.Millisecond
+const appendInitialAttempt = 1
 
 const appendMetricPathChannelPlane = "channelplane"
+
+const (
+	sendTraceErrorCodeRouteNotReady       = "route_not_ready"
+	sendTraceErrorCodeStaleRoute          = "stale_route"
+	sendTraceErrorCodeNotLeader           = "not_leader"
+	sendTraceErrorCodeChannelNotFound     = "channel_not_found"
+	sendTraceErrorCodeBackpressured       = "backpressured"
+	sendTraceErrorCodeAppendResultMissing = "append_result_missing"
+	sendTraceErrorCodeAppendFailed        = "append_failed"
+	sendTraceErrorCodeCanceled            = "canceled"
+	sendTraceErrorCodeTimeout             = "timeout"
+	sendTraceErrorCodeOther               = "other"
+)
 
 // Send processes one send command.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
@@ -163,23 +178,33 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 		return
 	}
 	backoff := appendRetryInitialBackoff
+	attempt := appendInitialAttempt
 	for {
-		req := a.appendRequest(segment.channel, active)
+		req := a.appendRequest(segment.channel, active, attempt)
 		ctx, cancel := segmentContext(active)
-		startedAt := time.Now()
+		measureAppendDur := a.needsAppendDuration(active)
+		var startedAt time.Time
+		if measureAppendDur {
+			startedAt = time.Now()
+		}
 		res, err := a.appender.AppendBatch(ctx, req)
-		appendDur := time.Since(startedAt)
+		var appendDur time.Duration
+		if measureAppendDur {
+			appendDur = sendtrace.Elapsed(startedAt, time.Now())
+		}
 		cancel()
 		if err != nil {
 			if retryableAppendBatchError(err) {
 				nextBackoff, ok := waitBeforeAppendRetry(active, backoff)
 				if ok {
 					backoff = nextBackoff
+					attempt++
 					continue
 				}
 			}
 			for _, item := range active {
 				a.observeAppend(appendMetricPathChannelPlane, err, appendDur)
+				recordAppendDurableTrace(item, 0, err, appendDur)
 				results[item.index] = SendBatchItemResult{Err: err}
 			}
 			return
@@ -187,15 +212,18 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 		for i, item := range active {
 			if i >= len(res.Items) {
 				a.observeAppend(appendMetricPathChannelPlane, ErrAppendResultMissing, appendDur)
+				recordAppendDurableTrace(item, 0, ErrAppendResultMissing, appendDur)
 				results[item.index] = SendBatchItemResult{Err: ErrAppendResultMissing}
 				continue
 			}
 			appended := res.Items[i]
 			a.observeAppend(appendMetricPathChannelPlane, appended.Err, appendDur)
 			if appended.Err != nil {
+				recordAppendDurableTrace(item, appended.MessageSeq, appended.Err, appendDur)
 				results[item.index] = SendBatchItemResult{Result: SendResult{Reason: reasonForAppendError(appended.Err)}}
 				continue
 			}
+			recordAppendDurableTrace(item, appended.MessageSeq, nil, appendDur)
 			result := SendResult{MessageID: appended.MessageID, MessageSeq: appended.MessageSeq, Reason: ReasonSuccess}
 			a.submitCommitted(item.ctx, item.cmd, appended)
 			results[item.index] = SendBatchItemResult{Result: result}
@@ -204,20 +232,32 @@ func (a *App) appendSegment(segment segment, results []SendBatchItemResult) {
 	}
 }
 
-func (a *App) appendRequest(channel ChannelID, active []preparedSend) AppendBatchRequest {
+func (a *App) appendRequest(channel ChannelID, active []preparedSend, attempt int) AppendBatchRequest {
+	if attempt <= 0 {
+		attempt = appendInitialAttempt
+	}
 	req := AppendBatchRequest{
 		ChannelID:         channel,
 		Messages:          make([]Message, 0, len(active)),
+		Attempt:           attempt,
 		CommitMode:        CommitModeQuorum,
 		OmitResultPayload: a == nil || a.committed == nil,
 	}
 	for _, item := range active {
+		if req.TraceID == "" && item.cmd.TraceID != "" {
+			req.TraceID = item.cmd.TraceID
+		}
+		if req.ChannelKey == "" && item.cmd.ChannelKey != "" {
+			req.ChannelKey = item.cmd.ChannelKey
+		}
 		req.Messages = append(req.Messages, Message{
 			MessageID:   item.cmd.MessageID,
 			ChannelID:   item.cmd.ChannelID,
 			ChannelType: item.cmd.ChannelType,
 			FromUID:     item.cmd.FromUID,
 			ClientMsgNo: item.cmd.ClientMsgNo,
+			TraceID:     item.cmd.TraceID,
+			ChannelKey:  item.cmd.ChannelKey,
 			Payload:     cloneBytes(item.cmd.Payload),
 		})
 	}
@@ -226,6 +266,84 @@ func (a *App) appendRequest(channel ChannelID, active []preparedSend) AppendBatc
 
 func retryableAppendBatchError(err error) bool {
 	return errors.Is(err, ErrRouteNotReady) || errors.Is(err, ErrNotLeader) || errors.Is(err, ErrStaleRoute)
+}
+
+func (a *App) needsAppendDuration(items []preparedSend) bool {
+	if a.hasAppendObserver() {
+		return true
+	}
+	for _, item := range items {
+		if item.cmd.TraceID != "" && sendtrace.Enabled() {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) hasAppendObserver() bool {
+	if a == nil || a.observer == nil {
+		return false
+	}
+	_, ok := a.observer.(AppendObserver)
+	return ok
+}
+
+func recordAppendDurableTrace(item preparedSend, messageSeq uint64, err error, duration time.Duration) {
+	cmd := item.cmd
+	if cmd.TraceID == "" || !sendtrace.Enabled() {
+		return
+	}
+	result, errorCode := sendTraceResultForError(err)
+	event := sendtrace.Event{
+		Stage:       sendtrace.StageMessageSendDurable,
+		TraceID:     cmd.TraceID,
+		Duration:    duration,
+		NodeID:      cmd.SenderNodeID,
+		ChannelKey:  cmd.ChannelKey,
+		ClientMsgNo: cmd.ClientMsgNo,
+		MessageSeq:  messageSeq,
+		FromUID:     cmd.FromUID,
+		Result:      result,
+		ErrorCode:   errorCode,
+	}
+	if err != nil {
+		event.Error = err.Error()
+	}
+	sendtrace.Record(event)
+}
+
+func sendTraceResultForError(err error) (sendtrace.Result, string) {
+	switch {
+	case err == nil:
+		return sendtrace.ResultOK, ""
+	case errors.Is(err, context.Canceled):
+		return sendtrace.ResultCanceled, sendTraceErrorCodeCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return sendtrace.ResultTimeout, sendTraceErrorCodeTimeout
+	default:
+		return sendtrace.ResultError, sendTraceErrorCodeForAppendError(err)
+	}
+}
+
+func sendTraceErrorCodeForAppendError(err error) string {
+	switch {
+	case errors.Is(err, ErrRouteNotReady):
+		return sendTraceErrorCodeRouteNotReady
+	case errors.Is(err, ErrStaleRoute):
+		return sendTraceErrorCodeStaleRoute
+	case errors.Is(err, ErrNotLeader):
+		return sendTraceErrorCodeNotLeader
+	case errors.Is(err, ErrChannelNotFound):
+		return sendTraceErrorCodeChannelNotFound
+	case errors.Is(err, ErrBackpressured):
+		return sendTraceErrorCodeBackpressured
+	case errors.Is(err, ErrAppendResultMissing):
+		return sendTraceErrorCodeAppendResultMissing
+	case errors.Is(err, ErrAppendFailed):
+		return sendTraceErrorCodeAppendFailed
+	default:
+		return sendTraceErrorCodeOther
+	}
 }
 
 func waitBeforeAppendRetry(items []preparedSend, backoff time.Duration) (time.Duration, bool) {

@@ -176,6 +176,7 @@ func (r *Reactor) observeAppendComplete(rc *runtimeChannel, opID ch.OpID, err er
 	}
 	delete(rc.appendTimings, opID)
 	completedAt := time.Now()
+	r.recordLeaderQuorumTrace(timing, completedAt, err)
 	if !timing.hwAdvancedAt.IsZero() {
 		r.observeAppendWaitStage(appendWaitStageQuorumFinalComplete, timing.mode, appendWaitResult(err), completedAt.Sub(timing.hwAdvancedAt))
 	}
@@ -193,12 +194,14 @@ func (r *Reactor) markAppendStoreSubmitted(rc *runtimeChannel, batch appendBatch
 	if r == nil || rc == nil {
 		return
 	}
-	for _, req := range batch.requests {
+	for reqIdx, req := range batch.requests {
 		timing, ok := rc.appendTimings[req.opID]
 		if !ok {
 			continue
 		}
 		timing.storeSubmittedAt = submittedAt
+		timing.traceItems = traceItemsForRequest(batch.trace.items, reqIdx)
+		timing.recordCount = len(req.records)
 		rc.appendTimings[req.opID] = timing
 	}
 }
@@ -225,6 +228,7 @@ func (r *Reactor) observeAppendStoreCompleted(rc *runtimeChannel, batch appendBa
 			}
 			rc.appendTimings[req.opID] = timing
 		}
+		r.recordLeaderQueueAndLocalDurableTrace(req, timing, batch, completedAt, nextOffset, err)
 		nextOffset += uint64(recordCount)
 	}
 }

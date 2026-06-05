@@ -38,7 +38,11 @@ import (
 func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 	t.Helper()
 	opts = append([]Option{WithLogger(wklog.NewNop())}, opts...)
-	return New(cfg, opts...)
+	app, err := New(cfg, opts...)
+	if app != nil {
+		t.Cleanup(app.restoreDiagnosticsSink)
+	}
+	return app, err
 }
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
@@ -217,6 +221,7 @@ func TestNewBuildsRootLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	t.Cleanup(app.restoreDiagnosticsSink)
 	if app.logger == nil {
 		t.Fatal("logger was not wired")
 	}

@@ -11,7 +11,7 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
-const codecVersion = uint8(2)
+const codecVersion = uint8(3)
 
 const (
 	kindPull uint8 = iota + 1
@@ -555,6 +555,9 @@ func readAppendResult(body []byte, offset int) (ch.AppendResult, int, error) {
 func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest) []byte {
 	dst = appendChannelID(dst, req.ChannelID)
 	dst = appendMessages(dst, req.Messages)
+	dst = appendString(dst, req.TraceID)
+	dst = appendChannelKey(dst, ch.ChannelKey(req.ChannelKey))
+	dst = appendVarint(dst, int64(req.Attempt))
 	dst = append(dst, byte(req.CommitMode))
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
@@ -569,6 +572,17 @@ func readAppendBatchRequest(body []byte, offset int) (ch.AppendBatchRequest, int
 		return ch.AppendBatchRequest{}, offset, err
 	}
 	if req.Messages, offset, err = readMessages(body, offset); err != nil {
+		return ch.AppendBatchRequest{}, offset, err
+	}
+	if req.TraceID, offset, err = readString(body, offset); err != nil {
+		return ch.AppendBatchRequest{}, offset, err
+	}
+	var channelKey ch.ChannelKey
+	if channelKey, offset, err = readChannelKey(body, offset); err != nil {
+		return ch.AppendBatchRequest{}, offset, err
+	}
+	req.ChannelKey = string(channelKey)
+	if req.Attempt, offset, err = readInt(body, offset, "append batch attempt"); err != nil {
 		return ch.AppendBatchRequest{}, offset, err
 	}
 	var commitMode byte
@@ -660,6 +674,8 @@ func appendMessage(dst []byte, msg ch.Message) []byte {
 	dst = append(dst, msg.ChannelType)
 	dst = appendString(dst, msg.FromUID)
 	dst = appendString(dst, msg.ClientMsgNo)
+	dst = appendString(dst, msg.TraceID)
+	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
 	return dst
 }
@@ -685,6 +701,14 @@ func readMessage(body []byte, offset int) (ch.Message, int, error) {
 	if msg.ClientMsgNo, offset, err = readString(body, offset); err != nil {
 		return ch.Message{}, offset, err
 	}
+	if msg.TraceID, offset, err = readString(body, offset); err != nil {
+		return ch.Message{}, offset, err
+	}
+	var channelKey ch.ChannelKey
+	if channelKey, offset, err = readChannelKey(body, offset); err != nil {
+		return ch.Message{}, offset, err
+	}
+	msg.ChannelKey = string(channelKey)
 	if msg.Payload, offset, err = readOptionalBytes(body, offset, "message payload"); err != nil {
 		return ch.Message{}, offset, err
 	}

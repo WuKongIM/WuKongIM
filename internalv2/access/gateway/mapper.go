@@ -3,18 +3,19 @@ package gateway
 import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, 0, true)
+	return mapSendCommandWithPayload(ctx, pkt, 0, true, nil)
 }
 
 func mapSendCommandForBatch(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, 0, false)
+	return mapSendCommandWithPayload(ctx, pkt, 0, false, nil)
 }
 
-func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, clonePayload bool) (message.SendCommand, error) {
+func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, clonePayload bool, traceIDGenerator TraceIDGenerator) (message.SendCommand, error) {
 	if ctx == nil || ctx.Session == nil {
 		return message.SendCommand{}, ErrUnauthenticatedSession
 	}
@@ -51,7 +52,20 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd.SyncOnce = pkt.Framer.SyncOnce
 	cmd.RedDot = pkt.Framer.RedDot
 	cmd.MessageID = 0
+	applySendTraceMetadata(&cmd, pkt, traceIDGenerator)
 	return cmd, nil
+}
+
+func applySendTraceMetadata(cmd *message.SendCommand, pkt *frame.SendPacket, traceIDGenerator TraceIDGenerator) {
+	if cmd == nil || pkt == nil || traceIDGenerator == nil || pkt.ChannelID == "" || pkt.ChannelType == 0 || !sendtrace.Enabled() {
+		return
+	}
+	traceID := traceIDGenerator()
+	if traceID == "" {
+		return
+	}
+	cmd.TraceID = traceID
+	cmd.ChannelKey = sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
 }
 
 func writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult) error {

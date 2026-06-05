@@ -1,6 +1,11 @@
 package gateway
 
-import "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+import (
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+)
 
 const (
 	sendackSourceSingleResult                = "single_result"
@@ -28,6 +33,8 @@ const (
 	sendackErrorClassOther                 = "other"
 )
 
+const sendtraceErrorCodeWriteFailed = "write_failed"
+
 // SendackEvent reports a low-cardinality SEND acknowledgement outcome.
 type SendackEvent struct {
 	// Reason is the entry-agnostic send result written to the client.
@@ -41,4 +48,111 @@ type SendackEvent struct {
 // SendackObserver receives successful Sendack writes for diagnostics.
 type SendackObserver interface {
 	SendackWritten(SendackEvent)
+}
+
+type sendTraceFields struct {
+	// traceID correlates sendtrace events for one SEND.
+	traceID string
+	// nodeID is the local gateway owner node that observed the event.
+	nodeID uint64
+	// channelKey is the diagnostics-safe channel lookup key.
+	channelKey string
+	// clientMsgNo is the client idempotency key copied into trace events.
+	clientMsgNo string
+	// fromUID is the authenticated sender copied into trace events.
+	fromUID string
+}
+
+func sendTraceFieldsFromCommand(cmd message.SendCommand) sendTraceFields {
+	return sendTraceFields{
+		traceID:     cmd.TraceID,
+		nodeID:      cmd.SenderNodeID,
+		channelKey:  cmd.ChannelKey,
+		clientMsgNo: cmd.ClientMsgNo,
+		fromUID:     cmd.FromUID,
+	}
+}
+
+func sendtraceElapsedSince(startedAt time.Time) time.Duration {
+	return sendtrace.Elapsed(startedAt, time.Now())
+}
+
+func recordGatewayMessagesSend(cmd message.SendCommand, result message.SendResult, class string, duration time.Duration) {
+	trace := sendTraceFieldsFromCommand(cmd)
+	if trace.traceID == "" {
+		return
+	}
+	traceResult, errorCode := sendtraceOutcomeForSendResult(result, class)
+	sendtrace.Record(sendtrace.Event{
+		Stage:       sendtrace.StageGatewayMessagesSend,
+		TraceID:     trace.traceID,
+		Duration:    duration,
+		NodeID:      trace.nodeID,
+		ChannelKey:  trace.channelKey,
+		ClientMsgNo: trace.clientMsgNo,
+		MessageSeq:  result.MessageSeq,
+		FromUID:     trace.fromUID,
+		Result:      traceResult,
+		ErrorCode:   errorCode,
+	})
+}
+
+func recordGatewayWriteSendack(trace sendTraceFields, result message.SendResult, err error, duration time.Duration) {
+	if trace.traceID == "" {
+		return
+	}
+	event := sendtrace.Event{
+		Stage:       sendtrace.StageGatewayWriteSendack,
+		TraceID:     trace.traceID,
+		Duration:    duration,
+		NodeID:      trace.nodeID,
+		ChannelKey:  trace.channelKey,
+		ClientMsgNo: trace.clientMsgNo,
+		MessageSeq:  result.MessageSeq,
+		FromUID:     trace.fromUID,
+		Result:      sendtrace.ResultOK,
+	}
+	if err != nil {
+		event.Result = sendtrace.ResultError
+		event.ErrorCode = sendtraceErrorCodeWriteFailed
+		event.Error = err.Error()
+	}
+	sendtrace.Record(event)
+}
+
+func sendtraceOutcomeForSendResult(result message.SendResult, class string) (sendtrace.Result, string) {
+	switch class {
+	case "", sendackErrorClassNone:
+		if result.Reason == message.ReasonSuccess {
+			return sendtrace.ResultOK, ""
+		}
+		return sendtrace.ResultError, sendtraceErrorCodeForReason(result.Reason)
+	case sendackErrorClassCanceled:
+		return sendtrace.ResultCanceled, class
+	case sendackErrorClassTimeout:
+		return sendtrace.ResultTimeout, class
+	default:
+		return sendtrace.ResultError, class
+	}
+}
+
+func sendtraceErrorCodeForReason(reason message.Reason) string {
+	switch reason {
+	case message.ReasonSuccess:
+		return ""
+	case message.ReasonInvalidRequest:
+		return "reason_invalid_request"
+	case message.ReasonAuthFail:
+		return "reason_auth_fail"
+	case message.ReasonChannelNotExist:
+		return "reason_channel_not_exist"
+	case message.ReasonNodeNotMatch:
+		return "reason_node_not_match"
+	case message.ReasonSystemError:
+		return "reason_system_error"
+	case message.ReasonUnsupported:
+		return "reason_unsupported"
+	default:
+		return "reason_unknown"
+	}
 }

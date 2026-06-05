@@ -67,6 +67,21 @@ WK_BENCH_API_MAX_PAYLOAD_BYTES=10485760
 WK_METRICS_ENABLE=true
 WK_PPROF_ENABLE=false
 
+# Local SEND diagnostics. Sampling keeps the hot path bounded; disable in ultra-low overhead runs.
+WK_DIAGNOSTICS_ENABLE=true
+WK_DIAGNOSTICS_BUFFER_SIZE=50000
+WK_DIAGNOSTICS_SAMPLE_RATE=0.01
+WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
+WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
+# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive ChannelV2 reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
+WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0
+# WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS keeps bounded deep trace detail for slow reactor/store stages; defaults to WK_DIAGNOSTICS_SLOW_THRESHOLD_MS.
+WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=500
+# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep ChannelV2 batch expands.
+WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=16
+# Optional temporary high-priority sampling rules. List fields use one JSON string value.
+WK_DIAGNOSTICS_DEBUG_MATCHES=[]
+
 # Rolling application logs. Console and compression default true when unset.
 WK_LOG_LEVEL=info
 WK_LOG_DIR=./data/wukongimv2-node-3/logs
