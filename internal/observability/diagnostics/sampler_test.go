@@ -40,6 +40,45 @@ func TestSamplerKeepsDebugMatchesUntilTTL(t *testing.T) {
 	require.Equal(t, "debug", reason)
 }
 
+func TestSamplerKeepsDeepDetailForDebugMatch(t *testing.T) {
+	now := time.Unix(10, 0)
+	sampler := NewSampler(SamplerOptions{
+		SampleRate:     0,
+		DeepSampleRate: 0,
+		Now:            func() time.Time { return now },
+		DebugMatches: []DebugMatch{{
+			TraceID:    "trace-deep",
+			TTL:        time.Minute,
+			SampleRate: 1,
+		}},
+	})
+
+	keep, reason := sampler.KeepDetail(Event{TraceID: "trace-deep", Result: ResultOK})
+
+	require.True(t, keep)
+	require.Equal(t, "debug", reason)
+}
+
+func TestSamplerDeepSampleRateIsIndependentFromEventSampleRate(t *testing.T) {
+	sampler := NewSampler(SamplerOptions{SampleRate: 0, DeepSampleRate: 1})
+
+	keepEvent, _ := sampler.Keep(Event{TraceID: "trace-1", Result: ResultOK})
+	keepDetail, reason := sampler.KeepDetail(Event{TraceID: "trace-1", Result: ResultOK})
+
+	require.False(t, keepEvent)
+	require.True(t, keepDetail)
+	require.Equal(t, "sample", reason)
+}
+
+func TestSamplerDetailLimitsNormalizeDefaults(t *testing.T) {
+	sampler := NewSampler(SamplerOptions{SlowThreshold: 500 * time.Millisecond})
+
+	threshold, maxItems := sampler.DetailLimits()
+
+	require.Equal(t, 500*time.Millisecond, threshold)
+	require.Equal(t, DefaultDeepMaxItemsPerBatch, maxItems)
+}
+
 func TestSamplerPrefersDynamicTrackingRules(t *testing.T) {
 	now := time.Unix(100, 0)
 	rules := NewTrackingRules(TrackingRulesOptions{Now: func() time.Time { return now }})
