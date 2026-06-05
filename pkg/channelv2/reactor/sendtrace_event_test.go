@@ -392,6 +392,27 @@ func TestAppendTraceBatchSelectionSkipsDetailDecisionForMessagesWithoutTraceID(t
 	require.Equal(t, "channel/1/cm9vbQ", sink.keys[0].ChannelKey)
 }
 
+func TestAppendTraceDisabledPathDoesNotAllocate(t *testing.T) {
+	restore := sendtrace.SetSink(nil)
+	t.Cleanup(restore)
+	batch := appendBatch{
+		requests: []appendRequest{{
+			req: ch.AppendBatchRequest{
+				ChannelID: ch.ChannelID{ID: "room", Type: 1},
+				Messages:  []ch.Message{{TraceID: "trace-disabled", Payload: []byte("x")}},
+			},
+			records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+		}},
+		records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		_ = selectAppendTraceBatch(batch)
+	})
+
+	require.Zero(t, allocs)
+}
+
 func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
 	batch := appendBatch{
 		requests: []appendRequest{{
@@ -415,4 +436,24 @@ func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
 	})
 
 	require.Zero(t, allocs)
+}
+
+func BenchmarkAppendTraceSelectionDisabled(b *testing.B) {
+	restore := sendtrace.SetSink(nil)
+	b.Cleanup(restore)
+	batch := appendBatch{
+		requests: []appendRequest{{
+			req: ch.AppendBatchRequest{
+				ChannelID: ch.ChannelID{ID: "room", Type: 1},
+				Messages:  []ch.Message{{TraceID: "trace-disabled", Payload: []byte("x")}},
+			},
+			records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+		}},
+		records: []ch.Record{{ID: 1, Payload: []byte("x"), SizeBytes: 1}},
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = selectAppendTraceBatch(batch)
+	}
 }

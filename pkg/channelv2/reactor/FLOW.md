@@ -287,6 +287,15 @@ returns a message only if its sequence is positive and `sequence <= HW` for the
 current runtime fence. It never mutates progress and cannot mark locally durable
 but uncommitted rows as successful.
 
+## Deep Sendtrace Sidecars
+
+Reactor append tracing uses transient `appendTraceBatch` sidecars selected by
+`pkg/observability/sendtrace` detail sampling. Disabled or unselected appends do
+not allocate sidecars. Queue and local durable stages may lazily scan the
+in-flight batch for error or slow-stage traces, bounded by `MaxItemsPerBatch`.
+Quorum wait emits only for preselected sidecars so pending quorum waiters do not
+retain unsampled high-cardinality candidates.
+
 ## Bench Runtime Events
 
 Runtime snapshot, probe, and evict requests enter reactors as mailbox events.
