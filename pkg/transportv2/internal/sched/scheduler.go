@@ -99,6 +99,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	if item.Bytes < 0 {
 		item.Bytes = 0
 	}
+	if int64(item.Bytes) > s.maxBatchBytes {
+		return core.ErrMsgTooLarge
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,7 +194,7 @@ func (s *Scheduler) nextBatchLocked() []Item {
 
 			item := l.queue[0]
 			itemBytes := int64(item.Bytes)
-			if itemBytes > l.deficit || (len(batch) > 0 && batchBytes+itemBytes > s.maxBatchBytes) {
+			if itemBytes > l.deficit || batchBytes+itemBytes > s.maxBatchBytes {
 				if checked >= len(s.lanes) {
 					if len(batch) > 0 {
 						break

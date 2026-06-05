@@ -45,6 +45,72 @@ func TestEnqueueEnforcesMaxBytes(t *testing.T) {
 	}
 }
 
+func TestEnqueueEnforcesMaxItems(t *testing.T) {
+	s := New(Config{MaxItems: 1})
+
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    1,
+		Value:    "first",
+	}); err != nil {
+		t.Fatalf("Enqueue(first) error = %v", err)
+	}
+
+	err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    1,
+		Value:    "second",
+	})
+
+	if !errors.Is(err, core.ErrQueueFull) {
+		t.Fatalf("Enqueue(second) error = %v, want ErrQueueFull", err)
+	}
+}
+
+func TestEnqueueRejectsItemLargerThanMaxBatchBytes(t *testing.T) {
+	s := New(Config{MaxBatchBytes: 8})
+
+	err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    9,
+		Value:    "too-large",
+	})
+
+	if !errors.Is(err, core.ErrMsgTooLarge) {
+		t.Fatalf("Enqueue() error = %v, want ErrMsgTooLarge", err)
+	}
+	if batch := s.NextBatch(); batch != nil {
+		t.Fatalf("NextBatch() = %#v, want nil after rejected enqueue", batch)
+	}
+}
+
+func TestNextBatchHonorsMaxBatchBytes(t *testing.T) {
+	s := New(Config{
+		MaxBatchFrames: 4,
+		MaxBatchBytes:  8,
+	})
+
+	for _, item := range []Item{
+		{Priority: core.PriorityRaft, Bytes: 5, Value: "first"},
+		{Priority: core.PriorityRaft, Bytes: 4, Value: "second"},
+	} {
+		if err := s.Enqueue(context.Background(), item); err != nil {
+			t.Fatalf("Enqueue(%v) error = %v", item.Value, err)
+		}
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 1 {
+		t.Fatalf("NextBatch() len = %d, want 1", len(batch))
+	}
+	if batch[0].Value != "first" {
+		t.Fatalf("NextBatch()[0].Value = %v, want first", batch[0].Value)
+	}
+	if batch[0].Bytes > 8 {
+		t.Fatalf("NextBatch() bytes = %d, want <= 8", batch[0].Bytes)
+	}
+}
+
 func TestWeightedBatchEventuallyIncludesLowerPriority(t *testing.T) {
 	s := New(Config{
 		MaxBatchFrames: 1,
