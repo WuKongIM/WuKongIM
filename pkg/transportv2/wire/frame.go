@@ -50,7 +50,8 @@ type Header struct {
 	BodyLen uint32
 }
 
-// Frame is a decoded transportv2 wire frame and its owned payload.
+// Frame is a decoded transportv2 wire frame and its owned payload. Writers borrow Body.Bytes()
+// until net.Buffers.WriteTo returns; callers must release or mutate Body only after the write completes.
 type Frame struct {
 	// Header contains validated frame metadata.
 	Header Header
@@ -104,8 +105,22 @@ func DecodeHeader(encoded []byte, maxBodyBytes int) (Header, error) {
 	if err := header.Priority.Validate(); err != nil {
 		return Header{}, err
 	}
-	if int(header.BodyLen) > maxBodyBytes {
+	if bodyExceedsMax(header.BodyLen, maxBodyBytes) {
 		return Header{}, fmt.Errorf("%w: body %d > max %d", core.ErrMsgTooLarge, header.BodyLen, maxBodyBytes)
 	}
 	return header, nil
+}
+
+func bodyExceedsMax(bodyLen uint32, maxBodyBytes int) bool {
+	if maxBodyBytes < 0 {
+		return true
+	}
+	return uint64(bodyLen) > uint64(maxBodyBytes)
+}
+
+func bodyLenToInt(bodyLen uint32) (int, error) {
+	if uint64(bodyLen) > uint64(^uint(0)>>1) {
+		return 0, fmt.Errorf("%w: body %d > int max", core.ErrMsgTooLarge, bodyLen)
+	}
+	return int(bodyLen), nil
 }

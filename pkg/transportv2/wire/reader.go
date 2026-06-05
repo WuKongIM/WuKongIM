@@ -18,7 +18,11 @@ func ReadFrame(r io.Reader, maxBodyBytes int) (Frame, error) {
 		return Frame{}, err
 	}
 
-	body := make([]byte, int(header.BodyLen))
+	bodyLen, err := bodyLenToInt(header.BodyLen)
+	if err != nil {
+		return Frame{}, err
+	}
+	body := make([]byte, bodyLen)
 	if len(body) > 0 {
 		if _, err := io.ReadFull(r, body); err != nil {
 			return Frame{}, err

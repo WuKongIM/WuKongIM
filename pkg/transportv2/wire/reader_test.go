@@ -33,6 +33,47 @@ func TestReadFrameReadsBody(t *testing.T) {
 	}
 }
 
+func TestReadFrameReadsZeroLengthBody(t *testing.T) {
+	header := Header{
+		Kind:      core.FrameKindNotify,
+		Priority:  core.PriorityControl,
+		ServiceID: 8,
+		RequestID: 13,
+	}
+	encoded := EncodeHeader(header)
+
+	frame, err := ReadFrame(bytes.NewReader(encoded[:]), 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame() error = %v", err)
+	}
+	defer frame.Body.Release()
+
+	if frame.Header != header {
+		t.Fatalf("frame header = %+v, want %+v", frame.Header, header)
+	}
+	if frame.Body.Len() != 0 {
+		t.Fatalf("frame body len = %d, want 0", frame.Body.Len())
+	}
+}
+
+func TestReadFrameTruncatedBodyReturnsErrorWithoutBody(t *testing.T) {
+	header := Header{
+		Kind:     core.FrameKindData,
+		Priority: core.PriorityRaft,
+		BodyLen:  5,
+	}
+	encoded := EncodeHeader(header)
+	input := append(encoded[:], []byte("he")...)
+
+	frame, err := ReadFrame(bytes.NewReader(input), 1024)
+	if err == nil {
+		t.Fatal("ReadFrame() error = nil, want truncated body error")
+	}
+	if frame.Body.Bytes() != nil {
+		t.Fatalf("frame body = %q, want nil", frame.Body.Bytes())
+	}
+}
+
 func TestReadFrameRejectsOversizedBodyBeforeRead(t *testing.T) {
 	header := Header{
 		Kind:     core.FrameKindData,

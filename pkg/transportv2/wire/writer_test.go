@@ -3,6 +3,7 @@ package wire
 import (
 	"bytes"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
@@ -56,5 +57,98 @@ func TestWriteFrameRejectsOversizedPayload(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("written bytes = %d, want 0", out.Len())
+	}
+}
+
+func TestWriteFrameRejectsInvalidKind(t *testing.T) {
+	var out bytes.Buffer
+	frame := Frame{
+		Header: Header{
+			Kind:     core.FrameKind(99),
+			Priority: core.PriorityBulk,
+		},
+		Body: core.NewOwnedBuffer([]byte("body"), nil),
+	}
+
+	err := WriteFrame(&out, frame, 1024)
+	if !errors.Is(err, core.ErrInvalidFrame) {
+		t.Fatalf("WriteFrame() error = %v, want ErrInvalidFrame", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("written bytes = %d, want 0", out.Len())
+	}
+}
+
+func TestWriteFrameRejectsInvalidPriority(t *testing.T) {
+	var out bytes.Buffer
+	frame := Frame{
+		Header: Header{
+			Kind:     core.FrameKindData,
+			Priority: core.Priority(99),
+		},
+		Body: core.NewOwnedBuffer([]byte("body"), nil),
+	}
+
+	err := WriteFrame(&out, frame, 1024)
+	if !errors.Is(err, core.ErrInvalidPriority) {
+		t.Fatalf("WriteFrame() error = %v, want ErrInvalidPriority", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("written bytes = %d, want 0", out.Len())
+	}
+}
+
+func TestAppendFrameBatchesMultipleFrames(t *testing.T) {
+	var buffers net.Buffers
+	first := Frame{
+		Header: Header{
+			Kind:      core.FrameKindData,
+			Priority:  core.PriorityRaft,
+			ServiceID: 1,
+			RequestID: 2,
+		},
+		Body: core.NewOwnedBuffer([]byte("one"), nil),
+	}
+	second := Frame{
+		Header: Header{
+			Kind:      core.FrameKindNotify,
+			Priority:  core.PriorityControl,
+			ServiceID: 3,
+			RequestID: 4,
+		},
+		Body: core.NewOwnedBuffer([]byte("two"), nil),
+	}
+
+	if err := AppendFrame(&buffers, first, 1024); err != nil {
+		t.Fatalf("AppendFrame(first) error = %v", err)
+	}
+	if err := AppendFrame(&buffers, second, 1024); err != nil {
+		t.Fatalf("AppendFrame(second) error = %v", err)
+	}
+
+	var out bytes.Buffer
+	if _, err := buffers.WriteTo(&out); err != nil {
+		t.Fatalf("buffers.WriteTo() error = %v", err)
+	}
+
+	readFirst, err := ReadFrame(&out, 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame(first) error = %v", err)
+	}
+	defer readFirst.Body.Release()
+	readSecond, err := ReadFrame(&out, 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame(second) error = %v", err)
+	}
+	defer readSecond.Body.Release()
+
+	if string(readFirst.Body.Bytes()) != "one" {
+		t.Fatalf("first body = %q, want one", readFirst.Body.Bytes())
+	}
+	if string(readSecond.Body.Bytes()) != "two" {
+		t.Fatalf("second body = %q, want two", readSecond.Body.Bytes())
+	}
+	if out.Len() != 0 {
+		t.Fatalf("remaining bytes = %d, want 0", out.Len())
 	}
 }
