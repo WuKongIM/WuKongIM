@@ -138,6 +138,53 @@ func TestSchedulerStopObservesSourceQueueClear(t *testing.T) {
 	}
 }
 
+func TestSchedulerQueueEventsUsePriorityLaneDepth(t *testing.T) {
+	observer := &recordingObserver{}
+	s := New(Config{
+		MaxItems:       4,
+		MaxBytes:       20,
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  20,
+		Observer:       observer,
+		SourceID:       77,
+	})
+
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value:    "rpc",
+	}); err != nil {
+		t.Fatalf("Enqueue(rpc) error = %v", err)
+	}
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityBulk,
+		Bytes:    5,
+		Value:    "bulk",
+	}); err != nil {
+		t.Fatalf("Enqueue(bulk) error = %v", err)
+	}
+	batch := s.NextBatch()
+	if len(batch) != 1 || batch[0].Value != "rpc" {
+		t.Fatalf("NextBatch() = %#v, want rpc first", batch)
+	}
+
+	events := observer.snapshot()
+	rpcQueue := findLastEventByPriority(events, "scheduler_queue", "ok", core.PriorityRPC)
+	if rpcQueue == nil {
+		t.Fatalf("missing rpc scheduler_queue event: %#v", events)
+	}
+	if rpcQueue.Items != 0 || rpcQueue.Bytes != 0 || rpcQueue.Capacity != 4 || rpcQueue.BytesCapacity != 20 {
+		t.Fatalf("rpc scheduler_queue = %+v, want drained rpc lane only", *rpcQueue)
+	}
+	bulkQueue := findLastEventByPriority(events, "scheduler_queue", "ok", core.PriorityBulk)
+	if bulkQueue == nil {
+		t.Fatalf("missing bulk scheduler_queue event: %#v", events)
+	}
+	if bulkQueue.Items != 1 || bulkQueue.Bytes != 5 || bulkQueue.Capacity != 4 || bulkQueue.BytesCapacity != 20 {
+		t.Fatalf("bulk scheduler_queue = %+v, want queued bulk lane only", *bulkQueue)
+	}
+}
+
 func findEvent(events []core.Event, name, result string) *core.Event {
 	for i := range events {
 		if events[i].Name == name && events[i].Result == result {

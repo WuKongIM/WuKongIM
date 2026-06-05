@@ -105,18 +105,21 @@ func New(cfg Config) *Scheduler {
 // Enqueue adds an item unless the context is canceled, the scheduler is stopped, or limits are full.
 func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	if err := ctx.Err(); err != nil {
-		s.observeEnqueue("canceled", item, s.snapshotQueue())
+		total, lane := s.snapshotQueuePair(item.Priority)
+		s.observeEnqueue("canceled", item, total, lane)
 		return err
 	}
 	if err := item.Priority.Validate(); err != nil {
-		s.observeEnqueue("invalid", item, s.snapshotQueue())
+		total, lane := s.snapshotQueuePair(item.Priority)
+		s.observeEnqueue("invalid", item, total, lane)
 		return err
 	}
 	if item.Bytes < 0 {
 		item.Bytes = 0
 	}
 	if int64(item.Bytes) > s.maxBatchBytes {
-		s.observeEnqueue("too_large", item, s.snapshotQueue())
+		total, lane := s.snapshotQueuePair(item.Priority)
+		s.observeEnqueue("too_large", item, total, lane)
 		return core.ErrMsgTooLarge
 	}
 
@@ -124,26 +127,30 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 
 	if s.stopped {
 		snapshot := s.snapshotQueueLocked()
+		laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 		s.mu.Unlock()
-		s.observeEnqueue("stopped", item, snapshot)
+		s.observeEnqueue("stopped", item, snapshot, laneSnapshot)
 		return core.ErrStopped
 	}
 	if err := ctx.Err(); err != nil {
 		snapshot := s.snapshotQueueLocked()
+		laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 		s.mu.Unlock()
-		s.observeEnqueue("canceled", item, snapshot)
+		s.observeEnqueue("canceled", item, snapshot, laneSnapshot)
 		return err
 	}
 	if s.maxItems > 0 && s.queuedItems+1 > s.maxItems {
 		snapshot := s.snapshotQueueLocked()
+		laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 		s.mu.Unlock()
-		s.observeEnqueue("full", item, snapshot)
+		s.observeEnqueue("full", item, snapshot, laneSnapshot)
 		return core.ErrQueueFull
 	}
 	if s.maxBytes > 0 && s.queuedBytes+int64(item.Bytes) > s.maxBytes {
 		snapshot := s.snapshotQueueLocked()
+		laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 		s.mu.Unlock()
-		s.observeEnqueue("full", item, snapshot)
+		s.observeEnqueue("full", item, snapshot, laneSnapshot)
 		return core.ErrQueueFull
 	}
 
@@ -154,15 +161,17 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 			s.queuedItems++
 			s.queuedBytes += int64(item.Bytes)
 			snapshot := s.snapshotQueueLocked()
+			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 			s.cond.Signal()
 			s.mu.Unlock()
-			s.observeEnqueue("ok", item, snapshot)
+			s.observeEnqueue("ok", item, snapshot, laneSnapshot)
 			return nil
 		}
 	}
 	snapshot := s.snapshotQueueLocked()
+	laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 	s.mu.Unlock()
-	s.observeEnqueue("invalid", item, snapshot)
+	s.observeEnqueue("invalid", item, snapshot, laneSnapshot)
 	return core.ErrInvalidPriority
 }
 
@@ -351,6 +360,12 @@ func (s *Scheduler) snapshotQueue() queueSnapshot {
 	return s.snapshotQueueLocked()
 }
 
+func (s *Scheduler) snapshotQueuePair(priority core.Priority) (queueSnapshot, queueSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.snapshotQueueLocked(), s.snapshotLaneQueueLocked(priority)
+}
+
 func (s *Scheduler) snapshotQueueLocked() queueSnapshot {
 	return queueSnapshot{
 		items:         s.queuedItems,
@@ -358,6 +373,24 @@ func (s *Scheduler) snapshotQueueLocked() queueSnapshot {
 		bytes:         s.queuedBytes,
 		bytesCapacity: s.maxBytes,
 	}
+}
+
+func (s *Scheduler) snapshotLaneQueueLocked(priority core.Priority) queueSnapshot {
+	snapshot := queueSnapshot{
+		capacity:      s.maxItems,
+		bytesCapacity: s.maxBytes,
+	}
+	for i := range s.lanes {
+		if s.lanes[i].priority != priority {
+			continue
+		}
+		snapshot.items = len(s.lanes[i].queue)
+		for _, item := range s.lanes[i].queue {
+			snapshot.bytes += queueBytes(item)
+		}
+		return snapshot
+	}
+	return snapshot
 }
 
 func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
@@ -382,7 +415,7 @@ func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
 }
 
 func (s *Scheduler) queueEventLocked(priority core.Priority, result string) core.Event {
-	snapshot := s.snapshotQueueLocked()
+	snapshot := s.snapshotLaneQueueLocked(priority)
 	return core.Event{
 		Name:          "scheduler_queue",
 		SourceID:      s.sourceID,
@@ -395,7 +428,7 @@ func (s *Scheduler) queueEventLocked(priority core.Priority, result string) core
 	}
 }
 
-func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnapshot) {
+func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnapshot, laneSnapshot queueSnapshot) {
 	if s.observer == nil {
 		return
 	}
@@ -414,10 +447,10 @@ func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnaps
 		SourceID:      s.sourceID,
 		Priority:      item.Priority,
 		Result:        result,
-		Items:         snapshot.items,
-		Capacity:      snapshot.capacity,
-		Bytes:         int(snapshot.bytes),
-		BytesCapacity: snapshot.bytesCapacity,
+		Items:         laneSnapshot.items,
+		Capacity:      laneSnapshot.capacity,
+		Bytes:         int(laneSnapshot.bytes),
+		BytesCapacity: laneSnapshot.bytesCapacity,
 	})
 }
 
