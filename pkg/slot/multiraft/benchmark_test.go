@@ -79,7 +79,7 @@ func BenchmarkRuntimeTickFanout(b *testing.B) {
 		b.Run("slots="+strconv.Itoa(slotCount), func(b *testing.B) {
 			rt := &Runtime{
 				slots:     make(map[SlotID]*slot, slotCount),
-				scheduler: newScheduler(),
+				scheduler: newScheduler(nil),
 			}
 			slotIDs := make([]SlotID, 0, slotCount)
 			for i := 0; i < slotCount; i++ {

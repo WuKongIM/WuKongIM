@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const minDefaultChannelReactorCount = 4
@@ -81,6 +82,8 @@ type SlotConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical Slot.
 	ReplicaCount uint16
+	// Observer receives low-cardinality Slot scheduler pressure observations.
+	Observer multiraft.SchedulerObserver
 }
 
 // ChannelConfig contains ChannelV2 service configuration.

@@ -18,6 +18,34 @@ type Options struct {
 	Transport    Transport
 	Logger       wklog.Logger
 	Raft         RaftOptions
+	// Observer receives low-cardinality scheduler pressure observations.
+	Observer SchedulerObserver
+}
+
+// SchedulerObserver receives low-cardinality Slot scheduler pressure observations.
+// Implementations are called synchronously from scheduler and worker paths and should be concurrency-safe and non-blocking.
+type SchedulerObserver interface {
+	SetSchedulerWorkers(workers int)
+	SetSchedulerInflight(inflight int)
+	SetSchedulerState(event SchedulerStateEvent)
+	ObserveSchedulerAdmission(result string)
+	ObserveSchedulerTask(task string, d time.Duration)
+}
+
+// SchedulerStateEvent reports aggregate Slot scheduler queue state.
+type SchedulerStateEvent struct {
+	// Depth is the number of runnable Slot IDs queued in the dispatch channel.
+	Depth int
+	// Capacity is the dispatch channel capacity.
+	Capacity int
+	// Pending is the number of Slot IDs waiting behind a full dispatch channel.
+	Pending int
+	// Queued is the number of Slot IDs marked queued.
+	Queued int
+	// Processing is the number of Slot IDs currently being processed.
+	Processing int
+	// Dirty is the number of processing Slot IDs marked for another pass.
+	Dirty int
 }
 
 type RaftOptions struct {

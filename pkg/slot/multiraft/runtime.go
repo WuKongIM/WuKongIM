@@ -3,6 +3,7 @@ package multiraft
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type Runtime struct {
 	scheduler *scheduler
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
+	inflight  atomic.Int64
 }
 
 func New(opts Options) (*Runtime, error) {
@@ -35,8 +37,11 @@ func New(opts Options) (*Runtime, error) {
 	rt := &Runtime{
 		opts:      opts,
 		slots:     make(map[SlotID]*slot),
-		scheduler: newScheduler(),
+		scheduler: newScheduler(opts.Observer),
 		stopCh:    make(chan struct{}),
+	}
+	if opts.Observer != nil {
+		opts.Observer.SetSchedulerWorkers(opts.Workers)
 	}
 	rt.start()
 	return rt, nil
@@ -61,7 +66,11 @@ func (r *Runtime) runWorker() {
 			return
 		case slotID := <-r.scheduler.ch:
 			r.scheduler.begin(slotID)
+			r.observeSchedulerInflight(int(r.inflight.Add(1)))
+			started := time.Now()
 			requeue := r.processSlot(slotID)
+			r.observeSchedulerTask("process_slot", time.Since(started))
+			r.observeSchedulerInflight(int(r.inflight.Add(-1)))
 			if r.scheduler.done(slotID) || requeue {
 				r.scheduler.requeue(slotID)
 			}
@@ -129,4 +138,19 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 		g.refreshStatus()
 	}
 	return false
+}
+
+func (r *Runtime) observeSchedulerInflight(inflight int) {
+	if r != nil && r.opts.Observer != nil {
+		r.opts.Observer.SetSchedulerInflight(inflight)
+	}
+}
+
+func (r *Runtime) observeSchedulerTask(task string, d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	if r != nil && r.opts.Observer != nil {
+		r.opts.Observer.ObserveSchedulerTask(task, d)
+	}
 }

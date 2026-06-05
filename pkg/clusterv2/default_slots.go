@@ -46,6 +46,7 @@ func (n *Node) ensureDefaultSlots() error {
 		TickInterval: defaultSlotTickInterval,
 		Workers:      defaultSlotRuntimeWorkerCount,
 		Transport:    n.defaultSlotTransport(),
+		Observer:     n.cfg.Slots.Observer,
 		Raft: multiraft.RaftOptions{
 			ElectionTick:  defaultSlotElectionTick,
 			HeartbeatTick: defaultSlotHeartbeatTick,
