@@ -203,11 +203,13 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 	service := s.service(inbound.ServiceID)
 	if service == nil {
 		inbound.Payload.Release()
+		s.sendRPCError(ctx, inbound, fmt.Errorf("transportv2: service %d not found", inbound.ServiceID))
 		return
 	}
 
 	reply := make(chan rpc.Response, 1)
 	if err := service.Enqueue(rpc.Request{Payload: inbound.Payload, Reply: reply}); err != nil {
+		s.sendRPCError(ctx, inbound, err)
 		return
 	}
 	go s.sendRPCResponse(ctx, inbound, reply)
@@ -232,6 +234,23 @@ func (s *Server) sendRPCResponse(ctx context.Context, inbound conn.Inbound, repl
 	case <-inbound.Conn.Done():
 	case <-s.ctx.Done():
 	}
+}
+
+func (s *Server) sendRPCError(ctx context.Context, inbound conn.Inbound, err error) {
+	select {
+	case <-inbound.Conn.Done():
+		return
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+	_ = inbound.Conn.Send(ctx, conn.Outbound{
+		Kind:      core.FrameKindRPCResponse,
+		Priority:  inbound.Priority,
+		ServiceID: inbound.ServiceID,
+		RequestID: inbound.RequestID,
+		Payload:   conn.EncodeRPCResponse(wire.ResponseErr, []byte(err.Error())),
+	})
 }
 
 func (s *Server) service(serviceID uint16) *rpc.Service {

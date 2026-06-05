@@ -71,6 +71,19 @@ func (c *Client) NotifyOwned(ctx context.Context, nodeID NodeID, shardKey uint64
 	})
 }
 
+// Call copies payload, sends it as an RPC request, and waits for the response.
+func (c *Client) Call(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload []byte) ([]byte, error) {
+	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+	if err != nil {
+		return nil, err
+	}
+	return peerConn.Call(ctx, conn.Outbound{
+		Priority:  pri,
+		ServiceID: serviceID,
+		Payload:   CopyOwnedBuffer(payload),
+	})
+}
+
 // ClosePeer closes all outbound connection slots for nodeID.
 func (c *Client) ClosePeer(nodeID NodeID) {
 	c.peers.ClosePeer(nodeID)
