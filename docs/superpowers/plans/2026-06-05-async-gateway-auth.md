@@ -219,7 +219,19 @@ t.Run("same decode batch frame after connect is rejected while auth is pending",
 	t.Cleanup(release)
 
 	conn := transportFactory.MustOpen("listener-a", 1)
-	transportFactory.MustData("listener-a", 1, []byte("cp"))
+	dataReturned := make(chan error, 1)
+	go func() {
+		dataReturned <- conn.EmitData([]byte("cp"))
+	}()
+
+	select {
+	case err := <-dataReturned:
+		if err != nil {
+			t.Fatalf("emit data failed: %v", err)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected same decode batch after CONNECT not to block EmitData")
+	}
 
 	waitFor(t, func() bool { return connClosed(conn) && observer.closeCount() == 1 })
 	release()
@@ -264,7 +276,18 @@ t.Run("second connect while auth is pending is rejected", func(t *testing.T) {
 	t.Cleanup(release)
 
 	conn := transportFactory.MustOpen("listener-a", 1)
-	transportFactory.MustData("listener-a", 1, []byte("c"))
+	dataReturned := make(chan error, 1)
+	go func() {
+		dataReturned <- conn.EmitData([]byte("c"))
+	}()
+	select {
+	case err := <-dataReturned:
+		if err != nil {
+			t.Fatalf("emit first connect failed: %v", err)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected first CONNECT not to block EmitData")
+	}
 	waitFor(t, func() bool {
 		select {
 		case <-authStarted:
@@ -318,7 +341,10 @@ t.Run("peer close while auth is running does not dispatch open", func(t *testing
 	t.Cleanup(release)
 
 	conn := transportFactory.MustOpen("listener-a", 1)
-	transportFactory.MustData("listener-a", 1, []byte("c"))
+	dataReturned := make(chan error, 1)
+	go func() {
+		dataReturned <- conn.EmitData([]byte("c"))
+	}()
 	waitFor(t, func() bool {
 		select {
 		case <-authStarted:
@@ -327,6 +353,14 @@ t.Run("peer close while auth is running does not dispatch open", func(t *testing
 			return false
 		}
 	})
+	select {
+	case err := <-dataReturned:
+		if err != nil {
+			t.Fatalf("emit data failed: %v", err)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected CONNECT auth not to block EmitData")
+	}
 
 	conn.EmitClose(nil)
 	release()
