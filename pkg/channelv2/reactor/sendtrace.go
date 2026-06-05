@@ -85,6 +85,9 @@ func appendMessageDetailKey(req ch.AppendBatchRequest, msg ch.Message) sendtrace
 	if traceID == "" {
 		traceID = req.TraceID
 	}
+	if traceID == "" {
+		return sendtrace.DetailKey{}
+	}
 	channelKey := msg.ChannelKey
 	if channelKey == "" {
 		channelKey = req.ChannelKey

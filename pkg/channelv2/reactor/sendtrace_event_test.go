@@ -11,11 +11,13 @@ import (
 type reactorDetailSink struct {
 	decisions map[string]sendtrace.DetailDecision
 	limits    sendtrace.DetailLimits
+	keys      []sendtrace.DetailKey
 }
 
 func (s *reactorDetailSink) RecordSendTrace(sendtrace.Event) {}
 
 func (s *reactorDetailSink) KeepSendTraceDetail(key sendtrace.DetailKey) sendtrace.DetailDecision {
+	s.keys = append(s.keys, key)
 	if s.decisions == nil {
 		return sendtrace.DetailDecision{}
 	}
@@ -26,7 +28,11 @@ func (s *reactorDetailSink) SendTraceDetailLimits() sendtrace.DetailLimits {
 	return s.limits
 }
 
-func TestAppendTraceBatchSelectsOnlyDetailKeptItems(t *testing.T) {
+type reactorRecordOnlySink struct{}
+
+func (reactorRecordOnlySink) RecordSendTrace(sendtrace.Event) {}
+
+func TestAppendTraceBatchSelectionSelectsOnlyDetailKeptItems(t *testing.T) {
 	batch := appendBatch{
 		requests: []appendRequest{{
 			req: ch.AppendBatchRequest{
@@ -89,6 +95,69 @@ func TestAppendTraceBatchSelectionHonorsMaxItems(t *testing.T) {
 	require.Equal(t, "trace-1", traceBatch.items[0].traceID)
 }
 
+func TestAppendTraceBatchSelectionUsesRequestTraceIDAndDerivedChannelKey(t *testing.T) {
+	sink := &reactorDetailSink{
+		limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+		decisions: map[string]sendtrace.DetailDecision{
+			"trace-batch": {Keep: true, Reason: "debug"},
+		},
+	}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	batch := appendBatch{
+		requests: []appendRequest{{
+			req: ch.AppendBatchRequest{
+				ChannelID: ch.ChannelID{ID: "room", Type: 1},
+				TraceID:   "trace-batch",
+				Messages:  []ch.Message{{ClientMsgNo: "client-1", FromUID: "u1"}},
+			},
+			records: []ch.Record{{ID: 1}},
+		}},
+		records: []ch.Record{{ID: 1}},
+	}
+
+	traceBatch := selectAppendTraceBatch(batch)
+
+	require.Len(t, traceBatch.items, 1)
+	require.Equal(t, "trace-batch", traceBatch.items[0].traceID)
+	require.Equal(t, sendtrace.ChannelKeyFromID("room", 1), traceBatch.items[0].channelKey)
+	require.Equal(t, "client-1", traceBatch.items[0].clientMsgNo)
+	require.Equal(t, "u1", traceBatch.items[0].fromUID)
+}
+
+func TestAppendTraceBatchSelectionSkipsDetailDecisionForMessagesWithoutTraceID(t *testing.T) {
+	sink := &reactorDetailSink{
+		limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+		decisions: map[string]sendtrace.DetailDecision{
+			"trace-keep": {Keep: true, Reason: "debug"},
+		},
+	}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	batch := appendBatch{
+		requests: []appendRequest{{
+			req: ch.AppendBatchRequest{
+				ChannelID: ch.ChannelID{ID: "room", Type: 1},
+				Messages: []ch.Message{
+					{ClientMsgNo: "skip"},
+					{TraceID: "trace-keep", ChannelKey: "channel/1/cm9vbQ", ClientMsgNo: "keep"},
+				},
+			},
+			records: []ch.Record{{ID: 1}, {ID: 2}},
+		}},
+		records: []ch.Record{{ID: 1}, {ID: 2}},
+	}
+
+	traceBatch := selectAppendTraceBatch(batch)
+
+	require.Len(t, traceBatch.items, 1)
+	require.Len(t, sink.keys, 1)
+	require.Equal(t, "trace-keep", sink.keys[0].TraceID)
+	require.Equal(t, "channel/1/cm9vbQ", sink.keys[0].ChannelKey)
+}
+
 func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
 	batch := appendBatch{
 		requests: []appendRequest{{
@@ -99,6 +168,15 @@ func TestAppendTraceBatchSelectionDisabledDoesNotAllocate(t *testing.T) {
 	}
 
 	allocs := testing.AllocsPerRun(1000, func() {
+		_ = selectAppendTraceBatch(batch)
+	})
+
+	require.Zero(t, allocs)
+
+	restore := sendtrace.SetSink(reactorRecordOnlySink{})
+	t.Cleanup(restore)
+
+	allocs = testing.AllocsPerRun(1000, func() {
 		_ = selectAppendTraceBatch(batch)
 	})
 
