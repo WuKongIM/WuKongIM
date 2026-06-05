@@ -32,6 +32,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		return
 	}
 	batch := rc.appendQ.popBatch(r.nextBatchOpID(), rc.state)
+	r.observeAppendQueuePressure(rc)
 	if len(batch.requests) == 0 {
 		rc.appendQ.storeBlocked = false
 		return
@@ -59,6 +60,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 			rc.appendQ.restoreFront(batch)
 			rc.appendStoreBlocked = true
 			rc.appendRetryAt = now.Add(r.cfg.AppendStoreRetryBackoff)
+			r.observeAppendQueuePressure(rc)
 			return
 		}
 		rc.appendQ.storeBlocked = false
@@ -165,6 +167,7 @@ func (r *Reactor) cancelAppendWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr
 			rc.appendStoreBlocked = false
 			rc.appendRetryAt = time.Time{}
 		}
+		r.observeAppendQueuePressure(rc)
 		r.completeAppendFuture(rc, opID, future, Result{Err: cancelErr})
 		return true
 	}

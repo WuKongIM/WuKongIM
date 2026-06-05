@@ -117,6 +117,8 @@ type Reactor struct {
 	activationRejectedTotal uint64
 	// pendingMetaCount tracks follower bootstrap shells without scanning all channel slots.
 	pendingMetaCount int
+	// appendQueuePressure keeps aggregate append queue pressure updated by per-channel deltas.
+	appendQueuePressure appendQueuePressureState
 	// asyncEffects is set after start so direct handler unit tests keep their synchronous fixtures.
 	asyncEffects atomic.Bool
 }
@@ -129,6 +131,8 @@ type runtimeChannel struct {
 	waiters map[ch.OpID]*Future
 	// appendQ holds accepted append requests before they are flushed as durable batches.
 	appendQ appendQueue
+	// appendQueuePressure is the last pressure snapshot included in the reactor aggregate.
+	appendQueuePressure appendQueuePressureState
 	// appendInflight is the currently submitted durable append batch.
 	appendInflight *appendBatch
 	// recentRecords keeps a leader-owned suffix of durable log records for follower pulls.
@@ -203,7 +207,9 @@ type pullWaiter struct {
 // NewReactor constructs a reactor.
 func NewReactor(cfg ReactorConfig) *Reactor {
 	cfg = defaultReactorConfig(cfg)
-	return &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
+	r := &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
+	r.observeAllMailboxCapacities()
+	return r
 }
 
 func (r *Reactor) start() {
@@ -217,20 +223,19 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 	defer r.submitGate.RUnlock()
 	select {
 	case <-r.stop:
+		r.observeMailboxAdmission(priority, mailboxSubmitClosed)
+		r.observeMailboxDepth(priority)
 		return ch.ErrClosed
 	default:
 	}
 	if event.Kind == EventAppend {
 		r.submitMu.Lock()
 		r.bumpAppendSubmitSeqLocked(event.Key)
-		err := r.mailbox.Submit(priority, event)
+		err := r.submitMailboxWithResult(priority, event)
 		r.submitMu.Unlock()
-		r.observeMailboxDepth(priority)
 		return err
 	}
-	err := r.mailbox.Submit(priority, event)
-	r.observeMailboxDepth(priority)
-	return err
+	return r.submitMailboxWithResult(priority, event)
 }
 
 // SubmitCompletion blocks until a high-priority worker completion is enqueued or closed.
@@ -242,16 +247,26 @@ func (r *Reactor) SubmitCompletion(event Event) error {
 	defer r.submitGate.RUnlock()
 	select {
 	case <-r.stop:
+		r.observeMailboxAdmission(PriorityHigh, mailboxSubmitClosed)
+		r.observeMailboxDepth(PriorityHigh)
 		return ch.ErrClosed
 	default:
 	}
-	select {
-	case r.mailbox.high <- event:
-		r.observeMailboxDepth(PriorityHigh)
-		return nil
-	case <-r.stop:
-		return ch.ErrClosed
-	}
+	return r.submitMailboxBlockingWithResult(PriorityHigh, event)
+}
+
+func (r *Reactor) submitMailboxWithResult(priority Priority, event Event) error {
+	result, err := r.mailbox.submitWithResult(priority, event)
+	r.observeMailboxAdmission(priority, result)
+	r.observeMailboxDepth(priority)
+	return err
+}
+
+func (r *Reactor) submitMailboxBlockingWithResult(priority Priority, event Event) error {
+	result, err := r.mailbox.submitBlockingWithResult(priority, event, r.stop)
+	r.observeMailboxAdmission(priority, result)
+	r.observeMailboxDepth(priority)
+	return err
 }
 
 // Close stops the reactor and fails future work by closing the loop.

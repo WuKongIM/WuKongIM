@@ -86,10 +86,13 @@ func normalizedCommitMode(mode ch.CommitMode) ch.CommitMode {
 
 func (r *Reactor) enqueueAppendRequest(rc *runtimeChannel, req appendRequest) error {
 	if err := rc.appendQ.push(req); err != nil {
+		r.observeAppendQueuePressure(rc)
 		return err
 	}
+	r.observeAppendQueuePressure(rc)
 	if err := rc.addWaiter(req.opID, req.future); err != nil {
 		rc.appendQ.remove(req.opID)
+		r.observeAppendQueuePressure(rc)
 		return err
 	}
 	return nil
@@ -172,6 +175,7 @@ func (r *Reactor) finishAppendInflightBatch(rc *runtimeChannel, appendErr error,
 	}
 	rc.appendInflight = nil
 	rc.appendQ.storeBlocked = false
+	r.observeAppendQueuePressure(rc)
 	r.tryFlushAppend(rc, now)
 }
 

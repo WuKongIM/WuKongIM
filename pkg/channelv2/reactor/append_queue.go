@@ -81,6 +81,22 @@ func newAppendQueue(cfg appendQueueConfig) appendQueue {
 	return appendQueue{cfg: cfg}
 }
 
+// PendingRequests returns the number of queued append requests.
+func (q *appendQueue) PendingRequests() int {
+	if q == nil {
+		return 0
+	}
+	return len(q.pending)
+}
+
+// PendingBytes returns the queued append payload bytes.
+func (q *appendQueue) PendingBytes() int {
+	if q == nil {
+		return 0
+	}
+	return q.bytes
+}
+
 func (q *appendQueue) push(req appendRequest) error {
 	if q == nil {
 		return ch.ErrClosed

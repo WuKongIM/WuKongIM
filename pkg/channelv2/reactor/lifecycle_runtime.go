@@ -168,7 +168,7 @@ func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appe
 		return
 	}
 	event := Event{Kind: EventLeaderEvictReady, Key: rc.state.Key, LeaderEvictAppendSeq: appendSeq}
-	if err := r.mailbox.Submit(PriorityNormal, event); err != nil {
+	if err := r.submitMailboxWithResult(PriorityNormal, event); err != nil {
 		rc.lifecycle.checkpoint.retryAt = now.Add(r.cfg.IdleEvictCheckInterval)
 		r.scheduleLifecycleFromState(rc, now)
 		return

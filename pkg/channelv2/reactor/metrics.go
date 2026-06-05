@@ -34,6 +34,43 @@ type Observer interface {
 	ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration)
 }
 
+// MailboxPressureObserver receives bounded reactor mailbox capacity and admission events.
+type MailboxPressureObserver interface {
+	SetReactorMailboxCapacity(reactorID int, priority string, capacity int)
+	ObserveReactorMailboxAdmission(reactorID int, priority string, result string)
+}
+
+// AppendQueuePressureEvent reports aggregate per-reactor append queue pressure.
+type AppendQueuePressureEvent struct {
+	// ReactorID identifies the reactor partition.
+	ReactorID int
+	// Depth is the number of queued append requests.
+	Depth int
+	// Capacity is the maximum accepted append requests.
+	Capacity int
+	// Bytes is the queued append payload bytes.
+	Bytes int
+	// BytesCapacity is the queued append payload byte capacity.
+	BytesCapacity int
+}
+
+// appendQueuePressureState is the per-reactor or per-channel append queue pressure snapshot.
+type appendQueuePressureState struct {
+	// Depth is the number of queued append requests.
+	Depth int
+	// Capacity is the maximum accepted append requests.
+	Capacity int
+	// Bytes is the queued append payload bytes.
+	Bytes int
+	// BytesCapacity is the queued append payload byte capacity.
+	BytesCapacity int
+}
+
+// AppendQueuePressureObserver receives aggregate append queue pressure without channel labels.
+type AppendQueuePressureObserver interface {
+	SetAppendQueuePressure(event AppendQueuePressureEvent)
+}
+
 // AppendWaitCancelSnapshot captures reactor-local append state at caller cancellation time.
 type AppendWaitCancelSnapshot struct {
 	// ReactorID is the reactor partition that owns the channel key.
@@ -479,6 +516,83 @@ func (r *Reactor) observeMailboxDepth(priority Priority) {
 	r.cfg.Observer.SetReactorMailboxDepth(r.cfg.ID, priorityName(priority), r.mailbox.Depth(priority))
 }
 
+func (r *Reactor) observeMailboxCapacity(priority Priority) {
+	if r == nil || r.mailbox == nil {
+		return
+	}
+	if observer, ok := r.cfg.Observer.(MailboxPressureObserver); ok {
+		observer.SetReactorMailboxCapacity(r.cfg.ID, priorityName(priority), r.mailbox.Capacity(priority))
+	}
+}
+
+func (r *Reactor) observeMailboxAdmission(priority Priority, result mailboxSubmitResult) {
+	if r == nil {
+		return
+	}
+	if observer, ok := r.cfg.Observer.(MailboxPressureObserver); ok {
+		observer.ObserveReactorMailboxAdmission(r.cfg.ID, priorityName(priority), string(result))
+	}
+}
+
+func (r *Reactor) observeAppendQueuePressure(rc *runtimeChannel) {
+	if r == nil || rc == nil {
+		return
+	}
+	observer, ok := r.cfg.Observer.(AppendQueuePressureObserver)
+	if !ok {
+		return
+	}
+	current := appendQueuePressureSnapshot(&rc.appendQ)
+	r.applyAppendQueuePressureSnapshot(rc, current)
+	observer.SetAppendQueuePressure(r.appendQueuePressureEvent())
+}
+
+func (r *Reactor) clearAppendQueuePressure(rc *runtimeChannel) {
+	if r == nil || rc == nil {
+		return
+	}
+	observer, ok := r.cfg.Observer.(AppendQueuePressureObserver)
+	if !ok {
+		return
+	}
+	r.applyAppendQueuePressureSnapshot(rc, appendQueuePressureState{})
+	observer.SetAppendQueuePressure(r.appendQueuePressureEvent())
+}
+
+func (r *Reactor) applyAppendQueuePressureSnapshot(rc *runtimeChannel, current appendQueuePressureState) {
+	previous := rc.appendQueuePressure
+	r.appendQueuePressure.Depth += current.Depth - previous.Depth
+	r.appendQueuePressure.Capacity += current.Capacity - previous.Capacity
+	r.appendQueuePressure.Bytes += current.Bytes - previous.Bytes
+	r.appendQueuePressure.BytesCapacity += current.BytesCapacity - previous.BytesCapacity
+	rc.appendQueuePressure = current
+}
+
+func (r *Reactor) appendQueuePressureEvent() AppendQueuePressureEvent {
+	if r == nil {
+		return AppendQueuePressureEvent{}
+	}
+	return AppendQueuePressureEvent{
+		ReactorID:     r.cfg.ID,
+		Depth:         r.appendQueuePressure.Depth,
+		Capacity:      r.appendQueuePressure.Capacity,
+		Bytes:         r.appendQueuePressure.Bytes,
+		BytesCapacity: r.appendQueuePressure.BytesCapacity,
+	}
+}
+
+func appendQueuePressureSnapshot(q *appendQueue) appendQueuePressureState {
+	if q == nil {
+		return appendQueuePressureState{}
+	}
+	return appendQueuePressureState{
+		Depth:         q.PendingRequests(),
+		Capacity:      q.cfg.MaxPending,
+		Bytes:         q.PendingBytes(),
+		BytesCapacity: q.cfg.MaxPendingBytes,
+	}
+}
+
 func (r *Reactor) observeRuntimeCount(role ch.Role, count int) {
 	if observer, ok := r.cfg.Observer.(RuntimeObserver); ok {
 		observer.SetChannelRuntimeCount(r.cfg.ID, role, count)
@@ -598,6 +712,12 @@ func (r *Reactor) observeAllMailboxDepths() {
 	r.observeMailboxDepth(PriorityHigh)
 	r.observeMailboxDepth(PriorityNormal)
 	r.observeMailboxDepth(PriorityLow)
+}
+
+func (r *Reactor) observeAllMailboxCapacities() {
+	r.observeMailboxCapacity(PriorityHigh)
+	r.observeMailboxCapacity(PriorityNormal)
+	r.observeMailboxCapacity(PriorityLow)
 }
 
 func priorityName(priority Priority) string {

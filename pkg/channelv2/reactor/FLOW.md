@@ -286,6 +286,11 @@ not a high-cardinality metric; app-level observers can log it on rare timeout
 paths to preserve the exact LEO/HW/target, queue, in-flight, and quorum progress
 state that normal latency histograms cannot show.
 
+Mailbox and append queue pressure observations stay low-cardinality. Mailbox
+samples use only reactor id and priority. Append queue pressure is maintained as
+a per-reactor aggregate with per-channel deltas, so hot-path queue mutations do
+not scan the full runtime map and do not expose channel labels.
+
 `EventLookupCommittedMessage` is a read-only path for timeout recovery and
 diagnostics. The owning reactor submits the optional store message-id index read
 to the store read worker pool, then accepts the result only through the current

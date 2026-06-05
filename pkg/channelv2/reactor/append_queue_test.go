@@ -172,6 +172,113 @@ func TestAppendQueueFailAllCompletesQueuedFuturesAndClearsState(t *testing.T) {
 	require.False(t, q.storeBlocked)
 }
 
+func TestAppendQueueReportsAggregatePressure(t *testing.T) {
+	obs := &recordingAppendQueuePressureObserver{}
+	first := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 2, MaxPendingBytes: 11})
+	require.NoError(t, first.push(appendRequest{opID: 1, enqueuedAt: time.Now(), records: []ch.Record{{SizeBytes: 4}}}))
+
+	second := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 3, MaxPendingBytes: 13})
+	require.NoError(t, second.push(appendRequest{opID: 2, enqueuedAt: time.Now(), records: []ch.Record{{SizeBytes: 5}}}))
+	require.NoError(t, second.push(appendRequest{opID: 3, enqueuedAt: time.Now(), records: []ch.Record{{SizeBytes: 6}}}))
+
+	unobserved := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 99, MaxPendingBytes: 101})
+	require.NoError(t, unobserved.push(appendRequest{opID: 4, enqueuedAt: time.Now(), records: []ch.Record{{SizeBytes: 7}}}))
+
+	firstRC := &runtimeChannel{appendQ: first}
+	secondRC := &runtimeChannel{appendQ: second}
+	unobservedRC := &runtimeChannel{appendQ: unobserved}
+	r := &Reactor{
+		cfg: ReactorConfig{
+			ID:                     7,
+			AppendQueueMaxRequests: 99,
+			AppendQueueMaxBytes:    100,
+			Observer:               obs,
+		},
+		channels: map[ch.ChannelKey]*runtimeChannel{
+			ch.ChannelKey("1:first"):      firstRC,
+			ch.ChannelKey("1:second"):     secondRC,
+			ch.ChannelKey("1:unobserved"): unobservedRC,
+		},
+	}
+
+	r.observeAppendQueuePressure(firstRC)
+
+	require.Equal(t, 1, obs.calls)
+	require.Equal(t, AppendQueuePressureEvent{
+		ReactorID:     7,
+		Depth:         1,
+		Capacity:      2,
+		Bytes:         4,
+		BytesCapacity: 11,
+	}, obs.event)
+
+	r.observeAppendQueuePressure(secondRC)
+
+	require.Equal(t, 2, obs.calls)
+	require.Equal(t, AppendQueuePressureEvent{
+		ReactorID:     7,
+		Depth:         3,
+		Capacity:      5,
+		Bytes:         15,
+		BytesCapacity: 24,
+	}, obs.event)
+}
+
+func TestAppendQueuePressureTracksLoadedRuntimeCapacityAndClear(t *testing.T) {
+	obs := &recordingAppendQueuePressureObserver{}
+	r := &Reactor{
+		cfg: ReactorConfig{
+			ID:                     8,
+			AppendQueueMaxRequests: 2,
+			AppendQueueMaxBytes:    11,
+			Observer:               obs,
+		},
+	}
+	rc := &runtimeChannel{}
+
+	r.resetLoadedRuntimeStructures(rc, time.Now(), 0)
+
+	require.Equal(t, 1, obs.calls)
+	require.Equal(t, AppendQueuePressureEvent{
+		ReactorID:     8,
+		Capacity:      2,
+		BytesCapacity: 11,
+	}, obs.event)
+
+	require.NoError(t, rc.appendQ.push(appendRequest{opID: 1, enqueuedAt: time.Now(), records: []ch.Record{{SizeBytes: 4}}}))
+	r.observeAppendQueuePressure(rc)
+
+	require.Equal(t, 2, obs.calls)
+	require.Equal(t, AppendQueuePressureEvent{
+		ReactorID:     8,
+		Depth:         1,
+		Capacity:      2,
+		Bytes:         4,
+		BytesCapacity: 11,
+	}, obs.event)
+
+	r.clearAppendQueuePressure(rc)
+
+	require.Equal(t, 3, obs.calls)
+	require.Equal(t, AppendQueuePressureEvent{ReactorID: 8}, obs.event)
+}
+
+func TestDefaultObserverDoesNotImplementAppendQueuePressureObserver(t *testing.T) {
+	_, ok := defaultObserver(nil).(AppendQueuePressureObserver)
+	require.False(t, ok)
+}
+
+type recordingAppendQueuePressureObserver struct {
+	captureObserver
+	calls int
+	event AppendQueuePressureEvent
+}
+
+func (o *recordingAppendQueuePressureObserver) SetAppendQueuePressure(event AppendQueuePressureEvent) {
+	o.calls++
+	o.event = event
+}
+
 func appendQueueOpIDs(requests []appendRequest) []ch.OpID {
 	opIDs := make([]ch.OpID, 0, len(requests))
 	for _, req := range requests {

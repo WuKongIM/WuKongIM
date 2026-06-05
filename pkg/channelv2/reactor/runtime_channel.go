@@ -546,6 +546,7 @@ func (r *Reactor) resetLoadedRuntimeStructures(rc *runtimeChannel, loadedAt time
 	rc.recentRecords = newRecentRecordCache(r.cfg.LeaderRecentRecordCacheSize, r.cfg.LeaderRecentRecordCacheBytes)
 	rc.lifecycle = newChannelRuntimeLifecycle(loadedAt, activityLEO)
 	rc.appendQ = r.newAppendQueue()
+	r.observeAppendQueuePressure(rc)
 }
 
 func (r *Reactor) newAppendQueue() appendQueue {
@@ -703,6 +704,7 @@ func (r *Reactor) forceReleaseRuntimeForPending(key ch.ChannelKey, rc *runtimeCh
 	r.clearFencedRuntimeWork(rc, ch.ErrStaleMeta)
 	storeHandle := rc.store
 	rc.store = nil
+	r.clearAppendQueuePressure(rc)
 	delete(r.channels, key)
 	r.closeStoreAsync(key, generation, storeHandle)
 	r.clearAppendSubmitState(key)

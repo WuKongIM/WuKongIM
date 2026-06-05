@@ -130,6 +130,7 @@ func (r *Reactor) failPendingAppendWaiters(rc *runtimeChannel, err error) {
 		r.completeAppendFuture(rc, opID, future, Result{Err: err})
 	}
 	rc.appendQ.clear()
+	r.observeAppendQueuePressure(rc)
 	rc.appendInflight = nil
 	rc.appendStoreBlocked = false
 	rc.appendRetryAt = time.Time{}
@@ -150,6 +151,7 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 		}
 	}
 	rc.appendQ.clear()
+	r.observeAppendQueuePressure(rc)
 	rc.appendInflight = nil
 	rc.failPendingPullWaiters(err)
 	rc.failPendingLookupWaiters(err)
@@ -170,6 +172,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	r.clearLookupCancelChannel(rc)
 	storeHandle := rc.store
 	rc.store = nil
+	r.clearAppendQueuePressure(rc)
 	delete(r.channels, key)
 	r.closeStoreAsync(key, rc.state.Generation, storeHandle)
 	r.observeChannelRuntimeEvicted(key, role)

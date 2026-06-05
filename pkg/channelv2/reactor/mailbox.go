@@ -29,6 +29,15 @@ type Mailbox struct {
 	low    chan Event
 }
 
+type mailboxSubmitResult string
+
+const (
+	mailboxSubmitOK        mailboxSubmitResult = "ok"
+	mailboxSubmitFull      mailboxSubmitResult = "full"
+	mailboxSubmitClosed    mailboxSubmitResult = "closed"
+	mailboxSubmitCoalesced mailboxSubmitResult = "coalesced"
+)
+
 // NewMailbox creates a bounded mailbox.
 func NewMailbox(cfg MailboxConfig) *Mailbox {
 	if cfg.HighSize <= 0 {
@@ -45,28 +54,40 @@ func NewMailbox(cfg MailboxConfig) *Mailbox {
 
 // Submit attempts to enqueue an event without unbounded blocking.
 func (m *Mailbox) Submit(priority Priority, event Event) error {
+	_, err := m.submitWithResult(priority, event)
+	return err
+}
+
+func (m *Mailbox) submitWithResult(priority Priority, event Event) (mailboxSubmitResult, error) {
 	if m == nil {
-		return ch.ErrClosed
+		return mailboxSubmitClosed, ch.ErrClosed
 	}
-	queue := m.normal
-	switch priority {
-	case PriorityHigh:
-		queue = m.high
-	case PriorityLow:
-		queue = m.low
-	}
+	queue := m.queue(priority)
 	select {
 	case queue <- event:
-		return nil
+		return mailboxSubmitOK, nil
 	default:
 		if priority == PriorityLow {
 			// Low-priority tick work is droppable/coalesced; complete futures on drop so direct callers cannot hang.
 			if event.Future != nil {
 				event.Future.Complete(Result{})
 			}
-			return nil
+			return mailboxSubmitCoalesced, nil
 		}
-		return ch.ErrBackpressured
+		return mailboxSubmitFull, ch.ErrBackpressured
+	}
+}
+
+func (m *Mailbox) submitBlockingWithResult(priority Priority, event Event, stop <-chan struct{}) (mailboxSubmitResult, error) {
+	if m == nil {
+		return mailboxSubmitClosed, ch.ErrClosed
+	}
+	queue := m.queue(priority)
+	select {
+	case queue <- event:
+		return mailboxSubmitOK, nil
+	case <-stop:
+		return mailboxSubmitClosed, ch.ErrClosed
 	}
 }
 
@@ -133,6 +154,32 @@ func (m *Mailbox) Depth(priority Priority) int {
 		return len(m.low)
 	default:
 		return len(m.normal)
+	}
+}
+
+// Capacity returns the configured capacity for one priority queue.
+func (m *Mailbox) Capacity(priority Priority) int {
+	if m == nil {
+		return 0
+	}
+	switch priority {
+	case PriorityHigh:
+		return cap(m.high)
+	case PriorityLow:
+		return cap(m.low)
+	default:
+		return cap(m.normal)
+	}
+}
+
+func (m *Mailbox) queue(priority Priority) chan Event {
+	switch priority {
+	case PriorityHigh:
+		return m.high
+	case PriorityLow:
+		return m.low
+	default:
+		return m.normal
 	}
 }
 
