@@ -204,6 +204,12 @@ func (r *Reactor) handleRuntimeEvict(event Event) {
 			result.Missing++
 			continue
 		}
+		if rc.loading != nil && rc.state == nil && rc.pending == nil {
+			r.completeStoreLoadFutures(rc.loading, Result{Err: ch.ErrClosed})
+			delete(r.channels, key)
+			result.Evicted++
+			continue
+		}
 		if rc.pending != nil && rc.state == nil {
 			r.releasePendingMeta(key, rc, ch.ErrClosed)
 			result.Evicted++

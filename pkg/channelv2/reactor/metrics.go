@@ -153,6 +153,14 @@ type FollowerLifecycleObserver interface {
 	ObserveFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64)
 }
 
+// SlowPathObserver receives low-cardinality reactor slow-path samples.
+type SlowPathObserver interface {
+	// ObserveReactorSlowEvent reports a mailbox event whose synchronous handling exceeded the configured threshold.
+	ObserveReactorSlowEvent(reactorID int, kind string, d time.Duration)
+	// ObserveReactorSlowDue reports one due maintenance item whose synchronous handling exceeded the configured threshold.
+	ObserveReactorSlowDue(reactorID int, kind string, d time.Duration)
+}
+
 type noopObserver struct{}
 
 func (noopObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
@@ -565,6 +573,24 @@ func (r *Reactor) observeNeedMetaPull(result string, err error) {
 func (r *Reactor) observeFollowerStopped(key ch.ChannelKey, follower ch.NodeID, activityVersion uint64) {
 	if observer, ok := r.cfg.Observer.(FollowerLifecycleObserver); ok {
 		observer.ObserveFollowerStopped(key, follower, activityVersion)
+	}
+}
+
+func (r *Reactor) observeSlowEvent(kind EventKind, d time.Duration) {
+	if r == nil || r.cfg.SlowEventThreshold <= 0 || d < r.cfg.SlowEventThreshold {
+		return
+	}
+	if observer, ok := r.cfg.Observer.(SlowPathObserver); ok {
+		observer.ObserveReactorSlowEvent(r.cfg.ID, eventKindName(kind), d)
+	}
+}
+
+func (r *Reactor) observeSlowDue(kind dueKind, d time.Duration) {
+	if r == nil || r.cfg.SlowDueThreshold <= 0 || d < r.cfg.SlowDueThreshold {
+		return
+	}
+	if observer, ok := r.cfg.Observer.(SlowPathObserver); ok {
+		observer.ObserveReactorSlowDue(r.cfg.ID, dueKindName(kind), d)
 	}
 }
 

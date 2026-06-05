@@ -220,7 +220,7 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 		}
 		return
 	}
-	rc, err := r.lookup(event.Key)
+	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		r.handlePendingMetaPullHint(event)
 		return
@@ -294,6 +294,18 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 }
 
 func (r *Reactor) handlePendingMetaPullHint(event Event) {
+	if r.shouldAsyncStoreLoad() {
+		if err := r.startPendingMetaLoad(event.PullHint); err != nil {
+			if event.Future != nil {
+				event.Future.Complete(Result{Err: err})
+			}
+			return
+		}
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
 	rc, err := r.ensurePendingMeta(event.PullHint)
 	if err != nil {
 		if event.Future != nil {
@@ -375,7 +387,7 @@ func (r *Reactor) retryPendingMetaPull(rc *runtimeChannel, now time.Time) error 
 // handleLegacyFollowerNotify accepts the legacy transport compatibility nudge
 // and maps it to the current PullHint-driven follower resume path.
 func (r *Reactor) handleLegacyFollowerNotify(event Event) {
-	rc, err := r.lookup(event.Key)
+	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		if event.Future != nil {
 			event.Future.Complete(Result{})
@@ -406,7 +418,7 @@ func (r *Reactor) handleRPCPullResult(result worker.Result) {
 		r.handlePendingMetaPullResult(rc, result)
 		return
 	}
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}
@@ -700,7 +712,7 @@ func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.P
 }
 
 func (r *Reactor) handleStoreApplyResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}
@@ -752,7 +764,7 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 }
 
 func (r *Reactor) handleRPCAckResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}

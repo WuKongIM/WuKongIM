@@ -136,6 +136,11 @@ func (r *Reactor) processDue(now time.Time) {
 }
 
 func (r *Reactor) processDueItem(item dueItem, now time.Time) {
+	var started time.Time
+	if r != nil && r.cfg.SlowDueThreshold > 0 {
+		started = time.Now()
+		defer func() { r.observeSlowDue(item.kind, time.Since(started)) }()
+	}
 	rc := r.channels[item.key]
 	if rc == nil {
 		return
@@ -158,6 +163,21 @@ func (r *Reactor) processDueItem(item dueItem, now time.Time) {
 		r.tickLifecycleController(rc, now)
 	case duePendingMeta:
 		r.releaseExpiredPendingMeta(item.key, rc, now)
+	}
+}
+
+func dueKindName(kind dueKind) string {
+	switch kind {
+	case dueAppendFlush:
+		return "dueAppendFlush"
+	case dueReplication:
+		return "dueReplication"
+	case dueLifecycle:
+		return "dueLifecycle"
+	case duePendingMeta:
+		return "duePendingMeta"
+	default:
+		return "dueUnknown"
 	}
 }
 

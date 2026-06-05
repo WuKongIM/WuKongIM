@@ -117,6 +117,34 @@ func TestTaskRunStoreReadLogUsesStoreDeps(t *testing.T) {
 	require.Equal(t, uint64(1), res.StoreReadLog.Records[0].Index)
 }
 
+func TestTaskRunStoreLookupMessageUsesStoreDeps(t *testing.T) {
+	key := ch.ChannelKey("1:a")
+	id := ch.ChannelID{ID: "a", Type: 1}
+	factory := store.NewMemoryFactory()
+	cs, err := factory.ChannelStore(key, id)
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: []ch.Record{{ID: 7, Payload: []byte("lookup"), SizeBytes: len("lookup")}}})
+	require.NoError(t, err)
+	fence := ch.Fence{ChannelKey: key, Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 15}
+
+	res := Task{
+		Kind:  TaskStoreLookupMessage,
+		Fence: fence,
+		StoreLookupMessage: &StoreLookupMessageTask{
+			ChannelID: id,
+			MessageID: 7,
+		},
+	}.Run(context.Background(), Deps{Stores: factory})
+
+	require.NoError(t, res.Err)
+	require.Equal(t, TaskStoreLookupMessage, res.Kind)
+	require.NotNil(t, res.StoreLookupMessage)
+	require.True(t, res.StoreLookupMessage.Found)
+	require.Equal(t, uint64(7), res.StoreLookupMessage.Message.MessageID)
+	require.Equal(t, uint64(1), res.StoreLookupMessage.Message.MessageSeq)
+	require.Equal(t, []byte("lookup"), res.StoreLookupMessage.Message.Payload)
+}
+
 func TestTaskRunStoreApplyUsesStoreDeps(t *testing.T) {
 	key := ch.ChannelKey("1:a")
 	id := ch.ChannelID{ID: "a", Type: 1}
@@ -248,6 +276,7 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 	}{
 		{name: "store append", task: Task{Kind: TaskStoreAppend, Fence: fence}},
 		{name: "store read log", task: Task{Kind: TaskStoreReadLog, Fence: fence}},
+		{name: "store lookup message", task: Task{Kind: TaskStoreLookupMessage, Fence: fence}},
 		{name: "store apply", task: Task{Kind: TaskStoreApply, Fence: fence}},
 		{name: "store checkpoint", task: Task{Kind: TaskStoreCheckpoint, Fence: fence}},
 		{name: "rpc pull", task: Task{Kind: TaskRPCPull, Fence: fence}},

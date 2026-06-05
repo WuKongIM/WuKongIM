@@ -11,7 +11,7 @@ import (
 )
 
 func (r *Reactor) handleLeaderPull(event Event) {
-	rc, err := r.lookup(event.Key)
+	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
@@ -114,7 +114,7 @@ func leaderPullReadRange(rc *runtimeChannel, nextOffset uint64) (maxOffset uint6
 }
 
 func (r *Reactor) handleLeaderAck(event Event) {
-	rc, err := r.lookup(event.Key)
+	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
@@ -236,7 +236,7 @@ func strictRecentRecordCacheSlice(cache *recentRecordCache, from uint64, maxOffs
 }
 
 func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}

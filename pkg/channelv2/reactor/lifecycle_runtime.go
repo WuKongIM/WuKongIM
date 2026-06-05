@@ -179,7 +179,7 @@ func (r *Reactor) submitLeaderEvictReady(rc *runtimeChannel, now time.Time, appe
 }
 
 func (r *Reactor) handleLeaderEvictReady(event Event) {
-	rc, err := r.lookup(event.Key)
+	rc, err := r.lookupLoadedChannel(event.Key)
 	if err != nil {
 		return
 	}
@@ -233,7 +233,7 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 }
 
 func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}
@@ -286,7 +286,7 @@ func (r *Reactor) sendCurrentPullHintIfNeeded(rc *runtimeChannel, node ch.NodeID
 }
 
 func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
-	rc, err := r.lookup(result.Fence.ChannelKey)
+	rc, err := r.lookupLoadedChannel(result.Fence.ChannelKey)
 	if err != nil {
 		return
 	}

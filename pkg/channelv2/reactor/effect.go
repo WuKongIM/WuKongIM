@@ -2,11 +2,10 @@ package reactor
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
@@ -28,6 +27,20 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 	})
 }
 
+func (r *Reactor) submitStoreLoad(ctx context.Context, channelID ch.ChannelID, fence ch.Fence) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreLoad,
+		Fence:   fence,
+		Context: ctx,
+		StoreLoad: &worker.StoreLoadTask{
+			ChannelID: channelID,
+		},
+	})
+}
+
 func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, fromOffset uint64, maxOffset uint64, maxBytes int) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
@@ -41,6 +54,21 @@ func (r *Reactor) submitStoreReadLog(ctx context.Context, channelID ch.ChannelID
 			FromOffset: fromOffset,
 			MaxOffset:  maxOffset,
 			MaxBytes:   maxBytes,
+		},
+	})
+}
+
+func (r *Reactor) submitStoreLookupMessage(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, messageID uint64) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreLookupMessage,
+		Fence:   fence,
+		Context: ctx,
+		StoreLookupMessage: &worker.StoreLookupMessageTask{
+			ChannelID: channelID,
+			MessageID: messageID,
 		},
 	})
 }
@@ -72,6 +100,20 @@ func (r *Reactor) submitStoreCheckpoint(ctx context.Context, channelID ch.Channe
 		StoreCheckpoint: &worker.StoreCheckpointTask{
 			ChannelID:  channelID,
 			Checkpoint: checkpoint,
+		},
+	})
+}
+
+func (r *Reactor) submitStoreClose(ctx context.Context, fence ch.Fence, cs store.ChannelStore) error {
+	if r.cfg.Pools == nil || cs == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreClose,
+		Fence:   fence,
+		Context: ctx,
+		StoreClose: &worker.StoreCloseTask{
+			Store: cs,
 		},
 	})
 }
@@ -144,484 +186,5 @@ func (r *Reactor) completeAppendFuture(rc *runtimeChannel, opID ch.OpID, future 
 	r.observeAppendComplete(rc, opID, result.Err)
 	if future != nil {
 		future.Complete(result)
-	}
-}
-
-func (rc *runtimeChannel) addWaiter(opID ch.OpID, future *Future) error {
-	if rc == nil || future == nil {
-		return nil
-	}
-	if rc.waiters == nil {
-		rc.waiters = make(map[ch.OpID]*Future)
-	}
-	if _, ok := rc.waiters[opID]; ok {
-		return ch.ErrInvalidConfig
-	}
-	rc.waiters[opID] = future
-	return nil
-}
-
-func (r *Reactor) registerAppendCancelContext(rc *runtimeChannel, opID ch.OpID, ctx context.Context) {
-	if r == nil || rc == nil || ctx == nil {
-		return
-	}
-	if ctx.Done() == nil {
-		return
-	}
-	if rc.appendCancelContexts == nil {
-		rc.appendCancelContexts = make(map[ch.OpID]context.Context)
-	}
-	rc.appendCancelContexts[opID] = ctx
-	if r.appendCancelChannels == nil {
-		r.appendCancelChannels = make(map[ch.ChannelKey]*runtimeChannel)
-	}
-	if rc.state != nil {
-		r.appendCancelChannels[rc.state.Key] = rc
-	}
-}
-
-func (r *Reactor) unregisterAppendCancelContext(rc *runtimeChannel, opID ch.OpID) {
-	if r == nil || rc == nil || len(rc.appendCancelContexts) == 0 {
-		return
-	}
-	delete(rc.appendCancelContexts, opID)
-	if len(rc.appendCancelContexts) == 0 && r.appendCancelChannels != nil && rc.state != nil {
-		delete(r.appendCancelChannels, rc.state.Key)
-	}
-}
-
-func (r *Reactor) clearAppendCancelContexts(rc *runtimeChannel) {
-	if r == nil || rc == nil {
-		return
-	}
-	rc.appendCancelContexts = nil
-	rc.appendCancelNudgeNextAt = time.Time{}
-	if r.appendCancelChannels != nil && rc.state != nil {
-		delete(r.appendCancelChannels, rc.state.Key)
-	}
-}
-
-func (r *Reactor) registerPullCancelContext(rc *runtimeChannel, ctx context.Context) {
-	if r == nil || rc == nil || ctx == nil || ctx.Done() == nil {
-		return
-	}
-	if r.pullCancelChannels == nil {
-		r.pullCancelChannels = make(map[ch.ChannelKey]*runtimeChannel)
-	}
-	if rc.state != nil {
-		r.pullCancelChannels[rc.state.Key] = rc
-	}
-}
-
-func (r *Reactor) unregisterPullCancelContext(rc *runtimeChannel) {
-	if r == nil || rc == nil || r.pullCancelChannels == nil || rc.state == nil {
-		return
-	}
-	if !rc.hasCancelablePullWaiters() {
-		delete(r.pullCancelChannels, rc.state.Key)
-	}
-}
-
-func (r *Reactor) clearPullCancelChannel(rc *runtimeChannel) {
-	if r == nil || rc == nil || r.pullCancelChannels == nil || rc.state == nil {
-		return
-	}
-	delete(r.pullCancelChannels, rc.state.Key)
-}
-
-// failPendingAppendWaiters completes append waiters that are fenced by accepted metadata.
-func (r *Reactor) failPendingAppendWaiters(rc *runtimeChannel, err error) {
-	if r == nil || rc == nil {
-		return
-	}
-	for opID, future := range rc.waiters {
-		delete(rc.waiters, opID)
-		r.unregisterAppendCancelContext(rc, opID)
-		r.completeAppendFuture(rc, opID, future, Result{Err: err})
-	}
-	rc.appendQ.clear()
-	rc.appendInflight = nil
-	rc.appendStoreBlocked = false
-	rc.appendRetryAt = time.Time{}
-	if rc.state != nil && rc.state.InflightAppend != nil {
-		rc.state.AbortAppendBatchProposal(rc.state.InflightAppend.OpID)
-	}
-}
-
-func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
-	if r == nil || rc == nil {
-		return
-	}
-	for opID, future := range rc.waiters {
-		delete(rc.waiters, opID)
-		if future != nil {
-			r.unregisterAppendCancelContext(rc, opID)
-			r.completeAppendFuture(rc, opID, future, Result{Err: err})
-		}
-	}
-	rc.appendQ.clear()
-	rc.appendInflight = nil
-	rc.failPendingPullWaiters(err)
-}
-
-func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason string) bool {
-	_ = reason
-	if r == nil || rc == nil || rc.state == nil || r.channels[key] != rc {
-		return false
-	}
-	if !rc.safeToEvictRuntime() {
-		return false
-	}
-	role := rc.state.Role
-	wasParkedFollower := role == ch.RoleFollower && rc.replication.parked
-	r.clearAppendCancelContexts(rc)
-	r.clearPullCancelChannel(rc)
-	if err := rc.store.Close(); err != nil {
-		return false
-	}
-	delete(r.channels, key)
-	r.observeChannelRuntimeEvicted(key, role)
-	if wasParkedFollower {
-		r.observeFollowerParkedCount(r.countParkedFollowers())
-	}
-	r.observeRuntimeCounts()
-	return true
-}
-
-func (rc *runtimeChannel) safeToEvictRuntime() bool {
-	return runtimeViewFromChannel(rc, time.Now(), AppendFenceView{}).SafeToEvict()
-}
-
-func (rc *runtimeChannel) failPendingPullWaiters(err error) {
-	if rc == nil || len(rc.pullWaiters) == 0 {
-		return
-	}
-	for opID, waiter := range rc.pullWaiters {
-		delete(rc.pullWaiters, opID)
-		if waiter != nil && waiter.future != nil {
-			waiter.future.Complete(Result{Err: err})
-		}
-	}
-}
-
-func (rc *runtimeChannel) hasCancelablePullWaiters() bool {
-	if rc == nil {
-		return false
-	}
-	for _, waiter := range rc.pullWaiters {
-		if waiter != nil && waiter.ctx != nil && waiter.ctx.Done() != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *Reactor) sweepPullCancellations() {
-	if r == nil || len(r.pullCancelChannels) == 0 {
-		return
-	}
-	for key, rc := range r.pullCancelChannels {
-		if rc == nil || len(rc.pullWaiters) == 0 {
-			delete(r.pullCancelChannels, key)
-			continue
-		}
-		for opID, waiter := range rc.pullWaiters {
-			if waiter == nil || waiter.ctx == nil {
-				continue
-			}
-			if err := waiter.ctx.Err(); err != nil {
-				r.cancelPullWaiter(rc, opID, err)
-			}
-		}
-		if !rc.hasCancelablePullWaiters() {
-			delete(r.pullCancelChannels, key)
-		}
-	}
-}
-
-func (r *Reactor) cancelPullWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr error) bool {
-	if r == nil || rc == nil {
-		return false
-	}
-	if cancelErr == nil {
-		cancelErr = context.Canceled
-	}
-	waiter := rc.pullWaiters[opID]
-	if waiter == nil {
-		r.unregisterPullCancelContext(rc)
-		return false
-	}
-	delete(rc.pullWaiters, opID)
-	r.unregisterPullCancelContext(rc)
-	if waiter.future != nil {
-		waiter.future.Complete(Result{Err: cancelErr})
-	}
-	return true
-}
-
-// metadataWouldFenceState reports whether accepted metadata invalidates pending state.
-func metadataWouldFenceState(state *machine.ChannelState, meta ch.Meta) bool {
-	if state == nil {
-		return false
-	}
-	role := ch.RoleFollower
-	if meta.Leader == state.LocalNode {
-		role = ch.RoleLeader
-	}
-	return state.Epoch != meta.Epoch ||
-		state.LeaderEpoch != meta.LeaderEpoch ||
-		state.Leader != meta.Leader ||
-		state.Role != role ||
-		state.Status != meta.Status
-}
-
-func defaultReactorConfig(cfg ReactorConfig) ReactorConfig {
-	if cfg.MaxChannels > 0 {
-		cfg.MaxChannelsEnabled = true
-	}
-	if cfg.MailboxSize <= 0 {
-		cfg.MailboxSize = 1024
-	}
-	if cfg.AppendBatchMaxRecords <= 0 {
-		cfg.AppendBatchMaxRecords = 128
-	}
-	if cfg.AppendBatchMaxBytes <= 0 {
-		cfg.AppendBatchMaxBytes = 256 * 1024
-	}
-	if cfg.AppendBatchMaxWait <= 0 {
-		cfg.AppendBatchMaxWait = time.Millisecond
-	}
-	if cfg.AppendQueueMaxRequests <= 0 {
-		cfg.AppendQueueMaxRequests = max(cfg.MailboxSize, 1024)
-	}
-	if cfg.AppendQueueMaxBytes <= 0 {
-		cfg.AppendQueueMaxBytes = 4 * 1024 * 1024
-	}
-	if cfg.AppendStoreRetryBackoff <= 0 {
-		cfg.AppendStoreRetryBackoff = time.Millisecond
-	}
-	if cfg.ReplicationIdlePollInterval <= 0 {
-		cfg.ReplicationIdlePollInterval = defaultReplicationIdlePollInterval
-	}
-	if cfg.ReplicationMinBackoff <= 0 {
-		cfg.ReplicationMinBackoff = time.Millisecond
-	}
-	if cfg.ReplicationMaxBackoff <= 0 {
-		cfg.ReplicationMaxBackoff = 100 * time.Millisecond
-	}
-	if cfg.ReplicationMaxBackoff < cfg.ReplicationMinBackoff {
-		cfg.ReplicationMaxBackoff = cfg.ReplicationMinBackoff
-	}
-	if cfg.PullMaxBytes <= 0 {
-		cfg.PullMaxBytes = 64 * 1024
-	}
-	if cfg.LeaderRecentRecordCacheSize == 0 {
-		cfg.LeaderRecentRecordCacheSize = 128
-	}
-	if cfg.LeaderRecentRecordCacheSize < 0 {
-		cfg.LeaderRecentRecordCacheBytes = 0
-	} else if cfg.LeaderRecentRecordCacheBytes <= 0 {
-		cfg.LeaderRecentRecordCacheBytes = min(cfg.PullMaxBytes, 256*1024)
-	}
-	if cfg.IdleSlowdownAfter <= 0 {
-		cfg.IdleSlowdownAfter = 30 * time.Second
-	}
-	if cfg.IdleEvictAfter <= 0 {
-		cfg.IdleEvictAfter = 5 * time.Minute
-	}
-	if cfg.IdlePullMinInterval <= 0 {
-		cfg.IdlePullMinInterval = cfg.ReplicationIdlePollInterval
-	}
-	if cfg.IdlePullMaxInterval <= 0 {
-		cfg.IdlePullMaxInterval = 5 * time.Second
-	}
-	if cfg.IdleEvictCheckInterval <= 0 {
-		cfg.IdleEvictCheckInterval = time.Second
-	}
-	if cfg.PullHintRetryInterval <= 0 {
-		cfg.PullHintRetryInterval = time.Second
-	}
-	if cfg.FollowerRecoveryProbeInterval < 0 {
-		cfg.FollowerRecoveryProbeInterval = 0
-	}
-	if cfg.FollowerRecoveryProbeInterval == 0 {
-		cfg.FollowerRecoveryProbeInterval = defaultFollowerRecoveryProbeInterval
-	}
-	if cfg.FollowerRecoveryProbeJitter < 0 {
-		cfg.FollowerRecoveryProbeJitter = 0
-	}
-	if cfg.FollowerRecoveryProbeJitter == 0 {
-		cfg.FollowerRecoveryProbeJitter = defaultFollowerRecoveryProbeJitter
-	}
-	cfg.Observer = defaultObserver(cfg.Observer)
-	return cfg
-}
-
-func (r *Reactor) nextBatchOpID() ch.OpID {
-	if r.cfg.NextOpID != nil {
-		return r.cfg.NextOpID()
-	}
-	return ch.OpID(1<<63 + r.nextOp.Add(1))
-}
-
-func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
-	if r == nil || rc == nil {
-		return
-	}
-	defer r.scheduleAppendFlushFromState(rc)
-	r.sweepAppendCancellationsForChannelAt(rc, now)
-	if rc.appendInflight != nil {
-		return
-	}
-	if rc.appendStoreBlocked && now.Before(rc.appendRetryAt) {
-		return
-	}
-	if !rc.appendQ.shouldFlush(now) {
-		return
-	}
-	batch := rc.appendQ.popBatch(r.nextBatchOpID(), rc.state)
-	if len(batch.requests) == 0 {
-		rc.appendQ.storeBlocked = false
-		return
-	}
-	waiters := make([]machine.AppendBatchWaiter, 0, len(batch.requests))
-	for _, req := range batch.requests {
-		waiters = append(waiters, machine.AppendBatchWaiter{OpID: req.opID, CommitMode: req.commitMode, OmitResultPayload: req.req.OmitResultPayload, Records: req.records})
-	}
-	decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{BatchOpID: batch.batchOpID, Waiters: waiters})
-	if decision.Err != nil {
-		rc.appendQ.storeBlocked = false
-		r.failAppendBatch(rc, batch, decision.Err)
-		return
-	}
-	if len(decision.Tasks) == 0 {
-		rc.appendQ.storeBlocked = false
-		return
-	}
-	task := decision.Tasks[0]
-	batch.fence = task.Fence
-	batch.records = task.StoreAppend.Records
-	batch.trace = selectAppendTraceBatch(batch)
-	if err := r.submitStoreAppend(context.Background(), batch.requests[0].req.ChannelID, task); err != nil {
-		rc.state.AbortAppendBatchProposal(batch.batchOpID)
-		if errors.Is(err, ch.ErrBackpressured) {
-			rc.appendQ.restoreFront(batch)
-			rc.appendStoreBlocked = true
-			rc.appendRetryAt = now.Add(r.cfg.AppendStoreRetryBackoff)
-			return
-		}
-		rc.appendQ.storeBlocked = false
-		r.failAppendBatch(rc, batch, err)
-		return
-	}
-	r.markAppendStoreSubmitted(rc, batch, now)
-	rc.appendInflight = &batch
-	rc.appendStoreBlocked = false
-	rc.appendRetryAt = time.Time{}
-	r.observeAppendBatch(batch, now)
-}
-
-func (r *Reactor) sweepAppendCancellations() {
-	r.sweepAppendCancellationsAt(time.Now())
-}
-
-func (r *Reactor) sweepAppendCancellationsAt(now time.Time) {
-	if r == nil || len(r.appendCancelChannels) == 0 {
-		return
-	}
-	if !r.appendCancelSweepNextAt.IsZero() && now.Before(r.appendCancelSweepNextAt) {
-		return
-	}
-	r.appendCancelSweepNextAt = now.Add(defaultAppendCancelSweepInterval)
-	for key, rc := range r.appendCancelChannels {
-		if rc == nil || len(rc.appendCancelContexts) == 0 {
-			delete(r.appendCancelChannels, key)
-			continue
-		}
-		r.sweepAppendCancellationsForChannelAt(rc, now)
-		if len(rc.appendCancelContexts) == 0 {
-			delete(r.appendCancelChannels, key)
-		}
-	}
-}
-
-func (r *Reactor) sweepAppendCancellationsForChannel(rc *runtimeChannel) {
-	r.sweepAppendCancellationsForChannelAt(rc, time.Now())
-}
-
-func (r *Reactor) sweepAppendCancellationsForChannelAt(rc *runtimeChannel, now time.Time) {
-	if r == nil || rc == nil || len(rc.appendCancelContexts) == 0 {
-		return
-	}
-	r.nudgePendingQuorumFollowersFromCancellationSweep(rc, now)
-	for opID, ctx := range rc.appendCancelContexts {
-		if ctx == nil {
-			continue
-		}
-		if err := ctx.Err(); err != nil {
-			r.cancelAppendWaiter(rc, opID, err)
-		}
-	}
-}
-
-func (r *Reactor) nudgePendingQuorumFollowersFromCancellationSweep(rc *runtimeChannel, now time.Time) {
-	if r == nil || rc == nil {
-		return
-	}
-	if !rc.appendCancelNudgeNextAt.IsZero() && now.Before(rc.appendCancelNudgeNextAt) {
-		return
-	}
-	interval := r.cfg.PullHintRetryInterval
-	if interval <= 0 {
-		interval = time.Second
-	}
-	rc.appendCancelNudgeNextAt = now.Add(interval)
-	r.nudgePendingQuorumFollowers(rc, now)
-}
-
-func (r *Reactor) cancelAppendWaiter(rc *runtimeChannel, opID ch.OpID, cancelErr error) bool {
-	if r == nil || rc == nil {
-		return false
-	}
-	if cancelErr == nil {
-		cancelErr = context.Canceled
-	}
-	r.observeAppendWaitCanceled(rc, opID, cancelErr)
-	r.unregisterAppendCancelContext(rc, opID)
-	if req, ok := rc.appendQ.remove(opID); ok {
-		future := req.future
-		if future == nil {
-			future = rc.waiters[opID]
-		}
-		delete(rc.waiters, opID)
-		if rc.state != nil {
-			rc.state.CancelAppendWaiter(opID)
-		}
-		if len(rc.appendQ.pending) == 0 {
-			rc.appendStoreBlocked = false
-			rc.appendRetryAt = time.Time{}
-		}
-		r.completeAppendFuture(rc, opID, future, Result{Err: cancelErr})
-		return true
-	}
-	future := rc.waiters[opID]
-	if future != nil {
-		delete(rc.waiters, opID)
-	}
-	if rc.state != nil {
-		rc.state.CancelAppendWaiter(opID)
-	}
-	if future != nil {
-		r.completeAppendFuture(rc, opID, future, Result{Err: cancelErr})
-		return true
-	}
-	return false
-}
-
-func (r *Reactor) failAppendBatch(rc *runtimeChannel, batch appendBatch, err error) {
-	for _, req := range batch.requests {
-		delete(rc.waiters, req.opID)
-		r.unregisterAppendCancelContext(rc, req.opID)
-		r.completeAppendFuture(rc, req.opID, req.future, Result{Err: err})
 	}
 }

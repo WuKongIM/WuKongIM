@@ -4,6 +4,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
@@ -15,15 +16,26 @@ type Result struct {
 	// Duration is the worker execution time measured by the owning pool.
 	Duration time.Duration
 
-	StoreAppend     *StoreAppendResult
-	StoreReadLog    *StoreReadLogResult
-	StoreApply      *StoreApplyResult
-	StoreCheckpoint *StoreCheckpointResult
-	RPCPull         *RPCPullResult
-	RPCAck          *RPCAckResult
-	RPCNotify       *RPCNotifyResult
-	RPCPullHint     *RPCPullHintResult
-	Value           any
+	StoreAppend        *StoreAppendResult
+	StoreLoad          *StoreLoadResult
+	StoreReadLog       *StoreReadLogResult
+	StoreLookupMessage *StoreLookupMessageResult
+	StoreApply         *StoreApplyResult
+	StoreCheckpoint    *StoreCheckpointResult
+	StoreClose         *StoreCloseResult
+	RPCPull            *RPCPullResult
+	RPCAck             *RPCAckResult
+	RPCNotify          *RPCNotifyResult
+	RPCPullHint        *RPCPullHintResult
+	Value              any
+}
+
+// StoreLoadResult returns an opened channel store and its durable initial state.
+type StoreLoadResult struct {
+	// Store is the opened store handle owned by the reactor after the load result is accepted.
+	Store store.ChannelStore
+	// Initial is the durable runtime frontier loaded before metadata is applied.
+	Initial store.InitialState
 }
 
 // StoreAppendResult returns the durable offset range for a leader append.
@@ -40,6 +52,14 @@ type StoreReadLogResult struct {
 	Records []ch.Record
 }
 
+// StoreLookupMessageResult contains one durable message lookup result.
+type StoreLookupMessageResult struct {
+	// Message is the durable row returned by storage when Found is true.
+	Message ch.Message
+	// Found reports whether storage has a row with the requested message id.
+	Found bool
+}
+
 // StoreApplyResult returns the follower's durable log end offset.
 type StoreApplyResult struct {
 	// LEO is the follower log end offset after applying records.
@@ -48,6 +68,9 @@ type StoreApplyResult struct {
 
 // StoreCheckpointResult marks a completed checkpoint persistence task.
 type StoreCheckpointResult struct{}
+
+// StoreCloseResult marks a completed asynchronous store handle close.
+type StoreCloseResult struct{}
 
 // RPCPullResult contains the response returned by a remote pull RPC.
 type RPCPullResult struct {

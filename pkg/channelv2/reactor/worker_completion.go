@@ -6,10 +6,15 @@ func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
 	case worker.TaskStoreAppend:
 		r.handleStoreAppendResult(event.Worker)
+	case worker.TaskStoreLoad:
+		r.handleStoreLoadResult(event.Worker)
 	case worker.TaskStoreReadLog:
 		r.handleStoreReadLogResult(event.Worker)
+	case worker.TaskStoreLookupMessage:
+		r.handleStoreLookupMessageResult(event.Worker)
 	case worker.TaskStoreCheckpoint:
 		r.handleStoreCheckpointResult(event.Worker)
+	case worker.TaskStoreClose:
 	case worker.TaskRPCPull:
 		r.handleRPCPullResult(event.Worker)
 	case worker.TaskStoreApply:

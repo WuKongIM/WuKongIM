@@ -71,3 +71,42 @@ type Event struct {
 	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
 	LeaderEvictAppendSeq uint64
 }
+
+func eventKindName(kind EventKind) string {
+	switch kind {
+	case EventApplyMeta:
+		return "EventApplyMeta"
+	case EventCheckState:
+		return "EventCheckState"
+	case EventLookupCommittedMessage:
+		return "EventLookupCommittedMessage"
+	case EventRuntimeSnapshot:
+		return "EventRuntimeSnapshot"
+	case EventRuntimeProbe:
+		return "EventRuntimeProbe"
+	case EventRuntimeEvict:
+		return "EventRuntimeEvict"
+	case EventAppend:
+		return "EventAppend"
+	case EventWorkerResult:
+		return "EventWorkerResult"
+	case EventTick:
+		return "EventTick"
+	case EventCancelWaiter:
+		return "EventCancelWaiter"
+	case EventPull:
+		return "EventPull"
+	case EventAck:
+		return "EventAck"
+	case EventNotify:
+		return "EventNotify"
+	case EventPullHint:
+		return "EventPullHint"
+	case EventLeaderEvictReady:
+		return "EventLeaderEvictReady"
+	case EventClose:
+		return "EventClose"
+	default:
+		return "EventUnknown"
+	}
+}

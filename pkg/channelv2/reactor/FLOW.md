@@ -6,6 +6,9 @@
 reactor goroutine is the writer for each loaded channel runtime. Blocking store
 and RPC work leaves the reactor through bounded worker pools and returns as
 fenced worker completions.
+Started reactors also open/load channel stores and close detached store handles
+through worker tasks, so metadata activation and runtime eviction do not wait on
+store I/O inside the reactor loop.
 Store append and follower apply pools default to twice the reactor count because
 quorum traffic produces both leader appends and follower apply work; read and
 RPC pools default to the reactor count unless explicitly configured. Production
@@ -251,17 +254,22 @@ send-timeout-bounded interval. The runtime default is 2s plus up to 1s jitter.
 ## Worker Completion Routing
 
 ```text
-TaskStoreAppend      -> append completion
-TaskStoreReadLog     -> leader pull completion
-TaskStoreCheckpoint  -> leader checkpoint or follower stop checkpoint
-TaskRPCPull          -> follower pull completion
-TaskStoreApply       -> follower apply completion
-TaskRPCAck           -> follower stopped ACK completion
-TaskRPCPullHint      -> leader pull-hint completion
+TaskStoreAppend        -> append completion
+TaskStoreLoad          -> ApplyMeta activation or PendingMeta bootstrap
+TaskStoreReadLog       -> leader pull completion
+TaskStoreLookupMessage -> committed message lookup completion
+TaskStoreCheckpoint    -> leader checkpoint or follower stop checkpoint
+TaskStoreClose         -> detached store close completion (no state mutation)
+TaskRPCPull            -> follower pull completion
+TaskStoreApply         -> follower apply completion
+TaskRPCAck             -> follower stopped ACK completion
+TaskRPCPullHint        -> leader pull-hint completion
 ```
 
 Worker completions are accepted only when their channel key, generation, epoch,
-leader epoch, and operation id match the current runtime state.
+leader epoch, and operation id match the current runtime state. Store-load
+results are fenced by the temporary loading shell; stale load results close the
+opened store handle outside the reactor state machine.
 
 Append waiter metrics split the admitted future after service submission:
 `store_append_wait` measures append flush submission through fenced durable store
@@ -279,9 +287,10 @@ paths to preserve the exact LEO/HW/target, queue, in-flight, and quorum progress
 state that normal latency histograms cannot show.
 
 `EventLookupCommittedMessage` is a read-only path for timeout recovery and
-diagnostics. The owning reactor reads the optional store message-id index, then
-returns a message only if its sequence is positive and `sequence <= HW` for the
-current runtime fence. It never mutates progress and cannot mark locally durable
+diagnostics. The owning reactor submits the optional store message-id index read
+to the store read worker pool, then accepts the result only through the current
+runtime fence. A message is returned only if its sequence is positive and
+`sequence <= HW`; the path never mutates progress and cannot mark locally durable
 but uncommitted rows as successful.
 
 ## Deep Sendtrace Sidecars

@@ -14,6 +14,7 @@ type TaskKind uint8
 const (
 	TaskFunc TaskKind = iota + 1
 	TaskStoreAppend
+	TaskStoreLoad
 	TaskStoreApply
 	TaskStoreReadLog
 	TaskRPCPull
@@ -21,6 +22,8 @@ const (
 	TaskRPCNotify
 	TaskStoreCheckpoint
 	TaskRPCPullHint
+	TaskStoreLookupMessage
+	TaskStoreClose
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -31,18 +34,28 @@ type Task struct {
 	Context context.Context
 
 	StoreAppend  *StoreAppendTask
+	StoreLoad    *StoreLoadTask
 	StoreReadLog *StoreReadLogTask
-	StoreApply   *StoreApplyTask
+	// StoreLookupMessage asks storage for one durable message row by message id.
+	StoreLookupMessage *StoreLookupMessageTask
+	StoreApply         *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
 	StoreCheckpoint *StoreCheckpointTask
-	RPCPull         *RPCPullTask
-	RPCAck          *RPCAckTask
+	// StoreClose releases a store handle after the reactor has detached it.
+	StoreClose *StoreCloseTask
+	RPCPull    *RPCPullTask
+	RPCAck     *RPCAckTask
 	// RPCNotify sends legacy transport compatibility nudges.
 	RPCNotify *RPCNotifyTask
 	// RPCPullHint sends a prompt pull nudge to a follower.
 	RPCPullHint *RPCPullHintTask
 
 	RunFunc func(context.Context) Result
+}
+
+// StoreLoadTask asks a worker to open and load a channel store before runtime activation.
+type StoreLoadTask struct {
+	ChannelID ch.ChannelID
 }
 
 // StoreAppendTask asks a worker to durably append leader records.
@@ -60,6 +73,12 @@ type StoreReadLogTask struct {
 	MaxBytes   int
 }
 
+// StoreLookupMessageTask asks a worker to look up one durable message by id.
+type StoreLookupMessageTask struct {
+	ChannelID ch.ChannelID
+	MessageID uint64
+}
+
 // StoreApplyTask asks a worker to persist follower records.
 type StoreApplyTask struct {
 	ChannelID ch.ChannelID
@@ -73,6 +92,12 @@ type StoreCheckpointTask struct {
 	ChannelID ch.ChannelID
 	// Checkpoint is the durable committed frontier to persist.
 	Checkpoint ch.Checkpoint
+}
+
+// StoreCloseTask asks a worker to release a detached store handle.
+type StoreCloseTask struct {
+	// Store is the detached handle to close outside the reactor loop.
+	Store store.ChannelStore
 }
 
 // RPCPullTask asks a remote leader for records.
@@ -119,12 +144,18 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		}
 	case TaskStoreAppend:
 		res = runStoreAppend(ctx, deps, t)
+	case TaskStoreLoad:
+		res = runStoreLoad(ctx, deps, t)
 	case TaskStoreReadLog:
 		res = runStoreReadLog(ctx, deps, t)
+	case TaskStoreLookupMessage:
+		res = runStoreLookupMessage(ctx, deps, t)
 	case TaskStoreApply:
 		res = runStoreApply(ctx, deps, t)
 	case TaskStoreCheckpoint:
 		res = runStoreCheckpoint(ctx, deps, t)
+	case TaskStoreClose:
+		res = runStoreClose(ctx, deps, t)
 	case TaskRPCPull:
 		res = runRPCPull(ctx, deps, t)
 	case TaskRPCAck:
@@ -184,6 +215,37 @@ func normalizeContextErr(ctx context.Context, res Result) Result {
 	return res
 }
 
+func runStoreClose(ctx context.Context, deps Deps, t Task) Result {
+	_ = ctx
+	_ = deps
+	payload := t.StoreClose
+	if payload == nil || payload.Store == nil {
+		return invalidResult(t)
+	}
+	err := payload.Store.Close()
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreClose: &StoreCloseResult{}}
+}
+
+func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
+	payload := t.StoreLoad
+	if payload == nil || deps.Stores == nil {
+		return invalidResult(t)
+	}
+	cs, err := deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)
+	if err != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
+	}
+	if cs == nil {
+		return invalidResult(t)
+	}
+	initial, err := cs.Load(ctx)
+	if err != nil {
+		_ = cs.Close()
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
+	}
+	return Result{Kind: t.Kind, Fence: t.Fence, StoreLoad: &StoreLoadResult{Store: cs, Initial: initial}}
+}
+
 func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
 	payload := t.StoreAppend
 	if payload == nil || deps.Stores == nil {
@@ -214,6 +276,29 @@ func runStoreReadLog(ctx context.Context, deps Deps, t Task) Result {
 	}
 	read, err := cs.ReadLog(ctx, store.ReadLogRequest{FromOffset: payload.FromOffset, MaxOffset: payload.MaxOffset, MaxBytes: payload.MaxBytes})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreReadLog: &StoreReadLogResult{Records: read.Records}}
+}
+
+func runStoreLookupMessage(ctx context.Context, deps Deps, t Task) Result {
+	payload := t.StoreLookupMessage
+	if payload == nil || deps.Stores == nil {
+		return invalidResult(t)
+	}
+	if payload.MessageID == 0 {
+		return Result{Kind: t.Kind, Fence: t.Fence, StoreLookupMessage: &StoreLookupMessageResult{}}
+	}
+	cs, err := deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)
+	if err != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
+	}
+	if cs == nil {
+		return invalidResult(t)
+	}
+	lookup, ok := cs.(store.MessageLookup)
+	if !ok {
+		return invalidResult(t)
+	}
+	msg, found, err := lookup.LookupMessageByID(ctx, payload.MessageID)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreLookupMessage: &StoreLookupMessageResult{Message: msg, Found: found}}
 }
 
 func runStoreApply(ctx context.Context, deps Deps, t Task) Result {

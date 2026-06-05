@@ -310,11 +310,21 @@ func (g *Group) Complete(result worker.Result) {
 	}
 	reactor := g.reactors[g.router.PickIndex(key)]
 	err := reactor.SubmitCompletion(Event{Kind: EventWorkerResult, Key: key, Worker: result})
+	if errors.Is(err, ch.ErrClosed) {
+		closeWorkerLoadedStore(result)
+		return
+	}
 	if err != nil && !errors.Is(err, ch.ErrClosed) {
 		panic(err)
 	}
 	if err == nil {
 		g.cfg.Observer.ObserveWorkerResult(result.Kind, result.Err, result.Duration)
+	}
+}
+
+func closeWorkerLoadedStore(result worker.Result) {
+	if result.StoreLoad != nil && result.StoreLoad.Store != nil {
+		_ = result.StoreLoad.Store.Close()
 	}
 }
 
