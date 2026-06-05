@@ -255,10 +255,10 @@ func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
 	if cfg.Diagnostics.ErrorSampleRate == 0 && !cfg.diagnosticsErrorSampleRateSet {
 		cfg.Diagnostics.ErrorSampleRate = 1.0
 	}
-	if cfg.Diagnostics.DeepSlowThreshold <= 0 {
+	if cfg.Diagnostics.DeepSlowThreshold == 0 {
 		cfg.Diagnostics.DeepSlowThreshold = cfg.Diagnostics.SlowThreshold
 	}
-	if cfg.Diagnostics.DeepMaxItemsPerBatch <= 0 {
+	if cfg.Diagnostics.DeepMaxItemsPerBatch == 0 {
 		cfg.Diagnostics.DeepMaxItemsPerBatch = 16
 	}
 	return cfg

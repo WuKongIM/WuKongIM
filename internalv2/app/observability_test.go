@@ -478,6 +478,24 @@ func TestDiagnosticsConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
+func TestNewRejectsNegativeDeepDiagnosticsConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  DiagnosticsConfig
+	}{
+		{name: "deep slow threshold", cfg: DiagnosticsConfig{DeepSlowThreshold: -time.Millisecond}},
+		{name: "deep max items", cfg: DiagnosticsConfig{DeepMaxItemsPerBatch: -1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := New(Config{Observability: ObservabilityConfig{Diagnostics: tt.cfg}}, WithCluster(&fakeCluster{}))
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("New() error = %v, want %v", err, ErrInvalidConfig)
+			}
+		})
+	}
+}
+
 func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
 	logger := &recordingAppLogger{}
 	observer := deliveryMetricsObserver{logger: logger}
