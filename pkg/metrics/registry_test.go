@@ -903,6 +903,177 @@ func TestRegistryIncludesDiagnosticsMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_diagnostics_buffer_usage_ratio")
 }
 
+func TestRuntimePressureMetricsTrackPoolsQueuesAndDurations(t *testing.T) {
+	reg := New(9, "node-9")
+
+	reg.RuntimePressure.SetPoolWorkers("channelv2", "store_append", 4)
+	reg.RuntimePressure.SetPoolInflight("channelv2", "store_append", 2)
+	reg.RuntimePressure.SetQueue("channelv2", "store_append", "worker", "none", RuntimePressureQueueObservation{
+		Depth:         7,
+		Capacity:      128,
+		Bytes:         4096,
+		BytesCapacity: 1 << 20,
+	})
+	reg.RuntimePressure.ObserveAdmission("channelv2", "store_append", "worker", "none", "ok")
+	reg.RuntimePressure.ObserveAdmission("channelv2", "store_append", "worker", "none", "raw uid leaked")
+	reg.RuntimePressure.ObserveQueueWait("channelv2", "store_append", "worker", "none", "ok", 2*time.Millisecond)
+	reg.RuntimePressure.ObserveTaskDuration("channelv2", "store_append", "store_append", "ok", 3*time.Millisecond)
+	reg.RuntimePressure.ObserveTaskDuration("channelv2", "store_append", "store_append", "ok", -time.Second)
+	reg.RuntimePressure.SetPoolWorkers("", "", -4)
+	reg.RuntimePressure.SetPoolInflight("", "", -2)
+	reg.RuntimePressure.SetQueue("", "", "", "", RuntimePressureQueueObservation{
+		Depth:         -7,
+		Capacity:      -128,
+		Bytes:         -4096,
+		BytesCapacity: -1 << 20,
+	})
+	reg.RuntimePressure.ObserveQueueWait("", "", "", "", "ok", -time.Second)
+	reg.RuntimePressure.ObserveTaskDuration("", "", "", "ok", -time.Second)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	workers := requireMetricFamily(t, families, "wukongim_runtime_pool_workers")
+	require.Equal(t, float64(4), findMetricByLabels(t, workers, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, workers, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown",
+	}).GetGauge().GetValue())
+
+	inflight := requireMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	require.Equal(t, float64(2), findMetricByLabels(t, inflight, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, inflight, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown",
+	}).GetGauge().GetValue())
+
+	depth := requireMetricFamily(t, families, "wukongim_runtime_pool_queue_depth")
+	require.Equal(t, float64(7), findMetricByLabels(t, depth, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, depth, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown", "queue": "unknown", "priority": "none",
+	}).GetGauge().GetValue())
+
+	capacity := requireMetricFamily(t, families, "wukongim_runtime_pool_queue_capacity")
+	require.Equal(t, float64(128), findMetricByLabels(t, capacity, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, capacity, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown", "queue": "unknown", "priority": "none",
+	}).GetGauge().GetValue())
+
+	bytes := requireMetricFamily(t, families, "wukongim_runtime_pool_queue_bytes")
+	require.Equal(t, float64(4096), findMetricByLabels(t, bytes, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, bytes, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown", "queue": "unknown", "priority": "none",
+	}).GetGauge().GetValue())
+
+	byteCapacity := requireMetricFamily(t, families, "wukongim_runtime_pool_queue_bytes_capacity")
+	require.Equal(t, float64(1<<20), findMetricByLabels(t, byteCapacity, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, byteCapacity, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "unknown", "pool": "unknown", "queue": "unknown", "priority": "none",
+	}).GetGauge().GetValue())
+
+	admissions := requireMetricFamily(t, families, "wukongim_runtime_pool_admission_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, admissions, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none", "result": "ok",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, admissions, map[string]string{
+		"node_id": "9", "node_name": "node-9", "component": "channelv2", "pool": "store_append", "queue": "worker", "priority": "none", "result": "other",
+	}).GetCounter().GetValue())
+
+	waitDuration := requireMetricFamily(t, families, "wukongim_runtime_pool_wait_duration_seconds")
+	waitOK := findMetricByLabels(t, waitDuration, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"component": "channelv2",
+		"pool":      "store_append",
+		"queue":     "worker",
+		"priority":  "none",
+		"result":    "ok",
+	})
+	require.Greater(t, waitOK.GetHistogram().GetSampleCount(), uint64(0))
+	waitUnknown := findMetricByLabels(t, waitDuration, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"component": "unknown",
+		"pool":      "unknown",
+		"queue":     "unknown",
+		"priority":  "none",
+		"result":    "ok",
+	})
+	require.Equal(t, uint64(1), waitUnknown.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(0), waitUnknown.GetHistogram().GetSampleSum())
+
+	taskDuration := requireMetricFamily(t, families, "wukongim_runtime_pool_task_duration_seconds")
+	taskOK := findMetricByLabels(t, taskDuration, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"component": "channelv2",
+		"pool":      "store_append",
+		"task":      "store_append",
+		"result":    "ok",
+	})
+	require.Greater(t, taskOK.GetHistogram().GetSampleCount(), uint64(0))
+	taskUnknown := findMetricByLabels(t, taskDuration, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"component": "unknown",
+		"pool":      "unknown",
+		"task":      "unknown",
+		"result":    "ok",
+	})
+	require.Equal(t, uint64(1), taskUnknown.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(0), taskUnknown.GetHistogram().GetSampleSum())
+}
+
+func TestNormalizeRuntimePressureResult(t *testing.T) {
+	tests := []struct {
+		result string
+		want   string
+	}{
+		{result: "ok", want: "ok"},
+		{result: "full", want: "full"},
+		{result: "busy", want: "busy"},
+		{result: "closed", want: "closed"},
+		{result: "canceled", want: "canceled"},
+		{result: "timeout", want: "timeout"},
+		{result: "too_large", want: "too_large"},
+		{result: "invalid", want: "invalid"},
+		{result: "dropped", want: "dropped"},
+		{result: "coalesced", want: "coalesced"},
+		{result: "stopped", want: "stopped"},
+		{result: "err", want: "err"},
+		{result: "", want: "other"},
+		{result: "raw uid leaked", want: "other"},
+	}
+
+	for _, tt := range tests {
+		require.Equal(t, tt.want, NormalizeRuntimePressureResult(tt.result))
+	}
+}
+
+func TestRuntimePressureMetricsNilSafe(t *testing.T) {
+	var m *RuntimePressureMetrics
+	m.SetPoolWorkers("gateway", "async_auth", 1)
+	m.SetPoolInflight("gateway", "async_auth", 1)
+	m.SetQueue("gateway", "async_auth", "auth", "none", RuntimePressureQueueObservation{Depth: 1})
+	m.SetQueueDepth("gateway", "async_auth", "auth", "none", 1)
+	m.SetQueueCapacity("gateway", "async_auth", "auth", "none", 1)
+	m.SetQueueBytes("gateway", "async_auth", "auth", "none", 1)
+	m.SetQueueBytesCapacity("gateway", "async_auth", "auth", "none", 1)
+	m.ObserveAdmission("gateway", "async_auth", "auth", "none", "ok")
+	m.ObserveQueueWait("gateway", "async_auth", "auth", "none", "ok", time.Millisecond)
+	m.ObserveTaskDuration("gateway", "async_auth", "auth", "ok", time.Millisecond)
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {
