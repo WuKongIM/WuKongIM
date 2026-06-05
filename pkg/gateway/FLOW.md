@@ -318,7 +318,7 @@ sessionState.close:
   ② cancel requestContext
   ③ 记录 OnConnectionClose
   ④ 从 idleTracker、states、session.Manager 删除
-  ⑤ 如 err 非空且 OnSessionOpen 已完成，调用 OnSessionError(err)
+  ⑤ 如 close 原因错误、adapter.OnClose 错误或底层 conn.Close 错误非空，且 OnSessionOpen 已完成，调用 OnSessionError(err)
   ⑥ 关闭 session 元数据对象
   ⑦ adapter.OnClose，清理 jsonrpc reply token 等协议状态
   ⑧ 关闭底层 conn

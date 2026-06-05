@@ -916,6 +916,64 @@ func TestServer(t *testing.T) {
 		}
 	})
 
+	t.Run("close errors wait for session open to finish", func(t *testing.T) {
+		protocolCloseErr := errors.New("protocol close boom")
+		connCloseErr := errors.New("conn close boom")
+		handler := newTestHandler()
+		openStarted := make(chan struct{})
+		releaseOpen := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseOpen) }) }
+		handler.onOpen = func(gateway.Context) error {
+			close(openStarted)
+			<-releaseOpen
+			return nil
+		}
+
+		proto := newScriptedProtocol("wkproto")
+		proto.encodedBytes = []byte("connack-success")
+		proto.closeErr = protocolCloseErr
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP}},
+			consumed: 1,
+		})
+
+		srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{DisableEncryption: true}))
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		conn.SetCloseErr(connCloseErr)
+		transportFactory.MustData("listener-a", 1, []byte("c"))
+		waitFor(t, func() bool {
+			select {
+			case <-openStarted:
+				return len(conn.Writes()) == 1
+			default:
+				return false
+			}
+		})
+
+		conn.EmitClose(nil)
+		time.Sleep(50 * time.Millisecond)
+		if got := handler.sessionErrors(); len(got) != 0 {
+			t.Fatalf("session errors before open returned = %v, want none", got)
+		}
+
+		release()
+		waitFor(t, func() bool { return len(handler.sessionErrors()) == 2 && handler.closeCount() == 1 })
+		errs := handler.sessionErrors()
+		if !errors.Is(errs[0], protocolCloseErr) || !errors.Is(errs[1], connCloseErr) {
+			t.Fatalf("session errors = %v, want protocol then conn close errors", errs)
+		}
+		if got := handler.callOrder(); !reflect.DeepEqual(got, []string{"open", "error", "error", "close"}) {
+			t.Fatalf("unexpected call order: %v", got)
+		}
+	})
+
 	t.Run("decoded frames are delivered to the handler", func(t *testing.T) {
 		handler := newTestHandler()
 		proto := newScriptedProtocol("fake-proto")

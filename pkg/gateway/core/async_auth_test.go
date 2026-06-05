@@ -150,6 +150,43 @@ func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testin
 	queue.close()
 }
 
+func TestServerAsyncAuthRollsBackWhenConnackWriteSucceedsButSessionClosesBeforeOpen(t *testing.T) {
+	handler := &asyncAuthActivatingHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	state := &sessionState{
+		server:   srv,
+		listener: &listenerRuntime{adapter: asyncAuthEncodeOnlyProtocol{}},
+		closedCh: make(chan struct{}),
+	}
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.session = session.New(session.Config{ID: 1})
+	state.conn = asyncAuthCloseOnWriteConn{onWrite: func() {
+		state.close(gatewaytypes.CloseReasonPeerClosed, nil)
+	}}
+	state.setAuthPending(true)
+
+	srv.runAuthTask(asyncAuthTask{
+		state:      state,
+		connect:    &frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP},
+		enqueuedAt: time.Now(),
+	})
+
+	if !handler.rollbackCalled.Load() {
+		t.Fatal("activation rollback was not called after close before session open")
+	}
+	if handler.openCalled.Load() {
+		t.Fatal("session open called after close before open dispatch")
+	}
+}
+
 func TestAsyncAuthQueueCloseStopsWorker(t *testing.T) {
 	srv := &Server{}
 	queue := newAsyncAuthQueueWithCapacity(1)
@@ -200,3 +237,44 @@ func (c asyncAuthWriteErrConn) Close() error { return nil }
 
 func (c asyncAuthWriteErrConn) LocalAddr() string  { return "local" }
 func (c asyncAuthWriteErrConn) RemoteAddr() string { return "remote" }
+
+type asyncAuthCloseOnWriteConn struct {
+	onWrite func()
+}
+
+func (c asyncAuthCloseOnWriteConn) ID() uint64 { return 1 }
+
+func (c asyncAuthCloseOnWriteConn) Write([]byte) error {
+	if c.onWrite != nil {
+		c.onWrite()
+	}
+	return nil
+}
+
+func (c asyncAuthCloseOnWriteConn) Close() error       { return nil }
+func (c asyncAuthCloseOnWriteConn) LocalAddr() string  { return "local" }
+func (c asyncAuthCloseOnWriteConn) RemoteAddr() string { return "remote" }
+
+type asyncAuthActivatingHandler struct {
+	rollbackCalled atomic.Bool
+	openCalled     atomic.Bool
+}
+
+func (h *asyncAuthActivatingHandler) OnListenerError(string, error) {}
+
+func (h *asyncAuthActivatingHandler) OnSessionOpen(gatewaytypes.Context) error {
+	h.openCalled.Store(true)
+	return nil
+}
+
+func (h *asyncAuthActivatingHandler) OnFrame(gatewaytypes.Context, frame.Frame) error { return nil }
+func (h *asyncAuthActivatingHandler) OnSessionClose(gatewaytypes.Context) error       { return nil }
+func (h *asyncAuthActivatingHandler) OnSessionError(gatewaytypes.Context, error)      {}
+
+func (h *asyncAuthActivatingHandler) OnSessionActivate(*gatewaytypes.Context) (*frame.ConnackPacket, error) {
+	return nil, nil
+}
+
+func (h *asyncAuthActivatingHandler) OnSessionActivateRollback(gatewaytypes.Context, error) {
+	h.rollbackCalled.Store(true)
+}

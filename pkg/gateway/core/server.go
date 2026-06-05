@@ -121,8 +121,8 @@ type sessionState struct {
 
 	metaMu           sync.RWMutex
 	closeReasonValue gatewaytypes.CloseReason
-	// closeErr preserves the first close error until lifecycle callbacks are safe to emit.
-	closeErr error
+	// closeErrs preserves close errors until lifecycle callbacks are safe to emit.
+	closeErrs []error
 	// closeNotified prevents duplicate OnSessionError/OnSessionClose callbacks.
 	closeNotified  bool
 	closing        bool
@@ -841,6 +841,7 @@ func (s *Server) runAuthTask(task asyncAuthTask) {
 	failure = authFailureNone
 	if !state.openWasDispatched() {
 		if state.isClosed() {
+			s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
 			suppressObservation = true
 			return
 		}
@@ -1865,7 +1866,9 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 		st.metaMu.Lock()
 		st.closing = true
 		st.closeReasonValue = reason
-		st.closeErr = err
+		if err != nil {
+			st.closeErrs = append(st.closeErrs, err)
+		}
 		st.metaMu.Unlock()
 		if st.cancelRequestContext != nil {
 			st.cancelRequestContext()
@@ -1877,12 +1880,12 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 		}
 		if st.listener != nil {
 			if closeErr := st.listener.adapter.OnClose(st.session); closeErr != nil {
-				st.server.dispatcher.sessionError(st, reason, closeErr)
+				st.appendCloseError(closeErr)
 			}
 		}
 		if st.conn != nil {
 			if closeErr := st.conn.Close(); closeErr != nil {
-				st.server.dispatcher.sessionError(st, reason, closeErr)
+				st.appendCloseError(closeErr)
 			}
 		}
 		st.dispatchCloseNotificationIfReady()
@@ -2295,6 +2298,16 @@ func (st *sessionState) openWasDispatched() bool {
 	return st.openDispatched
 }
 
+func (st *sessionState) appendCloseError(err error) {
+	if st == nil || err == nil {
+		return
+	}
+
+	st.metaMu.Lock()
+	st.closeErrs = append(st.closeErrs, err)
+	st.metaMu.Unlock()
+}
+
 // dispatchCloseNotificationIfReady emits close callbacks only after OnSessionOpen has returned.
 func (st *sessionState) dispatchCloseNotificationIfReady() {
 	if st == nil || st.server == nil {
@@ -2307,11 +2320,11 @@ func (st *sessionState) dispatchCloseNotificationIfReady() {
 		return
 	}
 	reason := st.closeReasonValue
-	closeErr := st.closeErr
+	closeErrs := append([]error(nil), st.closeErrs...)
 	st.closeNotified = true
 	st.metaMu.Unlock()
 
-	if closeErr != nil {
+	for _, closeErr := range closeErrs {
 		st.server.dispatcher.sessionError(st, reason, closeErr)
 	}
 	if err := st.server.dispatcher.sessionClose(st); err != nil {
