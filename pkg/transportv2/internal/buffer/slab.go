@@ -68,9 +68,10 @@ func (p *SlabPool) Get(n int) core.OwnedBuffer {
 		if !ok || cap(buf) < class.size {
 			buf = make([]byte, class.size)
 		}
-		buf = buf[:n]
-		return core.NewOwnedBuffer(buf, func(data []byte) {
-			class.pool.Put(data[:cap(data)])
+		slab := buf[:class.size]
+		payload := slab[:n:n]
+		return core.NewOwnedBuffer(payload, func([]byte) {
+			class.pool.Put(slab)
 		})
 	}
 	return core.NewOwnedBuffer(make([]byte, n), nil)
