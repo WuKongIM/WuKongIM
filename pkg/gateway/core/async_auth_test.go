@@ -1,11 +1,22 @@
 package core
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+type asyncAuthNoopHandler struct{}
+
+func (asyncAuthNoopHandler) OnListenerError(string, error)                   {}
+func (asyncAuthNoopHandler) OnSessionOpen(gatewaytypes.Context) error        { return nil }
+func (asyncAuthNoopHandler) OnFrame(gatewaytypes.Context, frame.Frame) error { return nil }
+func (asyncAuthNoopHandler) OnSessionClose(gatewaytypes.Context) error       { return nil }
+func (asyncAuthNoopHandler) OnSessionError(gatewaytypes.Context, error)      {}
 
 func TestAsyncAuthQueueSubmitRejectsWhenFull(t *testing.T) {
 	queue := newAsyncAuthQueueWithCapacity(1)
@@ -63,4 +74,64 @@ func TestCloseReasonForAsyncAuthQueueFull(t *testing.T) {
 	if got := closeReasonForError(gatewaytypes.ErrAsyncAuthQueueFull, gatewaytypes.CloseReasonPolicyViolation); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
 		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
 	}
+}
+
+func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
+	var authCalls atomic.Uint64
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				authCalls.Add(1)
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	queue := newAsyncAuthQueueWithCapacity(1)
+	srv.asyncAuth.Store(queue)
+	queue.tasks <- asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}
+	queue.queued.Add(1)
+
+	state := &sessionState{
+		server:   srv,
+		closedCh: make(chan struct{}),
+	}
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.setAuthRequired(true)
+
+	srv.handleAuthFrame(state, "", &frame.ConnectPacket{UID: "u1"})
+
+	if got := authCalls.Load(); got != 0 {
+		t.Fatalf("auth calls = %d, want 0 when queue is full", got)
+	}
+	if !state.isClosed() {
+		t.Fatal("state was not closed after auth queue overflow")
+	}
+	if got := state.closeReason(); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
+		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
+	}
+	queue.close()
+}
+
+func TestAsyncAuthQueueCloseStopsWorker(t *testing.T) {
+	srv := &Server{}
+	queue := newAsyncAuthQueueWithCapacity(1)
+	done := make(chan struct{})
+
+	srv.workerWG.Add(1)
+	go func() {
+		srv.runAsyncAuthWorker(queue)
+		close(done)
+	}()
+
+	queue.close()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("auth worker did not stop after queue close")
+	}
+	srv.workerWG.Wait()
 }
