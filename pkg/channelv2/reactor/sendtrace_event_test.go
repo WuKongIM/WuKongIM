@@ -77,11 +77,91 @@ func TestReactorRecordsLeaderQueueAndLocalDurableTrace(t *testing.T) {
 	result := awaitFutureResult(t, future)
 
 	require.NoError(t, result.Err)
-	requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderQueueWait, "trace-leader", 1)
-	requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderLocalDurable, "trace-leader", 1)
+	queueEvent := requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderQueueWait, "trace-leader", 1)
+	require.Equal(t, 2, queueEvent.Attempt)
+	require.Equal(t, "client-1", queueEvent.ClientMsgNo)
+	require.Equal(t, "u1", queueEvent.FromUID)
+	localDurableEvent := requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderLocalDurable, "trace-leader", 1)
+	require.Equal(t, 2, localDurableEvent.Attempt)
+	require.Equal(t, "client-1", localDurableEvent.ClientMsgNo)
+	require.Equal(t, "u1", localDurableEvent.FromUID)
 }
 
-func requireTraceEvent(t *testing.T, events []sendtrace.Event, stage sendtrace.Stage, traceID string, messageSeq uint64) {
+func TestReactorRecordsLeaderQuorumWaitTrace(t *testing.T) {
+	factory := newCountingStoreFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	traceSink := &recordingTraceSink{
+		reactorDetailSink: reactorDetailSink{
+			limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+			decisions: map[string]sendtrace.DetailDecision{
+				"trace-quorum": {Keep: true, Reason: "debug"},
+			},
+		},
+	}
+	restore := sendtrace.SetSink(traceSink)
+	t.Cleanup(restore)
+
+	meta := testMeta("deep-trace-quorum", 1, 1)
+	meta.Replicas = []ch.NodeID{1}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 12, "payload", future)
+	event.Append.CommitMode = ch.CommitModeQuorum
+	event.Append.TraceID = "trace-quorum"
+	event.Append.Messages[0].TraceID = "trace-quorum"
+	event.Append.Messages[0].ClientMsgNo = "client-quorum"
+
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	result := awaitFutureResult(t, future)
+
+	require.NoError(t, result.Err)
+	quorumEvent := requireTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderQuorumWait, "trace-quorum", 1)
+	require.Equal(t, 1, quorumEvent.Attempt)
+	require.Equal(t, "client-quorum", quorumEvent.ClientMsgNo)
+	require.Empty(t, quorumEvent.FromUID)
+	require.Equal(t, 1, quorumEvent.RecordCount)
+}
+
+func TestReactorSkipsQuorumWaitTraceForLocalCommit(t *testing.T) {
+	factory := newCountingStoreFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	traceSink := &recordingTraceSink{
+		reactorDetailSink: reactorDetailSink{
+			limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+			decisions: map[string]sendtrace.DetailDecision{
+				"trace-local": {Keep: true, Reason: "debug"},
+			},
+		},
+	}
+	restore := sendtrace.SetSink(traceSink)
+	t.Cleanup(restore)
+
+	meta := testMeta("deep-trace-local-skip-quorum", 1, 1)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	future := NewFuture()
+	event := appendEventWithFuture(meta, 13, "payload", future)
+	event.Append.CommitMode = ch.CommitModeLocal
+	event.Append.TraceID = "trace-local"
+	event.Append.Messages[0].TraceID = "trace-local"
+
+	r.handleAppend(event)
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	result := awaitFutureResult(t, future)
+
+	require.NoError(t, result.Err)
+	requireNoTraceEvent(t, traceSink.events, sendtrace.StageReplicaLeaderQuorumWait, "trace-local")
+}
+
+func requireTraceEvent(t *testing.T, events []sendtrace.Event, stage sendtrace.Stage, traceID string, messageSeq uint64) sendtrace.Event {
 	t.Helper()
 	for _, event := range events {
 		if event.Stage != stage || event.TraceID != traceID {
@@ -89,12 +169,19 @@ func requireTraceEvent(t *testing.T, events []sendtrace.Event, stage sendtrace.S
 		}
 		require.Equal(t, messageSeq, event.MessageSeq)
 		require.Equal(t, sendtrace.ResultOK, event.Result)
-		require.Equal(t, 2, event.Attempt)
-		require.Equal(t, "client-1", event.ClientMsgNo)
-		require.Equal(t, "u1", event.FromUID)
-		return
+		return event
 	}
 	t.Fatalf("trace event %s/%s not found in %#v", stage, traceID, events)
+	return sendtrace.Event{}
+}
+
+func requireNoTraceEvent(t *testing.T, events []sendtrace.Event, stage sendtrace.Stage, traceID string) {
+	t.Helper()
+	for _, event := range events {
+		if event.Stage == stage && event.TraceID == traceID {
+			t.Fatalf("unexpected trace event %s/%s in %#v", stage, traceID, events)
+		}
+	}
 }
 
 func TestAppendTraceBatchSelectionSelectsOnlyDetailKeptItems(t *testing.T) {

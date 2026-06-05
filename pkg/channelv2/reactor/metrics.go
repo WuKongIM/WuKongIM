@@ -176,6 +176,7 @@ func (r *Reactor) observeAppendComplete(rc *runtimeChannel, opID ch.OpID, err er
 	}
 	delete(rc.appendTimings, opID)
 	completedAt := time.Now()
+	r.recordLeaderQuorumTrace(timing, completedAt, err)
 	if !timing.hwAdvancedAt.IsZero() {
 		r.observeAppendWaitStage(appendWaitStageQuorumFinalComplete, timing.mode, appendWaitResult(err), completedAt.Sub(timing.hwAdvancedAt))
 	}

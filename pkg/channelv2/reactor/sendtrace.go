@@ -138,6 +138,24 @@ func (r *Reactor) recordLeaderQueueAndLocalDurableTrace(req appendRequest, timin
 	}
 }
 
+// recordLeaderQuorumTrace emits quorum wait trace events for selected append sidecars.
+func (r *Reactor) recordLeaderQuorumTrace(timing appendTiming, completedAt time.Time, err error) {
+	if timing.mode != ch.CommitModeQuorum || timing.storeCompletedAt.IsZero() || len(timing.traceItems) == 0 {
+		return
+	}
+	duration := sendtrace.Elapsed(timing.storeCompletedAt, completedAt)
+	for _, item := range timing.traceItems {
+		var messageSeq uint64
+		if timing.targetOffset > 0 && timing.recordCount > 0 && item.localRecordIdx >= 0 && item.localRecordIdx < timing.recordCount {
+			deltaFromTarget := timing.recordCount - 1 - item.localRecordIdx
+			if timing.targetOffset > uint64(deltaFromTarget) {
+				messageSeq = timing.targetOffset - uint64(deltaFromTarget)
+			}
+		}
+		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderQuorumWait, completedAt, item, messageSeq, duration, timing.recordCount, err)
+	}
+}
+
 func recordLeaderTraceEvent(stage sendtrace.Stage, at time.Time, item appendTraceItem, messageSeq uint64, duration time.Duration, recordCount int, err error) {
 	result, errorCode := leaderTraceOutcome(err)
 	event := sendtrace.Event{
