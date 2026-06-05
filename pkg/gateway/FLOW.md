@@ -240,7 +240,8 @@ OnData:
      - 非认证协议在首次成功 decode 后补发 OnSessionOpen
   ⑤ 从 ReplyTokenTracker 取 JSON-RPC reply token
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
-     - 未认证且无认证 pending 时，只接受第一帧 ConnectPacket 并入 asyncAuthQueue
+     - 未认证且无认证 pending 时，只接受独占当前 decode batch 的第一帧 ConnectPacket，并入 asyncAuthQueue
+     - ConnectPacket 同一 decode batch 后仍有 frame 时，直接按 policy_violation 关闭连接，不进入 asyncAuthQueue
      - 认证 pending 时再次收到任何 frame，直接按 policy_violation 关闭连接
      - 首帧不是 ConnectPacket 时，直接按 policy_violation 关闭连接
      - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭连接
@@ -263,8 +264,9 @@ OnData:
 
 ```text
 WKProto CONNECT:
-  ① 未认证且未 pending 时只接受第一帧 ConnectPacket；其他 frame 按 policy_violation 关闭
+  ① 未认证且未 pending 时只接受独占当前 decode batch 的第一帧 ConnectPacket；其他 frame 按 policy_violation 关闭
   ② ConnectPacket 入有界 asyncAuthQueue，Authenticator 与 SessionActivator 不在 transport event loop 上执行
+     - ConnectPacket 同批后仍有 frame 时，直接按 policy_violation 关闭，不调用 Authenticator
      - 认证 pending 期间再收到 CONNECT 或业务 frame，直接按 policy_violation 关闭
      - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭
   ③ worker 调用 Authenticator.Authenticate:
@@ -284,7 +286,7 @@ WKProto CONNECT:
   ⑧ 认证完成后到达的业务 frame 必须等待 OnSessionOpen 返回后，才记录 OnFrameIn 并进入 handler；认证 pending 期间到达的业务 frame 已在步骤 ② 按 policy_violation 关闭
 ```
 
-认证失败会尽量先写出对应 CONNACK，再关闭连接；认证 pending 期间的重复帧或非 CONNECT 首帧属于协议违规，直接关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error、SessionActivator error 和 async auth 队列满会使用不同 failure class，队列满的 failure class 为 `auth_queue_full`，关闭原因为 `async_auth_queue_full`，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
+认证失败会尽量先写出对应 CONNACK，再关闭连接；CONNECT 同批尾帧、认证 pending 期间的重复帧或非 CONNECT 首帧属于协议违规，直接关闭连接。`Observer.OnAuth` 会携带 `status` 与低基数 `failure` 类别；Authenticator error、SessionActivator error 和 async auth 队列满会使用不同 failure class，队列满的 failure class 为 `auth_queue_full`，关闭原因为 `async_auth_queue_full`，方便区分客户端侧同为 SystemError 的失败来源。认证成功后的 `RequestContext` 会在 session close / gateway stop 时取消，用例层可用它中止正在进行的发送。
 
 ### 6.5 出站写入与 Reply
 
@@ -316,11 +318,11 @@ sessionState.close:
   ② cancel requestContext
   ③ 记录 OnConnectionClose
   ④ 从 idleTracker、states、session.Manager 删除
-  ⑤ 如 err 非空且已 dispatch OnSessionOpen，调用 OnSessionError(err)
+  ⑤ 如 err 非空且 OnSessionOpen 已完成，调用 OnSessionError(err)
   ⑥ 关闭 session 元数据对象
   ⑦ adapter.OnClose，清理 jsonrpc reply token 等协议状态
   ⑧ 关闭底层 conn
-  ⑨ 如已 dispatch OnSessionOpen，调用 OnSessionClose
+  ⑨ 如 OnSessionOpen 已完成，调用 OnSessionClose；若关闭发生在 OnSessionOpen 执行中，则延迟到 OnSessionOpen 返回后再触发 close/error callback
 ```
 
 `CloseOnHandlerError` 默认为 true。为 true 时 handler 返回错误会关闭 session；显式设为 false 时只调用 `OnSessionError`，连接继续保留。

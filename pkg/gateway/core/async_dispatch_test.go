@@ -27,6 +27,7 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 		requestContext: context.Background(),
 	}
 	state.markOpenDispatched()
+	state.markOpenComplete()
 
 	done := make(chan struct{})
 	go func() {
@@ -770,6 +771,7 @@ func BenchmarkServerAsyncSendDispatchQueueFullReject(b *testing.B) {
 		requestContext: context.Background(),
 	}
 	state.markOpenDispatched()
+	state.markOpenComplete()
 	packet := &frame.SendPacket{}
 
 	b.ReportAllocs()

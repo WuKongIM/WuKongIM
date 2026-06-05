@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -101,7 +103,7 @@ func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
 	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
 	state.setAuthRequired(true)
 
-	srv.handleAuthFrame(state, "", &frame.ConnectPacket{UID: "u1"})
+	srv.handleAuthFrame(state, "", &frame.ConnectPacket{UID: "u1"}, false)
 
 	if got := authCalls.Load(); got != 0 {
 		t.Fatalf("auth calls = %d, want 0 when queue is full", got)
@@ -109,6 +111,39 @@ func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
 	if !state.isClosed() {
 		t.Fatal("state was not closed after auth queue overflow")
 	}
+	if got := state.closeReason(); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
+		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
+	}
+	queue.close()
+}
+
+func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testing.T) {
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	queue := newAsyncAuthQueueWithCapacity(1)
+	srv.asyncAuth.Store(queue)
+	queue.tasks <- asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}
+	queue.queued.Add(1)
+
+	state := &sessionState{
+		server:   srv,
+		listener: &listenerRuntime{adapter: asyncAuthEncodeOnlyProtocol{}},
+		conn:     asyncAuthWriteErrConn{err: transport.ErrOutboundBytesExceeded},
+		closedCh: make(chan struct{}),
+	}
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.setAuthRequired(true)
+
+	srv.handleAuthFrame(state, "", &frame.ConnectPacket{UID: "u1"}, false)
+
 	if got := state.closeReason(); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
 		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
 	}
@@ -135,3 +170,33 @@ func TestAsyncAuthQueueCloseStopsWorker(t *testing.T) {
 	}
 	srv.workerWG.Wait()
 }
+
+type asyncAuthEncodeOnlyProtocol struct{}
+
+func (asyncAuthEncodeOnlyProtocol) Name() string { return "wkproto" }
+
+func (asyncAuthEncodeOnlyProtocol) Decode(session.Session, []byte) ([]frame.Frame, int, error) {
+	return nil, 0, nil
+}
+
+func (asyncAuthEncodeOnlyProtocol) Encode(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error) {
+	return []byte("connack-system"), nil
+}
+
+func (asyncAuthEncodeOnlyProtocol) OnOpen(session.Session) error  { return nil }
+func (asyncAuthEncodeOnlyProtocol) OnClose(session.Session) error { return nil }
+
+type asyncAuthWriteErrConn struct {
+	err error
+}
+
+func (c asyncAuthWriteErrConn) ID() uint64 { return 1 }
+
+func (c asyncAuthWriteErrConn) Write([]byte) error {
+	return c.err
+}
+
+func (c asyncAuthWriteErrConn) Close() error { return nil }
+
+func (c asyncAuthWriteErrConn) LocalAddr() string  { return "local" }
+func (c asyncAuthWriteErrConn) RemoteAddr() string { return "remote" }

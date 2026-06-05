@@ -121,13 +121,17 @@ type sessionState struct {
 
 	metaMu           sync.RWMutex
 	closeReasonValue gatewaytypes.CloseReason
-	closing          bool
-	authenticated    bool
-	authPending      bool
-	authRequired     bool
-	openDispatched   bool
-	openCompleted    bool
-	openDone         chan struct{}
+	// closeErr preserves the first close error until lifecycle callbacks are safe to emit.
+	closeErr error
+	// closeNotified prevents duplicate OnSessionError/OnSessionClose callbacks.
+	closeNotified  bool
+	closing        bool
+	authenticated  bool
+	authPending    bool
+	authRequired   bool
+	openDispatched bool
+	openCompleted  bool
+	openDone       chan struct{}
 
 	closeOnce sync.Once
 	closedCh  chan struct{}
@@ -578,7 +582,7 @@ func (s *Server) dispatchInboundFrames(listener *listenerRuntime, state *session
 		if i < len(tokens) {
 			replyToken = tokens[i]
 		}
-		handled, err := s.handleAuthFrame(state, replyToken, f)
+		handled, err := s.handleAuthFrame(state, replyToken, f, i+1 < len(frames))
 		if err != nil {
 			s.handleHandlerError(state, err)
 			if state.isClosed() {
@@ -652,7 +656,7 @@ func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.F
 	return err
 }
 
-func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame.Frame) (bool, error) {
+func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame.Frame, hasBatchTail bool) (bool, error) {
 	if state == nil || !state.requiresAuth() {
 		return false, nil
 	}
@@ -668,6 +672,11 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	start := time.Now()
 	connect, ok := f.(*frame.ConnectPacket)
 	if !ok {
+		s.observeAuth(state, authStatusFail, authFailureProtocolViolation, time.Since(start))
+		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
+		return true, nil
+	}
+	if hasBatchTail {
 		s.observeAuth(state, authStatusFail, authFailureProtocolViolation, time.Since(start))
 		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
 		return true, nil
@@ -864,7 +873,7 @@ func (s *Server) handleAuthQueueFull(state *sessionState, replyToken string, sta
 	}
 	if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 		s.observeAuth(state, authStatusFail, authFailureQueueFull, time.Since(start))
-		state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonAsyncAuthQueueFull), writeErr)
+		state.close(gatewaytypes.CloseReasonAsyncAuthQueueFull, writeErr)
 		return
 	}
 	s.observeAuth(state, authStatusFail, authFailureQueueFull, time.Since(start))
@@ -979,8 +988,10 @@ func (s *Server) dispatchSessionOpen(state *sessionState) error {
 	}
 
 	state.markOpenDispatched()
-	defer state.markOpenComplete()
-	return s.dispatcher.sessionOpen(state)
+	err := s.dispatcher.sessionOpen(state)
+	state.markOpenComplete()
+	state.dispatchCloseNotificationIfReady()
+	return err
 }
 
 // startIdleMonitor starts one shared deadline monitor for all sessions on this server.
@@ -1854,15 +1865,13 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 		st.metaMu.Lock()
 		st.closing = true
 		st.closeReasonValue = reason
+		st.closeErr = err
 		st.metaMu.Unlock()
 		if st.cancelRequestContext != nil {
 			st.cancelRequestContext()
 		}
 		st.server.observeConnectionClose(st)
 		st.server.unregisterState(st)
-		if err != nil && st.openWasDispatched() {
-			st.server.dispatcher.sessionError(st, reason, err)
-		}
 		if st.session != nil {
 			_ = st.session.Close()
 		}
@@ -1876,11 +1885,7 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 				st.server.dispatcher.sessionError(st, reason, closeErr)
 			}
 		}
-		if st.openWasDispatched() {
-			if closeErr := st.server.dispatcher.sessionClose(st); closeErr != nil {
-				st.server.dispatcher.sessionError(st, reason, closeErr)
-			}
-		}
+		st.dispatchCloseNotificationIfReady()
 		close(st.closedCh)
 	})
 }
@@ -2288,4 +2293,28 @@ func (st *sessionState) openWasDispatched() bool {
 	st.metaMu.RLock()
 	defer st.metaMu.RUnlock()
 	return st.openDispatched
+}
+
+// dispatchCloseNotificationIfReady emits close callbacks only after OnSessionOpen has returned.
+func (st *sessionState) dispatchCloseNotificationIfReady() {
+	if st == nil || st.server == nil {
+		return
+	}
+
+	st.metaMu.Lock()
+	if st.closeNotified || !st.closing || !st.openDispatched || !st.openCompleted {
+		st.metaMu.Unlock()
+		return
+	}
+	reason := st.closeReasonValue
+	closeErr := st.closeErr
+	st.closeNotified = true
+	st.metaMu.Unlock()
+
+	if closeErr != nil {
+		st.server.dispatcher.sessionError(st, reason, closeErr)
+	}
+	if err := st.server.dispatcher.sessionClose(st); err != nil {
+		st.server.dispatcher.sessionError(st, reason, err)
+	}
 }
