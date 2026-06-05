@@ -43,9 +43,10 @@ type DebugMatch struct {
 }
 
 type debugRule struct {
-	match     DebugMatch
-	expiresAt time.Time
-	counter   atomic.Uint64
+	match         DebugMatch
+	expiresAt     time.Time
+	counter       atomic.Uint64
+	detailCounter atomic.Uint64
 }
 
 // Sampler makes bounded, lock-free keep/drop decisions after construction.
@@ -134,10 +135,10 @@ func (s *Sampler) KeepDetail(event Event) (bool, string) {
 	if s == nil {
 		return false, ""
 	}
-	if s.trackingRules != nil && s.trackingRules.Keep(event) {
+	if s.trackingRules != nil && s.trackingRules.KeepDetail(event) {
 		return true, "debug"
 	}
-	if s.keepDebug(event) {
+	if s.keepDebugDetail(event) {
 		return true, "debug"
 	}
 	if keepByRate(s.deepSampleRate, &s.deepCounter) {
@@ -155,6 +156,14 @@ func (s *Sampler) DetailLimits() (time.Duration, int) {
 }
 
 func (s *Sampler) keepDebug(event Event) bool {
+	return s.keepDebugWithCounter(event, false)
+}
+
+func (s *Sampler) keepDebugDetail(event Event) bool {
+	return s.keepDebugWithCounter(event, true)
+}
+
+func (s *Sampler) keepDebugWithCounter(event Event, detail bool) bool {
 	if len(s.debugRules) == 0 {
 		return false
 	}
@@ -163,7 +172,11 @@ func (s *Sampler) keepDebug(event Event) bool {
 		if now.After(rule.expiresAt) || !debugMatches(rule.match, event) {
 			continue
 		}
-		if keepByRate(rule.match.SampleRate, &rule.counter) {
+		counter := &rule.counter
+		if detail {
+			counter = &rule.detailCounter
+		}
+		if keepByRate(rule.match.SampleRate, counter) {
 			return true
 		}
 	}

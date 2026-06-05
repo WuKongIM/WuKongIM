@@ -59,6 +59,58 @@ func TestSamplerKeepsDeepDetailForDebugMatch(t *testing.T) {
 	require.Equal(t, "debug", reason)
 }
 
+func TestSamplerDeepDebugDoesNotAdvanceEventDebugCounter(t *testing.T) {
+	now := time.Unix(10, 0)
+	sampler := NewSampler(SamplerOptions{
+		SampleRate:     0,
+		DeepSampleRate: 0,
+		Now:            func() time.Time { return now },
+		DebugMatches: []DebugMatch{{
+			TraceID:    "trace-fractional",
+			TTL:        time.Minute,
+			SampleRate: 0.5,
+		}},
+	})
+	event := Event{TraceID: "trace-fractional", Result: ResultOK}
+
+	keep, reason := sampler.Keep(event)
+	require.True(t, keep)
+	require.Equal(t, "debug", reason)
+
+	keepDetail, detailReason := sampler.KeepDetail(event)
+	require.True(t, keepDetail)
+	require.Equal(t, "debug", detailReason)
+
+	keep, _ = sampler.Keep(event)
+	require.False(t, keep)
+}
+
+func TestSamplerDeepTrackingDoesNotAdvanceEventTrackingCounter(t *testing.T) {
+	now := time.Unix(10, 0)
+	rules := NewTrackingRules(TrackingRulesOptions{Now: func() time.Time { return now }})
+	_, err := rules.Add(TrackingRuleInput{
+		ID:         "channel-fractional",
+		Target:     TrackingTargetChannel,
+		ChannelKey: "channel/1/cm9vbQ",
+		TTL:        time.Minute,
+		SampleRate: 0.5,
+	})
+	require.NoError(t, err)
+	sampler := NewSampler(SamplerOptions{SampleRate: 0, DeepSampleRate: 0, TrackingRules: rules})
+	event := Event{ChannelKey: "channel/1/cm9vbQ", Result: ResultOK}
+
+	keep, reason := sampler.Keep(event)
+	require.True(t, keep)
+	require.Equal(t, "debug", reason)
+
+	keepDetail, detailReason := sampler.KeepDetail(event)
+	require.True(t, keepDetail)
+	require.Equal(t, "debug", detailReason)
+
+	keep, _ = sampler.Keep(event)
+	require.False(t, keep)
+}
+
 func TestSamplerDeepSampleRateIsIndependentFromEventSampleRate(t *testing.T) {
 	sampler := NewSampler(SamplerOptions{SampleRate: 0, DeepSampleRate: 1})
 

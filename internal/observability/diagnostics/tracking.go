@@ -79,8 +79,9 @@ type TrackingRulesOptions struct {
 }
 
 type trackingRuleState struct {
-	rule    TrackingRule
-	counter atomic.Uint64
+	rule          TrackingRule
+	counter       atomic.Uint64
+	detailCounter atomic.Uint64
 }
 
 // TrackingRules stores dynamic, TTL-bound diagnostics sampling rules.
@@ -185,6 +186,15 @@ func (r *TrackingRules) Delete(id string) bool {
 
 // Keep reports whether a dynamic tracking rule keeps event.
 func (r *TrackingRules) Keep(event Event) bool {
+	return r.keep(event, false)
+}
+
+// KeepDetail reports whether a dynamic tracking rule keeps expensive deep trace detail.
+func (r *TrackingRules) KeepDetail(event Event) bool {
+	return r.keep(event, true)
+}
+
+func (r *TrackingRules) keep(event Event, detail bool) bool {
 	if r == nil {
 		return false
 	}
@@ -197,7 +207,11 @@ func (r *TrackingRules) Keep(event Event) bool {
 		if state == nil || now.After(state.rule.ExpiresAt) || !trackingRuleMatches(state.rule, event) {
 			continue
 		}
-		if keepByRate(state.rule.SampleRate, &state.counter) {
+		counter := &state.counter
+		if detail {
+			counter = &state.detailCounter
+		}
+		if keepByRate(state.rule.SampleRate, counter) {
 			return true
 		}
 	}
