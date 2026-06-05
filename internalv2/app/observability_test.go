@@ -15,10 +15,225 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	dto "github.com/prometheus/client_model/go"
 )
+
+func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+
+	gatewayObserver := gatewayMetricsObserver{metrics: reg}
+	gatewayObserver.OnAsyncAuthQueue(gateway.AsyncAuthQueueEvent{Depth: 1, Capacity: 8, Workers: 2})
+	gatewayObserver.OnAsyncAuthAdmission(gateway.AsyncAuthAdmissionEvent{Result: "ok"})
+	gatewayObserver.OnAsyncAuthWait(gateway.AsyncAuthWaitEvent{Duration: time.Millisecond})
+	gatewayObserver.OnAsyncSendQueue(gateway.AsyncSendQueueEvent{Depth: 5, Capacity: 32})
+	gatewayObserver.OnAsyncSendAdmission(gateway.AsyncSendAdmissionEvent{Result: "full"})
+	gatewayObserver.OnAsyncSendDispatchWait(gateway.AsyncSendDispatchWaitEvent{Duration: time.Millisecond})
+	gatewayObserver.OnTransportPressure(gateway.TransportPressureEvent{
+		Name:          "gnet",
+		Queue:         "write",
+		Depth:         3,
+		Capacity:      16,
+		Bytes:         128,
+		BytesCapacity: 4096,
+		Result:        "ok",
+	})
+
+	channelObserver := channelV2MetricsObserver{metrics: reg}
+	channelObserver.SetWorkerQueueDepth("store_append", 1)
+	channelObserver.SetWorkerQueueCapacity("store_append", 64)
+	channelObserver.SetWorkerWorkers("store_append", 4)
+	channelObserver.SetWorkerInflight("store_append", 2)
+	channelObserver.ObserveWorkerAdmission("store_append", "ok")
+	channelObserver.ObserveWorkerWait("store_append", worker.TaskStoreAppend, time.Millisecond)
+	channelObserver.ObserveWorkerTask("store_append", worker.TaskStoreAppend, nil, time.Millisecond)
+	channelObserver.SetReactorMailboxDepth(0, "high", 2)
+	channelObserver.SetReactorMailboxCapacity(0, "high", 16)
+	channelObserver.ObserveReactorMailboxAdmission(0, "high", "full")
+	channelObserver.SetReactorMailboxDepth(1, "high", 3)
+	channelObserver.SetReactorMailboxCapacity(1, "high", 16)
+	channelObserver.SetAppendQueuePressure(reactor.AppendQueuePressureEvent{
+		ReactorID:     0,
+		Depth:         2,
+		Capacity:      32,
+		Bytes:         100,
+		BytesCapacity: 4096,
+	})
+	channelObserver.SetAppendQueuePressure(reactor.AppendQueuePressureEvent{
+		ReactorID:     1,
+		Depth:         4,
+		Capacity:      32,
+		Bytes:         200,
+		BytesCapacity: 4096,
+	})
+
+	slotObserver := slotMetricsObserver{metrics: reg}
+	slotObserver.SetSchedulerWorkers(1)
+	slotObserver.SetSchedulerInflight(1)
+	slotObserver.SetSchedulerState(multiraft.SchedulerStateEvent{Depth: 1, Capacity: 1024, Pending: 2, Queued: 3, Processing: 1, Dirty: 1})
+	slotObserver.ObserveSchedulerAdmission("dirty")
+	slotObserver.ObserveSchedulerTask("process_slot", time.Millisecond)
+
+	transportObserver := transportV2MetricsObserver{metrics: reg}
+	transportObserver.ObserveTransport(transportv2.Event{
+		Name:          "scheduler_queue",
+		Priority:      transportv2.PriorityRPC,
+		Items:         3,
+		Capacity:      32,
+		Bytes:         128,
+		BytesCapacity: 4096,
+		Result:        "ok",
+	})
+	transportObserver.ObserveTransport(transportv2.Event{
+		Name:      "service_task",
+		ServiceID: 9,
+		Result:    "ok",
+		Duration:  time.Millisecond,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, name := range []string{
+		"wukongim_runtime_pool_queue_depth",
+		"wukongim_runtime_pool_admission_total",
+		"wukongim_runtime_pool_task_duration_seconds",
+	} {
+		family := requireAppMetricFamily(t, families, name)
+		if len(family.GetMetric()) == 0 {
+			t.Fatalf("metric family %q has no samples", name)
+		}
+	}
+	queueDepth := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth")
+	gatewayTransport := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "gateway",
+		"pool":      "gnet",
+		"queue":     "write",
+		"priority":  "none",
+	})
+	if got := gatewayTransport.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("gateway transport depth = %v, want 3", got)
+	}
+	gatewayAsyncSend := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "gateway",
+		"pool":      "async_send",
+		"queue":     "send",
+		"priority":  "none",
+	})
+	if got := gatewayAsyncSend.GetGauge().GetValue(); got != 5 {
+		t.Fatalf("gateway async send depth = %v, want 5", got)
+	}
+	reactorZero := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "channelv2",
+		"pool":      "reactor_0",
+		"queue":     "mailbox",
+		"priority":  "high",
+	})
+	if got := reactorZero.GetGauge().GetValue(); got != 2 {
+		t.Fatalf("reactor_0 mailbox depth = %v, want 2", got)
+	}
+	reactorOne := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "channelv2",
+		"pool":      "reactor_1",
+		"queue":     "mailbox",
+		"priority":  "high",
+	})
+	if got := reactorOne.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("reactor_1 mailbox depth = %v, want 3", got)
+	}
+	slotScheduler := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "slot",
+		"pool":      "scheduler",
+		"queue":     "scheduler",
+		"priority":  "none",
+	})
+	if got := slotScheduler.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("slot scheduler depth = %v, want 3", got)
+	}
+	transportScheduler := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "transportv2",
+		"pool":      "scheduler",
+		"queue":     "scheduler",
+		"priority":  "rpc",
+	})
+	if got := transportScheduler.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("transport scheduler depth = %v, want 3", got)
+	}
+
+	admissions := requireAppMetricFamily(t, families, "wukongim_runtime_pool_admission_total")
+	findAppMetricByLabels(t, admissions, map[string]string{
+		"component": "channelv2",
+		"pool":      "reactor_0",
+		"queue":     "mailbox",
+		"priority":  "high",
+		"result":    "full",
+	})
+	findAppMetricByLabels(t, admissions, map[string]string{
+		"component": "gateway",
+		"pool":      "async_send",
+		"queue":     "send",
+		"priority":  "none",
+		"result":    "full",
+	})
+
+	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
+	channelWorkerInflight := findAppMetricByLabels(t, inflight, map[string]string{
+		"component": "channelv2",
+		"pool":      "store_append",
+	})
+	if got := channelWorkerInflight.GetGauge().GetValue(); got != 2 {
+		t.Fatalf("channelv2 worker inflight = %v, want 2", got)
+	}
+
+	waitDuration := requireAppMetricFamily(t, families, "wukongim_runtime_pool_wait_duration_seconds")
+	findAppMetricByLabels(t, waitDuration, map[string]string{
+		"component": "gateway",
+		"pool":      "async_send",
+		"queue":     "send",
+		"priority":  "none",
+		"result":    "ok",
+	})
+}
+
+func requireAppMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
+	t.Helper()
+	for _, family := range families {
+		if family.GetName() == name {
+			return family
+		}
+	}
+	t.Fatalf("metric family %q not found", name)
+	return nil
+}
+
+func findAppMetricByLabels(t *testing.T, family *dto.MetricFamily, want map[string]string) *dto.Metric {
+	t.Helper()
+	for _, metric := range family.GetMetric() {
+		got := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			got[label.GetName()] = label.GetValue()
+		}
+		matched := true
+		for key, value := range want {
+			if got[key] != value {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return metric
+		}
+	}
+	t.Fatalf("metric family %q with labels %v not found", family.GetName(), want)
+	return nil
+}
 
 func TestChannelV2PullHintMetricLabels(t *testing.T) {
 	reasonCases := []struct {

@@ -23,6 +23,8 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -31,6 +33,14 @@ type gatewayMetricsObserver struct {
 }
 
 type channelV2MetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type slotMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type transportV2MetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
@@ -48,6 +58,7 @@ type deliveryMetricsObserver struct {
 }
 
 type multiChannelV2Observer []reactor.Observer
+type multiSlotObserver []multiraft.SchedulerObserver
 type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
@@ -99,6 +110,17 @@ func (o gatewayMetricsObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQu
 		return
 	}
 	o.metrics.Gateway.SetAsyncSendQueue(event.Depth, event.Capacity)
+	o.metrics.RuntimePressure.SetQueue("gateway", "async_send", "send", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth,
+		Capacity: event.Capacity,
+	})
+}
+
+func (o gatewayMetricsObserver) OnAsyncSendAdmission(event accessgateway.AsyncSendAdmissionEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("gateway", "async_send", "send", "none", event.Result)
 }
 
 func (o gatewayMetricsObserver) OnAsyncSendBatch(event accessgateway.AsyncSendBatchEvent) {
@@ -113,6 +135,49 @@ func (o gatewayMetricsObserver) OnAsyncSendDispatchWait(event accessgateway.Asyn
 		return
 	}
 	o.metrics.Gateway.ObserveAsyncSendDispatchWait(event.Protocol, event.Duration)
+	o.metrics.RuntimePressure.ObserveQueueWait("gateway", "async_send", "send", "none", "ok", event.Duration)
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthQueue(event accessgateway.AsyncAuthQueueEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("gateway", "async_auth", event.Workers)
+	o.metrics.RuntimePressure.SetQueue("gateway", "async_auth", "auth", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth,
+		Capacity: event.Capacity,
+	})
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthAdmission(event accessgateway.AsyncAuthAdmissionEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("gateway", "async_auth", "auth", "none", event.Result)
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthWait(event accessgateway.AsyncAuthWaitEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveQueueWait("gateway", "async_auth", "auth", "none", "ok", event.Duration)
+}
+
+func (o gatewayMetricsObserver) OnTransportPressure(event accessgateway.TransportPressureEvent) {
+	if o.metrics == nil {
+		return
+	}
+	pool := fallbackRuntimePressureLabel(event.Name, "gnet")
+	queue := fallbackRuntimePressureLabel(event.Queue, "transport")
+	o.metrics.RuntimePressure.SetQueue("gateway", pool, queue, "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Depth,
+		Capacity:      event.Capacity,
+		Bytes:         event.Bytes,
+		BytesCapacity: event.BytesCapacity,
+	})
+	if event.Result != "" {
+		o.metrics.RuntimePressure.ObserveAdmission("gateway", pool, queue, "none", event.Result)
+	}
 }
 
 func (o gatewayMetricsObserver) SendackWritten(event gatewayadapter.SendackEvent) {
@@ -148,6 +213,33 @@ func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority
 		return
 	}
 	o.metrics.ChannelV2.SetReactorMailboxDepth(reactorID, priority, depth)
+	o.metrics.RuntimePressure.SetQueueDepth("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, depth)
+}
+
+func (o channelV2MetricsObserver) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, capacity)
+}
+
+func (o channelV2MetricsObserver) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, result)
+}
+
+func (o channelV2MetricsObserver) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueue("channelv2", channelV2ReactorPoolLabel(event.ReactorID), "append", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Depth,
+		Capacity:      event.Capacity,
+		Bytes:         int64(event.Bytes),
+		BytesCapacity: int64(event.BytesCapacity),
+	})
 }
 
 func (o channelV2MetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
@@ -155,6 +247,46 @@ func (o channelV2MetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	o.metrics.ChannelV2.SetWorkerQueueDepth(pool, depth)
+	o.metrics.RuntimePressure.SetQueueDepth("channelv2", pool, "worker", "none", depth)
+}
+
+func (o channelV2MetricsObserver) SetWorkerQueueCapacity(pool string, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", pool, "worker", "none", capacity)
+}
+
+func (o channelV2MetricsObserver) SetWorkerWorkers(pool string, workers int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("channelv2", pool, workers)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerAdmission(pool string, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("channelv2", pool, "worker", "none", result)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveQueueWait("channelv2", pool, "worker", "none", "ok", d)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	o.metrics.RuntimePressure.ObserveTaskDuration("channelv2", pool, channelV2WorkerKindLabel(kind), result, d)
 }
 
 func (o channelV2MetricsObserver) SetWorkerInflight(pool string, inflight int) {
@@ -162,6 +294,7 @@ func (o channelV2MetricsObserver) SetWorkerInflight(pool string, inflight int) {
 		return
 	}
 	o.metrics.ChannelV2.SetWorkerInflight(pool, inflight)
+	o.metrics.RuntimePressure.SetPoolInflight("channelv2", pool, inflight)
 }
 
 func (o channelV2MetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
@@ -340,6 +473,76 @@ func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err 
 		result = "err"
 	}
 	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d)
+}
+
+func (o slotMetricsObserver) SetSchedulerWorkers(workers int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("slot", "scheduler", workers)
+}
+
+func (o slotMetricsObserver) SetSchedulerInflight(inflight int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolInflight("slot", "scheduler", inflight)
+}
+
+func (o slotMetricsObserver) SetSchedulerState(event multiraft.SchedulerStateEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueue("slot", "scheduler", "scheduler", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth + event.Pending,
+		Capacity: event.Capacity,
+	})
+}
+
+func (o slotMetricsObserver) ObserveSchedulerAdmission(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("slot", "scheduler", "scheduler", "none", result)
+}
+
+func (o slotMetricsObserver) ObserveSchedulerTask(task string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveTaskDuration("slot", "scheduler", task, "ok", d)
+}
+
+func (o transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
+	if o.metrics == nil {
+		return
+	}
+	switch event.Name {
+	case "pending_rpc":
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", event.Inflight)
+	case "peer_pool":
+		inflight := event.Inflight
+		if inflight == 0 {
+			inflight = event.Items
+		}
+		o.metrics.RuntimePressure.SetPoolWorkers("transportv2", "peer_pool", event.Capacity)
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "peer_pool", inflight)
+	case "scheduler_queue":
+		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+	case "service_queue":
+		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+	case "scheduler_admission":
+		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
+	case "service_admission":
+		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), event.Result)
+	case "scheduler_wait":
+		o.metrics.RuntimePressure.ObserveQueueWait("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
+	case "service_task":
+		queue := transportV2ServiceQueueLabel(event.ServiceID)
+		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
+	case "service_inflight":
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", transportV2ServiceQueueLabel(event.ServiceID), event.Inflight)
+	}
 }
 
 func (o controllerRaftMetricsObserver) SetStepQueueDepth(depth int, capacity int) {
@@ -533,6 +736,16 @@ func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer 
 	return multiChannelV2Observer{first, second}
 }
 
+func combineSlotObservers(first, second multiraft.SchedulerObserver) multiraft.SchedulerObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiSlotObserver{first, second}
+}
+
 func combineControllerRaftObservers(first, second cv2raft.Observer) cv2raft.Observer {
 	if first == nil {
 		return second
@@ -568,15 +781,129 @@ func deliveryChannelTypeLabel(channelType uint8) string {
 	}
 }
 
+func fallbackRuntimePressureLabel(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func channelV2ReactorPoolLabel(reactorID int) string {
+	if reactorID < 0 {
+		return "reactor_unknown"
+	}
+	return "reactor_" + strconv.Itoa(reactorID)
+}
+
+func transportV2QueueObservation(event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+	return obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Items,
+		Capacity:      event.Capacity,
+		Bytes:         int64(event.Bytes),
+		BytesCapacity: event.BytesCapacity,
+	}
+}
+
+func transportV2ServiceQueueLabel(serviceID uint16) string {
+	return "service_" + strconv.Itoa(int(serviceID))
+}
+
+func transportV2PriorityLabel(priority transportv2.Priority) string {
+	switch priority {
+	case transportv2.PriorityRaft:
+		return "raft"
+	case transportv2.PriorityControl:
+		return "control"
+	case transportv2.PriorityRPC:
+		return "rpc"
+	case transportv2.PriorityBulk:
+		return "bulk"
+	default:
+		return "none"
+	}
+}
+
 func (o multiChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
 	for _, observer := range o {
 		observer.SetReactorMailboxDepth(reactorID, priority, depth)
 	}
 }
 
+func (o multiChannelV2Observer) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
+	for _, observer := range o {
+		mailboxObserver, ok := observer.(reactor.MailboxPressureObserver)
+		if ok {
+			mailboxObserver.SetReactorMailboxCapacity(reactorID, priority, capacity)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
+	for _, observer := range o {
+		mailboxObserver, ok := observer.(reactor.MailboxPressureObserver)
+		if ok {
+			mailboxObserver.ObserveReactorMailboxAdmission(reactorID, priority, result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
+	for _, observer := range o {
+		appendObserver, ok := observer.(reactor.AppendQueuePressureObserver)
+		if ok {
+			appendObserver.SetAppendQueuePressure(event)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
 	for _, observer := range o {
 		observer.SetWorkerQueueDepth(pool, depth)
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerQueueCapacity(pool string, capacity int) {
+	for _, observer := range o {
+		queueObserver, ok := observer.(worker.QueueCapacityObserver)
+		if ok {
+			queueObserver.SetWorkerQueueCapacity(pool, capacity)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerWorkers(pool string, workers int) {
+	for _, observer := range o {
+		queueObserver, ok := observer.(worker.QueueCapacityObserver)
+		if ok {
+			queueObserver.SetWorkerWorkers(pool, workers)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerAdmission(pool string, result string) {
+	for _, observer := range o {
+		admissionObserver, ok := observer.(worker.AdmissionObserver)
+		if ok {
+			admissionObserver.ObserveWorkerAdmission(pool, result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
+	for _, observer := range o {
+		waitObserver, ok := observer.(worker.WaitObserver)
+		if ok {
+			waitObserver.ObserveWorkerWait(pool, kind, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
+	for _, observer := range o {
+		taskObserver, ok := observer.(worker.TaskObserver)
+		if ok {
+			taskObserver.ObserveWorkerTask(pool, kind, err, d)
+		}
 	}
 }
 
@@ -753,6 +1080,36 @@ func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err er
 	}
 }
 
+func (o multiSlotObserver) SetSchedulerWorkers(workers int) {
+	for _, observer := range o {
+		observer.SetSchedulerWorkers(workers)
+	}
+}
+
+func (o multiSlotObserver) SetSchedulerInflight(inflight int) {
+	for _, observer := range o {
+		observer.SetSchedulerInflight(inflight)
+	}
+}
+
+func (o multiSlotObserver) SetSchedulerState(event multiraft.SchedulerStateEvent) {
+	for _, observer := range o {
+		observer.SetSchedulerState(event)
+	}
+}
+
+func (o multiSlotObserver) ObserveSchedulerAdmission(result string) {
+	for _, observer := range o {
+		observer.ObserveSchedulerAdmission(result)
+	}
+}
+
+func (o multiSlotObserver) ObserveSchedulerTask(task string, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveSchedulerTask(task, d)
+	}
+}
+
 func (o multiControllerRaftObserver) SetStepQueueDepth(depth int, capacity int) {
 	for _, observer := range o {
 		observer.SetStepQueueDepth(depth, capacity)
@@ -923,8 +1280,13 @@ func messageAppendErrorLabel(err error) string {
 
 var _ accessgateway.Observer = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
+var _ accessgateway.AsyncAuthObserver = gatewayMetricsObserver{}
+var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
+var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
+var _ reactor.MailboxPressureObserver = channelV2MetricsObserver{}
+var _ reactor.AppendQueuePressureObserver = channelV2MetricsObserver{}
 var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
 var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
@@ -932,10 +1294,18 @@ var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
 var _ reactor.PendingMetaObserver = channelV2MetricsObserver{}
 var _ reactor.AppendWaitCancelObserver = channelV2MetricsObserver{}
 var _ worker.InflightObserver = channelV2MetricsObserver{}
+var _ worker.QueueCapacityObserver = channelV2MetricsObserver{}
+var _ worker.AdmissionObserver = channelV2MetricsObserver{}
+var _ worker.WaitObserver = channelV2MetricsObserver{}
+var _ worker.TaskObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
+var _ multiraft.SchedulerObserver = slotMetricsObserver{}
+var _ transportv2.Observer = transportV2MetricsObserver{}
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
+var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}
+var _ reactor.AppendQueuePressureObserver = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
@@ -943,8 +1313,13 @@ var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
 var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
 var _ worker.InflightObserver = multiChannelV2Observer{}
+var _ worker.QueueCapacityObserver = multiChannelV2Observer{}
+var _ worker.AdmissionObserver = multiChannelV2Observer{}
+var _ worker.WaitObserver = multiChannelV2Observer{}
+var _ worker.TaskObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
+var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}
