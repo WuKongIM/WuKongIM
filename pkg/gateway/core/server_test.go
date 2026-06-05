@@ -350,6 +350,268 @@ func TestServer(t *testing.T) {
 		}
 	})
 
+	t.Run("connect authentication dispatches asynchronously and does not block data return", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("wkproto")
+		proto.encodedBytes = []byte("connack-success")
+		proto.pushDecode(decodeResult{
+			frames: []frame.Frame{&frame.ConnectPacket{
+				UID:        "u1",
+				DeviceID:   "d-1",
+				DeviceFlag: frame.APP,
+			}},
+			consumed: 1,
+		})
+
+		authStarted := make(chan struct{})
+		releaseAuth := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseAuth) }) }
+		authenticator := gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+			close(authStarted)
+			<-releaseAuth
+			return &gateway.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+		})
+
+		srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, authenticator)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		dataReturned := make(chan error, 1)
+		go func() {
+			dataReturned <- conn.EmitData([]byte("c"))
+		}()
+
+		waitFor(t, func() bool {
+			select {
+			case <-authStarted:
+				return true
+			default:
+				return false
+			}
+		})
+
+		select {
+		case err := <-dataReturned:
+			if err != nil {
+				t.Fatalf("emit data failed: %v", err)
+			}
+		case <-time.After(50 * time.Millisecond):
+			t.Fatal("expected CONNECT auth not to block EmitData")
+		}
+
+		release()
+		waitFor(t, func() bool { return len(conn.Writes()) == 1 && len(handler.callOrder()) == 1 })
+	})
+
+	t.Run("same decode batch frame after connect is rejected while auth is pending", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("wkproto")
+		proto.pushDecode(decodeResult{
+			frames: []frame.Frame{
+				&frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP},
+				&frame.PingPacket{},
+			},
+			consumed: 1,
+		})
+
+		authStarted := make(chan struct{})
+		releaseAuth := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseAuth) }) }
+		authenticator := gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+			close(authStarted)
+			<-releaseAuth
+			return &gateway.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+		})
+
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, authenticator, observer)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		dataReturned := make(chan error, 1)
+		go func() {
+			dataReturned <- conn.EmitData([]byte("cp"))
+		}()
+
+		select {
+		case err := <-dataReturned:
+			if err != nil {
+				t.Fatalf("emit data failed: %v", err)
+			}
+		case <-time.After(50 * time.Millisecond):
+			t.Fatal("expected same decode batch after CONNECT not to block EmitData")
+		}
+
+		waitFor(t, func() bool { return connClosed(conn) && observer.closeCount() == 1 })
+		release()
+		if err := srv.Stop(); err != nil {
+			t.Fatalf("stop failed: %v", err)
+		}
+
+		if got := handler.frameCount(); got != 0 {
+			t.Fatalf("handler frames = %d, want 0", got)
+		}
+		if got := handler.callOrder(); len(got) != 0 {
+			t.Fatalf("handler call order = %v, want no open after policy close", got)
+		}
+		if got := len(conn.Writes()); got != 0 {
+			t.Fatalf("writes = %d, want 0 after policy close", got)
+		}
+		reasons := observer.closeReasons()
+		if got := reasons[len(reasons)-1]; got != gateway.CloseReasonPolicyViolation {
+			t.Fatalf("close reason = %q, want %q", got, gateway.CloseReasonPolicyViolation)
+		}
+	})
+
+	t.Run("second connect while auth is pending is rejected", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("wkproto")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP}},
+			consumed: 1,
+		})
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP}},
+			consumed: 1,
+		})
+
+		authStarted := make(chan struct{})
+		releaseAuth := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseAuth) }) }
+		authenticator := gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+			close(authStarted)
+			<-releaseAuth
+			return &gateway.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+		})
+
+		observer := &recordingObserver{}
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, authenticator, observer)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		dataReturned := make(chan error, 1)
+		go func() {
+			dataReturned <- conn.EmitData([]byte("c"))
+		}()
+		select {
+		case err := <-dataReturned:
+			if err != nil {
+				t.Fatalf("emit first connect failed: %v", err)
+			}
+		case <-time.After(50 * time.Millisecond):
+			t.Fatal("expected first CONNECT not to block EmitData")
+		}
+		waitFor(t, func() bool {
+			select {
+			case <-authStarted:
+				return true
+			default:
+				return false
+			}
+		})
+
+		transportFactory.MustData("listener-a", 1, []byte("c"))
+
+		waitFor(t, func() bool { return connClosed(conn) && observer.closeCount() == 1 })
+		release()
+		if err := srv.Stop(); err != nil {
+			t.Fatalf("stop failed: %v", err)
+		}
+
+		if got := handler.callOrder(); len(got) != 0 {
+			t.Fatalf("handler call order = %v, want no open after policy close", got)
+		}
+		if got := len(conn.Writes()); got != 0 {
+			t.Fatalf("writes = %d, want 0 after policy close", got)
+		}
+		reasons := observer.closeReasons()
+		if got := reasons[len(reasons)-1]; got != gateway.CloseReasonPolicyViolation {
+			t.Fatalf("close reason = %q, want %q", got, gateway.CloseReasonPolicyViolation)
+		}
+	})
+
+	t.Run("peer close while auth is running does not dispatch open", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("wkproto")
+		proto.encodedBytes = []byte("connack-success")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP}},
+			consumed: 1,
+		})
+
+		authStarted := make(chan struct{})
+		releaseAuth := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseAuth) }) }
+		authenticator := gateway.AuthenticatorFunc(func(*gateway.Context, *frame.ConnectPacket) (*gateway.AuthResult, error) {
+			close(authStarted)
+			<-releaseAuth
+			return &gateway.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+		})
+
+		srv, transportFactory := newTestServerWithAuthenticator(t, handler, proto, gateway.SessionOptions{}, authenticator)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		dataReturned := make(chan error, 1)
+		go func() {
+			dataReturned <- conn.EmitData([]byte("c"))
+		}()
+		waitFor(t, func() bool {
+			select {
+			case <-authStarted:
+				return true
+			default:
+				return false
+			}
+		})
+		select {
+		case err := <-dataReturned:
+			if err != nil {
+				t.Fatalf("emit data failed: %v", err)
+			}
+		case <-time.After(50 * time.Millisecond):
+			t.Fatal("expected CONNECT auth not to block EmitData")
+		}
+
+		conn.EmitClose(nil)
+		waitFor(t, func() bool { return connClosed(conn) })
+		if got := len(conn.Writes()); got != 0 {
+			t.Fatalf("writes before auth release = %d, want 0 after peer close", got)
+		}
+
+		release()
+		if err := srv.Stop(); err != nil {
+			t.Fatalf("stop failed: %v", err)
+		}
+
+		if got := handler.callOrder(); len(got) != 0 {
+			t.Fatalf("handler call order = %v, want no open after peer close", got)
+		}
+		if got := len(conn.Writes()); got != 0 {
+			t.Fatalf("writes = %d, want 0 after peer close", got)
+		}
+	})
+
 	t.Run("successful wkproto authentication replies with connack and allows later frames", func(t *testing.T) {
 		handler := newTestHandler()
 		proto := newScriptedProtocol("wkproto")
@@ -1655,6 +1917,17 @@ func (r *recordingObserver) closeCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.closes)
+}
+
+func (r *recordingObserver) closeReasons() []gateway.CloseReason {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	reasons := make([]gateway.CloseReason, len(r.closes))
+	for i := range r.closes {
+		reasons[i] = r.closes[i].CloseReason
+	}
+	return reasons
 }
 
 func (r *recordingObserver) authCount() int {
