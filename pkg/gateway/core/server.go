@@ -121,9 +121,13 @@ type sessionState struct {
 
 	metaMu           sync.RWMutex
 	closeReasonValue gatewaytypes.CloseReason
+	closing          bool
 	authenticated    bool
+	authPending      bool
 	authRequired     bool
 	openDispatched   bool
+	openCompleted    bool
+	openDone         chan struct{}
 
 	closeOnce sync.Once
 	closedCh  chan struct{}
@@ -237,10 +241,13 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	s.startAsyncAuthenticator()
+	s.startAsyncDispatcher()
 	for _, runtime := range runtimes {
 		if err := runtime.listener.Start(); err != nil {
 			s.dispatcher.listenerError(runtime.options.Name, err)
 			s.rollbackRuntimeListeners(runtimes)
+			s.stopAsyncWorkers()
 			s.mu.Lock()
 			s.started = false
 			s.mu.Unlock()
@@ -249,7 +256,6 @@ func (s *Server) Start() error {
 	}
 
 	s.startIdleMonitor()
-	s.startAsyncDispatcher()
 	return nil
 }
 
@@ -336,6 +342,7 @@ func (s *Server) Stop() error {
 	}
 	idleMonitorStop := s.idleMonitorStop
 	s.idleMonitorStop = nil
+	asyncAuth := s.asyncAuth.Swap(nil)
 	asyncDispatch := s.asyncDispatch.Swap(nil)
 	s.mu.Unlock()
 
@@ -353,12 +360,34 @@ func (s *Server) Stop() error {
 	for _, state := range states {
 		state.close(gatewaytypes.CloseReasonServerStop, nil)
 	}
+	s.closeAsyncWorkers(asyncAuth, asyncDispatch)
+
+	return firstErr
+}
+
+func (s *Server) stopAsyncWorkers() {
+	if s == nil {
+		return
+	}
+
+	asyncAuth := s.asyncAuth.Swap(nil)
+	asyncDispatch := s.asyncDispatch.Swap(nil)
+	s.closeAsyncWorkers(asyncAuth, asyncDispatch)
+}
+
+func (s *Server) closeAsyncWorkers(asyncAuth *asyncAuthQueue, asyncDispatch *asyncDispatchQueue) {
+	if s == nil {
+		return
+	}
+
+	if asyncAuth != nil {
+		asyncAuth.close()
+	}
 	if asyncDispatch != nil {
 		asyncDispatch.close()
 	}
 
 	s.workerWG.Wait()
-	return firstErr
 }
 
 type connHandler struct {
@@ -563,6 +592,10 @@ func (s *Server) dispatchInboundFrames(listener *listenerRuntime, state *session
 			}
 			continue
 		}
+		state.waitOpenComplete()
+		if state.isClosed() {
+			return
+		}
 		s.observeFrameIn(state, f)
 		if send, ok := isSendPacket(f); ok {
 			s.dispatchSendFrameAsync(state, replyToken, send)
@@ -620,34 +653,86 @@ func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.F
 }
 
 func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame.Frame) (bool, error) {
-	if state == nil || !state.requiresAuth() || state.isAuthenticated() {
+	if state == nil || !state.requiresAuth() {
 		return false, nil
 	}
-	start := time.Now()
-	status := authStatusFail
-	failure := authFailureUnknown
-	defer func() {
-		s.observeAuth(state, status, failure, time.Since(start))
-	}()
-
-	connect, ok := f.(*frame.ConnectPacket)
-	if !ok {
-		failure = authFailureProtocolViolation
+	if state.isAuthenticated() {
+		return false, nil
+	}
+	if state.isAuthPending() {
+		s.observeAuth(state, authStatusFail, authFailureProtocolViolation, 0)
 		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
 		return true, nil
 	}
 
-	ctx := s.dispatcher.context(state, replyToken, state.closeReason(), nil)
+	start := time.Now()
+	connect, ok := f.(*frame.ConnectPacket)
+	if !ok {
+		s.observeAuth(state, authStatusFail, authFailureProtocolViolation, time.Since(start))
+		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
+		return true, nil
+	}
+	if !state.beginAuth() {
+		s.observeAuth(state, authStatusFail, authFailureProtocolViolation, time.Since(start))
+		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
+		return true, nil
+	}
+
+	queue := s.asyncAuthenticator()
+	if queue != nil && queue.submit(asyncAuthTask{state: state, replyToken: replyToken, connect: connect}) {
+		return true, nil
+	}
+
+	state.setAuthPending(false)
+	s.handleAuthQueueFull(state, replyToken, start)
+	return true, nil
+}
+
+func (s *Server) runAuthTask(task asyncAuthTask) {
+	state := task.state
+	connect := task.connect
+	start := task.enqueuedAt
+	if start.IsZero() {
+		start = time.Now()
+	}
+	if state == nil || connect == nil {
+		return
+	}
+	if state.isClosed() {
+		state.setAuthPending(false)
+		return
+	}
+
+	status := authStatusFail
+	failure := authFailureUnknown
+	suppressObservation := false
+	defer func() {
+		state.setAuthPending(false)
+		if suppressObservation {
+			return
+		}
+		s.observeAuth(state, status, failure, time.Since(start))
+	}()
+
+	ctx := s.dispatcher.context(state, task.replyToken, state.closeReason(), nil)
 	result, err := s.options.Authenticator.Authenticate(&ctx, connect)
+	if state.isClosed() {
+		suppressObservation = true
+		return
+	}
 	if err != nil {
 		failure = authFailureAuthenticatorError
 		s.logAuthFailure(state, connect, failure, err)
+		if state.isClosed() {
+			suppressObservation = true
+			return
+		}
 		if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
-			return true, nil
+			return
 		}
 		state.close(gatewaytypes.CloseReasonPolicyViolation, err)
-		return true, nil
+		return
 	}
 	if result == nil {
 		result = &gatewaytypes.AuthResult{}
@@ -664,12 +749,16 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 
 	if connack.ReasonCode != frame.ReasonSuccess {
 		failure = authFailureForConnack(connack.ReasonCode)
+		if state.isClosed() {
+			suppressObservation = true
+			return
+		}
 		if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPeerClosed), writeErr)
-			return true, nil
+			return
 		}
 		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
-		return true, nil
+		return
 	}
 
 	if result.SessionValues == nil {
@@ -680,23 +769,39 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 		state.session.SetValue(key, value)
 	}
 
-	ctx = s.dispatcher.context(state, replyToken, state.closeReason(), nil)
+	ctx = s.dispatcher.context(state, task.replyToken, state.closeReason(), nil)
 	activated := false
 	if activator, ok := s.options.Handler.(gatewaytypes.SessionActivator); ok {
 		override, err := activator.OnSessionActivate(&ctx)
 		if err != nil {
+			if state.isClosed() {
+				suppressObservation = true
+				return
+			}
 			failure = authFailureForActivationError(err)
 			s.logAuthFailure(state, connect, failure, err)
+			if state.isClosed() {
+				suppressObservation = true
+				return
+			}
 			if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 				state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
-				return true, nil
+				return
 			}
 			state.close(gatewaytypes.CloseReasonPolicyViolation, err)
-			return true, nil
+			return
 		}
 		activated = true
 		if override != nil {
 			connack = override
+		}
+		if connack.ReasonCode == 0 {
+			connack.ReasonCode = frame.ReasonSuccess
+		}
+		if state.isClosed() {
+			s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
+			suppressObservation = true
+			return
 		}
 	}
 	if connack.ReasonCode == 0 {
@@ -706,31 +811,64 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 		failure = authFailureForConnack(connack.ReasonCode)
 	}
 
+	if state.isClosed() {
+		s.rollbackActivatedSession(ctx, activated, connack, session.ErrSessionClosed)
+		suppressObservation = true
+		return
+	}
 	if writeErr := s.writeImmediateFrame(state, connack); writeErr != nil {
 		if connack.ReasonCode == frame.ReasonSuccess {
 			failure = authFailureConnackWriteError
 		}
-		if activated && connack.ReasonCode == frame.ReasonSuccess {
-			if rollbacker, ok := s.options.Handler.(gatewaytypes.SessionActivationRollbacker); ok {
-				rollbacker.OnSessionActivateRollback(ctx, writeErr)
-			}
-		}
+		s.rollbackActivatedSession(ctx, activated, connack, writeErr)
 		state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPeerClosed), writeErr)
-		return true, nil
+		return
 	}
 	if connack.ReasonCode != frame.ReasonSuccess {
 		state.close(gatewaytypes.CloseReasonPolicyViolation, nil)
-		return true, nil
+		return
 	}
-	state.setAuthenticated(true)
 	status = authStatusOK
 	failure = authFailureNone
 	if !state.openWasDispatched() {
-		if err := s.dispatchSessionOpen(state); err != nil {
-			return true, err
+		if state.isClosed() {
+			suppressObservation = true
+			return
 		}
+		state.markAuthenticatedAndOpenDispatched()
+		if err := s.dispatchSessionOpen(state); err != nil {
+			s.handleHandlerError(state, err)
+			return
+		}
+	} else {
+		state.setAuthenticated(true)
+		state.setAuthPending(false)
 	}
-	return true, nil
+}
+
+func (s *Server) rollbackActivatedSession(ctx gatewaytypes.Context, activated bool, connack *frame.ConnackPacket, err error) {
+	if !activated || connack == nil || connack.ReasonCode != frame.ReasonSuccess {
+		return
+	}
+	if rollbacker, ok := s.options.Handler.(gatewaytypes.SessionActivationRollbacker); ok {
+		rollbacker.OnSessionActivateRollback(ctx, err)
+	}
+}
+
+func (s *Server) handleAuthQueueFull(state *sessionState, replyToken string, start time.Time) {
+	if start.IsZero() {
+		start = time.Now()
+	}
+	if state == nil || state.isClosed() {
+		return
+	}
+	if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
+		s.observeAuth(state, authStatusFail, authFailureQueueFull, time.Since(start))
+		state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonAsyncAuthQueueFull), writeErr)
+		return
+	}
+	s.observeAuth(state, authStatusFail, authFailureQueueFull, time.Since(start))
+	state.close(gatewaytypes.CloseReasonAsyncAuthQueueFull, gatewaytypes.ErrAsyncAuthQueueFull)
 }
 
 func authFailureForConnack(reason frame.ReasonCode) string {
@@ -841,6 +979,7 @@ func (s *Server) dispatchSessionOpen(state *sessionState) error {
 	}
 
 	state.markOpenDispatched()
+	defer state.markOpenComplete()
 	return s.dispatcher.sessionOpen(state)
 }
 
@@ -895,6 +1034,47 @@ func (s *Server) closeIdleSessions(now time.Time) {
 		}
 		state.close(gatewaytypes.CloseReasonIdleTimeout, gatewaytypes.ErrIdleTimeout)
 	}
+}
+
+// startAsyncAuthenticator starts a bounded worker pool for CONNECT authentication.
+func (s *Server) startAsyncAuthenticator() {
+	if s == nil || s.options.Authenticator == nil {
+		return
+	}
+
+	workers := asyncAuthWorkerCount()
+	queue := newAsyncAuthQueue(workers)
+
+	s.mu.Lock()
+	if s.stopped || s.asyncAuth.Load() != nil {
+		s.mu.Unlock()
+		return
+	}
+	s.asyncAuth.Store(queue)
+	s.workerWG.Add(workers)
+	s.mu.Unlock()
+
+	for i := 0; i < workers; i++ {
+		go s.runAsyncAuthWorker(queue)
+	}
+}
+
+func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
+	defer s.workerWG.Done()
+	if queue == nil {
+		return
+	}
+	for task := range queue.tasks {
+		queue.consume(1)
+		s.runAuthTask(task)
+	}
+}
+
+func (s *Server) asyncAuthenticator() *asyncAuthQueue {
+	if s == nil {
+		return nil
+	}
+	return s.asyncAuth.Load()
 }
 
 // startAsyncDispatcher starts a bounded worker pool for SEND dispatch.
@@ -1671,10 +1851,13 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 	}
 
 	st.closeOnce.Do(func() {
+		st.metaMu.Lock()
+		st.closing = true
+		st.closeReasonValue = reason
+		st.metaMu.Unlock()
 		if st.cancelRequestContext != nil {
 			st.cancelRequestContext()
 		}
-		st.setCloseReason(reason)
 		st.server.observeConnectionClose(st)
 		st.server.unregisterState(st)
 		if err != nil && st.openWasDispatched() {
@@ -1897,6 +2080,12 @@ func (st *sessionState) isClosed() bool {
 		return true
 	}
 
+	st.metaMu.RLock()
+	closing := st.closing
+	st.metaMu.RUnlock()
+	if closing {
+		return true
+	}
 	select {
 	case <-st.closedCh:
 		return true
@@ -1956,6 +2145,56 @@ func (st *sessionState) isAuthenticated() bool {
 	return st.authenticated
 }
 
+func (st *sessionState) markAuthenticatedAndOpenDispatched() {
+	if st == nil {
+		return
+	}
+
+	st.metaMu.Lock()
+	st.authenticated = true
+	st.authPending = false
+	st.openDispatched = true
+	st.openCompleted = false
+	if st.openDone == nil {
+		st.openDone = make(chan struct{})
+	}
+	st.metaMu.Unlock()
+}
+
+func (st *sessionState) beginAuth() bool {
+	if st == nil {
+		return false
+	}
+
+	st.metaMu.Lock()
+	defer st.metaMu.Unlock()
+	if st.authenticated || st.authPending {
+		return false
+	}
+	st.authPending = true
+	return true
+}
+
+func (st *sessionState) setAuthPending(pending bool) {
+	if st == nil {
+		return
+	}
+
+	st.metaMu.Lock()
+	st.authPending = pending
+	st.metaMu.Unlock()
+}
+
+func (st *sessionState) isAuthPending() bool {
+	if st == nil {
+		return false
+	}
+
+	st.metaMu.RLock()
+	defer st.metaMu.RUnlock()
+	return st.authPending
+}
+
 func (st *sessionState) setAuthRequired(required bool) {
 	if st == nil {
 		return
@@ -2000,7 +2239,45 @@ func (st *sessionState) markOpenDispatched() {
 
 	st.metaMu.Lock()
 	st.openDispatched = true
+	if st.openDone == nil {
+		st.openDone = make(chan struct{})
+	}
 	st.metaMu.Unlock()
+}
+
+func (st *sessionState) markOpenComplete() {
+	if st == nil {
+		return
+	}
+
+	st.metaMu.Lock()
+	if !st.openCompleted {
+		st.openCompleted = true
+		if st.openDone != nil {
+			close(st.openDone)
+		}
+	}
+	st.metaMu.Unlock()
+}
+
+func (st *sessionState) waitOpenComplete() {
+	if st == nil {
+		return
+	}
+
+	st.metaMu.RLock()
+	openDispatched := st.openDispatched
+	openCompleted := st.openCompleted
+	openDone := st.openDone
+	st.metaMu.RUnlock()
+	if !openDispatched || openCompleted || openDone == nil {
+		return
+	}
+
+	select {
+	case <-openDone:
+	case <-st.closedCh:
+	}
 }
 
 func (st *sessionState) openWasDispatched() bool {
