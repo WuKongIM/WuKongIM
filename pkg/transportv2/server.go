@@ -128,6 +128,7 @@ func (s *Server) Stop() {
 		for c := range s.conns {
 			conns = append(conns, c)
 		}
+		s.conns = make(map[*conn.Conn]struct{})
 		s.mu.Unlock()
 
 		if listener != nil {
@@ -156,20 +157,23 @@ func (s *Server) acceptLoop(listener net.Listener) {
 			return
 		}
 		c := conn.New(raw, conn.Config{Limits: s.cfg.Limits}, conn.DispatchFunc(s.dispatch))
-		s.trackConn(c)
+		if !s.trackConn(c) {
+			continue
+		}
 		c.Start()
 		go s.untrackConnWhenDone(c)
 	}
 }
 
-func (s *Server) trackConn(c *conn.Conn) {
+func (s *Server) trackConn(c *conn.Conn) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.stopped {
-		go c.Close(core.ErrStopped)
-		return
+		c.Close(core.ErrStopped)
+		return false
 	}
 	s.conns[c] = struct{}{}
+	return true
 }
 
 func (s *Server) untrackConnWhenDone(c *conn.Conn) {

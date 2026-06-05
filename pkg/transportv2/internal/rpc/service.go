@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
+
+const serviceStopGrace = 100 * time.Millisecond
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
@@ -44,6 +47,8 @@ type Service struct {
 	stopOnce sync.Once
 	// wg waits for worker goroutines to exit.
 	wg sync.WaitGroup
+	// done closes after all workers exit.
+	done chan struct{}
 }
 
 // NewService starts a bounded worker pool for handler.
@@ -66,11 +71,16 @@ func NewService(id uint16, handler core.Handler, opts core.ServiceOptions) *Serv
 		ctx:     ctx,
 		cancel:  cancel,
 		queue:   make(chan Request, opts.QueueSize),
+		done:    make(chan struct{}),
 	}
 	for i := 0; i < opts.Concurrency; i++ {
 		s.wg.Add(1)
 		go s.worker()
 	}
+	go func() {
+		s.wg.Wait()
+		close(s.done)
+	}()
 	return s
 }
 
@@ -87,6 +97,7 @@ func (s *Service) Enqueue(req Request) error {
 
 	if s.stopped {
 		req.Payload.Release()
+		trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 		return core.ErrStopped
 	}
 	if len(s.queue) >= s.opts.QueueSize {
@@ -108,7 +119,7 @@ func (s *Service) Enqueue(req Request) error {
 	}
 }
 
-// Stop cancels workers, drains queued payloads, and waits for active handlers to observe cancellation.
+// Stop requests worker shutdown, drains queued payloads, and waits only briefly for cooperative handlers.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
 		s.mu.Lock()
@@ -118,10 +129,14 @@ func (s *Service) Stop() {
 			select {
 			case req := <-s.queue:
 				s.queuedBytes -= int64(req.Payload.Len())
+				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 			default:
 				s.mu.Unlock()
-				s.wg.Wait()
+				select {
+				case <-s.done:
+				case <-time.After(serviceStopGrace):
+				}
 				return
 			}
 		}
@@ -136,6 +151,7 @@ func (s *Service) worker() {
 			return
 		case req := <-s.queue:
 			if !s.markDequeued(req) {
+				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 				continue
 			}
@@ -172,8 +188,15 @@ func (s *Service) handle(req Request) {
 	reply := Response{Payload: append([]byte(nil), resp...), Err: err}
 	// Reply channels are required to be buffered by callers; non-blocking send keeps Stop from
 	// waiting forever when the caller has abandoned a request.
+	trySendResponse(req.Reply, reply)
+}
+
+func trySendResponse(ch chan Response, resp Response) {
+	if ch == nil {
+		return
+	}
 	select {
-	case req.Reply <- reply:
+	case ch <- resp:
 	default:
 	}
 }

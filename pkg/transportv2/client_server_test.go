@@ -2,6 +2,7 @@ package transportv2
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -126,5 +127,84 @@ func TestServerHandlesNotify(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for handler payload")
+	}
+}
+
+func TestServerStopClearsConnectionStats(t *testing.T) {
+	server, err := NewServer(ServerConfig{
+		NodeID: 2,
+		Limits: DefaultLimits(),
+	})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	if err := server.ListenAndServe("127.0.0.1:0"); err != nil {
+		t.Fatalf("ListenAndServe() error = %v", err)
+	}
+	addr := server.Addr()
+
+	raw, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer raw.Close()
+	waitServerConnections(t, server, 1)
+
+	server.Stop()
+	if got := server.Stats().Connections; got != 0 {
+		t.Fatalf("Stats().Connections = %d, want 0 after Stop", got)
+	}
+	if conn, err := net.DialTimeout("tcp", addr, 50*time.Millisecond); err == nil {
+		conn.Close()
+		t.Fatal("DialTimeout() after Stop succeeded, want listener closed")
+	}
+}
+
+func TestServerHandleDuplicateServiceIDReturnsInvalidConfig(t *testing.T) {
+	server, err := NewServer(ServerConfig{NodeID: 2, Limits: DefaultLimits()})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	defer server.Stop()
+
+	handler := func(context.Context, []byte) ([]byte, error) { return nil, nil }
+	opts := ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}
+	if err := server.Handle(7, handler, opts); err != nil {
+		t.Fatalf("Handle(first) error = %v", err)
+	}
+	err = server.Handle(7, handler, opts)
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("Handle(duplicate) error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
+func TestServerHandleNilHandlerReturnsInvalidConfig(t *testing.T) {
+	server, err := NewServer(ServerConfig{NodeID: 2, Limits: DefaultLimits()})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	defer server.Stop()
+
+	err = server.Handle(7, nil, ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("Handle(nil) error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
+func waitServerConnections(t *testing.T, server *Server, want int) {
+	t.Helper()
+
+	deadline := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if got := server.Stats().Connections; got == want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for %d server connections, got %d", want, server.Stats().Connections)
+		case <-ticker.C:
+		}
 	}
 }

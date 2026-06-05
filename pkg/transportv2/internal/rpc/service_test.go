@@ -126,6 +126,51 @@ func TestServiceStopDrainsQueuedPayload(t *testing.T) {
 	}
 }
 
+func TestServiceStopReturnsWhenHandlerIgnoresContext(t *testing.T) {
+	started := make(chan struct{})
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
+		close(started)
+		select {}
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024})
+
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("stuck"))}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	waitClosed(t, started)
+
+	done := make(chan struct{})
+	go func() {
+		svc.Stop()
+		close(done)
+	}()
+	waitClosed(t, done)
+}
+
+func TestServiceStopRepliesErrStoppedForQueuedRequest(t *testing.T) {
+	started := make(chan struct{})
+	svc := NewService(1, func(ctx context.Context, _ []byte) ([]byte, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024})
+
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("running"))}); err != nil {
+		t.Fatalf("Enqueue(running) error = %v", err)
+	}
+	waitClosed(t, started)
+
+	reply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("queued")), Reply: reply}); err != nil {
+		t.Fatalf("Enqueue(queued) error = %v", err)
+	}
+
+	svc.Stop()
+	resp := waitResponse(t, reply)
+	if !errors.Is(resp.Err, core.ErrStopped) {
+		t.Fatalf("reply err = %v, want %v", resp.Err, core.ErrStopped)
+	}
+}
+
 func TestServiceMaxPayloadReleases(t *testing.T) {
 	var released atomic.Int32
 	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
