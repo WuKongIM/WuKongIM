@@ -3,6 +3,7 @@ package sched
 
 import (
 	"context"
+	"math"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
@@ -25,16 +26,14 @@ type Config struct {
 	MaxBatchBytes int
 }
 
-// Item is one schedulable transport frame plus optional release ownership.
+// Item is one schedulable transport frame.
 type Item struct {
 	// Priority selects the weighted scheduler lane.
 	Priority core.Priority
-	// Bytes is the queue and deficit cost for this item; negative values are treated as zero.
+	// Bytes is the queue and batch byte size; negative values are treated as zero.
 	Bytes int
 	// Value carries the caller-owned frame payload or metadata.
 	Value any
-	// OnRelease releases item ownership when a caller decides not to write it.
-	OnRelease func(error)
 }
 
 type lane struct {
@@ -56,9 +55,13 @@ type Scheduler struct {
 
 	lanes       []lane
 	nextLane    int
+	roundOpen   bool
+	roundSeen   int
+	roundOutput bool
 	queuedItems int
 	queuedBytes int64
 	stopped     bool
+	stopErr     error
 }
 
 // New creates a scheduler with configured queue limits and default batch limits.
@@ -109,6 +112,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	if s.stopped {
 		return core.ErrStopped
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s.maxItems > 0 && s.queuedItems+1 > s.maxItems {
 		return core.ErrQueueFull
 	}
@@ -148,12 +154,12 @@ func (s *Scheduler) WaitBatch() ([]Item, error) {
 		s.cond.Wait()
 	}
 	if s.stopped {
-		return nil, core.ErrStopped
+		return nil, s.stopErr
 	}
 	return s.nextBatchLocked(), nil
 }
 
-// Stop marks the scheduler stopped, drains queued items, and wakes all waiters.
+// Stop marks the scheduler stopped, drains queued items back to caller ownership, and wakes all waiters.
 func (s *Scheduler) Stop(err error) []Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -162,7 +168,11 @@ func (s *Scheduler) Stop(err error) []Item {
 		s.cond.Broadcast()
 		return nil
 	}
+	if err == nil {
+		err = core.ErrStopped
+	}
 	s.stopped = true
+	s.stopErr = err
 	drained := s.drainLocked()
 	s.cond.Broadcast()
 	return drained
@@ -173,53 +183,114 @@ func (s *Scheduler) nextBatchLocked() []Item {
 	var batchBytes int64
 
 	for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
-		added := false
-		checked := 0
-		for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
-			idx := s.nextLane
-			s.nextLane = (s.nextLane + 1) % len(s.lanes)
-			checked++
+		s.openRoundLocked()
 
-			l := &s.lanes[idx]
-			l.deficit += l.weight
-			if len(l.queue) == 0 {
-				if checked >= len(s.lanes) {
-					if len(batch) > 0 {
-						break
-					}
-					checked = 0
-				}
-				continue
-			}
+		l := &s.lanes[s.nextLane]
+		if len(l.queue) == 0 {
+			s.finishLaneLocked()
+			continue
+		}
 
-			item := l.queue[0]
-			itemBytes := int64(item.Bytes)
-			if itemBytes > l.deficit || batchBytes+itemBytes > s.maxBatchBytes {
-				if checked >= len(s.lanes) {
-					if len(batch) > 0 {
-						break
-					}
-					checked = 0
-				}
-				continue
-			}
-
-			l.queue[0] = Item{}
-			l.queue = l.queue[1:]
-			l.deficit -= itemBytes
-			s.queuedItems--
-			s.queuedBytes -= itemBytes
-			batch = append(batch, item)
-			batchBytes += itemBytes
-			added = true
+		item := l.queue[0]
+		itemCost := scheduleCost(item)
+		itemBytes := queueBytes(item)
+		if itemCost > l.deficit {
+			s.finishLaneLocked()
+			continue
+		}
+		if batchBytes+itemBytes > s.maxBatchBytes {
 			break
 		}
-		if !added {
+
+		l.queue[0] = Item{}
+		l.queue = l.queue[1:]
+		l.deficit -= itemCost
+		s.queuedItems--
+		s.queuedBytes -= itemBytes
+		batch = append(batch, item)
+		batchBytes += itemBytes
+		s.roundOutput = true
+
+		if len(batch) >= s.maxBatchFrames || batchBytes >= s.maxBatchBytes {
 			break
+		}
+		if len(l.queue) == 0 {
+			s.finishLaneLocked()
 		}
 	}
 
 	return batch
+}
+
+func (s *Scheduler) openRoundLocked() {
+	if s.roundOpen {
+		return
+	}
+	for i := range s.lanes {
+		if len(s.lanes[i].queue) > 0 {
+			s.lanes[i].deficit += s.lanes[i].weight
+		}
+	}
+	s.roundOpen = true
+	s.roundSeen = 0
+	s.roundOutput = false
+}
+
+func (s *Scheduler) finishLaneLocked() {
+	s.nextLane = (s.nextLane + 1) % len(s.lanes)
+	s.roundSeen++
+	if s.roundSeen < len(s.lanes) {
+		return
+	}
+	noOutput := !s.roundOutput
+	s.roundOpen = false
+	s.roundSeen = 0
+	s.roundOutput = false
+	if noOutput && s.queuedItems > 0 {
+		s.fastForwardRoundLocked()
+	}
+}
+
+func (s *Scheduler) fastForwardRoundLocked() {
+	rounds := int64(math.MaxInt64)
+	for i := range s.lanes {
+		l := &s.lanes[i]
+		if len(l.queue) == 0 {
+			continue
+		}
+		need := scheduleCost(l.queue[0]) - l.deficit
+		if need <= 0 {
+			rounds = 0
+			break
+		}
+		laneRounds := (need + l.weight - 1) / l.weight
+		if laneRounds < rounds {
+			rounds = laneRounds
+		}
+	}
+	if rounds == int64(math.MaxInt64) || rounds <= 0 {
+		return
+	}
+	for i := range s.lanes {
+		if len(s.lanes[i].queue) > 0 {
+			s.lanes[i].deficit += rounds * s.lanes[i].weight
+		}
+	}
+	s.roundOpen = true
+}
+
+func queueBytes(item Item) int64 {
+	if item.Bytes <= 0 {
+		return 0
+	}
+	return int64(item.Bytes)
+}
+
+func scheduleCost(item Item) int64 {
+	if item.Bytes <= 0 {
+		return 1
+	}
+	return int64(item.Bytes)
 }
 
 func (s *Scheduler) drainLocked() []Item {

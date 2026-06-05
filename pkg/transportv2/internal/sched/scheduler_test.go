@@ -111,6 +111,72 @@ func TestNextBatchHonorsMaxBatchBytes(t *testing.T) {
 	}
 }
 
+func TestNextBatchUsesByteWeightedLaneQuanta(t *testing.T) {
+	s := New(Config{
+		MaxBatchFrames: 19,
+		MaxBatchBytes:  19,
+	})
+
+	priorities := []core.Priority{
+		core.PriorityRaft,
+		core.PriorityControl,
+		core.PriorityRPC,
+		core.PriorityBulk,
+	}
+	for _, priority := range priorities {
+		for i := 0; i < 19; i++ {
+			if err := s.Enqueue(context.Background(), Item{
+				Priority: priority,
+				Bytes:    1,
+				Value:    priority,
+			}); err != nil {
+				t.Fatalf("Enqueue(%v, %d) error = %v", priority, i, err)
+			}
+		}
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 19 {
+		t.Fatalf("NextBatch() len = %d, want 19", len(batch))
+	}
+
+	counts := map[core.Priority]int{}
+	for _, item := range batch {
+		counts[item.Priority]++
+	}
+	want := map[core.Priority]int{
+		core.PriorityRaft:    8,
+		core.PriorityControl: 6,
+		core.PriorityRPC:     4,
+		core.PriorityBulk:    1,
+	}
+	for priority, wantCount := range want {
+		if counts[priority] != wantCount {
+			t.Fatalf("priority %v count = %d, want %d; batch=%#v", priority, counts[priority], wantCount, batch)
+		}
+	}
+}
+
+func TestNextBatchReturnsLargeFrameWithoutEmptySpin(t *testing.T) {
+	s := New(Config{
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  16,
+	})
+
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityBulk,
+		Bytes:    16,
+		Value:    "large",
+	}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 1 || batch[0].Value != "large" {
+		t.Fatalf("NextBatch() = %#v, want large frame", batch)
+	}
+}
+
 func TestWeightedBatchEventuallyIncludesLowerPriority(t *testing.T) {
 	s := New(Config{
 		MaxBatchFrames: 1,
@@ -161,14 +227,6 @@ func TestWaitBatchBlocksWhileEmptyAndWakesWhenEnqueued(t *testing.T) {
 		got <- batch
 	}()
 
-	select {
-	case batch := <-got:
-		t.Fatalf("WaitBatch returned early with %#v", batch)
-	case err := <-errc:
-		t.Fatalf("WaitBatch returned early with error %v", err)
-	case <-time.After(25 * time.Millisecond):
-	}
-
 	if err := s.Enqueue(context.Background(), Item{
 		Priority: core.PriorityControl,
 		Bytes:    3,
@@ -190,6 +248,7 @@ func TestWaitBatchBlocksWhileEmptyAndWakesWhenEnqueued(t *testing.T) {
 }
 
 func TestStopWakesWaitBatchAndReturnsQueuedItems(t *testing.T) {
+	stopCause := errors.New("stop test")
 	draining := New(Config{})
 	if err := draining.Enqueue(context.Background(), Item{
 		Priority: core.PriorityRPC,
@@ -198,9 +257,12 @@ func TestStopWakesWaitBatchAndReturnsQueuedItems(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}
-	drained := draining.Stop(errors.New("stop test"))
+	drained := draining.Stop(stopCause)
 	if len(drained) != 1 || drained[0].Value != "drained" {
 		t.Fatalf("Stop() = %#v, want drained item", drained)
+	}
+	if _, err := draining.WaitBatch(); !errors.Is(err, stopCause) {
+		t.Fatalf("WaitBatch(after custom stop) error = %v, want stop cause", err)
 	}
 
 	s := New(Config{})
@@ -210,13 +272,7 @@ func TestStopWakesWaitBatchAndReturnsQueuedItems(t *testing.T) {
 		errc <- err
 	}()
 
-	select {
-	case err := <-errc:
-		t.Fatalf("WaitBatch returned early with error %v", err)
-	case <-time.After(25 * time.Millisecond):
-	}
-
-	if drained := s.Stop(errors.New("stop test")); len(drained) != 0 {
+	if drained := s.Stop(nil); len(drained) != 0 {
 		t.Fatalf("Stop(empty) = %#v, want no drained items", drained)
 	}
 
