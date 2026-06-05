@@ -118,13 +118,14 @@ Add an unexported reactor sidecar that keeps only selected trace metadata:
 
 ```go
 type appendTraceItem struct {
-	traceID     string
-	channelKey  string
-	clientMsgNo string
-	fromUID     string
-	attempt     int
-	requestIdx  int
-	recordIdx   int
+	traceID        string
+	channelKey     string
+	clientMsgNo    string
+	fromUID        string
+	attempt        int
+	requestIdx     int
+	recordIdx      int
+	localRecordIdx int
 }
 
 type appendTraceBatch struct {
@@ -143,9 +144,15 @@ Build sidecars only when needed:
   trace metadata.
 - At stage completion, if there was no preselected sidecar but the stage errored
   or exceeded the slow threshold, lazily scan the batch requests and select up
-  to `MaxItemsPerBatch` traced items.
+  to `MaxItemsPerBatch` traced items while the batch is still in hand. In the
+  first leader-side slice this lazy scan applies to queue/local durable stages.
+  Quorum wait should emit only for preselected sidecars so the reactor does not
+  retain large unsampled candidate lists across many pending quorum waiters.
 
-All stage timing should be batch-level. Do not call `time.Now` per item.
+All stage timing should be batch-level. Do not call `time.Now` per item. Set
+each emitted `sendtrace.Event.At` from the already captured stage completion
+timestamp so `sendtrace.Record` does not fill it separately for every selected
+item.
 
 ## Stage Mapping
 
@@ -174,9 +181,9 @@ Measures local durable append latency:
 storeSubmittedAt -> handleStoreAppendResult completedAt
 ```
 
-Use `worker.Result.StoreAppend.BaseOffset` and per-record index to compute the
-message sequence for each selected item. Record stable error classifications for
-store append failures.
+Use `worker.Result.StoreAppend.BaseOffset` plus the selected item's
+request-local record index to compute the message sequence for each selected
+item. Record stable error classifications for store append failures.
 
 ### `replica.leader.quorum_wait`
 
