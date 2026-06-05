@@ -49,6 +49,10 @@ type appendRequest struct {
 	enqueuedAt time.Time
 	records    []ch.Record
 	commitMode ch.CommitMode
+	// traceItems preserves selected transient trace sidecars across restore/retry.
+	traceItems []appendTraceItem
+	// traceEvaluated records that detail sampling already ran for this request.
+	traceEvaluated bool
 }
 
 type appendTiming struct {
@@ -138,8 +142,15 @@ func (q *appendQueue) restoreFront(batch appendBatch) {
 	if q == nil || len(batch.requests) == 0 {
 		return
 	}
+	requests := append([]appendRequest(nil), batch.requests...)
+	if batch.trace.evaluated {
+		for reqIdx := range requests {
+			requests[reqIdx].traceItems = traceItemsForRequest(batch.trace.items, reqIdx)
+			requests[reqIdx].traceEvaluated = true
+		}
+	}
 	restored := make([]appendRequest, 0, len(batch.requests)+len(q.pending))
-	restored = append(restored, batch.requests...)
+	restored = append(restored, requests...)
 	restored = append(restored, q.pending...)
 	q.pending = restored
 	q.storeBlocked = false

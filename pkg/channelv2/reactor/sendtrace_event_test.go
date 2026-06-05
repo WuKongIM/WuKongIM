@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
@@ -128,6 +129,88 @@ func TestAppendTraceBatchSelectionSelectsOnlyDetailKeptItems(t *testing.T) {
 	require.Equal(t, 1, traceBatch.items[0].recordIdx)
 	require.Equal(t, 1, traceBatch.items[0].localRecordIdx)
 	require.Equal(t, 2, traceBatch.items[0].attempt)
+}
+
+func TestAppendTraceBatchSelectionPreservesRestoredSidecars(t *testing.T) {
+	sink := &reactorDetailSink{
+		limits: sendtrace.DetailLimits{MaxItemsPerBatch: 4},
+		decisions: map[string]sendtrace.DetailDecision{
+			"trace-keep": {Keep: true, Reason: "debug"},
+		},
+	}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	q := newAppendQueue(appendQueueConfig{MaxRecords: 8})
+	require.NoError(t, q.push(appendRequest{
+		opID: 1,
+		req: ch.AppendBatchRequest{
+			ChannelID: ch.ChannelID{ID: "room", Type: 1},
+			Messages:  []ch.Message{{TraceID: "trace-keep", ClientMsgNo: "client-1"}},
+		},
+		records: []ch.Record{{ID: 1}},
+	}))
+	batch := q.popBatch(10, nil)
+	batch.trace = selectAppendTraceBatch(batch)
+	require.Len(t, batch.trace.items, 1)
+
+	q.restoreFront(batch)
+	sink.decisions["trace-keep"] = sendtrace.DetailDecision{}
+	retry := q.popBatch(11, nil)
+	retry.trace = selectAppendTraceBatch(retry)
+
+	require.Len(t, retry.trace.items, 1)
+	require.Equal(t, "trace-keep", retry.trace.items[0].traceID)
+	require.Equal(t, 0, retry.trace.items[0].requestIdx)
+	require.Equal(t, 0, retry.trace.items[0].recordIdx)
+	require.Len(t, sink.keys, 1)
+}
+
+func TestReactorRecordsLeaderTraceRecordCountPerRequest(t *testing.T) {
+	traceSink := &recordingTraceSink{}
+	restore := sendtrace.SetSink(traceSink)
+	t.Cleanup(restore)
+
+	now := time.Now()
+	req := appendRequest{
+		enqueuedAt: now.Add(-2 * time.Millisecond),
+		records:    []ch.Record{{ID: 2}},
+	}
+	timing := appendTiming{
+		storeSubmittedAt: now.Add(-time.Millisecond),
+		traceItems: []appendTraceItem{{
+			traceID:        "trace-second",
+			clientMsgNo:    "client-2",
+			requestIdx:     1,
+			recordIdx:      2,
+			localRecordIdx: 0,
+		}},
+		recordCount: 1,
+	}
+	batch := appendBatch{
+		requests: []appendRequest{
+			{records: []ch.Record{{ID: 1}, {ID: 2}}},
+			req,
+		},
+		records: []ch.Record{{ID: 1}, {ID: 2}, {ID: 3}},
+	}
+
+	var r Reactor
+	r.recordLeaderQueueAndLocalDurableTrace(req, timing, batch, now, 3, nil)
+
+	requireTraceEventRecordCount(t, traceSink.events, sendtrace.StageReplicaLeaderQueueWait, "trace-second", 1)
+	requireTraceEventRecordCount(t, traceSink.events, sendtrace.StageReplicaLeaderLocalDurable, "trace-second", 1)
+}
+
+func requireTraceEventRecordCount(t *testing.T, events []sendtrace.Event, stage sendtrace.Stage, traceID string, recordCount int) {
+	t.Helper()
+	for _, event := range events {
+		if event.Stage == stage && event.TraceID == traceID {
+			require.Equal(t, recordCount, event.RecordCount)
+			return
+		}
+	}
+	t.Fatalf("trace event %s/%s not found in %#v", stage, traceID, events)
 }
 
 func TestAppendTraceBatchSelectionHonorsMaxItems(t *testing.T) {

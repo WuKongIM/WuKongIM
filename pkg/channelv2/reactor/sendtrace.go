@@ -33,19 +33,39 @@ type appendTraceItem struct {
 
 // appendTraceBatch carries transient trace sidecars for one append batch.
 type appendTraceBatch struct {
-	items []appendTraceItem
+	items     []appendTraceItem
+	evaluated bool
 }
 
 func selectAppendTraceBatch(batch appendBatch) appendTraceBatch {
-	limits, ok := sendtrace.ActiveDetailLimits()
-	if !ok || limits.MaxItemsPerBatch <= 0 || !appendBatchHasTrace(batch) {
-		return appendTraceBatch{}
-	}
-	items := make([]appendTraceItem, 0, minInt(limits.MaxItemsPerBatch, requestsRecordCount(batch.requests)))
+	var items []appendTraceItem
+	hasUnevaluatedTrace := false
 	for reqIdx, req := range batch.requests {
+		if req.traceEvaluated {
+			items = append(items, rebaseAppendTraceItems(req.traceItems, batch.requests, reqIdx)...)
+			continue
+		}
+		if appendRequestHasTrace(req) {
+			hasUnevaluatedTrace = true
+		}
+	}
+	if !hasUnevaluatedTrace {
+		return appendTraceBatch{items: items, evaluated: len(items) > 0 || appendBatchHasEvaluatedTrace(batch)}
+	}
+	limits, ok := sendtrace.ActiveDetailLimits()
+	if !ok || limits.MaxItemsPerBatch <= 0 {
+		return appendTraceBatch{items: items}
+	}
+	if items == nil {
+		items = make([]appendTraceItem, 0, minInt(limits.MaxItemsPerBatch, requestsRecordCount(batch.requests)))
+	}
+	for reqIdx, req := range batch.requests {
+		if req.traceEvaluated {
+			continue
+		}
 		for msgIdx, msg := range req.req.Messages {
 			if len(items) >= limits.MaxItemsPerBatch {
-				return appendTraceBatch{items: items}
+				return appendTraceBatch{items: items, evaluated: true}
 			}
 			key := appendMessageDetailKey(req.req, msg)
 			if key.TraceID == "" {
@@ -67,7 +87,7 @@ func selectAppendTraceBatch(batch appendBatch) appendTraceBatch {
 			})
 		}
 	}
-	return appendTraceBatch{items: items}
+	return appendTraceBatch{items: items, evaluated: true}
 }
 
 func traceItemsForRequest(items []appendTraceItem, reqIdx int) []appendTraceItem {
@@ -76,6 +96,19 @@ func traceItemsForRequest(items []appendTraceItem, reqIdx int) []appendTraceItem
 		if item.requestIdx != reqIdx {
 			continue
 		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func rebaseAppendTraceItems(items []appendTraceItem, requests []appendRequest, reqIdx int) []appendTraceItem {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]appendTraceItem, 0, len(items))
+	for _, item := range items {
+		item.requestIdx = reqIdx
+		item.recordIdx = appendRequestRecordIndex(requests, reqIdx, item.localRecordIdx)
 		out = append(out, item)
 	}
 	return out
@@ -91,13 +124,17 @@ func (r *Reactor) recordLeaderQueueAndLocalDurableTrace(req appendRequest, timin
 	}
 	queueDur := sendtrace.Elapsed(req.enqueuedAt, timing.storeSubmittedAt)
 	localDur := sendtrace.Elapsed(timing.storeSubmittedAt, completedAt)
+	recordCount := timing.recordCount
+	if recordCount == 0 {
+		recordCount = len(req.records)
+	}
 	for _, item := range items {
 		var seq uint64
 		if baseOffset > 0 {
 			seq = baseOffset + uint64(item.localRecordIdx)
 		}
-		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderQueueWait, completedAt, item, seq, queueDur, len(batch.records), nil)
-		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderLocalDurable, completedAt, item, seq, localDur, len(batch.records), err)
+		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderQueueWait, completedAt, item, seq, queueDur, recordCount, nil)
+		recordLeaderTraceEvent(sendtrace.StageReplicaLeaderLocalDurable, completedAt, item, seq, localDur, recordCount, err)
 	}
 }
 
@@ -197,13 +234,29 @@ func appendRequestIndex(requests []appendRequest, opID ch.OpID) int {
 
 func appendBatchHasTrace(batch appendBatch) bool {
 	for _, req := range batch.requests {
-		if req.req.TraceID != "" {
+		if appendRequestHasTrace(req) {
 			return true
 		}
-		for _, msg := range req.req.Messages {
-			if msg.TraceID != "" {
-				return true
-			}
+	}
+	return false
+}
+
+func appendBatchHasEvaluatedTrace(batch appendBatch) bool {
+	for _, req := range batch.requests {
+		if req.traceEvaluated {
+			return true
+		}
+	}
+	return false
+}
+
+func appendRequestHasTrace(req appendRequest) bool {
+	if req.req.TraceID != "" {
+		return true
+	}
+	for _, msg := range req.req.Messages {
+		if msg.TraceID != "" {
+			return true
 		}
 	}
 	return false
