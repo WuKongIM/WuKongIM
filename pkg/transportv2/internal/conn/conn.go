@@ -19,6 +19,10 @@ import (
 type Config struct {
 	// Limits bounds frame size, write queue depth, and write batch size.
 	Limits core.Limits
+	// Observer receives connection pressure events; nil disables observation callbacks.
+	Observer core.Observer
+	// NodeID identifies the node associated with this connection's pressure events.
+	NodeID core.NodeID
 }
 
 // Outbound is one caller-owned frame queued for connection writes.
@@ -103,6 +107,7 @@ func New(raw net.Conn, cfg Config, dispatch Dispatch) *Conn {
 			MaxBytes:       cfg.Limits.MaxQueuedBytesPerConn,
 			MaxBatchFrames: cfg.Limits.MaxBatchFrames,
 			MaxBatchBytes:  cfg.Limits.MaxBatchBytes,
+			Observer:       cfg.Observer,
 		}),
 		pending:   rpc.NewPendingTable(16),
 		ctx:       ctx,
@@ -159,8 +164,10 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
 
 	respCh := make(chan rpc.Response, 1)
 	c.pending.Store(requestID, respCh)
+	c.observePendingRPC()
 	if err := c.Send(ctx, outbound); err != nil {
 		c.pending.Delete(requestID)
+		c.observePendingRPC()
 		if errors.Is(err, context.Canceled) {
 			return nil, core.ErrCanceled
 		}
@@ -172,6 +179,7 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
 		return resp.Payload, resp.Err
 	case <-ctx.Done():
 		c.pending.Delete(requestID)
+		c.observePendingRPC()
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return nil, core.ErrCanceled
 		}
@@ -237,6 +245,7 @@ func (c *Conn) writeLoop() {
 			if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
 				outbound.Payload.Release()
 				c.pending.Delete(outbound.RequestID)
+				c.observePendingRPC()
 				continue
 			}
 			writeErr := c.writeOutbound(outbound)
@@ -269,6 +278,7 @@ func (c *Conn) shutdown(err error) {
 		drained := c.scheduler.Stop(err)
 		releaseSchedItems(drained)
 		c.pending.FailAll(err)
+		c.observePendingRPC()
 	})
 }
 
@@ -278,6 +288,7 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 	body := frame.Body.Bytes()
 	if len(body) == 0 {
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{})
+		c.observePendingRPC()
 		return
 	}
 
@@ -287,9 +298,23 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{
 			Err: core.RemoteError{Code: "remote_error", Message: string(payload)},
 		})
+		c.observePendingRPC()
 		return
 	}
 	c.pending.Complete(frame.Header.RequestID, rpc.Response{Payload: payload})
+	c.observePendingRPC()
+}
+
+func (c *Conn) observePendingRPC() {
+	if c.cfg.Observer == nil {
+		return
+	}
+	c.cfg.Observer.ObserveTransport(core.Event{
+		Name:     "pending_rpc",
+		NodeID:   c.cfg.NodeID,
+		Result:   "ok",
+		Inflight: c.pending.Len(),
+	})
 }
 
 func (o Outbound) toFrame() wire.Frame {

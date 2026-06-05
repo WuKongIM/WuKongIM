@@ -3,12 +3,93 @@ package rpc
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []core.Event
+}
+
+func (o *recordingObserver) ObserveTransport(event core.Event) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingObserver) snapshot() []core.Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]core.Event(nil), o.events...)
+}
+
+func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
+	observer := &recordingObserver{}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	svc := NewService(42, func(context.Context, []byte) ([]byte, error) {
+		close(started)
+		<-release
+		return []byte("ok"), nil
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 16}, observer)
+	defer svc.Stop()
+
+	reply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("work")), Reply: reply}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	waitClosed(t, started)
+	waitForEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "service_inflight" && event.ServiceID == 42 && event.Inflight == 1
+	})
+	close(release)
+
+	resp := waitResponse(t, reply)
+	if resp.Err != nil {
+		t.Fatalf("reply err = %v", resp.Err)
+	}
+	if string(resp.Payload) != "ok" {
+		t.Fatalf("reply payload = %q, want ok", resp.Payload)
+	}
+
+	events := waitForEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "service_task" && event.ServiceID == 42 && event.Result == "ok"
+	})
+	okAdmission := findEvent(events, "service_admission", "ok")
+	if okAdmission == nil {
+		t.Fatalf("missing service_admission ok event: %#v", events)
+	}
+	if okAdmission.ServiceID != 42 || okAdmission.Bytes != 4 || okAdmission.Items != 1 ||
+		okAdmission.Capacity != 2 || okAdmission.BytesCapacity != 16 {
+		t.Fatalf("service_admission ok = %+v, want service queue snapshot", *okAdmission)
+	}
+
+	queueEvent := findEvent(events, "service_queue", "ok")
+	if queueEvent == nil {
+		t.Fatalf("missing service_queue ok event: %#v", events)
+	}
+	if queueEvent.ServiceID != 42 || queueEvent.Capacity != 2 || queueEvent.BytesCapacity != 16 {
+		t.Fatalf("service_queue ok = %+v, want bounded queue dimensions", *queueEvent)
+	}
+
+	inflightDone := findInflight(events, 42, 0)
+	if inflightDone == nil {
+		t.Fatalf("missing service_inflight zero event: %#v", events)
+	}
+
+	taskEvent := findEvent(events, "service_task", "ok")
+	if taskEvent == nil {
+		t.Fatalf("missing service_task ok event: %#v", events)
+	}
+	if taskEvent.ServiceID != 42 || taskEvent.Bytes != 4 || taskEvent.Duration < 0 {
+		t.Fatalf("service_task ok = %+v, want service id, bytes, and non-negative duration", *taskEvent)
+	}
+}
 
 func TestServiceQueueFullReturnsBusy(t *testing.T) {
 	block := make(chan struct{})
@@ -17,7 +98,7 @@ func TestServiceQueueFullReturnsBusy(t *testing.T) {
 		close(started)
 		<-block
 		return nil, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, nil)
 	defer func() {
 		close(block)
 		svc.Stop()
@@ -43,11 +124,42 @@ func TestServiceQueueFullReturnsBusy(t *testing.T) {
 	}
 }
 
+func TestServiceAdmissionUsesChannelCapacityDuringDequeueWindow(t *testing.T) {
+	observer := &recordingObserver{}
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
+		return nil, nil
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, observer)
+	defer svc.Stop()
+
+	req := Request{Payload: core.CopyOwnedBuffer([]byte("queued"))}
+	svc.queue <- req
+	svc.mu.Lock()
+	svc.queuedItems = 1
+	svc.queuedBytes = int64(req.Payload.Len())
+	svc.mu.Unlock()
+	received := <-svc.queue
+	defer received.Payload.Release()
+
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("next"))}); err != nil {
+		t.Fatalf("Enqueue() error = %v, want accepted while channel has capacity", err)
+	}
+	events := waitForEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "service_queue" && event.Result == "ok"
+	})
+	queueEvent := findEvent(events, "service_queue", "ok")
+	if queueEvent == nil {
+		t.Fatalf("missing service_queue ok event: %#v", events)
+	}
+	if queueEvent.Items > queueEvent.Capacity {
+		t.Fatalf("service_queue items = %d, capacity = %d; want depth capped to capacity", queueEvent.Items, queueEvent.Capacity)
+	}
+}
+
 func TestServiceTimeout(t *testing.T) {
 	svc := NewService(1, func(ctx context.Context, _ []byte) ([]byte, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024, Timeout: 10 * time.Millisecond})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024, Timeout: 10 * time.Millisecond}, nil)
 	defer svc.Stop()
 
 	reply := make(chan Response, 1)
@@ -68,7 +180,7 @@ func TestServiceMaxQueueBytesReturnsBusy(t *testing.T) {
 		close(started)
 		<-block
 		return nil, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 7})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 7}, nil)
 	defer func() {
 		close(block)
 		svc.Stop()
@@ -104,7 +216,7 @@ func TestServiceStopDrainsQueuedPayload(t *testing.T) {
 		case <-ctx.Done():
 		}
 		return nil, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 1024})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 1024}, nil)
 
 	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("running"))}); err != nil {
 		t.Fatalf("Enqueue(running) error = %v", err)
@@ -131,7 +243,7 @@ func TestServiceStopReturnsWhenHandlerIgnoresContext(t *testing.T) {
 	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
 		close(started)
 		select {}
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, nil)
 
 	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("stuck"))}); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
@@ -152,7 +264,7 @@ func TestServiceStopRepliesErrStoppedForQueuedRequest(t *testing.T) {
 		close(started)
 		<-ctx.Done()
 		return nil, ctx.Err()
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024}, nil)
 
 	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("running"))}); err != nil {
 		t.Fatalf("Enqueue(running) error = %v", err)
@@ -176,7 +288,7 @@ func TestServiceMaxPayloadReleases(t *testing.T) {
 	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
 		t.Fatal("handler should not run for oversized payload")
 		return nil, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024, MaxPayload: 3})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024, MaxPayload: 3}, nil)
 	defer svc.Stop()
 
 	err := svc.Enqueue(Request{Payload: core.NewOwnedBuffer([]byte("large"), func([]byte) {
@@ -194,7 +306,7 @@ func TestServiceReplyPayloadIsCopied(t *testing.T) {
 	response := []byte("hello")
 	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
 		return response, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024})
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, nil)
 	defer svc.Stop()
 
 	reply := make(chan Response, 1)
@@ -229,4 +341,43 @@ func waitClosed(t *testing.T, ch <-chan struct{}) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for close")
 	}
+}
+
+func waitForEvent(t *testing.T, observer *recordingObserver, predicate func(core.Event) bool) []core.Event {
+	t.Helper()
+
+	deadline := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		events := observer.snapshot()
+		for _, event := range events {
+			if predicate(event) {
+				return events
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for event; events=%#v", events)
+		case <-ticker.C:
+		}
+	}
+}
+
+func findEvent(events []core.Event, name, result string) *core.Event {
+	for i := range events {
+		if events[i].Name == name && events[i].Result == result {
+			return &events[i]
+		}
+	}
+	return nil
+}
+
+func findInflight(events []core.Event, serviceID uint16, inflight int) *core.Event {
+	for i := range events {
+		if events[i].Name == "service_inflight" && events[i].ServiceID == serviceID && events[i].Inflight == inflight {
+			return &events[i]
+		}
+	}
+	return nil
 }

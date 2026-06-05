@@ -16,6 +16,8 @@ import (
 type Server struct {
 	// cfg stores normalized inbound transport settings.
 	cfg ServerConfig
+	// observer drains transport events away from service and connection hot paths.
+	observer *core.ObserverDrain
 
 	// ctx is canceled when Stop begins server shutdown.
 	ctx context.Context
@@ -43,9 +45,12 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	observer := core.NewObserverDrain(normalized.Observer)
+	normalized.Observer = observer
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		cfg:      normalized,
+		observer: observer,
 		ctx:      ctx,
 		cancel:   cancel,
 		services: make(map[uint16]*rpc.Service),
@@ -73,7 +78,7 @@ func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) 
 	if _, ok := s.services[serviceID]; ok {
 		return fmt.Errorf("%w: duplicate service id %d", ErrInvalidConfig, serviceID)
 	}
-	s.services[serviceID] = rpc.NewService(serviceID, handler, opts)
+	s.services[serviceID] = rpc.NewService(serviceID, handler, opts, s.cfg.Observer)
 	return nil
 }
 
@@ -140,6 +145,7 @@ func (s *Server) Stop() {
 		for _, service := range services {
 			service.Stop()
 		}
+		s.observer.Stop()
 	})
 }
 
@@ -156,7 +162,11 @@ func (s *Server) acceptLoop(listener net.Listener) {
 		if err != nil {
 			return
 		}
-		c := conn.New(raw, conn.Config{Limits: s.cfg.Limits}, conn.DispatchFunc(s.dispatch))
+		c := conn.New(raw, conn.Config{
+			Limits:   s.cfg.Limits,
+			Observer: s.cfg.Observer,
+			NodeID:   s.cfg.NodeID,
+		}, conn.DispatchFunc(s.dispatch))
 		if !s.trackConn(c) {
 			continue
 		}

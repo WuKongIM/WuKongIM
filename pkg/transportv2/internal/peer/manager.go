@@ -21,6 +21,8 @@ type Config struct {
 	PoolSize int
 	// Limits bounds each managed connection.
 	Limits core.Limits
+	// Observer receives peer pool and connection pressure events; nil disables observation callbacks.
+	Observer core.Observer
 	// Dial creates a raw network connection to a resolved address.
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -150,7 +152,9 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 		slot.lastDialFail = time.Time{}
 		slot.dialing = false
 		m.notifyReadyLocked(slot)
+		_, event := m.statsAndPeerPoolEventLocked("ok")
 		m.mu.Unlock()
+		m.observe(event)
 		return c, nil
 	}
 }
@@ -158,6 +162,7 @@ func (m *Manager) Acquire(ctx context.Context, nodeID core.NodeID, shardKey uint
 // ClosePeer closes all slots for nodeID and removes the peer from the manager.
 func (m *Manager) ClosePeer(nodeID core.NodeID) {
 	var conns []*conn.Conn
+	var event core.Event
 	m.mu.Lock()
 	if peer := m.peers[nodeID]; peer != nil {
 		peer.closed = true
@@ -172,8 +177,10 @@ func (m *Manager) ClosePeer(nodeID core.NodeID) {
 		}
 		delete(m.peers, nodeID)
 	}
+	_, event = m.statsAndPeerPoolEventLocked("closed")
 	m.mu.Unlock()
 
+	m.observe(event)
 	for _, c := range conns {
 		c.Close(core.ErrStopped)
 	}
@@ -182,6 +189,7 @@ func (m *Manager) ClosePeer(nodeID core.NodeID) {
 // Stop closes all managed connections and prevents later Acquire calls.
 func (m *Manager) Stop() {
 	var conns []*conn.Conn
+	var event core.Event
 	m.mu.Lock()
 	if m.stopped {
 		m.mu.Unlock()
@@ -201,8 +209,10 @@ func (m *Manager) Stop() {
 		}
 	}
 	m.peers = make(map[core.NodeID]*peerState)
+	_, event = m.statsAndPeerPoolEventLocked("stopped")
 	m.mu.Unlock()
 
+	m.observe(event)
 	for _, c := range conns {
 		c.Close(core.ErrStopped)
 	}
@@ -211,16 +221,9 @@ func (m *Manager) Stop() {
 // Stats returns a point-in-time snapshot of managed peers and live slots.
 func (m *Manager) Stats() core.Stats {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	stats := core.Stats{Peers: len(m.peers)}
-	for _, peer := range m.peers {
-		for _, slot := range peer.slots {
-			if slot.conn != nil && !connDone(slot.conn) {
-				stats.Connections++
-			}
-		}
-	}
+	stats, event := m.statsAndPeerPoolEventLocked("stats")
+	m.mu.Unlock()
+	m.observe(event)
 	return stats
 }
 
@@ -270,9 +273,33 @@ func (m *Manager) dialConn(ctx context.Context, nodeID core.NodeID) (*conn.Conn,
 		}
 		return nil, fmt.Errorf("%w: %v", core.ErrDialFailed, err)
 	}
-	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits}, nil)
+	c := conn.New(raw, conn.Config{Limits: m.cfg.Limits, Observer: m.cfg.Observer, NodeID: nodeID}, nil)
 	c.Start()
 	return c, nil
+}
+
+func (m *Manager) statsAndPeerPoolEventLocked(result string) (core.Stats, core.Event) {
+	stats := core.Stats{Peers: len(m.peers)}
+	for _, peer := range m.peers {
+		for _, slot := range peer.slots {
+			if slot.conn != nil && !connDone(slot.conn) {
+				stats.Connections++
+			}
+		}
+	}
+	return stats, core.Event{
+		Name:     "peer_pool",
+		Result:   result,
+		Items:    stats.Connections,
+		Capacity: stats.Peers * m.cfg.PoolSize,
+	}
+}
+
+func (m *Manager) observe(event core.Event) {
+	if m.cfg.Observer == nil {
+		return
+	}
+	m.cfg.Observer.ObserveTransport(event)
 }
 
 func connDone(c *conn.Conn) bool {

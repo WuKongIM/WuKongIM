@@ -3,11 +3,105 @@ package sched
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []core.Event
+}
+
+func (o *recordingObserver) ObserveTransport(event core.Event) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingObserver) snapshot() []core.Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]core.Event(nil), o.events...)
+}
+
+func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
+	observer := &recordingObserver{}
+	s := New(Config{
+		MaxItems:       1,
+		MaxBytes:       10,
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  10,
+		Observer:       observer,
+	})
+
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value:    "first",
+	}); err != nil {
+		t.Fatalf("Enqueue(first) error = %v", err)
+	}
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value:    "second",
+	}); !errors.Is(err, core.ErrQueueFull) {
+		t.Fatalf("Enqueue(second) error = %v, want ErrQueueFull", err)
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 1 || batch[0].Value != "first" {
+		t.Fatalf("NextBatch() = %#v, want first item", batch)
+	}
+
+	events := observer.snapshot()
+	okAdmission := findEvent(events, "scheduler_admission", "ok")
+	if okAdmission == nil {
+		t.Fatalf("missing scheduler_admission ok event: %#v", events)
+	}
+	if okAdmission.Priority != core.PriorityRPC || okAdmission.Items != 1 || okAdmission.Capacity != 1 ||
+		okAdmission.Bytes != 3 || okAdmission.BytesCapacity != 10 {
+		t.Fatalf("scheduler_admission ok = %+v, want priority/items/capacity/bytes populated", *okAdmission)
+	}
+
+	fullAdmission := findEvent(events, "scheduler_admission", "full")
+	if fullAdmission == nil {
+		t.Fatalf("missing scheduler_admission full event: %#v", events)
+	}
+	if fullAdmission.Priority != core.PriorityRPC || fullAdmission.Items != 1 || fullAdmission.Capacity != 1 ||
+		fullAdmission.Bytes != 3 || fullAdmission.BytesCapacity != 10 {
+		t.Fatalf("scheduler_admission full = %+v, want bounded full snapshot", *fullAdmission)
+	}
+
+	queueEvent := findEvent(events, "scheduler_queue", "ok")
+	if queueEvent == nil {
+		t.Fatalf("missing scheduler_queue ok event: %#v", events)
+	}
+	if queueEvent.Priority != core.PriorityRPC || queueEvent.Items != 1 || queueEvent.Capacity != 1 ||
+		queueEvent.Bytes != 3 || queueEvent.BytesCapacity != 10 {
+		t.Fatalf("scheduler_queue ok = %+v, want queue state populated", *queueEvent)
+	}
+
+	waitEvent := findEvent(events, "scheduler_wait", "ok")
+	if waitEvent == nil {
+		t.Fatalf("missing scheduler_wait ok event: %#v", events)
+	}
+	if waitEvent.Priority != core.PriorityRPC || waitEvent.Bytes != 3 || waitEvent.Duration < 0 {
+		t.Fatalf("scheduler_wait = %+v, want priority/bytes and non-negative duration", *waitEvent)
+	}
+}
+
+func findEvent(events []core.Event, name, result string) *core.Event {
+	for i := range events {
+		if events[i].Name == name && events[i].Result == result {
+			return &events[i]
+		}
+	}
+	return nil
+}
 
 func TestEnqueueRejectsInvalidPriority(t *testing.T) {
 	s := New(Config{})

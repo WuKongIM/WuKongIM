@@ -31,7 +31,7 @@ type ClientConfig struct {
 	Dialer Dialer
 	// Limits bounds frame, queue, batch, and timeout behavior; the all-zero value uses DefaultLimits.
 	Limits Limits
-	// Observer receives non-blocking transport observations; nil disables observation callbacks.
+	// Observer receives transport observations through a bounded non-blocking drain; nil disables observation callbacks.
 	Observer Observer
 }
 
@@ -41,7 +41,7 @@ type ServerConfig struct {
 	NodeID NodeID
 	// Limits bounds frame, queue, batch, and timeout behavior; the all-zero value uses DefaultLimits.
 	Limits Limits
-	// Observer receives non-blocking transport observations; nil disables observation callbacks.
+	// Observer receives transport observations through a bounded non-blocking drain; nil disables observation callbacks.
 	Observer Observer
 	// Logger records server diagnostics; nil uses wklog.NewNop().
 	Logger wklog.Logger

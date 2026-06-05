@@ -5,6 +5,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
@@ -24,6 +25,8 @@ type Config struct {
 	MaxBatchFrames int
 	// MaxBatchBytes is the maximum byte count returned in one batch.
 	MaxBatchBytes int
+	// Observer receives scheduler pressure events; nil disables observation callbacks.
+	Observer core.Observer
 }
 
 // Item is one schedulable transport frame.
@@ -34,6 +37,8 @@ type Item struct {
 	Bytes int
 	// Value carries the caller-owned frame payload or metadata.
 	Value any
+	// enqueuedAt records when the item entered the queue for wait observations.
+	enqueuedAt time.Time
 }
 
 type lane struct {
@@ -52,6 +57,7 @@ type Scheduler struct {
 	maxBytes       int64
 	maxBatchFrames int
 	maxBatchBytes  int64
+	observer       core.Observer
 
 	lanes       []lane
 	nextLane    int
@@ -80,6 +86,7 @@ func New(cfg Config) *Scheduler {
 		maxBytes:       cfg.MaxBytes,
 		maxBatchFrames: maxBatchFrames,
 		maxBatchBytes:  int64(maxBatchBytes),
+		observer:       cfg.Observer,
 		lanes: []lane{
 			{priority: core.PriorityRaft, weight: 8},
 			{priority: core.PriorityControl, weight: 6},
@@ -94,69 +101,96 @@ func New(cfg Config) *Scheduler {
 // Enqueue adds an item unless the context is canceled, the scheduler is stopped, or limits are full.
 func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	if err := ctx.Err(); err != nil {
+		s.observeEnqueue("canceled", item, s.snapshotQueue())
 		return err
 	}
 	if err := item.Priority.Validate(); err != nil {
+		s.observeEnqueue("invalid", item, s.snapshotQueue())
 		return err
 	}
 	if item.Bytes < 0 {
 		item.Bytes = 0
 	}
 	if int64(item.Bytes) > s.maxBatchBytes {
+		s.observeEnqueue("too_large", item, s.snapshotQueue())
 		return core.ErrMsgTooLarge
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.stopped {
+		snapshot := s.snapshotQueueLocked()
+		s.mu.Unlock()
+		s.observeEnqueue("stopped", item, snapshot)
 		return core.ErrStopped
 	}
 	if err := ctx.Err(); err != nil {
+		snapshot := s.snapshotQueueLocked()
+		s.mu.Unlock()
+		s.observeEnqueue("canceled", item, snapshot)
 		return err
 	}
 	if s.maxItems > 0 && s.queuedItems+1 > s.maxItems {
+		snapshot := s.snapshotQueueLocked()
+		s.mu.Unlock()
+		s.observeEnqueue("full", item, snapshot)
 		return core.ErrQueueFull
 	}
 	if s.maxBytes > 0 && s.queuedBytes+int64(item.Bytes) > s.maxBytes {
+		snapshot := s.snapshotQueueLocked()
+		s.mu.Unlock()
+		s.observeEnqueue("full", item, snapshot)
 		return core.ErrQueueFull
 	}
 
 	for i := range s.lanes {
 		if s.lanes[i].priority == item.Priority {
+			item.enqueuedAt = time.Now()
 			s.lanes[i].queue = append(s.lanes[i].queue, item)
 			s.queuedItems++
 			s.queuedBytes += int64(item.Bytes)
+			snapshot := s.snapshotQueueLocked()
 			s.cond.Signal()
+			s.mu.Unlock()
+			s.observeEnqueue("ok", item, snapshot)
 			return nil
 		}
 	}
+	snapshot := s.snapshotQueueLocked()
+	s.mu.Unlock()
+	s.observeEnqueue("invalid", item, snapshot)
 	return core.ErrInvalidPriority
 }
 
 // NextBatch returns the next weighted batch without blocking.
 func (s *Scheduler) NextBatch() []Item {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.queuedItems == 0 {
+		s.mu.Unlock()
 		return nil
 	}
-	return s.nextBatchLocked()
+	batch, events := s.nextBatchLocked()
+	s.mu.Unlock()
+	s.observeAll(events)
+	return batch
 }
 
 // WaitBatch blocks until a batch is available or the scheduler is stopped.
 func (s *Scheduler) WaitBatch() ([]Item, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for s.queuedItems == 0 && !s.stopped {
 		s.cond.Wait()
 	}
 	if s.stopped {
+		s.mu.Unlock()
 		return nil, s.stopErr
 	}
-	return s.nextBatchLocked(), nil
+	batch, events := s.nextBatchLocked()
+	s.mu.Unlock()
+	s.observeAll(events)
+	return batch, nil
 }
 
 // Stop marks the scheduler stopped, drains queued items back to caller ownership, and wakes all waiters.
@@ -178,8 +212,9 @@ func (s *Scheduler) Stop(err error) []Item {
 	return drained
 }
 
-func (s *Scheduler) nextBatchLocked() []Item {
+func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 	var batch []Item
+	var events []core.Event
 	var batchBytes int64
 
 	for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
@@ -208,6 +243,7 @@ func (s *Scheduler) nextBatchLocked() []Item {
 		s.queuedItems--
 		s.queuedBytes -= itemBytes
 		batch = append(batch, item)
+		events = append(events, s.waitEventLocked(item, itemBytes))
 		batchBytes += itemBytes
 		s.roundOutput = true
 
@@ -219,7 +255,7 @@ func (s *Scheduler) nextBatchLocked() []Item {
 		}
 	}
 
-	return batch
+	return batch, events
 }
 
 func (s *Scheduler) openRoundLocked() {
@@ -291,6 +327,81 @@ func scheduleCost(item Item) int64 {
 		return 1
 	}
 	return int64(item.Bytes)
+}
+
+type queueSnapshot struct {
+	items         int
+	capacity      int
+	bytes         int64
+	bytesCapacity int64
+}
+
+func (s *Scheduler) snapshotQueue() queueSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.snapshotQueueLocked()
+}
+
+func (s *Scheduler) snapshotQueueLocked() queueSnapshot {
+	return queueSnapshot{
+		items:         s.queuedItems,
+		capacity:      s.maxItems,
+		bytes:         s.queuedBytes,
+		bytesCapacity: s.maxBytes,
+	}
+}
+
+func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
+	duration := time.Duration(0)
+	if !item.enqueuedAt.IsZero() {
+		duration = time.Since(item.enqueuedAt)
+		if duration < 0 {
+			duration = 0
+		}
+	}
+	return core.Event{
+		Name:          "scheduler_wait",
+		Priority:      item.Priority,
+		Result:        "ok",
+		Items:         s.queuedItems,
+		Capacity:      s.maxItems,
+		Bytes:         int(itemBytes),
+		BytesCapacity: s.maxBytes,
+		Duration:      duration,
+	}
+}
+
+func (s *Scheduler) observeEnqueue(result string, item Item, snapshot queueSnapshot) {
+	if s.observer == nil {
+		return
+	}
+	s.observer.ObserveTransport(core.Event{
+		Name:          "scheduler_admission",
+		Priority:      item.Priority,
+		Result:        result,
+		Items:         snapshot.items,
+		Capacity:      snapshot.capacity,
+		Bytes:         item.Bytes,
+		BytesCapacity: snapshot.bytesCapacity,
+	})
+	s.observer.ObserveTransport(core.Event{
+		Name:          "scheduler_queue",
+		Priority:      item.Priority,
+		Result:        result,
+		Items:         snapshot.items,
+		Capacity:      snapshot.capacity,
+		Bytes:         int(snapshot.bytes),
+		BytesCapacity: snapshot.bytesCapacity,
+	})
+}
+
+func (s *Scheduler) observeAll(events []core.Event) {
+	if s.observer == nil {
+		return
+	}
+	for _, event := range events {
+		s.observer.ObserveTransport(event)
+	}
 }
 
 func (s *Scheduler) drainLocked() []Item {

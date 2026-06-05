@@ -6,12 +6,30 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/wire"
 )
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []core.Event
+}
+
+func (o *recordingObserver) ObserveTransport(event core.Event) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingObserver) snapshot() []core.Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]core.Event(nil), o.events...)
+}
 
 func TestConnSendWritesFrame(t *testing.T) {
 	raw, peer := net.Pipe()
@@ -228,6 +246,58 @@ func TestConnCloseBeforeStartDoesNotHang(t *testing.T) {
 	waitClosed(t, done)
 }
 
+func TestPendingRPCObservation(t *testing.T) {
+	raw, peer := net.Pipe()
+	defer peer.Close()
+
+	observer := &recordingObserver{}
+	c := New(raw, Config{Limits: testLimits(), Observer: observer, NodeID: 12}, nil)
+	c.Start()
+	defer c.Close(nil)
+
+	callCh := make(chan struct {
+		payload []byte
+		err     error
+	}, 1)
+	go func() {
+		payload, err := c.Call(context.Background(), Outbound{
+			Priority:  core.PriorityRPC,
+			ServiceID: 5,
+			Payload:   core.CopyOwnedBuffer([]byte("request")),
+		})
+		callCh <- struct {
+			payload []byte
+			err     error
+		}{payload: payload, err: err}
+	}()
+
+	req := readPeerFrame(t, peer)
+	req.Body.Release()
+	waitConnEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "pending_rpc" && event.NodeID == 12 && event.Inflight == 1
+	})
+
+	writePeerFrame(t, peer, wire.Frame{
+		Header: wire.Header{
+			Kind:      core.FrameKindRPCResponse,
+			Priority:  core.PriorityRPC,
+			ServiceID: req.Header.ServiceID,
+			RequestID: req.Header.RequestID,
+		},
+		Body: EncodeRPCResponse(wire.ResponseOK, []byte("response")),
+	})
+	got := waitCall(t, callCh)
+	if got.err != nil {
+		t.Fatalf("Call() error = %v", got.err)
+	}
+	if string(got.payload) != "response" {
+		t.Fatalf("payload = %q, want response", got.payload)
+	}
+	waitConnEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "pending_rpc" && event.NodeID == 12 && event.Inflight == 0
+	})
+}
+
 func TestConnRPCResponseDecode(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		raw, peer := net.Pipe()
@@ -408,6 +478,26 @@ func waitClosed(t *testing.T, ch <-chan struct{}) {
 	case <-ch:
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for close")
+	}
+}
+
+func waitConnEvent(t *testing.T, observer *recordingObserver, predicate func(core.Event) bool) []core.Event {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		events := observer.snapshot()
+		for _, event := range events {
+			if predicate(event) {
+				return events
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for conn event; events=%#v", events)
+		case <-ticker.C:
+		}
 	}
 }
 

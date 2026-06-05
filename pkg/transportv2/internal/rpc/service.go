@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
@@ -28,20 +29,26 @@ type Service struct {
 	handler core.Handler
 	// opts stores normalized service limits used by enqueue and workers.
 	opts core.ServiceOptions
+	// observer receives bounded service pressure events.
+	observer core.Observer
 
 	// ctx is canceled by Stop to interrupt workers and cooperative handlers.
 	ctx context.Context
 	// cancel stops the service root context.
 	cancel context.CancelFunc
 
-	// mu protects stopped and queuedBytes while Stop races with Enqueue and workers.
+	// mu protects stopped, queuedItems, and queuedBytes while Stop races with Enqueue and workers.
 	mu sync.Mutex
 	// stopped rejects new requests and causes workers to release late dequeues.
 	stopped bool
+	// queuedItems is the item count currently waiting in queue.
+	queuedItems int
 	// queuedBytes is the byte cost currently waiting in queue.
 	queuedBytes int64
 	// queue stores requests waiting for a worker.
 	queue chan Request
+	// inflight is the current number of handlers running for this service.
+	inflight atomic.Int32
 
 	// stopOnce makes Stop idempotent.
 	stopOnce sync.Once
@@ -52,7 +59,7 @@ type Service struct {
 }
 
 // NewService starts a bounded worker pool for handler.
-func NewService(id uint16, handler core.Handler, opts core.ServiceOptions) *Service {
+func NewService(id uint16, handler core.Handler, opts core.ServiceOptions, observer core.Observer) *Service {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 1
 	}
@@ -65,13 +72,14 @@ func NewService(id uint16, handler core.Handler, opts core.ServiceOptions) *Serv
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		ID:      id,
-		handler: handler,
-		opts:    opts,
-		ctx:     ctx,
-		cancel:  cancel,
-		queue:   make(chan Request, opts.QueueSize),
-		done:    make(chan struct{}),
+		ID:       id,
+		handler:  handler,
+		opts:     opts,
+		observer: observer,
+		ctx:      ctx,
+		cancel:   cancel,
+		queue:    make(chan Request, opts.QueueSize),
+		done:     make(chan struct{}),
 	}
 	for i := 0; i < opts.Concurrency; i++ {
 		s.wg.Add(1)
@@ -88,33 +96,43 @@ func NewService(id uint16, handler core.Handler, opts core.ServiceOptions) *Serv
 func (s *Service) Enqueue(req Request) error {
 	payloadLen := req.Payload.Len()
 	if s.opts.MaxPayload > 0 && payloadLen > s.opts.MaxPayload {
+		snapshot := s.queueSnapshot()
 		req.Payload.Release()
+		s.observeAdmissionAndQueue("too_large", payloadLen, snapshot)
 		return core.ErrMsgTooLarge
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.stopped {
+		snapshot := s.queueSnapshotLocked()
+		s.mu.Unlock()
 		req.Payload.Release()
 		trySendResponse(req.Reply, Response{Err: core.ErrStopped})
+		s.observeAdmissionAndQueue("stopped", payloadLen, snapshot)
 		return core.ErrStopped
 	}
-	if len(s.queue) >= s.opts.QueueSize {
-		req.Payload.Release()
-		return core.ErrBusy
-	}
 	if int64(payloadLen) > s.opts.MaxQueueBytes-s.queuedBytes {
+		snapshot := s.queueSnapshotLocked()
+		s.mu.Unlock()
 		req.Payload.Release()
+		s.observeAdmissionAndQueue("busy", payloadLen, snapshot)
 		return core.ErrBusy
 	}
 
 	select {
 	case s.queue <- req:
+		s.queuedItems++
 		s.queuedBytes += int64(payloadLen)
+		snapshot := s.queueSnapshotLocked()
+		s.mu.Unlock()
+		s.observeAdmissionAndQueue("ok", payloadLen, snapshot)
 		return nil
 	default:
+		snapshot := s.queueSnapshotLocked()
+		s.mu.Unlock()
 		req.Payload.Release()
+		s.observeAdmissionAndQueue("busy", payloadLen, snapshot)
 		return core.ErrBusy
 	}
 }
@@ -128,6 +146,9 @@ func (s *Service) Stop() {
 		for {
 			select {
 			case req := <-s.queue:
+				if s.queuedItems > 0 {
+					s.queuedItems--
+				}
 				s.queuedBytes -= int64(req.Payload.Len())
 				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
@@ -150,24 +171,41 @@ func (s *Service) worker() {
 		case <-s.ctx.Done():
 			return
 		case req := <-s.queue:
-			if !s.markDequeued(req) {
+			active, event := s.markDequeued(req)
+			s.observe(event)
+			if !active {
 				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 				continue
 			}
-			s.handle(req)
+			s.observeInflight(int(s.inflight.Add(1)))
+			payloadLen := req.Payload.Len()
+			started := time.Now()
+			err := s.handle(req)
+			s.observeTask(taskResult(err), payloadLen, nonNegativeSince(started))
+			s.observeInflight(int(s.inflight.Add(-1)))
 		}
 	}
 }
 
-func (s *Service) markDequeued(req Request) bool {
+func (s *Service) markDequeued(req Request) (bool, core.Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.queuedItems > 0 {
+		s.queuedItems--
+	}
 	s.queuedBytes -= int64(req.Payload.Len())
-	return !s.stopped
+	if s.queuedBytes < 0 {
+		s.queuedBytes = 0
+	}
+	result := "ok"
+	if s.stopped {
+		result = "stopped"
+	}
+	return !s.stopped, s.queueEvent(result, s.queueSnapshotLocked())
 }
 
-func (s *Service) handle(req Request) {
+func (s *Service) handle(req Request) error {
 	defer req.Payload.Release()
 
 	ctx := s.ctx
@@ -182,13 +220,115 @@ func (s *Service) handle(req Request) {
 		err = core.ErrTimeout
 	}
 	if req.Reply == nil {
-		return
+		return err
 	}
 
 	reply := Response{Payload: append([]byte(nil), resp...), Err: err}
 	// Reply channels are required to be buffered by callers; non-blocking send keeps Stop from
 	// waiting forever when the caller has abandoned a request.
 	trySendResponse(req.Reply, reply)
+	return err
+}
+
+type queueSnapshot struct {
+	items         int
+	capacity      int
+	bytes         int64
+	bytesCapacity int64
+}
+
+func (s *Service) queueSnapshot() queueSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.queueSnapshotLocked()
+}
+
+func (s *Service) queueSnapshotLocked() queueSnapshot {
+	items := s.queuedItems
+	if items < 0 {
+		items = 0
+	}
+	if items > s.opts.QueueSize {
+		items = s.opts.QueueSize
+	}
+	return queueSnapshot{
+		items:         items,
+		capacity:      s.opts.QueueSize,
+		bytes:         s.queuedBytes,
+		bytesCapacity: s.opts.MaxQueueBytes,
+	}
+}
+
+func (s *Service) observeAdmissionAndQueue(result string, payloadBytes int, snapshot queueSnapshot) {
+	if s.observer == nil {
+		return
+	}
+	s.observer.ObserveTransport(core.Event{
+		Name:          "service_admission",
+		ServiceID:     s.ID,
+		Result:        result,
+		Items:         snapshot.items,
+		Capacity:      snapshot.capacity,
+		Bytes:         payloadBytes,
+		BytesCapacity: snapshot.bytesCapacity,
+	})
+	s.observe(s.queueEvent(result, snapshot))
+}
+
+func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
+	return core.Event{
+		Name:          "service_queue",
+		ServiceID:     s.ID,
+		Result:        result,
+		Items:         snapshot.items,
+		Capacity:      snapshot.capacity,
+		Bytes:         int(snapshot.bytes),
+		BytesCapacity: snapshot.bytesCapacity,
+	}
+}
+
+func (s *Service) observeInflight(inflight int) {
+	s.observe(core.Event{
+		Name:      "service_inflight",
+		ServiceID: s.ID,
+		Result:    "ok",
+		Inflight:  inflight,
+	})
+}
+
+func (s *Service) observeTask(result string, payloadBytes int, duration time.Duration) {
+	s.observe(core.Event{
+		Name:      "service_task",
+		ServiceID: s.ID,
+		Result:    result,
+		Bytes:     payloadBytes,
+		Duration:  duration,
+	})
+}
+
+func (s *Service) observe(event core.Event) {
+	if s.observer == nil {
+		return
+	}
+	s.observer.ObserveTransport(event)
+}
+
+func taskResult(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if errors.Is(err, core.ErrTimeout) {
+		return "timeout"
+	}
+	return "err"
+}
+
+func nonNegativeSince(started time.Time) time.Duration {
+	duration := time.Since(started)
+	if duration < 0 {
+		return 0
+	}
+	return duration
 }
 
 func trySendResponse(ch chan Response, resp Response) {

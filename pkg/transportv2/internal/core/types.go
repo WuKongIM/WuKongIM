@@ -75,8 +75,16 @@ type Event struct {
 	ServiceID uint16
 	// Result classifies the event outcome.
 	Result string
+	// Items is the queued item count or current count associated with the event.
+	Items int
+	// Capacity is the queued item capacity associated with the event.
+	Capacity int
 	// Bytes is the payload or queue byte count associated with the event.
 	Bytes int
+	// BytesCapacity is the queued byte capacity associated with the event.
+	BytesCapacity int64
+	// Inflight is the currently running handler or pending RPC count associated with the event.
+	Inflight int
 	// Duration is the elapsed time associated with the event.
 	Duration time.Duration
 }

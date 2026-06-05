@@ -5,13 +5,15 @@ import (
 	"net"
 
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/conn"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/peer"
 )
 
 // Client owns outbound peer connection state.
 type Client struct {
-	cfg   ClientConfig
-	peers *peer.Manager
+	cfg      ClientConfig
+	peers    *peer.Manager
+	observer *core.ObserverDrain
 }
 
 // NewClient validates config and builds a minimal client shell.
@@ -20,12 +22,16 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	observer := core.NewObserverDrain(normalized.Observer)
+	normalized.Observer = observer
 	return &Client{
-		cfg: normalized,
+		cfg:      normalized,
+		observer: observer,
 		peers: peer.NewManager(peer.Config{
 			Discovery: normalized.Discovery,
 			PoolSize:  normalized.PoolSize,
 			Limits:    normalized.Limits,
+			Observer:  normalized.Observer,
 			Dial:      clientDialFunc(normalized),
 		}),
 	}, nil
@@ -92,6 +98,7 @@ func (c *Client) ClosePeer(nodeID NodeID) {
 // Stop releases client resources.
 func (c *Client) Stop() {
 	c.peers.Stop()
+	c.observer.Stop()
 }
 
 // Stats returns a point-in-time client stats snapshot.

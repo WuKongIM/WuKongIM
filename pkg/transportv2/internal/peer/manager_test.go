@@ -12,6 +12,23 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
 
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []core.Event
+}
+
+func (o *recordingObserver) ObserveTransport(event core.Event) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingObserver) snapshot() []core.Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]core.Event(nil), o.events...)
+}
+
 type testDiscovery map[core.NodeID]string
 
 func (d testDiscovery) Resolve(nodeID core.NodeID) (string, error) {
@@ -74,6 +91,51 @@ func TestManagerAcquireDialsOncePerSlot(t *testing.T) {
 	if got := dials.Load(); got != 1 {
 		t.Fatalf("dial count = %d, want 1", got)
 	}
+}
+
+func TestManagerObservesPeerPool(t *testing.T) {
+	observer := &recordingObserver{}
+	var serversMu sync.Mutex
+	var servers []net.Conn
+	m := NewManager(Config{
+		Discovery: testDiscovery{2: "node-2"},
+		PoolSize:  2,
+		Limits:    testLimits(),
+		Observer:  observer,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			client, server := net.Pipe()
+			serversMu.Lock()
+			servers = append(servers, server)
+			serversMu.Unlock()
+			return client, nil
+		},
+	})
+	defer closeServers(&serversMu, &servers)
+
+	if _, err := m.Acquire(context.Background(), 2, 0); err != nil {
+		t.Fatalf("Acquire() error = %v", err)
+	}
+	waitPeerEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "peer_pool" && event.Result == "ok" && event.Items == 1 && event.Capacity == 2
+	})
+
+	stats := m.Stats()
+	if stats.Peers != 1 || stats.Connections != 1 {
+		t.Fatalf("Stats() = %+v, want one peer and one connection", stats)
+	}
+	waitPeerEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "peer_pool" && event.Result == "stats" && event.Items == 1 && event.Capacity == 2
+	})
+
+	m.ClosePeer(2)
+	waitPeerEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "peer_pool" && event.Result == "closed" && event.Items == 0 && event.Capacity == 0
+	})
+
+	m.Stop()
+	waitPeerEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "peer_pool" && event.Result == "stopped" && event.Items == 0 && event.Capacity == 0
+	})
 }
 
 func TestManagerConcurrentAcquireDialsOnce(t *testing.T) {
@@ -481,6 +543,26 @@ func waitForChannel(t *testing.T, ch <-chan struct{}, msg string) {
 	case <-ch:
 	case <-time.After(time.Second):
 		t.Fatal(msg)
+	}
+}
+
+func waitPeerEvent(t *testing.T, observer *recordingObserver, predicate func(core.Event) bool) []core.Event {
+	t.Helper()
+	deadline := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		events := observer.snapshot()
+		for _, event := range events {
+			if predicate(event) {
+				return events
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for peer event; events=%#v", events)
+		case <-ticker.C:
+		}
 	}
 }
 
