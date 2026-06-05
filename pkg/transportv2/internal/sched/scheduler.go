@@ -252,6 +252,7 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 		s.queuedBytes -= itemBytes
 		batch = append(batch, item)
 		events = append(events, s.waitEventLocked(item, itemBytes))
+		events = append(events, s.queueEventLocked(item.Priority, "ok"))
 		batchBytes += itemBytes
 		s.roundOutput = true
 
@@ -377,6 +378,20 @@ func (s *Scheduler) waitEventLocked(item Item, itemBytes int64) core.Event {
 		Bytes:         int(itemBytes),
 		BytesCapacity: s.maxBytes,
 		Duration:      duration,
+	}
+}
+
+func (s *Scheduler) queueEventLocked(priority core.Priority, result string) core.Event {
+	snapshot := s.snapshotQueueLocked()
+	return core.Event{
+		Name:          "scheduler_queue",
+		SourceID:      s.sourceID,
+		Priority:      priority,
+		Result:        result,
+		Items:         snapshot.items,
+		Capacity:      snapshot.capacity,
+		Bytes:         int(snapshot.bytes),
+		BytesCapacity: snapshot.bytesCapacity,
 	}
 }
 

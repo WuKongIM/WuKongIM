@@ -296,6 +296,11 @@ func TestPendingRPCObservation(t *testing.T) {
 	waitConnEvent(t, observer, func(event core.Event) bool {
 		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 && event.Inflight == 0
 	})
+	c.Close(nil)
+	waitConnEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "pending_rpc" && event.NodeID == 12 && event.SourceID == 77 &&
+			event.Result == "stopped" && event.Inflight == 0
+	})
 }
 
 func TestConnRPCResponseDecode(t *testing.T) {

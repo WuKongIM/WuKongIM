@@ -172,10 +172,10 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
 
 	respCh := make(chan rpc.Response, 1)
 	c.pending.Store(requestID, respCh)
-	c.observePendingRPC()
+	c.observePendingRPC("ok")
 	if err := c.Send(ctx, outbound); err != nil {
 		c.pending.Delete(requestID)
-		c.observePendingRPC()
+		c.observePendingRPC("ok")
 		if errors.Is(err, context.Canceled) {
 			return nil, core.ErrCanceled
 		}
@@ -187,7 +187,7 @@ func (c *Conn) Call(ctx context.Context, outbound Outbound) ([]byte, error) {
 		return resp.Payload, resp.Err
 	case <-ctx.Done():
 		c.pending.Delete(requestID)
-		c.observePendingRPC()
+		c.observePendingRPC("ok")
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return nil, core.ErrCanceled
 		}
@@ -253,7 +253,7 @@ func (c *Conn) writeLoop() {
 			if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
 				outbound.Payload.Release()
 				c.pending.Delete(outbound.RequestID)
-				c.observePendingRPC()
+				c.observePendingRPC("ok")
 				continue
 			}
 			writeErr := c.writeOutbound(outbound)
@@ -286,7 +286,7 @@ func (c *Conn) shutdown(err error) {
 		drained := c.scheduler.Stop(err)
 		releaseSchedItems(drained)
 		c.pending.FailAll(err)
-		c.observePendingRPC()
+		c.observePendingRPC("stopped")
 	})
 }
 
@@ -296,7 +296,7 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 	body := frame.Body.Bytes()
 	if len(body) == 0 {
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{})
-		c.observePendingRPC()
+		c.observePendingRPC("ok")
 		return
 	}
 
@@ -306,22 +306,25 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 		c.pending.Complete(frame.Header.RequestID, rpc.Response{
 			Err: core.RemoteError{Code: "remote_error", Message: string(payload)},
 		})
-		c.observePendingRPC()
+		c.observePendingRPC("ok")
 		return
 	}
 	c.pending.Complete(frame.Header.RequestID, rpc.Response{Payload: payload})
-	c.observePendingRPC()
+	c.observePendingRPC("ok")
 }
 
-func (c *Conn) observePendingRPC() {
+func (c *Conn) observePendingRPC(result string) {
 	if c.cfg.Observer == nil {
 		return
+	}
+	if result == "" {
+		result = "ok"
 	}
 	c.cfg.Observer.ObserveTransport(core.Event{
 		Name:     "pending_rpc",
 		NodeID:   c.cfg.NodeID,
 		SourceID: c.cfg.SourceID,
-		Result:   "ok",
+		Result:   result,
 		Inflight: c.pending.Len(),
 	})
 }

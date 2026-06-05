@@ -39,10 +39,26 @@ func (d *ObserverDrain) ObserveTransport(event Event) {
 		return
 	default:
 	}
+	if isTerminalCleanupEvent(event) {
+		select {
+		case d.events <- event:
+		case <-d.done:
+		}
+		return
+	}
 	select {
 	case d.events <- event:
 	case <-d.done:
 	default:
+	}
+}
+
+func isTerminalCleanupEvent(event Event) bool {
+	switch event.Name {
+	case "pending_rpc", "scheduler_queue":
+		return event.Result == "closed" || event.Result == "stopped"
+	default:
+		return false
 	}
 }
 

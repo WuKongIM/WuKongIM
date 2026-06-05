@@ -85,6 +85,15 @@ func TestSchedulerObservesQueueAdmissionAndWait(t *testing.T) {
 		queueEvent.Bytes != 3 || queueEvent.BytesCapacity != 10 {
 		t.Fatalf("scheduler_queue ok = %+v, want queue state populated", *queueEvent)
 	}
+	drainedQueueEvent := findLastEventByPriority(events, "scheduler_queue", "ok", core.PriorityRPC)
+	if drainedQueueEvent == nil {
+		t.Fatalf("missing drained scheduler_queue ok event: %#v", events)
+	}
+	if drainedQueueEvent.SourceID != 77 || drainedQueueEvent.Items != 0 ||
+		drainedQueueEvent.Capacity != 1 || drainedQueueEvent.Bytes != 0 ||
+		drainedQueueEvent.BytesCapacity != 10 {
+		t.Fatalf("drained scheduler_queue ok = %+v, want source-scoped drained queue", *drainedQueueEvent)
+	}
 
 	waitEvent := findEvent(events, "scheduler_wait", "ok")
 	if waitEvent == nil {
@@ -140,6 +149,15 @@ func findEvent(events []core.Event, name, result string) *core.Event {
 
 func findEventByPriority(events []core.Event, name, result string, priority core.Priority) *core.Event {
 	for i := range events {
+		if events[i].Name == name && events[i].Result == result && events[i].Priority == priority {
+			return &events[i]
+		}
+	}
+	return nil
+}
+
+func findLastEventByPriority(events []core.Event, name, result string, priority core.Priority) *core.Event {
+	for i := len(events) - 1; i >= 0; i-- {
 		if events[i].Name == name && events[i].Result == result && events[i].Priority == priority {
 			return &events[i]
 		}
