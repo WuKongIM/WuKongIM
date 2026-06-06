@@ -71,6 +71,14 @@ function avg_delta(sum_key, count_key, count) {
   return counter_delta(sum_key) / count
 }
 
+function runtime_pool_key(labels) {
+  return label_value(labels, "component") "\034" label_value(labels, "pool")
+}
+
+function runtime_queue_key(labels) {
+  return runtime_pool_key(labels) "\034" label_value(labels, "queue") "\034" label_value(labels, "priority")
+}
+
 BEGIN {
   if (duration == "") {
     duration = 0
@@ -113,6 +121,24 @@ BEGIN {
       mailbox_depth_max = max_value(mailbox_depth_max, value)
     } else if (name == "wukongim_channelv2_worker_queue_depth") {
       worker_queue_depth_max = max_value(worker_queue_depth_max, value)
+    } else if (name == "wukongim_runtime_pool_queue_depth") {
+      key = runtime_queue_key(labels)
+      runtime_queue_depth[key] = value
+    } else if (name == "wukongim_runtime_pool_queue_capacity") {
+      key = runtime_queue_key(labels)
+      runtime_queue_capacity[key] = value
+    } else if (name == "wukongim_runtime_pool_queue_bytes") {
+      key = runtime_queue_key(labels)
+      runtime_queue_bytes[key] = value
+    } else if (name == "wukongim_runtime_pool_queue_bytes_capacity") {
+      key = runtime_queue_key(labels)
+      runtime_queue_bytes_capacity[key] = value
+    } else if (name == "wukongim_runtime_pool_inflight") {
+      key = runtime_pool_key(labels)
+      runtime_pool_inflight[key] = value
+    } else if (name == "wukongim_runtime_pool_workers") {
+      key = runtime_pool_key(labels)
+      runtime_pool_workers[key] = value
     }
   }
 
@@ -142,10 +168,37 @@ BEGIN {
     add_counter("worker_task_count", phase, value)
   } else if (name == "wukongim_channelv2_worker_task_duration_seconds_sum") {
     add_counter("worker_task_sum", phase, value)
+  } else if (name == "wukongim_runtime_pool_admission_total") {
+    add_counter("runtime_admission:" label_value(labels, "result"), phase, value)
   }
 }
 
 END {
+  for (key in runtime_queue_depth) {
+    depth = runtime_queue_depth[key]
+    capacity = runtime_queue_capacity[key]
+    runtime_pool_queue_depth_max = max_value(runtime_pool_queue_depth_max, depth)
+    if (capacity > 0) {
+      runtime_pool_queue_fill_max = max_value(runtime_pool_queue_fill_max, depth / capacity)
+    }
+  }
+  for (key in runtime_queue_bytes) {
+    bytes = runtime_queue_bytes[key]
+    bytes_capacity = runtime_queue_bytes_capacity[key]
+    runtime_pool_queue_bytes_max = max_value(runtime_pool_queue_bytes_max, bytes)
+    if (bytes_capacity > 0) {
+      runtime_pool_queue_bytes_fill_max = max_value(runtime_pool_queue_bytes_fill_max, bytes / bytes_capacity)
+    }
+  }
+  for (key in runtime_pool_inflight) {
+    inflight = runtime_pool_inflight[key]
+    workers = runtime_pool_workers[key]
+    runtime_pool_inflight_max = max_value(runtime_pool_inflight_max, inflight)
+    if (workers > 0) {
+      runtime_pool_inflight_util_max = max_value(runtime_pool_inflight_util_max, inflight / workers)
+    }
+  }
+
   rpc_pull_ok = counter_delta("rpc_pull:ok")
   rpc_pull_err = counter_delta("rpc_pull:err")
   rpc_pull_qps = 0
@@ -153,7 +206,7 @@ END {
     rpc_pull_qps = (rpc_pull_ok + rpc_pull_err) / duration
   }
 
-  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.3f\t%.3f\t%.0f\t%.3f\n",
+  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.3f\t%.3f\t%.0f\t%.3f\n",
     tag,
     node,
     active_total,
@@ -162,6 +215,16 @@ END {
     follower_parked,
     mailbox_depth_max,
     worker_queue_depth_max,
+    runtime_pool_queue_depth_max,
+    runtime_pool_queue_fill_max,
+    runtime_pool_queue_bytes_max,
+    runtime_pool_queue_bytes_fill_max,
+    runtime_pool_inflight_max,
+    runtime_pool_inflight_util_max,
+    counter_delta("runtime_admission:full"),
+    counter_delta("runtime_admission:busy"),
+    counter_delta("runtime_admission:dirty"),
+    counter_delta("runtime_admission:requeued"),
     counter_delta("activation_rejected"),
     counter_delta("recovery:submitted"),
     counter_delta("recovery:ok"),

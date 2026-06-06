@@ -254,6 +254,9 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"channelv2_metrics_summary",
 		"scripts/channelv2-metrics-summary.awk",
 		"channelv2_metrics_summary.tsv",
+		"runtime_pool_queue_depth_max",
+		"runtime_pool_admission_full_delta",
+		"- runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns",
 		`newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"`,
 		"write_evidence_summary",
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
@@ -329,9 +332,61 @@ func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-1024}`,
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
 		`GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}`,
+		"runtime_pool_attempt_summary",
+		"runtime_pool_queue_fill_max",
+		"runtime_pool_admission_busy_delta",
+		"- runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("real-qps script missing high-concurrency default %q", want)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	outDir := t.TempDir()
+	baseScript := filepath.Join(binDir, "fake-base.sh")
+	writeFakeRealQPSBenchBase(t, baseScript)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-real-qps.sh",
+		"--qps", "100",
+		"--out-dir", outDir,
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"WK_BENCH_REAL_QPS_BASE_SCRIPT="+baseScript,
+		"GOWORK=off",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("real-qps script failed: %v\n%s", err, output)
+	}
+
+	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+	for _, want := range []string{
+		"runtime_pool_queue_depth_max",
+		"runtime_pool_queue_fill_max",
+		"runtime_pool_admission_full_delta",
+		"\t7\t0.700\t300\t0.500\t12\t0.750\t5\t3\t1\t6\tPASS\tok\t",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("real-qps summary missing %q:\n%s", want, summary)
+		}
+	}
+
+	display := readFile(t, filepath.Join(outDir, "summary.txt"))
+	for _, want := range []string{
+		"poolfill",
+		"poolinflight",
+		"0.700",
+	} {
+		if !strings.Contains(display, want) {
+			t.Fatalf("real-qps display summary missing %q:\n%s", want, display)
 		}
 	}
 }
@@ -1197,6 +1252,10 @@ wukongim_channelv2_append_batch_wait_duration_seconds_count{node_id="1",node_nam
 wukongim_channelv2_append_batch_wait_duration_seconds_sum{node_id="1",node_name="node-1"} 0.015
 wukongim_channelv2_worker_task_duration_seconds_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 40
 wukongim_channelv2_worker_task_duration_seconds_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 0.200
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} 2
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="scheduler",queue="scheduler",priority="rpc",result="busy"} 1
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="slot",pool="scheduler",queue="scheduler",priority="none",result="dirty"} 4
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="slot",pool="scheduler",queue="scheduler",priority="none",result="requeued"} 0
 `)
 	writeFile(t, after, `wukongim_channelv2_active_runtimes{node_id="1",node_name="node-1",reactor_id="0",role="leader"} 8
 wukongim_channelv2_active_runtimes{node_id="1",node_name="node-1",reactor_id="1",role="follower"} 9
@@ -1227,6 +1286,20 @@ wukongim_channelv2_append_batch_wait_duration_seconds_count{node_id="1",node_nam
 wukongim_channelv2_append_batch_wait_duration_seconds_sum{node_id="1",node_name="node-1"} 0.027
 wukongim_channelv2_worker_task_duration_seconds_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 55
 wukongim_channelv2_worker_task_duration_seconds_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 0.320
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 7
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 10
+wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 200
+wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 400
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="channelv2",pool="reactor_0",queue="mailbox",priority="high"} 3
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="channelv2",pool="reactor_0",queue="mailbox",priority="high"} 6
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_auth"} 8
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_auth"} 16
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="transportv2",pool="service_9"} 3
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="transportv2",pool="service_9"} 4
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} 5
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="scheduler",queue="scheduler",priority="rpc",result="busy"} 3
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="slot",pool="scheduler",queue="scheduler",priority="none",result="dirty"} 5
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="slot",pool="scheduler",queue="scheduler",priority="none",result="requeued"} 5
 `)
 
 	cmd := exec.Command("awk",
@@ -1242,7 +1315,7 @@ wukongim_channelv2_worker_task_duration_seconds_sum{node_id="1",node_name="node-
 		t.Fatalf("summary awk failed: %v\n%s", err, output)
 	}
 
-	want := "qps_1000\tnode1\t17\t8\t9\t4\t12\t6\t2\t5\t5\t1\t15\t2\t3\t10\t1\t1.100\t60\t10\t3\t10\t6.000\t3\t4.000\t200.000\t4.000\t15\t8.000\n"
+	want := "qps_1000\tnode1\t17\t8\t9\t4\t12\t6\t7\t0.700\t200\t0.500\t8\t0.750\t3\t2\t1\t5\t2\t5\t5\t1\t15\t2\t3\t10\t1\t1.100\t60\t10\t3\t10\t6.000\t3\t4.000\t200.000\t4.000\t15\t8.000\n"
 	if string(output) != want {
 		t.Fatalf("unexpected summary row:\nwant %q\n got %q", want, output)
 	}
@@ -1255,6 +1328,47 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" > "` + callsDir + `/args.txt"
 env | LC_ALL=C sort | grep -E '^(WK_BENCH_|WK_CLUSTER_|WK_PPROF_)' > "` + callsDir + `/env.txt"
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeRealQPSBenchBase(t *testing.T, path string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+out_dir=""
+qps=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out-dir)
+      out_dir="$2"
+      shift 2
+      ;;
+    --qps)
+      qps="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$out_dir" || -z "$qps" ]]; then
+  echo "missing --out-dir or --qps" >&2
+  exit 2
+fi
+mkdir -p "$out_dir"
+cat >"$out_dir/summary.tsv" <<'OUT'
+tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
+000100	100	passed	0	99	99	0	0	0	0.001	0.002	0.003	0.004
+OUT
+cat >"$out_dir/channelv2_metrics_summary.tsv" <<'OUT'
+tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
+000100	node1	7	0.700	200	0.500	8	0.750	3	2	1	5
+000100	node2	4	0.400	300	0.250	12	0.600	2	1	0	1
+OUT
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

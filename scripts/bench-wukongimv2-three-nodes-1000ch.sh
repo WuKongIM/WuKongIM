@@ -879,6 +879,7 @@ print_summary() {
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
   printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
   printf '  channelv2: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
+  printf '  runtime_pool: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
   printf '  metrics: %s\n' "$OUT_DIR/metrics"
 }
@@ -909,6 +910,7 @@ write_evidence_summary() {
 - reports: reports/
 - rpc_pull: rpc_pull_qps.tsv
 - channelv2_metrics: channelv2_metrics_summary.tsv
+- runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
 - summary_tsv: summary.tsv
 
 ## Result
@@ -934,7 +936,7 @@ EOF
 tag	node	rpc_pull_delta	rpc_pull_qps
 EOF
   cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
-tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms
+tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms
 EOF
 
   local qps

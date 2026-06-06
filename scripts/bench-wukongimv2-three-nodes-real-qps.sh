@@ -350,6 +350,60 @@ GOWORK=${GOWORK:-off}
 EOF
 }
 
+runtime_pool_attempt_summary() {
+  local metrics="$1"
+  if [[ ! -f "$metrics" ]]; then
+    printf '0\t0.000\t0\t0.000\t0\t0.000\t0\t0\t0\t0\n'
+    return
+  fi
+  awk -F'\t' '
+    function metric_value(name, col) {
+      col = idx[name]
+      if (col <= 0) {
+        return 0
+      }
+      return $col + 0
+    }
+    function max_value(current, value) {
+      if (value > current) {
+        return value
+      }
+      return current
+    }
+    NR == 1 {
+      for (i = 1; i <= NF; i++) {
+        idx[$i] = i
+      }
+      next
+    }
+    {
+      queue_depth = max_value(queue_depth, metric_value("runtime_pool_queue_depth_max"))
+      queue_fill = max_value(queue_fill, metric_value("runtime_pool_queue_fill_max"))
+      queue_bytes = max_value(queue_bytes, metric_value("runtime_pool_queue_bytes_max"))
+      queue_bytes_fill = max_value(queue_bytes_fill, metric_value("runtime_pool_queue_bytes_fill_max"))
+      inflight = max_value(inflight, metric_value("runtime_pool_inflight_max"))
+      inflight_util = max_value(inflight_util, metric_value("runtime_pool_inflight_util_max"))
+      admission_full += metric_value("runtime_pool_admission_full_delta")
+      admission_busy += metric_value("runtime_pool_admission_busy_delta")
+      admission_dirty += metric_value("runtime_pool_admission_dirty_delta")
+      admission_requeued += metric_value("runtime_pool_admission_requeued_delta")
+    }
+    END {
+      printf "%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\n",
+        queue_depth,
+        queue_fill,
+        queue_bytes,
+        queue_bytes_fill,
+        inflight,
+        inflight_util,
+        admission_full,
+        admission_busy,
+        admission_dirty,
+        admission_requeued
+    }
+  ' "$metrics"
+}
+
 append_attempt_summary() {
   local qps="$1"
   local tag="$2"
@@ -357,17 +411,23 @@ append_attempt_summary() {
   local child_exit="$4"
   local summary="$attempt_dir/summary.tsv"
   local p99_limit
+  local runtime_pool
   p99_limit="$(duration_seconds "$STABLE_P99")"
+  runtime_pool="$(runtime_pool_attempt_summary "$attempt_dir/channelv2_metrics_summary.tsv")"
   if [[ ! -f "$summary" ]]; then
-    printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\tFAIL\tmissing_summary\t%s\n' \
-      "$tag" "$qps" "$attempt_dir" "$child_exit" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
+    printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\tFAIL\tmissing_summary\t%s\n' \
+      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
     return
   fi
   awk -F'\t' \
     -v attempt_dir="$attempt_dir" \
     -v child_exit="$child_exit" \
     -v min_ratio="$MIN_ACTUAL_RATIO" \
-    -v p99_limit="$p99_limit" '
+    -v p99_limit="$p99_limit" \
+    -v runtime_pool="$runtime_pool" '
+    BEGIN {
+      split(runtime_pool, pool, "\t")
+    }
     NR == 1 { next }
     {
       tag = $1
@@ -411,9 +471,12 @@ append_attempt_summary() {
         result = "FAIL"
         note = "actual_ratio"
       }
-      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\n",
+      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
         tag, offered, attempt_dir, child_exit, status, ratio, actual, send_success, send_errors,
-        connect_error_rate, sendack_error_rate, p50, p95, p99, max, result, note, attempt_dir
+        connect_error_rate, sendack_error_rate, p50, p95, p99, max,
+        pool[1], pool[2], pool[3], pool[4], pool[5],
+        pool[6], pool[7], pool[8], pool[9], pool[10],
+        result, note, attempt_dir
     }
   ' "$summary" >>"$OUT_DIR/summary.tsv"
 }
@@ -422,7 +485,7 @@ write_display_summary() {
   awk -F'\t' '
     BEGIN {
       print "# real qps result"
-      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "note"
+      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %11s %9s %9s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "poolfill", "poolinflight", "full", "busy", "note"
     }
     NR == 1 { next }
     {
@@ -433,10 +496,14 @@ write_display_summary() {
       p95 = $13 + 0
       p99 = $14 + 0
       max = $15 + 0
-      result = $16
-      note = $17
-      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %s\n",
-        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, note
+      pool_fill = $17 + 0
+      pool_inflight = $20 + 0
+      pool_full = $22 + 0
+      pool_busy = $23 + 0
+      result = $26
+      note = $27
+      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.3f %11.0f %9.0f %9.0f %s\n",
+        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, pool_fill, pool_inflight, pool_full, pool_busy, note
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
 }
@@ -465,6 +532,7 @@ write_markdown_summary() {
 - env: env.txt
 - git: git.txt
 - attempt_dirs: one child directory per offered QPS value
+- runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns
 
 ## Result
 $(tail -n +2 "$OUT_DIR/summary.txt" 2>/dev/null || true)
@@ -516,7 +584,7 @@ main() {
   mkdir -p "$OUT_DIR"
   write_metadata
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	result	note	attempt_dir
+tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	result	note	attempt_dir
 EOF
   local qps
   for qps in "${QPS_VALUES[@]}"; do
