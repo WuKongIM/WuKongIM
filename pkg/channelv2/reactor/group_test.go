@@ -214,6 +214,15 @@ func TestDefaultWorkerPoolsUseExtraStoreWorkers(t *testing.T) {
 	require.Equal(t, 32, pools.RPC.Workers)
 }
 
+func TestDefaultWorkerPoolsCapStoreWorkers(t *testing.T) {
+	pools := defaultWorkerPools(Config{ReactorCount: 128, MailboxSize: 16})
+
+	require.Equal(t, 128, pools.StoreAppend.Workers)
+	require.Equal(t, 128, pools.StoreApply.Workers)
+	require.Equal(t, 128, pools.StoreRead.Workers)
+	require.Equal(t, 128, pools.RPC.Workers)
+}
+
 func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
 	pools := defaultWorkerPools(Config{
 		ReactorCount: 32,

@@ -73,7 +73,7 @@ Start(ctx)
   -> mark node started
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel write tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
 
@@ -127,10 +127,15 @@ Node.AppendChannel / AppendChannelBatch
   -> follower reactor Pull / Apply / Ack
 ```
 
-Append forwarding uses a channel-key shard on the typed node RPC transport so
-foreground append traffic does not share one ordered connection with follower
-pull or pull-hint traffic. If a forwarded append times out and the origin node
-is also a channel replica, `channels.Service` may perform a bounded local
+Append forwarding uses a channel-key shard on the typed node RPC transport, and
+the default transportv2 wiring gives append, follower pull, and pull-hint
+traffic separate service queues plus weighted priorities. Append forward
+services also use a larger default service concurrency because their handlers
+mostly wait on ChannelV2 append/quorum futures while ChannelV2 and DB pools keep
+the real storage backpressure boundary. This keeps foreground append pressure
+visible separately from replication traffic and reduces head-of-line blocking
+when they share peer connections. If a forwarded append times out and the origin
+node is also a channel replica, `channels.Service` may perform a bounded local
 committed-message lookup. Recovery reports success only for message ids whose
 durable row is visible under local HW; missing or uncommitted rows keep the
 original forward error, preserving the normal quorum durability boundary.
@@ -157,7 +162,7 @@ metadata for PullHint receive; client append admission still uses
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps ChannelV2's reactor-derived defaults and never changes durable commit or quorum ACK rules. `Config.Channel.AppendBatchMaxRecords` and `Config.Channel.AppendBatchMaxWait` pass through to the hosted ChannelV2 runtime; zero keeps the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
+When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps ChannelV2's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Channel.AppendBatchMaxRecords` and `Config.Channel.AppendBatchMaxWait` pass through to the hosted ChannelV2 runtime; zero keeps the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
 
 ## Non-Goals For V1
 
@@ -168,7 +173,7 @@ When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-awar
 
 ## V1 Limitations
 
-- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Dynamic production operator workflows remain outside this package-level slice.
+- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transportv2`. Dynamic production operator workflows remain outside this package-level slice.
 - Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
 - ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.

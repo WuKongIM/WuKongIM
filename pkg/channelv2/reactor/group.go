@@ -16,6 +16,7 @@ import (
 const (
 	defaultStoreAppendWorkerMultiplier = 2
 	defaultStoreApplyWorkerMultiplier  = 2
+	defaultStoreWorkerCap              = 128
 	defaultReplicationIdlePollInterval = 100 * time.Millisecond
 )
 
@@ -390,8 +391,8 @@ func eventPriority(kind EventKind) Priority {
 
 func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	workers := max(1, cfg.ReactorCount)
-	storeAppendWorkers := workers * defaultStoreAppendWorkerMultiplier
-	storeApplyWorkers := workers * defaultStoreApplyWorkerMultiplier
+	storeAppendWorkers := min(workers*defaultStoreAppendWorkerMultiplier, defaultStoreWorkerCap)
+	storeApplyWorkers := min(workers*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
 	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", storeAppendWorkers, queueSize)

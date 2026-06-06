@@ -113,8 +113,15 @@ func (n *Node) ensureDefaultTransport() error {
 	if n.discovery != nil {
 		n.discovery.Update(controlVoterNodes(n.cfg.Control.Voters))
 	}
-	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{})
-	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{Discovery: n.discovery})
+	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{
+		NodeID:   n.cfg.NodeID,
+		Observer: n.cfg.Transport.Observer,
+	})
+	n.transportClient = clusternet.NewTransportClient(clusternet.TransportClientConfig{
+		NodeID:    n.cfg.NodeID,
+		Discovery: n.discovery,
+		Observer:  n.cfg.Transport.Observer,
+	})
 	n.defaultTransport = true
 	n.registeredRPCHandlers = make(map[uint8]struct{})
 	return nil

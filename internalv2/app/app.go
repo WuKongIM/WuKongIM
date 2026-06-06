@@ -147,6 +147,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: app.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: app.metrics})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{metrics: app.metrics})
+		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: app.metrics})
 	}
 	if cfg.Observability.Diagnostics.Enabled {
 		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))

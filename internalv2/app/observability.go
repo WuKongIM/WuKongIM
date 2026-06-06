@@ -69,6 +69,7 @@ type deliveryMetricsObserver struct {
 
 type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
+type multiTransportV2Observer []transportv2.Observer
 type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
@@ -840,6 +841,16 @@ func combineSlotObservers(first, second multiraft.SchedulerObserver) multiraft.S
 	return multiSlotObserver{first, second}
 }
 
+func combineTransportV2Observers(first, second transportv2.Observer) transportv2.Observer {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiTransportV2Observer{first, second}
+}
+
 func combineControllerRaftObservers(first, second cv2raft.Observer) cv2raft.Observer {
 	if first == nil {
 		return second
@@ -1213,6 +1224,14 @@ func (o multiSlotObserver) ObserveSchedulerTask(task string, d time.Duration) {
 	}
 }
 
+func (o multiTransportV2Observer) ObserveTransport(event transportv2.Event) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveTransport(event)
+		}
+	}
+}
+
 func (o multiControllerRaftObserver) SetStepQueueDepth(depth int, capacity int) {
 	for _, observer := range o {
 		observer.SetStepQueueDepth(depth, capacity)
@@ -1423,6 +1442,7 @@ var _ reactor.ReplicationObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
+var _ transportv2.Observer = multiTransportV2Observer{}
 var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
 var _ worker.InflightObserver = multiChannelV2Observer{}
 var _ worker.QueueCapacityObserver = multiChannelV2Observer{}

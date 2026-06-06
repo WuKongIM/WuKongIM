@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 func TestDiscoveryUpdatesAtomically(t *testing.T) {
@@ -104,9 +107,9 @@ func TestTransportClientUsesClusterSizedQueuesByDefault(t *testing.T) {
 	client := NewTransportClient(TransportClientConfig{})
 	defer client.Stop()
 
-	want := [3]int{1024, 1024, 1024}
-	if client.queueSizes != want {
-		t.Fatalf("QueueSizes = %#v, want %#v", client.queueSizes, want)
+	limits := client.Limits()
+	if limits.MaxQueuedItemsPerConn != defaultTransportQueueSize {
+		t.Fatalf("MaxQueuedItemsPerConn = %d, want %d", limits.MaxQueuedItemsPerConn, defaultTransportQueueSize)
 	}
 }
 
@@ -142,13 +145,105 @@ func TestTransportClientShardsRPCsByService(t *testing.T) {
 			t.Fatalf("Call(service=%d) error = %v", serviceID, err)
 		}
 	}
-	stats := client.pool.Stats()
-	if len(stats) != 1 {
-		t.Fatalf("pool stats = %#v, want one peer", stats)
+	stats := client.Stats()
+	if stats.Peers != 1 {
+		t.Fatalf("Stats().Peers = %d, want 1", stats.Peers)
 	}
-	if stats[0].Active < 3 {
-		t.Fatalf("active connections = %d, want at least 3 services sharded across pool", stats[0].Active)
+	if stats.Connections < 3 {
+		t.Fatalf("Stats().Connections = %d, want at least 3 services sharded across pool", stats.Connections)
 	}
+}
+
+func TestTransportServerUsesLargerAppendServiceConcurrency(t *testing.T) {
+	const wantAppendConcurrency = 512
+
+	observer := &recordingTransportObserver{}
+	server := NewTransportServer(TransportServerConfig{Observer: observer})
+	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelAppendBatch} {
+		serviceID := serviceID
+		server.Register(serviceID, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return []byte{serviceID}, nil
+		}))
+	}
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	if _, err := client.Call(context.Background(), 2, RPCChannelPull, []byte("pull")); err != nil {
+		t.Fatalf("Call(pull) error = %v", err)
+	}
+	if _, err := client.Call(context.Background(), 2, RPCChannelAppendBatch, []byte("append")); err != nil {
+		t.Fatalf("Call(append batch) error = %v", err)
+	}
+
+	pullEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "service_inflight" &&
+			event.ServiceID == uint16(RPCChannelPull) &&
+			event.Inflight == 1
+	})
+	if pullEvent.Capacity != defaultTransportServiceConcurrency {
+		t.Fatalf("pull service capacity = %d, want default %d", pullEvent.Capacity, defaultTransportServiceConcurrency)
+	}
+
+	appendEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "service_inflight" &&
+			event.ServiceID == uint16(RPCChannelAppendBatch) &&
+			event.Inflight == 1
+	})
+	if appendEvent.Capacity != wantAppendConcurrency {
+		t.Fatalf("append service capacity = %d, want %d", appendEvent.Capacity, wantAppendConcurrency)
+	}
+}
+
+func TestTransportLoopbackReportsTransportV2Pressure(t *testing.T) {
+	observer := &recordingTransportObserver{}
+	server := NewTransportServer(TransportServerConfig{
+		Observer: observer,
+		Service: TransportServiceConfig{
+			Concurrency:   1,
+			QueueSize:     4,
+			MaxQueueBytes: 1024,
+		},
+	})
+	server.Register(RPCSlotForwardPropose, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		return append([]byte("resp:"), payload...), nil
+	}))
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1, Observer: observer})
+	defer client.Stop()
+
+	got, err := client.Call(context.Background(), 2, RPCSlotForwardPropose, []byte("ping"))
+	if err != nil {
+		t.Fatalf("Call() error = %v", err)
+	}
+	if string(got) != "resp:ping" {
+		t.Fatalf("Call() = %q, want resp:ping", got)
+	}
+
+	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "service_admission" && event.ServiceID == uint16(RPCSlotForwardPropose) && event.Result == "ok"
+	})
+	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "service_task" && event.ServiceID == uint16(RPCSlotForwardPropose) && event.Result == "ok"
+	})
+	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "scheduler_admission" && event.Result == "ok"
+	})
+	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "pending_rpc" && event.Result == "ok"
+	})
 }
 
 func TestTransportLoopbackSendDoesNotWaitForResponse(t *testing.T) {
@@ -184,5 +279,41 @@ func TestTransportLoopbackSendDoesNotWaitForResponse(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for one-way send")
+	}
+}
+
+type recordingTransportObserver struct {
+	mu     sync.Mutex
+	events []transportv2.Event
+}
+
+func (o *recordingTransportObserver) ObserveTransport(event transportv2.Event) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingTransportObserver) snapshot() []transportv2.Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]transportv2.Event(nil), o.events...)
+}
+
+func waitTransportEvent(t *testing.T, observer *recordingTransportObserver, match func(transportv2.Event) bool) transportv2.Event {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		for _, event := range observer.snapshot() {
+			if match(event) {
+				return event
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for transport event, observed %#v", observer.snapshot())
+		case <-ticker.C:
+		}
 	}
 }

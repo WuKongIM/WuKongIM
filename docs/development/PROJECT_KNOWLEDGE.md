@@ -182,3 +182,4 @@
 - Committed delivery routing treats transient channel status errors such as `channel: not ready` as retry signals; warn only after retries are exhausted.
 - `wkbench dev-sim` must run warmup after prepare/connect and before measured run windows; warmup must touch every assigned channel at least once, and warmup counters are a baseline that must not be counted in `/status` measured traffic.
 - `wkbench dev-sim` `/status` distinguishes the configured steady-state online pool (`connected_users`) from the latest sampled live count (`active_users`) and reconnect churn (`reconnected_users`) so online flapping is visible during triage.
+- In three-node real-QPS v2 SEND benchmarks, `transportv2` channel append RPCs need a larger service pool than generic RPCs; ChannelV2 store append/apply defaults should stay capped near the shared message DB commit coordinator instead of scaling unbounded with CPU count.

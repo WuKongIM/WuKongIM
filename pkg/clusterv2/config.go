@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 const minDefaultChannelReactorCount = 4
@@ -30,6 +31,8 @@ type Config struct {
 	Channel ChannelConfig
 	// Storage contains node-local storage tuning.
 	Storage StorageConfig
+	// Transport contains default clusterv2 node-to-node transport tuning and observation hooks.
+	Transport TransportConfig
 	// Timeouts contains lifecycle timeout budgets.
 	Timeouts TimeoutConfig
 }
@@ -126,6 +129,12 @@ type StorageConfig struct {
 	CommitMaxBytes int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
+}
+
+// TransportConfig contains default clusterv2 node-to-node transport observation.
+type TransportConfig struct {
+	// Observer receives transportv2 queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
+	Observer transportv2.Observer
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.
