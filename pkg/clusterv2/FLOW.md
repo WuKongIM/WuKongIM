@@ -139,6 +139,12 @@ node is also a channel replica, `channels.Service` may perform a bounded local
 committed-message lookup. Recovery reports success only for message ids whose
 durable row is visible under local HW; missing or uncommitted rows keep the
 original forward error, preserving the normal quorum durability boundary.
+The origin node records both aggregate `forward_append` latency and
+`forward_append_rpc` for the typed RPC round trip. The leader-side append
+forward handler records `forward_append_remote`, which includes request decode
+and the remote `channels.Service` append path. These sub-stages separate
+origin-side dispatch/transport wait from the leader's actual append/quorum
+work when diagnosing forwarded SEND p99.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.

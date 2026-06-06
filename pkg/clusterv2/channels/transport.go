@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
@@ -239,19 +240,25 @@ func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server ch
 func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 	RegisterHandlersOn(registrar, service.Server())
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		started := time.Now()
 		req, err := decodeAppendRequest(payload)
 		if err != nil {
+			service.observeAppendStage(appendStageForwardAppendRemote, err, time.Since(started))
 			return nil, err
 		}
 		resp, err := service.Append(ctx, req)
+		service.observeAppendStage(appendStageForwardAppendRemote, err, time.Since(started))
 		return encodeRPCResult(kindAppendResponse, resp, err)
 	}))
 	registrar.Register(clusternet.RPCChannelAppendBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		started := time.Now()
 		req, err := decodeAppendBatchRequest(payload)
 		if err != nil {
+			service.observeAppendStage(appendStageForwardAppendRemote, err, time.Since(started))
 			return nil, err
 		}
 		resp, err := service.AppendBatch(ctx, req)
+		service.observeAppendStage(appendStageForwardAppendRemote, err, time.Since(started))
 		return encodeRPCResult(kindAppendBatchResponse, resp, err)
 	}))
 }

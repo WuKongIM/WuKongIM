@@ -1105,6 +1105,30 @@ func TestServiceForwardsAppendBatchToResolvedLeader(t *testing.T) {
 	}
 }
 
+func TestServiceObservesForwardAppendBatchSubStages(t *testing.T) {
+	id := ch.ChannelID{ID: "forward-append-batch-observed", Type: 1}
+	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
+	source := NewStaticMetaSource([]ch.Meta{meta})
+	network := clusternet.NewLocalNetwork()
+	client := NewTransportClient(network)
+	leaderObserver := &appendStageObserver{}
+	leaderRuntime := &fakeRuntime{appendRequireApply: true, appendBatch: ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: 11}}}}
+	leader, err := NewService(Config{Runtime: leaderRuntime, LocalNode: 2, MetaSource: source, Forward: client, Observer: leaderObserver})
+	require.NoError(t, err)
+	RegisterServiceHandlers(network, 2, leader)
+	followerObserver := &appendStageObserver{}
+	followerRuntime := &fakeRuntime{}
+	follower, err := NewService(Config{Runtime: followerRuntime, LocalNode: 1, MetaSource: source, Forward: client, Observer: followerObserver})
+	require.NoError(t, err)
+
+	_, err = follower.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("hello")}}})
+	require.NoError(t, err)
+
+	requireAppendStage(t, followerObserver.events, "forward_append", "ok")
+	requireAppendStage(t, followerObserver.events, "forward_append_rpc", "ok")
+	requireAppendStage(t, leaderObserver.events, "forward_append_remote", "ok")
+}
+
 func TestServiceRecoversCommittedForwardAppendBatchAfterDeadline(t *testing.T) {
 	id := ch.ChannelID{ID: "recover-forward", Type: 2}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}

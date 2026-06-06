@@ -16,6 +16,12 @@ import (
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
 
+const (
+	appendStageForwardAppend       = "forward_append"
+	appendStageForwardAppendRPC    = "forward_append_rpc"
+	appendStageForwardAppendRemote = "forward_append_remote"
+)
+
 type channelRuntime interface {
 	ch.Cluster
 	channeltransport.Server
@@ -184,7 +190,9 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			}
 			started := time.Now()
 			res, err := s.forward.ForwardAppend(ctx, meta.Leader, req)
-			s.observeAppendStage("forward_append", err, time.Since(started))
+			forwardRPC := time.Since(started)
+			s.observeAppendStage(appendStageForwardAppendRPC, err, forwardRPC)
+			s.observeAppendStage(appendStageForwardAppend, err, forwardRPC)
 			if err != nil {
 				recoverStarted := time.Now()
 				batch, recovered := s.recoverForwardAppendBatch(ctx, meta, ch.AppendBatchRequest{
@@ -244,7 +252,9 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			}
 			started := time.Now()
 			res, err := s.forward.ForwardAppendBatch(ctx, meta.Leader, req)
-			s.observeAppendStage("forward_append", err, time.Since(started))
+			forwardRPC := time.Since(started)
+			s.observeAppendStage(appendStageForwardAppendRPC, err, forwardRPC)
+			s.observeAppendStage(appendStageForwardAppend, err, forwardRPC)
 			if err != nil {
 				recoverStarted := time.Now()
 				recovered, ok := s.recoverForwardAppendBatch(ctx, meta, req, err)
