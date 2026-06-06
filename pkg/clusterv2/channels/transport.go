@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -38,6 +39,26 @@ func (c *TransportClient) Pull(ctx context.Context, node ch.NodeID, req channelt
 	return decodePullResponse(resp)
 }
 
+// PullBatch sends grouped ChannelV2 pull requests to node.
+func (c *TransportClient) PullBatch(ctx context.Context, node ch.NodeID, req channeltransport.PullBatchRequest) (channeltransport.PullBatchResponse, error) {
+	payload, err := encodePullBatchRequest(req)
+	if err != nil {
+		return channeltransport.PullBatchResponse{}, err
+	}
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullBatch, payload)
+	if err != nil {
+		return channeltransport.PullBatchResponse{}, err
+	}
+	decoded, err := decodePullBatchResponse(resp)
+	if err != nil {
+		return channeltransport.PullBatchResponse{}, err
+	}
+	if len(decoded.Items) != len(req.Items) {
+		return channeltransport.PullBatchResponse{}, fmt.Errorf("channels: pull batch response items = %d, want %d", len(decoded.Items), len(req.Items))
+	}
+	return decoded, nil
+}
+
 // Ack sends a ChannelV2 acknowledgement to node.
 func (c *TransportClient) Ack(ctx context.Context, node ch.NodeID, req channeltransport.AckRequest) error {
 	payload, err := encodeAckRequest(req)
@@ -62,6 +83,26 @@ func (c *TransportClient) PullHint(ctx context.Context, node ch.NodeID, req chan
 		return err
 	}
 	return decodeRPCResult(resp, kindPullHint, nil)
+}
+
+// PullHintBatch sends grouped ChannelV2 pull hints to node.
+func (c *TransportClient) PullHintBatch(ctx context.Context, node ch.NodeID, req channeltransport.PullHintBatchRequest) (channeltransport.PullHintBatchResponse, error) {
+	payload, err := encodePullHintBatchRequest(req)
+	if err != nil {
+		return channeltransport.PullHintBatchResponse{}, err
+	}
+	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullHintBatch, payload)
+	if err != nil {
+		return channeltransport.PullHintBatchResponse{}, err
+	}
+	decoded, err := decodePullHintBatchResponse(resp)
+	if err != nil {
+		return channeltransport.PullHintBatchResponse{}, err
+	}
+	if len(decoded.Items) != len(req.Items) {
+		return channeltransport.PullHintBatchResponse{}, fmt.Errorf("channels: pull hint batch response items = %d, want %d", len(decoded.Items), len(req.Items))
+	}
+	return decoded, nil
 }
 
 // Notify sends a legacy ChannelV2 notify request to node.
@@ -127,6 +168,14 @@ func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Serv
 		resp, err := server.HandlePull(ctx, req)
 		return encodeRPCResult(kindPullResponse, resp, err)
 	}))
+	registrar.Register(clusternet.RPCChannelPullBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := decodePullBatchRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := handlePullBatch(ctx, server, req)
+		return encodeRPCResult(kindPullBatchResponse, resp, err)
+	}))
 	registrar.Register(clusternet.RPCChannelAck, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeAckRequest(payload)
 		if err != nil {
@@ -141,6 +190,14 @@ func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Serv
 		}
 		return encodeRPCResult(kindPullHint, nil, server.HandlePullHint(ctx, req))
 	}))
+	registrar.Register(clusternet.RPCChannelPullHintBatch, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := decodePullHintBatchRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := handlePullHintBatch(ctx, server, req)
+		return encodeRPCResult(kindPullHintBatchResponse, resp, err)
+	}))
 	registrar.Register(clusternet.RPCChannelNotify, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := decodeNotifyRequest(payload)
 		if err != nil {
@@ -148,6 +205,29 @@ func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Serv
 		}
 		return encodeRPCResult(kindNotify, nil, server.HandleNotify(ctx, req))
 	}))
+}
+
+func handlePullBatch(ctx context.Context, server channeltransport.Server, req channeltransport.PullBatchRequest) (channeltransport.PullBatchResponse, error) {
+	if batch, ok := server.(channeltransport.BatchServer); ok {
+		return batch.HandlePullBatch(ctx, req)
+	}
+	resp := channeltransport.PullBatchResponse{Items: make([]channeltransport.PullBatchItemResult, len(req.Items))}
+	for i, item := range req.Items {
+		pull, err := server.HandlePull(ctx, item)
+		resp.Items[i] = channeltransport.PullBatchItemResult{Response: pull, Err: err}
+	}
+	return resp, nil
+}
+
+func handlePullHintBatch(ctx context.Context, server channeltransport.Server, req channeltransport.PullHintBatchRequest) (channeltransport.PullHintBatchResponse, error) {
+	if batch, ok := server.(channeltransport.BatchServer); ok {
+		return batch.HandlePullHintBatch(ctx, req)
+	}
+	resp := channeltransport.PullHintBatchResponse{Items: make([]channeltransport.PullHintBatchItemResult, len(req.Items))}
+	for i, item := range req.Items {
+		resp.Items[i] = channeltransport.PullHintBatchItemResult{Err: server.HandlePullHint(ctx, item)}
+	}
+	return resp, nil
 }
 
 // RegisterHandlers registers ChannelV2 replication handlers on network for nodeID.
@@ -191,4 +271,5 @@ func (r localNetworkRegistrar) Register(serviceID uint8, handler clusternet.Hand
 }
 
 var _ channeltransport.Client = (*TransportClient)(nil)
+var _ channeltransport.BatchClient = (*TransportClient)(nil)
 var _ ForwardClient = (*TransportClient)(nil)

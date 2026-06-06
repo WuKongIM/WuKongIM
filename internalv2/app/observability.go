@@ -72,6 +72,14 @@ type multiSlotObserver []multiraft.SchedulerObserver
 type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 
+const (
+	dbRuntimeComponent       = "db"
+	dbMessageCommitPool      = "message_commit"
+	dbMessageCommitQueue     = "commit"
+	dbRuntimeQueuePriority   = "none"
+	dbMessageCommitWorkerCap = 1
+)
+
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
 	if o.metrics == nil {
 		return
@@ -297,6 +305,17 @@ func (o channelV2MetricsObserver) ObserveWorkerTask(pool string, kind worker.Tas
 		result = "err"
 	}
 	o.metrics.RuntimePressure.ObserveTaskDuration("channelv2", pool, channelV2WorkerKindLabel(kind), result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	o.metrics.ChannelV2.ObserveWorkerBatch(channelV2WorkerKindLabel(kind), result, items)
 }
 
 func (o channelV2MetricsObserver) SetWorkerInflight(pool string, inflight int) {
@@ -622,10 +641,19 @@ func (o controllerRaftMetricsObserver) ObserveStepEnqueue(result string, d time.
 }
 
 func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	o.SetCommitCoordinatorQueue(depth, 0)
+}
+
+func (o storageCommitMetricsObserver) SetCommitCoordinatorQueue(depth int, capacity int) {
 	if o.metrics == nil {
 		return
 	}
 	o.metrics.Storage.SetCommitQueueDepth("message", depth)
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitWorkerCap)
+	o.metrics.RuntimePressure.SetQueue(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, obsmetrics.RuntimePressureQueueObservation{
+		Depth:    depth,
+		Capacity: capacity,
+	})
 }
 
 func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
@@ -646,6 +674,8 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messag
 		PublishDuration: event.PublishDuration,
 		TotalDuration:   event.TotalDuration,
 	})
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitWorkerCap)
+	o.metrics.RuntimePressure.ObserveTaskDuration(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, result, event.TotalDuration)
 }
 
 func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
@@ -657,6 +687,8 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event mess
 		Bytes:    event.Bytes,
 		Duration: event.Duration,
 	})
+	o.metrics.RuntimePressure.ObserveAdmission(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, event.Result)
+	o.metrics.RuntimePressure.ObserveQueueWait(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, event.Result, event.Duration)
 }
 
 func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
@@ -969,6 +1001,15 @@ func (o multiChannelV2Observer) ObserveWorkerTask(pool string, kind worker.TaskK
 	}
 }
 
+func (o multiChannelV2Observer) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(worker.BatchObserver)
+		if ok {
+			batchObserver.ObserveWorkerBatch(pool, kind, items, err)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) SetWorkerInflight(pool string, inflight int) {
 	for _, observer := range o {
 		inflightObserver, ok := observer.(worker.InflightObserver)
@@ -1185,7 +1226,16 @@ func (o multiControllerRaftObserver) ObserveStepEnqueue(result string, d time.Du
 }
 
 func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	o.SetCommitCoordinatorQueue(depth, 0)
+}
+
+func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueue(depth int, capacity int) {
 	for _, observer := range o {
+		queueObserver, ok := observer.(messagedb.CommitCoordinatorQueueObserver)
+		if ok {
+			queueObserver.SetCommitCoordinatorQueue(depth, capacity)
+			continue
+		}
 		observer.SetCommitCoordinatorQueueDepth(depth)
 	}
 }
@@ -1384,6 +1434,8 @@ var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorQueueObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
+var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}

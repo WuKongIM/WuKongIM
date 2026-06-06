@@ -35,6 +35,7 @@ type ChannelV2Metrics struct {
 	appendWaitStageDuration  *prometheus.HistogramVec
 	replicationStageDuration *prometheus.HistogramVec
 	workerTaskDuration       *prometheus.HistogramVec
+	workerBatchItems         *prometheus.HistogramVec
 	rpcPullTotal             *prometheus.CounterVec
 }
 
@@ -163,6 +164,12 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"kind", "result"}),
+		workerBatchItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelv2_worker_batch_items",
+			Help:        "Number of logical worker tasks coalesced into each ChannelV2 worker-side batch.",
+			ConstLabels: labels,
+			Buckets:     channelV2AppendBatchRecordBuckets,
+		}, []string{"kind", "result"}),
 		rpcPullTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelv2_rpc_pull_total",
 			Help:        "Total ChannelV2 follower RPC pull tasks by result.",
@@ -194,6 +201,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.appendWaitStageDuration,
 		m.replicationStageDuration,
 		m.workerTaskDuration,
+		m.workerBatchItems,
 		m.rpcPullTotal,
 	)
 
@@ -350,4 +358,11 @@ func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d tim
 	if kind == "rpc_pull" {
 		m.rpcPullTotal.WithLabelValues(result).Inc()
 	}
+}
+
+func (m *ChannelV2Metrics) ObserveWorkerBatch(kind string, result string, items int) {
+	if m == nil || items <= 0 {
+		return
+	}
+	m.workerBatchItems.WithLabelValues(kind, result).Observe(float64(items))
 }

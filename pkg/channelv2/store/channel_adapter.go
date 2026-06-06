@@ -73,6 +73,83 @@ func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Cha
 	return &messageDBChannelStoreAdapter{store: dbStore, id: id, checkpointMu: f.checkpointLock(key)}, nil
 }
 
+// AppendLeaderBatch appends leader records for multiple channels through one message DB batch request when possible.
+func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []AppendLeaderBatchItem) []AppendLeaderBatchResult {
+	results := make([]AppendLeaderBatchResult, len(items))
+	if len(items) == 0 {
+		return results
+	}
+	if f == nil || f.engine == nil {
+		for i := range results {
+			results[i].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	dbItems := make([]messagedb.AppendBatchItem, 0, len(items))
+	active := make([]int, 0, len(items))
+	for i, item := range items {
+		dbStore := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		dbItems = append(dbItems, messagedb.AppendBatchItem{
+			Store:   dbStore,
+			Records: encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+		})
+		active = append(active, i)
+	}
+	dbResults := messagedb.StoreAppendBatch(ctx, dbItems)
+	if len(dbResults) != len(active) {
+		for _, index := range active {
+			results[index].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	for i, index := range active {
+		item := dbResults[i]
+		if len(items[index].Request.Records) == 0 {
+			results[index] = AppendLeaderBatchResult{BaseOffset: item.BaseOffset + 1, LastOffset: item.BaseOffset, Err: item.Err}
+			continue
+		}
+		results[index] = AppendLeaderBatchResult{BaseOffset: item.BaseOffset + 1, LastOffset: item.LastOffset, Err: item.Err}
+	}
+	return results
+}
+
+// ApplyFollowerBatch applies follower records for multiple channels through one message DB batch request when possible.
+func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []ApplyFollowerBatchItem) []ApplyFollowerBatchResult {
+	results := make([]ApplyFollowerBatchResult, len(items))
+	if len(items) == 0 {
+		return results
+	}
+	if f == nil || f.engine == nil {
+		for i := range results {
+			results[i].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	dbItems := make([]messagedb.ApplyFetchBatchItem, 0, len(items))
+	active := make([]int, 0, len(items))
+	for i, item := range items {
+		dbStore := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
+		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
+			Store: dbStore,
+			Request: channel.ApplyFetchStoreRequest{
+				Records: encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			},
+		})
+		active = append(active, i)
+	}
+	dbResults := messagedb.StoreApplyFetchTrustedBatch(ctx, dbItems)
+	if len(dbResults) != len(active) {
+		for _, index := range active {
+			results[index].Err = ch.ErrInvalidConfig
+		}
+		return results
+	}
+	for i, index := range active {
+		results[index] = ApplyFollowerBatchResult{LEO: dbResults[i].LEO, Err: dbResults[i].Err}
+	}
+	return results
+}
+
 // Close closes the wrapped message DB engine.
 func (f *MessageDBFactory) Close() error {
 	if f == nil || f.engine == nil {
@@ -136,7 +213,7 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{Records: a.encodeRecords(req.Records)})
+	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{Records: encodeRecordsForMessageDB(a.id, req.Records)})
 	if err != nil {
 		return ApplyFollowerResult{}, err
 	}
@@ -224,9 +301,13 @@ func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, chec
 func (a *messageDBChannelStoreAdapter) Close() error { return nil }
 
 func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []channel.Record {
+	return encodeRecordsForMessageDB(a.id, records)
+}
+
+func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.Record {
 	out := make([]channel.Record, len(records))
 	for i, record := range records {
-		msg := channel.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: a.id.ID, ChannelType: a.id.Type, Payload: cloneBytes(record.Payload)}
+		msg := channel.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type, Payload: cloneBytes(record.Payload)}
 		payload, _ := encodeDBCompatibleMessage(msg)
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}

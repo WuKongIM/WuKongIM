@@ -168,6 +168,10 @@ BEGIN {
     add_counter("worker_task_count", phase, value)
   } else if (name == "wukongim_channelv2_worker_task_duration_seconds_sum") {
     add_counter("worker_task_sum", phase, value)
+  } else if (name == "wukongim_channelv2_worker_batch_items_count") {
+    add_counter("worker_batch_count:" label_value(labels, "kind"), phase, value)
+  } else if (name == "wukongim_channelv2_worker_batch_items_sum") {
+    add_counter("worker_batch_items:" label_value(labels, "kind"), phase, value)
   } else if (name == "wukongim_runtime_pool_admission_total") {
     add_counter("runtime_admission:" label_value(labels, "result"), phase, value)
   }
@@ -205,8 +209,32 @@ END {
   if (duration > 0) {
     rpc_pull_qps = (rpc_pull_ok + rpc_pull_err) / duration
   }
+  rpc_pull_batch_calls = counter_delta("worker_batch_count:rpc_pull")
+  rpc_pull_batch_items = counter_delta("worker_batch_items:rpc_pull")
+  rpc_pull_batch_avg = 0
+  if (rpc_pull_batch_calls > 0) {
+    rpc_pull_batch_avg = rpc_pull_batch_items / rpc_pull_batch_calls
+  }
+  rpc_pull_hint_batch_calls = counter_delta("worker_batch_count:rpc_pull_hint")
+  rpc_pull_hint_batch_items = counter_delta("worker_batch_items:rpc_pull_hint")
+  rpc_pull_hint_batch_avg = 0
+  if (rpc_pull_hint_batch_calls > 0) {
+    rpc_pull_hint_batch_avg = rpc_pull_hint_batch_items / rpc_pull_hint_batch_calls
+  }
+  store_append_batch_calls = counter_delta("worker_batch_count:store_append")
+  store_append_batch_items = counter_delta("worker_batch_items:store_append")
+  store_append_batch_avg = 0
+  if (store_append_batch_calls > 0) {
+    store_append_batch_avg = store_append_batch_items / store_append_batch_calls
+  }
+  store_apply_batch_calls = counter_delta("worker_batch_count:store_apply")
+  store_apply_batch_items = counter_delta("worker_batch_items:store_apply")
+  store_apply_batch_avg = 0
+  if (store_apply_batch_calls > 0) {
+    store_apply_batch_avg = store_apply_batch_items / store_apply_batch_calls
+  }
 
-  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.3f\t%.3f\t%.0f\t%.3f\n",
+  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.3f\t%.3f\t%.3f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\n",
     tag,
     node,
     active_total,
@@ -245,5 +273,17 @@ END {
     avg_delta("append_batch_bytes_sum", "append_batch_count"),
     avg_delta_ms("append_batch_wait_sum", "append_batch_count"),
     counter_delta("worker_task_count"),
-    avg_delta_ms("worker_task_sum", "worker_task_count")
+    avg_delta_ms("worker_task_sum", "worker_task_count"),
+    rpc_pull_batch_calls,
+    rpc_pull_batch_items,
+    rpc_pull_batch_avg,
+    rpc_pull_hint_batch_calls,
+    rpc_pull_hint_batch_items,
+    rpc_pull_hint_batch_avg,
+    store_append_batch_calls,
+    store_append_batch_items,
+    store_append_batch_avg,
+    store_apply_batch_calls,
+    store_apply_batch_items,
+    store_apply_batch_avg
 }

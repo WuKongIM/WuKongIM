@@ -103,7 +103,11 @@ storage is suspected, compare
 `storage_commit_request_p99_seconds` against
 `storage_commit_total_p99_seconds`: a high request p99 with low grouped commit
 total points at caller-visible queue/admission wait, while both rising points at
-the physical batch path.
+the physical batch path. If the caller-visible tail is on the `leader_append`
+or `follower_apply` lane, also compare
+`wukongim_channelv2_worker_batch_items{kind="store_append"}` and
+`wukongim_channelv2_worker_batch_items{kind="store_apply"}` count/sum deltas to
+confirm whether ChannelV2 worker-level store batching is active.
 When
 post-store quorum wait rises, use
 `channelv2_append_quorum_follower_pull_wait_p99_seconds`,
@@ -366,6 +370,8 @@ histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]
 Storage commit pressure:
 
 ```promql
+wukongim_runtime_pool_queue_depth{component="db",pool="message_commit"}
+wukongim_runtime_pool_queue_depth{component="db",pool="message_commit"} / wukongim_runtime_pool_queue_capacity{component="db",pool="message_commit"}
 wukongim_storage_commit_queue_depth
 histogram_quantile(0.99, sum by (le, store, lane, result) (rate(wukongim_storage_commit_request_duration_seconds_bucket[1m])))
 histogram_quantile(0.99, sum by (le, store, stage, result) (rate(wukongim_storage_commit_batch_duration_seconds_bucket[1m])))
@@ -410,7 +416,7 @@ Interpretation matrix:
 | `channelv2_replication_follower_pull_hint_to_submit_p99_seconds` rises | follower wakeup/scheduling wait | PullHint delivery, parked follower state, inflight pull suppression, due scheduler |
 | `channelv2_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
 | `channelv2_need_meta_pull_rpc_p99_seconds` rises | follower bootstrap metadata pull wait | NeedMeta leader pull handling, metadata clone path, transport RPC latency |
-| `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, follower message DB commit latency |
+| `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, `store_apply` worker batch size, follower message DB commit latency |
 | `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower progress return wait | progress ACK RPC, fallback next-pull AckOffset path, leader ack response path |
 | `channelv2_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
 | `channelv2_need_meta_pull_retry_count` or `channelv2_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -291,6 +293,129 @@ func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
 	}
 }
 
+func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := &batchWorkerTransport{}
+	obs := &recordingPoolPressureObserver{}
+	pool, err := NewPool(PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+	pool.SetQueueObserver(obs)
+
+	first := Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:a", OpID: 1},
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}},
+	}
+	second := Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:b", OpID: 2},
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 3}},
+	}
+	require.NoError(t, pool.Submit(context.Background(), first))
+	require.NoError(t, pool.Submit(context.Background(), second))
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, tr.PullBatchCalls())
+	require.Equal(t, 0, tr.PullCalls())
+	require.Equal(t, 1, obs.batchCalls["rpc:rpc_pull:ok"])
+	require.Equal(t, 2, obs.batchItems["rpc:rpc_pull:ok"])
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := &batchWorkerTransport{}
+	obs := &recordingPoolPressureObserver{}
+	pool, err := NewPool(PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+	pool.SetQueueObserver(obs)
+
+	first := Task{
+		Kind:        TaskRPCPullHint,
+		Fence:       ch.Fence{ChannelKey: "1:a", OpID: 1},
+		RPCPullHint: &RPCPullHintTask{Node: 2, Request: transport.PullHintRequest{ChannelKey: "1:a", LeaderLEO: 1}},
+	}
+	second := Task{
+		Kind:        TaskRPCPullHint,
+		Fence:       ch.Fence{ChannelKey: "1:b", OpID: 2},
+		RPCPullHint: &RPCPullHintTask{Node: 2, Request: transport.PullHintRequest{ChannelKey: "1:b", LeaderLEO: 2}},
+	}
+	require.NoError(t, pool.Submit(context.Background(), first))
+	require.NoError(t, pool.Submit(context.Background(), second))
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, tr.PullHintBatchCalls())
+	require.Equal(t, 0, tr.PullHintCalls())
+	require.Equal(t, 1, obs.batchCalls["rpc:rpc_pull_hint:ok"])
+	require.Equal(t, 2, obs.batchItems["rpc:rpc_pull_hint:ok"])
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	stores := &batchApplyStoreFactory{}
+	obs := &recordingPoolPressureObserver{}
+	pool, err := NewPool(PoolConfig{Name: "store-apply", Workers: 1, QueueSize: 8}, Deps{Stores: stores}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+	pool.SetQueueObserver(obs)
+
+	first := Task{
+		Kind:       TaskStoreApply,
+		Fence:      ch.Fence{ChannelKey: "1:a", OpID: 1},
+		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "a", Type: 1}, Records: []ch.Record{{ID: 1, Index: 1, Payload: []byte("a")}}},
+	}
+	second := Task{
+		Kind:       TaskStoreApply,
+		Fence:      ch.Fence{ChannelKey: "1:b", OpID: 2},
+		StoreApply: &StoreApplyTask{ChannelID: ch.ChannelID{ID: "b", Type: 1}, Records: []ch.Record{{ID: 2, Index: 3, Payload: []byte("b")}}},
+	}
+	require.NoError(t, pool.Submit(context.Background(), first))
+	require.NoError(t, pool.Submit(context.Background(), second))
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, stores.BatchCalls())
+	require.Equal(t, 0, stores.SingleApplyCalls())
+	require.Equal(t, 1, obs.batchCalls["store-apply:store_apply:ok"])
+	require.Equal(t, 2, obs.batchItems["store-apply:store_apply:ok"])
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+	require.ElementsMatch(t, []uint64{1, 3}, resultStoreApplyLEOs(sink.Results()))
+}
+
+func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	stores := &batchAppendStoreFactory{}
+	obs := &recordingPoolPressureObserver{}
+	pool, err := NewPool(PoolConfig{Name: "store-append", Workers: 1, QueueSize: 8}, Deps{Stores: stores}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+	pool.SetQueueObserver(obs)
+
+	first := Task{
+		Kind:        TaskStoreAppend,
+		Fence:       ch.Fence{ChannelKey: "1:a", OpID: 1},
+		StoreAppend: &StoreAppendTask{ChannelID: ch.ChannelID{ID: "a", Type: 1}, Records: []ch.Record{{ID: 1, Payload: []byte("a")}}},
+	}
+	second := Task{
+		Kind:        TaskStoreAppend,
+		Fence:       ch.Fence{ChannelKey: "1:b", OpID: 2},
+		StoreAppend: &StoreAppendTask{ChannelID: ch.ChannelID{ID: "b", Type: 1}, Records: []ch.Record{{ID: 2, Payload: []byte("b")}}},
+	}
+	require.NoError(t, pool.Submit(context.Background(), first))
+	require.NoError(t, pool.Submit(context.Background(), second))
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, 1, stores.BatchCalls())
+	require.Equal(t, 0, stores.SingleAppendCalls())
+	require.Equal(t, 1, obs.batchCalls["store-append:store_append:ok"])
+	require.Equal(t, 2, obs.batchItems["store-append:store_append:ok"])
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+	require.ElementsMatch(t, []uint64{1, 1}, resultStoreAppendBaseOffsets(sink.Results()))
+	require.ElementsMatch(t, []uint64{1, 1}, resultStoreAppendLastOffsets(sink.Results()))
+}
+
 func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	sink := &captureSink{}
 	pools, err := NewPools(PoolsConfig{
@@ -352,6 +477,269 @@ func (s *captureSink) Len() int {
 	return len(s.results)
 }
 
+func (s *captureSink) Results() []Result {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Result, len(s.results))
+	copy(out, s.results)
+	return out
+}
+
+func resultOpIDs(results []Result) []ch.OpID {
+	out := make([]ch.OpID, 0, len(results))
+	for _, result := range results {
+		out = append(out, result.Fence.OpID)
+	}
+	return out
+}
+
+func resultStoreApplyLEOs(results []Result) []uint64 {
+	out := make([]uint64, 0, len(results))
+	for _, result := range results {
+		if result.StoreApply == nil {
+			continue
+		}
+		out = append(out, result.StoreApply.LEO)
+	}
+	return out
+}
+
+func resultStoreAppendBaseOffsets(results []Result) []uint64 {
+	out := make([]uint64, 0, len(results))
+	for _, result := range results {
+		if result.StoreAppend == nil {
+			continue
+		}
+		out = append(out, result.StoreAppend.BaseOffset)
+	}
+	return out
+}
+
+func resultStoreAppendLastOffsets(results []Result) []uint64 {
+	out := make([]uint64, 0, len(results))
+	for _, result := range results {
+		if result.StoreAppend == nil {
+			continue
+		}
+		out = append(out, result.StoreAppend.LastOffset)
+	}
+	return out
+}
+
+type batchWorkerTransport struct {
+	mu                 sync.Mutex
+	pullCalls          int
+	pullBatchCalls     int
+	pullHintCalls      int
+	pullHintBatchCalls int
+}
+
+func (t *batchWorkerTransport) Pull(_ context.Context, _ ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	t.mu.Lock()
+	t.pullCalls++
+	t.mu.Unlock()
+	return transport.PullResponse{ChannelKey: req.ChannelKey, LeaderHW: req.NextOffset, LeaderLEO: req.NextOffset}, nil
+}
+
+func (t *batchWorkerTransport) PullBatch(_ context.Context, _ ch.NodeID, req transport.PullBatchRequest) (transport.PullBatchResponse, error) {
+	t.mu.Lock()
+	t.pullBatchCalls++
+	t.mu.Unlock()
+	resp := transport.PullBatchResponse{Items: make([]transport.PullBatchItemResult, len(req.Items))}
+	for i, item := range req.Items {
+		resp.Items[i].Response = transport.PullResponse{ChannelKey: item.ChannelKey, LeaderHW: item.NextOffset, LeaderLEO: item.NextOffset}
+	}
+	return resp, nil
+}
+
+func (t *batchWorkerTransport) Ack(context.Context, ch.NodeID, transport.AckRequest) error {
+	return nil
+}
+
+func (t *batchWorkerTransport) PullHint(context.Context, ch.NodeID, transport.PullHintRequest) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.pullHintCalls++
+	return nil
+}
+
+func (t *batchWorkerTransport) PullHintBatch(_ context.Context, _ ch.NodeID, req transport.PullHintBatchRequest) (transport.PullHintBatchResponse, error) {
+	t.mu.Lock()
+	t.pullHintBatchCalls++
+	t.mu.Unlock()
+	return transport.PullHintBatchResponse{Items: make([]transport.PullHintBatchItemResult, len(req.Items))}, nil
+}
+
+func (t *batchWorkerTransport) Notify(context.Context, ch.NodeID, transport.NotifyRequest) error {
+	return nil
+}
+
+func (t *batchWorkerTransport) PullCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pullCalls
+}
+
+func (t *batchWorkerTransport) PullBatchCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pullBatchCalls
+}
+
+func (t *batchWorkerTransport) PullHintCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pullHintCalls
+}
+
+func (t *batchWorkerTransport) PullHintBatchCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pullHintBatchCalls
+}
+
+type batchApplyStoreFactory struct {
+	mu               sync.Mutex
+	batchCalls       int
+	singleApplyCalls int
+}
+
+func (f *batchApplyStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+	return &batchApplySingleStore{factory: f}, nil
+}
+
+func (f *batchApplyStoreFactory) ApplyFollowerBatch(_ context.Context, items []store.ApplyFollowerBatchItem) []store.ApplyFollowerBatchResult {
+	f.mu.Lock()
+	f.batchCalls++
+	f.mu.Unlock()
+	results := make([]store.ApplyFollowerBatchResult, len(items))
+	for i, item := range items {
+		if len(item.Request.Records) > 0 {
+			results[i].LEO = item.Request.Records[len(item.Request.Records)-1].Index
+		}
+	}
+	return results
+}
+
+func (f *batchApplyStoreFactory) BatchCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.batchCalls
+}
+
+func (f *batchApplyStoreFactory) SingleApplyCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.singleApplyCalls
+}
+
+type batchApplySingleStore struct {
+	factory *batchApplyStoreFactory
+}
+
+func (s *batchApplySingleStore) Load(context.Context) (store.InitialState, error) {
+	return store.InitialState{}, nil
+}
+
+func (s *batchApplySingleStore) AppendLeader(context.Context, store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	return store.AppendLeaderResult{}, nil
+}
+
+func (s *batchApplySingleStore) ApplyFollower(_ context.Context, req store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
+	s.factory.mu.Lock()
+	s.factory.singleApplyCalls++
+	s.factory.mu.Unlock()
+	if len(req.Records) == 0 {
+		return store.ApplyFollowerResult{}, nil
+	}
+	return store.ApplyFollowerResult{LEO: req.Records[len(req.Records)-1].Index}, nil
+}
+
+func (s *batchApplySingleStore) ReadCommitted(context.Context, store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	return store.ReadCommittedResult{}, nil
+}
+
+func (s *batchApplySingleStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
+	return store.ReadLogResult{}, nil
+}
+
+func (s *batchApplySingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error { return nil }
+
+func (s *batchApplySingleStore) Close() error { return nil }
+
+type batchAppendStoreFactory struct {
+	mu                sync.Mutex
+	batchCalls        int
+	singleAppendCalls int
+}
+
+func (f *batchAppendStoreFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {
+	return &batchAppendSingleStore{factory: f}, nil
+}
+
+func (f *batchAppendStoreFactory) AppendLeaderBatch(_ context.Context, items []store.AppendLeaderBatchItem) []store.AppendLeaderBatchResult {
+	f.mu.Lock()
+	f.batchCalls++
+	f.mu.Unlock()
+	results := make([]store.AppendLeaderBatchResult, len(items))
+	for i, item := range items {
+		if len(item.Request.Records) == 0 {
+			continue
+		}
+		results[i].BaseOffset = 1
+		results[i].LastOffset = uint64(len(item.Request.Records))
+	}
+	return results
+}
+
+func (f *batchAppendStoreFactory) BatchCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.batchCalls
+}
+
+func (f *batchAppendStoreFactory) SingleAppendCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.singleAppendCalls
+}
+
+type batchAppendSingleStore struct {
+	factory *batchAppendStoreFactory
+}
+
+func (s *batchAppendSingleStore) Load(context.Context) (store.InitialState, error) {
+	return store.InitialState{}, nil
+}
+
+func (s *batchAppendSingleStore) AppendLeader(_ context.Context, req store.AppendLeaderRequest) (store.AppendLeaderResult, error) {
+	s.factory.mu.Lock()
+	s.factory.singleAppendCalls++
+	s.factory.mu.Unlock()
+	if len(req.Records) == 0 {
+		return store.AppendLeaderResult{}, nil
+	}
+	return store.AppendLeaderResult{BaseOffset: 1, LastOffset: uint64(len(req.Records))}, nil
+}
+
+func (s *batchAppendSingleStore) ApplyFollower(context.Context, store.ApplyFollowerRequest) (store.ApplyFollowerResult, error) {
+	return store.ApplyFollowerResult{}, nil
+}
+
+func (s *batchAppendSingleStore) ReadCommitted(context.Context, store.ReadCommittedRequest) (store.ReadCommittedResult, error) {
+	return store.ReadCommittedResult{}, nil
+}
+
+func (s *batchAppendSingleStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
+	return store.ReadLogResult{}, nil
+}
+
+func (s *batchAppendSingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error {
+	return nil
+}
+
+func (s *batchAppendSingleStore) Close() error { return nil }
+
 type captureWorkerObserver struct {
 	mu       sync.Mutex
 	inflight map[string]int
@@ -397,6 +785,8 @@ type recordingPoolPressureObserver struct {
 	admissions map[string]int
 	waits      map[string]time.Duration
 	tasks      map[string]time.Duration
+	batchCalls map[string]int
+	batchItems map[string]int
 }
 
 func (o *recordingPoolPressureObserver) ensure() {
@@ -406,6 +796,8 @@ func (o *recordingPoolPressureObserver) ensure() {
 		o.admissions = make(map[string]int)
 		o.waits = make(map[string]time.Duration)
 		o.tasks = make(map[string]time.Duration)
+		o.batchCalls = make(map[string]int)
+		o.batchItems = make(map[string]int)
 	}
 }
 
@@ -450,9 +842,32 @@ func (o *recordingPoolPressureObserver) ObserveWorkerTask(pool string, kind Task
 	o.tasks[pool+":"+taskKindTestLabel(kind)+":"+result] += d
 }
 
-func taskKindTestLabel(kind TaskKind) string {
-	if kind == TaskFunc {
-		return "func"
+func (o *recordingPoolPressureObserver) ObserveWorkerBatch(pool string, kind TaskKind, items int, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.ensure()
+	result := "ok"
+	if err != nil {
+		result = "err"
 	}
-	return "other"
+	key := pool + ":" + taskKindTestLabel(kind) + ":" + result
+	o.batchCalls[key]++
+	o.batchItems[key] += items
+}
+
+func taskKindTestLabel(kind TaskKind) string {
+	switch kind {
+	case TaskFunc:
+		return "func"
+	case TaskStoreAppend:
+		return "store_append"
+	case TaskRPCPull:
+		return "rpc_pull"
+	case TaskRPCPullHint:
+		return "rpc_pull_hint"
+	case TaskStoreApply:
+		return "store_apply"
+	default:
+		return "other"
+	}
 }

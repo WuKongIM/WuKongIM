@@ -386,6 +386,51 @@ func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
 	}
 }
 
+func TestHandlePullBatchSubmitsAllPullsBeforeAwaitingResults(t *testing.T) {
+	factory := newServiceBlockingReadLogFactory()
+	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 2, LeaderRecentRecordCacheSize: -1})
+	require.NoError(t, err)
+	defer clusterAPI.Close()
+	svc := clusterAPI.(*cluster)
+
+	metaA := ch.Meta{Key: ch.ChannelKey("1:batch-a"), ID: ch.ChannelID{ID: "batch-a", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	metaB := ch.Meta{Key: ch.ChannelKey("1:batch-b"), ID: ch.ChannelID{ID: "batch-b", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	require.NoError(t, clusterAPI.ApplyMeta(metaA))
+	require.NoError(t, clusterAPI.ApplyMeta(metaB))
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{ChannelID: metaA.ID, Message: ch.Message{MessageID: 11, Payload: []byte("a")}, CommitMode: ch.CommitModeLocal})
+	require.NoError(t, err)
+	_, err = clusterAPI.Append(context.Background(), ch.AppendRequest{ChannelID: metaB.ID, Message: ch.Message{MessageID: 12, Payload: []byte("b")}, CommitMode: ch.CommitModeLocal})
+	require.NoError(t, err)
+
+	respCh := make(chan transport.PullBatchResponse, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		resp, err := svc.HandlePullBatch(context.Background(), transport.PullBatchRequest{Items: []transport.PullRequest{
+			{ChannelKey: metaA.Key, ChannelID: metaA.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+			{ChannelKey: metaB.Key, ChannelID: metaB.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+		}})
+		respCh <- resp
+		errCh <- err
+	}()
+
+	factory.waitReadLogStarted(t)
+	factory.waitReadLogStarted(t)
+	factory.UnblockReadLogs()
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+		resp := <-respCh
+		require.Len(t, resp.Items, 2)
+		require.NoError(t, resp.Items[0].Err)
+		require.NoError(t, resp.Items[1].Err)
+		require.Len(t, resp.Items[0].Response.Records, 1)
+		require.Len(t, resp.Items[1].Response.Records, 1)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pull batch response")
+	}
+}
+
 func TestHandleAckRejectsOrdinaryAckAboveLEOWithoutCompletingQuorumAppend(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	clusterAPI, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1})

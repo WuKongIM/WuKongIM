@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -87,6 +88,12 @@ type CommitCoordinatorObserver interface {
 	ObserveCommitCoordinatorBatch(event CommitCoordinatorBatchEvent)
 }
 
+// CommitCoordinatorQueueObserver receives commit queue depth with its configured capacity.
+type CommitCoordinatorQueueObserver interface {
+	// SetCommitCoordinatorQueue reports the current logical commit queue depth and capacity.
+	SetCommitCoordinatorQueue(depth int, capacity int)
+}
+
 // CommitCoordinatorRequestObserver receives optional logical request wait measurements.
 type CommitCoordinatorRequestObserver interface {
 	// ObserveCommitCoordinatorRequest reports one Submit call without changing commit behavior.
@@ -109,6 +116,40 @@ type ChannelStore struct {
 	log    *ChannelLog
 	key    channel.ChannelKey
 	id     channel.ChannelID
+}
+
+// AppendBatchItem is one channel append request in a cross-channel batch.
+type AppendBatchItem struct {
+	// Store is the channel-scoped store that owns Records.
+	Store *ChannelStore
+	// Records contains messages to append to Store.
+	Records []channel.Record
+}
+
+// AppendBatchResult is the per-item result returned by StoreAppendBatch.
+type AppendBatchResult struct {
+	// BaseOffset is the previous zero-based log end offset returned by Append.
+	BaseOffset uint64
+	// LastOffset is the durable last offset after appending this item.
+	LastOffset uint64
+	// Err is the item-specific append error.
+	Err error
+}
+
+// ApplyFetchBatchItem is one channel apply request in a cross-channel batch.
+type ApplyFetchBatchItem struct {
+	// Store is the channel-scoped store that owns Request.
+	Store *ChannelStore
+	// Request carries the fetched records and optional system state to apply.
+	Request channel.ApplyFetchStoreRequest
+}
+
+// ApplyFetchBatchResult is the per-item result returned by StoreApplyFetchTrustedBatch.
+type ApplyFetchBatchResult struct {
+	// LEO is the store log end offset after applying this item.
+	LEO uint64
+	// Err is the item-specific apply error.
+	Err error
 }
 
 // LogRecord is an offset-addressed compatibility log record.
@@ -274,23 +315,28 @@ func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
 		MaxRequests: cfg.MaxRequests,
 		MaxRecords:  cfg.MaxRecords,
 		MaxBytes:    cfg.MaxBytes,
-		Observer:    commitCoordinatorObserver(cfg.Observer),
+		Observer:    commitCoordinatorObserver(cfg.Observer, cfg.QueueSize),
 	}
 }
 
-func commitCoordinatorObserver(observer CommitCoordinatorObserver) commit.Observer {
+func commitCoordinatorObserver(observer CommitCoordinatorObserver, queueSize int) commit.Observer {
 	if observer == nil {
 		return nil
 	}
-	return commitObserverAdapter{observer: observer}
+	return commitObserverAdapter{observer: observer, queueSize: queueSize}
 }
 
 type commitObserverAdapter struct {
-	observer CommitCoordinatorObserver
+	observer  CommitCoordinatorObserver
+	queueSize int
 }
 
 func (a commitObserverAdapter) SetQueueDepth(depth int) {
 	if a.observer == nil {
+		return
+	}
+	if observer, ok := a.observer.(CommitCoordinatorQueueObserver); ok {
+		observer.SetCommitCoordinatorQueue(depth, a.queueSize)
 		return
 	}
 	a.observer.SetCommitCoordinatorQueueDepth(depth)
@@ -390,24 +436,83 @@ func (s *ChannelStore) appendRecords(ctx context.Context, records []channel.Reco
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 
-	base, err := s.log.loadLEOLocked(ctx)
-	if err != nil {
-		return 0, toChannelError(err)
-	}
-	if len(records) == 0 {
-		return base, nil
-	}
-	rows, err := compatibilityRowsFromRecords(base+1, records)
+	prepared, err := s.prepareAppendRecordsLocked(ctx, records, mode)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
+	if !prepared.hasWrites() {
+		return prepared.baseOffset, nil
+	}
+	if err := s.commitPreparedRowsBatch(ctx, []preparedCommitRows{prepared}, commitLaneLeaderAppend); err != nil {
 		return 0, err
 	}
-	if err := s.commitRowsLocked(ctx, rows, nil, nil, base+uint64(len(rows)), commitLaneLeaderAppend); err != nil {
-		return 0, err
+	return prepared.baseOffset, nil
+}
+
+// StoreAppendBatch appends records for multiple channels in one leader_append commit request when possible.
+func StoreAppendBatch(ctx context.Context, items []AppendBatchItem) []AppendBatchResult {
+	results := make([]AppendBatchResult, len(items))
+	if len(items) == 0 {
+		return results
 	}
-	return base, nil
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctxErr(ctx); err != nil {
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	valid := make([]AppendBatchItem, 0, len(items))
+	indexes := make([]int, 0, len(items))
+	for i, item := range items {
+		if item.Store == nil {
+			results[i].Err = channel.ErrInvalidArgument
+			continue
+		}
+		if err := item.Store.validate(); err != nil {
+			results[i].Err = err
+			continue
+		}
+		valid = append(valid, item)
+		indexes = append(indexes, i)
+	}
+	if len(valid) == 0 {
+		return results
+	}
+	unlock := lockCommitBatchStores(appendBatchStores(valid))
+	defer unlock()
+
+	preparedByEngine := make(map[*Engine][]preparedCommitRows)
+	for i, item := range valid {
+		index := indexes[i]
+		if err := ctxErr(ctx); err != nil {
+			results[index].Err = err
+			continue
+		}
+		prepared, err := item.Store.prepareAppendRecordsLocked(ctx, item.Records, AppendStrict)
+		if err != nil {
+			results[index].Err = err
+			continue
+		}
+		prepared.index = index
+		results[index].BaseOffset = prepared.baseOffset
+		results[index].LastOffset = prepared.nextLEO
+		if !prepared.hasWrites() {
+			continue
+		}
+		preparedByEngine[item.Store.engine] = append(preparedByEngine[item.Store.engine], prepared)
+	}
+	for owner, prepared := range preparedByEngine {
+		if err := commitPreparedRowsBatch(ctx, owner, prepared, commitLaneLeaderAppend); err != nil {
+			err = toChannelError(err)
+			for _, item := range prepared {
+				results[item.index].Err = err
+			}
+		}
+	}
+	return results
 }
 
 // Read returns compatibility records after from offset.
@@ -674,55 +779,207 @@ func (s *ChannelStore) applyFetchedRecords(ctx context.Context, req channel.Appl
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 
+	prepared, err := s.prepareApplyFetchedRecordsLocked(ctx, req, epochPoint, mode)
+	if err != nil {
+		return 0, err
+	}
+	if !prepared.hasWrites() {
+		return prepared.nextLEO, nil
+	}
+	if err := s.commitPreparedRowsBatch(ctx, []preparedCommitRows{prepared}, commitLaneFollowerApply); err != nil {
+		return 0, err
+	}
+	return prepared.nextLEO, nil
+}
+
+// StoreApplyFetchTrustedBatch applies caller-validated follower records for multiple channels in one commit request when possible.
+func StoreApplyFetchTrustedBatch(ctx context.Context, items []ApplyFetchBatchItem) []ApplyFetchBatchResult {
+	results := make([]ApplyFetchBatchResult, len(items))
+	if len(items) == 0 {
+		return results
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctxErr(ctx); err != nil {
+		for i := range results {
+			results[i].Err = err
+		}
+		return results
+	}
+	valid := make([]ApplyFetchBatchItem, 0, len(items))
+	indexes := make([]int, 0, len(items))
+	for i, item := range items {
+		if item.Store == nil {
+			results[i].Err = channel.ErrInvalidArgument
+			continue
+		}
+		if err := item.Store.validate(); err != nil {
+			results[i].Err = err
+			continue
+		}
+		valid = append(valid, item)
+		indexes = append(indexes, i)
+	}
+	if len(valid) == 0 {
+		return results
+	}
+	unlock := lockCommitBatchStores(applyFetchBatchStores(valid))
+	defer unlock()
+
+	preparedByEngine := make(map[*Engine][]preparedCommitRows)
+	for i, item := range valid {
+		index := indexes[i]
+		if err := ctxErr(ctx); err != nil {
+			results[index].Err = err
+			continue
+		}
+		prepared, err := item.Store.prepareApplyFetchedRecordsLocked(ctx, item.Request, nil, AppendTrustedContiguous)
+		if err != nil {
+			results[index].Err = err
+			continue
+		}
+		prepared.index = index
+		results[index].LEO = prepared.nextLEO
+		if !prepared.hasWrites() {
+			continue
+		}
+		preparedByEngine[item.Store.engine] = append(preparedByEngine[item.Store.engine], prepared)
+	}
+	for owner, prepared := range preparedByEngine {
+		if err := commitPreparedRowsBatch(ctx, owner, prepared, commitLaneFollowerApply); err != nil {
+			err = toChannelError(err)
+			for _, item := range prepared {
+				results[item.index].Err = err
+			}
+		}
+	}
+	return results
+}
+
+func appendBatchStores(items []AppendBatchItem) []*ChannelStore {
+	stores := make([]*ChannelStore, 0, len(items))
+	for _, item := range items {
+		if item.Store != nil {
+			stores = append(stores, item.Store)
+		}
+	}
+	return stores
+}
+
+func applyFetchBatchStores(items []ApplyFetchBatchItem) []*ChannelStore {
+	stores := make([]*ChannelStore, 0, len(items))
+	for _, item := range items {
+		if item.Store != nil {
+			stores = append(stores, item.Store)
+		}
+	}
+	return stores
+}
+
+func lockCommitBatchStores(input []*ChannelStore) func() {
+	storesByKey := make(map[*ChannelStore]struct{}, len(input))
+	stores := make([]*ChannelStore, 0, len(input))
+	for _, store := range input {
+		if store == nil {
+			continue
+		}
+		if _, ok := storesByKey[store]; ok {
+			continue
+		}
+		storesByKey[store] = struct{}{}
+		stores = append(stores, store)
+	}
+	sort.SliceStable(stores, func(i, j int) bool { return stores[i].key < stores[j].key })
+	for _, store := range stores {
+		store.log.appendMu.Lock()
+	}
+	return func() {
+		for i := len(stores) - 1; i >= 0; i-- {
+			stores[i].log.appendMu.Unlock()
+		}
+	}
+}
+
+type preparedCommitRows struct {
+	index      int
+	store      *ChannelStore
+	rows       []messageRow
+	checkpoint *Checkpoint
+	point      *EpochPoint
+	baseOffset uint64
+	nextLEO    uint64
+}
+
+func (p preparedCommitRows) hasWrites() bool {
+	return len(p.rows) > 0 || p.checkpoint != nil || p.point != nil
+}
+
+func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records []channel.Record, mode AppendMode) (preparedCommitRows, error) {
 	base, err := s.log.loadLEOLocked(ctx)
 	if err != nil {
-		return 0, toChannelError(err)
+		return preparedCommitRows{}, toChannelError(err)
+	}
+	prepared := preparedCommitRows{store: s, baseOffset: base, nextLEO: base + uint64(len(records))}
+	if len(records) == 0 {
+		return prepared, nil
+	}
+	rows, err := compatibilityRowsFromRecords(base+1, records)
+	if err != nil {
+		return preparedCommitRows{}, err
+	}
+	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
+		return preparedCommitRows{}, err
+	}
+	prepared.rows = rows
+	return prepared, nil
+}
+
+func (s *ChannelStore) prepareApplyFetchedRecordsLocked(ctx context.Context, req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint, mode AppendMode) (preparedCommitRows, error) {
+	base, err := s.log.loadLEOLocked(ctx)
+	if err != nil {
+		return preparedCommitRows{}, toChannelError(err)
 	}
 	nextLEO := base + uint64(len(req.Records))
+	prepared := preparedCommitRows{store: s, baseOffset: base, nextLEO: nextLEO}
 	if req.Checkpoint != nil {
 		if err := validateChannelCheckpoint(*req.Checkpoint); err != nil {
-			return 0, err
+			return preparedCommitRows{}, err
 		}
 		if req.Checkpoint.HW < req.PreviousCommittedHW || req.Checkpoint.HW > nextLEO {
-			return 0, channel.ErrCorruptState
+			return preparedCommitRows{}, channel.ErrCorruptState
 		}
 		if err := s.log.validateCheckpointMonotonic(ctx, checkpointFromChannel(*req.Checkpoint), nextLEO, nextLEO); err != nil {
-			return 0, toChannelError(err)
+			return preparedCommitRows{}, toChannelError(err)
 		}
+		converted := checkpointFromChannel(*req.Checkpoint)
+		prepared.checkpoint = &converted
 	}
-	var point *EpochPoint
 	if epochPoint != nil {
 		if epochPoint.StartOffset != base {
-			return 0, channel.ErrCorruptState
+			return preparedCommitRows{}, channel.ErrCorruptState
 		}
 		shouldWrite, err := s.shouldAppendEpochPoint(ctx, *epochPoint)
 		if err != nil {
-			return 0, err
+			return preparedCommitRows{}, err
 		}
 		if shouldWrite {
 			converted := epochPointFromChannel(*epochPoint)
-			point = &converted
+			prepared.point = &converted
 		}
 	}
-	if len(req.Records) == 0 && req.Checkpoint == nil && point == nil {
-		return base, nil
+	if len(req.Records) == 0 && req.Checkpoint == nil && prepared.point == nil {
+		return prepared, nil
 	}
 	rows, err := compatibilityRowsFromRecords(base+1, req.Records)
 	if err != nil {
-		return 0, err
+		return preparedCommitRows{}, err
 	}
 	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
-		return 0, err
+		return preparedCommitRows{}, err
 	}
-	var checkpoint *Checkpoint
-	if req.Checkpoint != nil {
-		converted := checkpointFromChannel(*req.Checkpoint)
-		checkpoint = &converted
-	}
-	if err := s.commitRowsLocked(ctx, rows, checkpoint, point, nextLEO, commitLaneFollowerApply); err != nil {
-		return 0, err
-	}
-	return nextLEO, nil
+	prepared.rows = rows
+	return prepared, nil
 }
 
 // LoadCheckpoint loads the durable checkpoint.
@@ -1251,6 +1508,73 @@ func (s *ChannelStore) commitRowsLocked(ctx context.Context, rows []messageRow, 
 	}
 	s.publishCommittedRows(rows, nextLEO)
 	return nil
+}
+
+func (s *ChannelStore) commitPreparedRowsBatch(ctx context.Context, prepared []preparedCommitRows, lane string) error {
+	return commitPreparedRowsBatch(ctx, s.engine, prepared, lane)
+}
+
+func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []preparedCommitRows, lane string) error {
+	if len(prepared) == 0 {
+		return nil
+	}
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if owner == nil || owner.engine == nil {
+		return channel.ErrInvalidArgument
+	}
+	request := commit.Request{
+		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
+		Partition: commitRowsLaneName(lane) + ":batch",
+		Records:   preparedRowsRecordCount(prepared),
+		Bytes:     preparedRowsBytes(prepared),
+		Build: func(batch *engine.Batch) error {
+			for _, item := range prepared {
+				if err := item.store.stageCommitRows(batch, item.rows, item.checkpoint, item.point); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Publish: func() error {
+			for _, item := range prepared {
+				item.store.publishCommittedRows(item.rows, item.nextLEO)
+			}
+			return nil
+		},
+	}
+	if committer := owner.commitCoordinator(); committer != nil {
+		if err := committer.Submit(ctx, request); err != nil {
+			return toChannelError(err)
+		}
+		return nil
+	}
+	batch := owner.engine.NewBatch()
+	defer batch.Close()
+	if err := request.Build(batch); err != nil {
+		return err
+	}
+	if err := batch.Commit(true); err != nil {
+		return toChannelError(err)
+	}
+	return request.Publish()
+}
+
+func preparedRowsRecordCount(prepared []preparedCommitRows) int {
+	total := 0
+	for _, item := range prepared {
+		total += len(item.rows)
+	}
+	return total
+}
+
+func preparedRowsBytes(prepared []preparedCommitRows) int {
+	total := 0
+	for _, item := range prepared {
+		total += messageRowsBytes(item.rows)
+	}
+	return total
 }
 
 func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {

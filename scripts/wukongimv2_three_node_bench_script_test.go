@@ -1373,6 +1373,14 @@ wukongim_channelv2_append_batch_wait_duration_seconds_count{node_id="1",node_nam
 wukongim_channelv2_append_batch_wait_duration_seconds_sum{node_id="1",node_name="node-1"} 0.015
 wukongim_channelv2_worker_task_duration_seconds_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 40
 wukongim_channelv2_worker_task_duration_seconds_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 0.200
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="rpc_pull",result="ok"} 2
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="rpc_pull",result="ok"} 8
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="rpc_pull_hint",result="ok"} 1
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="rpc_pull_hint",result="ok"} 3
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 6
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 12
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="store_apply",result="ok"} 4
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="store_apply",result="ok"} 10
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} 2
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="scheduler",queue="scheduler",priority="rpc",result="busy"} 1
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="slot",pool="scheduler",queue="scheduler",priority="none",result="dirty"} 4
@@ -1407,6 +1415,14 @@ wukongim_channelv2_append_batch_wait_duration_seconds_count{node_id="1",node_nam
 wukongim_channelv2_append_batch_wait_duration_seconds_sum{node_id="1",node_name="node-1"} 0.027
 wukongim_channelv2_worker_task_duration_seconds_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 55
 wukongim_channelv2_worker_task_duration_seconds_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 0.320
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="rpc_pull",result="ok"} 6
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="rpc_pull",result="ok"} 26
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="rpc_pull_hint",result="ok"} 3
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="rpc_pull_hint",result="ok"} 11
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="store_append",result="ok"} 16
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="store_append",result="ok"} 58
+wukongim_channelv2_worker_batch_items_count{node_id="1",node_name="node-1",kind="store_apply",result="ok"} 9
+wukongim_channelv2_worker_batch_items_sum{node_id="1",node_name="node-1",kind="store_apply",result="ok"} 31
 wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 7
 wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 10
 wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 200
@@ -1436,7 +1452,7 @@ wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="
 		t.Fatalf("summary awk failed: %v\n%s", err, output)
 	}
 
-	want := "qps_1000\tnode1\t17\t8\t9\t4\t12\t6\t7\t0.700\t200\t0.500\t8\t0.750\t3\t2\t1\t5\t2\t5\t5\t1\t15\t2\t3\t10\t1\t1.100\t60\t10\t3\t10\t6.000\t3\t4.000\t200.000\t4.000\t15\t8.000\n"
+	want := "qps_1000\tnode1\t17\t8\t9\t4\t12\t6\t7\t0.700\t200\t0.500\t8\t0.750\t3\t2\t1\t5\t2\t5\t5\t1\t15\t2\t3\t10\t1\t1.100\t60\t10\t3\t10\t6.000\t3\t4.000\t200.000\t4.000\t15\t8.000\t4\t18\t4.500\t2\t8\t4.000\t10\t46\t4.600\t5\t21\t4.200\n"
 	if string(output) != want {
 		t.Fatalf("unexpected summary row:\nwant %q\n got %q", want, output)
 	}
@@ -1452,6 +1468,38 @@ env | LC_ALL=C sort | grep -E '^(WK_BENCH_|WK_CLUSTER_|WK_PPROF_)' > "` + callsD
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRuntimePoolPressureSummaryAwkReportsTimeoutAdmissions(t *testing.T) {
+	root := repoRoot(t)
+	before := filepath.Join(t.TempDir(), "before.prom")
+	after := filepath.Join(t.TempDir(), "after.prom")
+	writeFile(t, before, `wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="db",pool="message_commit",queue="commit",priority="none",result="timeout"} 2
+`)
+	writeFile(t, after, `wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="db",pool="message_commit",queue="commit",priority="none",result="timeout"} 5
+`)
+
+	cmd := exec.Command("awk",
+		"-v", "tag=000100",
+		"-v", "node=node1",
+		"-f", filepath.Join(root, "scripts", "runtime-pool-pressure-summary.awk"),
+		before,
+		after,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("runtime pool pressure awk failed: %v\n%s", err, output)
+	}
+	summary := string(output)
+	for _, want := range []string{
+		"000100\tnode1\tdb\tmessage_commit\tcommit\tnone",
+		"admission_timeout",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("runtime pool pressure awk missing %q:\n%s", want, summary)
+		}
 	}
 }
 

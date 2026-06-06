@@ -38,4 +38,8 @@ const (
 	RPCDeliveryPush
 	// RPCDeliveryFanout serves internalv2 authority-node delivery fanout tasks.
 	RPCDeliveryFanout
+	// RPCChannelPullBatch serves grouped ChannelV2 follower pull requests.
+	RPCChannelPullBatch
+	// RPCChannelPullHintBatch serves grouped ChannelV2 pull hints.
+	RPCChannelPullHintBatch
 )

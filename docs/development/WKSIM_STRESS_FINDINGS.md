@@ -3,6 +3,53 @@
 This document records issues found while running the Docker Compose `wk-sim`
 load loop. Keep entries concise so the final review is easy to scan.
 
+## 2026-06-06 ChannelV2 Worker-Level Store Batch Loop
+
+Environment:
+- Local `cmd/wukongimv2` clean three-node cluster started by
+  `scripts/bench-wukongimv2-three-nodes-real-qps.sh`.
+- Workload: 1000 group channels, 4096 users, 10 members per channel, 128B
+  payload, `sender_pick=round_robin`, 30s measured run, real-QPS gate
+  `actual/offered >= 0.95`, `send_errors=0`, and p99 gate `400ms`.
+- Evidence:
+  - Pre store-batch baseline:
+    `docs/development/perf-runs/20260606-110450-three-node-real-qps/`
+  - Follower apply batch run:
+    `docs/development/perf-runs/20260606-115621-three-node-real-qps/`
+  - Leader append plus follower apply batch run:
+    `docs/development/perf-runs/20260606-121830-three-node-real-qps/`
+  - Single-variable append-worker cap experiment:
+    `docs/development/perf-runs/20260606-122244-three-node-real-qps/`
+
+Findings:
+- Cross-node RPC Pull/PullHint batching removed `channelv2-rpc` admission-full
+  pressure, but the first 14k run after that still reached only `7906` actual
+  QPS with p99 `362.7ms`; the bottleneck moved to follower apply and message DB
+  logical commit request wait.
+- Adding worker-level follower apply batching made `store_apply` batches active
+  at average `7.64` items/batch and raised actual QPS to `12431.9`, but p99 was
+  still `500.9ms`. Storage logical request p99 remained about `190-218ms` on
+  the `leader_append` / `follower_apply` lanes.
+- Adding worker-level leader append batching reduced storage request p99 to
+  about `123-155ms`, storage physical commit p99 to about `47-49ms`, p95 to
+  `251.8ms`, and p99 to `413.9ms` at actual `12347.2` QPS. The run still failed
+  the 400ms p99 gate and had one timeout sendack.
+- Capping only `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=128` improved
+  actual/offered to `0.954` and removed send errors, but worsened p99 to
+  `440.7ms`; do not adopt that cap as the default latency fix.
+- Remaining 14k tail is not a full worker queue: runtime pool admission
+  `full=0`, `busy=0`, queue fill stayed low, and the worst pressure remains Slot
+  scheduler dirty/requeued churn. The remaining latency stack is mainly gateway
+  dispatch wait around `194-196ms`, append store wait around `148-169ms`, and
+  quorum ACK/HW wait around `240-243ms`.
+
+Classification:
+- Category: real throughput optimization fixed the dominant ChannelV2 RPC and
+  storage logical-request bottlenecks, but local 14k still misses the p99 gate by
+  a small margin. Continue from gateway async SEND dispatch wait, ChannelV2
+  append batching cadence, quorum progress return, and Slot scheduler churn
+  before adding more workers.
+
 ## 2026-06-03 wukongimv2 Send Path Real-QPS Loop
 
 Environment:

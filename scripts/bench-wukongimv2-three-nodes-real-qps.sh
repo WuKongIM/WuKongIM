@@ -447,6 +447,9 @@ append_runtime_pool_pressure_display() {
         max_inflight_util = inflight_util
       }
       score = fill + inflight_util
+      if ($22 != "") {
+        score += 1
+      }
       if (($18 + $19 + $20 + $21) > 0) {
         score += 1
       }
@@ -489,6 +492,9 @@ runtime_pool_pressure_markdown() {
         max_inflight_util = inflight_util
       }
       score = fill + inflight_util
+      if ($22 != "") {
+        score += 1
+      }
       if (($18 + $19 + $20 + $21) > 0) {
         score += 1
       }

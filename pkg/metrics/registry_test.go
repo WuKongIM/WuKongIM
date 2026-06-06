@@ -246,6 +246,7 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveReplicationStage("follower_pull_rpc", "ok", 19*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("store_append", "ok", 11*time.Millisecond)
 	reg.ChannelV2.ObserveWorkerResult("rpc_pull", "ok", 13*time.Millisecond)
+	reg.ChannelV2.ObserveWorkerBatch("rpc_pull", "ok", 3)
 	reg.ChannelV2.SetChannelRuntimeCount(2, "leader", 17)
 	reg.ChannelV2.ObserveChannelActivationRejected("max_channels")
 	reg.ChannelV2.SetFollowerParkedCount(2, 11)
@@ -353,6 +354,17 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"kind":      "rpc_pull",
 		"result":    "ok",
 	})
+
+	workerBatch := requireMetricFamily(t, families, "wukongim_channelv2_worker_batch_items")
+	require.Len(t, workerBatch.GetMetric(), 1)
+	workerBatchPull := findMetricByLabels(t, workerBatch, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"kind":      "rpc_pull",
+		"result":    "ok",
+	})
+	require.Equal(t, uint64(1), workerBatchPull.GetHistogram().GetSampleCount())
+	require.Equal(t, float64(3), workerBatchPull.GetHistogram().GetSampleSum())
 
 	rpcPullTotal := requireMetricFamily(t, families, "wukongim_channelv2_rpc_pull_total")
 	require.Len(t, rpcPullTotal.GetMetric(), 1)

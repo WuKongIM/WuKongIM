@@ -23,6 +23,10 @@ const (
 	kindAppendResponse
 	kindAppendBatch
 	kindAppendBatchResponse
+	kindPullBatch
+	kindPullBatchResponse
+	kindPullHintBatch
+	kindPullHintBatchResponse
 )
 
 // EncodePullRequest encodes a ChannelV2 pull request.
@@ -52,6 +56,30 @@ func encodePullResponse(resp channeltransport.PullResponse) ([]byte, error) {
 func decodePullResponse(data []byte) (channeltransport.PullResponse, error) {
 	var resp channeltransport.PullResponse
 	return resp, decodeRPCResult(data, kindPullResponse, &resp)
+}
+func encodePullBatchRequest(req channeltransport.PullBatchRequest) ([]byte, error) {
+	return encodeFrame(kindPullBatch, appendPullBatchRequest(nil, req)), nil
+}
+func decodePullBatchRequest(data []byte) (channeltransport.PullBatchRequest, error) {
+	payload, err := decodeFrame(data, kindPullBatch)
+	if err != nil {
+		return channeltransport.PullBatchRequest{}, err
+	}
+	req, offset, err := readPullBatchRequest(payload, 0)
+	if err != nil {
+		return channeltransport.PullBatchRequest{}, err
+	}
+	if offset != len(payload) {
+		return channeltransport.PullBatchRequest{}, fmt.Errorf("channels: trailing pull batch request bytes")
+	}
+	return req, nil
+}
+func encodePullBatchResponse(resp channeltransport.PullBatchResponse) ([]byte, error) {
+	return encodeRPCResult(kindPullBatchResponse, resp, nil)
+}
+func decodePullBatchResponse(data []byte) (channeltransport.PullBatchResponse, error) {
+	var resp channeltransport.PullBatchResponse
+	return resp, decodeRPCResult(data, kindPullBatchResponse, &resp)
 }
 func encodeAckRequest(req channeltransport.AckRequest) ([]byte, error) {
 	return encodeFrame(kindAck, appendAckRequest(nil, req)), nil
@@ -86,6 +114,30 @@ func decodePullHintRequest(data []byte) (channeltransport.PullHintRequest, error
 		return channeltransport.PullHintRequest{}, fmt.Errorf("channels: trailing pull hint request bytes")
 	}
 	return req, nil
+}
+func encodePullHintBatchRequest(req channeltransport.PullHintBatchRequest) ([]byte, error) {
+	return encodeFrame(kindPullHintBatch, appendPullHintBatchRequest(nil, req)), nil
+}
+func decodePullHintBatchRequest(data []byte) (channeltransport.PullHintBatchRequest, error) {
+	payload, err := decodeFrame(data, kindPullHintBatch)
+	if err != nil {
+		return channeltransport.PullHintBatchRequest{}, err
+	}
+	req, offset, err := readPullHintBatchRequest(payload, 0)
+	if err != nil {
+		return channeltransport.PullHintBatchRequest{}, err
+	}
+	if offset != len(payload) {
+		return channeltransport.PullHintBatchRequest{}, fmt.Errorf("channels: trailing pull hint batch request bytes")
+	}
+	return req, nil
+}
+func encodePullHintBatchResponse(resp channeltransport.PullHintBatchResponse) ([]byte, error) {
+	return encodeRPCResult(kindPullHintBatchResponse, resp, nil)
+}
+func decodePullHintBatchResponse(data []byte) (channeltransport.PullHintBatchResponse, error) {
+	var resp channeltransport.PullHintBatchResponse
+	return resp, decodeRPCResult(data, kindPullHintBatchResponse, &resp)
 }
 func encodeNotifyRequest(req channeltransport.NotifyRequest) ([]byte, error) {
 	return encodeFrame(kindNotify, appendNotifyRequest(nil, req)), nil
@@ -250,6 +302,10 @@ func appendRPCPayload(dst []byte, payload any) ([]byte, bool) {
 	switch v := payload.(type) {
 	case channeltransport.PullResponse:
 		return appendPullResponse(dst, v), true
+	case channeltransport.PullBatchResponse:
+		return appendPullBatchResponse(dst, v), true
+	case channeltransport.PullHintBatchResponse:
+		return appendPullHintBatchResponse(dst, v), true
 	case ch.AppendResult:
 		return appendAppendResult(dst, v), true
 	case ch.AppendBatchResult:
@@ -264,6 +320,10 @@ func readRPCPayload(body []byte, offset int, payload any) (int, error) {
 	switch v := payload.(type) {
 	case *channeltransport.PullResponse:
 		*v, offset, err = readPullResponse(body, offset)
+	case *channeltransport.PullBatchResponse:
+		*v, offset, err = readPullBatchResponse(body, offset)
+	case *channeltransport.PullHintBatchResponse:
+		*v, offset, err = readPullHintBatchResponse(body, offset)
 	case *ch.AppendResult:
 		*v, offset, err = readAppendResult(body, offset)
 	case *ch.AppendBatchResult:
@@ -376,6 +436,72 @@ func readPullResponse(body []byte, offset int) (channeltransport.PullResponse, i
 	return resp, offset, nil
 }
 
+func appendPullBatchRequest(dst []byte, req channeltransport.PullBatchRequest) []byte {
+	dst = appendUvarint(dst, uint64(len(req.Items)))
+	for _, item := range req.Items {
+		dst = appendPullRequest(dst, item)
+	}
+	return dst
+}
+
+func readPullBatchRequest(body []byte, offset int) (channeltransport.PullBatchRequest, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return channeltransport.PullBatchRequest{}, offset, err
+	}
+	length, err := readCollectionLen(count, len(body)-next, "pull batch items")
+	if err != nil {
+		return channeltransport.PullBatchRequest{}, offset, err
+	}
+	offset = next
+	items := make([]channeltransport.PullRequest, length)
+	for i := range items {
+		items[i], offset, err = readPullRequest(body, offset)
+		if err != nil {
+			return channeltransport.PullBatchRequest{}, offset, err
+		}
+	}
+	return channeltransport.PullBatchRequest{Items: items}, offset, nil
+}
+
+func appendPullBatchResponse(dst []byte, resp channeltransport.PullBatchResponse) []byte {
+	dst = appendUvarint(dst, uint64(len(resp.Items)))
+	for _, item := range resp.Items {
+		dst = appendOptionalRPCApplicationError(dst, item.Err)
+		if item.Err == nil {
+			dst = appendPullResponse(dst, item.Response)
+		}
+	}
+	return dst
+}
+
+func readPullBatchResponse(body []byte, offset int) (channeltransport.PullBatchResponse, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return channeltransport.PullBatchResponse{}, offset, err
+	}
+	length, err := readCollectionLen(count, len(body)-next, "pull batch result items")
+	if err != nil {
+		return channeltransport.PullBatchResponse{}, offset, err
+	}
+	offset = next
+	items := make([]channeltransport.PullBatchItemResult, length)
+	for i := range items {
+		items[i].Err, offset, err = readOptionalRPCApplicationError(body, offset)
+		if err != nil {
+			return channeltransport.PullBatchResponse{}, offset, err
+		}
+		if items[i].Err != nil {
+			continue
+		}
+		items[i].Response, offset, err = readPullResponse(body, offset)
+		if err != nil {
+			return channeltransport.PullBatchResponse{}, offset, err
+		}
+	}
+	return channeltransport.PullBatchResponse{Items: items}, offset, nil
+}
+
 func appendAckRequest(dst []byte, req channeltransport.AckRequest) []byte {
 	dst = appendChannelKey(dst, req.ChannelKey)
 	dst = appendUvarint(dst, req.Epoch)
@@ -460,6 +586,62 @@ func readPullHintRequest(body []byte, offset int) (channeltransport.PullHintRequ
 	}
 	req.Reason = channeltransport.PullHintReason(reason)
 	return req, offset, nil
+}
+
+func appendPullHintBatchRequest(dst []byte, req channeltransport.PullHintBatchRequest) []byte {
+	dst = appendUvarint(dst, uint64(len(req.Items)))
+	for _, item := range req.Items {
+		dst = appendPullHintRequest(dst, item)
+	}
+	return dst
+}
+
+func readPullHintBatchRequest(body []byte, offset int) (channeltransport.PullHintBatchRequest, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return channeltransport.PullHintBatchRequest{}, offset, err
+	}
+	length, err := readCollectionLen(count, len(body)-next, "pull hint batch items")
+	if err != nil {
+		return channeltransport.PullHintBatchRequest{}, offset, err
+	}
+	offset = next
+	items := make([]channeltransport.PullHintRequest, length)
+	for i := range items {
+		items[i], offset, err = readPullHintRequest(body, offset)
+		if err != nil {
+			return channeltransport.PullHintBatchRequest{}, offset, err
+		}
+	}
+	return channeltransport.PullHintBatchRequest{Items: items}, offset, nil
+}
+
+func appendPullHintBatchResponse(dst []byte, resp channeltransport.PullHintBatchResponse) []byte {
+	dst = appendUvarint(dst, uint64(len(resp.Items)))
+	for _, item := range resp.Items {
+		dst = appendOptionalRPCApplicationError(dst, item.Err)
+	}
+	return dst
+}
+
+func readPullHintBatchResponse(body []byte, offset int) (channeltransport.PullHintBatchResponse, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return channeltransport.PullHintBatchResponse{}, offset, err
+	}
+	length, err := readCollectionLen(count, len(body)-next, "pull hint batch result items")
+	if err != nil {
+		return channeltransport.PullHintBatchResponse{}, offset, err
+	}
+	offset = next
+	items := make([]channeltransport.PullHintBatchItemResult, length)
+	for i := range items {
+		items[i].Err, offset, err = readOptionalRPCApplicationError(body, offset)
+		if err != nil {
+			return channeltransport.PullHintBatchResponse{}, offset, err
+		}
+	}
+	return channeltransport.PullHintBatchResponse{Items: items}, offset, nil
 }
 
 func appendNotifyRequest(dst []byte, req channeltransport.NotifyRequest) []byte {

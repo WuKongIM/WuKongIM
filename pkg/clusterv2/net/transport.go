@@ -135,9 +135,9 @@ func serviceShardKey(serviceID uint8) uint64 {
 	switch serviceID {
 	case RPCChannelAppend, RPCChannelAppendBatch:
 		return 0
-	case RPCChannelPull:
+	case RPCChannelPull, RPCChannelPullBatch:
 		return 1
-	case RPCChannelAck, RPCChannelPullHint, RPCChannelNotify:
+	case RPCChannelAck, RPCChannelPullHint, RPCChannelPullHintBatch, RPCChannelNotify:
 		return 2
 	default:
 		return uint64(serviceID) + 3

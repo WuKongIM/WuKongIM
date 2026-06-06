@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -25,7 +26,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) {
+func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 
 	gatewayObserver := gatewayMetricsObserver{metrics: reg}
@@ -53,6 +54,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 	channelObserver.ObserveWorkerAdmission("store_append", "ok")
 	channelObserver.ObserveWorkerWait("store_append", worker.TaskStoreAppend, time.Millisecond)
 	channelObserver.ObserveWorkerTask("store_append", worker.TaskStoreAppend, nil, time.Millisecond)
+	channelObserver.ObserveWorkerBatch("rpc", worker.TaskRPCPull, 3, nil)
 	channelObserver.SetReactorMailboxDepth(0, "high", 2)
 	channelObserver.SetReactorMailboxCapacity(0, "high", 16)
 	channelObserver.ObserveReactorMailboxAdmission(0, "high", "full")
@@ -101,6 +103,22 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 		ServiceID: 9,
 		Inflight:  2,
 		Capacity:  4,
+	})
+
+	storageObserver := storageCommitMetricsObserver{metrics: reg}
+	storageObserver.SetCommitCoordinatorQueue(7, 1024)
+	storageObserver.ObserveCommitCoordinatorRequest(messagedb.CommitCoordinatorRequestEvent{
+		Lane:     "leader_append",
+		Records:  2,
+		Bytes:    128,
+		Duration: time.Millisecond,
+		Result:   "timeout",
+	})
+	storageObserver.ObserveCommitCoordinatorBatch(messagedb.CommitCoordinatorBatchEvent{
+		Requests:      1,
+		Records:       2,
+		Bytes:         128,
+		TotalDuration: time.Millisecond,
 	})
 
 	families, err := reg.Gather()
@@ -172,6 +190,26 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 	if got := transportScheduler.GetGauge().GetValue(); got != 3 {
 		t.Fatalf("transport scheduler depth = %v, want 3", got)
 	}
+	dbCommitQueue := findAppMetricByLabels(t, queueDepth, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+		"queue":     "commit",
+		"priority":  "none",
+	})
+	if got := dbCommitQueue.GetGauge().GetValue(); got != 7 {
+		t.Fatalf("db message commit queue depth = %v, want 7", got)
+	}
+
+	queueCapacity := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_capacity")
+	dbCommitQueueCapacity := findAppMetricByLabels(t, queueCapacity, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+		"queue":     "commit",
+		"priority":  "none",
+	})
+	if got := dbCommitQueueCapacity.GetGauge().GetValue(); got != 1024 {
+		t.Fatalf("db message commit queue capacity = %v, want 1024", got)
+	}
 
 	admissions := requireAppMetricFamily(t, families, "wukongim_runtime_pool_admission_total")
 	findAppMetricByLabels(t, admissions, map[string]string{
@@ -194,6 +232,13 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 		"queue":     "scheduler",
 		"priority":  "none",
 		"result":    "dirty",
+	})
+	findAppMetricByLabels(t, admissions, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+		"queue":     "commit",
+		"priority":  "none",
+		"result":    "timeout",
 	})
 
 	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
@@ -220,6 +265,13 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 	if got := transportServiceWorkers.GetGauge().GetValue(); got != 4 {
 		t.Fatalf("transportv2 service workers = %v, want 4", got)
 	}
+	dbCommitWorkers := findAppMetricByLabels(t, workers, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+	})
+	if got := dbCommitWorkers.GetGauge().GetValue(); got != 1 {
+		t.Fatalf("db message commit workers = %v, want 1", got)
+	}
 
 	waitDuration := requireAppMetricFamily(t, families, "wukongim_runtime_pool_wait_duration_seconds")
 	findAppMetricByLabels(t, waitDuration, map[string]string{
@@ -229,6 +281,34 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotAndTransport(t *testing.T) 
 		"priority":  "none",
 		"result":    "ok",
 	})
+	findAppMetricByLabels(t, waitDuration, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+		"queue":     "commit",
+		"priority":  "none",
+		"result":    "timeout",
+	})
+	taskDuration := requireAppMetricFamily(t, families, "wukongim_runtime_pool_task_duration_seconds")
+	findAppMetricByLabels(t, taskDuration, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+		"task":      "commit",
+		"result":    "ok",
+	})
+
+	channelWorkerBatch := requireAppMetricFamily(t, families, "wukongim_channelv2_worker_batch_items")
+	channelWorkerRPCPullBatch := findAppMetricByLabels(t, channelWorkerBatch, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"kind":      "rpc_pull",
+		"result":    "ok",
+	})
+	if got := channelWorkerRPCPullBatch.GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("channelv2 rpc pull batch count = %v, want 1", got)
+	}
+	if got := channelWorkerRPCPullBatch.GetHistogram().GetSampleSum(); got != 3 {
+		t.Fatalf("channelv2 rpc pull batch sum = %v, want 3", got)
+	}
 }
 
 func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {

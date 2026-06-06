@@ -11,6 +11,16 @@ type Factory interface {
 	ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error)
 }
 
+// LeaderAppendBatcher optionally appends leader batches for multiple channels in one store call.
+type LeaderAppendBatcher interface {
+	AppendLeaderBatch(ctx context.Context, items []AppendLeaderBatchItem) []AppendLeaderBatchResult
+}
+
+// FollowerApplyBatcher optionally applies follower batches for multiple channels in one store call.
+type FollowerApplyBatcher interface {
+	ApplyFollowerBatch(ctx context.Context, items []ApplyFollowerBatchItem) []ApplyFollowerBatchResult
+}
+
 // ChannelStore is the narrow persistence contract used by channelv2.
 type ChannelStore interface {
 	Load(ctx context.Context) (InitialState, error)
@@ -43,10 +53,24 @@ type AppendLeaderRequest struct {
 	Sync    bool
 }
 
+// AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.
+type AppendLeaderBatchItem struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Request    AppendLeaderRequest
+}
+
 // AppendLeaderResult returns the durable offset range for a leader append.
 type AppendLeaderResult struct {
 	BaseOffset uint64
 	LastOffset uint64
+}
+
+// AppendLeaderBatchResult returns the result for one AppendLeaderBatchItem.
+type AppendLeaderBatchResult struct {
+	BaseOffset uint64
+	LastOffset uint64
+	Err        error
 }
 
 // ApplyFollowerRequest persists records received from the leader.
@@ -55,9 +79,22 @@ type ApplyFollowerRequest struct {
 	LeaderHW uint64
 }
 
+// ApplyFollowerBatchItem is one channel-scoped follower apply inside a store-level batch.
+type ApplyFollowerBatchItem struct {
+	ChannelKey ch.ChannelKey
+	ChannelID  ch.ChannelID
+	Request    ApplyFollowerRequest
+}
+
 // ApplyFollowerResult returns the follower's durable log end offset.
 type ApplyFollowerResult struct {
 	LEO uint64
+}
+
+// ApplyFollowerBatchResult returns the result for one ApplyFollowerBatchItem.
+type ApplyFollowerBatchResult struct {
+	LEO uint64
+	Err error
 }
 
 // ReadCommittedRequest reads client-visible messages up to MaxSeq.

@@ -30,6 +30,8 @@ type LocalNetwork struct {
 	droppedPullHints map[ch.NodeID]int
 }
 
+var _ BatchClient = (*LocalNetwork)(nil)
+
 // NewLocalNetwork creates an empty in-memory network.
 func NewLocalNetwork() *LocalNetwork {
 	return &LocalNetwork{
@@ -119,6 +121,32 @@ func (n *LocalNetwork) DroppedPullHints(node ch.NodeID) int {
 // Client returns the network as a client.
 func (n *LocalNetwork) Client() Client { return n }
 
+// PullBatch calls a target node server with grouped pull requests.
+func (n *LocalNetwork) PullBatch(ctx context.Context, node ch.NodeID, req PullBatchRequest) (PullBatchResponse, error) {
+	n.mu.Lock()
+	server := n.servers[node]
+	drop := n.DropPull[node]
+	if drop {
+		n.droppedPulls[node]++
+	}
+	n.mu.Unlock()
+	if drop {
+		return PullBatchResponse{}, ch.ErrNotReady
+	}
+	if server == nil {
+		return PullBatchResponse{}, ch.ErrChannelNotFound
+	}
+	if batch, ok := server.(BatchServer); ok {
+		return batch.HandlePullBatch(ctx, req)
+	}
+	resp := PullBatchResponse{Items: make([]PullBatchItemResult, len(req.Items))}
+	for i, item := range req.Items {
+		itemResp, err := server.HandlePull(ctx, item)
+		resp.Items[i] = PullBatchItemResult{Response: itemResp, Err: err}
+	}
+	return resp, nil
+}
+
 // Pull calls a target node server.
 func (n *LocalNetwork) Pull(ctx context.Context, node ch.NodeID, req PullRequest) (PullResponse, error) {
 	n.mu.Lock()
@@ -171,6 +199,31 @@ func (n *LocalNetwork) PullHint(ctx context.Context, node ch.NodeID, req PullHin
 		return ch.ErrChannelNotFound
 	}
 	return server.HandlePullHint(ctx, req)
+}
+
+// PullHintBatch calls a target node server with grouped pull hints.
+func (n *LocalNetwork) PullHintBatch(ctx context.Context, node ch.NodeID, req PullHintBatchRequest) (PullHintBatchResponse, error) {
+	n.mu.Lock()
+	server := n.servers[node]
+	drop := n.DropPullHint[node]
+	if drop {
+		n.droppedPullHints[node]++
+	}
+	n.mu.Unlock()
+	if drop {
+		return PullHintBatchResponse{}, ch.ErrNotReady
+	}
+	if server == nil {
+		return PullHintBatchResponse{}, ch.ErrChannelNotFound
+	}
+	if batch, ok := server.(BatchServer); ok {
+		return batch.HandlePullHintBatch(ctx, req)
+	}
+	resp := PullHintBatchResponse{Items: make([]PullHintBatchItemResult, len(req.Items))}
+	for i, item := range req.Items {
+		resp.Items[i] = PullHintBatchItemResult{Err: server.HandlePullHint(ctx, item)}
+	}
+	return resp, nil
 }
 
 // Notify calls a target node server through the legacy notification path.

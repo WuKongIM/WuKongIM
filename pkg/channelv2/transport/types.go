@@ -16,6 +16,12 @@ type Client interface {
 	Notify(ctx context.Context, node ch.NodeID, req NotifyRequest) error
 }
 
+// BatchClient sends grouped v0 replication RPCs to peer nodes.
+type BatchClient interface {
+	PullBatch(ctx context.Context, node ch.NodeID, req PullBatchRequest) (PullBatchResponse, error)
+	PullHintBatch(ctx context.Context, node ch.NodeID, req PullHintBatchRequest) (PullHintBatchResponse, error)
+}
+
 // Server handles v0 replication RPCs on a node.
 type Server interface {
 	HandlePull(ctx context.Context, req PullRequest) (PullResponse, error)
@@ -23,6 +29,12 @@ type Server interface {
 	HandlePullHint(ctx context.Context, req PullHintRequest) error
 	// HandleNotify is a compatibility wrapper for older leader nudge callers.
 	HandleNotify(ctx context.Context, req NotifyRequest) error
+}
+
+// BatchServer handles grouped v0 replication RPCs on a node.
+type BatchServer interface {
+	HandlePullBatch(ctx context.Context, req PullBatchRequest) (PullBatchResponse, error)
+	HandlePullHintBatch(ctx context.Context, req PullHintBatchRequest) (PullHintBatchResponse, error)
 }
 
 // PullRequest asks a leader for records starting at NextOffset.
@@ -62,6 +74,22 @@ type PullResponse struct {
 	Meta *ch.Meta
 	// Records are the log entries returned to the follower.
 	Records []ch.Record
+}
+
+// PullBatchRequest groups pull requests that target the same leader node.
+type PullBatchRequest struct {
+	Items []PullRequest
+}
+
+// PullBatchItemResult is the per-request result inside a pull batch response.
+type PullBatchItemResult struct {
+	Response PullResponse
+	Err      error
+}
+
+// PullBatchResponse returns one item for each pull request in order.
+type PullBatchResponse struct {
+	Items []PullBatchItemResult
 }
 
 // AckRequest reports follower progress to the leader.
@@ -111,6 +139,21 @@ type PullHintRequest struct {
 	ActivityVersion uint64
 	// Reason explains why the hint was sent.
 	Reason PullHintReason
+}
+
+// PullHintBatchRequest groups pull hints that target the same follower node.
+type PullHintBatchRequest struct {
+	Items []PullHintRequest
+}
+
+// PullHintBatchItemResult is the per-hint result inside a pull hint batch response.
+type PullHintBatchItemResult struct {
+	Err error
+}
+
+// PullHintBatchResponse returns one item for each pull hint request in order.
+type PullHintBatchResponse struct {
+	Items []PullHintBatchItemResult
 }
 
 // PullControl lets the leader control follower pull lifecycle.

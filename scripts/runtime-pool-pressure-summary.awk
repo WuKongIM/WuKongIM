@@ -183,6 +183,7 @@ END {
     busy = counter_delta(key, "busy")
     dirty = counter_delta(key, "dirty")
     requeued = counter_delta(key, "requeued")
+    timeout = counter_delta(key, "timeout")
 
     reason = ""
     if (backlog_min_depth > 0 && depth >= backlog_min_depth) {
@@ -205,6 +206,9 @@ END {
     }
     if (requeued > 0) {
       reason = add_reason(reason, "admission_requeued")
+    }
+    if (timeout > 0) {
+      reason = add_reason(reason, "admission_timeout")
     }
     if (reason == "") {
       continue

@@ -98,6 +98,19 @@ leader-side quorum append wait stages: leader stages show when an append becomes
 quorum-covered, while follower stages show which follower step delayed that
 coverage.
 
+The RPC worker pool may coalesce queued `TaskRPCPull` or `TaskRPCPullHint`
+items that target the same remote node into one transport batch. Each item keeps
+its original fence and completion result, so reactor state transitions still see
+ordinary per-channel worker completions while the hot transport path avoids
+per-channel network round trips under load.
+
+Store worker pools may coalesce queued `TaskStoreAppend` or `TaskStoreApply`
+items when the store factory implements the optional leader-append or
+follower-apply batch surfaces. The message DB adapter uses those surfaces to
+prepare multiple channel mutations and submit them as one `leader_append` or
+`follower_apply` commit request while publishing one fenced completion per
+original channel task.
+
 Leader-side PullHint result counters split submissions, successful RPC returns,
 and low-cardinality error classes. In 10k-channel runs, compare these counters
 with follower replication stage counts to distinguish slow accepted PullHints

@@ -491,6 +491,39 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 			},
 		},
 		{
+			name: "pull batch request",
+			encode: func() ([]byte, error) {
+				return encodePullBatchRequest(channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+					{ChannelKey: "1:room-a", ChannelID: ch.ChannelID{ID: "room-a", Type: 1}, Epoch: 1, LeaderEpoch: 2, Follower: 3, NextOffset: 4, AckOffset: 5, MaxBytes: 1024},
+					{ChannelKey: "1:room-b", ChannelID: ch.ChannelID{ID: "room-b", Type: 1}, Epoch: 6, LeaderEpoch: 7, Follower: 8, NextOffset: 9, AckOffset: 10, MaxBytes: 2048, NeedMeta: true},
+				}})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullBatchRequest(data)
+				require.NoError(t, err)
+				require.Len(t, got.Items, 2)
+				require.Equal(t, ch.ChannelKey("1:room-a"), got.Items[0].ChannelKey)
+				require.Equal(t, uint64(10), got.Items[1].AckOffset)
+				require.True(t, got.Items[1].NeedMeta)
+			},
+		},
+		{
+			name: "pull batch response",
+			encode: func() ([]byte, error) {
+				return encodePullBatchResponse(channeltransport.PullBatchResponse{Items: []channeltransport.PullBatchItemResult{
+					{Response: channeltransport.PullResponse{ChannelKey: "1:room-a", Epoch: 1, LeaderEpoch: 2, LeaderHW: 3, LeaderLEO: 4, ActivityVersion: 5, Control: channeltransport.PullControlContinue, Records: []ch.Record{sampleRecord}}},
+					{Err: ch.ErrStaleMeta},
+				}})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullBatchResponse(data)
+				require.NoError(t, err)
+				require.Len(t, got.Items, 2)
+				require.Equal(t, ch.ChannelKey("1:room-a"), got.Items[0].Response.ChannelKey)
+				require.ErrorIs(t, got.Items[1].Err, ch.ErrStaleMeta)
+			},
+		},
+		{
 			name: "ack request",
 			encode: func() ([]byte, error) {
 				return encodeAckRequest(channeltransport.AckRequest{ChannelKey: "1:room", Epoch: 1, LeaderEpoch: 2, Follower: 3, MatchOffset: 4, ActivityVersion: 5, Stopped: true})
@@ -521,6 +554,35 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, channeltransport.PullHintReasonResume, got.Reason)
 				require.Equal(t, ch.NodeID(3), got.Leader)
+			},
+		},
+		{
+			name: "pull hint batch request",
+			encode: func() ([]byte, error) {
+				return encodePullHintBatchRequest(channeltransport.PullHintBatchRequest{Items: []channeltransport.PullHintRequest{
+					{ChannelKey: "1:room-a", ChannelID: ch.ChannelID{ID: "room-a", Type: 1}, Epoch: 1, LeaderEpoch: 2, Leader: 3, LeaderLEO: 4, ActivityVersion: 5, Reason: channeltransport.PullHintReasonAppend},
+					{ChannelKey: "1:room-b", ChannelID: ch.ChannelID{ID: "room-b", Type: 1}, Epoch: 6, LeaderEpoch: 7, Leader: 8, LeaderLEO: 9, ActivityVersion: 10, Reason: channeltransport.PullHintReasonResume},
+				}})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullHintBatchRequest(data)
+				require.NoError(t, err)
+				require.Len(t, got.Items, 2)
+				require.Equal(t, channeltransport.PullHintReasonAppend, got.Items[0].Reason)
+				require.Equal(t, channeltransport.PullHintReasonResume, got.Items[1].Reason)
+			},
+		},
+		{
+			name: "pull hint batch response",
+			encode: func() ([]byte, error) {
+				return encodePullHintBatchResponse(channeltransport.PullHintBatchResponse{Items: []channeltransport.PullHintBatchItemResult{{}, {Err: ch.ErrNotReady}}})
+			},
+			decode: func(data []byte) {
+				got, err := decodePullHintBatchResponse(data)
+				require.NoError(t, err)
+				require.Len(t, got.Items, 2)
+				require.NoError(t, got.Items[0].Err)
+				require.ErrorIs(t, got.Items[1].Err, ch.ErrNotReady)
 			},
 		},
 		{
@@ -728,6 +790,50 @@ func TestTransportClientDispatchesPull(t *testing.T) {
 	if resp.LeaderHW != 9 || runtime.pullCalls != 1 {
 		t.Fatalf("resp=%#v calls=%d, want HW 9 one call", resp, runtime.pullCalls)
 	}
+}
+
+func TestTransportClientDispatchesPullBatch(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	runtime := &fakeBatchRuntime{pullBatch: channeltransport.PullBatchResponse{Items: []channeltransport.PullBatchItemResult{
+		{Response: channeltransport.PullResponse{ChannelKey: "1:room-a", LeaderHW: 9}},
+		{Err: ch.ErrStaleMeta},
+	}}}
+	RegisterHandlers(network, 2, runtime)
+	client := NewTransportClient(network)
+
+	resp, err := client.PullBatch(context.Background(), 2, channeltransport.PullBatchRequest{Items: []channeltransport.PullRequest{
+		{ChannelKey: "1:room-a"},
+		{ChannelKey: "1:room-b"},
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, runtime.pullBatchCalls)
+	require.Len(t, runtime.lastPullBatch.Items, 2)
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, uint64(9), resp.Items[0].Response.LeaderHW)
+	require.ErrorIs(t, resp.Items[1].Err, ch.ErrStaleMeta)
+}
+
+func TestTransportClientDispatchesPullHintBatch(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	runtime := &fakeBatchRuntime{pullHintBatch: channeltransport.PullHintBatchResponse{Items: []channeltransport.PullHintBatchItemResult{
+		{},
+		{Err: ch.ErrNotReady},
+	}}}
+	RegisterHandlers(network, 2, runtime)
+	client := NewTransportClient(network)
+
+	resp, err := client.PullHintBatch(context.Background(), 2, channeltransport.PullHintBatchRequest{Items: []channeltransport.PullHintRequest{
+		{ChannelKey: "1:room-a"},
+		{ChannelKey: "1:room-b"},
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, runtime.pullHintBatchCalls)
+	require.Len(t, runtime.lastPullHintBatch.Items, 2)
+	require.Len(t, resp.Items, 2)
+	require.NoError(t, resp.Items[0].Err)
+	require.ErrorIs(t, resp.Items[1].Err, ch.ErrNotReady)
 }
 
 func TestServiceDelegatesAppend(t *testing.T) {
@@ -1101,6 +1207,28 @@ func (f *fakeRuntime) LookupCommittedMessage(_ context.Context, _ ch.ChannelID, 
 	}
 	msg, ok := f.committed[messageID]
 	return msg, ok, nil
+}
+
+type fakeBatchRuntime struct {
+	fakeRuntime
+	pullBatch          channeltransport.PullBatchResponse
+	pullHintBatch      channeltransport.PullHintBatchResponse
+	lastPullBatch      channeltransport.PullBatchRequest
+	lastPullHintBatch  channeltransport.PullHintBatchRequest
+	pullBatchCalls     int
+	pullHintBatchCalls int
+}
+
+func (f *fakeBatchRuntime) HandlePullBatch(_ context.Context, req channeltransport.PullBatchRequest) (channeltransport.PullBatchResponse, error) {
+	f.pullBatchCalls++
+	f.lastPullBatch = req
+	return f.pullBatch, nil
+}
+
+func (f *fakeBatchRuntime) HandlePullHintBatch(_ context.Context, req channeltransport.PullHintBatchRequest) (channeltransport.PullHintBatchResponse, error) {
+	f.pullHintBatchCalls++
+	f.lastPullHintBatch = req
+	return f.pullHintBatch, nil
 }
 
 type deadlineForwardClient struct {

@@ -32,9 +32,13 @@ Current flow:
     `pkg/channel` record, checkpoint, history, retention, committed-cursor, and
     query callers onto the typed `ChannelLog` core while keeping seq/offset
     conversion at the channel boundary. Its commit coordinator observer emits
-    low-cardinality batch and logical request wait measurements, splitting
-    leader append and follower apply lanes, without changing durable commit
-    semantics.
+    low-cardinality queue depth/capacity, batch, and logical request wait
+    measurements, splitting leader append and follower apply lanes, without
+    changing durable commit semantics. The leader-append and trusted
+    follower-apply batch helpers can prepare multiple channel stores under
+    their append locks and submit them as one `leader_append` or
+    `follower_apply` commit request while publishing each channel's durable
+    frontier after the shared physical commit succeeds.
 13. Compatibility durable payloads continue to use FNV-64a payload hashes so
     handler idempotency checks compare the same value that was encoded into the
     `channel.Record` payload.

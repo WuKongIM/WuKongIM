@@ -187,6 +187,81 @@ func TestCommitCoordinatorRequestObserverSplitsAppendAndApplyLanes(t *testing.T)
 	}
 }
 
+func TestCommitCoordinatorQueueObserverReceivesEffectiveCapacity(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitQueueCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{QueueSize: 3, Observer: observer})
+
+	store := engine.ForChannel(channel.ChannelKey("queue-capacity:1"), channel.ChannelID{ID: "queue-capacity", Type: 1})
+	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2501, "queue-capacity", "client-append")}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	if !observer.SawCapacity(3) {
+		t.Fatalf("queue capacities = %v, want 3", observer.Capacities())
+	}
+}
+
+func TestStoreApplyFetchTrustedBatchUsesSingleFollowerApplyRequest(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitRequestCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
+
+	storeA := engine.ForChannel(channel.ChannelKey("batch-apply-a:1"), channel.ChannelID{ID: "batch-apply-a", Type: 1})
+	storeB := engine.ForChannel(channel.ChannelKey("batch-apply-b:1"), channel.ChannelID{ID: "batch-apply-b", Type: 1})
+	results := StoreApplyFetchTrustedBatch(context.Background(), []ApplyFetchBatchItem{
+		{Store: storeA, Request: channel.ApplyFetchStoreRequest{Records: []channel.Record{compatTestRecord(t, 3001, "batch-apply-a", "client-a")}}},
+		{Store: storeB, Request: channel.ApplyFetchStoreRequest{Records: []channel.Record{compatTestRecord(t, 3002, "batch-apply-b", "client-b")}}},
+	})
+	if len(results) != 2 {
+		t.Fatalf("results len = %d, want 2", len(results))
+	}
+	for i, result := range results {
+		if result.Err != nil || result.LEO != 1 {
+			t.Fatalf("result[%d] = %+v, want LEO 1 nil error", i, result)
+		}
+	}
+	if got := countString(observer.Lanes(), "follower_apply"); got != 1 {
+		t.Fatalf("follower_apply request count = %d, want 1", got)
+	}
+}
+
+func TestStoreAppendBatchUsesSingleLeaderAppendRequest(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitRequestCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Observer: observer})
+
+	storeA := engine.ForChannel(channel.ChannelKey("batch-append-a:1"), channel.ChannelID{ID: "batch-append-a", Type: 1})
+	storeB := engine.ForChannel(channel.ChannelKey("batch-append-b:1"), channel.ChannelID{ID: "batch-append-b", Type: 1})
+	results := StoreAppendBatch(context.Background(), []AppendBatchItem{
+		{Store: storeA, Records: []channel.Record{compatTestRecord(t, 4001, "batch-append-a", "client-a")}},
+		{Store: storeB, Records: []channel.Record{compatTestRecord(t, 4002, "batch-append-b", "client-b")}},
+	})
+	if len(results) != 2 {
+		t.Fatalf("results len = %d, want 2", len(results))
+	}
+	for i, result := range results {
+		if result.Err != nil || result.BaseOffset != 0 || result.LastOffset != 1 {
+			t.Fatalf("result[%d] = %+v, want base 0 last 1 nil error", i, result)
+		}
+	}
+	if got := countString(observer.Lanes(), "leader_append"); got != 1 {
+		t.Fatalf("leader_append request count = %d, want 1", got)
+	}
+}
+
 func encodeCompatTestMessage(t *testing.T, msg channel.Message) []byte {
 	t.Helper()
 	payload := make([]byte, 0, channel.DurableMessageHeaderSize+64)
@@ -233,6 +308,38 @@ func (c *commitRequestCapture) Lanes() []string {
 	return lanes
 }
 
+type commitQueueCapture struct {
+	mu         sync.Mutex
+	capacities []int
+}
+
+func (c *commitQueueCapture) SetCommitCoordinatorQueueDepth(int) {}
+
+func (c *commitQueueCapture) SetCommitCoordinatorQueue(_ int, capacity int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.capacities = append(c.capacities, capacity)
+}
+
+func (c *commitQueueCapture) ObserveCommitCoordinatorBatch(CommitCoordinatorBatchEvent) {}
+
+func (c *commitQueueCapture) SawCapacity(want int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, capacity := range c.capacities {
+		if capacity == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *commitQueueCapture) Capacities() []int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]int(nil), c.capacities...)
+}
+
 func containsString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -240,6 +347,16 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func countString(values []string, want string) int {
+	count := 0
+	for _, value := range values {
+		if value == want {
+			count++
+		}
+	}
+	return count
 }
 
 func compatTestRecord(t *testing.T, messageID uint64, channelID string, clientMsgNo string) channel.Record {
