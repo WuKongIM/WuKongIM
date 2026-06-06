@@ -388,6 +388,11 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		"poolinflight",
 		"0.700",
 		"# runtime pool pressure",
+		"entries=1",
+		"max_fill=0.700",
+		"full=3",
+		"busy=2",
+		"worst=offered=100",
 		"gateway",
 		"async_send",
 		"queue_backlog",
@@ -396,10 +401,16 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 			t.Fatalf("real-qps display summary missing %q:\n%s", want, display)
 		}
 	}
+	if strings.Contains(display, "component        pool") {
+		t.Fatalf("real-qps display summary should not print per-pool table rows:\n%s", display)
+	}
 
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"entries=1",
+		"max_fill=0.700",
+		"worst=offered=100",
 		"gateway",
 		"async_send",
 		"admission_full",
@@ -407,6 +418,9 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		if !strings.Contains(topSummary, want) {
 			t.Fatalf("real-qps markdown summary missing %q:\n%s", want, topSummary)
 		}
+	}
+	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
+		t.Fatalf("real-qps markdown summary should not print every pressure row:\n%s", topSummary)
 	}
 }
 
@@ -462,6 +476,10 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
 		"# runtime pool pressure",
+		"entries=",
+		"max_fill=0.700",
+		"full=",
+		"worst=tag=000100",
 		"gateway",
 		"async_send",
 		"queue_backlog",
@@ -471,10 +489,16 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 			t.Fatalf("display summary missing runtime pool pressure %q:\n%s", want, display)
 		}
 	}
+	if strings.Contains(display, "component        pool") {
+		t.Fatalf("display summary should not print per-pool table rows:\n%s", display)
+	}
 
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"entries=",
+		"max_fill=0.700",
+		"worst=tag=000100",
 		"gateway",
 		"async_send",
 		"admission_full",
@@ -482,6 +506,9 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		if !strings.Contains(topSummary, want) {
 			t.Fatalf("markdown summary missing runtime pool pressure %q:\n%s", want, topSummary)
 		}
+	}
+	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
+		t.Fatalf("markdown summary should not print every pressure row:\n%s", topSummary)
 	}
 }
 
@@ -1500,14 +1527,14 @@ if [[ "${1:-}" == "run" ]]; then
   if [[ -z "$report_dir" ]]; then
     echo "missing report_dir in scenario" >&2
     exit 2
-	  fi
-	  mkdir -p "$report_dir"
-	  if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
-	    sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
-	  fi
-	  cat > "$report_dir/report.json" <<'JSON'
-	{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
-	JSON
+  fi
+  mkdir -p "$report_dir"
+  if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
+    sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
+  fi
+  cat > "$report_dir/report.json" <<'JSON'
+{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
+JSON
   exit 0
 fi
 echo "unexpected wkbench args: $*" >&2

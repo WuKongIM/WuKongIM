@@ -945,14 +945,37 @@ append_runtime_pool_pressure_display() {
     return
   fi
   awk -F'\t' '
-    BEGIN {
-      printf "%-8s %-18s %-14s %-18s %-12s %-8s %8s %8s %9s %8s %8s %s\n",
-        "tag", "node", "component", "pool", "queue", "priority", "depth", "fill", "inflight", "full", "busy", "reason"
-    }
     NR == 1 { next }
     {
-      printf "%-8s %-18s %-14s %-18s %-12s %-8s %8.0f %8.3f %9.0f %8.0f %8.0f %s\n",
-        $1, $2, $3, $4, $5, $6, $7 + 0, $9 + 0, $13 + 0, $16 + 0, $17 + 0, $20
+      entries++
+      fill = $9 + 0
+      inflight_util = $15 + 0
+      full += $16 + 0
+      busy += $17 + 0
+      dirty += $18 + 0
+      requeued += $19 + 0
+      if (fill > max_fill) {
+        max_fill = fill
+      }
+      if (inflight_util > max_inflight_util) {
+        max_inflight_util = inflight_util
+      }
+      score = fill + inflight_util
+      if (($16 + $17 + $18 + $19) > 0) {
+        score += 1
+      }
+      if (score > worst_score) {
+        worst_score = score
+        worst = sprintf("tag=%s node=%s pool=%s/%s queue=%s priority=%s reason=%s", $1, $2, $3, $4, $5, $6, $20)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "none"
+        exit
+      }
+      printf "entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
+        entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
     }
   ' "$file"
 }
@@ -966,8 +989,35 @@ runtime_pool_pressure_markdown() {
   awk -F'\t' '
     NR == 1 { next }
     {
-      printf "- tag=%s node=%s pool=%s/%s queue=%s priority=%s depth=%.0f fill=%.3f inflight=%.0f full=%.0f busy=%.0f reason=%s\n",
-        $1, $2, $3, $4, $5, $6, $7 + 0, $9 + 0, $13 + 0, $16 + 0, $17 + 0, $20
+      entries++
+      fill = $9 + 0
+      inflight_util = $15 + 0
+      full += $16 + 0
+      busy += $17 + 0
+      dirty += $18 + 0
+      requeued += $19 + 0
+      if (fill > max_fill) {
+        max_fill = fill
+      }
+      if (inflight_util > max_inflight_util) {
+        max_inflight_util = inflight_util
+      }
+      score = fill + inflight_util
+      if (($16 + $17 + $18 + $19) > 0) {
+        score += 1
+      }
+      if (score > worst_score) {
+        worst_score = score
+        worst = sprintf("tag=%s node=%s pool=%s/%s queue=%s priority=%s reason=%s", $1, $2, $3, $4, $5, $6, $20)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      printf "- entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
+        entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
     }
   ' "$file"
 }
