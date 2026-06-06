@@ -404,6 +404,60 @@ runtime_pool_attempt_summary() {
   ' "$metrics"
 }
 
+write_runtime_pool_pressure_summary() {
+  local out="$OUT_DIR/runtime_pool_pressure_summary.tsv"
+  local qps tag attempt_dir file line
+  cat >"$out" <<'EOF'
+offered_qps	attempt_dir	tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
+EOF
+  for qps in "${QPS_VALUES[@]}"; do
+    tag="$(qps_tag "$qps")"
+    attempt_dir="$OUT_DIR/${tag}-qps"
+    file="$attempt_dir/runtime_pool_pressure_summary.tsv"
+    [[ -f "$file" ]] || continue
+    while IFS= read -r line; do
+      [[ "$line" == tag$'\t'* ]] && continue
+      [[ -n "$line" ]] || continue
+      printf '%s\t%s\t%s\n' "$qps" "$attempt_dir" "$line" >>"$out"
+    done <"$file"
+  done
+}
+
+append_runtime_pool_pressure_display() {
+  local file="$1"
+  printf '\n# runtime pool pressure\n'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    BEGIN {
+      printf "%-9s %-18s %-14s %-18s %-12s %-8s %8s %8s %9s %8s %8s %s\n",
+        "offered", "node", "component", "pool", "queue", "priority", "depth", "fill", "inflight", "full", "busy", "reason"
+    }
+    NR == 1 { next }
+    {
+      printf "%-9.0f %-18s %-14s %-18s %-12s %-8s %8.0f %8.3f %9.0f %8.0f %8.0f %s\n",
+        $1 + 0, $4, $5, $6, $7, $8, $9 + 0, $11 + 0, $15 + 0, $18 + 0, $19 + 0, $22
+    }
+  ' "$file"
+}
+
+runtime_pool_pressure_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    NR == 1 { next }
+    {
+      printf "- offered=%.0f node=%s pool=%s/%s queue=%s priority=%s depth=%.0f fill=%.3f inflight=%.0f full=%.0f busy=%.0f reason=%s\n",
+        $1 + 0, $4, $5, $6, $7, $8, $9 + 0, $11 + 0, $15 + 0, $18 + 0, $19 + 0, $22
+    }
+  ' "$file"
+}
+
 append_attempt_summary() {
   local qps="$1"
   local tag="$2"
@@ -482,6 +536,7 @@ append_attempt_summary() {
 }
 
 write_display_summary() {
+  write_runtime_pool_pressure_summary
   awk -F'\t' '
     BEGIN {
       print "# real qps result"
@@ -506,9 +561,12 @@ write_display_summary() {
         offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, pool_fill, pool_inflight, pool_full, pool_busy, note
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
+  append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
 write_markdown_summary() {
+  local runtime_pool_pressure
+  runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Real QPS Evidence
 
@@ -533,9 +591,13 @@ write_markdown_summary() {
 - git: git.txt
 - attempt_dirs: one child directory per offered QPS value
 - runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns
+- runtime_pool_pressure: runtime_pool_pressure_summary.tsv
 
 ## Result
-$(tail -n +2 "$OUT_DIR/summary.txt" 2>/dev/null || true)
+$(awk '/^# runtime pool pressure/ { exit } NR > 1 { print }' "$OUT_DIR/summary.txt" 2>/dev/null || true)
+
+## Runtime Pool Pressure
+${runtime_pool_pressure}
 EOF
 }
 
@@ -596,6 +658,7 @@ EOF
   cat "$OUT_DIR/summary.txt"
   log "details:"
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
+  printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
   printf '  attempts: %s\n' "$OUT_DIR"
 }
 

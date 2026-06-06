@@ -30,6 +30,7 @@ HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-first_online}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
+RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -654,6 +655,46 @@ classify_metrics() {
   done
 }
 
+runtime_pool_sampler_stop_file() {
+  printf '%s\n' "$OUT_DIR/metrics/$1/runtime-pool-sampler.stop"
+}
+
+runtime_pool_sampler_loop() {
+  local tag="$1"
+  local stop_file="$2"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local seq=0
+  local addr id
+  mkdir -p "$metrics_dir"
+  while [[ ! -f "$stop_file" ]]; do
+    for addr in "${METRICS_VALUES[@]}"; do
+      id="$(metric_file_id "$addr")"
+      curl -fsS --max-time 2 "${addr%/}/metrics" >"$metrics_dir/${id}-sample-${seq}.prom" 2>/dev/null || true
+    done
+    seq=$((seq + 1))
+    sleep "$RUNTIME_POOL_SAMPLE_INTERVAL" || true
+  done
+}
+
+start_runtime_pool_sampler() {
+  local tag="$1"
+  local stop_file
+  stop_file="$(runtime_pool_sampler_stop_file "$tag")"
+  rm -f "$stop_file"
+  runtime_pool_sampler_loop "$tag" "$stop_file" >/dev/null 2>&1 &
+  printf '%s\n' "$!"
+}
+
+stop_runtime_pool_sampler() {
+  local tag="$1"
+  local pid="$2"
+  local stop_file
+  [[ -n "$pid" ]] || return
+  stop_file="$(runtime_pool_sampler_stop_file "$tag")"
+  touch "$stop_file"
+  wait "$pid" 2>/dev/null || true
+}
+
 rpc_pull_qps_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -695,9 +736,29 @@ channelv2_metrics_summary() {
   done
 }
 
+runtime_pool_pressure_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/runtime_pool_pressure_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/runtime-pool-pressure-summary.awk"
+  local addr id before after
+  local samples=()
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    [[ -f "$before" && -f "$after" ]] || continue
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      samples=()
+    fi
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" "${samples[@]}" >>"$out" || true
+  done
+}
+
 run_attempt() {
   local qps="$1"
-  local tag report_dir exit_status duration
+  local tag report_dir exit_status duration sampler_pid
   tag="$(qps_tag "$qps")"
   report_dir="$OUT_DIR/reports/${tag}-qps"
   duration="$(duration_seconds "$DURATION")"
@@ -708,6 +769,7 @@ run_attempt() {
 
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
+  sampler_pid="$(start_runtime_pool_sampler "$tag")"
   exit_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
@@ -715,10 +777,12 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+  stop_runtime_pool_sampler "$tag" "$sampler_pid"
   scrape_metrics "$tag" after
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
   channelv2_metrics_summary "$tag" "$duration"
+  runtime_pool_pressure_summary "$tag"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
     printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
@@ -791,6 +855,7 @@ GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}
 START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
 PROFILE_SECONDS=$PROFILE_SECONDS
+RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 EOF
   mkdir -p "$OUT_DIR/config"
   cp "$ROOT_DIR"/scripts/wukongimv2/wukongimv2-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
@@ -869,6 +934,42 @@ write_display_summary() {
       }
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
+  append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
+}
+
+append_runtime_pool_pressure_display() {
+  local file="$1"
+  printf '\n# runtime pool pressure\n'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    BEGIN {
+      printf "%-8s %-18s %-14s %-18s %-12s %-8s %8s %8s %9s %8s %8s %s\n",
+        "tag", "node", "component", "pool", "queue", "priority", "depth", "fill", "inflight", "full", "busy", "reason"
+    }
+    NR == 1 { next }
+    {
+      printf "%-8s %-18s %-14s %-18s %-12s %-8s %8.0f %8.3f %9.0f %8.0f %8.0f %s\n",
+        $1, $2, $3, $4, $5, $6, $7 + 0, $9 + 0, $13 + 0, $16 + 0, $17 + 0, $20
+    }
+  ' "$file"
+}
+
+runtime_pool_pressure_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    NR == 1 { next }
+    {
+      printf "- tag=%s node=%s pool=%s/%s queue=%s priority=%s depth=%.0f fill=%.3f inflight=%.0f full=%.0f busy=%.0f reason=%s\n",
+        $1, $2, $3, $4, $5, $6, $7 + 0, $9 + 0, $13 + 0, $16 + 0, $17 + 0, $20
+    }
+  ' "$file"
 }
 
 print_summary() {
@@ -880,13 +981,16 @@ print_summary() {
   printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
   printf '  channelv2: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
   printf '  runtime_pool: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
+  printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
   printf '  metrics: %s\n' "$OUT_DIR/metrics"
 }
 
 write_evidence_summary() {
   local best_line
-  best_line="$(tail -n 1 "$OUT_DIR/summary.txt" 2>/dev/null || true)"
+  local runtime_pool_pressure
+  best_line="$(grep '^best pass:' "$OUT_DIR/summary.txt" 2>/dev/null || true)"
+  runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Bench Evidence
 
@@ -911,10 +1015,14 @@ write_evidence_summary() {
 - rpc_pull: rpc_pull_qps.tsv
 - channelv2_metrics: channelv2_metrics_summary.tsv
 - runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
+- runtime_pool_pressure: runtime_pool_pressure_summary.tsv
 - summary_tsv: summary.tsv
 
 ## Result
 ${best_line:-best pass: none}
+
+## Runtime Pool Pressure
+${runtime_pool_pressure}
 EOF
 }
 
@@ -937,6 +1045,9 @@ tag	node	rpc_pull_delta	rpc_pull_qps
 EOF
   cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
 tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms
+EOF
+  cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
+tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 EOF
 
   local qps

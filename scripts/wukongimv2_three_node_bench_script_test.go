@@ -257,6 +257,9 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"runtime_pool_queue_depth_max",
 		"runtime_pool_admission_full_delta",
 		"- runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns",
+		"runtime_pool_pressure_summary",
+		"runtime_pool_pressure_summary.tsv",
+		`RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"`,
 		`newer_source="$(find "$ROOT_DIR/cmd/wkbench" "$ROOT_DIR/internal/bench" -type f -newer "$WK_BENCH_BIN" -print -quit)"`,
 		"write_evidence_summary",
 		`ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"`,
@@ -384,9 +387,100 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		"poolfill",
 		"poolinflight",
 		"0.700",
+		"# runtime pool pressure",
+		"gateway",
+		"async_send",
+		"queue_backlog",
 	} {
 		if !strings.Contains(display, want) {
 			t.Fatalf("real-qps display summary missing %q:\n%s", want, display)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"gateway",
+		"async_send",
+		"admission_full",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("real-qps markdown summary missing %q:\n%s", want, topSummary)
+		}
+	}
+}
+
+func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--qps", "100",
+		"--channels", "10",
+		"--users", "20",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--gateway", gatewayAddr,
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_RUNTIME_POOL_PRESSURE=1",
+		"WK_FAKE_WKBENCH_RUN_SLEEP=0.20",
+		"WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL=0.05",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	pressure := readFile(t, filepath.Join(outDir, "runtime_pool_pressure_summary.tsv"))
+	for _, want := range []string{
+		"component\tpool\tqueue\tpriority",
+		"gateway\tasync_send\tsend\tnone",
+		"queue_backlog",
+		"admission_full",
+	} {
+		if !strings.Contains(pressure, want) {
+			t.Fatalf("runtime pool pressure summary missing %q:\n%s", want, pressure)
+		}
+	}
+
+	display := readFile(t, filepath.Join(outDir, "summary.txt"))
+	for _, want := range []string{
+		"# runtime pool pressure",
+		"gateway",
+		"async_send",
+		"queue_backlog",
+		"admission_full",
+	} {
+		if !strings.Contains(display, want) {
+			t.Fatalf("display summary missing runtime pool pressure %q:\n%s", want, display)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"gateway",
+		"async_send",
+		"admission_full",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("markdown summary missing runtime pool pressure %q:\n%s", want, topSummary)
 		}
 	}
 }
@@ -1369,6 +1463,10 @@ tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_q
 000100	node1	7	0.700	200	0.500	8	0.750	3	2	1	5
 000100	node2	4	0.400	300	0.250	12	0.600	2	1	0	1
 OUT
+cat >"$out_dir/runtime_pool_pressure_summary.tsv" <<'OUT'
+tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
+000100	node1	gateway	async_send	send	none	7	10	0.700	200	400	0.500	8	16	0.500	3	2	1	5	queue_backlog,admission_full
+OUT
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -1402,11 +1500,14 @@ if [[ "${1:-}" == "run" ]]; then
   if [[ -z "$report_dir" ]]; then
     echo "missing report_dir in scenario" >&2
     exit 2
-  fi
-  mkdir -p "$report_dir"
-  cat > "$report_dir/report.json" <<'JSON'
-{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
-JSON
+	  fi
+	  mkdir -p "$report_dir"
+	  if [[ -n "${WK_FAKE_WKBENCH_RUN_SLEEP:-}" ]]; then
+	    sleep "$WK_FAKE_WKBENCH_RUN_SLEEP"
+	  fi
+	  cat > "$report_dir/report.json" <<'JSON'
+	{"status":"passed","summary":{"connect_error_rate":0,"sendack_error_rate":0},"metrics":{"counters":{"group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":1,"group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":0},"histograms":{"group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}":{"p50_seconds":0.001,"p95_seconds":0.002,"p99_seconds":0.003,"max_seconds":0.004}}}}
+	JSON
   exit 0
 fi
 echo "unexpected wkbench args: $*" >&2
@@ -1494,8 +1595,28 @@ case "$url" in
   http://127.0.0.1:501*/readyz|http://127.0.0.1:19130/healthz|http://127.0.0.1:19130/v1/stop)
     echo 'ok'
     ;;
-  http://127.0.0.1:501*/metrics)
-    cat <<'OUT'
+	  http://127.0.0.1:501*/metrics)
+	    if [[ "${WK_FAKE_RUNTIME_POOL_PRESSURE:-0}" == "1" ]]; then
+	      count_file="` + callsDir + `/runtime-metrics-count"
+	      count=0
+	      if [[ -f "$count_file" ]]; then
+	        count="$(cat "$count_file")"
+	      fi
+	      count=$((count + 1))
+	      printf '%s\n' "$count" > "$count_file"
+	      cat <<OUT
+wukongim_channelv2_rpc_pull_total 1
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 7
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 10
+wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 512
+wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 1024
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} $count
+OUT
+	      exit 0
+	    fi
+	    cat <<'OUT'
 wukongim_channelv2_rpc_pull_total 1
 OUT
     ;;
