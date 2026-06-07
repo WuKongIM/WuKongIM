@@ -155,8 +155,8 @@ page, and applies the public `active_at/channel_id/channel_type` cursor without
 scanning membership rows. Conversation rows do not store the last message.
 When metrics are enabled, the app maps API conversation-list observations to
 Prometheus metrics for latency, returned items, sparse items, last-message
-loads, last-message errors, and whether another active page exists using only
-low-cardinality labels.
+loads, last-message errors, active-index stale skips, and whether another active
+page exists using only low-cardinality labels.
 
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`

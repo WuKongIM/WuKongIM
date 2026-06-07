@@ -102,7 +102,8 @@ composition root does not provide a conversation usecase, the route fails
 closed with the compatible JSON error envelope. Each request emits a
 low-cardinality conversation-list observation containing result, latency,
 returned item count, sparse item count, last-message load count, last-message
-error count, and whether another active page is available.
+error count, active-index stale skip count, and whether another active page is
+available.
 
 ## Phase-1 Semantics
 
