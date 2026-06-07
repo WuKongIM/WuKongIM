@@ -79,7 +79,7 @@ func (p *Projector) groupStates(ctx context.Context, event messageevents.Message
 	if err != nil {
 		return nil, err
 	}
-	if class.IsSmall {
+	if class.IsSmall && len(class.Members) <= p.smallGroupFanoutLimit {
 		return denseStates(event, class.Members), nil
 	}
 	return sparseSenderState(event, class.Members), nil

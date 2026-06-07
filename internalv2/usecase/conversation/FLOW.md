@@ -55,6 +55,8 @@ retry time. When a member has `JoinSeq`, the projector initializes both
 messages from before the user joined. Group projection requires a member
 classifier and a positive small-group fanout limit; missing wiring returns a
 configuration error instead of silently degrading small groups to sparse rows.
+Even if a classifier marks a channel small, the projector only dense-fans out
+when the returned member count is within the configured limit.
 
 ## Cursor Contract
 

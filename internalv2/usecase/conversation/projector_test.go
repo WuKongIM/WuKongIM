@@ -40,6 +40,47 @@ func TestProjectorPersonalMessageTouchesSenderAndPeer(t *testing.T) {
 	}
 }
 
+func TestProjectorPersonalMessageOrdersSenderSecondParticipantFirst(t *testing.T) {
+	store := &recordingConversationBatchStore{}
+	projector := NewProjector(ProjectorOptions{Store: store})
+
+	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "u1@u2",
+		ChannelType:       testChannelTypePerson,
+		FromUID:           "u2",
+		ServerTimestampMS: 1100,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommitted() error = %v", err)
+	}
+
+	want := []metadb.UserConversationState{
+		{UID: "u2", ChannelID: "u1@u2", ChannelType: int64(testChannelTypePerson), ActiveAt: 1100, UpdatedAt: 1100},
+		{UID: "u1", ChannelID: "u1@u2", ChannelType: int64(testChannelTypePerson), ActiveAt: 1100, UpdatedAt: 1100},
+	}
+	if !reflect.DeepEqual(store.states, want) {
+		t.Fatalf("states = %#v, want %#v", store.states, want)
+	}
+}
+
+func TestProjectorMalformedPersonChannelNoops(t *testing.T) {
+	store := &recordingConversationBatchStore{}
+	projector := NewProjector(ProjectorOptions{Store: store})
+
+	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "u1",
+		ChannelType:       testChannelTypePerson,
+		FromUID:           "u1",
+		ServerTimestampMS: 1200,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommitted() error = %v", err)
+	}
+	if len(store.states) != 0 {
+		t.Fatalf("states = %#v, want no-op for malformed person channel", store.states)
+	}
+}
+
 func TestProjectorSmallGroupFansOutMembers(t *testing.T) {
 	members := &recordingMemberSource{classes: map[string]MemberClass{
 		"g1": {
@@ -73,6 +114,46 @@ func TestProjectorSmallGroupFansOutMembers(t *testing.T) {
 		{UID: "u2", ChannelID: "g1", ChannelType: int64(testChannelTypeGroup), ActiveAt: 2000, UpdatedAt: 2000},
 		{UID: "u3", ChannelID: "g1", ChannelType: int64(testChannelTypeGroup), ActiveAt: 2000, UpdatedAt: 2000},
 	}
+	if !reflect.DeepEqual(store.states, want) {
+		t.Fatalf("states = %#v, want %#v", store.states, want)
+	}
+}
+
+func TestProjectorOverLimitSmallClassFallsBackToSparseSender(t *testing.T) {
+	members := &recordingMemberSource{classes: map[string]MemberClass{
+		"g-over": {
+			IsSmall: true,
+			Members: []Member{
+				{UID: "sender", JoinSeq: 11},
+				{UID: "u2"},
+				{UID: "u3"},
+			},
+		},
+	}}
+	store := &recordingConversationBatchStore{}
+	projector := NewProjector(ProjectorOptions{Store: store, Members: members, SmallGroupFanoutLimit: 2})
+
+	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "g-over",
+		ChannelType:       testChannelTypeGroup,
+		FromUID:           "sender",
+		MessageSeq:        13,
+		ServerTimestampMS: 2500,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommitted() error = %v", err)
+	}
+
+	want := []metadb.UserConversationState{{
+		UID:          "sender",
+		ChannelID:    "g-over",
+		ChannelType:  int64(testChannelTypeGroup),
+		ReadSeq:      10,
+		DeletedToSeq: 10,
+		ActiveAt:     2500,
+		UpdatedAt:    2500,
+		SparseActive: true,
+	}}
 	if !reflect.DeepEqual(store.states, want) {
 		t.Fatalf("states = %#v, want %#v", store.states, want)
 	}
