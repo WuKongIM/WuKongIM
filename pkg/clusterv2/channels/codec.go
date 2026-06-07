@@ -30,6 +30,8 @@ const (
 	kindPullBatchResponse
 	kindPullHintBatch
 	kindPullHintBatchResponse
+	kindLastVisible
+	kindLastVisibleResponse
 )
 
 // EncodePullRequest encodes a ChannelV2 pull request.
@@ -207,6 +209,30 @@ func decodeAppendBatchResponse(data []byte) (ch.AppendBatchResult, error) {
 	var resp ch.AppendBatchResult
 	return resp, decodeRPCResult(data, kindAppendBatchResponse, &resp)
 }
+func encodeLastVisibleRequest(req LastVisibleRequest) ([]byte, error) {
+	return encodeFrame(kindLastVisible, appendLastVisibleRequest(nil, req)), nil
+}
+func decodeLastVisibleRequest(data []byte) (LastVisibleRequest, error) {
+	payload, err := decodeFrame(data, kindLastVisible)
+	if err != nil {
+		return LastVisibleRequest{}, err
+	}
+	req, offset, err := readLastVisibleRequest(payload, 0)
+	if err != nil {
+		return LastVisibleRequest{}, err
+	}
+	if offset != len(payload) {
+		return LastVisibleRequest{}, fmt.Errorf("channels: trailing last visible request bytes")
+	}
+	return req, nil
+}
+func encodeLastVisibleResponse(resp LastVisibleResponse) ([]byte, error) {
+	return encodeRPCResult(kindLastVisibleResponse, resp, nil)
+}
+func decodeLastVisibleResponse(data []byte) (LastVisibleResponse, error) {
+	var resp LastVisibleResponse
+	return resp, decodeRPCResult(data, kindLastVisibleResponse, &resp)
+}
 
 // rpcApplicationError is the compact cross-node form for sentinel errors.
 type rpcApplicationError struct {
@@ -322,6 +348,8 @@ func appendRPCPayload(dst []byte, payload any) ([]byte, bool) {
 		return appendAppendResult(dst, v), true
 	case ch.AppendBatchResult:
 		return appendAppendBatchResult(dst, v), true
+	case LastVisibleResponse:
+		return appendLastVisibleResponse(dst, v), true
 	default:
 		return dst, false
 	}
@@ -340,6 +368,8 @@ func readRPCPayload(body []byte, offset int, payload any, version uint8) (int, e
 		*v, offset, err = readAppendResult(body, offset, version)
 	case *ch.AppendBatchResult:
 		*v, offset, err = readAppendBatchResult(body, offset, version)
+	case *LastVisibleResponse:
+		*v, offset, err = readLastVisibleResponse(body, offset, version)
 	default:
 		return offset, fmt.Errorf("channels: unsupported rpc result target %T", payload)
 	}
@@ -796,6 +826,23 @@ func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBa
 	return req, offset, nil
 }
 
+func appendLastVisibleRequest(dst []byte, req LastVisibleRequest) []byte {
+	dst = appendChannelID(dst, req.ChannelID)
+	return appendUvarint(dst, req.VisibleAfterSeq)
+}
+
+func readLastVisibleRequest(body []byte, offset int) (LastVisibleRequest, int, error) {
+	var req LastVisibleRequest
+	var err error
+	if req.ChannelID, offset, err = readChannelID(body, offset); err != nil {
+		return LastVisibleRequest{}, offset, err
+	}
+	if req.VisibleAfterSeq, offset, err = readUvarint(body, offset); err != nil {
+		return LastVisibleRequest{}, offset, err
+	}
+	return req, offset, nil
+}
+
 func appendAppendBatchResult(dst []byte, result ch.AppendBatchResult) []byte {
 	dst = appendSliceHeader(dst, len(result.Items), result.Items == nil)
 	for _, item := range result.Items {
@@ -832,6 +879,28 @@ func readAppendBatchResult(body []byte, offset int, version uint8) (ch.AppendBat
 		}
 	}
 	return ch.AppendBatchResult{Items: items}, offset, nil
+}
+
+func appendLastVisibleResponse(dst []byte, resp LastVisibleResponse) []byte {
+	dst = appendBool(dst, resp.Found)
+	if resp.Found {
+		dst = appendMessage(dst, resp.Message)
+	}
+	return dst
+}
+
+func readLastVisibleResponse(body []byte, offset int, version uint8) (LastVisibleResponse, int, error) {
+	var resp LastVisibleResponse
+	var err error
+	if resp.Found, offset, err = readBool(body, offset, "last visible found"); err != nil {
+		return LastVisibleResponse{}, offset, err
+	}
+	if resp.Found {
+		if resp.Message, offset, err = readMessage(body, offset, version); err != nil {
+			return LastVisibleResponse{}, offset, err
+		}
+	}
+	return resp, offset, nil
 }
 
 func appendChannelKey(dst []byte, key ch.ChannelKey) []byte {

@@ -42,4 +42,6 @@ const (
 	RPCChannelPullBatch
 	// RPCChannelPullHintBatch serves grouped ChannelV2 pull hints.
 	RPCChannelPullHintBatch
+	// RPCChannelLastVisible serves routed ChannelV2 last-visible message reads.
+	RPCChannelLastVisible
 )

@@ -86,8 +86,8 @@ conversation list usecase
   -> ListUserConversationActivePage(uid, active cursor)
        -> UID-owned conversation rows routed by UID hash slot
   -> GetLastVisibleMessages(current page keys)
-       -> ReadChannelCommitted(channel, reverse limit 1, max seq)
-       -> filter messages with seq <= visible_after_seq
+       -> ReadChannelLastVisible(channel, visible_after_seq)
+       -> channel-owned route resolves the ChannelV2 leader
        -> missing channel or no visible message returns no last message for that row
 ```
 

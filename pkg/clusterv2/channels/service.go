@@ -38,6 +38,24 @@ type ForwardClient interface {
 	ForwardAppend(context.Context, ch.NodeID, ch.AppendRequest) (ch.AppendResult, error)
 	// ForwardAppendBatch forwards one append batch request to node.
 	ForwardAppendBatch(context.Context, ch.NodeID, ch.AppendBatchRequest) (ch.AppendBatchResult, error)
+	// ForwardLastVisible forwards one last-visible message read to node.
+	ForwardLastVisible(context.Context, ch.NodeID, LastVisibleRequest) (LastVisibleResponse, error)
+}
+
+// LastVisibleRequest reads the newest committed channel message above a visibility floor.
+type LastVisibleRequest struct {
+	// ChannelID identifies the channel-owned message log.
+	ChannelID ch.ChannelID
+	// VisibleAfterSeq hides messages at or below this sequence.
+	VisibleAfterSeq uint64
+}
+
+// LastVisibleResponse contains a routed last-visible message read result.
+type LastVisibleResponse struct {
+	// Message is set when Found is true.
+	Message ch.Message
+	// Found reports whether a visible message exists.
+	Found bool
 }
 
 // Config wires a ChannelV2 service wrapper.
@@ -83,6 +101,7 @@ type Service struct {
 	metaSource ChannelMetaSource
 	ensurer    ChannelMetaEnsurer
 	forward    ForwardClient
+	store      channelstore.Factory
 	metaCache  channelMetaCache
 	observer   any
 }
@@ -121,7 +140,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("channels: runtime must implement channelv2.Cluster and channelv2/transport.Server")
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, observer: cfg.Observer}, nil
+	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer}, nil
 }
 
 // Runtime returns the ChannelV2 public cluster surface.
@@ -160,6 +179,72 @@ func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 
 // Close closes the ChannelV2 runtime.
 func (s *Service) Close() error { return s.runtime.Close() }
+
+// ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
+func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, visibleAfterSeq uint64) (ch.Message, bool, error) {
+	meta, ok, err := s.resolveReadMeta(ctx, id)
+	if err != nil {
+		return ch.Message{}, false, err
+	}
+	if !ok || meta.Leader == 0 {
+		return ch.Message{}, false, ch.ErrNotReady
+	}
+	if meta.Leader != s.localNode {
+		if s.forward == nil {
+			return ch.Message{}, false, ch.ErrNotLeader
+		}
+		resp, err := s.forward.ForwardLastVisible(ctx, meta.Leader, LastVisibleRequest{ChannelID: id, VisibleAfterSeq: visibleAfterSeq})
+		if err != nil {
+			return ch.Message{}, false, err
+		}
+		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
+		return resp.Message, resp.Found, nil
+	}
+	return s.readLocalLastVisible(ctx, id, visibleAfterSeq)
+}
+
+func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleRequest) (LastVisibleResponse, error) {
+	meta, ok, err := s.resolveReadMeta(ctx, req.ChannelID)
+	if err != nil {
+		return LastVisibleResponse{}, err
+	}
+	if !ok || meta.Leader == 0 {
+		return LastVisibleResponse{}, ch.ErrNotReady
+	}
+	if meta.Leader != s.localNode {
+		return LastVisibleResponse{}, ch.ErrNotLeader
+	}
+	msg, ok, err := s.readLocalLastVisible(ctx, req.ChannelID, req.VisibleAfterSeq)
+	return LastVisibleResponse{Message: msg, Found: ok}, err
+}
+
+func (s *Service) readLocalLastVisible(ctx context.Context, id ch.ChannelID, visibleAfterSeq uint64) (ch.Message, bool, error) {
+	if s == nil || s.store == nil {
+		return ch.Message{}, false, ch.ErrNotReady
+	}
+	store, err := s.store.ChannelStore(ch.ChannelKeyForID(id), id)
+	if err != nil {
+		return ch.Message{}, false, err
+	}
+	read, err := store.ReadCommitted(ctx, channelstore.ReadCommittedRequest{
+		FromSeq:  maxUint64(),
+		MaxSeq:   maxUint64(),
+		Limit:    1,
+		MaxBytes: maxInt(),
+		Reverse:  true,
+	})
+	if err != nil {
+		return ch.Message{}, false, err
+	}
+	for _, msg := range read.Messages {
+		if msg.MessageSeq <= visibleAfterSeq {
+			continue
+		}
+		msg.Payload = append([]byte(nil), msg.Payload...)
+		return msg, true, nil
+	}
+	return ch.Message{}, false, nil
+}
 
 func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, bool) {
 	started := time.Now()
@@ -426,6 +511,20 @@ func (s *Service) resolveAppendMeta(ctx context.Context, id ch.ChannelID) (ch.Me
 	return normalizeAppendMeta(id, meta)
 }
 
+func (s *Service) resolveReadMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, bool, error) {
+	if s == nil {
+		return ch.Meta{}, false, nil
+	}
+	if s.metaSource == nil {
+		return ch.Meta{}, false, nil
+	}
+	meta, err := s.metaSource.ResolveChannelMeta(ctx, id)
+	if err != nil {
+		return ch.Meta{}, true, err
+	}
+	return normalizeAppendMeta(id, meta)
+}
+
 func normalizeAppendMeta(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool, error) {
 	if meta.ID == (ch.ChannelID{}) {
 		meta.ID = id
@@ -437,4 +536,12 @@ func normalizeAppendMeta(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool, error) {
 		return ch.Meta{}, true, ch.ErrStaleMeta
 	}
 	return meta, true, nil
+}
+
+func maxUint64() uint64 {
+	return ^uint64(0)
+}
+
+func maxInt() int {
+	return int(^uint(0) >> 1)
 }

@@ -28,6 +28,7 @@ type slotReconciler interface {
 type channelService interface {
 	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
 	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
 	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
 	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
@@ -362,4 +363,18 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 		return channelstore.ReadCommittedResult{}, err
 	}
 	return store.ReadCommitted(ctx, req)
+}
+
+// ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
+func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channelv2.Message{}, false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return channelv2.Message{}, false, err
+	}
+	if n.channels == nil {
+		return channelv2.Message{}, false, ErrNotStarted
+	}
+	return n.channels.ReadChannelLastVisible(ctx, id, visibleAfterSeq)
 }

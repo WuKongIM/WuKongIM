@@ -8,7 +8,6 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -43,8 +42,8 @@ func TestConversationStoreListsActivePageAndClonesRows(t *testing.T) {
 
 func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	node := &conversationNodeFake{
-		read: map[metadb.ConversationKey]channelstore.ReadCommittedResult{
-			{ChannelID: "g-a", ChannelType: 2}: {Messages: []channelv2.Message{{
+		read: map[metadb.ConversationKey]lastVisibleResultFake{
+			{ChannelID: "g-a", ChannelType: 2}: {msg: channelv2.Message{
 				MessageID:         12,
 				MessageSeq:        12,
 				ChannelID:         "g-a",
@@ -53,12 +52,12 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 				ClientMsgNo:       "client-12",
 				ServerTimestampMS: 900,
 				Payload:           []byte("visible"),
-			}}},
-			{ChannelID: "g-b", ChannelType: 2}: {Messages: []channelv2.Message{{
+			}, ok: true},
+			{ChannelID: "g-b", ChannelType: 2}: {msg: channelv2.Message{
 				MessageID:  5,
 				MessageSeq: 5,
 				ChannelID:  "g-b",
-			}}},
+			}, ok: false},
 		},
 	}
 	store := NewConversationStore(node)
@@ -86,9 +85,9 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 		t.Fatalf("missing channel returned a last message")
 	}
 	if got, want := node.readCalls, []readCallFake{
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: lastConversationMessageReadRequest()},
-		{channelID: channelv2.ChannelID{ID: "g-b", Type: 2}, req: lastConversationMessageReadRequest()},
-		{channelID: channelv2.ChannelID{ID: "missing", Type: 2}, req: lastConversationMessageReadRequest()},
+		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, visibleAfterSeq: 10},
+		{channelID: channelv2.ChannelID{ID: "g-b", Type: 2}, visibleAfterSeq: 5},
+		{channelID: channelv2.ChannelID{ID: "missing", Type: 2}, visibleAfterSeq: 0},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("read calls = %#v, want %#v", got, want)
 	}
@@ -103,16 +102,6 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	}
 }
 
-func lastConversationMessageReadRequest() channelstore.ReadCommittedRequest {
-	return channelstore.ReadCommittedRequest{
-		FromSeq:  maxUint64(),
-		MaxSeq:   maxUint64(),
-		Limit:    1,
-		MaxBytes: maxInt(),
-		Reverse:  true,
-	}
-}
-
 type activePageCallFake struct {
 	uid   string
 	after metadb.UserConversationActiveCursor
@@ -120,8 +109,13 @@ type activePageCallFake struct {
 }
 
 type readCallFake struct {
-	channelID channelv2.ChannelID
-	req       channelstore.ReadCommittedRequest
+	channelID       channelv2.ChannelID
+	visibleAfterSeq uint64
+}
+
+type lastVisibleResultFake struct {
+	msg channelv2.Message
+	ok  bool
 }
 
 type conversationNodeFake struct {
@@ -131,7 +125,7 @@ type conversationNodeFake struct {
 	err         error
 	activeCalls []activePageCallFake
 
-	read      map[metadb.ConversationKey]channelstore.ReadCommittedResult
+	read      map[metadb.ConversationKey]lastVisibleResultFake
 	readErr   map[metadb.ConversationKey]error
 	readCalls []readCallFake
 }
@@ -144,23 +138,23 @@ func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context,
 	return n.rows, n.cursor, n.done, nil
 }
 
-func (n *conversationNodeFake) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
-	n.readCalls = append(n.readCalls, readCallFake{channelID: id, req: req})
+func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+	n.readCalls = append(n.readCalls, readCallFake{channelID: id, visibleAfterSeq: visibleAfterSeq})
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
 	if err := n.readErr[key]; err != nil {
-		return channelstore.ReadCommittedResult{}, err
+		return channelv2.Message{}, false, err
 	}
 	result, ok := n.read[key]
 	if !ok {
-		return channelstore.ReadCommittedResult{}, channelv2.ErrChannelNotFound
+		return channelv2.Message{}, false, channelv2.ErrChannelNotFound
 	}
-	return result, nil
+	return result.msg, result.ok, nil
 }
 
 func TestConversationStorePropagatesLastMessageRouteErrors(t *testing.T) {
 	routeErr := errors.New("route unavailable")
 	node := &conversationNodeFake{
-		read:    map[metadb.ConversationKey]channelstore.ReadCommittedResult{},
+		read:    map[metadb.ConversationKey]lastVisibleResultFake{},
 		readErr: map[metadb.ConversationKey]error{{ChannelID: "g-a", ChannelType: 2}: routeErr},
 	}
 	store := NewConversationStore(node)

@@ -145,6 +145,19 @@ func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID
 	return decodeAppendBatchResponse(resp)
 }
 
+// ForwardLastVisible sends a last-visible message read to node.
+func (c *TransportClient) ForwardLastVisible(ctx context.Context, node ch.NodeID, req LastVisibleRequest) (LastVisibleResponse, error) {
+	payload, err := encodeLastVisibleRequest(req)
+	if err != nil {
+		return LastVisibleResponse{}, err
+	}
+	resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelLastVisible, channelForwardShardKey(req.ChannelID), payload)
+	if err != nil {
+		return LastVisibleResponse{}, err
+	}
+	return decodeLastVisibleResponse(resp)
+}
+
 func (c *TransportClient) callShard(ctx context.Context, node uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
 	if caller, ok := c.caller.(clusternet.ShardCaller); ok {
 		return caller.CallShard(ctx, node, serviceID, shardKey, payload)
@@ -260,6 +273,14 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 		resp, err := service.AppendBatch(ctx, req)
 		service.observeAppendStage(appendStageForwardAppendRemote, err, time.Since(started))
 		return encodeRPCResult(kindAppendBatchResponse, resp, err)
+	}))
+	registrar.Register(clusternet.RPCChannelLastVisible, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := decodeLastVisibleRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := service.handleForwardLastVisible(ctx, req)
+		return encodeRPCResult(kindLastVisibleResponse, resp, err)
 	}))
 }
 

@@ -7,14 +7,13 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ConversationNode exposes clusterv2 reads needed by conversation lists.
 type ConversationNode interface {
 	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
-	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
 }
 
 // ConversationStore adapts clusterv2 reads to the conversation usecase ports.
@@ -56,47 +55,30 @@ func (s *ConversationStore) GetLastVisibleMessages(ctx context.Context, requests
 			return nil, fmt.Errorf("internalv2/infra/cluster: invalid conversation message request")
 		}
 		key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
-		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, conversationMessageReadRequest())
+		msg, ok, err := s.node.ReadChannelLastVisible(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, req.VisibleAfterSeq)
 		if err != nil {
 			if isMissingLastMessage(err) {
 				continue
 			}
 			return nil, err
 		}
-		msg, ok := firstVisibleConversationMessage(read.Messages, req.VisibleAfterSeq)
 		if !ok {
 			continue
 		}
-		out[key] = msg
+		out[key] = lastMessageFromChannel(msg)
 	}
 	return out, nil
 }
 
-func conversationMessageReadRequest() channelstore.ReadCommittedRequest {
-	return channelstore.ReadCommittedRequest{
-		FromSeq:  maxUint64(),
-		MaxSeq:   maxUint64(),
-		Limit:    1,
-		MaxBytes: maxInt(),
-		Reverse:  true,
+func lastMessageFromChannel(msg channelv2.Message) conversationusecase.LastMessage {
+	return conversationusecase.LastMessage{
+		MessageID:         msg.MessageID,
+		MessageSeq:        msg.MessageSeq,
+		FromUID:           msg.FromUID,
+		ClientMsgNo:       msg.ClientMsgNo,
+		ServerTimestampMS: msg.ServerTimestampMS,
+		Payload:           append([]byte(nil), msg.Payload...),
 	}
-}
-
-func firstVisibleConversationMessage(messages []channelv2.Message, visibleAfterSeq uint64) (conversationusecase.LastMessage, bool) {
-	for _, msg := range messages {
-		if msg.MessageSeq <= visibleAfterSeq {
-			continue
-		}
-		return conversationusecase.LastMessage{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			ServerTimestampMS: msg.ServerTimestampMS,
-			Payload:           append([]byte(nil), msg.Payload...),
-		}, true
-	}
-	return conversationusecase.LastMessage{}, false
 }
 
 func isMissingLastMessage(err error) bool {

@@ -1236,6 +1236,88 @@ func TestServiceForwardsAppendBatchToResolvedLeader(t *testing.T) {
 	}
 }
 
+func TestServiceReadChannelLastVisibleUsesLocalLeaderStore(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-local", Type: 1}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 10, FromUID: "u1", ClientMsgNo: "client-10", ServerTimestampMS: 700, Payload: []byte("old"), SizeBytes: 3},
+		{ID: 11, FromUID: "u2", ClientMsgNo: "client-11", ServerTimestampMS: 900, Payload: []byte("new"), SizeBytes: 3},
+	}})
+	require.NoError(t, err)
+	source := NewStaticMetaSource([]ch.Meta{{ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}})
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	got, ok, err := svc.ReadChannelLastVisible(context.Background(), id, 1)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(11), got.MessageID)
+	require.Equal(t, uint64(2), got.MessageSeq)
+	require.Equal(t, "u2", got.FromUID)
+	require.Equal(t, "client-11", got.ClientMsgNo)
+	require.Equal(t, int64(900), got.ServerTimestampMS)
+	require.Equal(t, []byte("new"), got.Payload)
+
+	_, ok, err = svc.ReadChannelLastVisible(context.Background(), id, 2)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestServiceReadChannelLastVisibleForwardsToResolvedLeader(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-remote", Type: 1}
+	source := NewStaticMetaSource([]ch.Meta{{ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}})
+	forward := &recordingLastVisibleForward{
+		message: ch.Message{MessageID: 22, MessageSeq: 9, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("remote")},
+		ok:      true,
+	}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Forward: forward})
+	require.NoError(t, err)
+
+	got, ok, err := svc.ReadChannelLastVisible(context.Background(), id, 7)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(22), got.MessageID)
+	require.Equal(t, []byte("remote"), got.Payload)
+	require.Equal(t, ch.NodeID(2), forward.lastNode)
+	require.Equal(t, id, forward.lastID)
+	require.Equal(t, uint64(7), forward.lastVisibleAfterSeq)
+}
+
+func TestServiceReadChannelLastVisibleForwardsOverRPCToLeader(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-rpc", Type: 1}
+	meta := ch.Meta{ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	source := NewStaticMetaSource([]ch.Meta{meta})
+	network := clusternet.NewLocalNetwork()
+	client := NewTransportClient(network)
+	leaderFactory := channelstore.NewMemoryFactory()
+	leaderStore, err := leaderFactory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = leaderStore.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 30, FromUID: "leader", ClientMsgNo: "client-30", ServerTimestampMS: 3000, Payload: []byte("leader-tail"), SizeBytes: 11},
+	}})
+	require.NoError(t, err)
+	leader, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 2, MetaSource: source, Store: leaderFactory, Forward: client})
+	require.NoError(t, err)
+	RegisterServiceHandlers(network, 2, leader)
+	followerFactory := channelstore.NewMemoryFactory()
+	followerStore, err := followerFactory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = followerStore.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 99, Payload: []byte("wrong-node"), SizeBytes: 10},
+	}})
+	require.NoError(t, err)
+	follower, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: followerFactory, Forward: client})
+	require.NoError(t, err)
+
+	got, ok, err := follower.ReadChannelLastVisible(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(30), got.MessageID)
+	require.Equal(t, []byte("leader-tail"), got.Payload)
+}
+
 func TestServiceObservesForwardAppendBatchSubStages(t *testing.T) {
 	id := ch.ChannelID{ID: "forward-append-batch-observed", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
@@ -1397,6 +1479,34 @@ func (c *deadlineForwardClient) ForwardAppend(context.Context, ch.NodeID, ch.App
 func (c *deadlineForwardClient) ForwardAppendBatch(context.Context, ch.NodeID, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
 	c.batchCalls++
 	return ch.AppendBatchResult{}, context.DeadlineExceeded
+}
+
+func (c *deadlineForwardClient) ForwardLastVisible(context.Context, ch.NodeID, LastVisibleRequest) (LastVisibleResponse, error) {
+	return LastVisibleResponse{}, context.DeadlineExceeded
+}
+
+type recordingLastVisibleForward struct {
+	message             ch.Message
+	ok                  bool
+	err                 error
+	lastNode            ch.NodeID
+	lastID              ch.ChannelID
+	lastVisibleAfterSeq uint64
+}
+
+func (f *recordingLastVisibleForward) ForwardAppend(context.Context, ch.NodeID, ch.AppendRequest) (ch.AppendResult, error) {
+	return ch.AppendResult{}, nil
+}
+
+func (f *recordingLastVisibleForward) ForwardAppendBatch(context.Context, ch.NodeID, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	return ch.AppendBatchResult{}, nil
+}
+
+func (f *recordingLastVisibleForward) ForwardLastVisible(_ context.Context, node ch.NodeID, req LastVisibleRequest) (LastVisibleResponse, error) {
+	f.lastNode = node
+	f.lastID = req.ChannelID
+	f.lastVisibleAfterSeq = req.VisibleAfterSeq
+	return LastVisibleResponse{Message: f.message, Found: f.ok}, f.err
 }
 
 type rpcErrorServer struct {
