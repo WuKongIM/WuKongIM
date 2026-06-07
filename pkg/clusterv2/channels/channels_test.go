@@ -662,6 +662,48 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 	}
 }
 
+func TestCodecDecodesLegacyV3MessageLayout(t *testing.T) {
+	want := ch.Message{
+		MessageID:   21,
+		MessageSeq:  22,
+		ChannelID:   "room",
+		ChannelType: 1,
+		FromUID:     "u1",
+		ClientMsgNo: "m1",
+		TraceID:     "trace-message",
+		ChannelKey:  "channel/key-message",
+		Payload:     []byte("message-payload"),
+	}
+	body := appendLegacyV3Message(nil, want)
+
+	got, offset, err := readMessage(body, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(body), offset)
+	require.Equal(t, want, got)
+	require.Zero(t, got.ServerTimestampMS)
+}
+
+func TestCodecDecodesLegacyV3RecordLayoutInSlices(t *testing.T) {
+	want := []ch.Record{
+		{ID: 10, Index: 11, Epoch: 12, Payload: []byte("record-one"), SizeBytes: 10},
+		{ID: 20, Index: 21, Epoch: 22, Payload: []byte("record-two"), SizeBytes: 10},
+	}
+	body := appendSliceHeader(nil, len(want), false)
+	for _, record := range want {
+		body = appendLegacyV3Record(body, record)
+	}
+
+	got, offset, err := readRecords(body, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(body), offset)
+	require.Equal(t, want, got)
+	for _, record := range got {
+		require.Empty(t, record.FromUID)
+		require.Empty(t, record.ClientMsgNo)
+		require.Zero(t, record.ServerTimestampMS)
+	}
+}
+
 func TestTransportClientPreservesChannelApplicationErrors(t *testing.T) {
 	sentinels := []error{
 		ch.ErrInvalidConfig,
@@ -1543,6 +1585,28 @@ func mustEncodeAppendBatchResponse(t *testing.T, res ch.AppendBatchResult) []byt
 	data, err := encodeAppendBatchResponse(res)
 	require.NoError(t, err)
 	return data
+}
+
+func appendLegacyV3Message(dst []byte, msg ch.Message) []byte {
+	dst = appendUvarint(dst, msg.MessageID)
+	dst = appendUvarint(dst, msg.MessageSeq)
+	dst = appendString(dst, msg.ChannelID)
+	dst = append(dst, msg.ChannelType)
+	dst = appendString(dst, msg.FromUID)
+	dst = appendString(dst, msg.ClientMsgNo)
+	dst = appendString(dst, msg.TraceID)
+	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
+	dst = appendOptionalBytes(dst, msg.Payload)
+	return dst
+}
+
+func appendLegacyV3Record(dst []byte, record ch.Record) []byte {
+	dst = appendUvarint(dst, record.ID)
+	dst = appendUvarint(dst, record.Index)
+	dst = appendUvarint(dst, record.Epoch)
+	dst = appendOptionalBytes(dst, record.Payload)
+	dst = appendVarint(dst, int64(record.SizeBytes))
+	return dst
 }
 
 func nodeIDIn(nodes []ch.NodeID, node ch.NodeID) bool {

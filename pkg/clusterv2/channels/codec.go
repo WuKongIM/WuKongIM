@@ -884,12 +884,37 @@ func readMessage(body []byte, offset int) (ch.Message, int, error) {
 	if msg.ClientMsgNo, offset, err = readString(body, offset); err != nil {
 		return ch.Message{}, offset, err
 	}
+	layoutOffset := offset
+	if next, nextOffset, err := readMessageV3NewRemainder(body, layoutOffset, msg); err == nil {
+		return next, nextOffset, nil
+	}
+	return readMessageV3LegacyRemainder(body, layoutOffset, msg)
+}
+
+func readMessageV3NewRemainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
+	var err error
 	if msg.ServerTimestampMS, offset, err = readInt64(body, offset, "message server timestamp ms"); err != nil {
 		return ch.Message{}, offset, err
 	}
 	if msg.TraceID, offset, err = readString(body, offset); err != nil {
 		return ch.Message{}, offset, err
 	}
+	return readMessageV3AfterTrace(body, offset, msg)
+}
+
+// readMessageV3LegacyRemainder decodes the original v3 message tail used before
+// ServerTimestampMS was inserted, which keeps rolling upgrades from misreading
+// old v3 frames.
+func readMessageV3LegacyRemainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
+	var err error
+	if msg.TraceID, offset, err = readString(body, offset); err != nil {
+		return ch.Message{}, offset, err
+	}
+	return readMessageV3AfterTrace(body, offset, msg)
+}
+
+func readMessageV3AfterTrace(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
+	var err error
 	var channelKey ch.ChannelKey
 	if channelKey, offset, err = readChannelKey(body, offset); err != nil {
 		return ch.Message{}, offset, err
@@ -1086,6 +1111,15 @@ func readRecord(body []byte, offset int) (ch.Record, int, error) {
 	if record.Epoch, offset, err = readUvarint(body, offset); err != nil {
 		return ch.Record{}, offset, err
 	}
+	layoutOffset := offset
+	if next, nextOffset, err := readRecordV3NewRemainder(body, layoutOffset, record); err == nil {
+		return next, nextOffset, nil
+	}
+	return readRecordV3LegacyRemainder(body, layoutOffset, record)
+}
+
+func readRecordV3NewRemainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
+	var err error
 	if record.FromUID, offset, err = readString(body, offset); err != nil {
 		return ch.Record{}, offset, err
 	}
@@ -1095,6 +1129,18 @@ func readRecord(body []byte, offset int) (ch.Record, int, error) {
 	if record.ServerTimestampMS, offset, err = readInt64(body, offset, "record server timestamp ms"); err != nil {
 		return ch.Record{}, offset, err
 	}
+	return readRecordV3PayloadAndSize(body, offset, record)
+}
+
+// readRecordV3LegacyRemainder decodes the original v3 record tail used before
+// conversation display fields were inserted, so old pull responses stay valid
+// during rolling upgrades.
+func readRecordV3LegacyRemainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
+	return readRecordV3PayloadAndSize(body, offset, record)
+}
+
+func readRecordV3PayloadAndSize(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
+	var err error
 	if record.Payload, offset, err = readOptionalBytes(body, offset, "record payload"); err != nil {
 		return ch.Record{}, offset, err
 	}
