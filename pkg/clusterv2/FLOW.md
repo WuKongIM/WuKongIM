@@ -113,18 +113,27 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 ## Slot Metadata Facade Flow
 
 `node_meta.go` exposes small metadata facades used by `internalv2` adapters.
-Channel metadata, subscriber rows, and `channel_latest` rows route by channel
-ID. `UpsertChannelLatestBatch` first resolves each channel's real hash slot,
-then groups rows by physical Slot and submits bounded batch commands carrying
-per-row hash slots. UID-owned reverse tables route by UID, so
-`UpsertUserChannelMemberships` and `DeleteUserChannelMemberships` group the
-requested UIDs by `RouteKey(uid)` hash slot and submit one Slot proposal per
-touched hash slot. Reads such as `ListUserChannelMembershipPage` also route by
-UID and read the current local metadata shard for that UID hash slot.
-`GetChannelLatestBatch` reads existing channel latest rows by routing each
-requested channel key to its hash slot and skips missing rows, giving
-conversation list readers one batch-shaped facade without requiring write-time
-per-user fanout.
+Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
+channel ID. `UpsertChannelLatestBatch` first resolves each channel's real hash
+slot, then groups rows by physical Slot and submits bounded batch commands
+carrying per-row hash slots.
+
+UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
+`DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
+slot and submit one Slot proposal per touched hash slot. Reads such as
+`ListUserChannelMembershipPage` also route by UID and read the current local
+metadata shard for that UID hash slot.
+
+UID-owned conversation rows are the active recent-conversation path.
+`UpsertUserConversationStatesBatch` and `TouchUserConversationActiveAtBatch`
+route each row by `RouteKey(uid)`, group rows by physical Slot, and submit
+bounded Slot FSM commands that carry each row's real UID hash slot. The Slot FSM
+then applies each conversation state or active patch to that UID-owned hash
+slot, preserving `SparseActive` and the active ordering anchor. Reads such as
+`ListUserConversationActivePage` route by UID and scan the local conversation
+active index for that UID hash slot with the `(active_at, channel_id,
+channel_type)` cursor. Legacy `channel_latest` remains a channel-owned
+projection for old callers and is not the recent-conversation active path.
 
 ## ChannelV2 Flow
 

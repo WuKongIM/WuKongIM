@@ -9,7 +9,10 @@ import (
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
-const maxChannelLatestBatchItems = 512
+const (
+	maxChannelLatestBatchItems    = 512
+	maxUserConversationBatchItems = 512
+)
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
 func (n *Node) CreateUserMetadata(ctx context.Context, user metadb.User) error {
@@ -358,9 +361,127 @@ func (n *Node) ListUserChannelMembershipPage(ctx context.Context, uid string, af
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserChannelMembershipPage(ctx, uid, after, limit)
 }
 
+// UpsertUserConversationStatesBatch persists UID-owned conversation states through Slot ownership.
+func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(states) == 0 {
+		return nil
+	}
+	groups, err := n.groupUserConversationStatesBySlot(states)
+	if err != nil {
+		return err
+	}
+	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+		group := groups[slotID]
+		for start := 0; start < len(group.stateItems); start += maxUserConversationBatchItems {
+			end := start + maxUserConversationBatchItems
+			if end > len(group.stateItems) {
+				end = len(group.stateItems)
+			}
+			items := group.stateItems[start:end]
+			command, err := metafsm.EncodeUpsertUserConversationStateBatchCommandChecked(items)
+			if err != nil {
+				return err
+			}
+			routeHashSlot := group.routeHashSlot
+			if len(items) > 0 {
+				routeHashSlot = items[0].HashSlot
+			}
+			if err := n.Propose(ctx, ProposeRequest{
+				Command: command,
+				Target: ProposeTarget{
+					SlotID:      slotID,
+					HasSlotID:   true,
+					HashSlot:    routeHashSlot,
+					HasHashSlot: true,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// TouchUserConversationActiveAtBatch persists UID-owned active-at patches through Slot ownership.
+func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(patches) == 0 {
+		return nil
+	}
+	groups, err := n.groupUserConversationPatchesBySlot(patches)
+	if err != nil {
+		return err
+	}
+	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+		group := groups[slotID]
+		for start := 0; start < len(group.patchItems); start += maxUserConversationBatchItems {
+			end := start + maxUserConversationBatchItems
+			if end > len(group.patchItems) {
+				end = len(group.patchItems)
+			}
+			items := group.patchItems[start:end]
+			command, err := metafsm.EncodeTouchUserConversationActiveAtBatchCommandChecked(items)
+			if err != nil {
+				return err
+			}
+			routeHashSlot := group.routeHashSlot
+			if len(items) > 0 {
+				routeHashSlot = items[0].HashSlot
+			}
+			if err := n.Propose(ctx, ProposeRequest{
+				Command: command,
+				Target: ProposeTarget{
+					SlotID:      slotID,
+					HasSlotID:   true,
+					HashSlot:    routeHashSlot,
+					HasHashSlot: true,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ListUserConversationActivePage reads UID-owned active conversation rows from Slot metadata storage.
+func (n *Node) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, metadb.UserConversationActiveCursor{}, false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, metadb.UserConversationActiveCursor{}, false, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, metadb.UserConversationActiveCursor{}, false, ErrNotStarted
+	}
+	route, err := n.RouteKey(uid)
+	if err != nil {
+		return nil, metadb.UserConversationActiveCursor{}, false, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserConversationActivePage(ctx, uid, after, limit)
+}
+
 type channelLatestSlotBatch struct {
 	routeHashSlot uint16
 	items         []metafsm.ChannelLatestBatchItem
+}
+
+type userConversationSlotBatch struct {
+	routeHashSlot uint16
+	stateItems    []metafsm.UserConversationStateBatchItem
+	patchItems    []metafsm.UserConversationActivePatchBatchItem
 }
 
 func (n *Node) groupChannelLatestBySlot(latestRows []metadb.ChannelLatest) (map[uint32]channelLatestSlotBatch, error) {
@@ -387,6 +508,61 @@ func (n *Node) groupChannelLatestBySlot(latestRows []metadb.ChannelLatest) (map[
 }
 
 func sortedChannelLatestSlotIDs(groups map[uint32]channelLatestSlotBatch) []uint32 {
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
+}
+
+func (n *Node) groupUserConversationStatesBySlot(states []metadb.UserConversationState) (map[uint32]userConversationSlotBatch, error) {
+	groups := make(map[uint32]userConversationSlotBatch)
+	for _, state := range states {
+		if state.UID == "" || state.ChannelID == "" || state.ChannelType == 0 {
+			return nil, metadb.ErrInvalidArgument
+		}
+		route, err := n.RouteKey(state.UID)
+		if err != nil {
+			return nil, err
+		}
+		group := groups[route.SlotID]
+		if len(group.stateItems) == 0 && len(group.patchItems) == 0 {
+			group.routeHashSlot = route.HashSlot
+		}
+		group.stateItems = append(group.stateItems, metafsm.UserConversationStateBatchItem{
+			HashSlot: route.HashSlot,
+			State:    state,
+		})
+		groups[route.SlotID] = group
+	}
+	return groups, nil
+}
+
+func (n *Node) groupUserConversationPatchesBySlot(patches []metadb.UserConversationActivePatch) (map[uint32]userConversationSlotBatch, error) {
+	groups := make(map[uint32]userConversationSlotBatch)
+	for _, patch := range patches {
+		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
+			return nil, metadb.ErrInvalidArgument
+		}
+		route, err := n.RouteKey(patch.UID)
+		if err != nil {
+			return nil, err
+		}
+		group := groups[route.SlotID]
+		if len(group.stateItems) == 0 && len(group.patchItems) == 0 {
+			group.routeHashSlot = route.HashSlot
+		}
+		group.patchItems = append(group.patchItems, metafsm.UserConversationActivePatchBatchItem{
+			HashSlot: route.HashSlot,
+			Patch:    patch,
+		})
+		groups[route.SlotID] = group
+	}
+	return groups, nil
+}
+
+func sortedUserConversationSlotIDs(groups map[uint32]userConversationSlotBatch) []uint32 {
 	slotIDs := make([]uint32, 0, len(groups))
 	for slotID := range groups {
 		slotIDs = append(slotIDs, slotID)

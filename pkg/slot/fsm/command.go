@@ -138,6 +138,8 @@ const (
 	tagUserConversationStateEntryDeletedToSeq uint8 = 5
 	tagUserConversationStateEntryActiveAt     uint8 = 6
 	tagUserConversationStateEntryUpdatedAt    uint8 = 7
+	tagUserConversationStateEntrySparseActive uint8 = 8
+	tagUserConversationStateEntryHashSlot     uint8 = 9
 
 	// User conversation active patch field tags.
 	tagUserConversationActivePatchEntryUID         uint8 = 1
@@ -145,6 +147,9 @@ const (
 	tagUserConversationActivePatchEntryChannelType uint8 = 3
 	tagUserConversationActivePatchEntryActiveAt    uint8 = 4
 	tagUserConversationActivePatchEntryMessageSeq  uint8 = 5
+	tagUserConversationActivePatchSparseActive     uint8 = 6
+	tagUserConversationActivePatchSparseActiveSet  uint8 = 7
+	tagUserConversationActivePatchHashSlot         uint8 = 8
 
 	// Clear user conversation active command field tags.
 	tagClearUserConversationActiveUID uint8 = 1
@@ -156,6 +161,7 @@ const (
 	tagUserConversationDeleteEntryChannelType  uint8 = 3
 	tagUserConversationDeleteEntryDeletedToSeq uint8 = 4
 	tagUserConversationDeleteEntryUpdatedAt    uint8 = 5
+	tagUserConversationDeleteEntryHashSlot     uint8 = 6
 
 	// CMD conversation state field tags.
 	tagCMDConversationStateEntryUID          uint8 = 1
@@ -419,6 +425,30 @@ type ChannelLatestBatchItem struct {
 	Latest metadb.ChannelLatest
 }
 
+// UserConversationStateBatchItem carries one UID-owned conversation state row and its logical hash slot.
+type UserConversationStateBatchItem struct {
+	// HashSlot is the logical hash slot that owns State.UID.
+	HashSlot uint16
+	// State is the durable user conversation state row.
+	State metadb.UserConversationState
+}
+
+// UserConversationActivePatchBatchItem carries one UID-owned active patch and its logical hash slot.
+type UserConversationActivePatchBatchItem struct {
+	// HashSlot is the logical hash slot that owns Patch.UID.
+	HashSlot uint16
+	// Patch is the active-at mutation for one user conversation row.
+	Patch metadb.UserConversationActivePatch
+}
+
+// UserConversationDeleteBatchItem carries one UID-owned hide request and its logical hash slot.
+type UserConversationDeleteBatchItem struct {
+	// HashSlot is the logical hash slot that owns Delete.UID.
+	HashSlot uint16
+	// Delete hides one user conversation row.
+	Delete metadb.UserConversationDelete
+}
+
 type upsertChannelLatestBatchCmd struct {
 	items []ChannelLatestBatchItem
 }
@@ -469,27 +499,99 @@ func (c *upsertChannelLatestBatchCmd) applyHashSlots(uint16) []uint16 {
 
 // --- UpsertUserConversationStates ---
 
+type userConversationStateEntry struct {
+	hashSlot    uint16
+	hasHashSlot bool
+	state       metadb.UserConversationState
+}
+
 type upsertUserConversationStatesCmd struct {
-	states []metadb.UserConversationState
+	entries []userConversationStateEntry
 }
 
 func (c *upsertUserConversationStatesCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	for _, state := range c.states {
-		if err := wb.UpsertUserConversationState(hashSlot, state); err != nil {
+	for _, entry := range c.entries {
+		if err := wb.UpsertUserConversationState(entryHashSlot(entry.hashSlot, entry.hasHashSlot, hashSlot), entry.state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+func (c *upsertUserConversationStatesCmd) applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, entry := range c.entries {
+		if !entry.hasHashSlot || entry.hashSlot != hashSlot {
+			continue
+		}
+		if err := wb.UpsertUserConversationState(entry.hashSlot, entry.state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *upsertUserConversationStatesCmd) applyHashSlots(envelopeHashSlot uint16) []uint16 {
+	return userConversationStateEntryHashSlots(c.entries, envelopeHashSlot)
+}
+
+func (c *upsertUserConversationStatesCmd) states() []metadb.UserConversationState {
+	out := make([]metadb.UserConversationState, 0, len(c.entries))
+	for _, entry := range c.entries {
+		out = append(out, entry.state)
+	}
+	return out
+}
+
 // --- TouchUserConversationActiveAt ---
 
+type userConversationActivePatchEntry struct {
+	hashSlot    uint16
+	hasHashSlot bool
+	patch       metadb.UserConversationActivePatch
+}
+
 type touchUserConversationActiveAtCmd struct {
-	patches []metadb.UserConversationActivePatch
+	entries []userConversationActivePatchEntry
 }
 
 func (c *touchUserConversationActiveAtCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.TouchUserConversationActiveAt(hashSlot, c.patches)
+	groups := make(map[uint16][]metadb.UserConversationActivePatch)
+	for _, entry := range c.entries {
+		applyHashSlot := entryHashSlot(entry.hashSlot, entry.hasHashSlot, hashSlot)
+		groups[applyHashSlot] = append(groups[applyHashSlot], entry.patch)
+	}
+	for _, applyHashSlot := range sortedUint16Keys(groups) {
+		if err := wb.TouchUserConversationActiveAt(applyHashSlot, groups[applyHashSlot]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *touchUserConversationActiveAtCmd) applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error {
+	var patches []metadb.UserConversationActivePatch
+	for _, entry := range c.entries {
+		if !entry.hasHashSlot || entry.hashSlot != hashSlot {
+			continue
+		}
+		patches = append(patches, entry.patch)
+	}
+	if len(patches) == 0 {
+		return nil
+	}
+	return wb.TouchUserConversationActiveAt(hashSlot, patches)
+}
+
+func (c *touchUserConversationActiveAtCmd) applyHashSlots(envelopeHashSlot uint16) []uint16 {
+	return userConversationActivePatchEntryHashSlots(c.entries, envelopeHashSlot)
+}
+
+func (c *touchUserConversationActiveAtCmd) patches() []metadb.UserConversationActivePatch {
+	out := make([]metadb.UserConversationActivePatch, 0, len(c.entries))
+	for _, entry := range c.entries {
+		out = append(out, entry.patch)
+	}
+	return out
 }
 
 // --- ClearUserConversationActiveAt ---
@@ -513,17 +615,108 @@ func (c *reservedConversationProjectionCmd) apply(wb *metadb.WriteBatch, hashSlo
 
 // --- HideUserConversations ---
 
+type userConversationDeleteEntry struct {
+	hashSlot    uint16
+	hasHashSlot bool
+	delete      metadb.UserConversationDelete
+}
+
 type hideUserConversationsCmd struct {
-	deletes []metadb.UserConversationDelete
+	entries []userConversationDeleteEntry
 }
 
 func (c *hideUserConversationsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	for _, req := range c.deletes {
-		if err := wb.HideUserConversation(hashSlot, req); err != nil {
+	for _, entry := range c.entries {
+		if err := wb.HideUserConversation(entryHashSlot(entry.hashSlot, entry.hasHashSlot, hashSlot), entry.delete); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *hideUserConversationsCmd) applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, entry := range c.entries {
+		if !entry.hasHashSlot || entry.hashSlot != hashSlot {
+			continue
+		}
+		if err := wb.HideUserConversation(entry.hashSlot, entry.delete); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *hideUserConversationsCmd) applyHashSlots(envelopeHashSlot uint16) []uint16 {
+	return userConversationDeleteEntryHashSlots(c.entries, envelopeHashSlot)
+}
+
+func (c *hideUserConversationsCmd) deletes() []metadb.UserConversationDelete {
+	out := make([]metadb.UserConversationDelete, 0, len(c.entries))
+	for _, entry := range c.entries {
+		out = append(out, entry.delete)
+	}
+	return out
+}
+
+func entryHashSlot(entryHashSlot uint16, hasEntryHashSlot bool, envelopeHashSlot uint16) uint16 {
+	if hasEntryHashSlot {
+		return entryHashSlot
+	}
+	return envelopeHashSlot
+}
+
+func userConversationStateEntryHashSlots(entries []userConversationStateEntry, envelopeHashSlot uint16) []uint16 {
+	hashSlots := make([]uint16, 0, len(entries))
+	seen := make(map[uint16]struct{}, len(entries))
+	for _, entry := range entries {
+		hashSlot := entryHashSlot(entry.hashSlot, entry.hasHashSlot, envelopeHashSlot)
+		if _, ok := seen[hashSlot]; ok {
+			continue
+		}
+		seen[hashSlot] = struct{}{}
+		hashSlots = append(hashSlots, hashSlot)
+	}
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	return hashSlots
+}
+
+func userConversationActivePatchEntryHashSlots(entries []userConversationActivePatchEntry, envelopeHashSlot uint16) []uint16 {
+	hashSlots := make([]uint16, 0, len(entries))
+	seen := make(map[uint16]struct{}, len(entries))
+	for _, entry := range entries {
+		hashSlot := entryHashSlot(entry.hashSlot, entry.hasHashSlot, envelopeHashSlot)
+		if _, ok := seen[hashSlot]; ok {
+			continue
+		}
+		seen[hashSlot] = struct{}{}
+		hashSlots = append(hashSlots, hashSlot)
+	}
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	return hashSlots
+}
+
+func userConversationDeleteEntryHashSlots(entries []userConversationDeleteEntry, envelopeHashSlot uint16) []uint16 {
+	hashSlots := make([]uint16, 0, len(entries))
+	seen := make(map[uint16]struct{}, len(entries))
+	for _, entry := range entries {
+		hashSlot := entryHashSlot(entry.hashSlot, entry.hasHashSlot, envelopeHashSlot)
+		if _, ok := seen[hashSlot]; ok {
+			continue
+		}
+		seen[hashSlot] = struct{}{}
+		hashSlots = append(hashSlots, hashSlot)
+	}
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	return hashSlots
+}
+
+func sortedUint16Keys[T any](m map[uint16]T) []uint16 {
+	keys := make([]uint16, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	return keys
 }
 
 // --- UpsertCMDConversationStates ---
@@ -838,6 +1031,27 @@ func validateChannelLatest(latest metadb.ChannelLatest) error {
 	return nil
 }
 
+func validateUserConversationState(state metadb.UserConversationState) error {
+	if state.UID == "" || state.ChannelID == "" || state.ChannelType == 0 {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateUserConversationActivePatch(patch metadb.UserConversationActivePatch) error {
+	if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateUserConversationDelete(req metadb.UserConversationDelete) error {
+	if req.UID == "" || req.ChannelID == "" || req.ChannelType == 0 {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
 // ValidateSubscriberCommandLimits rejects subscriber mutations that would create oversized Raft entries.
 func ValidateSubscriberCommandLimits(uids []string) error {
 	if err := validateSubscriberCommandUIDCount(len(uids)); err != nil {
@@ -856,6 +1070,42 @@ func EncodeUpsertUserConversationStatesCommand(states []metadb.UserConversationS
 	return buf
 }
 
+// EncodeUpsertUserConversationStatesCommandChecked validates and encodes state upserts.
+func EncodeUpsertUserConversationStatesCommandChecked(states []metadb.UserConversationState) ([]byte, error) {
+	if len(states) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, state := range states {
+		if err := validateUserConversationState(state); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeUpsertUserConversationStatesCommand(states), nil
+}
+
+// EncodeUpsertUserConversationStateBatchCommand encodes state upserts with per-row hash slots.
+func EncodeUpsertUserConversationStateBatchCommand(items []UserConversationStateBatchItem) []byte {
+	buf := make([]byte, 0, headerSize+len(items)*72)
+	buf = append(buf, commandVersion, cmdTypeUpsertUserConversationStates)
+	for _, item := range items {
+		buf = appendBytesTLVField(buf, tagUserConversationStateEntryUID, encodeUserConversationStateBatchItem(item))
+	}
+	return buf
+}
+
+// EncodeUpsertUserConversationStateBatchCommandChecked validates and encodes per-row hash-slot state upserts.
+func EncodeUpsertUserConversationStateBatchCommandChecked(items []UserConversationStateBatchItem) ([]byte, error) {
+	if len(items) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, item := range items {
+		if err := validateUserConversationState(item.State); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeUpsertUserConversationStateBatchCommand(items), nil
+}
+
 // EncodeTouchUserConversationActiveAtCommand encodes a batch of user conversation active-at patches.
 func EncodeTouchUserConversationActiveAtCommand(patches []metadb.UserConversationActivePatch) []byte {
 	buf := make([]byte, 0, headerSize+len(patches)*48)
@@ -864,6 +1114,42 @@ func EncodeTouchUserConversationActiveAtCommand(patches []metadb.UserConversatio
 		buf = appendBytesTLVField(buf, tagUserConversationActivePatchEntryUID, encodeUserConversationActivePatchEntry(patch))
 	}
 	return buf
+}
+
+// EncodeTouchUserConversationActiveAtCommandChecked validates and encodes active-at patches.
+func EncodeTouchUserConversationActiveAtCommandChecked(patches []metadb.UserConversationActivePatch) ([]byte, error) {
+	if len(patches) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, patch := range patches {
+		if err := validateUserConversationActivePatch(patch); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeTouchUserConversationActiveAtCommand(patches), nil
+}
+
+// EncodeTouchUserConversationActiveAtBatchCommand encodes active-at patches with per-row hash slots.
+func EncodeTouchUserConversationActiveAtBatchCommand(items []UserConversationActivePatchBatchItem) []byte {
+	buf := make([]byte, 0, headerSize+len(items)*64)
+	buf = append(buf, commandVersion, cmdTypeTouchUserConversationActiveAt)
+	for _, item := range items {
+		buf = appendBytesTLVField(buf, tagUserConversationActivePatchEntryUID, encodeUserConversationActivePatchBatchItem(item))
+	}
+	return buf
+}
+
+// EncodeTouchUserConversationActiveAtBatchCommandChecked validates and encodes per-row hash-slot active patches.
+func EncodeTouchUserConversationActiveAtBatchCommandChecked(items []UserConversationActivePatchBatchItem) ([]byte, error) {
+	if len(items) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, item := range items {
+		if err := validateUserConversationActivePatch(item.Patch); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeTouchUserConversationActiveAtBatchCommand(items), nil
 }
 
 // EncodeClearUserConversationActiveAtCommand encodes a uid-scoped active-at clear command.
@@ -885,6 +1171,42 @@ func EncodeHideUserConversationsCommand(deletes []metadb.UserConversationDelete)
 		buf = appendBytesTLVField(buf, tagUserConversationDeleteEntryUID, encodeUserConversationDeleteEntry(req))
 	}
 	return buf
+}
+
+// EncodeHideUserConversationsCommandChecked validates and encodes durable conversation hides.
+func EncodeHideUserConversationsCommandChecked(deletes []metadb.UserConversationDelete) ([]byte, error) {
+	if len(deletes) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, req := range deletes {
+		if err := validateUserConversationDelete(req); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeHideUserConversationsCommand(deletes), nil
+}
+
+// EncodeHideUserConversationBatchCommand encodes durable hides with per-row hash slots.
+func EncodeHideUserConversationBatchCommand(items []UserConversationDeleteBatchItem) []byte {
+	buf := make([]byte, 0, headerSize+len(items)*72)
+	buf = append(buf, commandVersion, cmdTypeHideUserConversations)
+	for _, item := range items {
+		buf = appendBytesTLVField(buf, tagUserConversationDeleteEntryUID, encodeUserConversationDeleteBatchItem(item))
+	}
+	return buf
+}
+
+// EncodeHideUserConversationBatchCommandChecked validates and encodes per-row hash-slot hides.
+func EncodeHideUserConversationBatchCommandChecked(items []UserConversationDeleteBatchItem) ([]byte, error) {
+	if len(items) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, item := range items {
+		if err := validateUserConversationDelete(item.Delete); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeHideUserConversationBatchCommand(items), nil
 }
 
 // EncodeUpsertCMDConversationStatesCommand encodes durable CMD state upserts.
@@ -940,7 +1262,7 @@ func userChannelMembershipUIDs(memberships []metadb.UserChannelMembership) []str
 }
 
 func encodeUserConversationStateEntry(state metadb.UserConversationState) []byte {
-	buf := make([]byte, 0, 64)
+	buf := make([]byte, 0, 72)
 	buf = appendStringTLVField(buf, tagUserConversationStateEntryUID, state.UID)
 	buf = appendStringTLVField(buf, tagUserConversationStateEntryChannelID, state.ChannelID)
 	buf = appendInt64TLVField(buf, tagUserConversationStateEntryChannelType, state.ChannelType)
@@ -948,17 +1270,30 @@ func encodeUserConversationStateEntry(state metadb.UserConversationState) []byte
 	buf = appendUint64TLVField(buf, tagUserConversationStateEntryDeletedToSeq, state.DeletedToSeq)
 	buf = appendInt64TLVField(buf, tagUserConversationStateEntryActiveAt, state.ActiveAt)
 	buf = appendInt64TLVField(buf, tagUserConversationStateEntryUpdatedAt, state.UpdatedAt)
+	buf = appendBoolTLVField(buf, tagUserConversationStateEntrySparseActive, state.SparseActive)
 	return buf
 }
 
+func encodeUserConversationStateBatchItem(item UserConversationStateBatchItem) []byte {
+	buf := encodeUserConversationStateEntry(item.State)
+	return appendUint64TLVField(buf, tagUserConversationStateEntryHashSlot, uint64(item.HashSlot))
+}
+
 func encodeUserConversationActivePatchEntry(patch metadb.UserConversationActivePatch) []byte {
-	buf := make([]byte, 0, 56)
+	buf := make([]byte, 0, 72)
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryUID, patch.UID)
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryChannelID, patch.ChannelID)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryChannelType, patch.ChannelType)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryActiveAt, patch.ActiveAt)
 	buf = appendUint64TLVField(buf, tagUserConversationActivePatchEntryMessageSeq, patch.MessageSeq)
+	buf = appendBoolTLVField(buf, tagUserConversationActivePatchSparseActive, patch.SparseActive)
+	buf = appendBoolTLVField(buf, tagUserConversationActivePatchSparseActiveSet, patch.SparseActiveSet)
 	return buf
+}
+
+func encodeUserConversationActivePatchBatchItem(item UserConversationActivePatchBatchItem) []byte {
+	buf := encodeUserConversationActivePatchEntry(item.Patch)
+	return appendUint64TLVField(buf, tagUserConversationActivePatchHashSlot, uint64(item.HashSlot))
 }
 
 func encodeConversationKeyEntry(key metadb.ConversationKey) []byte {
@@ -976,6 +1311,11 @@ func encodeUserConversationDeleteEntry(req metadb.UserConversationDelete) []byte
 	buf = appendUint64TLVField(buf, tagUserConversationDeleteEntryDeletedToSeq, req.DeletedToSeq)
 	buf = appendInt64TLVField(buf, tagUserConversationDeleteEntryUpdatedAt, req.UpdatedAt)
 	return buf
+}
+
+func encodeUserConversationDeleteBatchItem(item UserConversationDeleteBatchItem) []byte {
+	buf := encodeUserConversationDeleteEntry(item.Delete)
+	return appendUint64TLVField(buf, tagUserConversationDeleteEntryHashSlot, uint64(item.HashSlot))
 }
 
 func encodeCMDConversationStateEntry(state metadb.CMDConversationState) []byte {
@@ -1000,8 +1340,8 @@ func encodeCMDConversationReadPatchEntry(patch metadb.CMDConversationReadPatch) 
 	return buf
 }
 
-func decodeUserConversationStateEntries(data []byte) ([]metadb.UserConversationState, error) {
-	var states []metadb.UserConversationState
+func decodeUserConversationStateEntries(data []byte) ([]userConversationStateEntry, error) {
+	var entries []userConversationStateEntry
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
@@ -1011,20 +1351,20 @@ func decodeUserConversationStateEntries(data []byte) ([]metadb.UserConversationS
 		off += n
 		switch tag {
 		case tagUserConversationStateEntryUID:
-			state, err := decodeUserConversationStateEntry(value)
+			entry, err := decodeUserConversationStateEntry(value)
 			if err != nil {
 				return nil, err
 			}
-			states = append(states, state)
+			entries = append(entries, entry)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
-	return states, nil
+	return entries, nil
 }
 
-func decodeUserConversationActivePatchEntries(data []byte) ([]metadb.UserConversationActivePatch, error) {
-	var patches []metadb.UserConversationActivePatch
+func decodeUserConversationActivePatchEntries(data []byte) ([]userConversationActivePatchEntry, error) {
+	var entries []userConversationActivePatchEntry
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
@@ -1034,20 +1374,20 @@ func decodeUserConversationActivePatchEntries(data []byte) ([]metadb.UserConvers
 		off += n
 		switch tag {
 		case tagUserConversationActivePatchEntryUID:
-			patch, err := decodeUserConversationActivePatchEntry(value)
+			entry, err := decodeUserConversationActivePatchEntry(value)
 			if err != nil {
 				return nil, err
 			}
-			patches = append(patches, patch)
+			entries = append(entries, entry)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
-	return patches, nil
+	return entries, nil
 }
 
-func decodeUserConversationDeleteEntries(data []byte) ([]metadb.UserConversationDelete, error) {
-	var deletes []metadb.UserConversationDelete
+func decodeUserConversationDeleteEntries(data []byte) ([]userConversationDeleteEntry, error) {
+	var entries []userConversationDeleteEntry
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
@@ -1057,16 +1397,16 @@ func decodeUserConversationDeleteEntries(data []byte) ([]metadb.UserConversation
 		off += n
 		switch tag {
 		case tagUserConversationDeleteEntryUID:
-			req, err := decodeUserConversationDeleteEntry(value)
+			entry, err := decodeUserConversationDeleteEntry(value)
 			if err != nil {
 				return nil, err
 			}
-			deletes = append(deletes, req)
+			entries = append(entries, entry)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
-	return deletes, nil
+	return entries, nil
 }
 
 func decodeCMDConversationStateEntries(data []byte) ([]metadb.CMDConversationState, error) {
@@ -1183,14 +1523,15 @@ func decodeUserChannelMembershipEntry(data []byte, requireState bool) (metadb.Us
 	return membership, nil
 }
 
-func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState, error) {
-	var state metadb.UserConversationState
+func decodeUserConversationStateEntry(data []byte) (userConversationStateEntry, error) {
+	var entry userConversationStateEntry
+	state := &entry.state
 	var haveUID, haveChannelID, haveChannelType, haveReadSeq, haveDeletedToSeq, haveActiveAt, haveUpdatedAt bool
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
 		if err != nil {
-			return metadb.UserConversationState{}, err
+			return userConversationStateEntry{}, err
 		}
 		off += n
 		switch tag {
@@ -1202,52 +1543,66 @@ func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState
 			haveChannelID = true
 		case tagUserConversationStateEntryChannelType:
 			if len(value) != 8 {
-				return metadb.UserConversationState{}, fmt.Errorf("%w: bad conversation ChannelType length", metadb.ErrCorruptValue)
+				return userConversationStateEntry{}, fmt.Errorf("%w: bad conversation ChannelType length", metadb.ErrCorruptValue)
 			}
 			state.ChannelType = int64(binary.BigEndian.Uint64(value))
 			haveChannelType = true
 		case tagUserConversationStateEntryReadSeq:
 			if len(value) != 8 {
-				return metadb.UserConversationState{}, fmt.Errorf("%w: bad conversation ReadSeq length", metadb.ErrCorruptValue)
+				return userConversationStateEntry{}, fmt.Errorf("%w: bad conversation ReadSeq length", metadb.ErrCorruptValue)
 			}
 			state.ReadSeq = binary.BigEndian.Uint64(value)
 			haveReadSeq = true
 		case tagUserConversationStateEntryDeletedToSeq:
 			if len(value) != 8 {
-				return metadb.UserConversationState{}, fmt.Errorf("%w: bad conversation DeletedToSeq length", metadb.ErrCorruptValue)
+				return userConversationStateEntry{}, fmt.Errorf("%w: bad conversation DeletedToSeq length", metadb.ErrCorruptValue)
 			}
 			state.DeletedToSeq = binary.BigEndian.Uint64(value)
 			haveDeletedToSeq = true
 		case tagUserConversationStateEntryActiveAt:
 			if len(value) != 8 {
-				return metadb.UserConversationState{}, fmt.Errorf("%w: bad conversation ActiveAt length", metadb.ErrCorruptValue)
+				return userConversationStateEntry{}, fmt.Errorf("%w: bad conversation ActiveAt length", metadb.ErrCorruptValue)
 			}
 			state.ActiveAt = int64(binary.BigEndian.Uint64(value))
 			haveActiveAt = true
 		case tagUserConversationStateEntryUpdatedAt:
 			if len(value) != 8 {
-				return metadb.UserConversationState{}, fmt.Errorf("%w: bad conversation UpdatedAt length", metadb.ErrCorruptValue)
+				return userConversationStateEntry{}, fmt.Errorf("%w: bad conversation UpdatedAt length", metadb.ErrCorruptValue)
 			}
 			state.UpdatedAt = int64(binary.BigEndian.Uint64(value))
 			haveUpdatedAt = true
+		case tagUserConversationStateEntrySparseActive:
+			sparse, err := decodeBoolTLVValue(value, "conversation SparseActive")
+			if err != nil {
+				return userConversationStateEntry{}, err
+			}
+			state.SparseActive = sparse
+		case tagUserConversationStateEntryHashSlot:
+			hashSlot, err := decodeHashSlotTLVValue(value, "conversation HashSlot")
+			if err != nil {
+				return userConversationStateEntry{}, err
+			}
+			entry.hashSlot = hashSlot
+			entry.hasHashSlot = true
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
 	if !haveUID || !haveChannelID || !haveChannelType || !haveReadSeq || !haveDeletedToSeq || !haveActiveAt || !haveUpdatedAt {
-		return metadb.UserConversationState{}, fmt.Errorf("%w: incomplete user conversation state record", metadb.ErrCorruptValue)
+		return userConversationStateEntry{}, fmt.Errorf("%w: incomplete user conversation state record", metadb.ErrCorruptValue)
 	}
-	return state, nil
+	return entry, nil
 }
 
-func decodeUserConversationActivePatchEntry(data []byte) (metadb.UserConversationActivePatch, error) {
-	var patch metadb.UserConversationActivePatch
+func decodeUserConversationActivePatchEntry(data []byte) (userConversationActivePatchEntry, error) {
+	var entry userConversationActivePatchEntry
+	patch := &entry.patch
 	var haveUID, haveChannelID, haveChannelType, haveActiveAt bool
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
 		if err != nil {
-			return metadb.UserConversationActivePatch{}, err
+			return userConversationActivePatchEntry{}, err
 		}
 		off += n
 		switch tag {
@@ -1259,29 +1614,48 @@ func decodeUserConversationActivePatchEntry(data []byte) (metadb.UserConversatio
 			haveChannelID = true
 		case tagUserConversationActivePatchEntryChannelType:
 			if len(value) != 8 {
-				return metadb.UserConversationActivePatch{}, fmt.Errorf("%w: bad conversation ChannelType length", metadb.ErrCorruptValue)
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation ChannelType length", metadb.ErrCorruptValue)
 			}
 			patch.ChannelType = int64(binary.BigEndian.Uint64(value))
 			haveChannelType = true
 		case tagUserConversationActivePatchEntryActiveAt:
 			if len(value) != 8 {
-				return metadb.UserConversationActivePatch{}, fmt.Errorf("%w: bad conversation ActiveAt length", metadb.ErrCorruptValue)
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation ActiveAt length", metadb.ErrCorruptValue)
 			}
 			patch.ActiveAt = int64(binary.BigEndian.Uint64(value))
 			haveActiveAt = true
 		case tagUserConversationActivePatchEntryMessageSeq:
 			if len(value) != 8 {
-				return metadb.UserConversationActivePatch{}, fmt.Errorf("%w: bad conversation MessageSeq length", metadb.ErrCorruptValue)
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation MessageSeq length", metadb.ErrCorruptValue)
 			}
 			patch.MessageSeq = binary.BigEndian.Uint64(value)
+		case tagUserConversationActivePatchSparseActive:
+			sparse, err := decodeBoolTLVValue(value, "conversation SparseActive")
+			if err != nil {
+				return userConversationActivePatchEntry{}, err
+			}
+			patch.SparseActive = sparse
+		case tagUserConversationActivePatchSparseActiveSet:
+			sparseSet, err := decodeBoolTLVValue(value, "conversation SparseActiveSet")
+			if err != nil {
+				return userConversationActivePatchEntry{}, err
+			}
+			patch.SparseActiveSet = sparseSet
+		case tagUserConversationActivePatchHashSlot:
+			hashSlot, err := decodeHashSlotTLVValue(value, "conversation HashSlot")
+			if err != nil {
+				return userConversationActivePatchEntry{}, err
+			}
+			entry.hashSlot = hashSlot
+			entry.hasHashSlot = true
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
 	if !haveUID || !haveChannelID || !haveChannelType || !haveActiveAt {
-		return metadb.UserConversationActivePatch{}, fmt.Errorf("%w: incomplete user conversation active patch record", metadb.ErrCorruptValue)
+		return userConversationActivePatchEntry{}, fmt.Errorf("%w: incomplete user conversation active patch record", metadb.ErrCorruptValue)
 	}
-	return patch, nil
+	return entry, nil
 }
 
 func decodeConversationKeyEntry(data []byte) (metadb.ConversationKey, error) {
@@ -1314,14 +1688,15 @@ func decodeConversationKeyEntry(data []byte) (metadb.ConversationKey, error) {
 	return key, nil
 }
 
-func decodeUserConversationDeleteEntry(data []byte) (metadb.UserConversationDelete, error) {
-	var req metadb.UserConversationDelete
+func decodeUserConversationDeleteEntry(data []byte) (userConversationDeleteEntry, error) {
+	var entry userConversationDeleteEntry
+	req := &entry.delete
 	var haveUID, haveChannelID, haveChannelType, haveDeletedToSeq, haveUpdatedAt bool
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
 		if err != nil {
-			return metadb.UserConversationDelete{}, err
+			return userConversationDeleteEntry{}, err
 		}
 		off += n
 		switch tag {
@@ -1333,30 +1708,37 @@ func decodeUserConversationDeleteEntry(data []byte) (metadb.UserConversationDele
 			haveChannelID = true
 		case tagUserConversationDeleteEntryChannelType:
 			if len(value) != 8 {
-				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete ChannelType length", metadb.ErrCorruptValue)
+				return userConversationDeleteEntry{}, fmt.Errorf("%w: bad conversation delete ChannelType length", metadb.ErrCorruptValue)
 			}
 			req.ChannelType = int64(binary.BigEndian.Uint64(value))
 			haveChannelType = true
 		case tagUserConversationDeleteEntryDeletedToSeq:
 			if len(value) != 8 {
-				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete DeletedToSeq length", metadb.ErrCorruptValue)
+				return userConversationDeleteEntry{}, fmt.Errorf("%w: bad conversation delete DeletedToSeq length", metadb.ErrCorruptValue)
 			}
 			req.DeletedToSeq = binary.BigEndian.Uint64(value)
 			haveDeletedToSeq = true
 		case tagUserConversationDeleteEntryUpdatedAt:
 			if len(value) != 8 {
-				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete UpdatedAt length", metadb.ErrCorruptValue)
+				return userConversationDeleteEntry{}, fmt.Errorf("%w: bad conversation delete UpdatedAt length", metadb.ErrCorruptValue)
 			}
 			req.UpdatedAt = int64(binary.BigEndian.Uint64(value))
 			haveUpdatedAt = true
+		case tagUserConversationDeleteEntryHashSlot:
+			hashSlot, err := decodeHashSlotTLVValue(value, "conversation delete HashSlot")
+			if err != nil {
+				return userConversationDeleteEntry{}, err
+			}
+			entry.hashSlot = hashSlot
+			entry.hasHashSlot = true
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
 	if !haveUID || !haveChannelID || !haveChannelType || !haveDeletedToSeq || !haveUpdatedAt {
-		return metadb.UserConversationDelete{}, fmt.Errorf("%w: incomplete user conversation delete record", metadb.ErrCorruptValue)
+		return userConversationDeleteEntry{}, fmt.Errorf("%w: incomplete user conversation delete record", metadb.ErrCorruptValue)
 	}
-	return req, nil
+	return entry, nil
 }
 
 func decodeCMDConversationStateEntry(data []byte) (metadb.CMDConversationState, error) {
@@ -1462,14 +1844,14 @@ func decodeCMDConversationReadPatchEntry(data []byte) (metadb.CMDConversationRea
 }
 
 func decodeUpsertUserConversationStates(data []byte) (command, error) {
-	states, err := decodeUserConversationStateEntries(data)
+	entries, err := decodeUserConversationStateEntries(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(states) == 0 {
+	if len(entries) == 0 {
 		return nil, fmt.Errorf("%w: empty user conversation state batch", metadb.ErrInvalidArgument)
 	}
-	return &upsertUserConversationStatesCmd{states: states}, nil
+	return &upsertUserConversationStatesCmd{entries: entries}, nil
 }
 
 func decodeUpsertUserChannelMemberships(data []byte) (command, error) {
@@ -1627,14 +2009,14 @@ func decodeChannelLatestRecord(data []byte) (metadb.ChannelLatest, error) {
 }
 
 func decodeTouchUserConversationActiveAt(data []byte) (command, error) {
-	patches, err := decodeUserConversationActivePatchEntries(data)
+	entries, err := decodeUserConversationActivePatchEntries(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(patches) == 0 {
+	if len(entries) == 0 {
 		return nil, fmt.Errorf("%w: empty user conversation active patch batch", metadb.ErrInvalidArgument)
 	}
-	return &touchUserConversationActiveAtCmd{patches: patches}, nil
+	return &touchUserConversationActiveAtCmd{entries: entries}, nil
 }
 
 func decodeClearUserConversationActiveAt(data []byte) (command, error) {
@@ -1676,14 +2058,14 @@ func decodeReservedConversationProjection([]byte) (command, error) {
 }
 
 func decodeHideUserConversations(data []byte) (command, error) {
-	deletes, err := decodeUserConversationDeleteEntries(data)
+	entries, err := decodeUserConversationDeleteEntries(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(deletes) == 0 {
+	if len(entries) == 0 {
 		return nil, fmt.Errorf("%w: empty user conversation delete batch", metadb.ErrInvalidArgument)
 	}
-	return &hideUserConversationsCmd{deletes: deletes}, nil
+	return &hideUserConversationsCmd{entries: entries}, nil
 }
 
 func decodeUpsertCMDConversationStates(data []byte) (command, error) {
@@ -2266,6 +2648,40 @@ func appendInt64TLVField(dst []byte, tag uint8, value int64) []byte {
 func appendUint64TLVField(dst []byte, tag uint8, value uint64) []byte {
 	dst = append(dst, tag, 0, 0, 0, 8)
 	return binary.BigEndian.AppendUint64(dst, value)
+}
+
+func appendBoolTLVField(dst []byte, tag uint8, value bool) []byte {
+	var raw byte
+	if value {
+		raw = 1
+	}
+	dst = append(dst, tag, 0, 0, 0, 1)
+	return append(dst, raw)
+}
+
+func decodeBoolTLVValue(value []byte, label string) (bool, error) {
+	if len(value) != 1 {
+		return false, fmt.Errorf("%w: bad %s length", metadb.ErrCorruptValue, label)
+	}
+	switch value[0] {
+	case 0:
+		return false, nil
+	case 1:
+		return true, nil
+	default:
+		return false, fmt.Errorf("%w: bad %s value", metadb.ErrCorruptValue, label)
+	}
+}
+
+func decodeHashSlotTLVValue(value []byte, label string) (uint16, error) {
+	if len(value) != 8 {
+		return 0, fmt.Errorf("%w: bad %s length", metadb.ErrCorruptValue, label)
+	}
+	raw := binary.BigEndian.Uint64(value)
+	if raw > uint64(^uint16(0)) {
+		return 0, fmt.Errorf("%w: bad %s value %d", metadb.ErrCorruptValue, label, raw)
+	}
+	return uint16(raw), nil
 }
 
 // readTLV reads one TLV entry from data and returns (tag, value, bytesConsumed, error).

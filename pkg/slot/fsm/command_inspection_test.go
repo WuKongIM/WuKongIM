@@ -134,11 +134,13 @@ func TestDecodeCommandInspectionIncludesGuardedChannelMigrationCreate(t *testing
 
 func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeTouchUserConversationActiveAtCommand([]metadb.UserConversationActivePatch{{
-		UID:         "u1",
-		ChannelID:   "g1",
-		ChannelType: 2,
-		ActiveAt:    100,
-		MessageSeq:  11,
+		UID:             "u1",
+		ChannelID:       "g1",
+		ChannelType:     2,
+		ActiveAt:        100,
+		MessageSeq:      11,
+		SparseActive:    true,
+		SparseActiveSet: true,
 	}}))
 	require.NoError(t, err)
 
@@ -147,14 +149,68 @@ func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *test
 		Payload: map[string]any{
 			"command": "touch_user_conversation_active_at",
 			"patches": []map[string]any{{
-				"uid":          "u1",
-				"channel_id":   "g1",
-				"channel_type": int64(2),
-				"active_at":    int64(100),
-				"message_seq":  uint64(11),
+				"uid":               "u1",
+				"channel_id":        "g1",
+				"channel_type":      int64(2),
+				"active_at":         int64(100),
+				"message_seq":       uint64(11),
+				"sparse_active":     true,
+				"sparse_active_set": true,
 			}},
 		},
 	}, got)
+}
+
+func TestDecodeCommandInspectionIncludesUserConversationSparseActive(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeUpsertUserConversationStatesCommand([]metadb.UserConversationState{{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ReadSeq:      3,
+		DeletedToSeq: 4,
+		ActiveAt:     5,
+		UpdatedAt:    6,
+		SparseActive: true,
+	}}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "upsert_user_conversation_states",
+		Payload: map[string]any{
+			"command": "upsert_user_conversation_states",
+			"states": []map[string]any{{
+				"uid":            "u1",
+				"channel_id":     "g1",
+				"channel_type":   int64(2),
+				"read_seq":       uint64(3),
+				"deleted_to_seq": uint64(4),
+				"active_at":      int64(5),
+				"updated_at":     int64(6),
+				"sparse_active":  true,
+			}},
+		},
+	}, got)
+}
+
+func TestEncodeUserConversationCommandsCheckedRejectInvalidRows(t *testing.T) {
+	_, err := EncodeUpsertUserConversationStatesCommandChecked([]metadb.UserConversationState{{
+		ChannelID:   "g1",
+		ChannelType: 2,
+	}})
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+
+	_, err = EncodeTouchUserConversationActiveAtCommandChecked([]metadb.UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelType: 2,
+	}})
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+
+	_, err = EncodeHideUserConversationsCommandChecked([]metadb.UserConversationDelete{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 0,
+	}})
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
 }
 
 func TestDecodeCommandInspectionMarksReservedConversationProjectionCommand(t *testing.T) {

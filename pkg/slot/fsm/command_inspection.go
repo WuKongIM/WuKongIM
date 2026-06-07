@@ -55,11 +55,11 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *upsertUserConversationStatesCmd:
 		return simpleInspection("upsert_user_conversation_states", map[string]any{
-			"states": userConversationStatesPayload(typed.states),
+			"states": userConversationStatesPayload(typed.states()),
 		}), nil
 	case *touchUserConversationActiveAtCmd:
 		return simpleInspection("touch_user_conversation_active_at", map[string]any{
-			"patches": userConversationActivePatchesPayload(typed.patches),
+			"patches": userConversationActivePatchesPayload(typed.patches()),
 		}), nil
 	case *clearUserConversationActiveAtCmd:
 		return simpleInspection("clear_user_conversation_active_at", map[string]any{
@@ -73,7 +73,7 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		}), nil
 	case *hideUserConversationsCmd:
 		return simpleInspection("hide_user_conversations", map[string]any{
-			"deletes": userConversationDeletesPayload(typed.deletes),
+			"deletes": userConversationDeletesPayload(typed.deletes()),
 		}), nil
 	case *upsertCMDConversationStatesCmd:
 		return simpleInspection("upsert_cmd_conversation_states", map[string]any{
@@ -276,6 +276,7 @@ func userConversationStatesPayload(states []metadb.UserConversationState) []map[
 			"deleted_to_seq": state.DeletedToSeq,
 			"active_at":      state.ActiveAt,
 			"updated_at":     state.UpdatedAt,
+			"sparse_active":  state.SparseActive,
 		})
 	}
 	return out
@@ -285,11 +286,13 @@ func userConversationActivePatchesPayload(patches []metadb.UserConversationActiv
 	out := make([]map[string]any, 0, len(patches))
 	for _, patch := range patches {
 		out = append(out, map[string]any{
-			"uid":          patch.UID,
-			"channel_id":   patch.ChannelID,
-			"channel_type": patch.ChannelType,
-			"active_at":    patch.ActiveAt,
-			"message_seq":  patch.MessageSeq,
+			"uid":               patch.UID,
+			"channel_id":        patch.ChannelID,
+			"channel_type":      patch.ChannelType,
+			"active_at":         patch.ActiveAt,
+			"message_seq":       patch.MessageSeq,
+			"sparse_active":     patch.SparseActive,
+			"sparse_active_set": patch.SparseActiveSet,
 		})
 	}
 	return out

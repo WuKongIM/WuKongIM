@@ -140,17 +140,17 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 		After:       &metadb.ConversationCursor{ChannelID: "g0", ChannelType: 2},
 		Limit:       64,
 		States: []metadb.UserConversationState{{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6,
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6, SparseActive: true,
 		}},
 		Patches: []metadb.UserConversationActivePatch{{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 7, MessageSeq: 8,
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 7, MessageSeq: 8, SparseActive: true, SparseActiveSet: true,
 		}},
 		Keys: []metadb.ConversationKey{{ChannelID: "g1", ChannelType: 2}},
 		Deletes: []metadb.UserConversationDelete{{
 			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 10,
 		}},
 		Hints: []metadb.UserConversationActiveHint{{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 11, MessageSeq: 12,
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 11, MessageSeq: 12, SparseActive: true, SparseActiveSet: true,
 		}},
 		Barriers: []metadb.UserConversationDeleteBarrier{{
 			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 13,
@@ -168,8 +168,8 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	resp := userConversationStateRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 2,
-		State:    &metadb.UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6},
-		States:   []metadb.UserConversationState{{UID: "u2", ChannelID: "g2", ChannelType: 3, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 9, UpdatedAt: 10}},
+		State:    &metadb.UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6, SparseActive: true},
+		States:   []metadb.UserConversationState{{UID: "u2", ChannelID: "g2", ChannelType: 3, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 9, UpdatedAt: 10, SparseActive: true}},
 		Cursor:   metadb.ConversationCursor{ChannelID: "g2", ChannelType: 3},
 		Done:     true,
 	}

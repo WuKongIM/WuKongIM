@@ -308,6 +308,7 @@ func appendUserConversationState(dst []byte, state metadb.UserConversationState)
 	dst = runtimeMetaAppendUvarint(dst, state.DeletedToSeq)
 	dst = runtimeMetaAppendVarint(dst, state.ActiveAt)
 	dst = runtimeMetaAppendVarint(dst, state.UpdatedAt)
+	dst = runtimeMetaAppendBool(dst, state.SparseActive)
 	return dst
 }
 
@@ -335,6 +336,9 @@ func readUserConversationState(body []byte, offset int) (metadb.UserConversation
 	if state.UpdatedAt, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return metadb.UserConversationState{}, offset, err
 	}
+	if state.SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return metadb.UserConversationState{}, offset, err
+	}
 	return state, offset, nil
 }
 
@@ -346,6 +350,8 @@ func appendUserConversationActivePatches(dst []byte, patches []metadb.UserConver
 		dst = runtimeMetaAppendVarint(dst, patch.ChannelType)
 		dst = runtimeMetaAppendVarint(dst, patch.ActiveAt)
 		dst = runtimeMetaAppendUvarint(dst, patch.MessageSeq)
+		dst = runtimeMetaAppendBool(dst, patch.SparseActive)
+		dst = runtimeMetaAppendBool(dst, patch.SparseActiveSet)
 	}
 	return dst
 }
@@ -375,6 +381,12 @@ func readUserConversationActivePatches(body []byte, offset int) ([]metadb.UserCo
 			return nil, offset, err
 		}
 		if patches[i].MessageSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if patches[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if patches[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
 			return nil, offset, err
 		}
 	}
@@ -432,6 +444,8 @@ func appendUserConversationActiveHints(dst []byte, hints []metadb.UserConversati
 		dst = runtimeMetaAppendVarint(dst, hint.ChannelType)
 		dst = runtimeMetaAppendVarint(dst, hint.ActiveAt)
 		dst = runtimeMetaAppendUvarint(dst, hint.MessageSeq)
+		dst = runtimeMetaAppendBool(dst, hint.SparseActive)
+		dst = runtimeMetaAppendBool(dst, hint.SparseActiveSet)
 	}
 	return dst
 }
@@ -461,6 +475,12 @@ func readUserConversationActiveHints(body []byte, offset int) ([]metadb.UserConv
 			return nil, offset, err
 		}
 		if hints[i].MessageSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if hints[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if hints[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
 			return nil, offset, err
 		}
 	}
