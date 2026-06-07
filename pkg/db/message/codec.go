@@ -66,6 +66,9 @@ func encodeMessageHeader(key []byte, row messageRow) ([]byte, error) {
 	if err := w.Uint64(messageColumnIDPayloadSize, row.PayloadSize); err != nil {
 		return nil, err
 	}
+	if err := w.Int64(messageColumnIDServerTimestampMS, row.ServerTimestampMS); err != nil {
+		return nil, err
+	}
 	return rowcodec.Wrap(key, messageValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -164,6 +167,10 @@ func decodeMessageHeaderColumn(s *rowcodec.Scanner, row *messageRow) error {
 	case messageColumnIDPayloadSize:
 		value, err := s.Uint64()
 		row.PayloadSize = value
+		return err
+	case messageColumnIDServerTimestampMS:
+		value, err := s.Int64()
+		row.ServerTimestampMS = value
 		return err
 	default:
 		return nil

@@ -16,7 +16,7 @@ Current flow:
    materialize messages from header/payload families.
    `ChannelLog.GetLastVisibleMessage` uses reverse iteration over the channel
    row keyspace to fetch the newest message above a visibility boundary without
-   scanning the full channel.
+   scanning the full channel or recovering LEO.
 6. `GetByMessageID`, `ListByClientMsgNo`, and `LookupIdempotency` use typed
    secondary indexes and verify indexed rows before returning.
 7. Checkpoint, epoch history, and snapshot payload APIs store channel system
@@ -49,7 +49,10 @@ Current flow:
     `channel.Record` payload.
 14. Message rows persist `ServerTimestampMS`, `FromUID`, `ClientMsgNo`, and
     `Payload` so conversation list display can read durable fields from the
-    message log instead of transient committed events.
+    message log instead of transient committed events. `ServerTimestampMS` is a
+    separate durable header column from the legacy `Timestamp` field; old rows
+    without the new column decode `ServerTimestampMS` as zero, and new leader
+    appends default it at the DB boundary when callers omit it.
 15. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

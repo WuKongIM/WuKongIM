@@ -8,25 +8,26 @@ const (
 )
 
 type messageRow struct {
-	MessageSeq  uint64
-	MessageID   uint64
-	FramerFlags uint8
-	Setting     uint8
-	StreamFlag  uint8
-	MsgKey      string
-	Expire      uint64
-	ClientSeq   uint64
-	ClientMsgNo string
-	StreamNo    string
-	StreamID    uint64
-	Timestamp   int64
-	ChannelID   string
-	ChannelType uint8
-	Topic       string
-	FromUID     string
-	PayloadHash uint64
-	PayloadSize uint64
-	Payload     []byte
+	MessageSeq        uint64
+	MessageID         uint64
+	FramerFlags       uint8
+	Setting           uint8
+	StreamFlag        uint8
+	MsgKey            string
+	Expire            uint64
+	ClientSeq         uint64
+	ClientMsgNo       string
+	StreamNo          string
+	StreamID          uint64
+	Timestamp         int64
+	ServerTimestampMS int64
+	ChannelID         string
+	ChannelType       uint8
+	Topic             string
+	FromUID           string
+	PayloadHash       uint64
+	PayloadSize       uint64
+	Payload           []byte
 }
 
 func (r messageRow) validate() error {

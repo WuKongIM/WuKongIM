@@ -107,6 +107,19 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, int64(1234), msg.ServerTimestampMS)
 }
 
+func TestDBCompatibleLegacyTimestampDoesNotBecomeServerTimestampMS(t *testing.T) {
+	payload, err := encodeDBCompatibleMessage(channel.Message{
+		MessageID: 10,
+		Timestamp: 1234,
+		Payload:   []byte("payload"),
+	})
+	require.NoError(t, err)
+	msg, err := decodeDBCompatibleMessage(payload)
+	require.NoError(t, err)
+	require.Equal(t, int32(1234), msg.Timestamp)
+	require.Zero(t, msg.ServerTimestampMS)
+}
+
 func TestMessageDBFactoryOptionsDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(MessageDBFactoryOptions{}).FieldByName("CommitNoSync")
 	require.False(t, ok)

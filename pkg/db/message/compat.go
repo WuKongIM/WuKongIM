@@ -935,6 +935,7 @@ func (s *ChannelStore) prepareAppendRecordsLocked(ctx context.Context, records [
 	if err != nil {
 		return preparedCommitRows{}, err
 	}
+	defaultMissingServerTimestampMS(rows, time.Now().UnixMilli())
 	if err := s.validateRowsForAppend(ctx, rows, mode); err != nil {
 		return preparedCommitRows{}, err
 	}
@@ -1900,7 +1901,7 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 	}
 	row.Payload = append([]byte(nil), row.Payload...)
 	if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
-		row.Timestamp = serverTimestampMS
+		row.ServerTimestampMS = serverTimestampMS
 	}
 	row.PayloadSize = uint64(len(row.Payload))
 	if row.PayloadHash == 0 {
@@ -1924,7 +1925,7 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 		}
 		size += 4 + fieldSize
 	}
-	if row.Timestamp != 0 {
+	if row.ServerTimestampMS != 0 {
 		size += compatibilityServerTimestampSize
 	}
 	payload := make([]byte, 0, size)
@@ -1943,8 +1944,19 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 	payload = appendCompatibilityString(payload, row.Topic)
 	payload = appendCompatibilityString(payload, row.FromUID)
 	payload = appendCompatibilityBytes(payload, row.Payload)
-	payload = appendCompatibilityServerTimestamp(payload, row.Timestamp)
+	payload = appendCompatibilityServerTimestamp(payload, row.ServerTimestampMS)
 	return channel.Record{ID: row.MessageID, Index: row.MessageSeq, Payload: payload, SizeBytes: len(payload)}, nil
+}
+
+func defaultMissingServerTimestampMS(rows []messageRow, serverTimestampMS int64) {
+	if serverTimestampMS == 0 {
+		serverTimestampMS = time.Now().UnixMilli()
+	}
+	for i := range rows {
+		if rows[i].ServerTimestampMS == 0 {
+			rows[i].ServerTimestampMS = serverTimestampMS
+		}
+	}
 }
 
 func recordsFromRows(rows []messageRow) ([]channel.Record, error) {
@@ -2029,7 +2041,7 @@ func channelMessageFromRow(row messageRow) channel.Message {
 		ChannelType:       row.ChannelType,
 		Topic:             row.Topic,
 		FromUID:           row.FromUID,
-		ServerTimestampMS: row.Timestamp,
+		ServerTimestampMS: row.ServerTimestampMS,
 		Payload:           append([]byte(nil), row.Payload...),
 	}
 }

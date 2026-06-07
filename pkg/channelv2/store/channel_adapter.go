@@ -421,7 +421,6 @@ func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 		StreamID:    binary.BigEndian.Uint64(payload[25:33]),
 		Timestamp:   int32(binary.BigEndian.Uint32(payload[33:37])),
 	}
-	msg.ServerTimestampMS = int64(msg.Timestamp)
 	pos := durableMessageHeaderSize
 	var b []byte
 	var err error

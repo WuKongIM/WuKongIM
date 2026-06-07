@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
@@ -63,12 +64,13 @@ func (l *ChannelLog) prepareAppendRowsLocked(ctx context.Context, records []Reco
 	seenMessageIDs := make(map[uint64]struct{}, len(records))
 	seenIdempotencyKeys := make(map[IdempotencyKey]struct{}, len(records))
 	lastSeq := baseSeq - 1
+	defaultServerTimestampMS := time.Now().UnixMilli()
 	for i, record := range records {
 		if err := ctx.Err(); err != nil {
 			return nil, AppendResult{}, err
 		}
 		seq := baseSeq + uint64(i)
-		row := normalizeMessageRow(l.recordToRow(seq, record))
+		row := normalizeMessageRow(l.recordToRow(seq, record, defaultServerTimestampMS))
 		if err := l.validateAppendRow(ctx, row, seenMessageIDs, seenIdempotencyKeys, opts.Mode); err != nil {
 			return nil, AppendResult{}, err
 		}
@@ -175,16 +177,20 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 	return nil
 }
 
-func (l *ChannelLog) recordToRow(seq uint64, record Record) messageRow {
+func (l *ChannelLog) recordToRow(seq uint64, record Record, defaultServerTimestampMS int64) messageRow {
+	serverTimestampMS := record.ServerTimestampMS
+	if serverTimestampMS == 0 {
+		serverTimestampMS = defaultServerTimestampMS
+	}
 	row := messageRow{
-		MessageSeq:  seq,
-		MessageID:   record.ID,
-		ClientMsgNo: record.ClientMsgNo,
-		FromUID:     record.FromUID,
-		ChannelID:   l.id.ID,
-		ChannelType: l.id.Type,
-		Payload:     append([]byte(nil), record.Payload...),
-		Timestamp:   record.ServerTimestampMS,
+		MessageSeq:        seq,
+		MessageID:         record.ID,
+		ClientMsgNo:       record.ClientMsgNo,
+		FromUID:           record.FromUID,
+		ChannelID:         l.id.ID,
+		ChannelType:       l.id.Type,
+		Payload:           append([]byte(nil), record.Payload...),
+		ServerTimestampMS: serverTimestampMS,
 	}
 	if record.SizeBytes > 0 {
 		row.PayloadSize = uint64(record.SizeBytes)

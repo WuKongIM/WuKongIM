@@ -62,13 +62,6 @@ func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq 
 	if l == nil || l.db == nil || l.db.engine == nil {
 		return Message{}, false, dberrors.ErrClosed
 	}
-	leo, err := l.LEO(ctx)
-	if err != nil {
-		return Message{}, false, err
-	}
-	if leo == 0 || leo <= visibleAfterSeq {
-		return Message{}, false, nil
-	}
 
 	prefix := encodeMessageRowPrefix(l.key)
 	span := keycodec.NewPrefixSpan(prefix)
@@ -92,7 +85,10 @@ func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq 
 		if familyID != messageHeaderFamilyID {
 			continue
 		}
-		return l.GetBySeq(ctx, seq)
+		msg, ok, err := l.GetBySeq(ctx, seq)
+		if err != nil || ok {
+			return msg, ok, err
+		}
 	}
 	if err := iter.Error(); err != nil {
 		return Message{}, false, err
@@ -259,7 +255,7 @@ func messageFromRow(row messageRow) Message {
 		FromUID:           row.FromUID,
 		PayloadHash:       row.PayloadHash,
 		Payload:           append([]byte(nil), row.Payload...),
-		ServerTimestampMS: row.Timestamp,
+		ServerTimestampMS: row.ServerTimestampMS,
 	}
 }
 

@@ -20,25 +20,26 @@ const (
 	messageSystemIDRetention  uint16 = 4
 	messageSystemIDCursor     uint16 = 5
 
-	messageColumnIDMessageSeq  uint16 = 1
-	messageColumnIDMessageID   uint16 = 2
-	messageColumnIDFramerFlags uint16 = 3
-	messageColumnIDSetting     uint16 = 4
-	messageColumnIDStreamFlag  uint16 = 5
-	messageColumnIDMsgKey      uint16 = 6
-	messageColumnIDExpire      uint16 = 7
-	messageColumnIDClientSeq   uint16 = 8
-	messageColumnIDClientMsgNo uint16 = 9
-	messageColumnIDStreamNo    uint16 = 10
-	messageColumnIDStreamID    uint16 = 11
-	messageColumnIDTimestamp   uint16 = 12
-	messageColumnIDChannelID   uint16 = 13
-	messageColumnIDChannelType uint16 = 14
-	messageColumnIDTopic       uint16 = 15
-	messageColumnIDFromUID     uint16 = 16
-	messageColumnIDPayloadHash uint16 = 17
-	messageColumnIDPayloadSize uint16 = 18
-	messageColumnIDPayload     uint16 = 19
+	messageColumnIDMessageSeq        uint16 = 1
+	messageColumnIDMessageID         uint16 = 2
+	messageColumnIDFramerFlags       uint16 = 3
+	messageColumnIDSetting           uint16 = 4
+	messageColumnIDStreamFlag        uint16 = 5
+	messageColumnIDMsgKey            uint16 = 6
+	messageColumnIDExpire            uint16 = 7
+	messageColumnIDClientSeq         uint16 = 8
+	messageColumnIDClientMsgNo       uint16 = 9
+	messageColumnIDStreamNo          uint16 = 10
+	messageColumnIDStreamID          uint16 = 11
+	messageColumnIDTimestamp         uint16 = 12
+	messageColumnIDChannelID         uint16 = 13
+	messageColumnIDChannelType       uint16 = 14
+	messageColumnIDTopic             uint16 = 15
+	messageColumnIDFromUID           uint16 = 16
+	messageColumnIDPayloadHash       uint16 = 17
+	messageColumnIDPayloadSize       uint16 = 18
+	messageColumnIDPayload           uint16 = 19
+	messageColumnIDServerTimestampMS uint16 = 20
 )
 
 // MessageTable describes the persisted channel message row schema.
@@ -65,6 +66,7 @@ var MessageTable = schema.Table{
 		{ID: messageColumnIDPayloadHash, Name: "payload_hash", Type: schema.TypeUint64},
 		{ID: messageColumnIDPayloadSize, Name: "payload_size", Type: schema.TypeUint64},
 		{ID: messageColumnIDPayload, Name: "payload", Type: schema.TypeBytes},
+		{ID: messageColumnIDServerTimestampMS, Name: "server_timestamp_ms", Type: schema.TypeInt64},
 	},
 	Families: []schema.Family{
 		{
@@ -88,6 +90,7 @@ var MessageTable = schema.Table{
 				messageColumnIDFromUID,
 				messageColumnIDPayloadHash,
 				messageColumnIDPayloadSize,
+				messageColumnIDServerTimestampMS,
 			},
 		},
 		{

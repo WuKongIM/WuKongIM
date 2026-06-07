@@ -28,6 +28,55 @@ func TestChannelLogGetLastVisibleMessageReadsTail(t *testing.T) {
 	}
 }
 
+func TestChannelLogAppendDefaultsServerTimestampMS(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	log := store.db.Channel(ChannelKey("default-timestamp:2"), ChannelID{ID: "default-timestamp", Type: 2})
+	ctx := context.Background()
+
+	_, err := log.Append(ctx, []Record{{ID: 301, Payload: []byte("no timestamp")}}, AppendOptions{})
+	if err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	msg, ok, err := log.GetBySeq(ctx, 1)
+	if err != nil || !ok {
+		t.Fatalf("GetBySeq() ok=%v err=%v, want ok", ok, err)
+	}
+	if msg.ServerTimestampMS == 0 {
+		t.Fatal("ServerTimestampMS = 0, want durable DB boundary default")
+	}
+}
+
+func TestChannelLogGetLastVisibleMessageDoesNotRecoverLEO(t *testing.T) {
+	path := t.TempDir()
+	store := openTestMessageStoreAt(t, path)
+	log := store.db.Channel(ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
+	ctx := context.Background()
+	_, err := log.Append(ctx, []Record{
+		{ID: 401, Payload: []byte("one"), ServerTimestampMS: 1000},
+		{ID: 402, Payload: []byte("two"), ServerTimestampMS: 2000},
+	}, AppendOptions{})
+	if err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	store.close(t)
+
+	reopened := openTestMessageStoreAt(t, path)
+	defer reopened.close(t)
+	reopenedLog := reopened.db.Channel(ChannelKey("tail-reopen:2"), ChannelID{ID: "tail-reopen", Type: 2})
+	msg, ok, err := reopenedLog.GetLastVisibleMessage(ctx, 1)
+	if err != nil || !ok {
+		t.Fatalf("GetLastVisibleMessage() ok=%v err=%v, want ok", ok, err)
+	}
+	if msg.MessageSeq != 2 {
+		t.Fatalf("MessageSeq = %d, want 2", msg.MessageSeq)
+	}
+	if reopenedLog.loaded.Load() {
+		t.Fatal("GetLastVisibleMessage loaded LEO cache, want direct reverse tail read")
+	}
+}
+
 func TestChannelLogGetLastVisibleMessageHonorsVisibleAfterSeq(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
