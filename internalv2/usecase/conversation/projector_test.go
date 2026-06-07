@@ -119,6 +119,38 @@ func TestProjectorSmallGroupFansOutMembers(t *testing.T) {
 	}
 }
 
+func TestProjectorSmallGroupIncludesSenderWhenMemberSnapshotOmitsSender(t *testing.T) {
+	members := &recordingMemberSource{classes: map[string]MemberClass{
+		"g-missing-sender": {
+			IsSmall: true,
+			Members: []Member{
+				{UID: "u2"},
+			},
+		},
+	}}
+	store := &recordingConversationBatchStore{}
+	projector := NewProjector(ProjectorOptions{Store: store, Members: members, SmallGroupFanoutLimit: 2})
+
+	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "g-missing-sender",
+		ChannelType:       testChannelTypeGroup,
+		FromUID:           "sender",
+		MessageSeq:        7,
+		ServerTimestampMS: 2100,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommitted() error = %v", err)
+	}
+
+	want := []metadb.UserConversationState{
+		{UID: "u2", ChannelID: "g-missing-sender", ChannelType: int64(testChannelTypeGroup), ActiveAt: 2100, UpdatedAt: 2100},
+		{UID: "sender", ChannelID: "g-missing-sender", ChannelType: int64(testChannelTypeGroup), ActiveAt: 2100, UpdatedAt: 2100},
+	}
+	if !reflect.DeepEqual(store.states, want) {
+		t.Fatalf("states = %#v, want %#v", store.states, want)
+	}
+}
+
 func TestProjectorOverLimitSmallClassFallsBackToSparseSender(t *testing.T) {
 	members := &recordingMemberSource{classes: map[string]MemberClass{
 		"g-over": {

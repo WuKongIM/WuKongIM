@@ -80,9 +80,22 @@ func (p *Projector) groupStates(ctx context.Context, event messageevents.Message
 		return nil, err
 	}
 	if class.IsSmall && len(class.Members) <= p.smallGroupFanoutLimit {
-		return denseStates(event, class.Members), nil
+		return denseStates(event, membersWithSender(event.FromUID, class.Members)), nil
 	}
 	return sparseSenderState(event, class.Members), nil
+}
+
+func membersWithSender(sender string, members []Member) []Member {
+	if sender == "" {
+		return members
+	}
+	for _, member := range members {
+		if member.UID == sender {
+			return members
+		}
+	}
+	out := append([]Member(nil), members...)
+	return append(out, Member{UID: sender})
 }
 
 func denseStates(event messageevents.MessageCommitted, members []Member) []metadb.UserConversationState {

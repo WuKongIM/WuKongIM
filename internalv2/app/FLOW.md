@@ -61,8 +61,8 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, channel latest committed
-     sink when exposed, optional delivery committed sink, and append metrics
+     message reader when exposed, node-scoped IDs, conversation projection
+     committed sink when exposed, optional delivery committed sink, and append metrics
      observer only when delivery is enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
@@ -151,7 +151,8 @@ Conversation list reads flow from entry adapters through
 `internalv2/usecase/conversation` and the `internalv2/infra/cluster`
 `ConversationStore` adapter. The read model pages UID-owned active conversation
 rows directly, fetches the newest visible durable message only for the returned
-page, and applies the public `active_at/channel_id/channel_type` cursor without
+page with `Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read
+limit, and applies the public `active_at/channel_id/channel_type` cursor without
 scanning membership rows. Conversation rows do not store the last message.
 When metrics are enabled, the app maps API conversation-list observations to
 Prometheus metrics for latency, returned items, sparse items, last-message
@@ -175,13 +176,22 @@ messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
 After a durable append succeeds, `MessageCommitted` flows through the app-level
-committed sink group. When the cluster exposes `UpsertChannelLatestBatch`, the
-conversation projector records one channel-owned `channel_latest` dirty row in memory
-keyed by `(channel_id, channel_type)`. A background flush coalesces repeated
-updates for the same channel and writes batches through clusterv2, so SEND does
-not synchronously propose conversation metadata. This projection is
-independent of delivery fanout: it is written even when `Delivery.Enabled=false`,
-and it never fans out one row per channel member.
+committed sink group. When the cluster exposes conversation projection metadata
+facades, the conversation projector records committed events in memory keyed by
+channel, type, and sender. `Submit` does not scan members or propose Slot
+commands. Dirty committed-event keys are bounded in memory; when the bound is
+full, new keys are dropped until a flush frees capacity while existing dirty
+keys can still coalesce newer committed messages. A cancellable background
+flush runs the `internalv2/usecase/conversation` projection policy, reuses a
+per-flush member classification cache, coalesces duplicate `(uid, channel)`
+rows, and writes one UID-owned `conversation` batch through clusterv2. Person
+channels fan out to the two participants, ordinary groups at or below
+`Config.Conversation.SmallGroupFanoutLimit` fan out to the complete subscriber
+page plus the sender when the subscriber snapshot omits it, and larger groups
+write only a sparse sender row. Member classification failures requeue only the
+affected dirty event. Batch write failures fall back to per-event writes and
+requeue only events that still fail. This projection is independent of delivery
+fanout and is written even when `Delivery.Enabled=false`.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so
@@ -208,7 +218,7 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> conversation projector Stop(ctx): stop ticker and flush dirty channel_latest rows
+  -> conversation projector Stop(ctx): stop ticker and flush dirty conversation rows
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```

@@ -81,6 +81,8 @@ var supportedConfigKeys = []string{
 	"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
 	"WK_PRESENCE_TOUCH_BATCH_SIZE",
 	"WK_PRESENCE_ROUTE_TTL",
+	"WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT",
+	"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY",
 	"WK_DELIVERY_ENABLE",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
@@ -683,6 +685,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ROUTE_TTL: value must be >= 0")
 		}
 		cfg.Presence.RouteTTL = ttl
+	}
+	if raw := configValue(values, "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT: value must be >= 0")
+		}
+		cfg.Conversation.SmallGroupFanoutLimit = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY: value must be >= 0")
+		}
+		cfg.Conversation.MaxLastMessageConcurrency = limit
 	}
 	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)

@@ -19,8 +19,6 @@ import (
 func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
-	channelID := channelv2.ChannelID{ID: "room-conversation-api", Type: frame.ChannelTypeGroup}
-	activeAt := int64(1000)
 	app, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -41,14 +39,15 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if !ok {
 		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
 	}
-	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+	waitSingleNodeClusterRouteLeader(t, node, "sender", cfg.NodeID)
+	waitSingleNodeClusterRouteLeader(t, node, "receiver", cfg.NodeID)
 	apiSrv, ok := app.api.(*accessapi.Server)
 	if !ok {
 		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
 	}
 
 	handler := apiSrv.Handler()
-	sendBody := postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-api","channel_type":2,"client_msg_no":"client-conv-api-1","payload":"aGVsbG8="}`, http.StatusOK)
+	sendBody := postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"receiver","channel_type":1,"client_msg_no":"client-conv-api-1","payload":"aGVsbG8="}`, http.StatusOK)
 	var sendResp struct {
 		MessageID  int64  `json:"message_id"`
 		MessageSeq uint64 `json:"message_seq"`
@@ -60,16 +59,16 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if sendResp.Reason != uint8(frame.ReasonSuccess) || sendResp.MessageSeq == 0 || sendResp.MessageID == 0 {
 		t.Fatalf("send response = %#v, want successful committed message", sendResp)
 	}
+	if app.conversationProjector == nil {
+		t.Fatal("conversation projector was not wired")
+	}
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer flushCancel()
+	if err := app.conversationProjector.Flush(flushCtx); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
 
-	upsertAppConversationStates(t, node, []metadb.UserConversationState{{
-		UID:         "u-list",
-		ChannelID:   channelID.ID,
-		ChannelType: int64(channelID.Type),
-		ActiveAt:    activeAt,
-		UpdatedAt:   activeAt + 1,
-	}})
-
-	listBody := postAppJSON(t, handler, "/conversation/list", `{"uid":"u-list","limit":10}`, http.StatusOK)
+	listBody := postAppJSON(t, handler, "/conversation/list", `{"uid":"sender","limit":10}`, http.StatusOK)
 	var listResp struct {
 		Conversations []struct {
 			ChannelID   string `json:"channel_id"`
@@ -97,7 +96,7 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if got.LastMessage == nil {
 		t.Fatalf("conversation = %#v, want last_message", got)
 	}
-	if got.ChannelID != channelID.ID || got.ChannelType != int64(channelID.Type) || got.ActiveAt != activeAt ||
+	if got.ChannelID != "receiver" || got.ChannelType != int64(frame.ChannelTypePerson) || got.ActiveAt <= 0 ||
 		got.Unread != sendResp.MessageSeq || got.LastMessage.MessageID != uint64(sendResp.MessageID) ||
 		got.LastMessage.MessageSeq != sendResp.MessageSeq || got.LastMessage.FromUID != "sender" ||
 		got.LastMessage.ClientMsgNo != "client-conv-api-1" || string(got.LastMessage.Payload) != "hello" {
@@ -105,6 +104,14 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	}
 	if listResp.More != 0 {
 		t.Fatalf("list metadata more = %d, want complete page", listResp.More)
+	}
+
+	receiverPage := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver","limit":10}`, http.StatusOK))
+	if len(receiverPage.Conversations) != 1 || receiverPage.Conversations[0].ChannelID != "sender" ||
+		receiverPage.Conversations[0].ChannelType != int64(frame.ChannelTypePerson) ||
+		receiverPage.Conversations[0].LastMessage == nil ||
+		receiverPage.Conversations[0].LastMessage.ClientMsgNo != "client-conv-api-1" {
+		t.Fatalf("receiver conversations = %#v, want sender person conversation", receiverPage.Conversations)
 	}
 }
 

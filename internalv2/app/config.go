@@ -39,6 +39,8 @@ type Config struct {
 	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
+	// Conversation configures active conversation projection and list reads.
+	Conversation ConversationConfig
 	// Presence configures connection-route activation and authority touch behavior.
 	Presence PresenceConfig
 	// Delivery configures online message delivery fanout and owner-local ack tracking.
@@ -176,6 +178,14 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 // MessageConfig contains message usecase settings.
 type MessageConfig struct{}
 
+// ConversationConfig contains conversation projection and read-model settings.
+type ConversationConfig struct {
+	// SmallGroupFanoutLimit is the maximum member count eligible for dense conversation fanout.
+	SmallGroupFanoutLimit int
+	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one conversation list request.
+	MaxLastMessageConcurrency int
+}
+
 // PresenceConfig contains connection presence and route-authority touch settings.
 type PresenceConfig struct {
 	// ActivationTimeout bounds one gateway session activation against the UID authority.
@@ -235,6 +245,16 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	}
 	if cfg.EventQueueSize == 0 {
 		cfg.EventQueueSize = 1024
+	}
+	return cfg
+}
+
+func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
+	if cfg.SmallGroupFanoutLimit == 0 {
+		cfg.SmallGroupFanoutLimit = 1000
+	}
+	if cfg.MaxLastMessageConcurrency == 0 {
+		cfg.MaxLastMessageConcurrency = 32
 	}
 	return cfg
 }
@@ -323,6 +343,16 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	}
 	if cfg.EventQueueSize < 0 {
 		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateConversationConfig(cfg ConversationConfig) error {
+	if cfg.SmallGroupFanoutLimit < 0 {
+		return fmt.Errorf("%w: conversation small group fanout limit must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.MaxLastMessageConcurrency < 0 {
+		return fmt.Errorf("%w: conversation last message concurrency must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

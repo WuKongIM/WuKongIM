@@ -2,56 +2,65 @@ package app
 
 import (
 	"context"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const (
-	defaultConversationProjectorFlushInterval = 100 * time.Millisecond
-	defaultConversationProjectorShardCount    = 64
+	defaultConversationProjectorFlushInterval  = 100 * time.Millisecond
+	defaultConversationProjectorShardCount     = 64
+	defaultConversationProjectorMaxDirtyEvents = 100000
 )
 
-type channelLatestBatchWriter interface {
-	UpsertChannelLatestBatch(context.Context, []metadb.ChannelLatest) error
-}
-
 type conversationProjectorOptions struct {
-	// writer persists coalesced latest rows outside the foreground send path.
-	writer channelLatestBatchWriter
-	// now supplies wall-clock time for projection timestamps.
-	now func() time.Time
+	// store persists coalesced UID-owned conversation rows outside the foreground send path.
+	store conversationusecase.ConversationBatchStore
+	// members classifies non-person channels for dense or sparse projection.
+	members conversationusecase.MemberSource
+	// smallGroupFanoutLimit bounds dense fanout for ordinary channels.
+	smallGroupFanoutLimit int
+	// maxDirtyEvents bounds unflushed committed-message keys retained in memory.
+	maxDirtyEvents int
 	// flushInterval controls the background flush cadence.
 	flushInterval time.Duration
 	// shardCount bounds lock contention when many channels are updated concurrently.
 	shardCount int
 }
 
-// conversationProjector coalesces committed messages into channel_latest rows before durable flush.
+// conversationProjector coalesces committed messages before durable conversation-row flush.
 type conversationProjector struct {
-	writer        channelLatestBatchWriter
-	now           func() time.Time
-	flushInterval time.Duration
-	shards        []conversationProjectorShard
+	store                 conversationusecase.ConversationBatchStore
+	members               conversationusecase.MemberSource
+	smallGroupFanoutLimit int
+	maxDirtyEvents        int
+	flushInterval         time.Duration
+	shards                []conversationProjectorShard
+	dirtyEvents           atomic.Int64
 
-	flushMu sync.Mutex
-	runMu   sync.Mutex
-	started bool
-	stopCh  chan struct{}
-	doneCh  chan struct{}
+	flushMu   sync.Mutex
+	runMu     sync.Mutex
+	started   bool
+	stopCh    chan struct{}
+	doneCh    chan struct{}
+	runCancel func()
 }
 
 type conversationProjectorShard struct {
-	mu   sync.Mutex
-	rows map[conversationProjectorKey]metadb.ChannelLatest
+	mu     sync.Mutex
+	events map[conversationProjectorKey]messageevents.MessageCommitted
 }
 
 type conversationProjectorKey struct {
 	channelID   string
-	channelType int64
+	channelType uint8
+	fromUID     string
 }
 
 func newConversationProjector(opts conversationProjectorOptions) *conversationProjector {
@@ -61,24 +70,25 @@ func newConversationProjector(opts conversationProjectorOptions) *conversationPr
 	if opts.shardCount <= 0 {
 		opts.shardCount = defaultConversationProjectorShardCount
 	}
-	now := opts.now
-	if now == nil {
-		now = time.Now
+	if opts.maxDirtyEvents <= 0 {
+		opts.maxDirtyEvents = defaultConversationProjectorMaxDirtyEvents
 	}
 	projector := &conversationProjector{
-		writer:        opts.writer,
-		now:           now,
-		flushInterval: opts.flushInterval,
-		shards:        make([]conversationProjectorShard, opts.shardCount),
+		store:                 opts.store,
+		members:               opts.members,
+		smallGroupFanoutLimit: opts.smallGroupFanoutLimit,
+		maxDirtyEvents:        opts.maxDirtyEvents,
+		flushInterval:         opts.flushInterval,
+		shards:                make([]conversationProjectorShard, opts.shardCount),
 	}
 	for i := range projector.shards {
-		projector.shards[i].rows = make(map[conversationProjectorKey]metadb.ChannelLatest)
+		projector.shards[i].events = make(map[conversationProjectorKey]messageevents.MessageCommitted)
 	}
 	return projector
 }
 
 func (p *conversationProjector) Start(context.Context) error {
-	if p == nil || p.writer == nil {
+	if p == nil || p.store == nil {
 		return nil
 	}
 	p.runMu.Lock()
@@ -88,8 +98,10 @@ func (p *conversationProjector) Start(context.Context) error {
 	}
 	p.stopCh = make(chan struct{})
 	p.doneCh = make(chan struct{})
+	runCtx, cancel := context.WithCancel(context.Background())
+	p.runCancel = cancel
 	p.started = true
-	go p.run(p.stopCh, p.doneCh)
+	go p.run(runCtx, p.stopCh, p.doneCh)
 	return nil
 }
 
@@ -104,7 +116,12 @@ func (p *conversationProjector) Stop(ctx context.Context) error {
 	}
 	stopCh := p.stopCh
 	doneCh := p.doneCh
+	cancel := p.runCancel
 	p.started = false
+	p.runCancel = nil
+	if cancel != nil {
+		cancel()
+	}
 	close(stopCh)
 	p.runMu.Unlock()
 
@@ -116,7 +133,7 @@ func (p *conversationProjector) Stop(ctx context.Context) error {
 	return p.Flush(ctx)
 }
 
-func (p *conversationProjector) run(stopCh <-chan struct{}, doneCh chan<- struct{}) {
+func (p *conversationProjector) run(ctx context.Context, stopCh <-chan struct{}, doneCh chan<- struct{}) {
 	ticker := time.NewTicker(p.flushInterval)
 	defer func() {
 		ticker.Stop()
@@ -125,7 +142,7 @@ func (p *conversationProjector) run(stopCh <-chan struct{}, doneCh chan<- struct
 	for {
 		select {
 		case <-ticker.C:
-			_ = p.Flush(context.Background())
+			_ = p.Flush(ctx)
 		case <-stopCh:
 			return
 		}
@@ -133,75 +150,212 @@ func (p *conversationProjector) run(stopCh <-chan struct{}, doneCh chan<- struct
 }
 
 func (p *conversationProjector) Submit(_ context.Context, event messageevents.MessageCommitted) error {
-	if p == nil || p.writer == nil {
+	if p == nil || p.store == nil || event.ChannelID == "" || event.ChannelType == 0 {
 		return nil
 	}
-	at := p.now().UnixMilli()
-	p.merge(metadb.ChannelLatest{
-		ChannelID:      event.ChannelID,
-		ChannelType:    int64(event.ChannelType),
-		LastMessageID:  event.MessageID,
-		LastMessageSeq: event.MessageSeq,
-		LastAt:         at,
-		FromUID:        event.FromUID,
-		ClientMsgNo:    event.ClientMsgNo,
-		Payload:        append([]byte(nil), event.Payload...),
-		UpdatedAt:      at,
-	})
+	event.Payload = nil
+	event.MessageScopedUIDs = nil
+	p.merge(event)
 	return nil
 }
 
 func (p *conversationProjector) Flush(ctx context.Context) error {
-	if p == nil || p.writer == nil {
+	if p == nil || p.store == nil {
 		return nil
 	}
 	p.flushMu.Lock()
 	defer p.flushMu.Unlock()
 
-	rows := p.drain()
-	if len(rows) == 0 {
+	events := p.drain()
+	if len(events) == 0 {
 		return nil
 	}
-	if err := p.writer.UpsertChannelLatestBatch(ctx, rows); err != nil {
-		p.mergeRows(rows)
-		return err
+	members := newConversationProjectorMemberCache(p.members)
+	var attempts []conversationProjectionAttempt
+	var failedEvents []messageevents.MessageCommitted
+	var firstErr error
+	for _, event := range events {
+		collector := newConversationStateCollector()
+		projector := conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
+			Store:                 collector,
+			Members:               members,
+			SmallGroupFanoutLimit: p.smallGroupFanoutLimit,
+		})
+		if err := projector.HandleCommitted(ctx, event); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			failedEvents = append(failedEvents, event)
+			continue
+		}
+		if states := collector.states(); len(states) > 0 {
+			attempts = append(attempts, conversationProjectionAttempt{
+				event:  event,
+				states: states,
+			})
+		}
 	}
-	return nil
+	states := collectProjectionAttemptStates(attempts)
+	if len(states) == 0 {
+		p.mergeEvents(failedEvents)
+		return firstErr
+	}
+	if err := p.store.UpsertUserConversationStatesBatch(ctx, states); err != nil {
+		retryErr, retryFailed := p.flushProjectionAttemptsIndividually(ctx, attempts)
+		if retryErr != nil && firstErr == nil {
+			firstErr = retryErr
+		}
+		failedEvents = append(failedEvents, retryFailed...)
+	}
+	p.mergeEvents(failedEvents)
+	return firstErr
 }
 
-func (p *conversationProjector) drain() []metadb.ChannelLatest {
-	var rows []metadb.ChannelLatest
+type conversationProjectionAttempt struct {
+	event  messageevents.MessageCommitted
+	states []metadb.UserConversationState
+}
+
+func collectProjectionAttemptStates(attempts []conversationProjectionAttempt) []metadb.UserConversationState {
+	collector := newConversationStateCollector()
+	for _, attempt := range attempts {
+		_ = collector.UpsertUserConversationStatesBatch(context.Background(), attempt.states)
+	}
+	return collector.states()
+}
+
+func (p *conversationProjector) flushProjectionAttemptsIndividually(ctx context.Context, attempts []conversationProjectionAttempt) (error, []messageevents.MessageCommitted) {
+	var firstErr error
+	var failed []messageevents.MessageCommitted
+	for _, attempt := range attempts {
+		if len(attempt.states) == 0 {
+			continue
+		}
+		if err := p.store.UpsertUserConversationStatesBatch(ctx, attempt.states); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			failed = append(failed, attempt.event)
+		}
+	}
+	return firstErr, failed
+}
+
+type conversationProjectorMemberCache struct {
+	next conversationusecase.MemberSource
+	mu   sync.Mutex
+	rows map[conversationProjectorMemberKey]conversationProjectorMemberResult
+}
+
+type conversationProjectorMemberKey struct {
+	channelID   string
+	channelType int64
+	limit       int
+}
+
+type conversationProjectorMemberResult struct {
+	class conversationusecase.MemberClass
+	err   error
+}
+
+func newConversationProjectorMemberCache(next conversationusecase.MemberSource) *conversationProjectorMemberCache {
+	return &conversationProjectorMemberCache{
+		next: next,
+		rows: map[conversationProjectorMemberKey]conversationProjectorMemberResult{},
+	}
+}
+
+func (c *conversationProjectorMemberCache) ClassifyMembers(ctx context.Context, channelID string, channelType int64, limit int) (conversationusecase.MemberClass, error) {
+	if c == nil || c.next == nil {
+		return conversationusecase.MemberClass{}, conversationusecase.ErrProjectorConfig
+	}
+	key := conversationProjectorMemberKey{channelID: channelID, channelType: channelType, limit: limit}
+	c.mu.Lock()
+	if result, ok := c.rows[key]; ok {
+		c.mu.Unlock()
+		return result.class, result.err
+	}
+	c.mu.Unlock()
+
+	class, err := c.next.ClassifyMembers(ctx, channelID, channelType, limit)
+	result := conversationProjectorMemberResult{class: cloneMemberClass(class), err: err}
+	c.mu.Lock()
+	c.rows[key] = result
+	c.mu.Unlock()
+	return result.class, result.err
+}
+
+func cloneMemberClass(class conversationusecase.MemberClass) conversationusecase.MemberClass {
+	class.Members = append([]conversationusecase.Member(nil), class.Members...)
+	return class
+}
+
+func (p *conversationProjector) drain() []messageevents.MessageCommitted {
+	var events []messageevents.MessageCommitted
 	for i := range p.shards {
 		shard := &p.shards[i]
 		shard.mu.Lock()
-		for key, latest := range shard.rows {
-			rows = append(rows, latest)
-			delete(shard.rows, key)
+		for key, event := range shard.events {
+			events = append(events, event)
+			delete(shard.events, key)
+			p.dirtyEvents.Add(-1)
 		}
 		shard.mu.Unlock()
 	}
-	return rows
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].ChannelID != events[j].ChannelID {
+			return events[i].ChannelID < events[j].ChannelID
+		}
+		if events[i].ChannelType != events[j].ChannelType {
+			return events[i].ChannelType < events[j].ChannelType
+		}
+		return events[i].FromUID < events[j].FromUID
+	})
+	return events
 }
 
-func (p *conversationProjector) mergeRows(rows []metadb.ChannelLatest) {
-	for _, latest := range rows {
-		p.merge(latest)
+func (p *conversationProjector) mergeEvents(events []messageevents.MessageCommitted) {
+	for _, event := range events {
+		p.merge(event)
 	}
 }
 
-func (p *conversationProjector) merge(latest metadb.ChannelLatest) {
+func (p *conversationProjector) merge(event messageevents.MessageCommitted) {
 	if p == nil || len(p.shards) == 0 {
 		return
 	}
-	key := conversationProjectorKey{channelID: latest.ChannelID, channelType: latest.ChannelType}
+	key := conversationProjectorKey{channelID: event.ChannelID, channelType: event.ChannelType, fromUID: event.FromUID}
 	shard := &p.shards[p.shardIndex(key)]
 	shard.mu.Lock()
-	existing, ok := shard.rows[key]
-	if !ok || latest.LastMessageSeq >= existing.LastMessageSeq {
-		latest.Payload = append([]byte(nil), latest.Payload...)
-		shard.rows[key] = latest
+	existing, ok := shard.events[key]
+	if !ok && !p.tryReserveDirtyEvent() {
+		shard.mu.Unlock()
+		return
+	}
+	if !ok || committedEventAfter(event, existing) {
+		shard.events[key] = event
 	}
 	shard.mu.Unlock()
+}
+
+func (p *conversationProjector) tryReserveDirtyEvent() bool {
+	limit := int64(p.maxDirtyEvents)
+	for {
+		current := p.dirtyEvents.Load()
+		if current >= limit {
+			return false
+		}
+		if p.dirtyEvents.CompareAndSwap(current, current+1) {
+			return true
+		}
+	}
+}
+
+func committedEventAfter(next, existing messageevents.MessageCommitted) bool {
+	if next.MessageSeq != existing.MessageSeq {
+		return next.MessageSeq > existing.MessageSeq
+	}
+	return next.ServerTimestampMS >= existing.ServerTimestampMS
 }
 
 func (p *conversationProjector) shardIndex(key conversationProjectorKey) uint32 {
@@ -212,7 +366,79 @@ func (p *conversationProjector) shardIndex(key conversationProjectorKey) uint32 
 	}
 	hash ^= uint32(key.channelType)
 	hash *= 16777619
+	for i := 0; i < len(key.fromUID); i++ {
+		hash ^= uint32(key.fromUID[i])
+		hash *= 16777619
+	}
 	return hash % uint32(len(p.shards))
+}
+
+type conversationStateCollector struct {
+	rows map[conversationStateCollectorKey]metadb.UserConversationState
+}
+
+type conversationStateCollectorKey struct {
+	uid         string
+	channelID   string
+	channelType int64
+}
+
+func newConversationStateCollector() *conversationStateCollector {
+	return &conversationStateCollector{rows: map[conversationStateCollectorKey]metadb.UserConversationState{}}
+}
+
+func (c *conversationStateCollector) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+	if c == nil {
+		return nil
+	}
+	for _, state := range states {
+		key := conversationStateCollectorKey{uid: state.UID, channelID: state.ChannelID, channelType: state.ChannelType}
+		if existing, ok := c.rows[key]; ok {
+			state = mergeConversationProjectionState(existing, state)
+		}
+		c.rows[key] = state
+	}
+	return nil
+}
+
+func (c *conversationStateCollector) states() []metadb.UserConversationState {
+	if c == nil || len(c.rows) == 0 {
+		return nil
+	}
+	out := make([]metadb.UserConversationState, 0, len(c.rows))
+	for _, row := range c.rows {
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].UID != out[j].UID {
+			return out[i].UID < out[j].UID
+		}
+		if out[i].ChannelID != out[j].ChannelID {
+			return out[i].ChannelID < out[j].ChannelID
+		}
+		return out[i].ChannelType < out[j].ChannelType
+	})
+	return out
+}
+
+func mergeConversationProjectionState(existing, next metadb.UserConversationState) metadb.UserConversationState {
+	next.UID = existing.UID
+	next.ChannelID = existing.ChannelID
+	next.ChannelType = existing.ChannelType
+	if next.ReadSeq < existing.ReadSeq {
+		next.ReadSeq = existing.ReadSeq
+	}
+	if next.DeletedToSeq < existing.DeletedToSeq {
+		next.DeletedToSeq = existing.DeletedToSeq
+	}
+	if next.ActiveAt < existing.ActiveAt {
+		next.ActiveAt = existing.ActiveAt
+	}
+	if next.UpdatedAt < existing.UpdatedAt {
+		next.UpdatedAt = existing.UpdatedAt
+		next.SparseActive = existing.SparseActive
+	}
+	return next
 }
 
 type committedSinkGroup []message.CommittedSink

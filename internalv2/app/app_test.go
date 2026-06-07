@@ -211,6 +211,42 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestDefaultConversationConfigUsesRuntimeDefaults(t *testing.T) {
+	cfg := defaultConversationConfig(ConversationConfig{})
+
+	if cfg.SmallGroupFanoutLimit != 1000 {
+		t.Fatalf("SmallGroupFanoutLimit = %d, want 1000", cfg.SmallGroupFanoutLimit)
+	}
+	if cfg.MaxLastMessageConcurrency != 32 {
+		t.Fatalf("MaxLastMessageConcurrency = %d, want 32", cfg.MaxLastMessageConcurrency)
+	}
+
+	negative := defaultConversationConfig(ConversationConfig{
+		SmallGroupFanoutLimit:     -1,
+		MaxLastMessageConcurrency: -2,
+	})
+	if negative.SmallGroupFanoutLimit != -1 || negative.MaxLastMessageConcurrency != -2 {
+		t.Fatalf("negative conversation values were overwritten: %#v", negative)
+	}
+}
+
+func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  ConversationConfig
+	}{
+		{name: "small group fanout limit", cfg: ConversationConfig{SmallGroupFanoutLimit: -1}},
+		{name: "last message concurrency", cfg: ConversationConfig{MaxLastMessageConcurrency: -1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateConversationConfig(tt.cfg); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validateConversationConfig() error = %v, want %v", err, ErrInvalidConfig)
+			}
+		})
+	}
+}
+
 func TestNewBuildsRootLogger(t *testing.T) {
 	calls := make([]string, 0, 2)
 	cfg := Config{Log: LogConfig{Dir: t.TempDir(), Console: false, Format: "json"}}
@@ -392,7 +428,7 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
-func TestNewWiresChannelLatestWhenDeliveryDisabled(t *testing.T) {
+func TestNewWiresConversationProjectorWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	app, err := newTestApp(t,
 		Config{
@@ -409,12 +445,13 @@ func TestNewWiresChannelLatestWhenDeliveryDisabled(t *testing.T) {
 		t.Fatal("message usecase was not wired")
 	}
 
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "u1",
-		ChannelID:   "room-latest",
-		ChannelType: frame.ChannelTypeGroup,
-		ClientMsgNo: "client-latest-1",
-		Payload:     []byte("latest payload"),
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: "client-conversation-1",
+		Payload:     []byte("conversation payload"),
 	})
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -424,8 +461,8 @@ func TestNewWiresChannelLatestWhenDeliveryDisabled(t *testing.T) {
 	}
 
 	cluster.mu.Lock()
-	if len(cluster.channelLatestBatches) != 0 {
-		t.Fatalf("channel latest batches = %#v, want no synchronous DB write", cluster.channelLatestBatches)
+	if len(cluster.conversationStateBatches) != 0 {
+		t.Fatalf("conversation state batches = %#v, want no synchronous DB write", cluster.conversationStateBatches)
 	}
 	cluster.mu.Unlock()
 	if app.conversationProjector == nil {
@@ -437,18 +474,23 @@ func TestNewWiresChannelLatestWhenDeliveryDisabled(t *testing.T) {
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	if len(cluster.channelLatestBatches) != 1 || len(cluster.channelLatestBatches[0]) != 1 {
-		t.Fatalf("channel latest batches = %#v, want one row batch", cluster.channelLatestBatches)
+	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 2 {
+		t.Fatalf("conversation state batches = %#v, want one two-row batch", cluster.conversationStateBatches)
 	}
-	got := cluster.channelLatestBatches[0][0]
-	if got.ChannelID != "room-latest" || got.ChannelType != int64(frame.ChannelTypeGroup) ||
-		got.LastMessageID != result.MessageID || got.LastMessageSeq != result.MessageSeq ||
-		got.FromUID != "u1" || got.ClientMsgNo != "client-latest-1" || string(got.Payload) != "latest payload" {
-		t.Fatalf("channel latest = %#v, want committed message projection", got)
+	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	for _, uid := range []string{"u1", "u2"} {
+		got, ok := rows[uid]
+		if !ok {
+			t.Fatalf("conversation states = %#v, missing uid %s", cluster.conversationStateBatches[0], uid)
+		}
+		if got.ChannelID != channelID || got.ChannelType != int64(frame.ChannelTypePerson) ||
+			got.ActiveAt <= 0 || got.UpdatedAt <= 0 || got.SparseActive {
+			t.Fatalf("conversation state for %s = %#v, want dense person projection", uid, got)
+		}
 	}
 }
 
-func TestConversationProjectorCoalescesChannelLatestBeforeFlush(t *testing.T) {
+func TestConversationProjectorCoalescesConversationStatesBeforeFlush(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	app, err := newTestApp(t,
 		Config{
@@ -462,10 +504,11 @@ func TestConversationProjectorCoalescesChannelLatestBeforeFlush(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	first, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "u1",
-		ChannelID:   "room-coalesce",
-		ChannelType: frame.ChannelTypeGroup,
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
 		ClientMsgNo: "client-coalesce-1",
 		Payload:     []byte("old"),
 	})
@@ -474,8 +517,8 @@ func TestConversationProjectorCoalescesChannelLatestBeforeFlush(t *testing.T) {
 	}
 	second, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "u2",
-		ChannelID:   "room-coalesce",
-		ChannelType: frame.ChannelTypeGroup,
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
 		ClientMsgNo: "client-coalesce-2",
 		Payload:     []byte("new"),
 	})
@@ -488,13 +531,287 @@ func TestConversationProjectorCoalescesChannelLatestBeforeFlush(t *testing.T) {
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	if len(cluster.channelLatestBatches) != 1 || len(cluster.channelLatestBatches[0]) != 1 {
-		t.Fatalf("channel latest batches = %#v, want one coalesced row", cluster.channelLatestBatches)
+	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 2 {
+		t.Fatalf("conversation state batches = %#v, want one coalesced two-row batch", cluster.conversationStateBatches)
 	}
-	got := cluster.channelLatestBatches[0][0]
-	if got.LastMessageID != second.MessageID || got.LastMessageSeq != second.MessageSeq ||
-		got.FromUID != "u2" || got.ClientMsgNo != "client-coalesce-2" || string(got.Payload) != "new" {
-		t.Fatalf("coalesced latest = %#v, want second message projection", got)
+	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	for _, uid := range []string{"u1", "u2"} {
+		got, ok := rows[uid]
+		if !ok {
+			t.Fatalf("conversation states = %#v, missing uid %s", cluster.conversationStateBatches[0], uid)
+		}
+		if got.ChannelID != channelID || got.ChannelType != int64(frame.ChannelTypePerson) ||
+			got.ActiveAt <= 0 || got.UpdatedAt <= 0 || got.SparseActive {
+			t.Fatalf("coalesced conversation state for %s = %#v, want dense latest person projection", uid, got)
+		}
+	}
+}
+
+func TestConversationProjectorFansOutConfiguredSmallGroups(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.subscribers = map[string][]string{"g-small": []string{"sender", "member"}}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:      clusterv2.Config{NodeID: 3},
+			Conversation: ConversationConfig{SmallGroupFanoutLimit: 2},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "sender",
+		ChannelID:   "g-small",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-small-1",
+		Payload:     []byte("small"),
+	})
+	if err != nil || result.Reason != message.ReasonSuccess {
+		t.Fatalf("Send() = %#v err=%v, want success", result, err)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	if len(rows) != 2 || rows["sender"].SparseActive || rows["member"].SparseActive {
+		t.Fatalf("conversation rows = %#v, want dense rows for all small-group members", cluster.conversationStateBatches)
+	}
+}
+
+func TestConversationProjectorIncludesSenderWhenSmallGroupSubscribersOmitSender(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:      clusterv2.Config{NodeID: 3},
+			Conversation: ConversationConfig{SmallGroupFanoutLimit: 2},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "sender",
+		ChannelID:   "g-small-missing-sender",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-small-missing-sender-1",
+		Payload:     []byte("small"),
+	})
+	if err != nil || result.Reason != message.ReasonSuccess {
+		t.Fatalf("Send() = %#v err=%v, want success", result, err)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	if len(rows) != 2 || rows["sender"].UID != "sender" || rows["member"].UID != "member" ||
+		rows["sender"].SparseActive || rows["member"].SparseActive {
+		t.Fatalf("conversation rows = %#v, want dense rows for subscriber plus sender", cluster.conversationStateBatches)
+	}
+}
+
+func TestConversationProjectorUsesSparseSenderRowWhenGroupExceedsLimit(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:      clusterv2.Config{NodeID: 3},
+			Conversation: ConversationConfig{SmallGroupFanoutLimit: 1},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "sender",
+		ChannelID:   "g-large",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-large-1",
+		Payload:     []byte("large"),
+	})
+	if err != nil || result.Reason != message.ReasonSuccess {
+		t.Fatalf("Send() = %#v err=%v, want success", result, err)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 1 {
+		t.Fatalf("conversation rows = %#v, want one sparse sender row", cluster.conversationStateBatches)
+	}
+	got := cluster.conversationStateBatches[0][0]
+	if got.UID != "sender" || !got.SparseActive {
+		t.Fatalf("conversation row = %#v, want sparse sender row", got)
+	}
+}
+
+func TestConversationProjectorStopCancelsInFlightBackgroundFlush(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	members := newCancelThenReturnMemberSource()
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:                 store,
+		members:               members,
+		smallGroupFanoutLimit: 2,
+		flushInterval:         time.Millisecond,
+	})
+	if err := projector.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+		MessageID:         1,
+		MessageSeq:        1,
+		ChannelID:         "g-stop",
+		ChannelType:       frame.ChannelTypeGroup,
+		FromUID:           "sender",
+		ServerTimestampMS: 100,
+	}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	<-members.started
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := projector.Stop(stopCtx)
+	if err != nil {
+		t.Fatalf("Stop() error = %v, want cancellation to drain background flush", err)
+	}
+	if !members.cancelled {
+		t.Fatalf("member source did not observe background flush cancellation")
+	}
+	if got := store.totalStates(); got != 2 {
+		t.Fatalf("stored states = %d, want final stop flush to persist dense rows", got)
+	}
+}
+
+func TestConversationProjectorBoundsDirtyEvents(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:          store,
+		maxDirtyEvents: 2,
+	})
+
+	for _, channelID := range []string{
+		runtimechannelid.EncodePersonChannel("u1", "u2"),
+		runtimechannelid.EncodePersonChannel("u3", "u4"),
+		runtimechannelid.EncodePersonChannel("u5", "u6"),
+	} {
+		if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+			MessageID:         1,
+			MessageSeq:        1,
+			ChannelID:         channelID,
+			ChannelType:       frame.ChannelTypePerson,
+			FromUID:           strings.Split(channelID, "@")[0],
+			ServerTimestampMS: 100,
+		}); err != nil {
+			t.Fatalf("Submit(%s) error = %v", channelID, err)
+		}
+	}
+	if err := projector.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if got := store.totalStates(); got != 4 {
+		t.Fatalf("stored states = %d, want only two person events accepted by dirty budget", got)
+	}
+}
+
+func TestConversationProjectorCachesGroupClassificationDuringFlush(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	members := &recordingConversationMemberSource{
+		class: conversationusecase.MemberClass{
+			IsSmall: true,
+			Members: []conversationusecase.Member{
+				{UID: "sender-a"},
+				{UID: "sender-b"},
+				{UID: "member"},
+			},
+		},
+	}
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:                 store,
+		members:               members,
+		smallGroupFanoutLimit: 3,
+	})
+	for idx, sender := range []string{"sender-a", "sender-b"} {
+		if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+			MessageID:         uint64(idx + 1),
+			MessageSeq:        uint64(idx + 1),
+			ChannelID:         "g-cache",
+			ChannelType:       frame.ChannelTypeGroup,
+			FromUID:           sender,
+			ServerTimestampMS: int64(100 + idx),
+		}); err != nil {
+			t.Fatalf("Submit(%s) error = %v", sender, err)
+		}
+	}
+	if err := projector.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if members.calls != 1 {
+		t.Fatalf("member classify calls = %d, want one cached call per group", members.calls)
+	}
+	if got := store.totalStates(); got != 3 {
+		t.Fatalf("stored states = %d, want coalesced dense rows for small group", got)
+	}
+}
+
+func TestConversationProjectorIsolatesMemberClassificationErrors(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	members := &selectiveConversationMemberSource{
+		errChannels: map[string]error{"g-bad": errors.New("subscriber read failed")},
+		class: conversationusecase.MemberClass{
+			IsSmall: true,
+			Members: []conversationusecase.Member{
+				{UID: "sender"},
+				{UID: "member"},
+			},
+		},
+	}
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:                 store,
+		members:               members,
+		smallGroupFanoutLimit: 2,
+	})
+	for _, channelID := range []string{"g-bad", "g-good"} {
+		if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+			MessageID:         1,
+			MessageSeq:        1,
+			ChannelID:         channelID,
+			ChannelType:       frame.ChannelTypeGroup,
+			FromUID:           "sender",
+			ServerTimestampMS: 100,
+		}); err != nil {
+			t.Fatalf("Submit(%s) error = %v", channelID, err)
+		}
+	}
+	if err := projector.Flush(context.Background()); err == nil {
+		t.Fatalf("Flush() error = nil, want first member classification error")
+	}
+	if got := store.totalStates(); got != 2 {
+		t.Fatalf("stored states = %d, want good channel persisted despite bad channel", got)
+	}
+	delete(members.errChannels, "g-bad")
+	if err := projector.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush(retry) error = %v", err)
+	}
+	if got := store.totalStates(); got != 4 {
+		t.Fatalf("stored states after retry = %d, want failed channel retried", got)
 	}
 }
 
@@ -2242,15 +2559,16 @@ func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route,
 
 type fakePresenceCluster struct {
 	fakeCluster
-	nodeID               uint64
-	events               <-chan clusterv2.RouteAuthorityEvent
-	snapshot             clusterv2.Snapshot
-	registeredService    uint8
-	registeredHandler    clusterv2.NodeRPCHandler
-	registeredHandlers   map[uint8]clusterv2.NodeRPCHandler
-	appendSeq            uint64
-	mu                   sync.Mutex
-	channelLatestBatches [][]metadb.ChannelLatest
+	nodeID                   uint64
+	events                   <-chan clusterv2.RouteAuthorityEvent
+	snapshot                 clusterv2.Snapshot
+	registeredService        uint8
+	registeredHandler        clusterv2.NodeRPCHandler
+	registeredHandlers       map[uint8]clusterv2.NodeRPCHandler
+	appendSeq                uint64
+	mu                       sync.Mutex
+	conversationStateBatches [][]metadb.UserConversationState
+	subscribers              map[string][]string
 }
 
 type recordingDeliveryMetaNode struct {
@@ -2282,6 +2600,91 @@ type recordedMembershipProjection struct {
 
 func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorityEvent) *fakePresenceCluster {
 	return &fakePresenceCluster{nodeID: nodeID, events: events}
+}
+
+func conversationStatesByUID(states []metadb.UserConversationState) map[string]metadb.UserConversationState {
+	out := make(map[string]metadb.UserConversationState, len(states))
+	for _, state := range states {
+		out[state.UID] = state
+	}
+	return out
+}
+
+type recordingConversationProjectionStore struct {
+	mu      sync.Mutex
+	batches [][]metadb.UserConversationState
+}
+
+func (s *recordingConversationProjectionStore) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.batches = append(s.batches, append([]metadb.UserConversationState(nil), states...))
+	return nil
+}
+
+func (s *recordingConversationProjectionStore) totalStates() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	total := 0
+	for _, batch := range s.batches {
+		total += len(batch)
+	}
+	return total
+}
+
+type cancelThenReturnMemberSource struct {
+	started   chan struct{}
+	mu        sync.Mutex
+	cancelled bool
+	calls     int
+}
+
+func newCancelThenReturnMemberSource() *cancelThenReturnMemberSource {
+	return &cancelThenReturnMemberSource{started: make(chan struct{}, 1)}
+}
+
+func (s *cancelThenReturnMemberSource) ClassifyMembers(ctx context.Context, _ string, _ int64, _ int) (conversationusecase.MemberClass, error) {
+	s.mu.Lock()
+	s.calls++
+	call := s.calls
+	s.mu.Unlock()
+	if call == 1 {
+		s.started <- struct{}{}
+		<-ctx.Done()
+		s.mu.Lock()
+		s.cancelled = true
+		s.mu.Unlock()
+		return conversationusecase.MemberClass{}, ctx.Err()
+	}
+	return conversationusecase.MemberClass{
+		IsSmall: true,
+		Members: []conversationusecase.Member{
+			{UID: "sender"},
+			{UID: "member"},
+		},
+	}, nil
+}
+
+type recordingConversationMemberSource struct {
+	class conversationusecase.MemberClass
+	calls int
+}
+
+func (s *recordingConversationMemberSource) ClassifyMembers(context.Context, string, int64, int) (conversationusecase.MemberClass, error) {
+	s.calls++
+	return s.class, nil
+}
+
+type selectiveConversationMemberSource struct {
+	errChannels map[string]error
+	class       conversationusecase.MemberClass
+}
+
+func (s *selectiveConversationMemberSource) ClassifyMembers(_ context.Context, channelID string, _ int64, _ int) (conversationusecase.MemberClass, error) {
+	if err := s.errChannels[channelID]; err != nil {
+		return conversationusecase.MemberClass{}, err
+	}
+	return s.class, nil
 }
 
 func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Snapshot {
@@ -2468,49 +2871,42 @@ func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelv
 	return channelv2.AppendBatchResult{Items: fakeItems}, nil
 }
 
-func (f *fakePresenceCluster) UpsertChannelLatest(_ context.Context, latest metadb.ChannelLatest) error {
+func (f *fakePresenceCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	latest.Payload = append([]byte(nil), latest.Payload...)
-	f.channelLatestBatches = append(f.channelLatestBatches, []metadb.ChannelLatest{latest})
+	batch := append([]metadb.UserConversationState(nil), states...)
+	f.conversationStateBatches = append(f.conversationStateBatches, batch)
 	return nil
 }
 
-func (f *fakePresenceCluster) UpsertChannelLatestBatch(_ context.Context, latestRows []metadb.ChannelLatest) error {
+func (f *fakePresenceCluster) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	batch := make([]metadb.ChannelLatest, 0, len(latestRows))
-	for _, latest := range latestRows {
-		latest.Payload = append([]byte(nil), latest.Payload...)
-		batch = append(batch, latest)
+	uids := append([]string(nil), f.subscribers[channelID]...)
+	f.mu.Unlock()
+	start := 0
+	for start < len(uids) && afterUID != "" {
+		if uids[start] == afterUID {
+			start++
+			break
+		}
+		start++
 	}
-	f.channelLatestBatches = append(f.channelLatestBatches, batch)
-	return nil
+	if limit <= 0 || start >= len(uids) {
+		return nil, "", true, nil
+	}
+	end := start + limit
+	if end > len(uids) {
+		end = len(uids)
+	}
+	page := append([]string(nil), uids[start:end]...)
+	if end >= len(uids) {
+		return page, "", true, nil
+	}
+	return page, page[len(page)-1], false, nil
 }
 
 func (f *fakePresenceCluster) ListUserChannelMembershipPage(_ context.Context, _ string, _ metadb.UserChannelMembershipCursor, _ int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error) {
 	return nil, metadb.UserChannelMembershipCursor{}, true, nil
-}
-
-func (f *fakePresenceCluster) GetChannelLatestBatch(_ context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelLatest, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	out := make(map[metadb.ConversationKey]metadb.ChannelLatest, len(keys))
-	wanted := make(map[metadb.ConversationKey]struct{}, len(keys))
-	for _, key := range keys {
-		wanted[key] = struct{}{}
-	}
-	for _, batch := range f.channelLatestBatches {
-		for _, latest := range batch {
-			key := metadb.ConversationKey{ChannelID: latest.ChannelID, ChannelType: latest.ChannelType}
-			if _, ok := wanted[key]; !ok {
-				continue
-			}
-			latest.Payload = append([]byte(nil), latest.Payload...)
-			out[key] = latest
-		}
-	}
-	return out, nil
 }
 
 func (f *fakePresenceCluster) ListUserConversationActivePage(_ context.Context, _ string, _ metadb.UserConversationActiveCursor, _ int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {

@@ -79,7 +79,9 @@ claiming support for the reverse membership index.
 `ConversationStore` adapts `internalv2/usecase/conversation` active-row and
 last-message read ports to clusterv2 facades. Conversation rows are UID-owned
 metadata records, while last-message display data is read from each
-channel-owned message log for the current page only.
+channel-owned message log for the current page only. When configured,
+last-message reads run with a bounded worker count; missing tails are skipped
+per row while routing/readiness errors fail the request.
 
 ```text
 conversation list usecase
@@ -97,6 +99,14 @@ conversation usecase so access adapters can share the same list semantics.
 `metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.
+
+`ConversationProjectionStore` adapts the conversation projector ports to
+clusterv2 Slot metadata facades. Projection writes go to
+`UpsertUserConversationStatesBatch`, which routes each UID-owned row by UID hash
+slot. Member classification reads only one bounded subscriber page with
+`ListChannelSubscribersPage`; a complete page is treated as small-channel dense
+fanout input only when it contains at least one member, while an empty or
+truncated page tells the usecase to write sparse sender state instead.
 
 ## User Metadata Flow
 

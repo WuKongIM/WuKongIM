@@ -42,7 +42,7 @@ HandleCommitted(event)
   -> else:
        ask MemberSource to classify the channel with limit small_group_fanout_limit + 1
        if small:
-         upsert one dense row per returned member
+         upsert one dense row per returned member, plus the sender when absent
        else:
          upsert only the sender sparse row
 ```
@@ -56,7 +56,9 @@ messages from before the user joined. Group projection requires a member
 classifier and a positive small-group fanout limit; missing wiring returns a
 configuration error instead of silently degrading small groups to sparse rows.
 Even if a classifier marks a channel small, the projector only dense-fans out
-when the returned member count is within the configured limit.
+when the returned member count is within the configured limit. The sender is
+always included in small-channel dense projection, even when a compatible
+subscriber snapshot does not return the sender in the first page.
 
 ## Cursor Contract
 

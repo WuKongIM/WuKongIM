@@ -117,6 +117,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if err := validatePresenceConfig(app.cfg.Presence); err != nil {
 		return nil, err
 	}
+	app.cfg.Conversation = defaultConversationConfig(app.cfg.Conversation)
+	if err := validateConversationConfig(app.cfg.Conversation); err != nil {
+		return nil, err
+	}
 	app.cfg.Delivery = defaultDeliveryConfig(app.cfg.Delivery)
 	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
 		return nil, err
@@ -201,7 +205,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	if app.conversations == nil {
 		if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
-			store := clusterinfra.NewConversationStore(node)
+			store := clusterinfra.NewConversationStore(node, clusterinfra.ConversationStoreOptions{
+				MaxLastMessageConcurrency: app.cfg.Conversation.MaxLastMessageConcurrency,
+			})
 			app.conversations = conversationusecase.New(conversationusecase.Options{
 				Store:    store,
 				Messages: store,
@@ -352,10 +358,13 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
 		}
 		var committedSinks []message.CommittedSink
-		if latest, ok := app.cluster.(channelLatestBatchWriter); ok {
+		if node, ok := app.cluster.(clusterinfra.ConversationProjectionNode); ok {
 			if app.conversationProjector == nil {
+				store := clusterinfra.NewConversationProjectionStore(node)
 				app.conversationProjector = newConversationProjector(conversationProjectorOptions{
-					writer: latest,
+					store:                 store,
+					members:               store,
+					smallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
 				})
 			}
 			committedSinks = append(committedSinks, app.conversationProjector)

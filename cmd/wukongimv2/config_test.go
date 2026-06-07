@@ -140,6 +140,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL=2s",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
 		"WK_PRESENCE_ROUTE_TTL=2m",
+		"WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=888",
+		"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=48",
 		"WK_DELIVERY_ENABLE=true",
 		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
 		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
@@ -232,6 +234,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Presence.RouteTTL != 2*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 2m", cfg.Presence.RouteTTL)
+	}
+	if cfg.Conversation.SmallGroupFanoutLimit != 888 {
+		t.Fatalf("Conversation.SmallGroupFanoutLimit = %d, want 888", cfg.Conversation.SmallGroupFanoutLimit)
+	}
+	if cfg.Conversation.MaxLastMessageConcurrency != 48 {
+		t.Fatalf("Conversation.MaxLastMessageConcurrency = %d, want 48", cfg.Conversation.MaxLastMessageConcurrency)
 	}
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true")
@@ -471,6 +479,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
+	t.Setenv("WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT", "256")
+	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
 	t.Setenv("WK_DELIVERY_PUSH_BATCH_SIZE", "32")
@@ -545,6 +555,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Presence.RouteTTL != 3*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 3m", cfg.Presence.RouteTTL)
+	}
+	if cfg.Conversation.SmallGroupFanoutLimit != 256 || cfg.Conversation.MaxLastMessageConcurrency != 16 {
+		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
@@ -817,6 +830,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "presence touch batch size negative", line: "WK_PRESENCE_TOUCH_BATCH_SIZE=-1", wantKey: "WK_PRESENCE_TOUCH_BATCH_SIZE"},
 		{name: "presence route ttl", line: "WK_PRESENCE_ROUTE_TTL=soon", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "presence route ttl negative", line: "WK_PRESENCE_ROUTE_TTL=-1s", wantKey: "WK_PRESENCE_ROUTE_TTL"},
+		{name: "conversation small group fanout limit", line: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=many", wantKey: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT"},
+		{name: "conversation small group fanout limit negative", line: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=-1", wantKey: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT"},
+		{name: "conversation max last message concurrency", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=many", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
+		{name: "conversation max last message concurrency negative", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=-1", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
 		{name: "delivery fanout page size", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=many", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
 		{name: "delivery fanout page size negative", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=-1", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
