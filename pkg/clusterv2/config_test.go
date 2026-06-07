@@ -131,6 +131,19 @@ func TestConfigRejectsNegativeChannelAppendBatchTuning(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsNegativeStorageCommitShards(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Storage:    StorageConfig{CommitShards: -1},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
 func TestConfigRejectsExplicitVotersWithoutClusterID(t *testing.T) {
 	cfg := Config{
 		NodeID:     1,

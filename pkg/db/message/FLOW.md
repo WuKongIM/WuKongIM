@@ -34,9 +34,11 @@ Current flow:
     conversion at the channel boundary. Its commit coordinator observer emits
     low-cardinality queue depth/capacity, batch, and logical request wait
     measurements, splitting leader append and follower apply lanes, without
-    changing durable commit semantics. The leader-append and trusted
-    follower-apply batch helpers can prepare multiple channel stores under
-    their append locks and submit them as one `leader_append` or
+    changing durable commit semantics. The coordinator can optionally route
+    requests across partition-hashed shards; the default is one shard, and
+    each shard still uses synchronous physical commits. The leader-append and
+    trusted follower-apply batch helpers can prepare multiple channel stores
+    under their append locks and submit them as one `leader_append` or
     `follower_apply` commit request while publishing each channel's durable
     frontier after the shared physical commit succeeds.
 13. Compatibility durable payloads continue to use FNV-64a payload hashes so

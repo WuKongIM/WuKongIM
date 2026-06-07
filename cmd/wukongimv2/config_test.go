@@ -119,6 +119,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=16",
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=256",
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=131072",
+		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=4",
 		"WK_API_LISTEN_ADDR=127.0.0.1:5042",
 		"WK_BENCH_API_ENABLE=true",
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
@@ -213,6 +214,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Storage.CommitMaxBytes != 131072 {
 		t.Fatalf("Storage.CommitMaxBytes = %d, want 131072", cfg.Cluster.Storage.CommitMaxBytes)
+	}
+	if cfg.Cluster.Storage.CommitShards != 4 {
+		t.Fatalf("Storage.CommitShards = %d, want 4", cfg.Cluster.Storage.CommitShards)
 	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -456,6 +460,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "262144")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", "8")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", "256")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
@@ -523,8 +528,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)
 	}
-	if cfg.Cluster.Storage.CommitMaxRequests != 32 || cfg.Cluster.Storage.CommitMaxRecords != 512 || cfg.Cluster.Storage.CommitMaxBytes != 262144 {
-		t.Fatalf("Storage commit max env override = requests:%d records:%d bytes:%d", cfg.Cluster.Storage.CommitMaxRequests, cfg.Cluster.Storage.CommitMaxRecords, cfg.Cluster.Storage.CommitMaxBytes)
+	if cfg.Cluster.Storage.CommitMaxRequests != 32 || cfg.Cluster.Storage.CommitMaxRecords != 512 || cfg.Cluster.Storage.CommitMaxBytes != 262144 || cfg.Cluster.Storage.CommitShards != 8 {
+		t.Fatalf("Storage commit env override = requests:%d records:%d bytes:%d shards:%d", cfg.Cluster.Storage.CommitMaxRequests, cfg.Cluster.Storage.CommitMaxRecords, cfg.Cluster.Storage.CommitMaxBytes, cfg.Cluster.Storage.CommitShards)
 	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
@@ -794,6 +799,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "commit coordinator max records negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"},
 		{name: "commit coordinator max bytes", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
 		{name: "commit coordinator max bytes negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
+		{name: "commit coordinator shards", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
+		{name: "commit coordinator shards negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},

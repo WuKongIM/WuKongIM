@@ -31,6 +31,8 @@ type MessageDBFactoryOptions struct {
 	CommitMaxRecords int
 	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
 	CommitMaxBytes int
+	// CommitShards routes grouped commit requests across independent message DB coordinators. Zero keeps one coordinator.
+	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
 }
@@ -51,6 +53,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 		MaxRequests: opts.CommitMaxRequests,
 		MaxRecords:  opts.CommitMaxRecords,
 		MaxBytes:    opts.CommitMaxBytes,
+		Shards:      opts.CommitShards,
 		Observer:    opts.CommitObserver,
 	})
 	return &MessageDBFactory{engine: engine, checkpointLocks: make(map[ch.ChannelKey]*sync.Mutex)}

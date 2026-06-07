@@ -3,6 +3,7 @@ package commit_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -192,6 +193,72 @@ func TestCoordinatorObservesSubmitRequest(t *testing.T) {
 	}
 	if event.Err != nil {
 		t.Fatalf("request err = %v, want nil", event.Err)
+	}
+}
+
+func TestCoordinatorShardsCommitDifferentPartitionsConcurrently(t *testing.T) {
+	db := openTestDB(t)
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: time.Millisecond,
+		QueueSize:   64,
+		Shards:      4,
+	})
+	defer c.Close()
+
+	var inFlight atomic.Int64
+	var maxInFlight atomic.Int64
+	entered := make(chan struct{}, 16)
+	release := make(chan struct{})
+	c.SetCommitFunc(func(batch *engine.Batch) error {
+		current := inFlight.Add(1)
+		for {
+			previous := maxInFlight.Load()
+			if current <= previous || maxInFlight.CompareAndSwap(previous, current) {
+				break
+			}
+		}
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+		inFlight.Add(-1)
+		return batch.Commit(false)
+	})
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 16)
+	for i := 0; i < 16; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- c.Submit(context.Background(), commit.Request{
+				Partition: fmt.Sprintf("partition-%02d", i),
+				Build: func(batch *engine.Batch) error {
+					return batch.Set([]byte(fmt.Sprintf("key-%02d", i)), []byte("v"))
+				},
+			})
+		}()
+	}
+
+	deadline := time.After(2 * time.Second)
+	for maxInFlight.Load() < 2 {
+		select {
+		case <-entered:
+		case <-deadline:
+			close(release)
+			wg.Wait()
+			t.Fatalf("max concurrent commits = %d, want at least 2", maxInFlight.Load())
+		}
+	}
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Submit(): %v", err)
+		}
 	}
 }
 

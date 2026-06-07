@@ -146,7 +146,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: app.metrics})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: app.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: app.metrics})
-		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{metrics: app.metrics})
+		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{
+			metrics: app.metrics,
+			workers: commitCoordinatorWorkerCount(clusterCfg.Storage.CommitShards),
+		})
 		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: app.metrics})
 	}
 	if cfg.Observability.Diagnostics.Enabled {
@@ -350,6 +353,13 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	constructionOK = true
 	return app, nil
+}
+
+func commitCoordinatorWorkerCount(shards int) int {
+	if shards <= 1 {
+		return dbMessageCommitWorkerCap
+	}
+	return shards
 }
 
 // WithCluster overrides the cluster runtime.

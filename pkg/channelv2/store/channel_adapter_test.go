@@ -78,6 +78,7 @@ func TestNewMessageDBFactoryWithOptionsConfiguresCommitCoordinatorTuning(t *test
 		CommitMaxRequests: 32,
 		CommitMaxRecords:  512,
 		CommitMaxBytes:    256 * 1024,
+		CommitShards:      4,
 	})
 	t.Cleanup(func() { _ = factory.Close() })
 
@@ -87,6 +88,7 @@ func TestNewMessageDBFactoryWithOptionsConfiguresCommitCoordinatorTuning(t *test
 	require.Equal(t, 32, cfg.MaxRequests)
 	require.Equal(t, 512, cfg.MaxRecords)
 	require.Equal(t, 256*1024, cfg.MaxBytes)
+	require.Equal(t, 4, cfg.Shards)
 }
 
 func TestStoreApplyFetchRecordsPrefersTrustedPath(t *testing.T) {

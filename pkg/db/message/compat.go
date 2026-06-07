@@ -34,6 +34,8 @@ type CommitCoordinatorConfig struct {
 	FlushWindow time.Duration
 	// QueueSize bounds waiting commit requests before callers apply backpressure.
 	QueueSize int
+	// Shards routes commit requests across independent coordinators by channel partition. One keeps serial behavior.
+	Shards int
 	// MaxRequests caps logical requests per physical commit when positive.
 	MaxRequests int
 	// MaxRecords caps logical records per physical commit when positive.
@@ -304,6 +306,9 @@ func effectiveCommitCoordinatorConfig(cfg CommitCoordinatorConfig) CommitCoordin
 	if cfg.QueueSize <= 0 {
 		cfg.QueueSize = defaultCommitCoordinatorQueueSize
 	}
+	if cfg.Shards <= 0 {
+		cfg.Shards = 1
+	}
 	return cfg
 }
 
@@ -312,10 +317,11 @@ func commitCoordinatorConfig(cfg CommitCoordinatorConfig) commit.Config {
 	return commit.Config{
 		FlushWindow: cfg.FlushWindow,
 		QueueSize:   cfg.QueueSize,
+		Shards:      cfg.Shards,
 		MaxRequests: cfg.MaxRequests,
 		MaxRecords:  cfg.MaxRecords,
 		MaxBytes:    cfg.MaxBytes,
-		Observer:    commitCoordinatorObserver(cfg.Observer, cfg.QueueSize),
+		Observer:    commitCoordinatorObserver(cfg.Observer, cfg.QueueSize*cfg.Shards),
 	}
 }
 
@@ -1526,7 +1532,7 @@ func commitPreparedRowsBatch(ctx context.Context, owner *Engine, prepared []prep
 	}
 	request := commit.Request{
 		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commit.PriorityHigh},
-		Partition: commitRowsLaneName(lane) + ":batch",
+		Partition: preparedRowsPartition(prepared, lane),
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
@@ -1575,6 +1581,15 @@ func preparedRowsBytes(prepared []preparedCommitRows) int {
 		total += messageRowsBytes(item.rows)
 	}
 	return total
+}
+
+func preparedRowsPartition(prepared []preparedCommitRows, lane string) string {
+	for _, item := range prepared {
+		if item.store != nil && item.store.key != "" {
+			return string(item.store.key)
+		}
+	}
+	return commitRowsLaneName(lane) + ":batch"
 }
 
 func (s *ChannelStore) commitRowsWithCoordinator(ctx context.Context, committer *commit.Coordinator, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, nextLEO uint64, lane string) error {

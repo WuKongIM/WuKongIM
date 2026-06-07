@@ -127,6 +127,8 @@ type StorageConfig struct {
 	CommitMaxRecords int
 	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
 	CommitMaxBytes int
+	// CommitShards routes message DB commit requests across independent coordinators. Zero keeps one coordinator.
+	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
 }
@@ -221,6 +223,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.MaxChannels < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Storage.CommitShards < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.AppendBatchMaxRecords < 0 {

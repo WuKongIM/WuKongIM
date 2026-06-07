@@ -311,6 +311,26 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	}
 }
 
+func TestStorageCommitMetricsObserverUsesConfiguredWorkers(t *testing.T) {
+	reg := obsmetrics.New(1, "node-1")
+	observer := storageCommitMetricsObserver{metrics: reg, workers: 4}
+
+	observer.SetCommitCoordinatorQueue(3, 4096)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	workers := requireAppMetricFamily(t, families, "wukongim_runtime_pool_workers")
+	dbCommitWorkers := findAppMetricByLabels(t, workers, map[string]string{
+		"component": "db",
+		"pool":      "message_commit",
+	})
+	if got := dbCommitWorkers.GetGauge().GetValue(); got != 4 {
+		t.Fatalf("db message commit workers = %v, want 4", got)
+	}
+}
+
 func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := &transportV2MetricsObserver{metrics: reg}

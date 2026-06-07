@@ -67,6 +67,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
 			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,
 			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
+			CommitShards:      n.cfg.Storage.CommitShards,
 			CommitObserver:    n.cfg.Storage.CommitObserver,
 		})
 		var transport *channels.TransportClient

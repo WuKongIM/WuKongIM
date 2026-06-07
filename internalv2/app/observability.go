@@ -60,6 +60,7 @@ type controllerRaftMetricsObserver struct {
 
 type storageCommitMetricsObserver struct {
 	metrics *obsmetrics.Registry
+	workers int
 }
 
 type deliveryMetricsObserver struct {
@@ -650,7 +651,7 @@ func (o storageCommitMetricsObserver) SetCommitCoordinatorQueue(depth int, capac
 		return
 	}
 	o.metrics.Storage.SetCommitQueueDepth("message", depth)
-	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitWorkerCap)
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, o.workerCount())
 	o.metrics.RuntimePressure.SetQueue(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, obsmetrics.RuntimePressureQueueObservation{
 		Depth:    depth,
 		Capacity: capacity,
@@ -675,8 +676,15 @@ func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messag
 		PublishDuration: event.PublishDuration,
 		TotalDuration:   event.TotalDuration,
 	})
-	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitWorkerCap)
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, o.workerCount())
 	o.metrics.RuntimePressure.ObserveTaskDuration(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, result, event.TotalDuration)
+}
+
+func (o storageCommitMetricsObserver) workerCount() int {
+	if o.workers <= 0 {
+		return dbMessageCommitWorkerCap
+	}
+	return o.workers
 }
 
 func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {

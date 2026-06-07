@@ -18,6 +18,20 @@ func TestCommitCoordinatorConfigDoesNotExposeNoSync(t *testing.T) {
 	}
 }
 
+func TestCommitCoordinatorConfigKeepsShardCount(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{Shards: 4})
+
+	if got := engine.CommitCoordinatorConfig().Shards; got != 4 {
+		t.Fatalf("CommitCoordinatorConfig().Shards = %d, want 4", got)
+	}
+}
+
 func TestCompatEngineAppendReadAndIdempotency(t *testing.T) {
 	engine, err := Open(t.TempDir())
 	if err != nil {
@@ -203,6 +217,41 @@ func TestCommitCoordinatorQueueObserverReceivesEffectiveCapacity(t *testing.T) {
 
 	if !observer.SawCapacity(3) {
 		t.Fatalf("queue capacities = %v, want 3", observer.Capacities())
+	}
+}
+
+func TestCommitCoordinatorQueueObserverReceivesShardedCapacity(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+	observer := &commitQueueCapture{}
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{QueueSize: 3, Shards: 4, Observer: observer})
+
+	store := engine.ForChannel(channel.ChannelKey("queue-sharded-capacity:1"), channel.ChannelID{ID: "queue-sharded-capacity", Type: 1})
+	if _, err := store.Append([]channel.Record{compatTestRecord(t, 2601, "queue-sharded-capacity", "client-append")}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	if !observer.SawCapacity(12) {
+		t.Fatalf("queue capacities = %v, want 12", observer.Capacities())
+	}
+}
+
+func TestPreparedRowsPartitionUsesFirstChannelKey(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+
+	storeA := engine.ForChannel(channel.ChannelKey("partition-a:1"), channel.ChannelID{ID: "partition-a", Type: 1})
+	storeB := engine.ForChannel(channel.ChannelKey("partition-b:1"), channel.ChannelID{ID: "partition-b", Type: 1})
+	prepared := []preparedCommitRows{{store: storeA}, {store: storeB}}
+
+	if got := preparedRowsPartition(prepared, commitLaneLeaderAppend); got != "partition-a:1" {
+		t.Fatalf("preparedRowsPartition() = %q, want first channel key", got)
 	}
 }
 

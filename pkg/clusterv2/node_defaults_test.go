@@ -97,6 +97,7 @@ func TestNodeDefaultChannelsUseConfiguredCommitCoordinatorTuning(t *testing.T) {
 	cfg.Storage.CommitMaxRequests = 16
 	cfg.Storage.CommitMaxRecords = 256
 	cfg.Storage.CommitMaxBytes = 128 * 1024
+	cfg.Storage.CommitShards = 4
 	node, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -112,8 +113,8 @@ func TestNodeDefaultChannelsUseConfiguredCommitCoordinatorTuning(t *testing.T) {
 	if commitCfg.FlushWindow != 750*time.Microsecond {
 		t.Fatalf("FlushWindow = %s, want 750us", commitCfg.FlushWindow)
 	}
-	if commitCfg.MaxRequests != 16 || commitCfg.MaxRecords != 256 || commitCfg.MaxBytes != 128*1024 {
-		t.Fatalf("commit coordinator max = requests:%d records:%d bytes:%d", commitCfg.MaxRequests, commitCfg.MaxRecords, commitCfg.MaxBytes)
+	if commitCfg.MaxRequests != 16 || commitCfg.MaxRecords != 256 || commitCfg.MaxBytes != 128*1024 || commitCfg.Shards != 4 {
+		t.Fatalf("commit coordinator tuning = requests:%d records:%d bytes:%d shards:%d", commitCfg.MaxRequests, commitCfg.MaxRecords, commitCfg.MaxBytes, commitCfg.Shards)
 	}
 }
 

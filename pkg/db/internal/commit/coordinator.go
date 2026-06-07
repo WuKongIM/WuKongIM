@@ -3,6 +3,7 @@ package commit
 import (
 	"context"
 	"errors"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -92,6 +93,8 @@ type Config struct {
 	FlushWindow time.Duration
 	// QueueSize bounds waiting requests.
 	QueueSize int
+	// Shards routes logical requests across independent coordinators by partition. One keeps serial behavior.
+	Shards int
 	// MaxRequests caps requests per physical commit when positive.
 	MaxRequests int
 	// MaxRecords caps logical records per physical commit when positive.
@@ -122,6 +125,8 @@ type Request struct {
 type Coordinator struct {
 	db *engine.DB
 
+	shards []coordinatorShard
+
 	mu         sync.Mutex
 	cfg        Config
 	commitFunc func(batch *engine.Batch) error
@@ -141,9 +146,27 @@ type pendingRequest struct {
 	done chan error
 }
 
+type coordinatorShard struct {
+	coordinator *Coordinator
+}
+
 // NewCoordinator starts a commit coordinator for db.
 func NewCoordinator(db *engine.DB, cfg Config) *Coordinator {
 	cfg = effectiveConfig(cfg)
+	if cfg.Shards > 1 {
+		c := &Coordinator{db: db, cfg: cfg}
+		observer := newShardedObserver(cfg.Observer, cfg.Shards)
+		c.shards = make([]coordinatorShard, cfg.Shards)
+		for i := range c.shards {
+			shardCfg := cfg
+			shardCfg.Shards = 1
+			if observer != nil {
+				shardCfg.Observer = observer.shard(i)
+			}
+			c.shards[i].coordinator = NewCoordinator(db, shardCfg)
+		}
+		return c
+	}
 	c := &Coordinator{
 		db:       db,
 		cfg:      cfg,
@@ -161,6 +184,12 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 	if c == nil || fn == nil {
 		return
 	}
+	if c.isSharded() {
+		for _, shard := range c.shards {
+			shard.coordinator.SetCommitFunc(fn)
+		}
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.commitFunc = fn
@@ -170,6 +199,19 @@ func (c *Coordinator) SetCommitFunc(fn func(batch *engine.Batch) error) {
 func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 	if c == nil || c.db == nil || req.Build == nil {
 		return dberrors.ErrInvalidArgument
+	}
+	if c.isSharded() {
+		c.acceptMu.RLock()
+		if c.closed {
+			c.acceptMu.RUnlock()
+			return ErrClosed
+		}
+		shard := c.shardFor(req.Partition)
+		c.acceptMu.RUnlock()
+		if shard == nil {
+			return ErrClosed
+		}
+		return shard.Submit(ctx, req)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -226,6 +268,17 @@ func (c *Coordinator) Submit(ctx context.Context, req Request) (err error) {
 // Close stops the coordinator and fails work that was not committed.
 func (c *Coordinator) Close() {
 	if c == nil {
+		return
+	}
+	if c.isSharded() {
+		c.closeOnce.Do(func() {
+			c.acceptMu.Lock()
+			c.closed = true
+			c.acceptMu.Unlock()
+			for _, shard := range c.shards {
+				shard.coordinator.Close()
+			}
+		})
 		return
 	}
 	c.closeOnce.Do(func() {
@@ -474,5 +527,85 @@ func effectiveConfig(cfg Config) Config {
 	if cfg.QueueSize <= 0 {
 		cfg.QueueSize = defaultQueueSize
 	}
+	if cfg.Shards <= 0 {
+		cfg.Shards = 1
+	}
 	return cfg
+}
+
+func (c *Coordinator) isSharded() bool {
+	return c != nil && len(c.shards) > 0
+}
+
+func (c *Coordinator) shardFor(partition string) *Coordinator {
+	if !c.isSharded() {
+		return c
+	}
+	index := partitionShard(partition, len(c.shards))
+	return c.shards[index].coordinator
+}
+
+func partitionShard(partition string, shards int) int {
+	if shards <= 1 {
+		return 0
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(partition))
+	return int(h.Sum32() % uint32(shards))
+}
+
+type shardedObserver struct {
+	observer Observer
+	mu       sync.Mutex
+	depths   []int
+}
+
+type shardObserver struct {
+	parent *shardedObserver
+	index  int
+}
+
+func newShardedObserver(observer Observer, shards int) *shardedObserver {
+	if observer == nil || shards <= 1 {
+		return nil
+	}
+	return &shardedObserver{observer: observer, depths: make([]int, shards)}
+}
+
+func (o *shardedObserver) shard(index int) shardObserver {
+	return shardObserver{parent: o, index: index}
+}
+
+func (o shardObserver) SetQueueDepth(depth int) {
+	if o.parent == nil || o.parent.observer == nil {
+		return
+	}
+	o.parent.mu.Lock()
+	if o.index >= 0 && o.index < len(o.parent.depths) {
+		o.parent.depths[o.index] = depth
+	}
+	total := 0
+	for _, value := range o.parent.depths {
+		total += value
+	}
+	o.parent.mu.Unlock()
+	o.parent.observer.SetQueueDepth(total)
+}
+
+func (o shardObserver) ObserveBatch(event BatchEvent) {
+	if o.parent == nil || o.parent.observer == nil {
+		return
+	}
+	o.parent.observer.ObserveBatch(event)
+}
+
+func (o shardObserver) ObserveRequest(event RequestEvent) {
+	if o.parent == nil || o.parent.observer == nil {
+		return
+	}
+	observer, ok := o.parent.observer.(RequestObserver)
+	if !ok {
+		return
+	}
+	observer.ObserveRequest(event)
 }

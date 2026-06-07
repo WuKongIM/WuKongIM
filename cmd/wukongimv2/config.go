@@ -50,6 +50,7 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
+	"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS",
 	"WK_API_LISTEN_ADDR",
 	"WK_BENCH_API_ENABLE",
 	"WK_BENCH_API_MAX_BATCH_SIZE",
@@ -399,6 +400,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES: value must be >= 0")
 		}
 		cfg.Cluster.Storage.CommitMaxBytes = maxBytes
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"); raw != "" {
+		shards, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if shards < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_SHARDS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitShards = shards
 	}
 	cfg.API.ListenAddr = configValue(values, "WK_API_LISTEN_ADDR")
 	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")
