@@ -52,7 +52,9 @@ Dense rows use `SparseActive=false`; sparse sender rows use
 `ServerTimestampMS`, so projector retries do not reorder conversations based on
 retry time. When a member has `JoinSeq`, the projector initializes both
 `ReadSeq` and `DeletedToSeq` to `JoinSeq - 1` so later list reads do not expose
-messages from before the user joined.
+messages from before the user joined. Group projection requires a member
+classifier and a positive small-group fanout limit; missing wiring returns a
+configuration error instead of silently degrading small groups to sparse rows.
 
 ## Cursor Contract
 

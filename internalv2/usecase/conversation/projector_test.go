@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -101,6 +102,69 @@ func TestProjectorLargeGroupTouchesOnlySender(t *testing.T) {
 		ChannelType:  int64(testChannelTypeGroup),
 		ActiveAt:     3000,
 		UpdatedAt:    3000,
+		SparseActive: true,
+	}}
+	if !reflect.DeepEqual(store.states, want) {
+		t.Fatalf("states = %#v, want %#v", store.states, want)
+	}
+}
+
+func TestProjectorGroupRequiresClassifierAndPositiveLimit(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		opts ProjectorOptions
+	}{
+		{name: "missing classifier", opts: ProjectorOptions{Store: &recordingConversationBatchStore{}, SmallGroupFanoutLimit: 2}},
+		{name: "missing limit", opts: ProjectorOptions{Store: &recordingConversationBatchStore{}, Members: &recordingMemberSource{}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			projector := NewProjector(tt.opts)
+
+			err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+				ChannelID:         "g-config",
+				ChannelType:       testChannelTypeGroup,
+				FromUID:           "sender",
+				ServerTimestampMS: 3000,
+			})
+			if !errors.Is(err, ErrProjectorConfig) {
+				t.Fatalf("HandleCommitted() error = %v, want ErrProjectorConfig", err)
+			}
+		})
+	}
+}
+
+func TestProjectorLargeGroupInitializesSenderJoinFloor(t *testing.T) {
+	members := &recordingMemberSource{classes: map[string]MemberClass{
+		"g-large-join": {
+			IsSmall: false,
+			Members: []Member{
+				{UID: "sender", JoinSeq: 11},
+				{UID: "other", JoinSeq: 3},
+			},
+		},
+	}}
+	store := &recordingConversationBatchStore{}
+	projector := NewProjector(ProjectorOptions{Store: store, Members: members, SmallGroupFanoutLimit: 2})
+
+	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "g-large-join",
+		ChannelType:       testChannelTypeGroup,
+		FromUID:           "sender",
+		MessageSeq:        12,
+		ServerTimestampMS: 3500,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommitted() error = %v", err)
+	}
+
+	want := []metadb.UserConversationState{{
+		UID:          "sender",
+		ChannelID:    "g-large-join",
+		ChannelType:  int64(testChannelTypeGroup),
+		ReadSeq:      10,
+		DeletedToSeq: 10,
+		ActiveAt:     3500,
+		UpdatedAt:    3500,
 		SparseActive: true,
 	}}
 	if !reflect.DeepEqual(store.states, want) {

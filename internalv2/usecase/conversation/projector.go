@@ -73,7 +73,7 @@ func (p *Projector) personalStates(event messageevents.MessageCommitted) ([]meta
 
 func (p *Projector) groupStates(ctx context.Context, event messageevents.MessageCommitted) ([]metadb.UserConversationState, error) {
 	if p.members == nil || p.smallGroupFanoutLimit <= 0 {
-		return sparseSenderState(event), nil
+		return nil, ErrProjectorConfig
 	}
 	class, err := p.members.ClassifyMembers(ctx, event.ChannelID, int64(event.ChannelType), p.smallGroupFanoutLimit+1)
 	if err != nil {
@@ -82,7 +82,7 @@ func (p *Projector) groupStates(ctx context.Context, event messageevents.Message
 	if class.IsSmall {
 		return denseStates(event, class.Members), nil
 	}
-	return sparseSenderState(event), nil
+	return sparseSenderState(event, class.Members), nil
 }
 
 func denseStates(event messageevents.MessageCommitted, members []Member) []metadb.UserConversationState {
@@ -96,11 +96,11 @@ func denseStates(event messageevents.MessageCommitted, members []Member) []metad
 	return states
 }
 
-func sparseSenderState(event messageevents.MessageCommitted) []metadb.UserConversationState {
+func sparseSenderState(event messageevents.MessageCommitted, members []Member) []metadb.UserConversationState {
 	if event.FromUID == "" {
 		return nil
 	}
-	return []metadb.UserConversationState{conversationState(event, Member{UID: event.FromUID}, true)}
+	return []metadb.UserConversationState{conversationState(event, senderMember(event.FromUID, members), true)}
 }
 
 func conversationState(event messageevents.MessageCommitted, member Member, sparse bool) metadb.UserConversationState {
@@ -122,6 +122,15 @@ func joinFloor(joinSeq uint64) uint64 {
 		return 0
 	}
 	return joinSeq - 1
+}
+
+func senderMember(uid string, members []Member) Member {
+	for _, member := range members {
+		if member.UID == uid {
+			return member
+		}
+	}
+	return Member{UID: uid}
 }
 
 func decodeProjectorPersonChannel(channelID string) (string, string, bool) {

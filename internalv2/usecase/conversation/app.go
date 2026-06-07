@@ -17,6 +17,8 @@ var (
 	ErrStoreRequired = errors.New("internalv2/usecase/conversation: store required")
 	// ErrInvalidRequest indicates that a list request is malformed.
 	ErrInvalidRequest = errors.New("internalv2/usecase/conversation: invalid request")
+	// ErrProjectorConfig indicates that the conversation projector is missing required dependencies.
+	ErrProjectorConfig = errors.New("internalv2/usecase/conversation: projector config invalid")
 )
 
 // Store pages UID-owned conversation active rows.
