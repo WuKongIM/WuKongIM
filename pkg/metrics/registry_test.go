@@ -1091,7 +1091,7 @@ func TestRuntimePressureMetricsNilSafe(t *testing.T) {
 func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 	reg := New(11, "node-11")
 
-	reg.Conversation.ObserveList("ok", true, 12*time.Millisecond, 700, 2)
+	reg.Conversation.ObserveList("ok", true, 12*time.Millisecond, 2, 1)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -1101,7 +1101,7 @@ func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 		"node_id":   "11",
 		"node_name": "node-11",
 		"result":    "ok",
-		"truncated": "true",
+		"more":      "true",
 	}).GetCounter().GetValue())
 
 	duration := requireMetricFamily(t, families, "wukongim_conversation_list_duration_seconds")
@@ -1109,24 +1109,26 @@ func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 		"node_id":   "11",
 		"node_name": "node-11",
 		"result":    "ok",
-		"truncated": "true",
+		"more":      "true",
 	}).GetHistogram().GetSampleCount())
-
-	scanned := requireMetricFamily(t, families, "wukongim_conversation_list_scanned_memberships")
-	require.Equal(t, float64(700), findMetricByLabels(t, scanned, map[string]string{
-		"node_id":   "11",
-		"node_name": "node-11",
-		"result":    "ok",
-		"truncated": "true",
-	}).GetHistogram().GetSampleSum())
 
 	returned := requireMetricFamily(t, families, "wukongim_conversation_list_returned_items")
 	require.Equal(t, float64(2), findMetricByLabels(t, returned, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
 		"result":    "ok",
-		"truncated": "true",
+		"more":      "true",
 	}).GetHistogram().GetSampleSum())
+
+	lastMessageHits := requireMetricFamily(t, families, "wukongim_conversation_list_last_message_hits")
+	require.Equal(t, float64(1), findMetricByLabels(t, lastMessageHits, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"more":      "true",
+	}).GetHistogram().GetSampleSum())
+
+	requireNoMetricFamily(t, families, "wukongim_conversation_list_scanned_memberships")
 }
 
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
@@ -1138,6 +1140,15 @@ func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string
 	}
 	t.Fatalf("metric family %q not found", name)
 	return nil
+}
+
+func requireNoMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) {
+	t.Helper()
+	for _, family := range families {
+		if family.GetName() == name {
+			t.Fatalf("metric family %q found, want absent", name)
+		}
+	}
 }
 
 func requireMetricLabels(t *testing.T, metric *dto.Metric, want map[string]string) {

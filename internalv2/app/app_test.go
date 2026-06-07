@@ -1911,7 +1911,7 @@ func TestAppWiresConversationListMetrics(t *testing.T) {
 			for _, label := range metric.GetLabel() {
 				labels[label.GetName()] = label.GetValue()
 			}
-			if labels["result"] == "ok" && labels["truncated"] == "false" && metric.GetCounter().GetValue() == 1 {
+			if labels["result"] == "ok" && labels["more"] == "false" && metric.GetCounter().GetValue() == 1 {
 				return
 			}
 		}

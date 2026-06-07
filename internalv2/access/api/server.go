@@ -70,12 +70,12 @@ type ConversationListObservation struct {
 	Result string
 	// Duration is the end-to-end handler latency.
 	Duration time.Duration
-	// ScannedMemberships is the number of membership rows joined by the usecase.
-	ScannedMemberships int
 	// ReturnedItems is the number of conversation rows returned to the client.
 	ReturnedItems int
-	// Truncated reports whether the usecase hit its bounded membership scan limit.
-	Truncated bool
+	// LastMessageHits is the number of returned rows with a visible durable last message.
+	LastMessageHits int
+	// More reports whether the active page has another page after this response.
+	More bool
 }
 
 // ConversationListObserver receives performance observations for conversation list reads.

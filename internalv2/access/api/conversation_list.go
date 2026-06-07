@@ -16,31 +16,37 @@ type conversationListRequest struct {
 }
 
 type conversationListCursor struct {
-	LastAt         int64  `json:"last_at"`
-	LastMessageSeq uint64 `json:"last_message_seq"`
-	ChannelID      string `json:"channel_id"`
-	ChannelType    int64  `json:"channel_type"`
+	ActiveAt    int64  `json:"active_at"`
+	ChannelID   string `json:"channel_id"`
+	ChannelType int64  `json:"channel_type"`
 }
 
 type conversationListResponse struct {
-	Conversations      []conversationListItem  `json:"conversations"`
-	NextCursor         *conversationListCursor `json:"next_cursor,omitempty"`
-	More               int                     `json:"more"`
-	Truncated          bool                    `json:"truncated"`
-	ScannedMemberships int                     `json:"scanned_memberships"`
+	Conversations []conversationListItem  `json:"conversations"`
+	NextCursor    *conversationListCursor `json:"next_cursor,omitempty"`
+	More          int                     `json:"more"`
 }
 
 type conversationListItem struct {
-	ChannelID        string `json:"channel_id"`
-	ChannelType      int64  `json:"channel_type"`
-	LastMessageID    uint64 `json:"last_message_id"`
-	LastMessageIDStr string `json:"last_message_idstr"`
-	LastMessageSeq   uint64 `json:"last_message_seq"`
-	LastAt           int64  `json:"last_at"`
-	FromUID          string `json:"from_uid"`
-	ClientMsgNo      string `json:"client_msg_no"`
-	Payload          []byte `json:"payload"`
-	UpdatedAt        int64  `json:"updated_at"`
+	ChannelID    string                   `json:"channel_id"`
+	ChannelType  int64                    `json:"channel_type"`
+	ActiveAt     int64                    `json:"active_at"`
+	ReadSeq      uint64                   `json:"read_seq"`
+	DeletedToSeq uint64                   `json:"deleted_to_seq"`
+	SparseActive bool                     `json:"sparse_active"`
+	UpdatedAt    int64                    `json:"updated_at"`
+	Unread       uint64                   `json:"unread"`
+	LastMessage  *conversationLastMessage `json:"last_message,omitempty"`
+}
+
+type conversationLastMessage struct {
+	MessageID         uint64 `json:"message_id"`
+	MessageIDStr      string `json:"message_idstr"`
+	MessageSeq        uint64 `json:"message_seq"`
+	FromUID           string `json:"from_uid"`
+	ClientMsgNo       string `json:"client_msg_no"`
+	ServerTimestampMS int64  `json:"server_timestamp_ms"`
+	Payload           []byte `json:"payload"`
 }
 
 func (s *Server) registerConversationRoutes() {
@@ -78,11 +84,11 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		return
 	}
 	s.observeConversationList(ConversationListObservation{
-		Result:             "ok",
-		Duration:           time.Since(start),
-		ScannedMemberships: result.ScannedMemberships,
-		ReturnedItems:      len(result.Items),
-		Truncated:          result.Truncated,
+		Result:          "ok",
+		Duration:        time.Since(start),
+		ReturnedItems:   len(result.Items),
+		LastMessageHits: countConversationLastMessages(result.Items),
+		More:            result.HasMore,
 	})
 	c.JSON(http.StatusOK, newConversationListResponse(req.UID, result))
 }
@@ -99,29 +105,25 @@ func (s *Server) observeConversationList(event ConversationListObservation) {
 
 func (c conversationListCursor) toUsecase() conversationusecase.Cursor {
 	return conversationusecase.Cursor{
-		LastAt:         c.LastAt,
-		LastMessageSeq: c.LastMessageSeq,
-		ChannelID:      c.ChannelID,
-		ChannelType:    c.ChannelType,
+		ActiveAt:    c.ActiveAt,
+		ChannelID:   c.ChannelID,
+		ChannelType: c.ChannelType,
 	}
 }
 
 func newConversationListResponse(uid string, result conversationusecase.ListResult) conversationListResponse {
 	resp := conversationListResponse{
-		Conversations:      make([]conversationListItem, 0, len(result.Items)),
-		More:               boolToInt(result.HasMore),
-		Truncated:          result.Truncated,
-		ScannedMemberships: result.ScannedMemberships,
+		Conversations: make([]conversationListItem, 0, len(result.Items)),
+		More:          boolToInt(result.HasMore),
 	}
 	for _, item := range result.Items {
 		resp.Conversations = append(resp.Conversations, newConversationListItem(uid, item))
 	}
 	if result.HasMore {
 		cursor := conversationListCursor{
-			LastAt:         result.NextCursor.LastAt,
-			LastMessageSeq: result.NextCursor.LastMessageSeq,
-			ChannelID:      result.NextCursor.ChannelID,
-			ChannelType:    result.NextCursor.ChannelType,
+			ActiveAt:    result.NextCursor.ActiveAt,
+			ChannelID:   result.NextCursor.ChannelID,
+			ChannelType: result.NextCursor.ChannelType,
 		}
 		resp.NextCursor = &cursor
 	}
@@ -129,16 +131,36 @@ func newConversationListResponse(uid string, result conversationusecase.ListResu
 }
 
 func newConversationListItem(uid string, item conversationusecase.Conversation) conversationListItem {
-	return conversationListItem{
-		ChannelID:        legacyMessageChannelID(uid, item.ChannelID, uint8(item.ChannelType)),
-		ChannelType:      item.ChannelType,
-		LastMessageID:    item.LastMessageID,
-		LastMessageIDStr: strconv.FormatUint(item.LastMessageID, 10),
-		LastMessageSeq:   item.LastMessageSeq,
-		LastAt:           item.LastAt,
-		FromUID:          item.FromUID,
-		ClientMsgNo:      item.ClientMsgNo,
-		Payload:          append([]byte(nil), item.Payload...),
-		UpdatedAt:        item.UpdatedAt,
+	out := conversationListItem{
+		ChannelID:    legacyMessageChannelID(uid, item.ChannelID, uint8(item.ChannelType)),
+		ChannelType:  item.ChannelType,
+		ActiveAt:     item.ActiveAt,
+		ReadSeq:      item.ReadSeq,
+		DeletedToSeq: item.DeletedToSeq,
+		SparseActive: item.SparseActive,
+		UpdatedAt:    item.UpdatedAt,
+		Unread:       item.Unread,
 	}
+	if item.LastMessage != nil {
+		out.LastMessage = &conversationLastMessage{
+			MessageID:         item.LastMessage.MessageID,
+			MessageIDStr:      strconv.FormatUint(item.LastMessage.MessageID, 10),
+			MessageSeq:        item.LastMessage.MessageSeq,
+			FromUID:           item.LastMessage.FromUID,
+			ClientMsgNo:       item.LastMessage.ClientMsgNo,
+			ServerTimestampMS: item.LastMessage.ServerTimestampMS,
+			Payload:           append([]byte(nil), item.LastMessage.Payload...),
+		}
+	}
+	return out
+}
+
+func countConversationLastMessages(items []conversationusecase.Conversation) int {
+	count := 0
+	for _, item := range items {
+		if item.LastMessage != nil {
+			count++
+		}
+	}
+	return count
 }

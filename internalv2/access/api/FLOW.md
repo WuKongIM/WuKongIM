@@ -91,14 +91,18 @@ fail closed using their legacy envelopes.
 
 The conversation list route is registered regardless of bench mode.
 `/conversation/list` accepts `uid`, `limit`, and an optional sorted conversation
-cursor, delegates to `internalv2/usecase/conversation`, and returns
-`conversations`, `next_cursor`, `more`, `truncated`, and the scanned membership
-count. The access adapter converts canonical person-channel IDs back to the
-peer UID for the requesting user. If the composition root does not provide a
-conversation usecase, the route fails closed with the compatible JSON error
-envelope. Each request emits a low-cardinality conversation-list observation
-containing result, latency, scanned membership count, returned item count, and
-the truncated flag when an observer is configured.
+cursor based on `active_at`, `channel_id`, and `channel_type`. It delegates
+ordering, cursor application, active-page reads, and current-page last-message
+loads to `internalv2/usecase/conversation`, then returns `conversations`,
+`next_cursor`, and `more`. Each conversation item contains the active row
+fields plus `unread`; `last_message` is present only when the usecase found a
+visible durable message for that row. The access adapter converts canonical
+person-channel IDs back to the peer UID for the requesting user. If the
+composition root does not provide a conversation usecase, the route fails
+closed with the compatible JSON error envelope. Each request emits a
+low-cardinality conversation-list observation containing result, latency,
+returned item count, last-message hit count, and whether another active page is
+available.
 
 ## Phase-1 Semantics
 
@@ -126,8 +130,8 @@ delegates durable metadata and member-list behavior to
 directly. The message adapter decodes legacy HTTP payloads and trace headers
 but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
-The conversation adapter validates only request shape and UID presence; bounded
-membership scanning, channel latest joins, sorting, and cursor application stay
-in `internalv2/usecase/conversation`. The adapter observes successful and
+The conversation adapter validates only request shape and UID presence; active
+index ordering, active cursor application, and current-page last-message reads
+stay in `internalv2/usecase/conversation`. The adapter observes successful and
 failed list requests without adding UID or channel labels, so performance
 triage can inspect list cost without increasing metrics cardinality.

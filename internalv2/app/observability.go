@@ -237,7 +237,7 @@ func (o conversationListMetricsObserver) ObserveConversationList(event accessapi
 	if o.metrics == nil || o.metrics.Conversation == nil {
 		return
 	}
-	o.metrics.Conversation.ObserveList(event.Result, event.Truncated, event.Duration, event.ScannedMemberships, event.ReturnedItems)
+	o.metrics.Conversation.ObserveList(event.Result, event.More, event.Duration, event.ReturnedItems, event.LastMessageHits)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {

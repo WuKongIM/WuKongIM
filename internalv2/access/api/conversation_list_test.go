@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -16,25 +17,29 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 	conversations := &recordingConversationUsecase{
 		result: conversationusecase.ListResult{
 			Items: []conversationusecase.Conversation{{
-				ChannelID:      "g1",
-				ChannelType:    int64(frame.ChannelTypeGroup),
-				LastMessageID:  99,
-				LastMessageSeq: 7,
-				LastAt:         1234,
-				FromUID:        "u2",
-				ClientMsgNo:    "c1",
-				Payload:        []byte("hello"),
-				UpdatedAt:      1235,
+				ChannelID:    "g1",
+				ChannelType:  int64(frame.ChannelTypeGroup),
+				ActiveAt:     1234,
+				ReadSeq:      3,
+				DeletedToSeq: 2,
+				SparseActive: true,
+				UpdatedAt:    1235,
+				Unread:       4,
+				LastMessage: &conversationusecase.LastMessage{
+					MessageID:         99,
+					MessageSeq:        7,
+					FromUID:           "u2",
+					ClientMsgNo:       "c1",
+					ServerTimestampMS: 1236,
+					Payload:           []byte("hello"),
+				},
 			}},
 			NextCursor: conversationusecase.Cursor{
-				LastAt:         1234,
-				LastMessageSeq: 7,
-				ChannelID:      "g1",
-				ChannelType:    int64(frame.ChannelTypeGroup),
+				ActiveAt:    1234,
+				ChannelID:   "g1",
+				ChannelType: int64(frame.ChannelTypeGroup),
 			},
-			HasMore:            true,
-			Truncated:          true,
-			ScannedMemberships: 500,
+			HasMore: true,
 		},
 	}
 	srv := New(Options{Conversations: conversations})
@@ -43,7 +48,7 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/conversation/list", bytes.NewBufferString(`{
 		"uid":"u1",
 		"limit":20,
-		"cursor":{"last_at":2000,"last_message_seq":9,"channel_id":"g0","channel_type":2}
+		"cursor":{"active_at":2000,"channel_id":"g0","channel_type":2}
 	}`))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -56,30 +61,90 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 		"conversations":[{
 			"channel_id":"g1",
 			"channel_type":2,
-			"last_message_id":99,
-			"last_message_idstr":"99",
-			"last_message_seq":7,
-			"last_at":1234,
-			"from_uid":"u2",
-			"client_msg_no":"c1",
-			"payload":"aGVsbG8=",
-			"updated_at":1235
+			"active_at":1234,
+			"read_seq":3,
+			"deleted_to_seq":2,
+			"sparse_active":true,
+			"updated_at":1235,
+			"unread":4,
+			"last_message":{
+				"message_id":99,
+				"message_idstr":"99",
+				"message_seq":7,
+				"from_uid":"u2",
+				"client_msg_no":"c1",
+				"server_timestamp_ms":1236,
+				"payload":"aGVsbG8="
+			}
 		}],
-		"next_cursor":{"last_at":1234,"last_message_seq":7,"channel_id":"g1","channel_type":2},
-		"more":1,
-		"truncated":true,
-		"scanned_memberships":500
+		"next_cursor":{"active_at":1234,"channel_id":"g1","channel_type":2},
+		"more":1
 	}`) {
 		t.Fatalf("body = %q, want conversation list page", rec.Body.String())
 	}
+	assertJSONFieldAbsent(t, rec.Body.Bytes(), "truncated")
+	assertJSONFieldAbsent(t, rec.Body.Bytes(), "scanned_memberships")
 	if len(conversations.requests) != 1 {
 		t.Fatalf("conversation list requests = %#v, want one", conversations.requests)
 	}
 	got := conversations.requests[0]
 	if got.UID != "u1" || got.Limit != 20 ||
-		got.Cursor.LastAt != 2000 || got.Cursor.LastMessageSeq != 9 ||
+		got.Cursor.ActiveAt != 2000 ||
 		got.Cursor.ChannelID != "g0" || got.Cursor.ChannelType != int64(frame.ChannelTypeGroup) {
 		t.Fatalf("list request = %#v, want mapped cursor request", got)
+	}
+}
+
+func TestConversationListOmitsMissingLastMessage(t *testing.T) {
+	conversations := &recordingConversationUsecase{
+		result: conversationusecase.ListResult{
+			Items: []conversationusecase.Conversation{{
+				ChannelID:    "g-empty",
+				ChannelType:  int64(frame.ChannelTypeGroup),
+				ActiveAt:     3000,
+				ReadSeq:      5,
+				DeletedToSeq: 5,
+				UpdatedAt:    3001,
+			}},
+		},
+	}
+	srv := New(Options{Conversations: conversations})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/list", bytes.NewBufferString(`{"uid":"u1","limit":10}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"conversations":[{
+			"channel_id":"g-empty",
+			"channel_type":2,
+			"active_at":3000,
+			"read_seq":5,
+			"deleted_to_seq":5,
+			"sparse_active":false,
+			"updated_at":3001,
+			"unread":0
+		}],
+		"more":0
+	}`) {
+		t.Fatalf("body = %q, want row without last_message", rec.Body.String())
+	}
+	var decoded struct {
+		Conversations []map[string]any `json:"conversations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(decoded.Conversations) != 1 {
+		t.Fatalf("conversations = %#v, want one", decoded.Conversations)
+	}
+	if _, ok := decoded.Conversations[0]["last_message"]; ok {
+		t.Fatalf("last_message present in %s, want omitted when missing", rec.Body.String())
 	}
 }
 
@@ -87,11 +152,13 @@ func TestConversationListReturnsPeerIDForPersonChannel(t *testing.T) {
 	conversations := &recordingConversationUsecase{
 		result: conversationusecase.ListResult{
 			Items: []conversationusecase.Conversation{{
-				ChannelID:      "u1@u2",
-				ChannelType:    int64(frame.ChannelTypePerson),
-				LastMessageID:  100,
-				LastMessageSeq: 8,
-				LastAt:         2000,
+				ChannelID:   "u1@u2",
+				ChannelType: int64(frame.ChannelTypePerson),
+				ActiveAt:    2000,
+				LastMessage: &conversationusecase.LastMessage{
+					MessageID:  100,
+					MessageSeq: 8,
+				},
 			}},
 		},
 	}
@@ -110,18 +177,23 @@ func TestConversationListReturnsPeerIDForPersonChannel(t *testing.T) {
 		"conversations":[{
 			"channel_id":"u2",
 			"channel_type":1,
-			"last_message_id":100,
-			"last_message_idstr":"100",
-			"last_message_seq":8,
-			"last_at":2000,
-			"from_uid":"",
-			"client_msg_no":"",
-			"payload":null,
-			"updated_at":0
+			"active_at":2000,
+			"read_seq":0,
+			"deleted_to_seq":0,
+			"sparse_active":false,
+			"updated_at":0,
+			"unread":0,
+			"last_message":{
+				"message_id":100,
+				"message_idstr":"100",
+				"message_seq":8,
+				"from_uid":"",
+				"client_msg_no":"",
+				"server_timestamp_ms":0,
+				"payload":null
+			}
 		}],
-		"more":0,
-		"truncated":false,
-		"scanned_memberships":0
+		"more":0
 	}`) {
 		t.Fatalf("body = %q, want person peer channel id", rec.Body.String())
 	}
@@ -162,11 +234,10 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 	conversations := &recordingConversationUsecase{
 		result: conversationusecase.ListResult{
 			Items: []conversationusecase.Conversation{
-				{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup)},
+				{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup), LastMessage: &conversationusecase.LastMessage{MessageID: 1}},
 				{ChannelID: "g2", ChannelType: int64(frame.ChannelTypeGroup)},
 			},
-			Truncated:          true,
-			ScannedMemberships: 700,
+			HasMore: true,
 		},
 	}
 	observer := &recordingConversationListObserver{}
@@ -185,11 +256,22 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 		t.Fatalf("observer events = %#v, want one", observer.events)
 	}
 	got := observer.events[0]
-	if got.Result != "ok" || got.ReturnedItems != 2 || got.ScannedMemberships != 700 || !got.Truncated {
+	if got.Result != "ok" || got.ReturnedItems != 2 || got.LastMessageHits != 1 || !got.More {
 		t.Fatalf("observer event = %#v, want page shape", got)
 	}
 	if got.Duration <= 0 {
 		t.Fatalf("observer duration = %v, want positive latency", got.Duration)
+	}
+}
+
+func assertJSONFieldAbsent(t *testing.T, body []byte, field string) {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := decoded[field]; ok {
+		t.Fatalf("%s present in %s, want absent", field, string(body))
 	}
 }
 
