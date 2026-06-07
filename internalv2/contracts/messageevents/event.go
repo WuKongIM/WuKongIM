@@ -18,6 +18,8 @@ type MessageCommitted struct {
 	SenderSessionID uint64
 	// ClientMsgNo is the client idempotency key.
 	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp used for conversation ordering.
+	ServerTimestampMS int64
 	// Payload is a copy of the committed payload.
 	Payload []byte
 	// RedDot carries the client red-dot flag for delivery side effects.

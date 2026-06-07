@@ -67,6 +67,46 @@ func TestMessageDBTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
 	require.Empty(t, msg.ChannelKey)
 }
 
+func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "display-fields", Type: 2}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{
+			ID:                10,
+			FromUID:           "u1",
+			ClientMsgNo:       "client-1",
+			Payload:           []byte("payload"),
+			SizeBytes:         len("payload"),
+			ServerTimestampMS: 1234,
+		}},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	committed, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, committed.Messages, 1)
+	require.Equal(t, "u1", committed.Messages[0].FromUID)
+	require.Equal(t, "client-1", committed.Messages[0].ClientMsgNo)
+	require.Equal(t, []byte("payload"), committed.Messages[0].Payload)
+	require.Equal(t, int64(1234), committed.Messages[0].ServerTimestampMS)
+
+	lookup, ok := cs.(MessageLookup)
+	require.True(t, ok)
+	msg, found, err := lookup.LookupMessageByID(ctx, 10)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "u1", msg.FromUID)
+	require.Equal(t, "client-1", msg.ClientMsgNo)
+	require.Equal(t, []byte("payload"), msg.Payload)
+	require.Equal(t, int64(1234), msg.ServerTimestampMS)
+}
+
 func TestMessageDBFactoryOptionsDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(MessageDBFactoryOptions{}).FieldByName("CommitNoSync")
 	require.False(t, ok)

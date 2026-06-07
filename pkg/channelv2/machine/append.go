@@ -315,7 +315,15 @@ func (s *ChannelState) removePendingAppendOrder(opIDs []ch.OpID) {
 func appendItemsForRecords(id ch.ChannelID, records []ch.Record, omitPayload bool) []ch.AppendBatchItemResult {
 	items := make([]ch.AppendBatchItemResult, len(records))
 	for i, record := range records {
-		msg := ch.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type}
+		msg := ch.Message{
+			MessageID:         record.ID,
+			MessageSeq:        record.Index,
+			ChannelID:         id.ID,
+			ChannelType:       id.Type,
+			FromUID:           record.FromUID,
+			ClientMsgNo:       record.ClientMsgNo,
+			ServerTimestampMS: record.ServerTimestampMS,
+		}
 		if !omitPayload {
 			msg.Payload = cloneBytes(record.Payload)
 		}

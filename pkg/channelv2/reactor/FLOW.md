@@ -20,6 +20,10 @@ waiter fencing.
 
 The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
+Append admission converts client-visible `Message` values into durable
+`Record` values while preserving conversation display fields:
+`FromUID`, `ClientMsgNo`, payload, and `ServerTimestampMS`. Direct channelv2
+append callers that omit `ServerTimestampMS` receive the reactor admission time.
 
 ## Event Domains
 

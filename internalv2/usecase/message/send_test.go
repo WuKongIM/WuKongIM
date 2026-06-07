@@ -801,8 +801,9 @@ func TestCommittedSinkErrorDoesNotChangeSendResult(t *testing.T) {
 
 func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 	committed := &capturingCommitted{}
+	appender := &recordingAppender{}
 	app := New(Options{
-		Appender:  &recordingAppender{},
+		Appender:  appender,
 		MessageID: &sequenceIDs{next: 50},
 		Committed: committed,
 	})
@@ -842,6 +843,12 @@ func TestSubmitCommittedIncludesDeliveryFields(t *testing.T) {
 	}
 	if event.FromUID != "u1" {
 		t.Fatalf("FromUID = %q, want u1", event.FromUID)
+	}
+	if event.ServerTimestampMS == 0 {
+		t.Fatal("ServerTimestampMS = 0, want derived append timestamp")
+	}
+	if got := appender.requests[0].Messages[0].ServerTimestampMS; got != event.ServerTimestampMS {
+		t.Fatalf("append ServerTimestampMS = %d, committed event has %d", got, event.ServerTimestampMS)
 	}
 	if len(event.MessageScopedUIDs) != 2 || event.MessageScopedUIDs[0] != "u2" || event.MessageScopedUIDs[1] != "u3" {
 		t.Fatalf("MessageScopedUIDs = %#v, want u2,u3", event.MessageScopedUIDs)

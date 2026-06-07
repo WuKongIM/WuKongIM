@@ -184,6 +184,7 @@ func (l *ChannelLog) recordToRow(seq uint64, record Record) messageRow {
 		ChannelID:   l.id.ID,
 		ChannelType: l.id.Type,
 		Payload:     append([]byte(nil), record.Payload...),
+		Timestamp:   record.ServerTimestampMS,
 	}
 	if record.SizeBytes > 0 {
 		row.PayloadSize = uint64(record.SizeBytes)

@@ -79,6 +79,8 @@ type Message struct {
 	ChannelType uint8
 	FromUID     string
 	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
 	// TraceID correlates diagnostics events for this transient append message.
 	TraceID string
 	// ChannelKey is the diagnostics-safe channel identifier for this transient append message.
@@ -106,6 +108,12 @@ type Record struct {
 	Index uint64
 	// Epoch is the channel epoch that produced this entry.
 	Epoch uint64
+	// FromUID is the sender user id preserved for conversation display.
+	FromUID string
+	// ClientMsgNo is the client idempotency key preserved for conversation display.
+	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
 	// SizeBytes is used by batching and read budgets.

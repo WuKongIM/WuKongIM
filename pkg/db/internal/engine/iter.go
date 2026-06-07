@@ -17,9 +17,24 @@ func (it *Iter) SeekGE(key []byte) bool {
 	return it != nil && it.iter != nil && it.iter.SeekGE(key)
 }
 
+// Last positions the iterator at the last key in bounds.
+func (it *Iter) Last() bool {
+	return it != nil && it.iter != nil && it.iter.Last()
+}
+
+// SeekLT positions the iterator at the last key strictly less than key.
+func (it *Iter) SeekLT(key []byte) bool {
+	return it != nil && it.iter != nil && it.iter.SeekLT(key)
+}
+
 // Next advances the iterator.
 func (it *Iter) Next() bool {
 	return it != nil && it.iter != nil && it.iter.Next()
+}
+
+// Prev moves the iterator to the previous key.
+func (it *Iter) Prev() bool {
+	return it != nil && it.iter != nil && it.iter.Prev()
 }
 
 // Key returns a copy of the current key.

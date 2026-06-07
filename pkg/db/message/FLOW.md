@@ -14,6 +14,9 @@ Current flow:
    primary row keyspace after reopen.
 5. `ChannelLog.Read` and `ReadReverse` scan primary rows by sequence and
    materialize messages from header/payload families.
+   `ChannelLog.GetLastVisibleMessage` uses reverse iteration over the channel
+   row keyspace to fetch the newest message above a visibility boundary without
+   scanning the full channel.
 6. `GetByMessageID`, `ListByClientMsgNo`, and `LookupIdempotency` use typed
    secondary indexes and verify indexed rows before returning.
 7. Checkpoint, epoch history, and snapshot payload APIs store channel system
@@ -44,6 +47,9 @@ Current flow:
 13. Compatibility durable payloads continue to use FNV-64a payload hashes so
     handler idempotency checks compare the same value that was encoded into the
     `channel.Record` payload.
-14. Schema and key helpers define the durable message table layout.
+14. Message rows persist `ServerTimestampMS`, `FromUID`, `ClientMsgNo`, and
+    `Payload` so conversation list display can read durable fields from the
+    message log instead of transient committed events.
+15. Schema and key helpers define the durable message table layout.
 
 Storage code in this package must not import Pebble directly.

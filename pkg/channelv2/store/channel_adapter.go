@@ -321,7 +321,16 @@ func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []chan
 func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.Record {
 	out := make([]channel.Record, len(records))
 	for i, record := range records {
-		msg := channel.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type, Payload: cloneBytes(record.Payload)}
+		msg := channel.Message{
+			MessageID:         record.ID,
+			MessageSeq:        record.Index,
+			ChannelID:         id.ID,
+			ChannelType:       id.Type,
+			FromUID:           record.FromUID,
+			ClientMsgNo:       record.ClientMsgNo,
+			ServerTimestampMS: record.ServerTimestampMS,
+			Payload:           cloneBytes(record.Payload),
+		}
 		payload, _ := encodeDBCompatibleMessage(msg)
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
@@ -346,20 +355,36 @@ func storeApplyFetchRecords(store applyFetchStore, req channel.ApplyFetchStoreRe
 func fromDBRecord(record channel.Record) ch.Record {
 	msg, err := decodeDBCompatibleMessage(record.Payload)
 	if err == nil {
-		return ch.Record{ID: msg.MessageID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(msg.Payload), SizeBytes: len(msg.Payload)}
+		return ch.Record{
+			ID:                msg.MessageID,
+			Index:             record.Index,
+			Epoch:             record.Epoch,
+			FromUID:           msg.FromUID,
+			ClientMsgNo:       msg.ClientMsgNo,
+			Payload:           cloneBytes(msg.Payload),
+			SizeBytes:         len(msg.Payload),
+			ServerTimestampMS: msg.ServerTimestampMS,
+		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload)}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS}
 }
 
 const durableMessageHeaderSize = 45
 
+var durableServerTimestampMagic = [...]byte{'w', 'k', 't', 's'}
+
+const durableServerTimestampSize = 12
+
 func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 	payloadHash := hashPayload(message.Payload)
 	size := durableMessageHeaderSize + 4 + len(message.MsgKey) + 4 + len(message.ClientMsgNo) + 4 + len(message.StreamNo) + 4 + len(message.ChannelID) + 4 + len(message.Topic) + 4 + len(message.FromUID) + 4 + len(message.Payload)
+	if message.ServerTimestampMS != 0 {
+		size += durableServerTimestampSize
+	}
 	payload := make([]byte, 0, size)
 	payload = append(payload, channel.DurableMessageCodecVersion)
 	payload = binary.BigEndian.AppendUint64(payload, message.MessageID)
@@ -376,6 +401,7 @@ func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 	payload = appendSizedString(payload, message.Topic)
 	payload = appendSizedString(payload, message.FromUID)
 	payload = appendSizedBytes(payload, message.Payload)
+	payload = appendServerTimestamp(payload, message.ServerTimestampMS)
 	return payload, nil
 }
 
@@ -395,6 +421,7 @@ func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 		StreamID:    binary.BigEndian.Uint64(payload[25:33]),
 		Timestamp:   int32(binary.BigEndian.Uint32(payload[33:37])),
 	}
+	msg.ServerTimestampMS = int64(msg.Timestamp)
 	pos := durableMessageHeaderSize
 	var b []byte
 	var err error
@@ -422,10 +449,13 @@ func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 		return channel.Message{}, err
 	}
 	msg.FromUID = string(b)
-	if b, _, err = readSizedBytes(payload, pos); err != nil {
+	if b, pos, err = readSizedBytes(payload, pos); err != nil {
 		return channel.Message{}, err
 	}
 	msg.Payload = cloneBytes(b)
+	if serverTimestampMS, ok := decodeServerTimestamp(payload, pos); ok {
+		msg.ServerTimestampMS = serverTimestampMS
+	}
 	return msg, nil
 }
 
@@ -437,6 +467,24 @@ func appendSizedString(dst []byte, value string) []byte {
 func appendSizedBytes(dst []byte, value []byte) []byte {
 	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
 	return append(dst, value...)
+}
+
+func appendServerTimestamp(dst []byte, serverTimestampMS int64) []byte {
+	if serverTimestampMS == 0 {
+		return dst
+	}
+	dst = append(dst, durableServerTimestampMagic[:]...)
+	return binary.BigEndian.AppendUint64(dst, uint64(serverTimestampMS))
+}
+
+func decodeServerTimestamp(payload []byte, pos int) (int64, bool) {
+	if len(payload)-pos < durableServerTimestampSize {
+		return 0, false
+	}
+	if string(payload[pos:pos+len(durableServerTimestampMagic)]) != string(durableServerTimestampMagic[:]) {
+		return 0, false
+	}
+	return int64(binary.BigEndian.Uint64(payload[pos+len(durableServerTimestampMagic) : pos+durableServerTimestampSize])), true
 }
 
 func readSizedBytes(payload []byte, pos int) ([]byte, int, error) {

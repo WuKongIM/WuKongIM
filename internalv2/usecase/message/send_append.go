@@ -81,7 +81,7 @@ func (a *App) finishBatchAppendResult(items []preparedSend, results []SendBatchI
 		}
 		recordAppendDurableTrace(item, appended.MessageSeq, nil, appendDur)
 		result := SendResult{MessageID: appended.MessageID, MessageSeq: appended.MessageSeq, Reason: ReasonSuccess}
-		a.submitCommitted(item.ctx, item.cmd, appended)
+		a.submitCommitted(item.ctx, item.cmd, item.serverTimestampMS, appended)
 		results[item.index] = SendBatchItemResult{Result: result}
 	}
 }
@@ -104,15 +104,20 @@ func (a *App) appendRequest(channel ChannelID, active []preparedSend, attempt in
 		if req.ChannelKey == "" && item.cmd.ChannelKey != "" {
 			req.ChannelKey = item.cmd.ChannelKey
 		}
+		serverTimestampMS := item.serverTimestampMS
+		if serverTimestampMS == 0 {
+			serverTimestampMS = time.Now().UnixMilli()
+		}
 		req.Messages = append(req.Messages, Message{
-			MessageID:   item.cmd.MessageID,
-			ChannelID:   item.cmd.ChannelID,
-			ChannelType: item.cmd.ChannelType,
-			FromUID:     item.cmd.FromUID,
-			ClientMsgNo: item.cmd.ClientMsgNo,
-			TraceID:     item.cmd.TraceID,
-			ChannelKey:  item.cmd.ChannelKey,
-			Payload:     cloneBytes(item.cmd.Payload),
+			MessageID:         item.cmd.MessageID,
+			ChannelID:         item.cmd.ChannelID,
+			ChannelType:       item.cmd.ChannelType,
+			FromUID:           item.cmd.FromUID,
+			ClientMsgNo:       item.cmd.ClientMsgNo,
+			TraceID:           item.cmd.TraceID,
+			ChannelKey:        item.cmd.ChannelKey,
+			Payload:           cloneBytes(item.cmd.Payload),
+			ServerTimestampMS: serverTimestampMS,
 		})
 	}
 	return req
@@ -246,9 +251,12 @@ func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) 
 	return context.WithCancel(context.Background())
 }
 
-func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended AppendBatchItemResult) {
+func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, serverTimestampMS int64, appended AppendBatchItemResult) {
 	if a == nil || a.committed == nil {
 		return
+	}
+	if appended.Message.ServerTimestampMS != 0 {
+		serverTimestampMS = appended.Message.ServerTimestampMS
 	}
 	event := messageevents.MessageCommitted{
 		MessageID:         appended.MessageID,
@@ -259,6 +267,7 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, appended App
 		SenderNodeID:      cmd.SenderNodeID,
 		SenderSessionID:   cmd.SenderSessionID,
 		ClientMsgNo:       cmd.ClientMsgNo,
+		ServerTimestampMS: serverTimestampMS,
 		Payload:           cloneBytes(appended.Message.Payload),
 		RedDot:            cmd.RedDot,
 		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),

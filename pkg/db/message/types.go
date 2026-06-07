@@ -23,6 +23,8 @@ type Record struct {
 	Payload []byte
 	// SizeBytes optionally stores the caller-known payload size.
 	SizeBytes int
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
 }
 
 // AppendResult describes the durable sequence range assigned by an append.
@@ -49,6 +51,8 @@ type Message struct {
 	PayloadHash uint64
 	// Payload stores the message payload.
 	Payload []byte
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
 }
 
 // IdempotencyKey identifies one sender/client-message pair in a channel.

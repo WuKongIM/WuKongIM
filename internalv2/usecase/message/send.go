@@ -50,12 +50,13 @@ func (a *App) prepareBatch(items []SendBatchItem) ([]SendBatchItemResult, []prep
 
 // preparedSend is one validated send item ready to enter durable append.
 type preparedSend struct {
-	index    int
-	ctx      context.Context
-	deadline time.Time
-	cmd      SendCommand
-	result   SendResult
-	err      error
+	index             int
+	ctx               context.Context
+	deadline          time.Time
+	cmd               SendCommand
+	serverTimestampMS int64
+	result            SendResult
+	err               error
 }
 
 func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, bool) {
@@ -101,7 +102,7 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 		}
 		cmd.MessageID = a.messageID.Next()
 	}
-	return preparedSend{cmd: cmd}, false
+	return preparedSend{cmd: cmd, serverTimestampMS: time.Now().UnixMilli()}, false
 }
 
 func (a *App) prepareRequestScopedSend(ctx context.Context, cmd SendCommand) (preparedSend, bool) {
@@ -151,7 +152,7 @@ func (a *App) prepareRequestScopedSend(ctx context.Context, cmd SendCommand) (pr
 		}
 		cmd.MessageID = a.messageID.Next()
 	}
-	return preparedSend{cmd: cmd}, false
+	return preparedSend{cmd: cmd, serverTimestampMS: time.Now().UnixMilli()}, false
 }
 
 // channelAppendSegment preserves original item order for one canonical channel.

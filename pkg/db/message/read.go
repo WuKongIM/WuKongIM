@@ -54,6 +54,52 @@ func (l *ChannelLog) ReadReverse(ctx context.Context, fromSeq uint64, opts ReadO
 	return messages, nil
 }
 
+// GetLastVisibleMessage returns the newest message whose sequence is greater than visibleAfterSeq.
+func (l *ChannelLog) GetLastVisibleMessage(ctx context.Context, visibleAfterSeq uint64) (Message, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Message{}, false, err
+	}
+	if l == nil || l.db == nil || l.db.engine == nil {
+		return Message{}, false, dberrors.ErrClosed
+	}
+	leo, err := l.LEO(ctx)
+	if err != nil {
+		return Message{}, false, err
+	}
+	if leo == 0 || leo <= visibleAfterSeq {
+		return Message{}, false, nil
+	}
+
+	prefix := encodeMessageRowPrefix(l.key)
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return Message{}, false, err
+	}
+	defer iter.Close()
+
+	for ok := iter.Last(); ok; ok = iter.Prev() {
+		if err := ctx.Err(); err != nil {
+			return Message{}, false, err
+		}
+		seq, familyID, ok := decodeMessageRowKey(l.key, iter.Key())
+		if !ok {
+			continue
+		}
+		if seq <= visibleAfterSeq {
+			return Message{}, false, nil
+		}
+		if familyID != messageHeaderFamilyID {
+			continue
+		}
+		return l.GetBySeq(ctx, seq)
+	}
+	if err := iter.Error(); err != nil {
+		return Message{}, false, err
+	}
+	return Message{}, false, nil
+}
+
 func (l *ChannelLog) readForward(ctx context.Context, fromSeq uint64, maxSeq uint64, opts ReadOptions) ([]Message, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -207,12 +253,13 @@ func appendReadMessage(messages []Message, totalBytes int, msg Message, opts Rea
 
 func messageFromRow(row messageRow) Message {
 	return Message{
-		MessageSeq:  row.MessageSeq,
-		MessageID:   row.MessageID,
-		ClientMsgNo: row.ClientMsgNo,
-		FromUID:     row.FromUID,
-		PayloadHash: row.PayloadHash,
-		Payload:     append([]byte(nil), row.Payload...),
+		MessageSeq:        row.MessageSeq,
+		MessageID:         row.MessageID,
+		ClientMsgNo:       row.ClientMsgNo,
+		FromUID:           row.FromUID,
+		PayloadHash:       row.PayloadHash,
+		Payload:           append([]byte(nil), row.Payload...),
+		ServerTimestampMS: row.Timestamp,
 	}
 }
 

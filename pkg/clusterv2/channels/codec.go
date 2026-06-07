@@ -856,6 +856,7 @@ func appendMessage(dst []byte, msg ch.Message) []byte {
 	dst = append(dst, msg.ChannelType)
 	dst = appendString(dst, msg.FromUID)
 	dst = appendString(dst, msg.ClientMsgNo)
+	dst = appendVarint(dst, msg.ServerTimestampMS)
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
@@ -881,6 +882,9 @@ func readMessage(body []byte, offset int) (ch.Message, int, error) {
 		return ch.Message{}, offset, err
 	}
 	if msg.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+		return ch.Message{}, offset, err
+	}
+	if msg.ServerTimestampMS, offset, err = readInt64(body, offset, "message server timestamp ms"); err != nil {
 		return ch.Message{}, offset, err
 	}
 	if msg.TraceID, offset, err = readString(body, offset); err != nil {
@@ -1062,6 +1066,9 @@ func appendRecord(dst []byte, record ch.Record) []byte {
 	dst = appendUvarint(dst, record.ID)
 	dst = appendUvarint(dst, record.Index)
 	dst = appendUvarint(dst, record.Epoch)
+	dst = appendString(dst, record.FromUID)
+	dst = appendString(dst, record.ClientMsgNo)
+	dst = appendVarint(dst, record.ServerTimestampMS)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
 	return dst
@@ -1077,6 +1084,15 @@ func readRecord(body []byte, offset int) (ch.Record, int, error) {
 		return ch.Record{}, offset, err
 	}
 	if record.Epoch, offset, err = readUvarint(body, offset); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.FromUID, offset, err = readString(body, offset); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.ServerTimestampMS, offset, err = readInt64(body, offset, "record server timestamp ms"); err != nil {
 		return ch.Record{}, offset, err
 	}
 	if record.Payload, offset, err = readOptionalBytes(body, offset, "record payload"); err != nil {
@@ -1380,6 +1396,14 @@ func readInt(body []byte, offset int, label string) (int, int, error) {
 		return 0, offset, fmt.Errorf("channels: %s overflows int", label)
 	}
 	return int(value), next, nil
+}
+
+func readInt64(body []byte, offset int, _ string) (int64, int, error) {
+	value, next, err := readVarint(body, offset)
+	if err != nil {
+		return 0, offset, err
+	}
+	return value, next, nil
 }
 
 func readByte(body []byte, offset int, label string) (byte, int, error) {

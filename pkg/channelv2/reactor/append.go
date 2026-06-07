@@ -64,15 +64,26 @@ func newAppendRequest(event Event, admittedAt time.Time) appendRequest {
 		future:     event.Future,
 		ctx:        event.Context,
 		enqueuedAt: admittedAt,
-		records:    appendRecordsFromMessages(event.Append.Messages),
+		records:    appendRecordsFromMessages(event.Append.Messages, admittedAt),
 		commitMode: normalizedCommitMode(event.Append.CommitMode),
 	}
 }
 
-func appendRecordsFromMessages(messages []ch.Message) []ch.Record {
+func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time) []ch.Record {
 	records := make([]ch.Record, len(messages))
 	for i, msg := range messages {
-		records[i] = ch.Record{ID: msg.MessageID, Payload: append([]byte(nil), msg.Payload...), SizeBytes: len(msg.Payload)}
+		serverTimestampMS := msg.ServerTimestampMS
+		if serverTimestampMS == 0 {
+			serverTimestampMS = admittedAt.UnixMilli()
+		}
+		records[i] = ch.Record{
+			ID:                msg.MessageID,
+			FromUID:           msg.FromUID,
+			ClientMsgNo:       msg.ClientMsgNo,
+			Payload:           append([]byte(nil), msg.Payload...),
+			SizeBytes:         len(msg.Payload),
+			ServerTimestampMS: serverTimestampMS,
+		}
 	}
 	return records
 }

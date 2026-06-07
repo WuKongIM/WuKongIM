@@ -81,15 +81,16 @@ func toChannelMessages(in []message.Message) []channelv2.Message {
 	out := make([]channelv2.Message, 0, len(in))
 	for _, msg := range in {
 		out = append(out, channelv2.Message{
-			MessageID:   msg.MessageID,
-			MessageSeq:  msg.MessageSeq,
-			ChannelID:   msg.ChannelID,
-			ChannelType: msg.ChannelType,
-			FromUID:     msg.FromUID,
-			ClientMsgNo: msg.ClientMsgNo,
-			TraceID:     msg.TraceID,
-			ChannelKey:  msg.ChannelKey,
-			Payload:     append([]byte(nil), msg.Payload...),
+			MessageID:         msg.MessageID,
+			MessageSeq:        msg.MessageSeq,
+			ChannelID:         msg.ChannelID,
+			ChannelType:       msg.ChannelType,
+			FromUID:           msg.FromUID,
+			ClientMsgNo:       msg.ClientMsgNo,
+			TraceID:           msg.TraceID,
+			ChannelKey:        msg.ChannelKey,
+			Payload:           append([]byte(nil), msg.Payload...),
+			ServerTimestampMS: msg.ServerTimestampMS,
 		})
 	}
 	return out
@@ -117,15 +118,16 @@ func fromChannelAppendResult(res channelv2.AppendBatchResult) message.AppendBatc
 
 func fromChannelMessage(msg channelv2.Message) message.Message {
 	return message.Message{
-		MessageID:   msg.MessageID,
-		MessageSeq:  msg.MessageSeq,
-		ChannelID:   msg.ChannelID,
-		ChannelType: msg.ChannelType,
-		FromUID:     msg.FromUID,
-		ClientMsgNo: msg.ClientMsgNo,
-		TraceID:     msg.TraceID,
-		ChannelKey:  msg.ChannelKey,
-		Payload:     append([]byte(nil), msg.Payload...),
+		MessageID:         msg.MessageID,
+		MessageSeq:        msg.MessageSeq,
+		ChannelID:         msg.ChannelID,
+		ChannelType:       msg.ChannelType,
+		FromUID:           msg.FromUID,
+		ClientMsgNo:       msg.ClientMsgNo,
+		TraceID:           msg.TraceID,
+		ChannelKey:        msg.ChannelKey,
+		Payload:           append([]byte(nil), msg.Payload...),
+		ServerTimestampMS: msg.ServerTimestampMS,
 	}
 }
 

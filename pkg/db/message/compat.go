@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -1893,11 +1894,14 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 	if err != nil {
 		return messageRow{}, err
 	}
-	row.Payload, _, err = readCompatibilityBytes(payload, pos)
+	row.Payload, pos, err = readCompatibilityBytes(payload, pos)
 	if err != nil {
 		return messageRow{}, err
 	}
 	row.Payload = append([]byte(nil), row.Payload...)
+	if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
+		row.Timestamp = serverTimestampMS
+	}
 	row.PayloadSize = uint64(len(row.Payload))
 	if row.PayloadHash == 0 {
 		row.PayloadHash = hashPayload(row.Payload)
@@ -1920,6 +1924,9 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 		}
 		size += 4 + fieldSize
 	}
+	if row.Timestamp != 0 {
+		size += compatibilityServerTimestampSize
+	}
 	payload := make([]byte, 0, size)
 	payload = append(payload, channel.DurableMessageCodecVersion)
 	payload = binary.BigEndian.AppendUint64(payload, row.MessageID)
@@ -1936,6 +1943,7 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 	payload = appendCompatibilityString(payload, row.Topic)
 	payload = appendCompatibilityString(payload, row.FromUID)
 	payload = appendCompatibilityBytes(payload, row.Payload)
+	payload = appendCompatibilityServerTimestamp(payload, row.Timestamp)
 	return channel.Record{ID: row.MessageID, Index: row.MessageSeq, Payload: payload, SizeBytes: len(payload)}, nil
 }
 
@@ -1981,25 +1989,48 @@ func appendCompatibilityBytes(dst []byte, value []byte) []byte {
 	return append(dst, value...)
 }
 
+var compatibilityServerTimestampMagic = [...]byte{'w', 'k', 't', 's'}
+
+const compatibilityServerTimestampSize = 12
+
+func appendCompatibilityServerTimestamp(dst []byte, serverTimestampMS int64) []byte {
+	if serverTimestampMS == 0 {
+		return dst
+	}
+	dst = append(dst, compatibilityServerTimestampMagic[:]...)
+	return binary.BigEndian.AppendUint64(dst, uint64(serverTimestampMS))
+}
+
+func decodeCompatibilityServerTimestamp(payload []byte, pos int) (int64, bool) {
+	if len(payload)-pos < compatibilityServerTimestampSize {
+		return 0, false
+	}
+	if !bytes.Equal(payload[pos:pos+len(compatibilityServerTimestampMagic)], compatibilityServerTimestampMagic[:]) {
+		return 0, false
+	}
+	return int64(binary.BigEndian.Uint64(payload[pos+len(compatibilityServerTimestampMagic) : pos+compatibilityServerTimestampSize])), true
+}
+
 func channelMessageFromRow(row messageRow) channel.Message {
 	return channel.Message{
-		MessageID:   row.MessageID,
-		MessageSeq:  row.MessageSeq,
-		Framer:      decodeMessageRowFramerFlags(row.FramerFlags),
-		Setting:     frame.Setting(row.Setting),
-		MsgKey:      row.MsgKey,
-		Expire:      uint32(row.Expire),
-		ClientSeq:   row.ClientSeq,
-		ClientMsgNo: row.ClientMsgNo,
-		StreamNo:    row.StreamNo,
-		StreamID:    row.StreamID,
-		StreamFlag:  frame.StreamFlag(row.StreamFlag),
-		Timestamp:   int32(row.Timestamp),
-		ChannelID:   row.ChannelID,
-		ChannelType: row.ChannelType,
-		Topic:       row.Topic,
-		FromUID:     row.FromUID,
-		Payload:     append([]byte(nil), row.Payload...),
+		MessageID:         row.MessageID,
+		MessageSeq:        row.MessageSeq,
+		Framer:            decodeMessageRowFramerFlags(row.FramerFlags),
+		Setting:           frame.Setting(row.Setting),
+		MsgKey:            row.MsgKey,
+		Expire:            uint32(row.Expire),
+		ClientSeq:         row.ClientSeq,
+		ClientMsgNo:       row.ClientMsgNo,
+		StreamNo:          row.StreamNo,
+		StreamID:          row.StreamID,
+		StreamFlag:        frame.StreamFlag(row.StreamFlag),
+		Timestamp:         int32(row.Timestamp),
+		ChannelID:         row.ChannelID,
+		ChannelType:       row.ChannelType,
+		Topic:             row.Topic,
+		FromUID:           row.FromUID,
+		ServerTimestampMS: row.Timestamp,
+		Payload:           append([]byte(nil), row.Payload...),
 	}
 }
 

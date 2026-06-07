@@ -63,7 +63,9 @@ type Message struct {
 	ChannelType uint8
 	Topic       string
 	FromUID     string
-	Payload     []byte
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
+	Payload           []byte
 }
 
 type Meta struct {

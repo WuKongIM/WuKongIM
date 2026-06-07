@@ -20,6 +20,8 @@ SendBatch(items)
      is set by an entry adapter
   -> allocate message IDs for durable gateway-origin sends
   -> group sends by canonical channel while preserving per-channel order
+  -> derive one server append timestamp per prepared send for durable storage
+     and committed-message events
   -> clone payloads at the appender boundary and propagate sendtrace metadata
      plus one-based append attempt to request-level and per-message append
      payload fields
@@ -32,7 +34,7 @@ SendBatch(items)
   -> record `message.send_durable` sendtrace events for traced active items,
      including successful sequences and stable append error classes
   -> submit committed-message events after successful append when a sink is configured
-     (including sender identity and request-scoped delivery UIDs)
+     (including sender identity, server timestamp, and request-scoped delivery UIDs)
   -> return item-aligned SendBatchItemResult values
 ```
 

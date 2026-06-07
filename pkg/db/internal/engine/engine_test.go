@@ -71,6 +71,50 @@ func TestIteratorHonorsBounds(t *testing.T) {
 	}
 }
 
+func TestIterReverseWithinBounds(t *testing.T) {
+	db := openTestDB(t)
+	batch := db.NewBatch()
+	for _, kv := range []struct {
+		key   string
+		value string
+	}{
+		{"j1", "skip-low"},
+		{"k1", "v1"},
+		{"k2", "v2"},
+		{"k3", "v3"},
+		{"l1", "skip-high"},
+	} {
+		if err := batch.Set([]byte(kv.key), []byte(kv.value)); err != nil {
+			t.Fatalf("Set(%s): %v", kv.key, err)
+		}
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if err := batch.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+
+	iter, err := db.NewIter(engine.Span{Start: []byte("k1"), End: []byte("k4")}, engine.IterOptions{})
+	if err != nil {
+		t.Fatalf("NewIter(): %v", err)
+	}
+	defer iter.Close()
+
+	if !iter.Last() || string(iter.Key()) != "k3" {
+		t.Fatalf("Last() key=%q, want k3", string(iter.Key()))
+	}
+	if !iter.Prev() || string(iter.Key()) != "k2" {
+		t.Fatalf("Prev() key=%q, want k2", string(iter.Key()))
+	}
+	if !iter.SeekLT([]byte("k3")) || string(iter.Key()) != "k2" {
+		t.Fatalf("SeekLT(k3) key=%q, want k2", string(iter.Key()))
+	}
+	if iter.SeekLT([]byte("k1")) {
+		t.Fatalf("SeekLT(k1) key=%q, want no in-bound key", string(iter.Key()))
+	}
+}
+
 func TestDeleteRange(t *testing.T) {
 	db := openTestDB(t)
 	batch := db.NewBatch()

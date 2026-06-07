@@ -19,6 +19,18 @@ func TestAppendQueueFlushesByMaxRecords(t *testing.T) {
 	require.True(t, q.shouldFlush(now))
 }
 
+func TestAppendRecordsFromMessagesPreservesConversationFields(t *testing.T) {
+	admittedAt := time.UnixMilli(1234)
+	records := appendRecordsFromMessages([]ch.Message{
+		{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload"), ServerTimestampMS: 5678},
+		{MessageID: 11, FromUID: "u2", ClientMsgNo: "client-2", Payload: []byte("fallback")},
+	}, admittedAt)
+
+	require.Len(t, records, 2)
+	require.Equal(t, ch.Record{ID: 10, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload"), SizeBytes: len("payload"), ServerTimestampMS: 5678}, records[0])
+	require.Equal(t, ch.Record{ID: 11, FromUID: "u2", ClientMsgNo: "client-2", Payload: []byte("fallback"), SizeBytes: len("fallback"), ServerTimestampMS: 1234}, records[1])
+}
+
 func TestAppendQueueFlushesByMaxWait(t *testing.T) {
 	q := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: 5 * time.Millisecond, MaxPending: 10, MaxPendingBytes: 1024})
 	now := time.Unix(1, 0)

@@ -131,6 +131,8 @@ type Message struct {
 	ChannelKey string
 	// Payload is the durable message body.
 	Payload []byte
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
 }
 
 // AppendBatchRequest appends messages to one canonical channel.

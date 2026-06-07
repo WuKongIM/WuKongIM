@@ -245,7 +245,16 @@ func (s *MemoryChannelStore) Close() error {
 }
 
 func messageFromRecord(id ch.ChannelID, record ch.Record) ch.Message {
-	return ch.Message{MessageID: record.ID, MessageSeq: record.Index, ChannelID: id.ID, ChannelType: id.Type, Payload: cloneBytes(record.Payload)}
+	return ch.Message{
+		MessageID:         record.ID,
+		MessageSeq:        record.Index,
+		ChannelID:         id.ID,
+		ChannelType:       id.Type,
+		FromUID:           record.FromUID,
+		ClientMsgNo:       record.ClientMsgNo,
+		Payload:           cloneBytes(record.Payload),
+		ServerTimestampMS: record.ServerTimestampMS,
+	}
 }
 
 func cloneRecord(record ch.Record) ch.Record {

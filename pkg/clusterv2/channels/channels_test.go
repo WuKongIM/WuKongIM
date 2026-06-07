@@ -447,17 +447,18 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 		LeaseUntil:  time.Unix(1700000000, 123),
 		Status:      ch.StatusActive,
 	}
-	sampleRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, Payload: []byte("record-payload"), SizeBytes: 14}
+	sampleRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, FromUID: "u1", ClientMsgNo: "record-client", Payload: []byte("record-payload"), SizeBytes: 14, ServerTimestampMS: 1700000000123}
 	sampleMessage := ch.Message{
-		MessageID:   21,
-		MessageSeq:  22,
-		ChannelID:   "room",
-		ChannelType: 1,
-		FromUID:     "u1",
-		ClientMsgNo: "m1",
-		TraceID:     "trace-message",
-		ChannelKey:  "channel/key-message",
-		Payload:     []byte("message-payload"),
+		MessageID:         21,
+		MessageSeq:        22,
+		ChannelID:         "room",
+		ChannelType:       1,
+		FromUID:           "u1",
+		ClientMsgNo:       "m1",
+		ServerTimestampMS: 1700000000456,
+		TraceID:           "trace-message",
+		ChannelKey:        "channel/key-message",
+		Payload:           []byte("message-payload"),
 	}
 
 	tests := []struct {
