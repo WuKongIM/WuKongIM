@@ -13,11 +13,12 @@ import (
 const (
 	conversationPrimaryFamilyID uint16 = 0
 
-	conversationColumnUID         uint16 = 1
-	conversationColumnChannelID   uint16 = 2
-	conversationColumnChannelType uint16 = 3
-	conversationColumnValue       uint16 = 4
-	conversationColumnActiveAt    uint16 = 5
+	conversationColumnUID          uint16 = 1
+	conversationColumnChannelID    uint16 = 2
+	conversationColumnChannelType  uint16 = 3
+	conversationColumnValue        uint16 = 4
+	conversationColumnActiveAt     uint16 = 5
+	conversationColumnSparseActive uint16 = 6
 )
 
 // UserConversationState stores one user's durable conversation cursors.
@@ -36,6 +37,9 @@ type UserConversationState struct {
 	ActiveAt int64
 	// UpdatedAt records the latest state mutation timestamp.
 	UpdatedAt int64
+	// SparseActive reports that ActiveAt is a low-frequency ordering anchor.
+	// Message appends do not have to advance ActiveAt for every user in this conversation.
+	SparseActive bool
 }
 
 var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
@@ -47,8 +51,9 @@ var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
 		{ID: conversationColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
 		{ID: conversationColumnValue, Name: "value", Type: schema.TypeBytes},
 		{ID: conversationColumnActiveAt, Name: "active_at", Type: schema.TypeInt64},
+		{ID: conversationColumnSparseActive, Name: "sparse_active", Type: schema.TypeBool},
 	},
-	Families: []schema.Family{{ID: conversationPrimaryFamilyID, Name: "primary", Columns: []uint16{conversationColumnValue, conversationColumnActiveAt}}},
+	Families: []schema.Family{{ID: conversationPrimaryFamilyID, Name: "primary", Columns: []uint16{conversationColumnValue, conversationColumnActiveAt, conversationColumnSparseActive}}},
 	Primary: PrimarySpec[UserConversationState]{
 		IndexID:  conversationPrimaryIndexID,
 		FamilyID: conversationPrimaryFamilyID,
@@ -77,7 +82,7 @@ var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
 	},
 	Validate: validateUserConversationState,
 	EncodeValue: func(state UserConversationState) ([]byte, error) {
-		return encodeConversationValue(state.ReadSeq, state.DeletedToSeq, state.ActiveAt, state.UpdatedAt), nil
+		return encodeUserConversationValue(state), nil
 	},
 	DecodeValue: func(primary KeyParts, value []byte) (UserConversationState, error) {
 		return decodeUserConversationValue(primary[0].S, primary[1].S, primary[2].I64, value)
@@ -103,6 +108,16 @@ type ConversationCursor struct {
 	ChannelType int64
 }
 
+// UserConversationActiveCursor identifies the last emitted active-index row.
+type UserConversationActiveCursor struct {
+	// ActiveAt is the active timestamp from the last emitted row.
+	ActiveAt int64
+	// ChannelID is the channel ID from the last emitted row.
+	ChannelID string
+	// ChannelType is the channel type from the last emitted row.
+	ChannelType int64
+}
+
 // UserConversationActivePatch advances a conversation active timestamp.
 type UserConversationActivePatch struct {
 	// UID identifies the user that owns the conversation state.
@@ -115,6 +130,10 @@ type UserConversationActivePatch struct {
 	ActiveAt int64
 	// MessageSeq fences stale activity hints after a user delete barrier.
 	MessageSeq uint64
+	// SparseActive is the requested sparse-active mode when SparseActiveSet is true.
+	SparseActive bool
+	// SparseActiveSet reports that SparseActive should update the stored sparse mode.
+	SparseActiveSet bool
 }
 
 // UserConversationDelete hides a conversation through DeletedToSeq.
@@ -162,8 +181,8 @@ func (s *Shard) UpsertUserConversationState(ctx context.Context, state UserConve
 	if err != nil {
 		return err
 	}
-	if exists && state.ActiveAt < existing.ActiveAt {
-		state.ActiveAt = existing.ActiveAt
+	if exists {
+		state = mergeUserConversationState(existing, state)
 	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
@@ -195,14 +214,19 @@ func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserCon
 	if !exists {
 		current = UserConversationState{UID: patch.UID, ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
 	}
-	if patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq {
-		return nil
-	}
-	if patch.ActiveAt <= current.ActiveAt {
+	activeBlocked := patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq
+	activeChanged := !activeBlocked && patch.ActiveAt > current.ActiveAt
+	sparseChanged := patch.SparseActiveSet && patch.SparseActive != current.SparseActive
+	if !activeChanged && !sparseChanged {
 		return nil
 	}
 	next := current
-	next.ActiveAt = patch.ActiveAt
+	if activeChanged {
+		next.ActiveAt = patch.ActiveAt
+	}
+	if patch.SparseActiveSet {
+		next.SparseActive = patch.SparseActive
+	}
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
@@ -305,6 +329,38 @@ func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limi
 	return rows, err
 }
 
+// ListUserConversationActivePage returns active rows with an active-index cursor.
+func (s *Shard) ListUserConversationActivePage(ctx context.Context, uid string, cursor UserConversationActiveCursor, limit int) ([]UserConversationState, UserConversationActiveCursor, bool, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	if err := validateConversationUID(uid); err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	if err := validateUserConversationActiveCursor(cursor); err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	if err := validateConversationLimit(limit); err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	var after KeyParts
+	if cursor != (UserConversationActiveCursor{}) {
+		after = KeyParts{String(uid), Int64Desc(cursor.ActiveAt), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
+	}
+	rows, next, done, err := conversationTable.ScanIndex(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, after, limit)
+	if err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	nextCursor := cursor
+	if len(next) >= 4 {
+		nextCursor = UserConversationActiveCursor{ActiveAt: next[1].I64, ChannelID: next[2].S, ChannelType: next[3].I64}
+	} else if len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor = UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	}
+	return rows, nextCursor, done, nil
+}
+
 // ListUserConversationStatePage returns primary rows in stable key order.
 func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, cursor ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
 	if err := s.check(ctx); err != nil {
@@ -348,7 +404,7 @@ func (s *Shard) stageUserConversationState(batch *engine.Batch, primaryKey []byt
 			return err
 		}
 	}
-	value := encodeConversationValue(next.ReadSeq, next.DeletedToSeq, next.ActiveAt, next.UpdatedAt)
+	value := encodeUserConversationValue(next)
 	if err := batch.Set(primaryKey, value); err != nil {
 		return err
 	}
@@ -394,11 +450,40 @@ func validateConversationCursor(cursor ConversationCursor) error {
 	return validateConversationKey(ConversationKey{ChannelID: cursor.ChannelID, ChannelType: cursor.ChannelType})
 }
 
+func validateUserConversationActiveCursor(cursor UserConversationActiveCursor) error {
+	if cursor == (UserConversationActiveCursor{}) {
+		return nil
+	}
+	if cursor.ActiveAt <= 0 || cursor.ChannelID == "" {
+		return dberrors.ErrInvalidArgument
+	}
+	return validateConversationKey(ConversationKey{ChannelID: cursor.ChannelID, ChannelType: cursor.ChannelType})
+}
+
 func validateConversationLimit(limit int) error {
 	if limit <= 0 {
 		return dberrors.ErrInvalidArgument
 	}
 	return nil
+}
+
+func mergeUserConversationState(existing, next UserConversationState) UserConversationState {
+	next.UID = existing.UID
+	next.ChannelID = existing.ChannelID
+	next.ChannelType = existing.ChannelType
+	if next.ReadSeq < existing.ReadSeq {
+		next.ReadSeq = existing.ReadSeq
+	}
+	if next.DeletedToSeq < existing.DeletedToSeq {
+		next.DeletedToSeq = existing.DeletedToSeq
+	}
+	if next.ActiveAt < existing.ActiveAt {
+		next.ActiveAt = existing.ActiveAt
+	}
+	if next.UpdatedAt < existing.UpdatedAt {
+		next.UpdatedAt = existing.UpdatedAt
+	}
+	return next
 }
 
 func normalizeConversationKeys(keys []ConversationKey) ([]ConversationKey, error) {
@@ -433,8 +518,16 @@ func encodeConversationValue(readSeq, deletedToSeq uint64, activeAt, updatedAt i
 	return appendValueInt64(value, updatedAt)
 }
 
+func encodeUserConversationValue(state UserConversationState) []byte {
+	value := encodeConversationValue(state.ReadSeq, state.DeletedToSeq, state.ActiveAt, state.UpdatedAt)
+	if state.SparseActive {
+		return append(value, 1)
+	}
+	return append(value, 0)
+}
+
 func decodeUserConversationValue(uid, channelID string, channelType int64, value []byte) (UserConversationState, error) {
-	readSeq, deletedToSeq, activeAt, updatedAt, err := decodeConversationValue(value)
+	readSeq, deletedToSeq, activeAt, updatedAt, sparseActive, err := decodeUserConversationValueFields(value)
 	if err != nil {
 		return UserConversationState{}, err
 	}
@@ -446,23 +539,33 @@ func decodeUserConversationValue(uid, channelID string, channelType int64, value
 		DeletedToSeq: deletedToSeq,
 		ActiveAt:     activeAt,
 		UpdatedAt:    updatedAt,
+		SparseActive: sparseActive,
 	}, nil
 }
 
+func decodeUserConversationValueFields(value []byte) (uint64, uint64, int64, int64, bool, error) {
+	readSeq, deletedToSeq, activeAt, updatedAt, rest, err := decodeConversationValueFields(value)
+	if err != nil {
+		return 0, 0, 0, 0, false, err
+	}
+	if len(rest) == 0 {
+		return readSeq, deletedToSeq, activeAt, updatedAt, false, nil
+	}
+	if len(rest) != 1 {
+		return 0, 0, 0, 0, false, dberrors.ErrCorruptValue
+	}
+	switch rest[0] {
+	case 0:
+		return readSeq, deletedToSeq, activeAt, updatedAt, false, nil
+	case 1:
+		return readSeq, deletedToSeq, activeAt, updatedAt, true, nil
+	default:
+		return 0, 0, 0, 0, false, dberrors.ErrCorruptValue
+	}
+}
+
 func decodeConversationValue(value []byte) (uint64, uint64, int64, int64, error) {
-	readSeq, rest, err := readValueUint64(value)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	deletedToSeq, rest, err := readValueUint64(rest)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	activeAt, rest, err := readValueInt64(rest)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	updatedAt, rest, err := readValueInt64(rest)
+	readSeq, deletedToSeq, activeAt, updatedAt, rest, err := decodeConversationValueFields(value)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
@@ -470,6 +573,26 @@ func decodeConversationValue(value []byte) (uint64, uint64, int64, int64, error)
 		return 0, 0, 0, 0, dberrors.ErrCorruptValue
 	}
 	return readSeq, deletedToSeq, activeAt, updatedAt, nil
+}
+
+func decodeConversationValueFields(value []byte) (uint64, uint64, int64, int64, []byte, error) {
+	readSeq, rest, err := readValueUint64(value)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	deletedToSeq, rest, err := readValueUint64(rest)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	activeAt, rest, err := readValueInt64(rest)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	updatedAt, rest, err := readValueInt64(rest)
+	if err != nil {
+		return 0, 0, 0, 0, nil, err
+	}
+	return readSeq, deletedToSeq, activeAt, updatedAt, rest, nil
 }
 
 func readKeyInt64Ordered(src []byte) (int64, []byte, error) {

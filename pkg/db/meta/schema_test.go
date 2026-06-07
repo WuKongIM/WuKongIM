@@ -25,6 +25,7 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	userChannelMembershipPrimaryRegistered := false
 	channelLatestPrimaryRegistered := false
 	conversationActiveIndexRegistered := false
+	conversationSparseActiveColumnRegistered := false
 	cmdConversationActiveIndexRegistered := false
 	for _, table := range tables {
 		if err := schema.ValidateTable(table); err != nil {
@@ -88,6 +89,11 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			channelLatestPrimaryRegistered = true
 		}
 		if table.ID == TableIDConversation {
+			for _, column := range table.Columns {
+				if column.ID == conversationColumnSparseActive && column.Name == "sparse_active" && column.Type == schema.TypeBool {
+					conversationSparseActiveColumnRegistered = true
+				}
+			}
 			for _, index := range table.Indexes {
 				if index.ID == conversationActiveIndexID && index.Name == "idx_conversation_active" {
 					conversationActiveIndexRegistered = true
@@ -131,6 +137,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	}
 	if !conversationActiveIndexRegistered {
 		t.Fatalf("conversation table missing idx_conversation_active index %d", conversationActiveIndexID)
+	}
+	if !conversationSparseActiveColumnRegistered {
+		t.Fatalf("conversation table missing sparse_active column")
 	}
 	if !cmdConversationActiveIndexRegistered {
 		t.Fatalf("cmd conversation table missing idx_cmd_conversation_active index %d", conversationActiveIndexID)

@@ -401,11 +401,11 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 			table: "conversation",
 			slot:  12,
 			seed: func(ctx context.Context, shard *Shard) error {
-				return conversationTable.Upsert(ctx, shard, UserConversationState{UID: "u-conv", ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11})
+				return conversationTable.Upsert(ctx, shard, UserConversationState{UID: "u-conv", ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11, SparseActive: true})
 			},
 			assert: func(t *testing.T, row InspectRow) {
 				t.Helper()
-				if row["uid"] != "u-conv" || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) {
+				if row["uid"] != "u-conv" || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) || row["sparse_active"] != true {
 					t.Fatalf("conversation row = %+v", row)
 				}
 			},

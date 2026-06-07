@@ -46,11 +46,20 @@ type Subscriber struct {
 
 // UserConversationActiveHint describes a hot conversation activity hint.
 type UserConversationActiveHint struct {
-	UID         string
-	ChannelID   string
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
 	ChannelType int64
-	ActiveAt    int64
-	MessageSeq  uint64
+	// ActiveAt is the candidate activity timestamp.
+	ActiveAt int64
+	// MessageSeq fences stale activity hints after a user delete barrier.
+	MessageSeq uint64
+	// SparseActive is the requested sparse-active mode when SparseActiveSet is true.
+	SparseActive bool
+	// SparseActiveSet reports that SparseActive should update the stored sparse mode.
+	SparseActiveSet bool
 }
 
 // UserConversationDeleteBarrier prevents stale hints from reactivating deletes.
@@ -480,6 +489,14 @@ func (s *ShardStore) ListUserConversationActive(ctx context.Context, uid string,
 		return nil, err
 	}
 	return s.shard.ListUserConversationActive(ctx, uid, limit)
+}
+
+// ListUserConversationActivePage returns active conversation rows after an active-index cursor.
+func (s *ShardStore) ListUserConversationActivePage(ctx context.Context, uid string, after UserConversationActiveCursor, limit int) ([]UserConversationState, UserConversationActiveCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, UserConversationActiveCursor{}, false, err
+	}
+	return s.shard.ListUserConversationActivePage(ctx, uid, after, limit)
 }
 
 func (s *ShardStore) ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
@@ -1110,8 +1127,8 @@ func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConv
 			return err
 		}
 		next := state
-		if exists && next.ActiveAt < existing.ActiveAt {
-			next.ActiveAt = existing.ActiveAt
+		if exists {
+			next = mergeUserConversationState(existing, next)
 		}
 		return shard.stageUserConversationState(batch, key, existing, exists, next)
 	})
@@ -1134,11 +1151,19 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 			if !exists {
 				current = UserConversationState{UID: p.UID, ChannelID: p.ChannelID, ChannelType: p.ChannelType}
 			}
-			if p.MessageSeq > 0 && p.MessageSeq <= current.DeletedToSeq || p.ActiveAt <= current.ActiveAt {
+			activeBlocked := p.MessageSeq > 0 && p.MessageSeq <= current.DeletedToSeq
+			activeChanged := !activeBlocked && p.ActiveAt > current.ActiveAt
+			sparseChanged := p.SparseActiveSet && p.SparseActive != current.SparseActive
+			if !activeChanged && !sparseChanged {
 				return nil
 			}
 			next := current
-			next.ActiveAt = p.ActiveAt
+			if activeChanged {
+				next.ActiveAt = p.ActiveAt
+			}
+			if p.SparseActiveSet {
+				next.SparseActive = p.SparseActive
+			}
 			return shard.stageUserConversationState(batch, key, current, exists, next)
 		})
 	}

@@ -527,6 +527,7 @@ func inspectConversationRow(state UserConversationState) InspectRow {
 		"deleted_to_seq": state.DeletedToSeq,
 		"active_at":      state.ActiveAt,
 		"updated_at":     state.UpdatedAt,
+		"sparse_active":  state.SparseActive,
 	}
 }
 
