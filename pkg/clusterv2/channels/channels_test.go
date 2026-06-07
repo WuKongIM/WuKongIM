@@ -662,6 +662,94 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 	}
 }
 
+func TestCodecCurrentEncoderEmitsV4Frames(t *testing.T) {
+	msg := ch.Message{
+		MessageID:         21,
+		MessageSeq:        22,
+		ChannelID:         "room",
+		ChannelType:       1,
+		FromUID:           "u1",
+		ClientMsgNo:       "m1",
+		ServerTimestampMS: 1700000000456,
+		TraceID:           "trace-message",
+		ChannelKey:        "channel/key-message",
+		Payload:           []byte("message-payload"),
+	}
+	data, err := encodeAppendRequest(ch.AppendRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Message: msg})
+	require.NoError(t, err)
+	require.Equal(t, codecVersion, data[0])
+
+	got, err := decodeAppendRequest(data)
+	require.NoError(t, err)
+	require.Equal(t, msg, got.Message)
+}
+
+func TestCodecDecodesLegacyV3AppendRequestMessageLayout(t *testing.T) {
+	want := ch.Message{
+		MessageID:   21,
+		MessageSeq:  22,
+		ChannelID:   "room",
+		ChannelType: 1,
+		FromUID:     "u1",
+		ClientMsgNo: "m1",
+		TraceID:     "",
+		ChannelKey:  "channel/key-message",
+		Payload:     []byte{0},
+	}
+	body := appendChannelID(nil, ch.ChannelID{ID: "room", Type: 1})
+	body = appendLegacyV3Message(body, want)
+	body = append(body, byte(ch.CommitModeQuorum))
+	body = appendUvarint(body, 1)
+	body = appendUvarint(body, 2)
+	data := appendLegacyV3Frame(kindAppend, body)
+
+	got, err := decodeAppendRequest(data)
+	require.NoError(t, err)
+	require.Equal(t, ch.ChannelID{ID: "room", Type: 1}, got.ChannelID)
+	require.Equal(t, want, got.Message)
+	require.Zero(t, got.Message.ServerTimestampMS)
+	require.Equal(t, ch.CommitModeQuorum, got.CommitMode)
+	require.Equal(t, uint64(1), got.ExpectedChannelEpoch)
+	require.Equal(t, uint64(2), got.ExpectedLeaderEpoch)
+}
+
+func TestCodecDecodesLegacyV3PullResponseRecordLayout(t *testing.T) {
+	want := []ch.Record{
+		{ID: 10, Index: 11, Epoch: 12, Payload: []byte{0}, SizeBytes: 1},
+		{ID: 20, Index: 21, Epoch: 22, Payload: []byte("record-two"), SizeBytes: 10},
+	}
+	resp := channeltransport.PullResponse{
+		ChannelKey:      "1:room",
+		Epoch:           1,
+		LeaderEpoch:     2,
+		LeaderHW:        3,
+		LeaderLEO:       4,
+		ActivityVersion: 5,
+		NextPullAfter:   250 * time.Millisecond,
+		Control:         channeltransport.PullControlContinue,
+	}
+	body := []byte{rpcResultOK}
+	body = appendLegacyV3PullResponse(body, resp, want)
+	data := appendLegacyV3Frame(kindPullResponse, body)
+
+	got, err := decodePullResponse(data)
+	require.NoError(t, err)
+	require.Equal(t, resp.ChannelKey, got.ChannelKey)
+	require.Equal(t, resp.Epoch, got.Epoch)
+	require.Equal(t, resp.LeaderEpoch, got.LeaderEpoch)
+	require.Equal(t, resp.LeaderHW, got.LeaderHW)
+	require.Equal(t, resp.LeaderLEO, got.LeaderLEO)
+	require.Equal(t, resp.ActivityVersion, got.ActivityVersion)
+	require.Equal(t, resp.NextPullAfter, got.NextPullAfter)
+	require.Equal(t, resp.Control, got.Control)
+	require.Equal(t, want, got.Records)
+	for _, record := range got.Records {
+		require.Empty(t, record.FromUID)
+		require.Empty(t, record.ClientMsgNo)
+		require.Zero(t, record.ServerTimestampMS)
+	}
+}
+
 func TestCodecDecodesLegacyV3MessageLayout(t *testing.T) {
 	want := ch.Message{
 		MessageID:   21,
@@ -676,7 +764,7 @@ func TestCodecDecodesLegacyV3MessageLayout(t *testing.T) {
 	}
 	body := appendLegacyV3Message(nil, want)
 
-	got, offset, err := readMessage(body, 0)
+	got, offset, err := readMessage(body, 0, legacyCodecVersionV3)
 	require.NoError(t, err)
 	require.Equal(t, len(body), offset)
 	require.Equal(t, want, got)
@@ -693,7 +781,7 @@ func TestCodecDecodesLegacyV3RecordLayoutInSlices(t *testing.T) {
 		body = appendLegacyV3Record(body, record)
 	}
 
-	got, offset, err := readRecords(body, 0)
+	got, offset, err := readRecords(body, 0, legacyCodecVersionV3)
 	require.NoError(t, err)
 	require.Equal(t, len(body), offset)
 	require.Equal(t, want, got)
@@ -1587,6 +1675,11 @@ func mustEncodeAppendBatchResponse(t *testing.T, res ch.AppendBatchResult) []byt
 	return data
 }
 
+func appendLegacyV3Frame(kind uint8, body []byte) []byte {
+	data := []byte{legacyCodecVersionV3, kind}
+	return append(data, body...)
+}
+
 func appendLegacyV3Message(dst []byte, msg ch.Message) []byte {
 	dst = appendUvarint(dst, msg.MessageID)
 	dst = appendUvarint(dst, msg.MessageSeq)
@@ -1597,6 +1690,23 @@ func appendLegacyV3Message(dst []byte, msg ch.Message) []byte {
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
+	return dst
+}
+
+func appendLegacyV3PullResponse(dst []byte, resp channeltransport.PullResponse, records []ch.Record) []byte {
+	dst = appendChannelKey(dst, resp.ChannelKey)
+	dst = appendUvarint(dst, resp.Epoch)
+	dst = appendUvarint(dst, resp.LeaderEpoch)
+	dst = appendUvarint(dst, resp.LeaderHW)
+	dst = appendUvarint(dst, resp.LeaderLEO)
+	dst = appendUvarint(dst, resp.ActivityVersion)
+	dst = appendVarint(dst, int64(resp.NextPullAfter))
+	dst = append(dst, byte(resp.Control))
+	dst = appendMetaPtr(dst, resp.Meta)
+	dst = appendSliceHeader(dst, len(records), records == nil)
+	for _, record := range records {
+		dst = appendLegacyV3Record(dst, record)
+	}
 	return dst
 }
 

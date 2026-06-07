@@ -11,7 +11,10 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
-const codecVersion = uint8(3)
+const (
+	legacyCodecVersionV3 = uint8(3)
+	codecVersion         = uint8(4)
+)
 
 const (
 	kindPull uint8 = iota + 1
@@ -160,11 +163,11 @@ func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
 	return encodeFrame(kindAppend, appendAppendRequest(nil, req)), nil
 }
 func decodeAppendRequest(data []byte) (ch.AppendRequest, error) {
-	payload, err := decodeFrame(data, kindAppend)
+	version, payload, err := decodeFrameWithVersion(data, kindAppend)
 	if err != nil {
 		return ch.AppendRequest{}, err
 	}
-	req, offset, err := readAppendRequest(payload, 0)
+	req, offset, err := readAppendRequest(payload, 0, version)
 	if err != nil {
 		return ch.AppendRequest{}, err
 	}
@@ -184,11 +187,11 @@ func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
 	return encodeFrame(kindAppendBatch, appendAppendBatchRequest(nil, req)), nil
 }
 func decodeAppendBatchRequest(data []byte) (ch.AppendBatchRequest, error) {
-	payload, err := decodeFrame(data, kindAppendBatch)
+	version, payload, err := decodeFrameWithVersion(data, kindAppendBatch)
 	if err != nil {
 		return ch.AppendBatchRequest{}, err
 	}
-	req, offset, err := readAppendBatchRequest(payload, 0)
+	req, offset, err := readAppendBatchRequest(payload, 0, version)
 	if err != nil {
 		return ch.AppendBatchRequest{}, err
 	}
@@ -247,7 +250,7 @@ func encodeRPCResult(kind uint8, payload any, err error) ([]byte, error) {
 }
 
 func decodeRPCResult(data []byte, kind uint8, payload any) error {
-	body, err := decodeFrame(data, kind)
+	version, body, err := decodeFrameWithVersion(data, kind)
 	if err != nil {
 		return err
 	}
@@ -275,7 +278,7 @@ func decodeRPCResult(data []byte, kind uint8, payload any) error {
 		}
 		return nil
 	}
-	offset, err = readRPCPayload(body, offset, payload)
+	offset, err = readRPCPayload(body, offset, payload, version)
 	if err != nil {
 		return err
 	}
@@ -292,10 +295,19 @@ func encodeFrame(kind uint8, payload []byte) []byte {
 }
 
 func decodeFrame(data []byte, wantKind uint8) ([]byte, error) {
-	if len(data) < 2 || data[0] != codecVersion || data[1] != wantKind {
-		return nil, fmt.Errorf("channels: invalid frame")
+	_, payload, err := decodeFrameWithVersion(data, wantKind)
+	return payload, err
+}
+
+func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) {
+	if len(data) < 2 || data[1] != wantKind {
+		return 0, nil, fmt.Errorf("channels: invalid frame")
 	}
-	return data[2:], nil
+	version := data[0]
+	if version != legacyCodecVersionV3 && version != codecVersion {
+		return 0, nil, fmt.Errorf("channels: invalid frame")
+	}
+	return version, data[2:], nil
 }
 
 func appendRPCPayload(dst []byte, payload any) ([]byte, bool) {
@@ -315,19 +327,19 @@ func appendRPCPayload(dst []byte, payload any) ([]byte, bool) {
 	}
 }
 
-func readRPCPayload(body []byte, offset int, payload any) (int, error) {
+func readRPCPayload(body []byte, offset int, payload any, version uint8) (int, error) {
 	var err error
 	switch v := payload.(type) {
 	case *channeltransport.PullResponse:
-		*v, offset, err = readPullResponse(body, offset)
+		*v, offset, err = readPullResponse(body, offset, version)
 	case *channeltransport.PullBatchResponse:
-		*v, offset, err = readPullBatchResponse(body, offset)
+		*v, offset, err = readPullBatchResponse(body, offset, version)
 	case *channeltransport.PullHintBatchResponse:
 		*v, offset, err = readPullHintBatchResponse(body, offset)
 	case *ch.AppendResult:
-		*v, offset, err = readAppendResult(body, offset)
+		*v, offset, err = readAppendResult(body, offset, version)
 	case *ch.AppendBatchResult:
-		*v, offset, err = readAppendBatchResult(body, offset)
+		*v, offset, err = readAppendBatchResult(body, offset, version)
 	default:
 		return offset, fmt.Errorf("channels: unsupported rpc result target %T", payload)
 	}
@@ -396,7 +408,7 @@ func appendPullResponse(dst []byte, resp channeltransport.PullResponse) []byte {
 	return dst
 }
 
-func readPullResponse(body []byte, offset int) (channeltransport.PullResponse, int, error) {
+func readPullResponse(body []byte, offset int, version uint8) (channeltransport.PullResponse, int, error) {
 	var resp channeltransport.PullResponse
 	var err error
 	if resp.ChannelKey, offset, err = readChannelKey(body, offset); err != nil {
@@ -430,7 +442,7 @@ func readPullResponse(body []byte, offset int) (channeltransport.PullResponse, i
 	if resp.Meta, offset, err = readMetaPtr(body, offset); err != nil {
 		return channeltransport.PullResponse{}, offset, err
 	}
-	if resp.Records, offset, err = readRecords(body, offset); err != nil {
+	if resp.Records, offset, err = readRecords(body, offset, version); err != nil {
 		return channeltransport.PullResponse{}, offset, err
 	}
 	return resp, offset, nil
@@ -475,7 +487,7 @@ func appendPullBatchResponse(dst []byte, resp channeltransport.PullBatchResponse
 	return dst
 }
 
-func readPullBatchResponse(body []byte, offset int) (channeltransport.PullBatchResponse, int, error) {
+func readPullBatchResponse(body []byte, offset int, version uint8) (channeltransport.PullBatchResponse, int, error) {
 	count, next, err := readUvarint(body, offset)
 	if err != nil {
 		return channeltransport.PullBatchResponse{}, offset, err
@@ -494,7 +506,7 @@ func readPullBatchResponse(body []byte, offset int) (channeltransport.PullBatchR
 		if items[i].Err != nil {
 			continue
 		}
-		items[i].Response, offset, err = readPullResponse(body, offset)
+		items[i].Response, offset, err = readPullResponse(body, offset, version)
 		if err != nil {
 			return channeltransport.PullBatchResponse{}, offset, err
 		}
@@ -689,13 +701,13 @@ func appendAppendRequest(dst []byte, req ch.AppendRequest) []byte {
 	return dst
 }
 
-func readAppendRequest(body []byte, offset int) (ch.AppendRequest, int, error) {
+func readAppendRequest(body []byte, offset int, version uint8) (ch.AppendRequest, int, error) {
 	var req ch.AppendRequest
 	var err error
 	if req.ChannelID, offset, err = readChannelID(body, offset); err != nil {
 		return ch.AppendRequest{}, offset, err
 	}
-	if req.Message, offset, err = readMessage(body, offset); err != nil {
+	if req.Message, offset, err = readMessage(body, offset, version); err != nil {
 		return ch.AppendRequest{}, offset, err
 	}
 	var commitMode byte
@@ -719,7 +731,7 @@ func appendAppendResult(dst []byte, result ch.AppendResult) []byte {
 	return dst
 }
 
-func readAppendResult(body []byte, offset int) (ch.AppendResult, int, error) {
+func readAppendResult(body []byte, offset int, version uint8) (ch.AppendResult, int, error) {
 	var result ch.AppendResult
 	var err error
 	if result.MessageID, offset, err = readUvarint(body, offset); err != nil {
@@ -728,7 +740,7 @@ func readAppendResult(body []byte, offset int) (ch.AppendResult, int, error) {
 	if result.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
 		return ch.AppendResult{}, offset, err
 	}
-	if result.Message, offset, err = readMessage(body, offset); err != nil {
+	if result.Message, offset, err = readMessage(body, offset, version); err != nil {
 		return ch.AppendResult{}, offset, err
 	}
 	return result, offset, nil
@@ -747,13 +759,13 @@ func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest) []byte {
 	return dst
 }
 
-func readAppendBatchRequest(body []byte, offset int) (ch.AppendBatchRequest, int, error) {
+func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBatchRequest, int, error) {
 	var req ch.AppendBatchRequest
 	var err error
 	if req.ChannelID, offset, err = readChannelID(body, offset); err != nil {
 		return ch.AppendBatchRequest{}, offset, err
 	}
-	if req.Messages, offset, err = readMessages(body, offset); err != nil {
+	if req.Messages, offset, err = readMessages(body, offset, version); err != nil {
 		return ch.AppendBatchRequest{}, offset, err
 	}
 	if req.TraceID, offset, err = readString(body, offset); err != nil {
@@ -795,7 +807,7 @@ func appendAppendBatchResult(dst []byte, result ch.AppendBatchResult) []byte {
 	return dst
 }
 
-func readAppendBatchResult(body []byte, offset int) (ch.AppendBatchResult, int, error) {
+func readAppendBatchResult(body []byte, offset int, version uint8) (ch.AppendBatchResult, int, error) {
 	nilSlice, count, next, err := readSliceHeader(body, offset, "append batch result")
 	if err != nil {
 		return ch.AppendBatchResult{}, offset, err
@@ -815,7 +827,7 @@ func readAppendBatchResult(body []byte, offset int) (ch.AppendBatchResult, int, 
 		if items[i].MessageSeq, offset, err = readUvarint(body, offset); err != nil {
 			return ch.AppendBatchResult{}, offset, err
 		}
-		if items[i].Message, offset, err = readMessage(body, offset); err != nil {
+		if items[i].Message, offset, err = readMessage(body, offset, version); err != nil {
 			return ch.AppendBatchResult{}, offset, err
 		}
 	}
@@ -863,7 +875,7 @@ func appendMessage(dst []byte, msg ch.Message) []byte {
 	return dst
 }
 
-func readMessage(body []byte, offset int) (ch.Message, int, error) {
+func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error) {
 	var msg ch.Message
 	var err error
 	if msg.MessageID, offset, err = readUvarint(body, offset); err != nil {
@@ -884,14 +896,17 @@ func readMessage(body []byte, offset int) (ch.Message, int, error) {
 	if msg.ClientMsgNo, offset, err = readString(body, offset); err != nil {
 		return ch.Message{}, offset, err
 	}
-	layoutOffset := offset
-	if next, nextOffset, err := readMessageV3NewRemainder(body, layoutOffset, msg); err == nil {
-		return next, nextOffset, nil
+	switch version {
+	case legacyCodecVersionV3:
+		return readMessageV3LegacyRemainder(body, offset, msg)
+	case codecVersion:
+		return readMessageV4Remainder(body, offset, msg)
+	default:
+		return ch.Message{}, offset, fmt.Errorf("channels: unsupported message codec version %d", version)
 	}
-	return readMessageV3LegacyRemainder(body, layoutOffset, msg)
 }
 
-func readMessageV3NewRemainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
+func readMessageV4Remainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
 	var err error
 	if msg.ServerTimestampMS, offset, err = readInt64(body, offset, "message server timestamp ms"); err != nil {
 		return ch.Message{}, offset, err
@@ -934,7 +949,7 @@ func appendMessages(dst []byte, messages []ch.Message) []byte {
 	return dst
 }
 
-func readMessages(body []byte, offset int) ([]ch.Message, int, error) {
+func readMessages(body []byte, offset int, version uint8) ([]ch.Message, int, error) {
 	nilSlice, count, next, err := readSliceHeader(body, offset, "messages")
 	if err != nil {
 		return nil, offset, err
@@ -945,7 +960,7 @@ func readMessages(body []byte, offset int) ([]ch.Message, int, error) {
 	}
 	messages := make([]ch.Message, count)
 	for i := range messages {
-		if messages[i], offset, err = readMessage(body, offset); err != nil {
+		if messages[i], offset, err = readMessage(body, offset, version); err != nil {
 			return nil, offset, err
 		}
 	}
@@ -1069,7 +1084,7 @@ func appendRecords(dst []byte, records []ch.Record) []byte {
 	return dst
 }
 
-func readRecords(body []byte, offset int) ([]ch.Record, int, error) {
+func readRecords(body []byte, offset int, version uint8) ([]ch.Record, int, error) {
 	nilSlice, count, next, err := readSliceHeader(body, offset, "records")
 	if err != nil {
 		return nil, offset, err
@@ -1080,7 +1095,7 @@ func readRecords(body []byte, offset int) ([]ch.Record, int, error) {
 	}
 	records := make([]ch.Record, count)
 	for i := range records {
-		if records[i], offset, err = readRecord(body, offset); err != nil {
+		if records[i], offset, err = readRecord(body, offset, version); err != nil {
 			return nil, offset, err
 		}
 	}
@@ -1099,7 +1114,7 @@ func appendRecord(dst []byte, record ch.Record) []byte {
 	return dst
 }
 
-func readRecord(body []byte, offset int) (ch.Record, int, error) {
+func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) {
 	var record ch.Record
 	var err error
 	if record.ID, offset, err = readUvarint(body, offset); err != nil {
@@ -1111,14 +1126,17 @@ func readRecord(body []byte, offset int) (ch.Record, int, error) {
 	if record.Epoch, offset, err = readUvarint(body, offset); err != nil {
 		return ch.Record{}, offset, err
 	}
-	layoutOffset := offset
-	if next, nextOffset, err := readRecordV3NewRemainder(body, layoutOffset, record); err == nil {
-		return next, nextOffset, nil
+	switch version {
+	case legacyCodecVersionV3:
+		return readRecordV3LegacyRemainder(body, offset, record)
+	case codecVersion:
+		return readRecordV4Remainder(body, offset, record)
+	default:
+		return ch.Record{}, offset, fmt.Errorf("channels: unsupported record codec version %d", version)
 	}
-	return readRecordV3LegacyRemainder(body, layoutOffset, record)
 }
 
-func readRecordV3NewRemainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
+func readRecordV4Remainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
 	var err error
 	if record.FromUID, offset, err = readString(body, offset); err != nil {
 		return ch.Record{}, offset, err
