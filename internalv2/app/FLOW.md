@@ -37,7 +37,8 @@ New(Config)
        UID-owned membership projection index
   -> when the cluster exposes conversation metadata reads:
        create internalv2/usecase/conversation with an infra/cluster adapter
-       for UID-owned membership pages and channel-owned latest batch reads
+       for UID-owned active conversation pages and channel-owned last visible
+       message reads
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
@@ -143,20 +144,18 @@ Legacy channel management requests flow from internalv2 HTTP through
 `ChannelMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
 Mutations are proposed through Slot ownership; reads use the current routed Slot
 metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
-through the UID-owned membership facade so conversation list reads can
-page a user's channel set without fanout writes on each group message.
+through the UID-owned membership facade for compatible metadata reads; the
+conversation list itself pages UID-owned active conversation rows instead.
 
 Conversation list reads flow from entry adapters through
 `internalv2/usecase/conversation` and the `internalv2/infra/cluster`
-`ConversationStore` adapter. The read model scans a bounded number of
-UID-owned membership rows, batch-reads existing channel-owned `channel_latest`
-rows, sorts them in memory by latest timestamp and sequence, and then applies
-the public conversation cursor. This keeps message commits to one channel-owned
-dirty projection and moves user-specific ordering work to the request that
-actually needs the list. When metrics are enabled, the app maps API
-conversation-list observations to Prometheus metrics for latency, returned
-items, scanned memberships, and truncated responses using only low-cardinality
-result/truncated labels.
+`ConversationStore` adapter. The read model pages UID-owned active conversation
+rows directly, fetches the newest visible durable message only for the returned
+page, and applies the public `active_at/channel_id/channel_type` cursor without
+scanning membership rows. Conversation rows do not store the last message.
+When metrics are enabled, the app maps API conversation-list observations to
+Prometheus metrics for latency, returned items, last-message hits, and whether
+another active page exists using only low-cardinality labels.
 
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`

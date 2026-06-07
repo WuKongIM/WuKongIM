@@ -203,8 +203,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
 			store := clusterinfra.NewConversationStore(node)
 			app.conversations = conversationusecase.New(conversationusecase.Options{
-				Memberships: store,
-				Latest:      store,
+				Store:    store,
+				Messages: store,
 			})
 		}
 	}

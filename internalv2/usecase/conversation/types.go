@@ -66,8 +66,4 @@ type ListResult struct {
 	NextCursor Cursor
 	// HasMore reports whether another sorted page is available inside the scan window.
 	HasMore bool
-	// Truncated is retained for response compatibility; active-page reads do not truncate by membership scan.
-	Truncated bool
-	// ScannedMemberships is retained for response compatibility and is always zero on the active path.
-	ScannedMemberships int
 }

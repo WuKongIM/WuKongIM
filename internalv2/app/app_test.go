@@ -2513,6 +2513,14 @@ func (f *fakePresenceCluster) GetChannelLatestBatch(_ context.Context, keys []me
 	return out, nil
 }
 
+func (f *fakePresenceCluster) ListUserConversationActivePage(_ context.Context, _ string, _ metadb.UserConversationActiveCursor, _ int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	return nil, metadb.UserConversationActiveCursor{}, true, nil
+}
+
+func (f *fakePresenceCluster) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
+	return channelv2.Message{}, false, nil
+}
+
 func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "presence.start")

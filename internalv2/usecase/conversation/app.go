@@ -45,11 +45,6 @@ type Options struct {
 	Store Store
 	// Messages reads the newest visible message for returned rows.
 	Messages MessageStore
-
-	// Memberships is a deprecated alias for Store kept for current app wiring.
-	Memberships Store
-	// Latest is a deprecated alias for Messages kept for current app wiring.
-	Latest MessageStore
 }
 
 // App coordinates entry-agnostic conversation list reads.
@@ -60,15 +55,7 @@ type App struct {
 
 // New creates a conversation usecase.
 func New(opts Options) *App {
-	store := opts.Store
-	if store == nil {
-		store = opts.Memberships
-	}
-	messages := opts.Messages
-	if messages == nil {
-		messages = opts.Latest
-	}
-	return &App{store: store, messages: messages}
+	return &App{store: opts.Store, messages: opts.Messages}
 }
 
 // List returns one active-index conversation page for uid.

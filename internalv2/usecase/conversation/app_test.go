@@ -30,8 +30,8 @@ func TestListUsesActivePageAndLoadsLastMessages(t *testing.T) {
 	if got, want := conversationIDs(first.Items), []string{"g-a", "g-b"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("first conversation IDs = %#v, want %#v", got, want)
 	}
-	if !first.HasMore || first.Truncated || first.ScannedMemberships != 0 {
-		t.Fatalf("first HasMore=%v Truncated=%v ScannedMemberships=%d, want active page has more without membership scan", first.HasMore, first.Truncated, first.ScannedMemberships)
+	if !first.HasMore {
+		t.Fatalf("first HasMore = false, want active page has more")
 	}
 	if got, want := first.NextCursor, (Cursor{ActiveAt: 200, ChannelID: "g-b", ChannelType: 2}); got != want {
 		t.Fatalf("first cursor = %#v, want %#v", got, want)
