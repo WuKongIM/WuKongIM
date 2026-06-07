@@ -45,6 +45,8 @@ const (
 	cmdTypeAdvanceCMDConversationReadSeq        uint8 = 18
 	cmdTypeUpsertUserChannelMemberships         uint8 = 44
 	cmdTypeDeleteUserChannelMemberships         uint8 = 45
+	cmdTypeUpsertChannelLatest                  uint8 = 46
+	cmdTypeUpsertChannelLatestBatch             uint8 = 47
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -111,6 +113,22 @@ const (
 	tagUserChannelMembershipChannelType  uint8 = 3
 	tagUserChannelMembershipJoinSeq      uint8 = 4
 	tagUserChannelMembershipUpdatedAt    uint8 = 5
+
+	// Channel latest field tags.
+	tagChannelLatestChannelID      uint8 = 1
+	tagChannelLatestChannelType    uint8 = 2
+	tagChannelLatestLastMessageID  uint8 = 3
+	tagChannelLatestLastMessageSeq uint8 = 4
+	tagChannelLatestLastAt         uint8 = 5
+	tagChannelLatestFromUID        uint8 = 6
+	tagChannelLatestClientMsgNo    uint8 = 7
+	tagChannelLatestPayload        uint8 = 8
+	tagChannelLatestUpdatedAt      uint8 = 9
+	tagChannelLatestBatchEntry     uint8 = 10
+
+	// Channel latest batch entry field tags.
+	tagChannelLatestBatchEntryHashSlot uint8 = 1
+	tagChannelLatestBatchEntryRecord   uint8 = 2
 
 	// User conversation state field tags.
 	tagUserConversationStateEntryUID          uint8 = 1
@@ -194,6 +212,14 @@ type resultCommand interface {
 	applyResult() []byte
 }
 
+type scopedHashSlotCommand interface {
+	applyHashSlots(envelopeHashSlot uint16) []uint16
+}
+
+type hashSlotFilteredCommand interface {
+	applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error
+}
+
 // commandDecoder parses TLV fields after the header into a typed command.
 type commandDecoder func(data []byte) (command, error)
 
@@ -221,6 +247,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeAdvanceCMDConversationReadSeq:        decodeAdvanceCMDConversationReadSeq,
 	cmdTypeUpsertUserChannelMemberships:         decodeUpsertUserChannelMemberships,
 	cmdTypeDeleteUserChannelMemberships:         decodeDeleteUserChannelMemberships,
+	cmdTypeUpsertChannelLatest:                  decodeUpsertChannelLatest,
+	cmdTypeUpsertChannelLatestBatch:             decodeUpsertChannelLatestBatch,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
@@ -375,6 +403,68 @@ func (c *deleteUserChannelMembershipsCmd) apply(wb *metadb.WriteBatch, hashSlot 
 		}
 	}
 	return nil
+}
+
+// --- ChannelLatest ---
+
+type upsertChannelLatestCmd struct {
+	latest metadb.ChannelLatest
+}
+
+// ChannelLatestBatchItem carries one channel latest row and its logical hash slot.
+type ChannelLatestBatchItem struct {
+	// HashSlot is the logical hash slot that owns Latest.ChannelID.
+	HashSlot uint16
+	// Latest is the channel-owned latest message projection row.
+	Latest metadb.ChannelLatest
+}
+
+type upsertChannelLatestBatchCmd struct {
+	items []ChannelLatestBatchItem
+}
+
+func (c *upsertChannelLatestCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return wb.UpsertChannelLatest(hashSlot, c.latest)
+}
+
+func (c *upsertChannelLatestBatchCmd) apply(wb *metadb.WriteBatch, _ uint16) error {
+	for _, item := range c.items {
+		if err := wb.UpsertChannelLatest(item.HashSlot, item.Latest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *upsertChannelLatestBatchCmd) applyForHashSlot(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, item := range c.items {
+		if item.HashSlot != hashSlot {
+			continue
+		}
+		if err := wb.UpsertChannelLatest(item.HashSlot, item.Latest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *upsertChannelLatestBatchCmd) applyHashSlots(uint16) []uint16 {
+	if c == nil {
+		return nil
+	}
+	hashSlots := make([]uint16, 0, len(c.items))
+	seen := make(map[uint16]struct{}, len(c.items))
+	for _, item := range c.items {
+		if _, ok := seen[item.HashSlot]; ok {
+			continue
+		}
+		seen[item.HashSlot] = struct{}{}
+		hashSlots = append(hashSlots, item.HashSlot)
+	}
+	sort.Slice(hashSlots, func(i, j int) bool {
+		return hashSlots[i] < hashSlots[j]
+	})
+	return hashSlots
 }
 
 // --- UpsertUserConversationStates ---
@@ -680,6 +770,72 @@ func EncodeDeleteUserChannelMembershipsCommandChecked(memberships []metadb.UserC
 		return nil, err
 	}
 	return EncodeDeleteUserChannelMembershipsCommand(memberships), nil
+}
+
+// EncodeUpsertChannelLatestCommand encodes one channel latest projection upsert.
+func EncodeUpsertChannelLatestCommand(latest metadb.ChannelLatest) []byte {
+	buf := make([]byte, 0, headerSize+128+len(latest.Payload))
+	buf = append(buf, commandVersion, cmdTypeUpsertChannelLatest)
+	return append(buf, encodeChannelLatestRecord(latest)...)
+}
+
+func encodeChannelLatestRecord(latest metadb.ChannelLatest) []byte {
+	buf := make([]byte, 0, 128+len(latest.Payload))
+	buf = appendStringTLVField(buf, tagChannelLatestChannelID, latest.ChannelID)
+	buf = appendInt64TLVField(buf, tagChannelLatestChannelType, latest.ChannelType)
+	buf = appendUint64TLVField(buf, tagChannelLatestLastMessageID, latest.LastMessageID)
+	buf = appendUint64TLVField(buf, tagChannelLatestLastMessageSeq, latest.LastMessageSeq)
+	buf = appendInt64TLVField(buf, tagChannelLatestLastAt, latest.LastAt)
+	buf = appendStringTLVField(buf, tagChannelLatestFromUID, latest.FromUID)
+	buf = appendStringTLVField(buf, tagChannelLatestClientMsgNo, latest.ClientMsgNo)
+	buf = appendBytesTLVField(buf, tagChannelLatestPayload, latest.Payload)
+	buf = appendInt64TLVField(buf, tagChannelLatestUpdatedAt, latest.UpdatedAt)
+	return buf
+}
+
+// EncodeUpsertChannelLatestCommandChecked validates and encodes a channel latest upsert.
+func EncodeUpsertChannelLatestCommandChecked(latest metadb.ChannelLatest) ([]byte, error) {
+	if err := validateChannelLatest(latest); err != nil {
+		return nil, err
+	}
+	return EncodeUpsertChannelLatestCommand(latest), nil
+}
+
+// EncodeUpsertChannelLatestBatchCommand encodes multiple channel latest upserts with per-row hash slots.
+func EncodeUpsertChannelLatestBatchCommand(items []ChannelLatestBatchItem) []byte {
+	buf := make([]byte, 0, headerSize+len(items)*128)
+	buf = append(buf, commandVersion, cmdTypeUpsertChannelLatestBatch)
+	for _, item := range items {
+		buf = appendBytesTLVField(buf, tagChannelLatestBatchEntry, encodeChannelLatestBatchItem(item))
+	}
+	return buf
+}
+
+// EncodeUpsertChannelLatestBatchCommandChecked validates and encodes a channel latest upsert batch.
+func EncodeUpsertChannelLatestBatchCommandChecked(items []ChannelLatestBatchItem) ([]byte, error) {
+	if len(items) == 0 {
+		return nil, metadb.ErrInvalidArgument
+	}
+	for _, item := range items {
+		if err := validateChannelLatest(item.Latest); err != nil {
+			return nil, err
+		}
+	}
+	return EncodeUpsertChannelLatestBatchCommand(items), nil
+}
+
+func encodeChannelLatestBatchItem(item ChannelLatestBatchItem) []byte {
+	buf := make([]byte, 0, 144+len(item.Latest.Payload))
+	buf = appendUint64TLVField(buf, tagChannelLatestBatchEntryHashSlot, uint64(item.HashSlot))
+	buf = appendBytesTLVField(buf, tagChannelLatestBatchEntryRecord, encodeChannelLatestRecord(item.Latest))
+	return buf
+}
+
+func validateChannelLatest(latest metadb.ChannelLatest) error {
+	if latest.ChannelID == "" || latest.ChannelType == 0 {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
 }
 
 // ValidateSubscriberCommandLimits rejects subscriber mutations that would create oversized Raft entries.
@@ -1336,6 +1492,138 @@ func decodeDeleteUserChannelMemberships(data []byte) (command, error) {
 		return nil, fmt.Errorf("%w: empty user channel membership delete batch", metadb.ErrInvalidArgument)
 	}
 	return &deleteUserChannelMembershipsCmd{memberships: memberships}, nil
+}
+
+func decodeUpsertChannelLatest(data []byte) (command, error) {
+	latest, err := decodeChannelLatestRecord(data)
+	if err != nil {
+		return nil, err
+	}
+	return &upsertChannelLatestCmd{latest: latest}, nil
+}
+
+func decodeUpsertChannelLatestBatch(data []byte) (command, error) {
+	var items []ChannelLatestBatchItem
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		switch tag {
+		case tagChannelLatestBatchEntry:
+			item, err := decodeChannelLatestBatchItem(value)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("%w: empty channel latest batch", metadb.ErrInvalidArgument)
+	}
+	return &upsertChannelLatestBatchCmd{items: items}, nil
+}
+
+func decodeChannelLatestBatchItem(data []byte) (ChannelLatestBatchItem, error) {
+	var item ChannelLatestBatchItem
+	var haveHashSlot, haveRecord bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return ChannelLatestBatchItem{}, err
+		}
+		off += n
+		switch tag {
+		case tagChannelLatestBatchEntryHashSlot:
+			if len(value) != 8 {
+				return ChannelLatestBatchItem{}, fmt.Errorf("%w: bad channel latest batch HashSlot length", metadb.ErrCorruptValue)
+			}
+			raw := binary.BigEndian.Uint64(value)
+			if raw > uint64(^uint16(0)) {
+				return ChannelLatestBatchItem{}, fmt.Errorf("%w: bad channel latest batch HashSlot value %d", metadb.ErrCorruptValue, raw)
+			}
+			item.HashSlot = uint16(raw)
+			haveHashSlot = true
+		case tagChannelLatestBatchEntryRecord:
+			latest, err := decodeChannelLatestRecord(value)
+			if err != nil {
+				return ChannelLatestBatchItem{}, err
+			}
+			item.Latest = latest
+			haveRecord = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveHashSlot || !haveRecord {
+		return ChannelLatestBatchItem{}, fmt.Errorf("%w: incomplete channel latest batch entry", metadb.ErrCorruptValue)
+	}
+	return item, nil
+}
+
+func decodeChannelLatestRecord(data []byte) (metadb.ChannelLatest, error) {
+	var latest metadb.ChannelLatest
+	var haveChannelID, haveChannelType, haveMessageID, haveMessageSeq, haveLastAt, haveUpdatedAt bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return metadb.ChannelLatest{}, err
+		}
+		off += n
+		switch tag {
+		case tagChannelLatestChannelID:
+			latest.ChannelID = string(value)
+			haveChannelID = true
+		case tagChannelLatestChannelType:
+			if len(value) != 8 {
+				return metadb.ChannelLatest{}, fmt.Errorf("%w: bad channel latest ChannelType length", metadb.ErrCorruptValue)
+			}
+			latest.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagChannelLatestLastMessageID:
+			if len(value) != 8 {
+				return metadb.ChannelLatest{}, fmt.Errorf("%w: bad channel latest LastMessageID length", metadb.ErrCorruptValue)
+			}
+			latest.LastMessageID = binary.BigEndian.Uint64(value)
+			haveMessageID = true
+		case tagChannelLatestLastMessageSeq:
+			if len(value) != 8 {
+				return metadb.ChannelLatest{}, fmt.Errorf("%w: bad channel latest LastMessageSeq length", metadb.ErrCorruptValue)
+			}
+			latest.LastMessageSeq = binary.BigEndian.Uint64(value)
+			haveMessageSeq = true
+		case tagChannelLatestLastAt:
+			if len(value) != 8 {
+				return metadb.ChannelLatest{}, fmt.Errorf("%w: bad channel latest LastAt length", metadb.ErrCorruptValue)
+			}
+			latest.LastAt = int64(binary.BigEndian.Uint64(value))
+			haveLastAt = true
+		case tagChannelLatestFromUID:
+			latest.FromUID = string(value)
+		case tagChannelLatestClientMsgNo:
+			latest.ClientMsgNo = string(value)
+		case tagChannelLatestPayload:
+			latest.Payload = append([]byte(nil), value...)
+		case tagChannelLatestUpdatedAt:
+			if len(value) != 8 {
+				return metadb.ChannelLatest{}, fmt.Errorf("%w: bad channel latest UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			latest.UpdatedAt = int64(binary.BigEndian.Uint64(value))
+			haveUpdatedAt = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveChannelID || !haveChannelType || !haveMessageID || !haveMessageSeq || !haveLastAt || !haveUpdatedAt {
+		return metadb.ChannelLatest{}, fmt.Errorf("%w: incomplete channel latest record", metadb.ErrCorruptValue)
+	}
+	return latest, nil
 }
 
 func decodeTouchUserConversationActiveAt(data []byte) (command, error) {

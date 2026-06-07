@@ -424,6 +424,21 @@ func (s *ShardStore) ListUserChannelMembershipPage(ctx context.Context, uid stri
 	return s.shard.ListUserChannelMembershipPage(ctx, uid, after, limit)
 }
 
+func (s *ShardStore) GetChannelLatest(ctx context.Context, channelID string, channelType int64) (ChannelLatest, error) {
+	if err := s.validate(); err != nil {
+		return ChannelLatest{}, err
+	}
+	latest, ok, err := s.shard.GetChannelLatest(ctx, channelID, channelType)
+	return latest, foundError(ok, err)
+}
+
+func (s *ShardStore) UpsertChannelLatest(ctx context.Context, latest ChannelLatest) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.UpsertChannelLatest(ctx, latest)
+}
+
 func (s *ShardStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
 	if err := s.validate(); err != nil {
 		return UserConversationState{}, err
@@ -1021,6 +1036,13 @@ func (b *WriteBatch) DeleteUserChannelMembership(hashSlot uint16, uid string, ke
 		return err
 	}
 	return b.batch.DeleteUserChannelMembership(HashSlot(hashSlot), uid, key)
+}
+
+func (b *WriteBatch) UpsertChannelLatest(hashSlot uint16, latest ChannelLatest) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.UpsertChannelLatest(HashSlot(hashSlot), latest)
 }
 
 func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {

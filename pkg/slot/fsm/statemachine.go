@@ -180,6 +180,7 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	var pendingForwardDeltas []pendingForwardDelta
 	pendingDeltaRecords := make(map[metadb.AppliedHashSlotDelta]struct{})
 	pendingMigrationStates := make(map[uint16]metadb.HashSlotMigrationState)
+commandLoop:
 	for i, cmd := range cmds {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -196,14 +197,22 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 		if err != nil {
 			return nil, err
 		}
-		if !isMigrationMaintenanceCommand(decoded) {
-			fenced, err := m.isHashSlotFenced(ctx, hashSlot, pendingMigrationStates)
-			if err != nil {
-				return nil, err
+		applyHashSlots := commandApplyHashSlots(decoded, hashSlot)
+		if _, ok := decoded.(scopedHashSlotCommand); ok {
+			if err := m.validateCommandHashSlots(applyHashSlots); err != nil {
+				return nil, fmt.Errorf("%w: validate command hash slots slot=%d command_hash_slot=%d command_type=%d", err, m.slot, cmd.HashSlot, commandTypeForDiagnostics(cmd.Data))
 			}
-			if fenced {
-				results[i] = []byte(ApplyResultHashSlotFenced)
-				continue
+		}
+		if !isMigrationMaintenanceCommand(decoded) {
+			for _, applyHashSlot := range applyHashSlots {
+				fenced, err := m.isHashSlotFenced(ctx, applyHashSlot, pendingMigrationStates)
+				if err != nil {
+					return nil, err
+				}
+				if fenced {
+					results[i] = []byte(ApplyResultHashSlotFenced)
+					continue commandLoop
+				}
 			}
 		}
 		if ack, ok := decoded.(*ackMigrationOutboxCmd); ok {
@@ -264,13 +273,11 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 			pendingDeltaRecords[appliedDeltaRecord] = struct{}{}
 			pendingDeltaKeys = append(pendingDeltaKeys, appliedDeltaKey)
 		}
-		pendingForward, ok, err := m.stageMigrationMaintenance(ctx, wb, cmd, hashSlot, decoded, pendingMigrationStates)
+		pendingForwards, err := m.stageMigrationMaintenanceForHashSlots(ctx, wb, cmd, hashSlot, applyHashSlots, decoded, pendingMigrationStates)
 		if err != nil {
 			return nil, fmt.Errorf("%w: stage migration maintenance slot=%d hash_slot=%d command_type=%d", err, m.slot, hashSlot, commandTypeForDiagnostics(cmd.Data))
 		}
-		if ok {
-			pendingForwardDeltas = append(pendingForwardDeltas, pendingForward)
-		}
+		pendingForwardDeltas = append(pendingForwardDeltas, pendingForwards...)
 		results[i] = commandApplyResult(decoded)
 	}
 
@@ -296,6 +303,30 @@ func commandApplyResult(decoded command) []byte {
 		return result.applyResult()
 	}
 	return []byte(ApplyResultOK)
+}
+
+func commandApplyHashSlots(decoded command, envelopeHashSlot uint16) []uint16 {
+	if scoped, ok := decoded.(scopedHashSlotCommand); ok {
+		hashSlots := scoped.applyHashSlots(envelopeHashSlot)
+		if len(hashSlots) > 0 {
+			return hashSlots
+		}
+	}
+	return []uint16{envelopeHashSlot}
+}
+
+func (m *stateMachine) validateCommandHashSlots(hashSlots []uint16) error {
+	if m == nil {
+		return nil
+	}
+	m.ownershipMu.RLock()
+	defer m.ownershipMu.RUnlock()
+	for _, hashSlot := range hashSlots {
+		if _, ok := m.ownedHashSlots[hashSlot]; !ok {
+			return metadb.ErrInvalidArgument
+		}
+	}
+	return nil
 }
 
 func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
@@ -477,11 +508,25 @@ func (m *stateMachine) applyMigrationOutboxCleanup(ctx context.Context, wb *meta
 	return wb.DeleteHashSlotMigrationOutboxThrough(hashSlot, uint64(cleanup.SourceSlot), uint64(cleanup.TargetSlot), cleanup.ThroughIndex)
 }
 
-func (m *stateMachine) stageMigrationMaintenance(ctx context.Context, wb *metadb.WriteBatch, cmd multiraft.Command, hashSlot uint16, decoded command, pendingStates map[uint16]metadb.HashSlotMigrationState) (pendingForwardDelta, bool, error) {
+func (m *stateMachine) stageMigrationMaintenanceForHashSlots(ctx context.Context, wb *metadb.WriteBatch, cmd multiraft.Command, envelopeHashSlot uint16, hashSlots []uint16, decoded command, pendingStates map[uint16]metadb.HashSlotMigrationState) ([]pendingForwardDelta, error) {
 	if fence, ok := decoded.(*enterFenceCmd); ok {
-		return m.stageMigrationFence(ctx, wb, cmd, hashSlot, fence, pendingStates)
+		pending, ok, err := m.stageMigrationFence(ctx, wb, cmd, envelopeHashSlot, fence, pendingStates)
+		if err != nil || !ok {
+			return nil, err
+		}
+		return []pendingForwardDelta{pending}, nil
 	}
-	return m.stageMigrationOutbox(ctx, wb, cmd, hashSlot, decoded, pendingStates)
+	var pending []pendingForwardDelta
+	for _, hashSlot := range hashSlots {
+		next, ok, err := m.stageMigrationOutbox(ctx, wb, cmd, hashSlot, decoded, pendingStates)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			pending = append(pending, next)
+		}
+	}
+	return pending, nil
 }
 
 func (m *stateMachine) stageMigrationFence(ctx context.Context, wb *metadb.WriteBatch, cmd multiraft.Command, hashSlot uint16, fence *enterFenceCmd, pendingStates map[uint16]metadb.HashSlotMigrationState) (pendingForwardDelta, bool, error) {

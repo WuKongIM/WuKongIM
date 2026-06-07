@@ -2,11 +2,14 @@ package clusterv2
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
+
+const maxChannelLatestBatchItems = 512
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
 func (n *Node) CreateUserMetadata(ctx context.Context, user metadb.User) error {
@@ -166,6 +169,123 @@ func (n *Node) ListChannelSubscribersPage(ctx context.Context, channelID string,
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListSubscribersPage(ctx, channelID, channelType, afterUID, limit)
 }
 
+// UpsertChannelLatest persists a channel-owned latest message projection.
+func (n *Node) UpsertChannelLatest(ctx context.Context, latest metadb.ChannelLatest) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	command, err := metafsm.EncodeUpsertChannelLatestCommandChecked(latest)
+	if err != nil {
+		return err
+	}
+	return n.Propose(ctx, ProposeRequest{Key: latest.ChannelID, Command: command})
+}
+
+// UpsertChannelLatestBatch persists channel-owned latest message projections grouped by physical Slot.
+func (n *Node) UpsertChannelLatestBatch(ctx context.Context, latestRows []metadb.ChannelLatest) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(latestRows) == 0 {
+		return nil
+	}
+	groups, err := n.groupChannelLatestBySlot(latestRows)
+	if err != nil {
+		return err
+	}
+	for _, slotID := range sortedChannelLatestSlotIDs(groups) {
+		group := groups[slotID]
+		for start := 0; start < len(group.items); start += maxChannelLatestBatchItems {
+			end := start + maxChannelLatestBatchItems
+			if end > len(group.items) {
+				end = len(group.items)
+			}
+			items := group.items[start:end]
+			command, err := metafsm.EncodeUpsertChannelLatestBatchCommandChecked(items)
+			if err != nil {
+				return err
+			}
+			routeHashSlot := group.routeHashSlot
+			if len(items) > 0 {
+				routeHashSlot = items[0].HashSlot
+			}
+			if err := n.Propose(ctx, ProposeRequest{
+				Command: command,
+				Target: ProposeTarget{
+					SlotID:      slotID,
+					HasSlotID:   true,
+					HashSlot:    routeHashSlot,
+					HasHashSlot: true,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// GetChannelLatest reads the latest message projection from the current channel route.
+func (n *Node) GetChannelLatest(ctx context.Context, channelID string, channelType int64) (metadb.ChannelLatest, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelLatest{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return metadb.ChannelLatest{}, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return metadb.ChannelLatest{}, ErrNotStarted
+	}
+	route, err := n.RouteKey(channelID)
+	if err != nil {
+		return metadb.ChannelLatest{}, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelLatest(ctx, channelID, channelType)
+}
+
+// GetChannelLatestBatch reads existing latest message projections for channel keys.
+func (n *Node) GetChannelLatestBatch(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelLatest, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return map[metadb.ConversationKey]metadb.ChannelLatest{}, nil
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, ErrNotStarted
+	}
+	out := make(map[metadb.ConversationKey]metadb.ChannelLatest, len(keys))
+	seen := make(map[metadb.ConversationKey]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		route, err := n.RouteKey(key.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		latest, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelLatest(ctx, key.ChannelID, key.ChannelType)
+		if errors.Is(err, metadb.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[key] = latest
+	}
+	return out, nil
+}
+
 // UpsertUserChannelMemberships persists UID-owned channel memberships through hash-slot ownership.
 func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
 	if err := ctxErr(ctx); err != nil {
@@ -236,6 +356,43 @@ func (n *Node) ListUserChannelMembershipPage(ctx context.Context, uid string, af
 		return nil, metadb.UserChannelMembershipCursor{}, false, err
 	}
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserChannelMembershipPage(ctx, uid, after, limit)
+}
+
+type channelLatestSlotBatch struct {
+	routeHashSlot uint16
+	items         []metafsm.ChannelLatestBatchItem
+}
+
+func (n *Node) groupChannelLatestBySlot(latestRows []metadb.ChannelLatest) (map[uint32]channelLatestSlotBatch, error) {
+	groups := make(map[uint32]channelLatestSlotBatch)
+	for _, latest := range latestRows {
+		if latest.ChannelID == "" || latest.ChannelType == 0 {
+			return nil, metadb.ErrInvalidArgument
+		}
+		route, err := n.RouteKey(latest.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		group := groups[route.SlotID]
+		if len(group.items) == 0 {
+			group.routeHashSlot = route.HashSlot
+		}
+		group.items = append(group.items, metafsm.ChannelLatestBatchItem{
+			HashSlot: route.HashSlot,
+			Latest:   latest,
+		})
+		groups[route.SlotID] = group
+	}
+	return groups, nil
+}
+
+func sortedChannelLatestSlotIDs(groups map[uint32]channelLatestSlotBatch) []uint32 {
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
 }
 
 func (n *Node) groupUserChannelMembershipsByHashSlot(channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) (map[uint16][]metadb.UserChannelMembership, error) {

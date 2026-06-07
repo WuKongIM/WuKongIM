@@ -42,6 +42,8 @@ ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPlu
 WriteBatch.BindPluginUser / UnbindPluginUser
 ShardStore.GetUserChannelMembership / ListUserChannelMembershipPage
 WriteBatch.UpsertUserChannelMembership / DeleteUserChannelMembership
+ShardStore.GetChannelLatest / UpsertChannelLatest
+WriteBatch.UpsertChannelLatest
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
@@ -102,6 +104,10 @@ Pebble:
 `Store.TouchUserConversationActiveAt` 是 active hint 的 best-effort 落盘路径。它仍按 UID hash slot
 拆分命令以保持迁移围栏语义；因此上游 cache 的后台 flush batch 需要保持较小，避免一次 best-effort
 flush 触发大量 hash-slot proposal 并抢占前台发送链路。
+
+`channel_latest` 支持按物理 Slot 聚合的批量命令。命令 envelope 只携带一个用于路由的
+hash slot，但 batch entry 内部会保存每行真实 hash slot；`fsm.ApplyBatch` 会校验每个
+entry 的 hash slot 都属于当前物理 Slot，并用同一个 WriteBatch 原子写入这些行。
 
 ### 5.2 读取（本地 vs 权威 RPC）
 
@@ -243,13 +249,14 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 4 | Device | (uid, device_flag) | - |
 | 5 | Subscriber | (channel_id, channel_type, uid) | - |
 | 6 | UserConversationState | (uid, channel_type, channel_id) | idx_user_conversation_active |
-| 7 | ReservedConversationProjection | 已移除，不再读写 | - |
-| 8 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
-| 9 | CMDConversationState | (uid, channel_type, channel_id) | idx_cmd_conversation_active |
-| 10 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
+| 7 | CMDConversationState | (uid, channel_id, channel_type) | idx_cmd_conversation_active |
+| 8 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
+| 9 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
+| 10 | HashSlotMigration | (hash_slot) | - |
 | 11 | UserChannelMembership | (uid, channel_id, channel_type) | - |
+| 12 | ChannelLatest | (channel_id, channel_type) | - |
 
-## 7. FSM 命令类型（36 种 + 2 个保留 ID）
+## 7. FSM 命令类型（37 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -277,6 +284,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 41: CreateChannelMigrationTaskWithRuntimeGuard
 42: BindPluginUser                    43: UnbindPluginUser
 44: UpsertUserChannelMemberships      45: DeleteUserChannelMemberships
+46: UpsertChannelLatest               47: UpsertChannelLatestBatch
 ```
 
 ## 8. RPC Service IDs（proxy 层）
@@ -297,6 +305,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 ## 9. 避坑清单
 
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
+- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 当前用于 conversation projector，必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。

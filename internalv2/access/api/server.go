@@ -9,9 +9,11 @@ import (
 	"net/http/pprof"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -55,6 +57,30 @@ type BenchData interface {
 type MessageUsecase interface {
 	Send(context.Context, messageusecase.SendCommand) (messageusecase.SendResult, error)
 	SyncChannelMessages(context.Context, messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error)
+}
+
+// ConversationUsecase coordinates compatible conversation list routes.
+type ConversationUsecase interface {
+	List(context.Context, conversationusecase.ListRequest) (conversationusecase.ListResult, error)
+}
+
+// ConversationListObservation captures one /conversation/list request result.
+type ConversationListObservation struct {
+	// Result is a low-cardinality request result label.
+	Result string
+	// Duration is the end-to-end handler latency.
+	Duration time.Duration
+	// ScannedMemberships is the number of membership rows joined by the usecase.
+	ScannedMemberships int
+	// ReturnedItems is the number of conversation rows returned to the client.
+	ReturnedItems int
+	// Truncated reports whether the usecase hit its bounded membership scan limit.
+	Truncated bool
+}
+
+// ConversationListObserver receives performance observations for conversation list reads.
+type ConversationListObserver interface {
+	ObserveConversationList(ConversationListObservation)
 }
 
 // ChannelUsecase coordinates compatible channel metadata and member mutations.
@@ -143,6 +169,10 @@ type Options struct {
 	Users UserUsecase
 	// Messages handles compatible message send and channel message sync routes.
 	Messages MessageUsecase
+	// Conversations handles compatible conversation list routes.
+	Conversations ConversationUsecase
+	// ConversationListObserver records conversation list read performance.
+	ConversationListObserver ConversationListObserver
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -170,6 +200,8 @@ type Server struct {
 	channels             ChannelUsecase
 	users                UserUsecase
 	messages             MessageUsecase
+	conversations        ConversationUsecase
+	conversationObserver ConversationListObserver
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	logger               wklog.Logger
@@ -198,6 +230,8 @@ func New(opts Options) *Server {
 		channels:             opts.Channels,
 		users:                opts.Users,
 		messages:             opts.Messages,
+		conversations:        opts.Conversations,
+		conversationObserver: opts.ConversationListObserver,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		logger:               opts.Logger,
@@ -314,6 +348,7 @@ func (s *Server) registerRoutes() {
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
 	s.registerMessageRoutes()
+	s.registerConversationRoutes()
 	if !s.benchEnabled {
 		return
 	}

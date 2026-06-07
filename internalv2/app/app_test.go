@@ -23,6 +23,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -389,6 +390,112 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 		}
 	}
 	t.Fatal("message append metric for successful channelplane append was not observed")
+}
+
+func TestNewWiresChannelLatestWhenDeliveryDisabled(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 3},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.messages == nil {
+		t.Fatal("message usecase was not wired")
+	}
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room-latest",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-latest-1",
+		Payload:     []byte("latest payload"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonSuccess {
+		t.Fatalf("send reason = %v, want success", result.Reason)
+	}
+
+	cluster.mu.Lock()
+	if len(cluster.channelLatestBatches) != 0 {
+		t.Fatalf("channel latest batches = %#v, want no synchronous DB write", cluster.channelLatestBatches)
+	}
+	cluster.mu.Unlock()
+	if app.conversationProjector == nil {
+		t.Fatal("conversation projector was not wired")
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector flush error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.channelLatestBatches) != 1 || len(cluster.channelLatestBatches[0]) != 1 {
+		t.Fatalf("channel latest batches = %#v, want one row batch", cluster.channelLatestBatches)
+	}
+	got := cluster.channelLatestBatches[0][0]
+	if got.ChannelID != "room-latest" || got.ChannelType != int64(frame.ChannelTypeGroup) ||
+		got.LastMessageID != result.MessageID || got.LastMessageSeq != result.MessageSeq ||
+		got.FromUID != "u1" || got.ClientMsgNo != "client-latest-1" || string(got.Payload) != "latest payload" {
+		t.Fatalf("channel latest = %#v, want committed message projection", got)
+	}
+}
+
+func TestConversationProjectorCoalescesChannelLatestBeforeFlush(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 3},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	first, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room-coalesce",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-coalesce-1",
+		Payload:     []byte("old"),
+	})
+	if err != nil || first.Reason != message.ReasonSuccess {
+		t.Fatalf("first Send() = %#v err=%v, want success", first, err)
+	}
+	second, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u2",
+		ChannelID:   "room-coalesce",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-coalesce-2",
+		Payload:     []byte("new"),
+	})
+	if err != nil || second.Reason != message.ReasonSuccess {
+		t.Fatalf("second Send() = %#v err=%v, want success", second, err)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector flush error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.channelLatestBatches) != 1 || len(cluster.channelLatestBatches[0]) != 1 {
+		t.Fatalf("channel latest batches = %#v, want one coalesced row", cluster.channelLatestBatches)
+	}
+	got := cluster.channelLatestBatches[0][0]
+	if got.LastMessageID != second.MessageID || got.LastMessageSeq != second.MessageSeq ||
+		got.FromUID != "u2" || got.ClientMsgNo != "client-coalesce-2" || string(got.Payload) != "new" {
+		t.Fatalf("coalesced latest = %#v, want second message projection", got)
+	}
 }
 
 func TestDeliveryWorkerGroupStopKeepsDependenciesRunningWhenDrainFails(t *testing.T) {
@@ -833,6 +940,27 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 	}
 	if _, ok := app.deliverySubscribers.(*deliveryMetaStore); !ok {
 		t.Fatalf("deliverySubscribers = %T, want *deliveryMetaStore", app.deliverySubscribers)
+	}
+}
+
+func TestNewWiresConversationUsecaseWhenClusterProvidesConversationReads(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	app, err := newTestApp(t,
+		Config{Cluster: clusterv2.Config{NodeID: 1}},
+		WithCluster(cluster),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.Conversations() == nil {
+		t.Fatal("conversation usecase was not wired")
+	}
+	result, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Conversations().List() error = %v", err)
+	}
+	if len(result.Items) != 0 {
+		t.Fatalf("conversation items = %d, want empty page", len(result.Items))
 	}
 }
 
@@ -1722,6 +1850,75 @@ func TestAppWiresLegacyChannelRoutesToClusterMetadata(t *testing.T) {
 	}
 }
 
+func TestAppWiresConversationListRouteToUsecase(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/list", strings.NewReader(`{"uid":"u1","limit":10}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"conversations":[]`) {
+		t.Fatalf("body = %s, want empty conversation list", rec.Body.String())
+	}
+}
+
+func TestAppWiresConversationListMetrics(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	app, err := newTestApp(t, Config{
+		API:           APIConfig{ListenAddr: "127.0.0.1:0"},
+		Observability: ObservabilityConfig{MetricsEnabled: true},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/list", strings.NewReader(`{"uid":"u1","limit":10}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	families, err := app.metrics.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != "wukongim_conversation_list_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["result"] == "ok" && labels["truncated"] == "false" && metric.GetCounter().GetValue() == 1 {
+				return
+			}
+		}
+	}
+	t.Fatal("conversation list metric for successful request was not observed")
+}
+
 func TestGatewayStartFailureStopsAPIThenCluster(t *testing.T) {
 	gatewayErr := errors.New("gateway start failed")
 	calls := make([]string, 0, 5)
@@ -2045,13 +2242,15 @@ func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route,
 
 type fakePresenceCluster struct {
 	fakeCluster
-	nodeID             uint64
-	events             <-chan clusterv2.RouteAuthorityEvent
-	snapshot           clusterv2.Snapshot
-	registeredService  uint8
-	registeredHandler  clusterv2.NodeRPCHandler
-	registeredHandlers map[uint8]clusterv2.NodeRPCHandler
-	appendSeq          uint64
+	nodeID               uint64
+	events               <-chan clusterv2.RouteAuthorityEvent
+	snapshot             clusterv2.Snapshot
+	registeredService    uint8
+	registeredHandler    clusterv2.NodeRPCHandler
+	registeredHandlers   map[uint8]clusterv2.NodeRPCHandler
+	appendSeq            uint64
+	mu                   sync.Mutex
+	channelLatestBatches [][]metadb.ChannelLatest
 }
 
 type recordingDeliveryMetaNode struct {
@@ -2267,6 +2466,51 @@ func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelv
 		})
 	}
 	return channelv2.AppendBatchResult{Items: fakeItems}, nil
+}
+
+func (f *fakePresenceCluster) UpsertChannelLatest(_ context.Context, latest metadb.ChannelLatest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	latest.Payload = append([]byte(nil), latest.Payload...)
+	f.channelLatestBatches = append(f.channelLatestBatches, []metadb.ChannelLatest{latest})
+	return nil
+}
+
+func (f *fakePresenceCluster) UpsertChannelLatestBatch(_ context.Context, latestRows []metadb.ChannelLatest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	batch := make([]metadb.ChannelLatest, 0, len(latestRows))
+	for _, latest := range latestRows {
+		latest.Payload = append([]byte(nil), latest.Payload...)
+		batch = append(batch, latest)
+	}
+	f.channelLatestBatches = append(f.channelLatestBatches, batch)
+	return nil
+}
+
+func (f *fakePresenceCluster) ListUserChannelMembershipPage(_ context.Context, _ string, _ metadb.UserChannelMembershipCursor, _ int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error) {
+	return nil, metadb.UserChannelMembershipCursor{}, true, nil
+}
+
+func (f *fakePresenceCluster) GetChannelLatestBatch(_ context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelLatest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make(map[metadb.ConversationKey]metadb.ChannelLatest, len(keys))
+	wanted := make(map[metadb.ConversationKey]struct{}, len(keys))
+	for _, key := range keys {
+		wanted[key] = struct{}{}
+	}
+	for _, batch := range f.channelLatestBatches {
+		for _, latest := range batch {
+			key := metadb.ConversationKey{ChannelID: latest.ChannelID, ChannelType: latest.ChannelType}
+			if _, ok := wanted[key]; !ok {
+				continue
+			}
+			latest.Payload = append([]byte(nil), latest.Payload...)
+			out[key] = latest
+		}
+	}
+	return out, nil
 }
 
 func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {

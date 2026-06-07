@@ -93,6 +93,8 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, subscriberTable, inspectSubscriberRow)
 	case "user_channel_membership":
 		return inspectScanTable(ctx, db, req, slots, userChannelMembershipTable, inspectUserChannelMembershipRow)
+	case "channel_latest":
+		return inspectScanTable(ctx, db, req, slots, channelLatestTable, inspectChannelLatestRow)
 	case "conversation":
 		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
 	case "cmd_conversation":
@@ -499,6 +501,20 @@ func inspectUserChannelMembershipRow(membership UserChannelMembership) InspectRo
 		"channel_type": membership.ChannelType,
 		"join_seq":     membership.JoinSeq,
 		"updated_at":   membership.UpdatedAt,
+	}
+}
+
+func inspectChannelLatestRow(latest ChannelLatest) InspectRow {
+	return InspectRow{
+		"channel_id":       latest.ChannelID,
+		"channel_type":     latest.ChannelType,
+		"last_message_id":  latest.LastMessageID,
+		"last_message_seq": latest.LastMessageSeq,
+		"last_at":          latest.LastAt,
+		"from_uid":         latest.FromUID,
+		"client_msg_no":    latest.ClientMsgNo,
+		"payload":          latest.Payload,
+		"updated_at":       latest.UpdatedAt,
 	}
 }
 

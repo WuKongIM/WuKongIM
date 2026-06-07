@@ -5,12 +5,13 @@
 `internalv2/app` is the only composition root for the new skeleton. It wires
 phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
 usecase, the channel management usecase, the user management usecase, the
-optional delivery usecase/runtime, the presence usecase, the gateway handler,
-the optional HTTP API runtime, the optional Prometheus metrics registry, and the
-optional gateway runtime. The phase-1 runtime supports single-node clusters and
-static multi-node clusters for the `SEND -> SENDACK` write path,
-legacy-compatible channel/user metadata management, UID connection-route
-authority, and opt-in local online delivery.
+conversation list usecase, the optional delivery usecase/runtime, the presence
+usecase, the gateway handler, the optional HTTP API runtime, the optional
+Prometheus metrics registry, and the optional gateway runtime. The phase-1
+runtime supports single-node clusters and static multi-node clusters for the
+`SEND -> SENDACK` write path, legacy-compatible channel/user metadata
+management, UID connection-route authority, conversation list projections, and
+opt-in local online delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -24,6 +25,7 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     plus conversation list request latency and page-shape metrics
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -33,6 +35,9 @@ New(Config)
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
        and, when exposed by the cluster, wire the same adapter as the
        UID-owned membership projection index
+  -> when the cluster exposes conversation metadata reads:
+       create internalv2/usecase/conversation with an infra/cluster adapter
+       for UID-owned membership pages and channel-owned latest batch reads
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
@@ -55,11 +60,12 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, delivery committed sink, and
-     append metrics observer only when delivery is enabled and messages were not overridden
+     message reader when exposed, node-scoped IDs, channel latest committed
+     sink when exposed, optional delivery committed sink, and append metrics
+     observer only when delivery is enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with the channel, user, and message usecases,
-     optional bench presence snapshot controller, and real benchmark
+  -> create access/api.Server with the channel, user, message, and conversation
+     usecases, optional bench presence snapshot controller, and real benchmark
      channel/subscriber data writer when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
@@ -137,8 +143,20 @@ Legacy channel management requests flow from internalv2 HTTP through
 `ChannelMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
 Mutations are proposed through Slot ownership; reads use the current routed Slot
 metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
-through the UID-owned membership facade so recent-conversation list reads can
+through the UID-owned membership facade so conversation list reads can
 page a user's channel set without fanout writes on each group message.
+
+Conversation list reads flow from entry adapters through
+`internalv2/usecase/conversation` and the `internalv2/infra/cluster`
+`ConversationStore` adapter. The read model scans a bounded number of
+UID-owned membership rows, batch-reads existing channel-owned `channel_latest`
+rows, sorts them in memory by latest timestamp and sequence, and then applies
+the public conversation cursor. This keeps message commits to one channel-owned
+dirty projection and moves user-specific ordering work to the request that
+actually needs the list. When metrics are enabled, the app maps API
+conversation-list observations to Prometheus metrics for latency, returned
+items, scanned memberships, and truncated responses using only low-cardinality
+result/truncated labels.
 
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`
@@ -156,6 +174,15 @@ and node-scoped message IDs. Channel message sync uses the
 messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
+After a durable append succeeds, `MessageCommitted` flows through the app-level
+committed sink group. When the cluster exposes `UpsertChannelLatestBatch`, the
+conversation projector records one channel-owned `channel_latest` dirty row in memory
+keyed by `(channel_id, channel_type)`. A background flush coalesces repeated
+updates for the same channel and writes batches through clusterv2, so SEND does
+not synchronously propose conversation metadata. This projection is
+independent of delivery fanout: it is written even when `Delivery.Enabled=false`,
+and it never fans out one row per channel member.
+
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so
 wkbench can validate owner-route and authority-route counts after connection
@@ -171,6 +198,7 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
+  -> conversation projector Start(ctx)
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
   -> api.Start()
   -> gateway.Start()
@@ -180,6 +208,7 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
+  -> conversation projector Stop(ctx): stop ticker and flush dirty channel_latest rows
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```

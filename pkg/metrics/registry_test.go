@@ -1088,6 +1088,47 @@ func TestRuntimePressureMetricsNilSafe(t *testing.T) {
 	m.ObserveTaskDuration("gateway", "async_auth", "auth", "ok", time.Millisecond)
 }
 
+func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Conversation.ObserveList("ok", true, 12*time.Millisecond, 700, 2)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	total := requireMetricFamily(t, families, "wukongim_conversation_list_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"truncated": "true",
+	}).GetCounter().GetValue())
+
+	duration := requireMetricFamily(t, families, "wukongim_conversation_list_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, duration, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"truncated": "true",
+	}).GetHistogram().GetSampleCount())
+
+	scanned := requireMetricFamily(t, families, "wukongim_conversation_list_scanned_memberships")
+	require.Equal(t, float64(700), findMetricByLabels(t, scanned, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"truncated": "true",
+	}).GetHistogram().GetSampleSum())
+
+	returned := requireMetricFamily(t, families, "wukongim_conversation_list_returned_items")
+	require.Equal(t, float64(2), findMetricByLabels(t, returned, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"truncated": "true",
+	}).GetHistogram().GetSampleSum())
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {

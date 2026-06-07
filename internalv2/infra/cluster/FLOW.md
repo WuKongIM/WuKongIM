@@ -6,7 +6,8 @@
 `pkg/clusterv2` and `pkg/channelv2`. It maps message append DTOs to
 `pkg/channelv2` DTOs, adapts legacy-compatible channel metadata usecase calls to
 clusterv2 Slot metadata facades, adapts legacy-compatible user metadata calls
-to UID Slot metadata facades, and adapts presence/delivery ports to clusterv2
+to UID Slot metadata facades, adapts conversation list reads to Slot metadata
+membership/latest facades, and adapts presence/delivery ports to clusterv2
 routing and node RPC.
 
 ## Append Flow
@@ -72,6 +73,23 @@ subscriber mutation version into the required clusterv2 facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
+
+## Conversation Read Flow
+
+`ConversationStore` adapts `internalv2/usecase/conversation` membership and
+latest-row read ports to the clusterv2 Slot metadata facade.
+
+```text
+conversation list usecase
+  -> ListUserChannelMembershipPage(uid)
+       -> UID-owned membership rows routed by UID hash slot
+  -> GetChannelLatestBatch(channel keys)
+       -> channel-owned latest rows routed by channel hash slot
+```
+
+The adapter only forwards storage reads and clones the requested channel keys
+before dispatch. It does not own ordering or cursor rules; those stay in the
+conversation usecase so access adapters can share the same list semantics.
 
 ## User Metadata Flow
 

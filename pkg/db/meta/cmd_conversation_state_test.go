@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
-func TestCMDConversationActiveReturnsOnlyCMDRowsRecentFirst(t *testing.T) {
+func TestCMDConversationActiveReturnsOnlyCMDRowsLatestFirst(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(4)

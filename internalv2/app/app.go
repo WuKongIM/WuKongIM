@@ -21,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
@@ -61,18 +62,20 @@ type Option func(*App)
 
 // App is the internalv2 composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg             Config
-	cluster         ClusterRuntime
-	api             APIRuntime
-	gateway         GatewayRuntime
-	handler         *accessgateway.Handler
-	messages        *message.App
-	channels        *channelusecase.App
-	users           *userusecase.App
-	delivery        *deliveryusecase.App
-	deliveryManager *runtimedelivery.Manager
-	deliveryRetry   *runtimedelivery.RetryScheduler
-	deliveryWorker  WorkerRuntime
+	cfg                   Config
+	cluster               ClusterRuntime
+	api                   APIRuntime
+	gateway               GatewayRuntime
+	handler               *accessgateway.Handler
+	messages              *message.App
+	channels              *channelusecase.App
+	conversations         *conversationusecase.App
+	users                 *userusecase.App
+	delivery              *deliveryusecase.App
+	deliveryManager       *runtimedelivery.Manager
+	deliveryRetry         *runtimedelivery.RetryScheduler
+	deliveryWorker        WorkerRuntime
+	conversationProjector *conversationProjector
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
 	deliveryMeta        *deliveryMetaStore
@@ -89,15 +92,16 @@ type App struct {
 	diagnosticsRestore func()
 	logger             wklog.Logger
 
-	lifecycleMu     sync.Mutex
-	started         bool
-	stopped         bool
-	clusterStarted  bool
-	presenceStarted bool
-	deliveryStarted bool
-	apiStarted      bool
-	gatewayStarted  bool
-	deliveryErrors  atomic.Uint64
+	lifecycleMu         sync.Mutex
+	started             bool
+	stopped             bool
+	clusterStarted      bool
+	presenceStarted     bool
+	conversationStarted bool
+	deliveryStarted     bool
+	apiStarted          bool
+	gatewayStarted      bool
+	deliveryErrors      atomic.Uint64
 }
 
 // New creates an internalv2 App.
@@ -193,6 +197,15 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				channelOptions.MembershipIndex = store
 			}
 			app.channels = channelusecase.New(channelOptions)
+		}
+	}
+	if app.conversations == nil {
+		if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
+			store := clusterinfra.NewConversationStore(node)
+			app.conversations = conversationusecase.New(conversationusecase.Options{
+				Memberships: store,
+				Latest:      store,
+			})
 		}
 	}
 	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
@@ -338,9 +351,19 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		if readNode, ok := app.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
 		}
-		if app.cfg.Delivery.Enabled {
-			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
+		var committedSinks []message.CommittedSink
+		if latest, ok := app.cluster.(channelLatestBatchWriter); ok {
+			if app.conversationProjector == nil {
+				app.conversationProjector = newConversationProjector(conversationProjectorOptions{
+					writer: latest,
+				})
+			}
+			committedSinks = append(committedSinks, app.conversationProjector)
 		}
+		if app.cfg.Delivery.Enabled {
+			committedSinks = append(committedSinks, deliveryCommittedSink{delivery: app.delivery})
+		}
+		messageOpts.Committed = combineCommittedSinks(committedSinks...)
 		if app.cfg.Delivery.Enabled || app.metrics != nil {
 			messageOpts.Observer = deliveryMessageObserver{app: app}
 		}
@@ -359,21 +382,23 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
 		app.api = accessapi.New(accessapi.Options{
-			ListenAddr:           cfg.API.ListenAddr,
-			Readyz:               app.readyzReport,
-			BenchEnabled:         cfg.Bench.APIEnabled,
-			BenchMaxBatchSize:    cfg.Bench.APIMaxBatchSize,
-			BenchMaxPayloadBytes: cfg.Bench.APIMaxPayloadBytes,
-			Gateway:              apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
-			BenchRuntime:         app.benchRuntimeController(),
-			BenchPresence:        app.benchPresenceController(),
-			BenchData:            app.deliveryMeta,
-			Channels:             app.channels,
-			Users:                app.users,
-			Messages:             app.messages,
-			MetricsHandler:       app.metricsHandler(),
-			PProfEnabled:         cfg.Observability.PProfEnabled,
-			Logger:               app.logger.Named("access.api"),
+			ListenAddr:               cfg.API.ListenAddr,
+			Readyz:                   app.readyzReport,
+			BenchEnabled:             cfg.Bench.APIEnabled,
+			BenchMaxBatchSize:        cfg.Bench.APIMaxBatchSize,
+			BenchMaxPayloadBytes:     cfg.Bench.APIMaxPayloadBytes,
+			Gateway:                  apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
+			BenchRuntime:             app.benchRuntimeController(),
+			BenchPresence:            app.benchPresenceController(),
+			BenchData:                app.deliveryMeta,
+			Channels:                 app.channels,
+			Users:                    app.users,
+			Messages:                 app.messages,
+			Conversations:            app.conversations,
+			ConversationListObserver: app.conversationListObserver(),
+			MetricsHandler:           app.metricsHandler(),
+			PProfEnabled:             cfg.Observability.PProfEnabled,
+			Logger:                   app.logger.Named("access.api"),
 		})
 	}
 	if app.gateway == nil && len(cfg.Gateway.Listeners) > 0 {
@@ -427,6 +452,11 @@ func WithChannels(channels *channelusecase.App) Option {
 	return func(a *App) { a.channels = channels }
 }
 
+// WithConversations overrides the conversation usecase app.
+func WithConversations(conversations *conversationusecase.App) Option {
+	return func(a *App) { a.conversations = conversations }
+}
+
 // WithPresence overrides the presence usecase app.
 func WithPresence(presence *presence.App) Option {
 	return func(a *App) { a.presence = presence }
@@ -463,6 +493,14 @@ func (a *App) Messages() *message.App {
 	return a.messages
 }
 
+// Conversations returns the conversation list usecase app.
+func (a *App) Conversations() *conversationusecase.App {
+	if a == nil {
+		return nil
+	}
+	return a.conversations
+}
+
 // Delivery returns the delivery usecase app.
 func (a *App) Delivery() *deliveryusecase.App {
 	if a == nil {
@@ -476,6 +514,13 @@ func (a *App) metricsHandler() http.Handler {
 		return nil
 	}
 	return a.metrics.Handler()
+}
+
+func (a *App) conversationListObserver() accessapi.ConversationListObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationListMetricsObserver{metrics: a.metrics}
 }
 
 func (a *App) gatewayObserver() gateway.Observer {

@@ -493,6 +493,20 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:  "channel_latest",
+			table: "channel_latest",
+			slot:  18,
+			seed: func(ctx context.Context, shard *Shard) error {
+				return shard.UpsertChannelLatest(ctx, ChannelLatest{ChannelID: "latest", ChannelType: 2, LastMessageID: 88, LastMessageSeq: 9, LastAt: 100, FromUID: "u1", Payload: []byte("payload"), UpdatedAt: 101})
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "latest" || row["last_message_seq"] != uint64(9) || string(row["payload"].([]byte)) != "payload" {
+					t.Fatalf("channel latest row = %+v", row)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

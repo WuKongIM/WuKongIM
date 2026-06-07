@@ -34,6 +34,8 @@ const (
 	TableIDHashSlotMigration uint32 = 10
 	// TableIDUserChannelMembership stores UID-owned channel membership rows.
 	TableIDUserChannelMembership uint32 = 11
+	// TableIDChannelLatest stores channel-owned latest message projections.
+	TableIDChannelLatest uint32 = 12
 )
 
 const (
@@ -52,6 +54,9 @@ const (
 
 	userChannelMembershipPrimaryFamilyID uint16 = 0
 	userChannelMembershipPrimaryIndexID  uint16 = 1
+
+	channelLatestPrimaryFamilyID uint16 = 0
+	channelLatestPrimaryIndexID  uint16 = 1
 
 	conversationPrimaryIndexID uint16 = 1
 	conversationActiveIndexID  uint16 = 2

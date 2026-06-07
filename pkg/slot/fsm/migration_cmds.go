@@ -55,6 +55,9 @@ func (c *applyDeltaCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	if _, ok := decoded.(*applyDeltaCmd); ok {
 		return fmt.Errorf("%w: nested apply delta command", metadb.ErrInvalidArgument)
 	}
+	if filtered, ok := decoded.(hashSlotFilteredCommand); ok {
+		return filtered.applyForHashSlot(wb, hashSlot)
+	}
 	return decoded.apply(wb, hashSlot)
 }
 

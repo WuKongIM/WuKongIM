@@ -828,6 +828,148 @@ func TestStateMachineAppliesUserChannelMemberships(t *testing.T) {
 	}
 }
 
+func TestStateMachineAppliesChannelLatest(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data: EncodeUpsertChannelLatestCommand(metadb.ChannelLatest{
+			ChannelID:      "g1",
+			ChannelType:    2,
+			LastMessageID:  100,
+			LastMessageSeq: 10,
+			LastAt:         1000,
+			FromUID:        "u1",
+			ClientMsgNo:    "c1",
+			Payload:        []byte("hello"),
+			UpdatedAt:      1001,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(upsert channel latest) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(upsert channel latest) result = %q, want %q", result, ApplyResultOK)
+	}
+
+	got, err := db.ForSlot(11).GetChannelLatest(ctx, "g1", 2)
+	if err != nil {
+		t.Fatalf("GetChannelLatest() after upsert: %v", err)
+	}
+	if got.LastMessageID != 100 || got.LastMessageSeq != 10 || string(got.Payload) != "hello" {
+		t.Fatalf("latest after upsert = %#v, want message 100 seq 10", got)
+	}
+}
+
+func TestStateMachineAppliesChannelLatestBatchAcrossOwnedHashSlots(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5, 7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	result, err := bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    1,
+		Term:     1,
+		Data: EncodeUpsertChannelLatestBatchCommand([]ChannelLatestBatchItem{
+			{
+				HashSlot: 5,
+				Latest: metadb.ChannelLatest{
+					ChannelID:      "g-hs-5",
+					ChannelType:    2,
+					LastMessageID:  100,
+					LastMessageSeq: 10,
+					LastAt:         1000,
+					FromUID:        "u1",
+					ClientMsgNo:    "c1",
+					Payload:        []byte("hs5"),
+					UpdatedAt:      1001,
+				},
+			},
+			{
+				HashSlot: 7,
+				Latest: metadb.ChannelLatest{
+					ChannelID:      "g-hs-7",
+					ChannelType:    2,
+					LastMessageID:  200,
+					LastMessageSeq: 20,
+					LastAt:         2000,
+					FromUID:        "u2",
+					ClientMsgNo:    "c2",
+					Payload:        []byte("hs7"),
+					UpdatedAt:      2001,
+				},
+			},
+		}),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch(channel latest batch) error = %v", err)
+	}
+	if string(result[0]) != ApplyResultOK {
+		t.Fatalf("ApplyBatch(channel latest batch) result = %q, want %q", result[0], ApplyResultOK)
+	}
+
+	got5, err := db.ForHashSlot(5).GetChannelLatest(ctx, "g-hs-5", 2)
+	if err != nil {
+		t.Fatalf("GetChannelLatest(hashSlot=5) error = %v", err)
+	}
+	if got5.LastMessageSeq != 10 || string(got5.Payload) != "hs5" {
+		t.Fatalf("hashSlot 5 latest = %#v, want seq 10 payload hs5", got5)
+	}
+	got7, err := db.ForHashSlot(7).GetChannelLatest(ctx, "g-hs-7", 2)
+	if err != nil {
+		t.Fatalf("GetChannelLatest(hashSlot=7) error = %v", err)
+	}
+	if got7.LastMessageSeq != 20 || string(got7.Payload) != "hs7" {
+		t.Fatalf("hashSlot 7 latest = %#v, want seq 20 payload hs7", got7)
+	}
+}
+
+func TestStateMachineRejectsChannelLatestBatchHashSlotNotOwned(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	_, err = bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    1,
+		Term:     1,
+		Data: EncodeUpsertChannelLatestBatchCommand([]ChannelLatestBatchItem{{
+			HashSlot: 7,
+			Latest: metadb.ChannelLatest{
+				ChannelID:      "g-hs-7",
+				ChannelType:    2,
+				LastMessageID:  200,
+				LastMessageSeq: 20,
+				LastAt:         2000,
+				UpdatedAt:      2001,
+			},
+		}}),
+	}})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("ApplyBatch(channel latest batch) error = %v, want ErrInvalidArgument", err)
+	}
+}
+
 func TestStateMachineApplyCreateUserAndUpsertDevice(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

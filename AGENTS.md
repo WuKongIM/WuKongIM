@@ -98,7 +98,7 @@ internal/
 internalv2/
   app/                   新架构组合根；负责 clusterv2、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
   access/                新架构入口适配层
-    api/                 phase-1 health、readyz、bench/v1 target 与 legacy channel/user HTTP API 入口
+    api/                 phase-1 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
     node/                新架构节点间 presence authority/owner-action RPC codec、handler、client
   contracts/             新架构跨用例/运行时轻量事件合约
@@ -110,6 +110,7 @@ internalv2/
     presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
   usecase/               新架构入口无关业务用例
     channel/             频道资料、订阅者、黑白名单等 legacy 兼容用例
+    conversation/        最近会话列表读模型，基于 UID membership 与 channel_latest 读时 join
     delivery/            投递提交与运行时入队用例
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度

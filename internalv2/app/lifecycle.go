@@ -64,6 +64,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.presenceStarted = true
 	}
+	if a.conversationProjector != nil {
+		if err := a.conversationProjector.Start(ctx); err != nil {
+			a.logLifecycleError("conversation_projector", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.conversationStarted = true
+	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -129,6 +137,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.deliveryStarted = false
 		}
 	}
+	if a.conversationStarted && a.conversationProjector != nil {
+		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_projector", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationStarted = false
+		}
+	}
 	if a.presenceStarted && a.presenceWorker != nil {
 		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("presence_worker", "stop", stopErr)
@@ -145,7 +161,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.conversationStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -175,6 +191,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
+		}
+	}
+	if a.conversationStarted && a.conversationProjector != nil {
+		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_projector", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationStarted = false
 		}
 	}
 	if a.presenceStarted && a.presenceWorker != nil {

@@ -113,12 +113,18 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 ## Slot Metadata Facade Flow
 
 `node_meta.go` exposes small metadata facades used by `internalv2` adapters.
-Channel metadata and subscriber rows route by channel ID. UID-owned reverse
-tables route by UID, so `UpsertUserChannelMemberships` and
-`DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
-slot and submit one Slot proposal per touched hash slot. Reads such as
-`ListUserChannelMembershipPage` also route by UID and read the current local
-metadata shard for that UID hash slot.
+Channel metadata, subscriber rows, and `channel_latest` rows route by channel
+ID. `UpsertChannelLatestBatch` first resolves each channel's real hash slot,
+then groups rows by physical Slot and submits bounded batch commands carrying
+per-row hash slots. UID-owned reverse tables route by UID, so
+`UpsertUserChannelMemberships` and `DeleteUserChannelMemberships` group the
+requested UIDs by `RouteKey(uid)` hash slot and submit one Slot proposal per
+touched hash slot. Reads such as `ListUserChannelMembershipPage` also route by
+UID and read the current local metadata shard for that UID hash slot.
+`GetChannelLatestBatch` reads existing channel latest rows by routing each
+requested channel key to its hash slot and skips missing rows, giving
+conversation list readers one batch-shaped facade without requiring write-time
+per-user fanout.
 
 ## ChannelV2 Flow
 

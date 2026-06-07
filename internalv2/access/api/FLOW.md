@@ -9,8 +9,9 @@ request/response DTOs, and entry validation, but it does not mutate message,
 conversation, channel, user, or management business state directly. Channel
 management requests forward to the channel usecase supplied by the composition
 root, `/user*` requests forward to the user usecase, and compatible message
-send/sync requests forward to the message usecase. When the composition
-root provides a benchmark data writer,
+send/sync requests forward to the message usecase. `/conversation/list`
+requests forward to the conversation usecase and keep ordering/cursor rules out
+of the HTTP layer. When the composition root provides a benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
 writer persists real clusterv2 Slot metadata.
@@ -33,6 +34,7 @@ POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
 POST /message/send
+POST /conversation/list
 POST /channel
 POST /channel/messagesync
 POST /channel/info
@@ -87,6 +89,17 @@ and converts canonical person-channel IDs back to the peer UID for the logged-in
 user. If the composition root does not provide a message usecase, these routes
 fail closed using their legacy envelopes.
 
+The conversation list route is registered regardless of bench mode.
+`/conversation/list` accepts `uid`, `limit`, and an optional sorted conversation
+cursor, delegates to `internalv2/usecase/conversation`, and returns
+`conversations`, `next_cursor`, `more`, `truncated`, and the scanned membership
+count. The access adapter converts canonical person-channel IDs back to the
+peer UID for the requesting user. If the composition root does not provide a
+conversation usecase, the route fails closed with the compatible JSON error
+envelope. Each request emits a low-cardinality conversation-list observation
+containing result, latency, scanned membership count, returned item count, and
+the truncated flag when an observer is configured.
+
 ## Phase-1 Semantics
 
 The user-token mutation route is intentionally restricted to setup
@@ -113,3 +126,8 @@ delegates durable metadata and member-list behavior to
 directly. The message adapter decodes legacy HTTP payloads and trace headers
 but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
+The conversation adapter validates only request shape and UID presence; bounded
+membership scanning, channel latest joins, sorting, and cursor application stay
+in `internalv2/usecase/conversation`. The adapter observes successful and
+failed list requests without adding UID or channel labels, so performance
+triage can inspect list cost without increasing metrics cardinality.

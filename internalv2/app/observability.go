@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
@@ -66,6 +67,10 @@ type storageCommitMetricsObserver struct {
 type deliveryMetricsObserver struct {
 	metrics *obsmetrics.Registry
 	logger  wklog.Logger
+}
+
+type conversationListMetricsObserver struct {
+	metrics *obsmetrics.Registry
 }
 
 type multiChannelV2Observer []reactor.Observer
@@ -226,6 +231,13 @@ func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
 	default:
 		return "unknown"
 	}
+}
+
+func (o conversationListMetricsObserver) ObserveConversationList(event accessapi.ConversationListObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveList(event.Result, event.Truncated, event.Duration, event.ScannedMemberships, event.ReturnedItems)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
