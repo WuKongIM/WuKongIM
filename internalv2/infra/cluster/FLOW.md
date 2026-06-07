@@ -6,9 +6,9 @@
 `pkg/clusterv2` and `pkg/channelv2`. It maps message append DTOs to
 `pkg/channelv2` DTOs, adapts legacy-compatible channel metadata usecase calls to
 clusterv2 Slot metadata facades, adapts legacy-compatible user metadata calls
-to UID Slot metadata facades, adapts conversation list reads to Slot metadata
-membership/latest facades, and adapts presence/delivery ports to clusterv2
-routing and node RPC.
+to UID Slot metadata facades, adapts conversation list reads to UID-owned
+conversation active rows plus channel-owned committed message logs, and adapts
+presence/delivery ports to clusterv2 routing and node RPC.
 
 ## Append Flow
 
@@ -76,20 +76,27 @@ claiming support for the reverse membership index.
 
 ## Conversation Read Flow
 
-`ConversationStore` adapts `internalv2/usecase/conversation` membership and
-latest-row read ports to the clusterv2 Slot metadata facade.
+`ConversationStore` adapts `internalv2/usecase/conversation` active-row and
+last-message read ports to clusterv2 facades. Conversation rows are UID-owned
+metadata records, while last-message display data is read from each
+channel-owned message log for the current page only.
 
 ```text
 conversation list usecase
-  -> ListUserChannelMembershipPage(uid)
-       -> UID-owned membership rows routed by UID hash slot
-  -> GetChannelLatestBatch(channel keys)
-       -> channel-owned latest rows routed by channel hash slot
+  -> ListUserConversationActivePage(uid, active cursor)
+       -> UID-owned conversation rows routed by UID hash slot
+  -> GetLastVisibleMessages(current page keys)
+       -> ReadChannelCommitted(channel, reverse limit 1, max seq)
+       -> filter messages with seq <= visible_after_seq
+       -> missing channel or no visible message returns no last message for that row
 ```
 
-The adapter only forwards storage reads and clones the requested channel keys
-before dispatch. It does not own ordering or cursor rules; those stay in the
+The adapter clones row slices and message payloads across the boundary. It does
+not own ordering, cursor, unread, or sparse-active rules; those stay in the
 conversation usecase so access adapters can share the same list semantics.
+`metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
+last-message read mean that row has no display message, not that the whole list
+failed. Routing, readiness, and other read errors still fail the request.
 
 ## User Metadata Flow
 

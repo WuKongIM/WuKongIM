@@ -3,16 +3,13 @@ package conversation
 import (
 	"context"
 	"errors"
-	"sort"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const (
-	defaultListLimit           = 50
-	maxListLimit               = 200
-	defaultMembershipPageLimit = 500
-	defaultMaxMembershipScan   = 1000
+	defaultListLimit = 50
+	maxListLimit     = 200
 )
 
 var (
@@ -22,114 +19,93 @@ var (
 	ErrInvalidRequest = errors.New("internalv2/usecase/conversation: invalid request")
 )
 
-// MembershipStore pages UID-owned channel membership rows.
-type MembershipStore interface {
-	ListUserChannelMembershipPage(ctx context.Context, uid string, after metadb.UserChannelMembershipCursor, limit int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
+// Store pages UID-owned conversation active rows.
+type Store interface {
+	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
 }
 
-// LatestStore reads channel-owned latest message projection rows.
-type LatestStore interface {
-	GetChannelLatestBatch(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelLatest, error)
+// LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
+type LastVisibleMessageRequest struct {
+	// ChannelID identifies the message log to read.
+	ChannelID string
+	// ChannelType identifies the message log namespace.
+	ChannelType int64
+	// VisibleAfterSeq hides messages at or below this sequence.
+	VisibleAfterSeq uint64
+}
+
+// MessageStore reads channel-owned message log tails for the current page.
+type MessageStore interface {
+	GetLastVisibleMessages(ctx context.Context, requests []LastVisibleMessageRequest) (map[metadb.ConversationKey]LastMessage, error)
 }
 
 // Options contains dependencies and read bounds for the conversation usecase.
 type Options struct {
-	// Memberships reads the UID-owned channel set.
-	Memberships MembershipStore
-	// Latest reads channel-owned latest message projections.
-	Latest LatestStore
-	// MembershipPageLimit bounds one membership page read from storage.
-	MembershipPageLimit int
-	// MaxMembershipScan bounds per-request membership rows scanned before sorting.
-	MaxMembershipScan int
+	// Store reads UID-owned active conversation rows.
+	Store Store
+	// Messages reads the newest visible message for returned rows.
+	Messages MessageStore
+
+	// Memberships is a deprecated alias for Store kept for current app wiring.
+	Memberships Store
+	// Latest is a deprecated alias for Messages kept for current app wiring.
+	Latest MessageStore
 }
 
 // App coordinates entry-agnostic conversation list reads.
 type App struct {
-	memberships         MembershipStore
-	latest              LatestStore
-	membershipPageLimit int
-	maxMembershipScan   int
+	store    Store
+	messages MessageStore
 }
 
 // New creates a conversation usecase.
 func New(opts Options) *App {
-	membershipPageLimit := opts.MembershipPageLimit
-	if membershipPageLimit <= 0 {
-		membershipPageLimit = defaultMembershipPageLimit
+	store := opts.Store
+	if store == nil {
+		store = opts.Memberships
 	}
-	maxMembershipScan := opts.MaxMembershipScan
-	if maxMembershipScan <= 0 {
-		maxMembershipScan = defaultMaxMembershipScan
+	messages := opts.Messages
+	if messages == nil {
+		messages = opts.Latest
 	}
-	return &App{
-		memberships:         opts.Memberships,
-		latest:              opts.Latest,
-		membershipPageLimit: membershipPageLimit,
-		maxMembershipScan:   maxMembershipScan,
-	}
+	return &App{store: store, messages: messages}
 }
 
-// List returns one sorted conversation page for uid.
+// List returns one active-index conversation page for uid.
 func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
-	if a == nil || a.memberships == nil || a.latest == nil {
+	if a == nil || a.store == nil || a.messages == nil {
 		return ListResult{}, ErrStoreRequired
 	}
 	if err := validateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
 	limit := normalizeListLimit(req.Limit)
-	memberships, truncated, err := a.scanMemberships(ctx, req.UID)
+	rows, cursor, done, err := a.store.ListUserConversationActivePage(ctx, req.UID, req.Cursor.toMeta(), limit+1)
 	if err != nil {
 		return ListResult{}, err
 	}
-	keys := conversationKeysForMemberships(memberships)
-	latestRows, err := a.latest.GetChannelLatestBatch(ctx, keys)
+	hasMore := !done
+	if len(rows) > limit {
+		hasMore = true
+		rows = rows[:limit]
+	}
+	lastMessages, err := a.messages.GetLastVisibleMessages(ctx, lastVisibleMessageRequests(rows))
 	if err != nil {
 		return ListResult{}, err
 	}
-	items := conversationsFromLatest(latestRows)
-	sortConversations(items)
-	items = applyConversationCursor(items, req.Cursor)
+	items := conversationsFromRows(rows, lastMessages)
 	result := ListResult{
-		Truncated:          truncated,
-		ScannedMemberships: len(memberships),
+		Items:   items,
+		HasMore: hasMore,
 	}
-	if len(items) > limit {
-		result.HasMore = true
-		items = items[:limit]
-	}
-	result.Items = cloneConversations(items)
-	if len(result.Items) > 0 && result.HasMore {
-		result.NextCursor = cursorFromConversation(result.Items[len(result.Items)-1])
+	if hasMore {
+		if len(items) > 0 {
+			result.NextCursor = cursorFromConversation(items[len(items)-1])
+		} else {
+			result.NextCursor = cursorFromMeta(cursor)
+		}
 	}
 	return result, nil
-}
-
-func (a *App) scanMemberships(ctx context.Context, uid string) ([]metadb.UserChannelMembership, bool, error) {
-	var (
-		rows      []metadb.UserChannelMembership
-		cursor    metadb.UserChannelMembershipCursor
-		truncated bool
-	)
-	for len(rows) < a.maxMembershipScan {
-		pageLimit := a.membershipPageLimit
-		remaining := a.maxMembershipScan - len(rows)
-		if pageLimit > remaining {
-			pageLimit = remaining
-		}
-		page, next, done, err := a.memberships.ListUserChannelMembershipPage(ctx, uid, cursor, pageLimit)
-		if err != nil {
-			return nil, false, err
-		}
-		rows = append(rows, page...)
-		cursor = next
-		if done || len(page) == 0 {
-			return rows, false, nil
-		}
-	}
-	truncated = true
-	return rows, truncated, nil
 }
 
 func validateListRequest(req ListRequest) error {
@@ -139,7 +115,7 @@ func validateListRequest(req ListRequest) error {
 	if req.Limit < 0 || req.Limit > maxListLimit {
 		return ErrInvalidRequest
 	}
-	if req.Cursor != (Cursor{}) && (req.Cursor.ChannelID == "" || req.Cursor.ChannelType == 0) {
+	if req.Cursor != (Cursor{}) && (req.Cursor.ActiveAt <= 0 || req.Cursor.ChannelID == "" || req.Cursor.ChannelType == 0) {
 		return ErrInvalidRequest
 	}
 	return nil
@@ -152,111 +128,78 @@ func normalizeListLimit(limit int) int {
 	return limit
 }
 
-func conversationKeysForMemberships(memberships []metadb.UserChannelMembership) []metadb.ConversationKey {
-	keys := make([]metadb.ConversationKey, 0, len(memberships))
-	seen := make(map[metadb.ConversationKey]struct{}, len(memberships))
-	for _, membership := range memberships {
-		key := metadb.ConversationKey{ChannelID: membership.ChannelID, ChannelType: membership.ChannelType}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		keys = append(keys, key)
+func (c Cursor) toMeta() metadb.UserConversationActiveCursor {
+	if c == (Cursor{}) {
+		return metadb.UserConversationActiveCursor{}
 	}
-	return keys
+	return metadb.UserConversationActiveCursor{
+		ActiveAt:    c.ActiveAt,
+		ChannelID:   c.ChannelID,
+		ChannelType: c.ChannelType,
+	}
 }
 
-func conversationsFromLatest(rows map[metadb.ConversationKey]metadb.ChannelLatest) []Conversation {
+func cursorFromMeta(cursor metadb.UserConversationActiveCursor) Cursor {
+	return Cursor{
+		ActiveAt:    cursor.ActiveAt,
+		ChannelID:   cursor.ChannelID,
+		ChannelType: cursor.ChannelType,
+	}
+}
+
+func cursorFromConversation(item Conversation) Cursor {
+	return Cursor{
+		ActiveAt:    item.ActiveAt,
+		ChannelID:   item.ChannelID,
+		ChannelType: item.ChannelType,
+	}
+}
+
+func lastVisibleMessageRequests(rows []metadb.UserConversationState) []LastVisibleMessageRequest {
+	requests := make([]LastVisibleMessageRequest, 0, len(rows))
+	for _, row := range rows {
+		requests = append(requests, LastVisibleMessageRequest{
+			ChannelID:       row.ChannelID,
+			ChannelType:     row.ChannelType,
+			VisibleAfterSeq: row.DeletedToSeq,
+		})
+	}
+	return requests
+}
+
+func conversationsFromRows(rows []metadb.UserConversationState, lastMessages map[metadb.ConversationKey]LastMessage) []Conversation {
 	items := make([]Conversation, 0, len(rows))
-	for _, latest := range rows {
+	for _, row := range rows {
+		key := metadb.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
+		var last *LastMessage
+		var unread uint64
+		if msg, ok := lastMessages[key]; ok {
+			msg.Payload = append([]byte(nil), msg.Payload...)
+			last = &msg
+			unread = unreadCount(row, msg.MessageSeq)
+		}
 		items = append(items, Conversation{
-			ChannelID:      latest.ChannelID,
-			ChannelType:    latest.ChannelType,
-			LastMessageID:  latest.LastMessageID,
-			LastMessageSeq: latest.LastMessageSeq,
-			LastAt:         latest.LastAt,
-			FromUID:        latest.FromUID,
-			ClientMsgNo:    latest.ClientMsgNo,
-			Payload:        append([]byte(nil), latest.Payload...),
-			UpdatedAt:      latest.UpdatedAt,
+			ChannelID:    row.ChannelID,
+			ChannelType:  row.ChannelType,
+			ActiveAt:     row.ActiveAt,
+			ReadSeq:      row.ReadSeq,
+			DeletedToSeq: row.DeletedToSeq,
+			SparseActive: row.SparseActive,
+			UpdatedAt:    row.UpdatedAt,
+			LastMessage:  last,
+			Unread:       unread,
 		})
 	}
 	return items
 }
 
-func sortConversations(items []Conversation) {
-	sort.Slice(items, func(i, j int) bool {
-		return compareConversations(items[i], items[j]) < 0
-	})
-}
-
-func compareConversations(a, b Conversation) int {
-	if a.LastAt != b.LastAt {
-		if a.LastAt > b.LastAt {
-			return -1
-		}
-		return 1
+func unreadCount(row metadb.UserConversationState, lastMessageSeq uint64) uint64 {
+	floor := row.ReadSeq
+	if row.DeletedToSeq > floor {
+		floor = row.DeletedToSeq
 	}
-	if a.LastMessageSeq != b.LastMessageSeq {
-		if a.LastMessageSeq > b.LastMessageSeq {
-			return -1
-		}
-		return 1
+	if lastMessageSeq <= floor {
+		return 0
 	}
-	if a.ChannelID != b.ChannelID {
-		if a.ChannelID < b.ChannelID {
-			return -1
-		}
-		return 1
-	}
-	if a.ChannelType != b.ChannelType {
-		if a.ChannelType < b.ChannelType {
-			return -1
-		}
-		return 1
-	}
-	return 0
-}
-
-func applyConversationCursor(items []Conversation, cursor Cursor) []Conversation {
-	if cursor == (Cursor{}) {
-		return items
-	}
-	for i, item := range items {
-		if conversationAfterCursor(item, cursor) {
-			return items[i:]
-		}
-	}
-	return nil
-}
-
-func conversationAfterCursor(item Conversation, cursor Cursor) bool {
-	if item.LastAt != cursor.LastAt {
-		return item.LastAt < cursor.LastAt
-	}
-	if item.LastMessageSeq != cursor.LastMessageSeq {
-		return item.LastMessageSeq < cursor.LastMessageSeq
-	}
-	if item.ChannelID != cursor.ChannelID {
-		return item.ChannelID > cursor.ChannelID
-	}
-	return item.ChannelType > cursor.ChannelType
-}
-
-func cursorFromConversation(item Conversation) Cursor {
-	return Cursor{
-		LastAt:         item.LastAt,
-		LastMessageSeq: item.LastMessageSeq,
-		ChannelID:      item.ChannelID,
-		ChannelType:    item.ChannelType,
-	}
-}
-
-func cloneConversations(items []Conversation) []Conversation {
-	out := make([]Conversation, 0, len(items))
-	for _, item := range items {
-		item.Payload = append([]byte(nil), item.Payload...)
-		out = append(out, item)
-	}
-	return out
+	return lastMessageSeq - floor
 }

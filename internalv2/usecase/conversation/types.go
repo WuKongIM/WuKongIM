@@ -2,10 +2,8 @@ package conversation
 
 // Cursor resumes a sorted conversation list after one emitted row.
 type Cursor struct {
-	// LastAt is the last emitted conversation timestamp.
-	LastAt int64
-	// LastMessageSeq is the last emitted channel message sequence.
-	LastMessageSeq uint64
+	// ActiveAt is the last emitted active-index timestamp.
+	ActiveAt int64
 	// ChannelID is the last emitted channel id.
 	ChannelID string
 	// ChannelType is the last emitted channel type.
@@ -22,26 +20,42 @@ type ListRequest struct {
 	Limit int
 }
 
+// LastMessage is the newest visible durable message for a conversation row.
+type LastMessage struct {
+	// MessageID is the durable message id.
+	MessageID uint64
+	// MessageSeq is the channel-local message sequence.
+	MessageSeq uint64
+	// FromUID identifies the sender.
+	FromUID string
+	// ClientMsgNo stores the client idempotency key.
+	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
+	// Payload stores the durable message payload.
+	Payload []byte
+}
+
 // Conversation is one channel row in a user's conversation list.
 type Conversation struct {
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
 	ChannelType int64
-	// LastMessageID is the newest durable message id observed for the channel.
-	LastMessageID uint64
-	// LastMessageSeq is the newest durable channel sequence observed.
-	LastMessageSeq uint64
-	// LastAt is the timestamp used for conversation list sorting.
-	LastAt int64
-	// FromUID identifies the newest message sender.
-	FromUID string
-	// ClientMsgNo stores the newest message client idempotency key.
-	ClientMsgNo string
-	// Payload stores the newest message payload or preview bytes.
-	Payload []byte
+	// ActiveAt is the UID-owned ordering anchor for the list.
+	ActiveAt int64
+	// ReadSeq is the highest message sequence acknowledged by the user.
+	ReadSeq uint64
+	// DeletedToSeq is the highest message sequence hidden from future reads.
+	DeletedToSeq uint64
+	// SparseActive reports that ActiveAt is a low-frequency ordering anchor.
+	SparseActive bool
 	// UpdatedAt records when the projection row was last advanced.
 	UpdatedAt int64
+	// LastMessage is the newest visible message for display, when one exists.
+	LastMessage *LastMessage
+	// Unread is the first-version unread count derived from row read state and the last message sequence.
+	Unread uint64
 }
 
 // ListResult contains one sorted conversation page.
@@ -52,8 +66,8 @@ type ListResult struct {
 	NextCursor Cursor
 	// HasMore reports whether another sorted page is available inside the scan window.
 	HasMore bool
-	// Truncated reports whether MaxMembershipScan stopped the membership scan early.
+	// Truncated is retained for response compatibility; active-page reads do not truncate by membership scan.
 	Truncated bool
-	// ScannedMemberships reports how many UID membership rows were joined.
+	// ScannedMemberships is retained for response compatibility and is always zero on the active path.
 	ScannedMemberships int
 }
