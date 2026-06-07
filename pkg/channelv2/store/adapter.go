@@ -103,6 +103,8 @@ type ReadCommittedRequest struct {
 	MaxSeq   uint64
 	Limit    int
 	MaxBytes int
+	// Reverse reads messages at or before FromSeq in descending sequence order.
+	Reverse bool
 }
 
 // ReadCommittedResult contains committed messages from storage.

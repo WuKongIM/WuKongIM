@@ -127,10 +127,17 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	if maxBytes <= 0 {
 		maxBytes = int(^uint(0) >> 1)
 	}
+	if req.Reverse {
+		return s.readCommittedReverseLocked(req, limit, maxBytes), nil
+	}
+	maxSeq := req.MaxSeq
+	if maxSeq == 0 {
+		maxSeq = uint64(len(s.records))
+	}
 	messages := make([]ch.Message, 0, limit)
 	used := 0
 	next := from
-	for seq := from; seq <= req.MaxSeq && seq <= uint64(len(s.records)); seq++ {
+	for seq := from; seq <= maxSeq && seq <= uint64(len(s.records)); seq++ {
 		record := s.records[seq-1]
 		if len(messages) >= limit || used+record.SizeBytes > maxBytes && len(messages) > 0 {
 			break
@@ -140,6 +147,33 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 		next = seq + 1
 	}
 	return ReadCommittedResult{Messages: messages, NextSeq: next}, nil
+}
+
+func (s *MemoryChannelStore) readCommittedReverseLocked(req ReadCommittedRequest, limit int, maxBytes int) ReadCommittedResult {
+	from := req.FromSeq
+	if from == 0 || from > uint64(len(s.records)) {
+		from = uint64(len(s.records))
+	}
+	if req.MaxSeq > 0 && from > req.MaxSeq {
+		from = req.MaxSeq
+	}
+	messages := make([]ch.Message, 0, limit)
+	used := 0
+	next := from
+	for seq := from; seq >= 1 && seq <= uint64(len(s.records)); seq-- {
+		record := s.records[seq-1]
+		if len(messages) >= limit || used+record.SizeBytes > maxBytes && len(messages) > 0 {
+			break
+		}
+		used += record.SizeBytes
+		messages = append(messages, messageFromRecord(s.id, record))
+		if seq == 1 {
+			next = 0
+			break
+		}
+		next = seq - 1
+	}
+	return ReadCommittedResult{Messages: messages, NextSeq: next}
 }
 
 // LookupMessageByID returns one durable in-memory message by message id.

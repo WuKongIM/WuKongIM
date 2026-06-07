@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -61,6 +62,9 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 	if cmd.FromUID == "" {
 		return preparedSend{result: SendResult{Reason: ReasonAuthFail}}, true
 	}
+	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
+		return a.prepareRequestScopedSend(ctx, cmd)
+	}
 	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
 		return preparedSend{result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
@@ -90,6 +94,56 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 			return preparedSend{err: err}, true
 		}
 		cmd.ChannelID = channelID
+	}
+	if cmd.MessageID == 0 {
+		if a.messageID == nil {
+			return preparedSend{err: ErrMessageIDAllocatorRequired}, true
+		}
+		cmd.MessageID = a.messageID.Next()
+	}
+	return preparedSend{cmd: cmd}, false
+}
+
+func (a *App) prepareRequestScopedSend(ctx context.Context, cmd SendCommand) (preparedSend, bool) {
+	if len(cmd.Payload) == 0 {
+		return preparedSend{result: SendResult{Reason: ReasonInvalidRequest}}, true
+	}
+	if !cmd.SyncOnce {
+		return preparedSend{err: ErrRequestSubscribersRequireSyncOnce}, true
+	}
+	if cmd.ChannelID != "" {
+		return preparedSend{err: ErrRequestSubscribersConflictChannel}, true
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
+	if err != nil {
+		if errors.Is(err, runtimechannelid.ErrRequestSubscribersRequired) {
+			return preparedSend{err: ErrRequestSubscribersRequired}, true
+		}
+		return preparedSend{err: err}, true
+	}
+	cmd.ChannelID = scoped.CommandChannelID
+	cmd.ChannelType = scoped.ChannelType
+	cmd.MessageScopedUIDs = scoped.Subscribers
+	cmd.NormalizePersonChannel = false
+	if cmd.NoPersist {
+		return preparedSend{result: SendResult{Reason: ReasonUnsupported}}, true
+	}
+	if err := ctx.Err(); err != nil {
+		return preparedSend{err: err}, true
+	}
+	if a == nil || a.appender == nil {
+		return preparedSend{err: ErrAppenderRequired}, true
+	}
+	decision, err := a.authorizer.AuthorizeSend(ctx, cmd)
+	if err != nil {
+		return preparedSend{err: err}, true
+	}
+	if !decision.Allowed {
+		reason := decision.Reason
+		if reason == ReasonSuccess {
+			reason = ReasonInvalidRequest
+		}
+		return preparedSend{result: SendResult{Reason: reason}}, true
 	}
 	if cmd.MessageID == 0 {
 		if a.messageID == nil {

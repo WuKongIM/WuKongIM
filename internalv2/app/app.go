@@ -335,6 +335,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
 			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
 		}
+		if readNode, ok := app.cluster.(clusterinfra.ChannelMessageReadNode); ok {
+			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
+		}
 		if app.cfg.Delivery.Enabled {
 			messageOpts.Committed = deliveryCommittedSink{delivery: app.delivery}
 		}
@@ -367,6 +370,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchData:            app.deliveryMeta,
 			Channels:             app.channels,
 			Users:                app.users,
+			Messages:             app.messages,
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
 			Logger:               app.logger.Named("access.api"),

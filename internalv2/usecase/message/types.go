@@ -73,6 +73,8 @@ type SendCommand struct {
 	RedDot bool
 	// NormalizePersonChannel requests canonical person-channel ID normalization before append.
 	NormalizePersonChannel bool
+	// RequestScoped derives a one-shot command channel from MessageScopedUIDs.
+	RequestScoped bool
 	// MessageScopedUIDs are request-scoped one-shot delivery targets.
 	MessageScopedUIDs []string
 	// MessageID is optional and must be zero for gateway-origin sends.

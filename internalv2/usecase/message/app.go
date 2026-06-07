@@ -4,6 +4,8 @@ package message
 type Options struct {
 	// Appender owns durable channel append routing.
 	Appender Appender
+	// MessageReader owns compatible channel message sync reads.
+	MessageReader ChannelMessageReader
 	// MessageID allocates durable message ids.
 	MessageID MessageIDAllocator
 	// Authorizer decides whether a send may enter durable append.
@@ -16,11 +18,12 @@ type Options struct {
 
 // App orchestrates entry-agnostic message sends.
 type App struct {
-	appender   Appender
-	messageID  MessageIDAllocator
-	authorizer Authorizer
-	committed  CommittedSink
-	observer   Observer
+	appender      Appender
+	messageReader ChannelMessageReader
+	messageID     MessageIDAllocator
+	authorizer    Authorizer
+	committed     CommittedSink
+	observer      Observer
 }
 
 // New creates a message App.
@@ -29,10 +32,11 @@ func New(opts Options) *App {
 		opts.Authorizer = allowAllAuthorizer{}
 	}
 	return &App{
-		appender:   opts.Appender,
-		messageID:  opts.MessageID,
-		authorizer: opts.Authorizer,
-		committed:  opts.Committed,
-		observer:   opts.Observer,
+		appender:      opts.Appender,
+		messageReader: opts.MessageReader,
+		messageID:     opts.MessageID,
+		authorizer:    opts.Authorizer,
+		committed:     opts.Committed,
+		observer:      opts.Observer,
 	}
 }

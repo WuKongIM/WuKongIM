@@ -28,6 +28,22 @@ The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
 
+## Message Sync Read Flow
+
+```text
+message.ChannelMessageQuery
+  -> channelstore.ReadCommittedRequest
+     (pull-up reads forward; pull-down/latest reads reverse with limit+1)
+  -> ChannelMessageReadNode.ReadChannelCommitted
+  -> channelv2/store committed messages
+  -> message.ChannelMessagePage
+```
+
+The reader adapter trims `limit+1` results to preserve the legacy `more`
+contract and returns messages to the usecase in ascending sequence order. It
+maps only the fields currently carried by ChannelV2 committed messages; legacy
+HTTP-only field shaping remains in `internalv2/access/api`.
+
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 ## Channel Metadata Flow

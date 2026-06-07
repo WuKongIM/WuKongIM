@@ -48,6 +48,78 @@ func TestSendRejectsInvalidCommandsAndDoesNotAppend(t *testing.T) {
 	}
 }
 
+func TestSendRequestScopedDerivesCommandChannel(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	app := New(Options{Appender: appender, MessageID: ids})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:           "system",
+		SyncOnce:          true,
+		RequestScoped:     true,
+		MessageScopedUIDs: []string{"u1", " u2 ", "u1"},
+		ClientMsgNo:       "cmd-1",
+		Payload:           []byte("cmd"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != ReasonSuccess {
+		t.Fatalf("Send() reason = %v, want success", result.Reason)
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	if err != nil {
+		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
+	}
+	if len(appender.requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(appender.requests))
+	}
+	req := appender.requests[0]
+	if req.ChannelID.ID != scoped.CommandChannelID || req.ChannelID.Type != scoped.ChannelType {
+		t.Fatalf("append channel = %#v, want scoped command channel", req.ChannelID)
+	}
+	if len(req.Messages) != 1 || req.Messages[0].ChannelID != scoped.CommandChannelID || req.Messages[0].ChannelType != scoped.ChannelType {
+		t.Fatalf("appended message = %#v, want scoped command channel", req.Messages)
+	}
+	if got := ids.allocated; got != 1 {
+		t.Fatalf("allocated ids = %d, want 1", got)
+	}
+}
+
+func TestSendRequestScopedRejectsInvalidSubscriberCommands(t *testing.T) {
+	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 1}})
+
+	for _, tt := range []struct {
+		name string
+		cmd  SendCommand
+		want error
+	}{
+		{
+			name: "requires sync once",
+			cmd:  SendCommand{FromUID: "system", RequestScoped: true, MessageScopedUIDs: []string{"u1"}, Payload: []byte("cmd")},
+			want: ErrRequestSubscribersRequireSyncOnce,
+		},
+		{
+			name: "rejects explicit channel",
+			cmd:  SendCommand{FromUID: "system", ChannelID: "g1", ChannelType: 2, SyncOnce: true, RequestScoped: true, MessageScopedUIDs: []string{"u1"}, Payload: []byte("cmd")},
+			want: ErrRequestSubscribersConflictChannel,
+		},
+		{
+			name: "requires usable subscribers",
+			cmd:  SendCommand{FromUID: "system", SyncOnce: true, RequestScoped: true, MessageScopedUIDs: []string{" ", ""}, Payload: []byte("cmd")},
+			want: ErrRequestSubscribersRequired,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := app.Send(context.Background(), tt.cmd)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("Send() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestSendBatchAllocatesIDsAppendsAndPreservesOrder(t *testing.T) {
 	appender := &recordingAppender{}
 	ids := &sequenceIDs{next: 100}

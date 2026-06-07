@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
 
@@ -21,6 +22,7 @@ func TestPublicAPICompile(t *testing.T) {
 	_ = node.Propose(context.Background(), clusterv2.ProposeRequest{Key: "u1", Command: []byte("cmd")})
 	_, _ = node.AppendChannel(context.Background(), channelv2.AppendRequest{})
 	_, _ = node.AppendChannelBatch(context.Background(), channelv2.AppendBatchRequest{})
+	_, _ = node.ReadChannelCommitted(context.Background(), channelv2.ChannelID{}, channelstore.ReadCommittedRequest{})
 	_ = node.Stop(context.Background())
 }
 

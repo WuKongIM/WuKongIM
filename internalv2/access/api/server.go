@@ -12,6 +12,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -48,6 +49,12 @@ type PresenceBenchController interface {
 type BenchData interface {
 	UpsertChannels(context.Context, []BenchChannelMutation) (int, error)
 	AddSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
+}
+
+// MessageUsecase coordinates compatible message send and channel sync routes.
+type MessageUsecase interface {
+	Send(context.Context, messageusecase.SendCommand) (messageusecase.SendResult, error)
+	SyncChannelMessages(context.Context, messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error)
 }
 
 // ChannelUsecase coordinates compatible channel metadata and member mutations.
@@ -134,6 +141,8 @@ type Options struct {
 	Channels ChannelUsecase
 	// Users handles compatible user token, device, online-status, and system UID routes.
 	Users UserUsecase
+	// Messages handles compatible message send and channel message sync routes.
+	Messages MessageUsecase
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -160,6 +169,7 @@ type Server struct {
 	benchData            BenchData
 	channels             ChannelUsecase
 	users                UserUsecase
+	messages             MessageUsecase
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	logger               wklog.Logger
@@ -187,6 +197,7 @@ func New(opts Options) *Server {
 		benchData:            opts.BenchData,
 		channels:             opts.Channels,
 		users:                opts.Users,
+		messages:             opts.Messages,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		logger:               opts.Logger,
@@ -302,6 +313,7 @@ func (s *Server) registerRoutes() {
 	}
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
+	s.registerMessageRoutes()
 	if !s.benchEnabled {
 		return
 	}

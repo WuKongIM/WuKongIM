@@ -8,7 +8,8 @@ surfaces migrated from `internal/access/api`. It owns HTTP routing,
 request/response DTOs, and entry validation, but it does not mutate message,
 conversation, channel, user, or management business state directly. Channel
 management requests forward to the channel usecase supplied by the composition
-root, and `/user*` requests forward to the user usecase. When the composition
+root, `/user*` requests forward to the user usecase, and compatible message
+send/sync requests forward to the message usecase. When the composition
 root provides a benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
@@ -31,7 +32,9 @@ POST /bench/v1/channel-runtime/evict
 POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
+POST /message/send
 POST /channel
+POST /channel/messagesync
 POST /channel/info
 POST /channel/delete
 POST /channel/subscriber_add
@@ -75,6 +78,15 @@ return the legacy array response, and system UID routes preserve their mutation
 and list shapes. If the composition root does not provide a user usecase, these
 routes fail closed with the legacy error envelope.
 
+The compatible message routes are registered regardless of bench mode.
+`/message/send` accepts the legacy base64 payload request, maps `sender_uid` to
+`from_uid`, forwards `subscribers` as an explicit request-scoped command, and
+returns the legacy `{"message_id","message_seq","reason"}` response with
+protocol reason codes. `/channel/messagesync` keeps the legacy response shape
+and converts canonical person-channel IDs back to the peer UID for the logged-in
+user. If the composition root does not provide a message usecase, these routes
+fail closed using their legacy envelopes.
+
 ## Phase-1 Semantics
 
 The user-token mutation route is intentionally restricted to setup
@@ -98,4 +110,6 @@ validates JSON fields, defaults `/channel/subscriber_add` with missing
 delegates durable metadata and member-list behavior to
 `internalv2/usecase/channel`. The user adapter maps JSON into
 `internalv2/usecase/user` commands and does not access storage or presence
-directly.
+directly. The message adapter decodes legacy HTTP payloads and trace headers
+but leaves send orchestration, request-scoped command-channel derivation, and
+channel message reads to `internalv2/usecase/message`.

@@ -54,13 +54,13 @@ New(Config)
        attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
-  -> create message.App with clusterv2 ChannelAppender, node-scoped IDs,
-     delivery committed sink, and append metrics observer only when delivery is
-     enabled and messages were not overridden
+  -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
+     message reader when exposed, node-scoped IDs, delivery committed sink, and
+     append metrics observer only when delivery is enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with the channel and user usecases, optional bench
-     presence snapshot controller, and real benchmark channel/subscriber data
-     writer when API.ListenAddr is configured
+  -> create access/api.Server with the channel, user, and message usecases,
+     optional bench presence snapshot controller, and real benchmark
+     channel/subscriber data writer when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -126,6 +126,9 @@ not change append admission, durable write, or quorum ACK rules.
 If a test or harness supplies `WithCluster` and that runtime implements the
 cluster append surface, `New` still wires a `ChannelAppender` to keep the real
 send path available.
+If that runtime also implements the committed channel message read surface,
+`New` wires a `ChannelMessageReader` so `/channel/messagesync` can use the same
+message usecase as the gateway send path.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
@@ -145,6 +148,13 @@ status reads use the v2 presence usecase when available, while device close
 side effects are limited to owner-local sessions from `online.Registry`.
 System UID persistence reuses the compatible channel metadata store's internal
 subscriber-list model.
+
+Legacy message send and channel message sync requests flow from internalv2 HTTP
+through `internalv2/usecase/message`. Sends use the clusterv2 ChannelAppender
+and node-scoped message IDs. Channel message sync uses the
+`internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
+messages through the clusterv2 Node facade and keeps legacy person-channel
+response IDs in the HTTP adapter.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so

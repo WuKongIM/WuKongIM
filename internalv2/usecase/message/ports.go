@@ -12,6 +12,12 @@ type Appender interface {
 	AppendBatch(context.Context, AppendBatchRequest) (AppendBatchResult, error)
 }
 
+// ChannelMessageReader owns compatible channel message sync reads.
+type ChannelMessageReader interface {
+	// SyncMessages returns one authoritative channel message page.
+	SyncMessages(context.Context, ChannelMessageQuery) (ChannelMessagePage, error)
+}
+
 // MessageIDAllocator allocates durable message ids.
 type MessageIDAllocator interface {
 	Next() uint64

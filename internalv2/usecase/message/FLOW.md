@@ -2,9 +2,10 @@
 
 ## Responsibility
 
-`internalv2/usecase/message` owns entry-agnostic SEND orchestration. It knows
-about durable append ports and committed-message events, but not gateway frames,
-wire protocols, or concrete cluster runtimes.
+`internalv2/usecase/message` owns entry-agnostic SEND orchestration and
+compatible channel message sync. It knows about durable append/read ports and
+committed-message events, but not gateway frames, wire protocols, HTTP JSON, or
+concrete cluster runtimes.
 
 ## SendBatch Flow
 
@@ -12,6 +13,8 @@ wire protocols, or concrete cluster runtimes.
 SendBatch(items)
   -> normalize nil contexts
   -> validate authenticated sender, channel, payload, and phase-1 send mode
+     (request-scoped sends derive a temporary command channel from
+      MessageScopedUIDs when RequestScoped=true)
   -> authorize send
   -> canonicalize person-channel IDs when `SendCommand.NormalizePersonChannel`
      is set by an entry adapter
@@ -39,6 +42,22 @@ Append contexts are derived from active item deadlines, including explicit
 batch item deadlines supplied by entry adapters, and are not tied to a single
 client context cancellation. Items that are already canceled are filtered before
 append and get their own error result.
+
+## SyncChannelMessages Flow
+
+```text
+SyncChannelMessages(query)
+  -> validate login_uid, channel_id, and channel_type with legacy error strings
+  -> canonicalize person-channel IDs using login_uid
+  -> cap limit to the legacy maximum
+  -> call ChannelMessageReader.SyncMessages with a normalized ChannelID
+  -> treat missing channel runtime/storage as an empty page
+  -> clone payloads before returning SyncedMessage values to access adapters
+```
+
+The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
+HTTP responses. Concrete storage adapters may return zero values for fields that
+the current ChannelV2 write path does not persist yet.
 
 ## Import Boundary
 

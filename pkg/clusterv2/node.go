@@ -345,3 +345,21 @@ func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatch
 	}
 	return n.channels.AppendBatch(ctx, req)
 }
+
+// ReadChannelCommitted reads locally committed channel messages from the Node-created ChannelV2 store.
+func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	if n.defaultChannelStore == nil {
+		return channelstore.ReadCommittedResult{}, ErrNotStarted
+	}
+	store, err := n.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	if err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	return store.ReadCommitted(ctx, req)
+}
