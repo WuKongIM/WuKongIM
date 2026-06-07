@@ -1091,7 +1091,7 @@ func TestRuntimePressureMetricsNilSafe(t *testing.T) {
 func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 	reg := New(11, "node-11")
 
-	reg.Conversation.ObserveList("ok", true, 12*time.Millisecond, 2, 1)
+	reg.Conversation.ObserveList("ok", true, 12*time.Millisecond, 2, 1, 2, 0, 0)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -1120,8 +1120,32 @@ func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 		"more":      "true",
 	}).GetHistogram().GetSampleSum())
 
-	lastMessageHits := requireMetricFamily(t, families, "wukongim_conversation_list_last_message_hits")
-	require.Equal(t, float64(1), findMetricByLabels(t, lastMessageHits, map[string]string{
+	sparseItems := requireMetricFamily(t, families, "wukongim_conversation_list_sparse_items")
+	require.Equal(t, float64(1), findMetricByLabels(t, sparseItems, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"more":      "true",
+	}).GetHistogram().GetSampleSum())
+
+	lastMessageLoads := requireMetricFamily(t, families, "wukongim_conversation_list_last_message_loads")
+	require.Equal(t, float64(2), findMetricByLabels(t, lastMessageLoads, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"more":      "true",
+	}).GetHistogram().GetSampleSum())
+
+	lastMessageErrors := requireMetricFamily(t, families, "wukongim_conversation_list_last_message_errors")
+	require.Equal(t, float64(0), findMetricByLabels(t, lastMessageErrors, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"more":      "true",
+	}).GetHistogram().GetSampleSum())
+
+	activeIndexStaleSkips := requireMetricFamily(t, families, "wukongim_conversation_list_active_index_stale_skips")
+	require.Equal(t, float64(0), findMetricByLabels(t, activeIndexStaleSkips, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
 		"result":    "ok",
@@ -1129,6 +1153,7 @@ func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 	}).GetHistogram().GetSampleSum())
 
 	requireNoMetricFamily(t, families, "wukongim_conversation_list_scanned_memberships")
+	requireNoMetricFamily(t, families, "wukongim_conversation_list_last_message_hits")
 }
 
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {

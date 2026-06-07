@@ -65,7 +65,6 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 			"read_seq":3,
 			"deleted_to_seq":2,
 			"sparse_active":true,
-			"updated_at":1235,
 			"unread":4,
 			"last_message":{
 				"message_id":99,
@@ -127,8 +126,8 @@ func TestConversationListOmitsMissingLastMessage(t *testing.T) {
 			"read_seq":5,
 			"deleted_to_seq":5,
 			"sparse_active":false,
-			"updated_at":3001,
-			"unread":0
+			"unread":0,
+			"last_message":null
 		}],
 		"more":0
 	}`) {
@@ -143,8 +142,8 @@ func TestConversationListOmitsMissingLastMessage(t *testing.T) {
 	if len(decoded.Conversations) != 1 {
 		t.Fatalf("conversations = %#v, want one", decoded.Conversations)
 	}
-	if _, ok := decoded.Conversations[0]["last_message"]; ok {
-		t.Fatalf("last_message present in %s, want omitted when missing", rec.Body.String())
+	if value, ok := decoded.Conversations[0]["last_message"]; !ok || value != nil {
+		t.Fatalf("last_message = %#v present=%t in %s, want null", value, ok, rec.Body.String())
 	}
 }
 
@@ -181,7 +180,6 @@ func TestConversationListReturnsPeerIDForPersonChannel(t *testing.T) {
 			"read_seq":0,
 			"deleted_to_seq":0,
 			"sparse_active":false,
-			"updated_at":0,
 			"unread":0,
 			"last_message":{
 				"message_id":100,
@@ -234,7 +232,7 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 	conversations := &recordingConversationUsecase{
 		result: conversationusecase.ListResult{
 			Items: []conversationusecase.Conversation{
-				{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup), LastMessage: &conversationusecase.LastMessage{MessageID: 1}},
+				{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup), SparseActive: true, LastMessage: &conversationusecase.LastMessage{MessageID: 1}},
 				{ChannelID: "g2", ChannelType: int64(frame.ChannelTypeGroup)},
 			},
 			HasMore: true,
@@ -256,7 +254,8 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 		t.Fatalf("observer events = %#v, want one", observer.events)
 	}
 	got := observer.events[0]
-	if got.Result != "ok" || got.ReturnedItems != 2 || got.LastMessageHits != 1 || !got.More {
+	if got.Result != "ok" || got.ReturnedItems != 2 || got.SparseItems != 1 || got.LastMessageLoads != 2 ||
+		got.LastMessageErrors != 0 || got.ActiveIndexStaleSkips != 0 || !got.More {
 		t.Fatalf("observer event = %#v, want page shape", got)
 	}
 	if got.Duration <= 0 {

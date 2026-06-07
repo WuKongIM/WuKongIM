@@ -34,9 +34,8 @@ type conversationListItem struct {
 	ReadSeq      uint64                   `json:"read_seq"`
 	DeletedToSeq uint64                   `json:"deleted_to_seq"`
 	SparseActive bool                     `json:"sparse_active"`
-	UpdatedAt    int64                    `json:"updated_at"`
 	Unread       uint64                   `json:"unread"`
-	LastMessage  *conversationLastMessage `json:"last_message,omitempty"`
+	LastMessage  *conversationLastMessage `json:"last_message"`
 }
 
 type conversationLastMessage struct {
@@ -84,11 +83,15 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		return
 	}
 	s.observeConversationList(ConversationListObservation{
-		Result:          "ok",
-		Duration:        time.Since(start),
-		ReturnedItems:   len(result.Items),
-		LastMessageHits: countConversationLastMessages(result.Items),
-		More:            result.HasMore,
+		Result:           "ok",
+		Duration:         time.Since(start),
+		ReturnedItems:    len(result.Items),
+		SparseItems:      countConversationSparseItems(result.Items),
+		LastMessageLoads: len(result.Items),
+		// Stale active-index detection lives below the HTTP adapter and is not
+		// surfaced by the current usecase result yet.
+		ActiveIndexStaleSkips: 0,
+		More:                  result.HasMore,
 	})
 	c.JSON(http.StatusOK, newConversationListResponse(req.UID, result))
 }
@@ -138,7 +141,6 @@ func newConversationListItem(uid string, item conversationusecase.Conversation) 
 		ReadSeq:      item.ReadSeq,
 		DeletedToSeq: item.DeletedToSeq,
 		SparseActive: item.SparseActive,
-		UpdatedAt:    item.UpdatedAt,
 		Unread:       item.Unread,
 	}
 	if item.LastMessage != nil {
@@ -155,10 +157,10 @@ func newConversationListItem(uid string, item conversationusecase.Conversation) 
 	return out
 }
 
-func countConversationLastMessages(items []conversationusecase.Conversation) int {
+func countConversationSparseItems(items []conversationusecase.Conversation) int {
 	count := 0
 	for _, item := range items {
-		if item.LastMessage != nil {
+		if item.SparseActive {
 			count++
 		}
 	}

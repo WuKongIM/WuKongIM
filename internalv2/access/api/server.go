@@ -72,8 +72,14 @@ type ConversationListObservation struct {
 	Duration time.Duration
 	// ReturnedItems is the number of conversation rows returned to the client.
 	ReturnedItems int
-	// LastMessageHits is the number of returned rows with a visible durable last message.
-	LastMessageHits int
+	// SparseItems is the number of returned rows using sparse active ordering.
+	SparseItems int
+	// LastMessageLoads is the number of last-message loads attempted for returned rows.
+	LastMessageLoads int
+	// LastMessageErrors is the number of last-message load errors observed by the request.
+	LastMessageErrors int
+	// ActiveIndexStaleSkips is the number of stale active-index rows skipped by the request.
+	ActiveIndexStaleSkips int
 	// More reports whether the active page has another page after this response.
 	More bool
 }

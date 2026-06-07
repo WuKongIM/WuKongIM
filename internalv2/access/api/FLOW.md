@@ -95,14 +95,14 @@ cursor based on `active_at`, `channel_id`, and `channel_type`. It delegates
 ordering, cursor application, active-page reads, and current-page last-message
 loads to `internalv2/usecase/conversation`, then returns `conversations`,
 `next_cursor`, and `more`. Each conversation item contains the active row
-fields plus `unread`; `last_message` is present only when the usecase found a
-visible durable message for that row. The access adapter converts canonical
+fields plus `unread`; `last_message` is `null` when the usecase found no visible
+durable message for that row. The access adapter converts canonical
 person-channel IDs back to the peer UID for the requesting user. If the
 composition root does not provide a conversation usecase, the route fails
 closed with the compatible JSON error envelope. Each request emits a
 low-cardinality conversation-list observation containing result, latency,
-returned item count, last-message hit count, and whether another active page is
-available.
+returned item count, sparse item count, last-message load count, last-message
+error count, and whether another active page is available.
 
 ## Phase-1 Semantics
 

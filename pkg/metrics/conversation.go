@@ -11,10 +11,13 @@ var conversationListSizeBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256,
 
 // ConversationMetrics exposes conversation list read latency and page-shape metrics.
 type ConversationMetrics struct {
-	listTotal           *prometheus.CounterVec
-	listDuration        *prometheus.HistogramVec
-	listReturnedItems   *prometheus.HistogramVec
-	listLastMessageHits *prometheus.HistogramVec
+	listTotal                 *prometheus.CounterVec
+	listDuration              *prometheus.HistogramVec
+	listReturnedItems         *prometheus.HistogramVec
+	listSparseItems           *prometheus.HistogramVec
+	listLastMessageLoads      *prometheus.HistogramVec
+	listLastMessageErrors     *prometheus.HistogramVec
+	listActiveIndexStaleSkips *prometheus.HistogramVec
 }
 
 func newConversationMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ConversationMetrics {
@@ -36,9 +39,27 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			ConstLabels: labels,
 			Buckets:     conversationListSizeBuckets,
 		}, []string{"result", "more"}),
-		listLastMessageHits: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        "wukongim_conversation_list_last_message_hits",
-			Help:        "Returned conversation rows with a visible durable last message.",
+		listSparseItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_list_sparse_items",
+			Help:        "Returned conversation rows using sparse active ordering.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "more"}),
+		listLastMessageLoads: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_list_last_message_loads",
+			Help:        "Last-message loads attempted by conversation list requests.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "more"}),
+		listLastMessageErrors: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_list_last_message_errors",
+			Help:        "Last-message load errors observed by conversation list requests.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "more"}),
+		listActiveIndexStaleSkips: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_list_active_index_stale_skips",
+			Help:        "Stale active-index rows skipped by conversation list requests.",
 			ConstLabels: labels,
 			Buckets:     conversationListSizeBuckets,
 		}, []string{"result", "more"}),
@@ -48,14 +69,17 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.listTotal,
 		m.listDuration,
 		m.listReturnedItems,
-		m.listLastMessageHits,
+		m.listSparseItems,
+		m.listLastMessageLoads,
+		m.listLastMessageErrors,
+		m.listActiveIndexStaleSkips,
 	)
 
 	return m
 }
 
 // ObserveList records one conversation list request result and page shape.
-func (m *ConversationMetrics) ObserveList(result string, more bool, dur time.Duration, returnedItems, lastMessageHits int) {
+func (m *ConversationMetrics) ObserveList(result string, more bool, dur time.Duration, returnedItems, sparseItems, lastMessageLoads, lastMessageErrors, activeIndexStaleSkips int) {
 	if m == nil {
 		return
 	}
@@ -66,7 +90,10 @@ func (m *ConversationMetrics) ObserveList(result string, more bool, dur time.Dur
 	m.listTotal.WithLabelValues(result, moreLabel).Inc()
 	m.listDuration.WithLabelValues(result, moreLabel).Observe(dur.Seconds())
 	m.listReturnedItems.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(returnedItems)))
-	m.listLastMessageHits.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(lastMessageHits)))
+	m.listSparseItems.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(sparseItems)))
+	m.listLastMessageLoads.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(lastMessageLoads)))
+	m.listLastMessageErrors.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(lastMessageErrors)))
+	m.listActiveIndexStaleSkips.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(activeIndexStaleSkips)))
 }
 
 func nonNegative(v int) int {
