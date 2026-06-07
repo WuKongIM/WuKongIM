@@ -384,7 +384,7 @@ func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []m
 				end = len(group.stateItems)
 			}
 			items := group.stateItems[start:end]
-			command, err := metafsm.EncodeUpsertUserConversationStateBatchCommandChecked(items)
+			command, err := metafsm.EncodeUpsertUserConversationStateBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
 			if err != nil {
 				return err
 			}
@@ -431,7 +431,7 @@ func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches [
 				end = len(group.patchItems)
 			}
 			items := group.patchItems[start:end]
-			command, err := metafsm.EncodeTouchUserConversationActiveAtBatchCommandChecked(items)
+			command, err := metafsm.EncodeTouchUserConversationActiveAtBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
 			if err != nil {
 				return err
 			}

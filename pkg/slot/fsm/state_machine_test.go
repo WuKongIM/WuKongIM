@@ -3,12 +3,14 @@ package fsm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
@@ -3363,10 +3365,13 @@ func TestApplyBatchUserConversationStateBatchAppliesPerRowHashSlot(t *testing.T)
 	if !ok {
 		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
 	}
+	const hashSlotCount uint16 = 8
+	uidForFive := userConversationTestUIDForHashSlot(t, 5, hashSlotCount)
+	uidForSeven := userConversationTestUIDForHashSlot(t, 7, hashSlotCount)
 
-	command, err := EncodeUpsertUserConversationStateBatchCommandChecked([]UserConversationStateBatchItem{
-		{HashSlot: 5, State: metadb.UserConversationState{UID: "u5", ChannelID: "g", ChannelType: 2, ActiveAt: 50, SparseActive: true}},
-		{HashSlot: 7, State: metadb.UserConversationState{UID: "u7", ChannelID: "g", ChannelType: 2, ActiveAt: 70}},
+	command, err := EncodeUpsertUserConversationStateBatchCommandChecked(hashSlotCount, []UserConversationStateBatchItem{
+		{HashSlot: 5, State: metadb.UserConversationState{UID: uidForFive, ChannelID: "g", ChannelType: 2, ActiveAt: 50, SparseActive: true}},
+		{HashSlot: 7, State: metadb.UserConversationState{UID: uidForSeven, ChannelID: "g", ChannelType: 2, ActiveAt: 70}},
 	})
 	if err != nil {
 		t.Fatalf("EncodeUpsertUserConversationStateBatchCommandChecked() error = %v", err)
@@ -3385,14 +3390,14 @@ func TestApplyBatchUserConversationStateBatchAppliesPerRowHashSlot(t *testing.T)
 		t.Fatalf("ApplyBatch() results = %q", results)
 	}
 
-	got5, err := db.ForHashSlot(5).GetUserConversationState(ctx, "u5", "g", 2)
+	got5, err := db.ForHashSlot(5).GetUserConversationState(ctx, uidForFive, "g", 2)
 	if err != nil {
 		t.Fatalf("GetUserConversationState(hashSlot 5) error = %v", err)
 	}
 	if got5.ActiveAt != 50 || !got5.SparseActive {
 		t.Fatalf("hashSlot 5 state = %+v", got5)
 	}
-	got7, err := db.ForHashSlot(7).GetUserConversationState(ctx, "u7", "g", 2)
+	got7, err := db.ForHashSlot(7).GetUserConversationState(ctx, uidForSeven, "g", 2)
 	if err != nil {
 		t.Fatalf("GetUserConversationState(hashSlot 7) error = %v", err)
 	}
@@ -3412,9 +3417,11 @@ func TestApplyBatchUserConversationStateBatchRejectsUnownedHashSlot(t *testing.T
 	if !ok {
 		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
 	}
+	const hashSlotCount uint16 = 8
+	uidForSeven := userConversationTestUIDForHashSlot(t, 7, hashSlotCount)
 
-	command, err := EncodeUpsertUserConversationStateBatchCommandChecked([]UserConversationStateBatchItem{
-		{HashSlot: 7, State: metadb.UserConversationState{UID: "u7", ChannelID: "g", ChannelType: 2}},
+	command, err := EncodeUpsertUserConversationStateBatchCommandChecked(hashSlotCount, []UserConversationStateBatchItem{
+		{HashSlot: 7, State: metadb.UserConversationState{UID: uidForSeven, ChannelID: "g", ChannelType: 2}},
 	})
 	if err != nil {
 		t.Fatalf("EncodeUpsertUserConversationStateBatchCommandChecked() error = %v", err)
@@ -3429,6 +3436,45 @@ func TestApplyBatchUserConversationStateBatchRejectsUnownedHashSlot(t *testing.T
 	if !errors.Is(err, metadb.ErrInvalidArgument) {
 		t.Fatalf("ApplyBatch() error = %v, want ErrInvalidArgument", err)
 	}
+}
+
+func TestUserConversationBatchCheckedEncoderRejectsOwnedHashSlotMismatch(t *testing.T) {
+	const hashSlotCount uint16 = 8
+	uidForFive := userConversationTestUIDForHashSlot(t, 5, hashSlotCount)
+	uidForSeven := userConversationTestUIDForHashSlot(t, 7, hashSlotCount)
+
+	_, err := EncodeUpsertUserConversationStateBatchCommandChecked(hashSlotCount, []UserConversationStateBatchItem{
+		{HashSlot: 7, State: metadb.UserConversationState{UID: uidForFive, ChannelID: "g", ChannelType: 2}},
+	})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("EncodeUpsertUserConversationStateBatchCommandChecked() error = %v, want ErrInvalidArgument", err)
+	}
+
+	_, err = EncodeTouchUserConversationActiveAtBatchCommandChecked(hashSlotCount, []UserConversationActivePatchBatchItem{
+		{HashSlot: 5, Patch: metadb.UserConversationActivePatch{UID: uidForSeven, ChannelID: "g", ChannelType: 2}},
+	})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("EncodeTouchUserConversationActiveAtBatchCommandChecked() error = %v, want ErrInvalidArgument", err)
+	}
+
+	_, err = EncodeHideUserConversationBatchCommandChecked(hashSlotCount, []UserConversationDeleteBatchItem{
+		{HashSlot: 5, Delete: metadb.UserConversationDelete{UID: uidForSeven, ChannelID: "g", ChannelType: 2}},
+	})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("EncodeHideUserConversationBatchCommandChecked() error = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func userConversationTestUIDForHashSlot(t testing.TB, want, count uint16) string {
+	t.Helper()
+	for i := 0; i < 10000; i++ {
+		uid := fmt.Sprintf("conversation-hash-%d-%d", want, i)
+		if hashslot.HashSlotForKey(uid, count) == want {
+			return uid
+		}
+	}
+	t.Fatalf("could not find uid for hash slot %d/%d", want, count)
+	return ""
 }
 
 func TestApplyBatchHideUserConversation(t *testing.T) {

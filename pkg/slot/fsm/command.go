@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -1052,6 +1053,20 @@ func validateUserConversationDelete(req metadb.UserConversationDelete) error {
 	return nil
 }
 
+func validateUserConversationBatchHashSlot(hashSlot uint16, uid string, hashSlotCount uint16) error {
+	if hashSlotCount == 0 {
+		return fmt.Errorf("%w: hash slot count must not be zero", metadb.ErrInvalidArgument)
+	}
+	if hashSlot >= hashSlotCount {
+		return fmt.Errorf("%w: conversation hash slot %d out of range %d", metadb.ErrInvalidArgument, hashSlot, hashSlotCount)
+	}
+	want := hashslot.HashSlotForKey(uid, hashSlotCount)
+	if hashSlot != want {
+		return fmt.Errorf("%w: conversation hash slot %d does not match uid %q hash slot %d", metadb.ErrInvalidArgument, hashSlot, uid, want)
+	}
+	return nil
+}
+
 // ValidateSubscriberCommandLimits rejects subscriber mutations that would create oversized Raft entries.
 func ValidateSubscriberCommandLimits(uids []string) error {
 	if err := validateSubscriberCommandUIDCount(len(uids)); err != nil {
@@ -1094,12 +1109,15 @@ func EncodeUpsertUserConversationStateBatchCommand(items []UserConversationState
 }
 
 // EncodeUpsertUserConversationStateBatchCommandChecked validates and encodes per-row hash-slot state upserts.
-func EncodeUpsertUserConversationStateBatchCommandChecked(items []UserConversationStateBatchItem) ([]byte, error) {
+func EncodeUpsertUserConversationStateBatchCommandChecked(hashSlotCount uint16, items []UserConversationStateBatchItem) ([]byte, error) {
 	if len(items) == 0 {
 		return nil, metadb.ErrInvalidArgument
 	}
 	for _, item := range items {
 		if err := validateUserConversationState(item.State); err != nil {
+			return nil, err
+		}
+		if err := validateUserConversationBatchHashSlot(item.HashSlot, item.State.UID, hashSlotCount); err != nil {
 			return nil, err
 		}
 	}
@@ -1140,12 +1158,15 @@ func EncodeTouchUserConversationActiveAtBatchCommand(items []UserConversationAct
 }
 
 // EncodeTouchUserConversationActiveAtBatchCommandChecked validates and encodes per-row hash-slot active patches.
-func EncodeTouchUserConversationActiveAtBatchCommandChecked(items []UserConversationActivePatchBatchItem) ([]byte, error) {
+func EncodeTouchUserConversationActiveAtBatchCommandChecked(hashSlotCount uint16, items []UserConversationActivePatchBatchItem) ([]byte, error) {
 	if len(items) == 0 {
 		return nil, metadb.ErrInvalidArgument
 	}
 	for _, item := range items {
 		if err := validateUserConversationActivePatch(item.Patch); err != nil {
+			return nil, err
+		}
+		if err := validateUserConversationBatchHashSlot(item.HashSlot, item.Patch.UID, hashSlotCount); err != nil {
 			return nil, err
 		}
 	}
@@ -1197,12 +1218,15 @@ func EncodeHideUserConversationBatchCommand(items []UserConversationDeleteBatchI
 }
 
 // EncodeHideUserConversationBatchCommandChecked validates and encodes per-row hash-slot hides.
-func EncodeHideUserConversationBatchCommandChecked(items []UserConversationDeleteBatchItem) ([]byte, error) {
+func EncodeHideUserConversationBatchCommandChecked(hashSlotCount uint16, items []UserConversationDeleteBatchItem) ([]byte, error) {
 	if len(items) == 0 {
 		return nil, metadb.ErrInvalidArgument
 	}
 	for _, item := range items {
 		if err := validateUserConversationDelete(item.Delete); err != nil {
+			return nil, err
+		}
+		if err := validateUserConversationBatchHashSlot(item.HashSlot, item.Delete.UID, hashSlotCount); err != nil {
 			return nil, err
 		}
 	}
