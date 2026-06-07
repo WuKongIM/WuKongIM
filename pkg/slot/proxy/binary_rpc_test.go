@@ -160,6 +160,7 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	reqBody, err := encodeUserConversationStateRPCRequestBinary(req)
 	require.NoError(t, err)
 	require.True(t, isUserConversationStateRPCRequestBinary(reqBody))
+	require.True(t, runtimeMetaHasMagic(reqBody, []byte{'W', 'K', 'C', 'Q', 2}))
 
 	gotReq, err := decodeUserConversationStateRPCRequest(reqBody)
 	require.NoError(t, err)
@@ -176,10 +177,71 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	respBody, err := encodeUserConversationStateRPCResponse(resp)
 	require.NoError(t, err)
 	require.True(t, isUserConversationStateRPCResponseBinary(respBody))
+	require.True(t, runtimeMetaHasMagic(respBody, []byte{'W', 'K', 'C', 'S', 2}))
 
 	gotResp, err := decodeUserConversationStateRPCResponse(respBody)
 	require.NoError(t, err)
 	require.Equal(t, resp, gotResp)
+}
+
+func TestUserConversationStateRPCBinaryCodecDecodesV1RequestSparseDefaults(t *testing.T) {
+	body := appendUserConversationStateRPCRequestV1(userConversationStateRPCRequest{
+		Op:          userConversationStateRPCHide,
+		SlotID:      2,
+		HashSlot:    7,
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		After:       &metadb.ConversationCursor{ChannelID: "g0", ChannelType: 2},
+		Limit:       64,
+		States: []metadb.UserConversationState{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6,
+		}},
+		Patches: []metadb.UserConversationActivePatch{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 7, MessageSeq: 8,
+		}},
+		Keys: []metadb.ConversationKey{{ChannelID: "g1", ChannelType: 2}},
+		Deletes: []metadb.UserConversationDelete{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 10,
+		}},
+		Hints: []metadb.UserConversationActiveHint{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 11, MessageSeq: 12,
+		}},
+		Barriers: []metadb.UserConversationDeleteBarrier{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 13,
+		}},
+	})
+	require.True(t, isUserConversationStateRPCRequestBinary(body))
+
+	got, err := decodeUserConversationStateRPCRequest(body)
+	require.NoError(t, err)
+	require.Len(t, got.States, 1)
+	require.False(t, got.States[0].SparseActive)
+	require.Len(t, got.Patches, 1)
+	require.False(t, got.Patches[0].SparseActive)
+	require.False(t, got.Patches[0].SparseActiveSet)
+	require.Len(t, got.Hints, 1)
+	require.False(t, got.Hints[0].SparseActive)
+	require.False(t, got.Hints[0].SparseActiveSet)
+}
+
+func TestUserConversationStateRPCBinaryCodecDecodesV1ResponseSparseDefaults(t *testing.T) {
+	body := appendUserConversationStateRPCResponseV1(userConversationStateRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		State:    &metadb.UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6},
+		States:   []metadb.UserConversationState{{UID: "u2", ChannelID: "g2", ChannelType: 3, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 9, UpdatedAt: 10}},
+		Cursor:   metadb.ConversationCursor{ChannelID: "g2", ChannelType: 3},
+		Done:     true,
+	})
+	require.True(t, isUserConversationStateRPCResponseBinary(body))
+
+	got, err := decodeUserConversationStateRPCResponse(body)
+	require.NoError(t, err)
+	require.NotNil(t, got.State)
+	require.False(t, got.State.SparseActive)
+	require.Len(t, got.States, 1)
+	require.False(t, got.States[0].SparseActive)
 }
 
 func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
@@ -192,6 +254,93 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	got, err := decodeChannelRPCResponseBinary(body)
 	require.NoError(t, err)
 	require.Equal(t, resp, got)
+}
+
+func appendUserConversationStateRPCRequestV1(req userConversationStateRPCRequest) []byte {
+	opID, err := userConversationStateOpID(req.Op)
+	if err != nil {
+		panic(err)
+	}
+	dst := make([]byte, 0, 256)
+	dst = append(dst, 'W', 'K', 'C', 'Q', 1)
+	dst = append(dst, opID)
+	dst = runtimeMetaAppendUvarint(dst, req.SlotID)
+	dst = runtimeMetaAppendUvarint(dst, uint64(req.HashSlot))
+	dst = runtimeMetaAppendString(dst, req.UID)
+	dst = runtimeMetaAppendString(dst, req.ChannelID)
+	dst = runtimeMetaAppendVarint(dst, req.ChannelType)
+	dst = appendConversationCursorPtr(dst, req.After)
+	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
+	dst = appendUserConversationStatesV1(dst, req.States)
+	dst = appendUserConversationActivePatchesV1(dst, req.Patches)
+	dst = runtimeMetaAppendConversationKeys(dst, req.Keys)
+	dst = appendUserConversationDeletes(dst, req.Deletes)
+	dst = appendUserConversationActiveHintsV1(dst, req.Hints)
+	dst = appendUserConversationDeleteBarriers(dst, req.Barriers)
+	return dst
+}
+
+func appendUserConversationStateRPCResponseV1(resp userConversationStateRPCResponse) []byte {
+	dst := make([]byte, 0, 256)
+	dst = append(dst, 'W', 'K', 'C', 'S', 1)
+	dst = runtimeMetaAppendString(dst, resp.Status)
+	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
+	dst = appendUserConversationStatePtrV1(dst, resp.State)
+	dst = appendUserConversationStatesV1(dst, resp.States)
+	dst = appendConversationCursor(dst, resp.Cursor)
+	dst = runtimeMetaAppendBool(dst, resp.Done)
+	return dst
+}
+
+func appendUserConversationStatePtrV1(dst []byte, state *metadb.UserConversationState) []byte {
+	if state == nil {
+		return append(dst, 0)
+	}
+	dst = append(dst, 1)
+	return appendUserConversationStateV1(dst, *state)
+}
+
+func appendUserConversationStatesV1(dst []byte, states []metadb.UserConversationState) []byte {
+	dst = runtimeMetaAppendUvarint(dst, uint64(len(states)))
+	for _, state := range states {
+		dst = appendUserConversationStateV1(dst, state)
+	}
+	return dst
+}
+
+func appendUserConversationStateV1(dst []byte, state metadb.UserConversationState) []byte {
+	dst = runtimeMetaAppendString(dst, state.UID)
+	dst = runtimeMetaAppendString(dst, state.ChannelID)
+	dst = runtimeMetaAppendVarint(dst, state.ChannelType)
+	dst = runtimeMetaAppendUvarint(dst, state.ReadSeq)
+	dst = runtimeMetaAppendUvarint(dst, state.DeletedToSeq)
+	dst = runtimeMetaAppendVarint(dst, state.ActiveAt)
+	dst = runtimeMetaAppendVarint(dst, state.UpdatedAt)
+	return dst
+}
+
+func appendUserConversationActivePatchesV1(dst []byte, patches []metadb.UserConversationActivePatch) []byte {
+	dst = runtimeMetaAppendUvarint(dst, uint64(len(patches)))
+	for _, patch := range patches {
+		dst = runtimeMetaAppendString(dst, patch.UID)
+		dst = runtimeMetaAppendString(dst, patch.ChannelID)
+		dst = runtimeMetaAppendVarint(dst, patch.ChannelType)
+		dst = runtimeMetaAppendVarint(dst, patch.ActiveAt)
+		dst = runtimeMetaAppendUvarint(dst, patch.MessageSeq)
+	}
+	return dst
+}
+
+func appendUserConversationActiveHintsV1(dst []byte, hints []metadb.UserConversationActiveHint) []byte {
+	dst = runtimeMetaAppendUvarint(dst, uint64(len(hints)))
+	for _, hint := range hints {
+		dst = runtimeMetaAppendString(dst, hint.UID)
+		dst = runtimeMetaAppendString(dst, hint.ChannelID)
+		dst = runtimeMetaAppendVarint(dst, hint.ChannelType)
+		dst = runtimeMetaAppendVarint(dst, hint.ActiveAt)
+		dst = runtimeMetaAppendUvarint(dst, hint.MessageSeq)
+	}
+	return dst
 }
 
 func TestChannelRPCBinaryCodecRoundTripsChannelScanPage(t *testing.T) {

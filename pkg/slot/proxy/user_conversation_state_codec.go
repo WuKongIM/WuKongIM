@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	userConversationStateRPCRequestMagic  = [...]byte{'W', 'K', 'C', 'Q', 1}
-	userConversationStateRPCResponseMagic = [...]byte{'W', 'K', 'C', 'S', 1}
+	userConversationStateRPCRequestMagicV1  = [...]byte{'W', 'K', 'C', 'Q', 1}
+	userConversationStateRPCRequestMagic    = [...]byte{'W', 'K', 'C', 'Q', 2}
+	userConversationStateRPCResponseMagicV1 = [...]byte{'W', 'K', 'C', 'S', 1}
+	userConversationStateRPCResponseMagic   = [...]byte{'W', 'K', 'C', 'S', 2}
 )
 
 const (
@@ -49,10 +51,12 @@ func encodeUserConversationStateRPCRequestBinary(req userConversationStateRPCReq
 }
 
 func decodeUserConversationStateRPCRequest(body []byte) (userConversationStateRPCRequest, error) {
-	if !isUserConversationStateRPCRequestBinary(body) {
+	version, ok := userConversationStateRPCRequestVersion(body)
+	if !ok {
 		return userConversationStateRPCRequest{}, fmt.Errorf("metastore: invalid user conversation state request codec")
 	}
 	offset := len(userConversationStateRPCRequestMagic)
+	includeSparse := version >= 2
 	if offset >= len(body) {
 		return userConversationStateRPCRequest{}, fmt.Errorf("metastore: short user conversation state op")
 	}
@@ -90,10 +94,10 @@ func decodeUserConversationStateRPCRequest(body []byte) (userConversationStateRP
 	if req.Limit, offset, err = runtimeMetaReadInt(body, offset, "user conversation limit"); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
-	if req.States, offset, err = readUserConversationStates(body, offset); err != nil {
+	if req.States, offset, err = readUserConversationStatesWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
-	if req.Patches, offset, err = readUserConversationActivePatches(body, offset); err != nil {
+	if req.Patches, offset, err = readUserConversationActivePatchesWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
 	if req.Keys, offset, err = runtimeMetaReadConversationKeys(body, offset); err != nil {
@@ -102,7 +106,7 @@ func decodeUserConversationStateRPCRequest(body []byte) (userConversationStateRP
 	if req.Deletes, offset, err = readUserConversationDeletes(body, offset); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
-	if req.Hints, offset, err = readUserConversationActiveHints(body, offset); err != nil {
+	if req.Hints, offset, err = readUserConversationActiveHintsWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
 	if req.Barriers, offset, err = readUserConversationDeleteBarriers(body, offset); err != nil {
@@ -127,10 +131,12 @@ func encodeUserConversationStateRPCResponseBinary(resp userConversationStateRPCR
 }
 
 func decodeUserConversationStateRPCResponseBinary(body []byte) (userConversationStateRPCResponse, error) {
-	if !isUserConversationStateRPCResponseBinary(body) {
+	version, ok := userConversationStateRPCResponseVersion(body)
+	if !ok {
 		return userConversationStateRPCResponse{}, fmt.Errorf("metastore: invalid user conversation state response codec")
 	}
 	offset := len(userConversationStateRPCResponseMagic)
+	includeSparse := version >= 2
 	var resp userConversationStateRPCResponse
 	var err error
 	if resp.Status, offset, err = runtimeMetaReadString(body, offset); err != nil {
@@ -139,10 +145,10 @@ func decodeUserConversationStateRPCResponseBinary(body []byte) (userConversation
 	if resp.LeaderID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 		return userConversationStateRPCResponse{}, err
 	}
-	if resp.State, offset, err = readUserConversationStatePtr(body, offset); err != nil {
+	if resp.State, offset, err = readUserConversationStatePtrWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCResponse{}, err
 	}
-	if resp.States, offset, err = readUserConversationStates(body, offset); err != nil {
+	if resp.States, offset, err = readUserConversationStatesWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCResponse{}, err
 	}
 	if resp.Cursor, offset, err = readConversationCursor(body, offset); err != nil {
@@ -158,11 +164,33 @@ func decodeUserConversationStateRPCResponseBinary(body []byte) (userConversation
 }
 
 func isUserConversationStateRPCRequestBinary(body []byte) bool {
-	return runtimeMetaHasMagic(body, userConversationStateRPCRequestMagic[:])
+	_, ok := userConversationStateRPCRequestVersion(body)
+	return ok
 }
 
 func isUserConversationStateRPCResponseBinary(body []byte) bool {
-	return runtimeMetaHasMagic(body, userConversationStateRPCResponseMagic[:])
+	_, ok := userConversationStateRPCResponseVersion(body)
+	return ok
+}
+
+func userConversationStateRPCRequestVersion(body []byte) (byte, bool) {
+	if runtimeMetaHasMagic(body, userConversationStateRPCRequestMagic[:]) {
+		return userConversationStateRPCRequestMagic[len(userConversationStateRPCRequestMagic)-1], true
+	}
+	if runtimeMetaHasMagic(body, userConversationStateRPCRequestMagicV1[:]) {
+		return userConversationStateRPCRequestMagicV1[len(userConversationStateRPCRequestMagicV1)-1], true
+	}
+	return 0, false
+}
+
+func userConversationStateRPCResponseVersion(body []byte) (byte, bool) {
+	if runtimeMetaHasMagic(body, userConversationStateRPCResponseMagic[:]) {
+		return userConversationStateRPCResponseMagic[len(userConversationStateRPCResponseMagic)-1], true
+	}
+	if runtimeMetaHasMagic(body, userConversationStateRPCResponseMagicV1[:]) {
+		return userConversationStateRPCResponseMagicV1[len(userConversationStateRPCResponseMagicV1)-1], true
+	}
+	return 0, false
 }
 
 func userConversationStateOpID(op string) (byte, error) {
@@ -262,11 +290,15 @@ func appendUserConversationStatePtr(dst []byte, state *metadb.UserConversationSt
 }
 
 func readUserConversationStatePtr(body []byte, offset int) (*metadb.UserConversationState, int, error) {
+	return readUserConversationStatePtrWithOptions(body, offset, true)
+}
+
+func readUserConversationStatePtrWithOptions(body []byte, offset int, includeSparse bool) (*metadb.UserConversationState, int, error) {
 	marker, next, err := runtimeMetaReadMarker(body, offset, "user conversation state")
 	if err != nil || marker == 0 {
 		return nil, next, err
 	}
-	state, next, err := readUserConversationState(body, next)
+	state, next, err := readUserConversationStateWithOptions(body, next, includeSparse)
 	if err != nil {
 		return nil, offset, err
 	}
@@ -282,6 +314,10 @@ func appendUserConversationStates(dst []byte, states []metadb.UserConversationSt
 }
 
 func readUserConversationStates(body []byte, offset int) ([]metadb.UserConversationState, int, error) {
+	return readUserConversationStatesWithOptions(body, offset, true)
+}
+
+func readUserConversationStatesWithOptions(body []byte, offset int, includeSparse bool) ([]metadb.UserConversationState, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -293,7 +329,7 @@ func readUserConversationStates(body []byte, offset int) ([]metadb.UserConversat
 	}
 	states := make([]metadb.UserConversationState, statesLen)
 	for i := range states {
-		if states[i], offset, err = readUserConversationState(body, offset); err != nil {
+		if states[i], offset, err = readUserConversationStateWithOptions(body, offset, includeSparse); err != nil {
 			return nil, offset, err
 		}
 	}
@@ -313,6 +349,10 @@ func appendUserConversationState(dst []byte, state metadb.UserConversationState)
 }
 
 func readUserConversationState(body []byte, offset int) (metadb.UserConversationState, int, error) {
+	return readUserConversationStateWithOptions(body, offset, true)
+}
+
+func readUserConversationStateWithOptions(body []byte, offset int, includeSparse bool) (metadb.UserConversationState, int, error) {
 	var state metadb.UserConversationState
 	var err error
 	if state.UID, offset, err = runtimeMetaReadString(body, offset); err != nil {
@@ -336,8 +376,10 @@ func readUserConversationState(body []byte, offset int) (metadb.UserConversation
 	if state.UpdatedAt, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return metadb.UserConversationState{}, offset, err
 	}
-	if state.SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+	if includeSparse {
+		if state.SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+			return metadb.UserConversationState{}, offset, err
+		}
 	}
 	return state, offset, nil
 }
@@ -357,6 +399,10 @@ func appendUserConversationActivePatches(dst []byte, patches []metadb.UserConver
 }
 
 func readUserConversationActivePatches(body []byte, offset int) ([]metadb.UserConversationActivePatch, int, error) {
+	return readUserConversationActivePatchesWithOptions(body, offset, true)
+}
+
+func readUserConversationActivePatchesWithOptions(body []byte, offset int, includeSparse bool) ([]metadb.UserConversationActivePatch, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -383,11 +429,13 @@ func readUserConversationActivePatches(body []byte, offset int) ([]metadb.UserCo
 		if patches[i].MessageSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 			return nil, offset, err
 		}
-		if patches[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if patches[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
-			return nil, offset, err
+		if includeSparse {
+			if patches[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+				return nil, offset, err
+			}
+			if patches[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+				return nil, offset, err
+			}
 		}
 	}
 	return patches, offset, nil
@@ -451,6 +499,10 @@ func appendUserConversationActiveHints(dst []byte, hints []metadb.UserConversati
 }
 
 func readUserConversationActiveHints(body []byte, offset int) ([]metadb.UserConversationActiveHint, int, error) {
+	return readUserConversationActiveHintsWithOptions(body, offset, true)
+}
+
+func readUserConversationActiveHintsWithOptions(body []byte, offset int, includeSparse bool) ([]metadb.UserConversationActiveHint, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -477,11 +529,13 @@ func readUserConversationActiveHints(body []byte, offset int) ([]metadb.UserConv
 		if hints[i].MessageSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 			return nil, offset, err
 		}
-		if hints[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
-			return nil, offset, err
-		}
-		if hints[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
-			return nil, offset, err
+		if includeSparse {
+			if hints[i].SparseActive, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+				return nil, offset, err
+			}
+			if hints[i].SparseActiveSet, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+				return nil, offset, err
+			}
 		}
 	}
 	return hints, offset, nil
