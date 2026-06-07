@@ -828,16 +828,30 @@ func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBa
 
 func appendLastVisibleRequest(dst []byte, req LastVisibleRequest) []byte {
 	dst = appendChannelID(dst, req.ChannelID)
-	return appendUvarint(dst, req.VisibleAfterSeq)
+	dst = appendUvarint(dst, req.VisibleAfterSeq)
+	dst = appendUvarint(dst, uint64(req.ExpectedLeader))
+	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
+	return appendUvarint(dst, req.ExpectedLeaderEpoch)
 }
 
 func readLastVisibleRequest(body []byte, offset int) (LastVisibleRequest, int, error) {
 	var req LastVisibleRequest
 	var err error
+	var expectedLeader uint64
 	if req.ChannelID, offset, err = readChannelID(body, offset); err != nil {
 		return LastVisibleRequest{}, offset, err
 	}
 	if req.VisibleAfterSeq, offset, err = readUvarint(body, offset); err != nil {
+		return LastVisibleRequest{}, offset, err
+	}
+	if expectedLeader, offset, err = readUvarint(body, offset); err != nil {
+		return LastVisibleRequest{}, offset, err
+	}
+	req.ExpectedLeader = ch.NodeID(expectedLeader)
+	if req.ExpectedChannelEpoch, offset, err = readUvarint(body, offset); err != nil {
+		return LastVisibleRequest{}, offset, err
+	}
+	if req.ExpectedLeaderEpoch, offset, err = readUvarint(body, offset); err != nil {
 		return LastVisibleRequest{}, offset, err
 	}
 	return req, offset, nil

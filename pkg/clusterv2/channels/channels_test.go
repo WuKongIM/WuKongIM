@@ -649,6 +649,39 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 				require.ErrorIs(t, got.Items[1].Err, ch.ErrBackpressured)
 			},
 		},
+		{
+			name: "last visible request",
+			encode: func() ([]byte, error) {
+				return encodeLastVisibleRequest(LastVisibleRequest{
+					ChannelID:            ch.ChannelID{ID: "room", Type: 1},
+					VisibleAfterSeq:      7,
+					ExpectedLeader:       2,
+					ExpectedChannelEpoch: 3,
+					ExpectedLeaderEpoch:  4,
+				})
+			},
+			decode: func(data []byte) {
+				got, err := decodeLastVisibleRequest(data)
+				require.NoError(t, err)
+				require.Equal(t, ch.ChannelID{ID: "room", Type: 1}, got.ChannelID)
+				require.Equal(t, uint64(7), got.VisibleAfterSeq)
+				require.Equal(t, ch.NodeID(2), got.ExpectedLeader)
+				require.Equal(t, uint64(3), got.ExpectedChannelEpoch)
+				require.Equal(t, uint64(4), got.ExpectedLeaderEpoch)
+			},
+		},
+		{
+			name: "last visible response",
+			encode: func() ([]byte, error) {
+				return encodeLastVisibleResponse(LastVisibleResponse{Message: sampleMessage, Found: true})
+			},
+			decode: func(data []byte) {
+				got, err := decodeLastVisibleResponse(data)
+				require.NoError(t, err)
+				require.True(t, got.Found)
+				require.Equal(t, sampleMessage, got.Message)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -660,6 +693,14 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 			tt.decode(data)
 		})
 	}
+}
+
+func TestCodecLastVisibleResponsePreservesApplicationError(t *testing.T) {
+	data, err := encodeRPCResult(kindLastVisibleResponse, LastVisibleResponse{}, ch.ErrStaleMeta)
+	require.NoError(t, err)
+
+	_, err = decodeLastVisibleResponse(data)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
 func TestCodecCurrentEncoderEmitsV4Frames(t *testing.T) {
@@ -1318,6 +1359,33 @@ func TestServiceReadChannelLastVisibleForwardsOverRPCToLeader(t *testing.T) {
 	require.Equal(t, []byte("leader-tail"), got.Payload)
 }
 
+func TestServiceReadChannelLastVisibleForwardToleratesLaggingLeaderMeta(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-lagging-meta", Type: 1}
+	originMeta := ch.Meta{ID: id, Epoch: 3, LeaderEpoch: 5, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	network := clusternet.NewLocalNetwork()
+	client := NewTransportClient(network)
+	leaderFactory := channelstore.NewMemoryFactory()
+	leaderStore, err := leaderFactory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = leaderStore.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 40, FromUID: "leader", ClientMsgNo: "client-40", ServerTimestampMS: 4000, Payload: []byte("lagging-tail"), SizeBytes: 12},
+	}})
+	require.NoError(t, err)
+	leaderSource := &errMetaSource{err: metadb.ErrNotFound}
+	leader, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 2, MetaSource: leaderSource, Store: leaderFactory, Forward: client})
+	require.NoError(t, err)
+	RegisterServiceHandlers(network, 2, leader)
+	origin, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: NewStaticMetaSource([]ch.Meta{originMeta}), Store: channelstore.NewMemoryFactory(), Forward: client})
+	require.NoError(t, err)
+
+	got, ok, err := origin.ReadChannelLastVisible(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(40), got.MessageID)
+	require.Equal(t, []byte("lagging-tail"), got.Payload)
+	require.Equal(t, 1, leaderSource.calls)
+}
+
 func TestServiceObservesForwardAppendBatchSubStages(t *testing.T) {
 	id := ch.ChannelID{ID: "forward-append-batch-observed", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
@@ -1724,6 +1792,16 @@ func (s *fakeEnsuringMetaSource) ResolveChannelMeta(context.Context, ch.ChannelI
 func (s *fakeEnsuringMetaSource) EnsureChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error) {
 	s.ensureCalls++
 	return s.meta, nil
+}
+
+type errMetaSource struct {
+	err   error
+	calls int
+}
+
+func (s *errMetaSource) ResolveChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error) {
+	s.calls++
+	return ch.Meta{}, s.err
 }
 
 type fakePlacementResolver struct {

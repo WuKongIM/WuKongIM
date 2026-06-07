@@ -12,6 +12,7 @@ import (
 	channelservice "github.com/WuKongIM/WuKongIM/pkg/channelv2/service"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
@@ -48,6 +49,12 @@ type LastVisibleRequest struct {
 	ChannelID ch.ChannelID
 	// VisibleAfterSeq hides messages at or below this sequence.
 	VisibleAfterSeq uint64
+	// ExpectedLeader is the channel leader resolved by the origin node.
+	ExpectedLeader ch.NodeID
+	// ExpectedChannelEpoch is the channel epoch resolved by the origin node.
+	ExpectedChannelEpoch uint64
+	// ExpectedLeaderEpoch is the leader epoch resolved by the origin node.
+	ExpectedLeaderEpoch uint64
 }
 
 // LastVisibleResponse contains a routed last-visible message read result.
@@ -193,7 +200,13 @@ func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, v
 		if s.forward == nil {
 			return ch.Message{}, false, ch.ErrNotLeader
 		}
-		resp, err := s.forward.ForwardLastVisible(ctx, meta.Leader, LastVisibleRequest{ChannelID: id, VisibleAfterSeq: visibleAfterSeq})
+		resp, err := s.forward.ForwardLastVisible(ctx, meta.Leader, LastVisibleRequest{
+			ChannelID:            id,
+			VisibleAfterSeq:      visibleAfterSeq,
+			ExpectedLeader:       meta.Leader,
+			ExpectedChannelEpoch: meta.Epoch,
+			ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		})
 		if err != nil {
 			return ch.Message{}, false, err
 		}
@@ -205,14 +218,24 @@ func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, v
 
 func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleRequest) (LastVisibleResponse, error) {
 	meta, ok, err := s.resolveReadMeta(ctx, req.ChannelID)
-	if err != nil {
+	if err != nil && !canFallbackLastVisibleOnMissingMeta(s.localNode, req, err) {
 		return LastVisibleResponse{}, err
+	}
+	if err != nil && canFallbackLastVisibleOnMissingMeta(s.localNode, req, err) {
+		msg, ok, readErr := s.readLocalLastVisible(ctx, req.ChannelID, req.VisibleAfterSeq)
+		return LastVisibleResponse{Message: msg, Found: ok}, readErr
 	}
 	if !ok || meta.Leader == 0 {
 		return LastVisibleResponse{}, ch.ErrNotReady
 	}
 	if meta.Leader != s.localNode {
 		return LastVisibleResponse{}, ch.ErrNotLeader
+	}
+	if req.ExpectedLeader != 0 && req.ExpectedLeader != s.localNode {
+		return LastVisibleResponse{}, ch.ErrNotLeader
+	}
+	if metaOlderThanRequest(meta, req) {
+		return LastVisibleResponse{}, ch.ErrStaleMeta
 	}
 	msg, ok, err := s.readLocalLastVisible(ctx, req.ChannelID, req.VisibleAfterSeq)
 	return LastVisibleResponse{Message: msg, Found: ok}, err
@@ -244,6 +267,18 @@ func (s *Service) readLocalLastVisible(ctx context.Context, id ch.ChannelID, vis
 		return msg, true, nil
 	}
 	return ch.Message{}, false, nil
+}
+
+func canFallbackLastVisibleOnMissingMeta(local ch.NodeID, req LastVisibleRequest, err error) bool {
+	return (channelErrorMatches(err, ch.ErrChannelNotFound) || errors.Is(err, metadb.ErrNotFound)) &&
+		req.ExpectedLeader == local &&
+		req.ExpectedChannelEpoch != 0 &&
+		req.ExpectedLeaderEpoch != 0
+}
+
+func metaOlderThanRequest(meta ch.Meta, req LastVisibleRequest) bool {
+	return (req.ExpectedChannelEpoch != 0 && meta.Epoch < req.ExpectedChannelEpoch) ||
+		(req.ExpectedLeaderEpoch != 0 && meta.LeaderEpoch < req.ExpectedLeaderEpoch)
 }
 
 func (s *Service) appendOnce(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error, bool) {
