@@ -2,10 +2,12 @@
 
 ## Responsibility
 
-`internalv2/usecase/conversation` owns entry-agnostic conversation list reads.
-It does not depend on gateway frames, HTTP DTOs, clusterv2, or channel log
-runtimes. Storage is supplied through small ports for UID-owned conversation
-active pages and channel-owned current-page last-message reads.
+`internalv2/usecase/conversation` owns entry-agnostic conversation list reads
+and committed-message conversation projection policy. It does not depend on
+gateway frames, HTTP DTOs, clusterv2, or channel log runtimes. Storage is
+supplied through small ports for UID-owned conversation active pages,
+channel-owned current-page last-message reads, member classification, and
+UID-owned conversation state batch writes.
 
 ## List Flow
 
@@ -29,6 +31,28 @@ contains a newer message.
 
 Rows without a visible last message are returned with `LastMessage=nil` and
 `Unread=0`. List reads do not delete, hide, or repair conversation rows.
+
+## Projector Flow
+
+```text
+HandleCommitted(event)
+  -> if person channel:
+       decode canonical person channel id
+       upsert sender and peer dense conversation rows
+  -> else:
+       ask MemberSource to classify the channel with limit small_group_fanout_limit + 1
+       if small:
+         upsert one dense row per returned member
+       else:
+         upsert only the sender sparse row
+```
+
+Dense rows use `SparseActive=false`; sparse sender rows use
+`SparseActive=true`. `ActiveAt` is always the committed event's
+`ServerTimestampMS`, so projector retries do not reorder conversations based on
+retry time. When a member has `JoinSeq`, the projector initializes both
+`ReadSeq` and `DeletedToSeq` to `JoinSeq - 1` so later list reads do not expose
+messages from before the user joined.
 
 ## Cursor Contract
 

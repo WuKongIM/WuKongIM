@@ -1,5 +1,11 @@
 package conversation
 
+import (
+	"context"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
 // Cursor resumes a sorted conversation list after one emitted row.
 type Cursor struct {
 	// ActiveAt is the last emitted active-index timestamp.
@@ -66,4 +72,30 @@ type ListResult struct {
 	NextCursor Cursor
 	// HasMore reports whether another sorted page is available inside the scan window.
 	HasMore bool
+}
+
+// MemberSource classifies channel membership for conversation projection.
+type MemberSource interface {
+	ClassifyMembers(ctx context.Context, channelID string, channelType int64, limit int) (MemberClass, error)
+}
+
+// MemberClass describes whether a channel can be safely fanned out synchronously by the projector.
+type MemberClass struct {
+	// IsSmall reports that Members contains the complete fanout target set.
+	IsSmall bool
+	// Members contains the bounded member snapshot used for small-channel fanout.
+	Members []Member
+}
+
+// Member describes one channel member and its first visible sequence.
+type Member struct {
+	// UID identifies the member user.
+	UID string
+	// JoinSeq is the first channel sequence visible to this member.
+	JoinSeq uint64
+}
+
+// ConversationBatchStore persists UID-owned conversation state rows.
+type ConversationBatchStore interface {
+	UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error
 }
