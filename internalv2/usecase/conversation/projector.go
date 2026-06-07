@@ -2,8 +2,8 @@ package conversation
 
 import (
 	"context"
+	"strings"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -60,8 +60,8 @@ func (p *Projector) HandleCommitted(ctx context.Context, event messageevents.Mes
 }
 
 func (p *Projector) personalStates(event messageevents.MessageCommitted) ([]metadb.UserConversationState, error) {
-	left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
-	if err != nil {
+	left, right, ok := decodeProjectorPersonChannel(event.ChannelID)
+	if !ok {
 		return nil, nil
 	}
 	members := []Member{{UID: left}, {UID: right}}
@@ -122,4 +122,12 @@ func joinFloor(joinSeq uint64) uint64 {
 		return 0
 	}
 	return joinSeq - 1
+}
+
+func decodeProjectorPersonChannel(channelID string) (string, string, bool) {
+	parts := strings.Split(channelID, "@")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }

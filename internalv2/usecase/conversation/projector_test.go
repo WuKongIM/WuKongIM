@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -18,7 +17,7 @@ const (
 func TestProjectorPersonalMessageTouchesSenderAndPeer(t *testing.T) {
 	store := &recordingConversationBatchStore{}
 	projector := NewProjector(ProjectorOptions{Store: store})
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	channelID := "u1@u2"
 
 	err := projector.HandleCommitted(context.Background(), messageevents.MessageCommitted{
 		ChannelID:         channelID,
