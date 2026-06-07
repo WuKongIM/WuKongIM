@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -12,7 +11,10 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/gin-gonic/gin"
 )
 
 const versionV1 = "bench/v1"
@@ -48,6 +50,38 @@ type BenchData interface {
 	AddSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
 }
 
+// ChannelUsecase coordinates compatible channel metadata and member mutations.
+type ChannelUsecase interface {
+	Upsert(ctx context.Context, cmd channelusecase.UpsertCommand) error
+	UpdateInfo(ctx context.Context, info channelusecase.Info) error
+	Delete(ctx context.Context, key channelusecase.ChannelKey) error
+	AddSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	RemoveSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	RemoveAllSubscribers(ctx context.Context, key channelusecase.ChannelKey) error
+	SetTempSubscribers(ctx context.Context, cmd channelusecase.TempSubscriberCommand) error
+	AddDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	SetDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllDenylist(ctx context.Context, key channelusecase.ChannelKey) error
+	AddAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	SetAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllAllowlist(ctx context.Context, key channelusecase.ChannelKey) error
+	ListAllowlist(ctx context.Context, key channelusecase.ChannelKey) (channelusecase.MemberListResult, error)
+}
+
+// UserUsecase coordinates compatible user token, device, online-status, and system UID routes.
+type UserUsecase interface {
+	UpdateToken(ctx context.Context, cmd userusecase.UpdateTokenCommand) error
+	DeviceQuit(ctx context.Context, cmd userusecase.DeviceQuitCommand) error
+	OnlineStatus(ctx context.Context, uids []string) ([]userusecase.OnlineStatus, error)
+	AddSystemUIDs(ctx context.Context, uids []string) error
+	RemoveSystemUIDs(ctx context.Context, uids []string) error
+	ListSystemUIDs(ctx context.Context) ([]string, error)
+	AddSystemUIDsToCache(uids []string) error
+	RemoveSystemUIDsFromCache(uids []string) error
+}
+
 // BenchChannelMutation describes one benchmark channel metadata upsert.
 type BenchChannelMutation struct {
 	// ChannelID identifies the benchmark channel.
@@ -62,7 +96,7 @@ type BenchChannelMutation struct {
 	Disband bool
 	// SendBan blocks sending while allowing receives.
 	SendBan bool
-	// AllowStranger permits stranger sends for compatible legacy semantics.
+	// AllowStranger permits stranger sends for compatible channel semantics.
 	AllowStranger bool
 }
 
@@ -96,6 +130,10 @@ type Options struct {
 	BenchPresence PresenceBenchController
 	// BenchData stores benchmark channel/subscriber setup when configured.
 	BenchData BenchData
+	// Channels handles compatible channel metadata and member-list routes.
+	Channels ChannelUsecase
+	// Users handles compatible user token, device, online-status, and system UID routes.
+	Users UserUsecase
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -107,7 +145,7 @@ type Options struct {
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
 type Server struct {
 	mu                   sync.RWMutex
-	mux                  *http.ServeMux
+	engine               *gin.Engine
 	httpServer           *http.Server
 	listener             net.Listener
 	listenAddr           string
@@ -120,6 +158,8 @@ type Server struct {
 	benchRuntime         ChannelRuntimeBenchController
 	benchPresence        PresenceBenchController
 	benchData            BenchData
+	channels             ChannelUsecase
+	users                UserUsecase
 	metricsHandler       http.Handler
 	pprofEnabled         bool
 	logger               wklog.Logger
@@ -129,8 +169,13 @@ type Server struct {
 
 // New creates a minimal internalv2 API server.
 func New(opts Options) *Server {
+	if gin.Mode() != gin.ReleaseMode {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	engine := gin.New()
+	engine.HandleMethodNotAllowed = true
 	s := &Server{
-		mux:                  http.NewServeMux(),
+		engine:               engine,
 		listenAddr:           strings.TrimSpace(opts.ListenAddr),
 		readyz:               opts.Readyz,
 		benchEnabled:         opts.BenchEnabled,
@@ -140,6 +185,8 @@ func New(opts Options) *Server {
 		benchRuntime:         opts.BenchRuntime,
 		benchPresence:        opts.BenchPresence,
 		benchData:            opts.BenchData,
+		channels:             opts.Channels,
+		users:                opts.Users,
 		metricsHandler:       opts.MetricsHandler,
 		pprofEnabled:         opts.PProfEnabled,
 		logger:               opts.Logger,
@@ -154,10 +201,18 @@ func New(opts Options) *Server {
 
 // Handler returns the HTTP handler for tests and in-process harnesses.
 func (s *Server) Handler() http.Handler {
-	if s == nil || s.mux == nil {
+	if s == nil || s.engine == nil {
 		return http.NotFoundHandler()
 	}
-	return s.mux
+	return s.engine
+}
+
+// Engine returns the underlying gin engine for tests and in-process harnesses.
+func (s *Server) Engine() *gin.Engine {
+	if s == nil {
+		return nil
+	}
+	return s.engine
 }
 
 // Addr returns the bound listen address after Start succeeds.
@@ -234,62 +289,82 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 func (s *Server) registerRoutes() {
-	s.mux.HandleFunc("/healthz", s.method(http.MethodGet, s.handleHealthz))
-	s.mux.HandleFunc("/readyz", s.method(http.MethodGet, s.handleReadyz))
+	if s == nil || s.engine == nil {
+		return
+	}
+	s.engine.GET("/healthz", s.handleHealthz)
+	s.engine.GET("/readyz", s.handleReadyz)
 	if s.metricsHandler != nil {
-		s.mux.Handle("/metrics", s.metricsHandler)
+		s.engine.Any("/metrics", s.handleMetrics)
 	}
 	if s.pprofEnabled {
 		s.registerPProfRoutes()
 	}
+	s.registerChannelRoutes()
+	s.registerUserRoutes()
 	if !s.benchEnabled {
 		return
 	}
-	s.mux.HandleFunc("/bench/v1/capabilities", s.method(http.MethodGet, s.handleBenchCapabilities))
-	s.mux.HandleFunc("/bench/v1/capacity-target", s.method(http.MethodGet, s.handleBenchCapacityTarget))
-	s.mux.HandleFunc("/bench/v1/snapshot", s.method(http.MethodGet, s.handleBenchSnapshot))
-	s.mux.HandleFunc("/bench/v1/presence/snapshot", s.method(http.MethodGet, s.handleBenchPresenceSnapshot))
-	s.mux.HandleFunc("/bench/v1/channel-runtime/snapshot", s.method(http.MethodGet, s.handleBenchChannelRuntimeSnapshot))
-	s.mux.HandleFunc("/bench/v1/channel-runtime/probe", s.method(http.MethodPost, s.handleBenchChannelRuntimeProbe))
-	s.mux.HandleFunc("/bench/v1/channel-runtime/evict", s.method(http.MethodPost, s.handleBenchChannelRuntimeEvict))
-	s.mux.HandleFunc("/bench/v1/users/tokens", s.method(http.MethodPost, s.handleBenchTokens))
-	s.mux.HandleFunc("/bench/v1/channels", s.method(http.MethodPost, s.handleBenchChannels))
-	s.mux.HandleFunc("/bench/v1/channels/subscribers", s.method(http.MethodPost, s.handleBenchSubscribers))
-}
-
-func (s *Server) method(method string, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != method {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		next(w, r)
-	}
+	s.engine.GET("/bench/v1/capabilities", s.handleBenchCapabilities)
+	s.engine.GET("/bench/v1/capacity-target", s.handleBenchCapacityTarget)
+	s.engine.GET("/bench/v1/snapshot", s.handleBenchSnapshot)
+	s.engine.GET("/bench/v1/presence/snapshot", s.handleBenchPresenceSnapshot)
+	s.engine.GET("/bench/v1/channel-runtime/snapshot", s.handleBenchChannelRuntimeSnapshot)
+	s.engine.POST("/bench/v1/channel-runtime/probe", s.handleBenchChannelRuntimeProbe)
+	s.engine.POST("/bench/v1/channel-runtime/evict", s.handleBenchChannelRuntimeEvict)
+	s.engine.POST("/bench/v1/users/tokens", s.handleBenchTokens)
+	s.engine.POST("/bench/v1/channels", s.handleBenchChannels)
+	s.engine.POST("/bench/v1/channels/subscribers", s.handleBenchSubscribers)
 }
 
 func (s *Server) registerPProfRoutes() {
-	s.mux.HandleFunc("/debug/pprof/", pprof.Index)
-	s.mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	s.mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	s.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	s.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	s.engine.Any("/debug/pprof", handlePProf)
+	s.engine.Any("/debug/pprof/*name", handlePProf)
 }
 
-func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func (s *Server) handleMetrics(c *gin.Context) {
+	if s == nil || s.metricsHandler == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	s.metricsHandler.ServeHTTP(c.Writer, c.Request)
 }
 
-func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+func handlePProf(c *gin.Context) {
+	r := c.Request
+	name := strings.TrimPrefix(r.URL.Path, "/debug/pprof/")
+	if name == r.URL.Path {
+		name = ""
+	}
+	switch name {
+	case "cmdline":
+		pprof.Cmdline(c.Writer, r)
+	case "profile":
+		pprof.Profile(c.Writer, r)
+	case "symbol":
+		pprof.Symbol(c.Writer, r)
+	case "trace":
+		pprof.Trace(c.Writer, r)
+	default:
+		pprof.Index(c.Writer, r)
+	}
+}
+
+func (s *Server) handleHealthz(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (s *Server) handleReadyz(c *gin.Context) {
 	if s.readyz == nil {
-		writeJSON(w, http.StatusOK, map[string]bool{"ready": true})
+		c.JSON(http.StatusOK, gin.H{"ready": true})
 		return
 	}
-	ready, body := s.readyz(r.Context())
+	ready, body := s.readyz(c.Request.Context())
 	if ready {
-		writeJSON(w, http.StatusOK, body)
+		c.JSON(http.StatusOK, body)
 		return
 	}
-	writeJSON(w, http.StatusServiceUnavailable, body)
+	c.JSON(http.StatusServiceUnavailable, body)
 }
 
 type capabilitiesResponse struct {
@@ -328,8 +403,8 @@ type capabilitiesLimits struct {
 	MaxPayloadBytes int64 `json:"max_payload_bytes"`
 }
 
-func (s *Server) handleBenchCapabilities(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, capabilitiesResponse{
+func (s *Server) handleBenchCapabilities(c *gin.Context) {
+	c.JSON(http.StatusOK, capabilitiesResponse{
 		Enabled: true,
 		Version: versionV1,
 		Supports: capabilitiesSupports{
@@ -359,8 +434,8 @@ type capacityTargetResponse struct {
 	Gateway GatewayAddresses `json:"gateway"`
 }
 
-func (s *Server) handleBenchCapacityTarget(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, capacityTargetResponse{Version: versionV1, Gateway: s.gateway})
+func (s *Server) handleBenchCapacityTarget(c *gin.Context) {
+	c.JSON(http.StatusOK, capacityTargetResponse{Version: versionV1, Gateway: s.gateway})
 }
 
 type snapshotResponse struct {
@@ -368,30 +443,30 @@ type snapshotResponse struct {
 	Counts  map[string]int `json:"counts,omitempty"`
 }
 
-func (s *Server) handleBenchSnapshot(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleBenchSnapshot(c *gin.Context) {
 	counts := s.snapshotCounts()
 	resp := snapshotResponse{Version: versionV1}
 	if len(counts) > 0 {
 		resp.Counts = counts
 	}
-	writeJSON(w, http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) handleBenchPresenceSnapshot(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchPresenceSnapshot(c *gin.Context) {
 	if s.benchPresence == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench presence controller is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench presence controller is not configured")
 		return
 	}
-	resp, err := s.benchPresence.Snapshot(r.Context())
+	resp, err := s.benchPresence.Snapshot(c.Request.Context())
 	if err != nil {
-		s.logBenchFailure(r, "internalv2.access.api.bench_presence_failed", "presence_snapshot", err)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		s.logBenchFailure(c, "internalv2.access.api.bench_presence_failed", "presence_snapshot", err)
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if resp.Version == "" {
 		resp.Version = versionV1
 	}
-	writeJSON(w, http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 type tokensRequest struct {
@@ -416,18 +491,18 @@ func (r tokensRequest) tokenItems() []userTokenItem {
 	return r.Items
 }
 
-func (s *Server) handleBenchTokens(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchTokens(c *gin.Context) {
 	var req tokensRequest
-	if !s.bindBenchJSON(w, r, &req) {
+	if !s.bindBenchJSON(c, &req) {
 		return
 	}
 	items := req.tokenItems()
 	if err := s.validateMutation(req.RunID, req.BatchID, len(items)); err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	s.addCount("accepted_users", len(items))
-	writeJSON(w, http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(items)})
+	c.JSON(http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(items)})
 }
 
 type channelsRequest struct {
@@ -455,18 +530,18 @@ func (r channelsRequest) channelItems() []channelItem {
 	return r.Items
 }
 
-func (s *Server) handleBenchChannels(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchChannels(c *gin.Context) {
 	if s.benchData == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench channel data writer is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench channel data writer is not configured")
 		return
 	}
 	var req channelsRequest
-	if !s.bindBenchJSON(w, r, &req) {
+	if !s.bindBenchJSON(c, &req) {
 		return
 	}
 	items := req.channelItems()
 	if err := s.validateMutation(req.RunID, req.BatchID, len(items)); err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	mutations := make([]BenchChannelMutation, 0, len(items))
@@ -481,18 +556,18 @@ func (s *Server) handleBenchChannels(w http.ResponseWriter, r *http.Request) {
 			AllowStranger: item.AllowStranger,
 		})
 	}
-	accepted, err := s.benchData.UpsertChannels(r.Context(), mutations)
+	accepted, err := s.benchData.UpsertChannels(c.Request.Context(), mutations)
 	if err != nil {
-		s.logBenchFailure(r, "internalv2.access.api.bench_channels_failed", "channels_upsert", err,
+		s.logBenchFailure(c, "internalv2.access.api.bench_channels_failed", "channels_upsert", err,
 			wklog.String("runID", req.RunID),
 			wklog.String("batchID", req.BatchID),
 			wklog.Int("channels", len(mutations)),
 		)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	s.addCount("accepted_channels", accepted)
-	writeJSON(w, http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: accepted})
+	c.JSON(http.StatusOK, mutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: accepted})
 }
 
 type subscribersRequest struct {
@@ -508,24 +583,24 @@ type subscriberItem struct {
 	Subscribers []string `json:"subscribers"`
 }
 
-func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchSubscribers(c *gin.Context) {
 	if s.benchData == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench subscriber data writer is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench subscriber data writer is not configured")
 		return
 	}
 	var req subscribersRequest
-	if !s.bindBenchJSON(w, r, &req) {
+	if !s.bindBenchJSON(c, &req) {
 		return
 	}
 	if err := s.validateMutation(req.RunID, req.BatchID, len(req.Items)); err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	acceptedSubscribers := 0
 	mutations := make([]BenchSubscriberMutation, 0, len(req.Items))
 	for _, item := range req.Items {
 		if item.Reset {
-			writeBenchError(w, http.StatusBadRequest, "bench/v1 subscribers reset=true is not supported")
+			writeBenchError(c, http.StatusBadRequest, "bench/v1 subscribers reset=true is not supported")
 			return
 		}
 		acceptedSubscribers += len(item.Subscribers)
@@ -535,19 +610,19 @@ func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) 
 			Subscribers: append([]string(nil), item.Subscribers...),
 		})
 	}
-	acceptedSubscribers, err := s.benchData.AddSubscribers(r.Context(), mutations)
+	acceptedSubscribers, err := s.benchData.AddSubscribers(c.Request.Context(), mutations)
 	if err != nil {
-		s.logBenchFailure(r, "internalv2.access.api.bench_subscribers_failed", "subscribers_add", err,
+		s.logBenchFailure(c, "internalv2.access.api.bench_subscribers_failed", "subscribers_add", err,
 			wklog.String("runID", req.RunID),
 			wklog.String("batchID", req.BatchID),
 			wklog.Int("items", len(mutations)),
 		)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	s.addCount("accepted_subscriber_items", len(req.Items))
 	s.addCount("accepted_subscribers", acceptedSubscribers)
-	writeJSON(w, http.StatusOK, subscribersResponse{
+	c.JSON(http.StatusOK, subscribersResponse{
 		RunID:               req.RunID,
 		BatchID:             req.BatchID,
 		Accepted:            len(req.Items),
@@ -555,13 +630,14 @@ func (s *Server) handleBenchSubscribers(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (s *Server) logBenchFailure(r *http.Request, event, op string, err error, fields ...wklog.Field) {
+func (s *Server) logBenchFailure(c *gin.Context, event, op string, err error, fields ...wklog.Field) {
 	if err == nil {
 		return
 	}
 	path := ""
 	method := ""
-	if r != nil {
+	if c != nil && c.Request != nil {
+		r := c.Request
 		method = r.Method
 		if r.URL != nil {
 			path = r.URL.Path
@@ -591,19 +667,17 @@ type subscribersResponse struct {
 	AcceptedSubscribers int    `json:"accepted_subscribers"`
 }
 
-func (s *Server) bindBenchJSON(w http.ResponseWriter, r *http.Request, out any) bool {
-	body := r.Body
+func (s *Server) bindBenchJSON(c *gin.Context, out any) bool {
 	if s.benchMaxPayloadBytes > 0 {
-		body = http.MaxBytesReader(w, r.Body, s.benchMaxPayloadBytes)
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, s.benchMaxPayloadBytes)
 	}
-	decoder := json.NewDecoder(body)
-	if err := decoder.Decode(out); err != nil {
+	if err := c.ShouldBindJSON(out); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			writeBenchError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("payload too large: max %d bytes", maxBytesErr.Limit))
+			writeBenchError(c, http.StatusRequestEntityTooLarge, fmt.Sprintf("payload too large: max %d bytes", maxBytesErr.Limit))
 			return false
 		}
-		writeBenchError(w, http.StatusBadRequest, "invalid request")
+		writeBenchError(c, http.StatusBadRequest, "invalid request")
 		return false
 	}
 	return true
@@ -644,12 +718,6 @@ func (s *Server) snapshotCounts() map[string]int {
 	return out
 }
 
-func writeBenchError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]any{"status": status, "msg": msg})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+func writeBenchError(c *gin.Context, status int, msg string) {
+	c.JSON(status, gin.H{"status": status, "msg": msg})
 }

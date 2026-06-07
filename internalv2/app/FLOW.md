@@ -4,11 +4,13 @@
 
 `internalv2/app` is the only composition root for the new skeleton. It wires
 phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
-usecase, the optional delivery usecase/runtime, the presence usecase, the
-gateway handler, the optional HTTP API runtime, the optional Prometheus metrics
-registry, and the optional gateway runtime. The phase-1 runtime supports
-single-node clusters and static multi-node clusters for the `SEND -> SENDACK`
-write path, UID connection-route authority, and opt-in local online delivery.
+usecase, the channel management usecase, the user management usecase, the
+optional delivery usecase/runtime, the presence usecase, the gateway handler,
+the optional HTTP API runtime, the optional Prometheus metrics registry, and the
+optional gateway runtime. The phase-1 runtime supports single-node clusters and
+static multi-node clusters for the `SEND -> SENDACK` write path,
+legacy-compatible channel/user metadata management, UID connection-route
+authority, and opt-in local online delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -27,6 +29,10 @@ New(Config)
        sampler, and sendtrace sink; install the process-wide sendtrace sink
        without exposing HTTP debug APIs
   -> create clusterv2.Node when no ClusterRuntime override is provided
+  -> when the cluster exposes channel metadata APIs:
+       create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
+       and, when exposed by the cluster, wire the same adapter as the
+       UID-owned membership projection index
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
@@ -35,6 +41,10 @@ New(Config)
        and access/node presence RPC adapter
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
+  -> when the cluster exposes user metadata APIs:
+       create internalv2/usecase/user with an infra/cluster Slot metadata
+       adapter, owner-local online registry, optional presence lookup, and the
+       channel metadata adapter as the system UID store
   -> when Delivery.Enabled=true:
        create a clusterv2-backed delivery partitioner
        when route snapshots are available, an app subscriber planner, presence
@@ -48,8 +58,9 @@ New(Config)
      delivery committed sink, and append metrics observer only when delivery is
      enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with optional bench presence snapshot controller
-     and real benchmark channel/subscriber data writer when API.ListenAddr is configured
+  -> create access/api.Server with the channel and user usecases, optional bench
+     presence snapshot controller, and real benchmark channel/subscriber data
+     writer when API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -117,6 +128,23 @@ cluster append surface, `New` still wires a `ChannelAppender` to keep the real
 send path available.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
+Legacy channel management requests flow from internalv2 HTTP through
+`internalv2/usecase/channel` and the `internalv2/infra/cluster`
+`ChannelMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
+Mutations are proposed through Slot ownership; reads use the current routed Slot
+metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
+through the UID-owned membership facade so recent-conversation list reads can
+page a user's channel set without fanout writes on each group message.
+
+Legacy user management requests flow from internalv2 HTTP through
+`internalv2/usecase/user` and the `internalv2/infra/cluster`
+`UserMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
+Token and device mutations are proposed through UID Slot ownership. Online
+status reads use the v2 presence usecase when available, while device close
+side effects are limited to owner-local sessions from `online.Registry`.
+System UID persistence reuses the compatible channel metadata store's internal
+subscriber-list model.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so

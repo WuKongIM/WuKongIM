@@ -2,14 +2,17 @@
 
 ## Responsibility
 
-`internalv2/access/api` exposes the minimal HTTP target surface needed to
-benchmark the phase-1 `SEND -> SENDACK` skeleton. It owns HTTP routing,
-request/response DTOs, and benchmark-only validation, but it does not mutate
-message, conversation, or management business state directly. When the
-composition root provides a benchmark data writer, `/bench/v1/channels` and
-`/bench/v1/channels/subscribers` forward setup mutations through that writer;
-for `cmd/wukongimv2` delivery benchmarks the writer persists real clusterv2
-Slot metadata.
+`internalv2/access/api` exposes the HTTP target surface needed to benchmark the
+phase-1 `SEND -> SENDACK` skeleton plus compatible channel and user management
+surfaces migrated from `internal/access/api`. It owns HTTP routing,
+request/response DTOs, and entry validation, but it does not mutate message,
+conversation, channel, user, or management business state directly. Channel
+management requests forward to the channel usecase supplied by the composition
+root, and `/user*` requests forward to the user usecase. When the composition
+root provides a benchmark data writer,
+`/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
+mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
+writer persists real clusterv2 Slot metadata.
 
 ## Routes
 
@@ -28,11 +31,49 @@ POST /bench/v1/channel-runtime/evict
 POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
+POST /channel
+POST /channel/info
+POST /channel/delete
+POST /channel/subscriber_add
+POST /channel/subscriber_remove
+POST /channel/subscriber_remove_all
+POST /tmpchannel/subscriber_set
+POST /channel/blacklist_add
+POST /channel/blacklist_set
+POST /channel/blacklist_remove
+POST /channel/blacklist_remove_all
+POST /channel/whitelist_add
+POST /channel/whitelist_set
+POST /channel/whitelist_remove
+POST /channel/whitelist_remove_all
+GET  /channel/whitelist
+POST /user/token
+POST /user/device_quit
+POST /user/onlinestatus
+POST /user/systemuids_add
+POST /user/systemuids_remove
+GET  /user/systemuids
+POST /user/systemuids_add_to_cache
+POST /user/systemuids_remove_from_cache
 ```
 
 The `/bench/v1/*` routes are enabled only when the composition root passes
 `BenchEnabled=true`. They are unauthenticated and must be used only in controlled
 benchmark environments.
+
+The compatible `/channel*` routes are registered regardless of bench mode. They
+keep the existing request and response envelopes, including `{"status":200}`
+mutation success responses and `{"status":400,"msg":"..."}` validation errors.
+If the composition root does not provide a channel usecase, the routes fail
+closed with the same error envelope.
+
+The compatible `/user*` routes are registered regardless of bench mode. They
+keep the existing request and response envelopes: token mutations use
+`{"status":200}` on success and `{"status":400,"msg":"..."}` on failure,
+online-status empty UID lists return `{"status":200}`, non-empty status queries
+return the legacy array response, and system UID routes preserve their mutation
+and list shapes. If the composition root does not provide a user usecase, these
+routes fail closed with the legacy error envelope.
 
 ## Phase-1 Semantics
 
@@ -50,3 +91,11 @@ through the composition root. Subscriber reset requests remain unsupported.
 `/bench/v1/presence/snapshot` is a read-only diagnostic route. It reports
 owner-local route counts and authority-side virtual route counts for wkbench
 reports, but it does not expose or mutate concrete gateway sessions.
+
+Compatible channel and user management are adapters only. The channel adapter
+validates JSON fields, defaults `/channel/subscriber_add` with missing
+`channel_type` to group, rejects personal-channel subscriber mutations, and
+delegates durable metadata and member-list behavior to
+`internalv2/usecase/channel`. The user adapter maps JSON into
+`internalv2/usecase/user` commands and does not access storage or presence
+directly.

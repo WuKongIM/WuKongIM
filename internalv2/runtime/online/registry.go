@@ -114,6 +114,25 @@ func (r *Registry) LocalSession(sessionID uint64) (LocalSession, bool) {
 	return session, ok
 }
 
+// LocalSessionsByUID returns copies of local sessions currently indexed for uid.
+func (r *Registry) LocalSessionsByUID(uid string) []LocalSession {
+	if r == nil || uid == "" {
+		return nil
+	}
+	var out []LocalSession
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, session := range shard.bySession {
+			if session.Route.UID == uid {
+				out = append(out, session)
+			}
+		}
+		shard.mu.RUnlock()
+	}
+	return out
+}
+
 // MarkTouched records owner-observed client activity on an active route.
 func (r *Registry) MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool) {
 	shard := r.sessionShard(sessionID)

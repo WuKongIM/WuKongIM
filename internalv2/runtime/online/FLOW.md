@@ -14,6 +14,9 @@
 `LocalSession`. Runtime code may call `WriteDelivery(any)` for owner-local
 server push and `CloseSession(reason)` for conflict actions, but the concrete
 gateway/frame validation remains in the access adapter that created the handle.
+`LocalSessionsByUID` returns copies of concrete local session records for
+owner-local maintenance flows such as compatible user token replacement and
+device quit handling; authority-facing flows still consume only `OwnerRoute`.
 
 ## Touch Batching
 

@@ -783,6 +783,51 @@ func TestStateMachineAppliesAddAndRemoveSubscribers(t *testing.T) {
 	}
 }
 
+func TestStateMachineAppliesUserChannelMemberships(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data: EncodeUpsertUserChannelMembershipsCommand([]metadb.UserChannelMembership{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 3, UpdatedAt: 100,
+		}}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(upsert user channel memberships) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(upsert user channel memberships) result = %q, want %q", result, ApplyResultOK)
+	}
+
+	got, err := db.ForSlot(11).GetUserChannelMembership(ctx, "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserChannelMembership() after upsert: %v", err)
+	}
+	if got.JoinSeq != 3 || got.UpdatedAt != 100 {
+		t.Fatalf("membership after upsert = %#v, want join_seq=3 updated_at=100", got)
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  2,
+		Term:   1,
+		Data: EncodeDeleteUserChannelMembershipsCommand([]metadb.UserChannelMembership{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2,
+		}}),
+	}); err != nil {
+		t.Fatalf("Apply(delete user channel memberships) error = %v", err)
+	}
+
+	_, err = db.ForSlot(11).GetUserChannelMembership(ctx, "u1", "g1", 2)
+	if err == nil {
+		t.Fatalf("GetUserChannelMembership() after delete error = nil, want missing")
+	}
+}
+
 func TestStateMachineApplyCreateUserAndUpsertDevice(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

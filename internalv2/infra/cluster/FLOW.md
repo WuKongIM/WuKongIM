@@ -2,9 +2,12 @@
 
 ## Responsibility
 
-`internalv2/infra/cluster` adapts message usecase append ports to the
-`pkg/clusterv2` public channel append API. It is the only phase-1 internalv2
-package that maps message DTOs to `pkg/channelv2` DTOs.
+`internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
+`pkg/clusterv2` and `pkg/channelv2`. It maps message append DTOs to
+`pkg/channelv2` DTOs, adapts legacy-compatible channel metadata usecase calls to
+clusterv2 Slot metadata facades, adapts legacy-compatible user metadata calls
+to UID Slot metadata facades, and adapts presence/delivery ports to clusterv2
+routing and node RPC.
 
 ## Append Flow
 
@@ -26,6 +29,49 @@ and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+
+## Channel Metadata Flow
+
+`ChannelMetadataStore` adapts `internalv2/usecase/channel.Store` to the
+clusterv2 Slot metadata facade. When the cluster node also exposes
+`ChannelMembershipNode`, the same adapter implements the channel usecase
+`MembershipIndex` port for UID-owned reverse membership projection.
+
+```text
+channel usecase Store method
+  -> ChannelMetadataNode facade
+  -> pkg/clusterv2.Node
+  -> Slot metadata read or Slot Raft propose
+
+ordinary subscriber projection
+  -> ChannelMembershipNode facade
+  -> pkg/clusterv2.Node
+  -> group by UID hash slot
+  -> Slot Raft propose to the UID-owned hash slot
+```
+
+The adapter does not contain channel business rules. It clones subscriber UID
+slices before forwarding mutations and converts the usecase's optional
+subscriber mutation version into the required clusterv2 facade argument. The
+membership facade is separate from the channel metadata facade so tests and
+future adapters can expose read/write channel metadata without implicitly
+claiming support for the reverse membership index.
+
+## User Metadata Flow
+
+`UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
+to the clusterv2 UID Slot metadata facade.
+
+```text
+user usecase metadata method
+  -> UserMetadataNode facade
+  -> pkg/clusterv2.Node
+  -> UID Slot metadata read or Slot Raft propose
+```
+
+The adapter does not contain user business rules. It forwards create-only UID
+metadata and per-device token upserts to clusterv2, while reads route by UID to
+the current hash-slot metadata store.
 
 ## Error Mapping
 

@@ -40,6 +40,8 @@ ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGua
 WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
 ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPluginBindingsByPluginNo / ExistPluginBindingByUID
 WriteBatch.BindPluginUser / UnbindPluginUser
+ShardStore.GetUserChannelMembership / ListUserChannelMembershipPage
+WriteBatch.UpsertUserChannelMembership / DeleteUserChannelMembership
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
@@ -245,8 +247,9 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 8 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 | 9 | CMDConversationState | (uid, channel_type, channel_id) | idx_cmd_conversation_active |
 | 10 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
+| 11 | UserChannelMembership | (uid, channel_id, channel_type) | - |
 
-## 7. FSM 命令类型（34 种 + 2 个保留 ID）
+## 7. FSM 命令类型（36 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -273,6 +276,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 40: GarbageCollectTerminalChannelMigrationTasks
 41: CreateChannelMigrationTaskWithRuntimeGuard
 42: BindPluginUser                    43: UnbindPluginUser
+44: UpsertUserChannelMemberships      45: DeleteUserChannelMemberships
 ```
 
 ## 8. RPC Service IDs（proxy 层）

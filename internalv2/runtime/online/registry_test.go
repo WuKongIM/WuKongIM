@@ -36,6 +36,21 @@ func TestRegistryStoresSessionHandleSeparatelyFromOwnerRoute(t *testing.T) {
 	require.NotNil(t, gotSession.Session)
 }
 
+func TestRegistryListsLocalSessionsByUID(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{ShardCount: 2})
+	first := OwnerRoute{UID: "u1", HashSlot: 1, SessionID: 1, ConnectedUnix: 10}
+	second := OwnerRoute{UID: "u2", HashSlot: 1, SessionID: 2, ConnectedUnix: 10}
+	third := OwnerRoute{UID: "u1", HashSlot: 1, SessionID: 3, ConnectedUnix: 10}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: first, Session: fakeSessionHandle{}}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: second, Session: fakeSessionHandle{}}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: third, Session: fakeSessionHandle{}}))
+
+	sessions := reg.LocalSessionsByUID("u1")
+
+	require.Len(t, sessions, 2)
+	require.Equal(t, map[uint64]struct{}{1: {}, 3: {}}, mapSessionIDs(sessions))
+}
+
 func TestRegistrySnapshotCountsLocalRouteStatesAndDirtyTouches(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
 	pending := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}
@@ -226,3 +241,11 @@ type fakeSessionHandle struct{}
 func (fakeSessionHandle) WriteDelivery(any) error { return nil }
 
 func (fakeSessionHandle) CloseSession(string) error { return nil }
+
+func mapSessionIDs(sessions []LocalSession) map[uint64]struct{} {
+	out := make(map[uint64]struct{}, len(sessions))
+	for _, session := range sessions {
+		out[session.Route.SessionID] = struct{}{}
+	}
+	return out
+}

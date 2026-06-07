@@ -5,6 +5,8 @@
 `internalv2` is a parallel business kernel for the new architecture. Phase 1
 keeps the existing `internal` production path unchanged and proves the client
 `SEND -> SENDACK` write skeleton through `pkg/clusterv2` and `pkg/channelv2`.
+It also exposes a legacy-compatible channel management HTTP surface backed by
+the clusterv2 Slot metadata path.
 
 Single-node deployment is still a single-node cluster. Do not add send,
 storage, or routing branches that bypass cluster semantics.
@@ -14,15 +16,17 @@ storage, or routing branches that bypass cluster semantics.
 | Package | Responsibility |
 |---------|----------------|
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
-| `access/api` | Minimal health, readiness, and bench/v1 target HTTP surface for phase-1 SEND -> SENDACK benchmarking. |
+| `access/api` | Health, readiness, bench/v1 target HTTP surface, and legacy-compatible channel management HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `access/node` | Node RPC adapter for presence authority calls between internalv2 nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |
+| `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
 | `usecase/message` | Entry-agnostic SEND orchestration, batching, validation, message ID allocation, append ports, and committed event submission. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
-| `infra/cluster` | Adapter from message append ports and presence authority ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `infra/cluster` | Adapter from message append, channel metadata, delivery, and presence ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 
 ## Dependency Direction
@@ -90,10 +94,27 @@ wkbench traffic
 path so gateway micro-batching and future send reactors do not grow separate
 behavior.
 
+## Legacy Channel Management Flow
+
+```text
+legacy /channel* HTTP request
+  -> internalv2/access/api request validation and legacy JSON envelope
+  -> internalv2/usecase/channel
+  -> internalv2/infra/cluster ChannelMetadataStore
+  -> pkg/clusterv2.Node Slot metadata facade
+  -> Slot Raft propose for mutations or routed Slot metadata read for list/get
+```
+
+Temporary subscribers, allowlists, and denylists use stable internal member-list
+channel IDs so data remains compatible with the legacy metadata layout. These
+APIs do not bypass cluster semantics; single-node deployment is handled as a
+single-node cluster.
+
 ## Phase-1 Non-Goals
 
 - Do not wire `internalv2` into `cmd/wukongim` yet.
-- Do not migrate delivery, conversation, CMD, plugin hooks, or management APIs.
+- Do not migrate legacy message sync, conversation, CMD, plugin hooks, or
+  management APIs.
 - Do not implement realtime `NoPersist` delivery yet; return a stable
   unsupported result until that runtime exists.
 - Do not advertise legacy message fields that `channelv2.Message` cannot

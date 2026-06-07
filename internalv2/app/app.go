@@ -20,9 +20,11 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
+	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -65,6 +67,8 @@ type App struct {
 	gateway         GatewayRuntime
 	handler         *accessgateway.Handler
 	messages        *message.App
+	channels        *channelusecase.App
+	users           *userusecase.App
 	delivery        *deliveryusecase.App
 	deliveryManager *runtimedelivery.Manager
 	deliveryRetry   *runtimedelivery.RetryScheduler
@@ -179,6 +183,18 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.deliverySubscribers = app.deliveryMeta
 		}
 	}
+	if app.channels == nil {
+		if node, ok := app.cluster.(clusterinfra.ChannelMetadataNode); ok {
+			store := clusterinfra.NewChannelMetadataStore(node)
+			channelOptions := channelusecase.Options{
+				Store: store,
+			}
+			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
+				channelOptions.MembershipIndex = store
+			}
+			app.channels = channelusecase.New(channelOptions)
+		}
+	}
 	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
 		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
 		app.presenceDirectory = directory
@@ -218,6 +234,24 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				BatchSize:     app.cfg.Presence.TouchBatchSize,
 				RouteTTL:      app.cfg.Presence.RouteTTL,
 				Logger:        app.logger.Named("presence_touch"),
+			})
+		}
+	}
+	if app.users == nil {
+		if node, ok := app.cluster.(clusterinfra.UserMetadataNode); ok {
+			userStore := clusterinfra.NewUserMetadataStore(node)
+			var systemUIDs userusecase.SystemUIDStore
+			if channelNode, ok := app.cluster.(clusterinfra.ChannelMetadataNode); ok {
+				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode)
+			}
+			app.users = userusecase.New(userusecase.Options{
+				Users:        userStore,
+				Devices:      userStore,
+				DeviceReader: userStore,
+				Online:       app.online,
+				Presence:     app.presence,
+				SystemUIDs:   systemUIDs,
+				Logger:       app.logger.Named("usecase.user"),
 			})
 		}
 	}
@@ -331,6 +365,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchRuntime:         app.benchRuntimeController(),
 			BenchPresence:        app.benchPresenceController(),
 			BenchData:            app.deliveryMeta,
+			Channels:             app.channels,
+			Users:                app.users,
 			MetricsHandler:       app.metricsHandler(),
 			PProfEnabled:         cfg.Observability.PProfEnabled,
 			Logger:               app.logger.Named("access.api"),
@@ -380,6 +416,11 @@ func WithGateway(gateway GatewayRuntime) Option {
 // WithMessages overrides the message usecase app.
 func WithMessages(messages *message.App) Option {
 	return func(a *App) { a.messages = messages }
+}
+
+// WithChannels overrides the channel usecase app.
+func WithChannels(channels *channelusecase.App) Option {
+	return func(a *App) { a.channels = channels }
 }
 
 // WithPresence overrides the presence usecase app.

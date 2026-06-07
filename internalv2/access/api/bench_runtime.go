@@ -11,98 +11,100 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/gin-gonic/gin"
 )
 
 const maxBenchRuntimeRange = 100000
 
-func (s *Server) handleBenchChannelRuntimeSnapshot(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchChannelRuntimeSnapshot(c *gin.Context) {
 	if s.benchRuntime == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench channel runtime controller is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench channel runtime controller is not configured")
 		return
 	}
-	query, err := runtimeQueryFromSnapshotRequest(r)
+	query, err := runtimeQueryFromSnapshotRequest(c)
 	if err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	query, err = validateRuntimeQuery(query, snapshotRangeBoundPresent(r))
+	query, err = validateRuntimeQuery(query, snapshotRangeBoundPresent(c))
 	if err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := s.benchRuntime.Snapshot(r.Context(), query)
+	resp, err := s.benchRuntime.Snapshot(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(r, "snapshot", query, err)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		s.logBenchRuntimeFailure(c, "snapshot", query, err)
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if resp.Version == "" {
 		resp.Version = versionV1
 	}
-	writeJSON(w, http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) handleBenchChannelRuntimeProbe(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchChannelRuntimeProbe(c *gin.Context) {
 	if s.benchRuntime == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench channel runtime controller is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench channel runtime controller is not configured")
 		return
 	}
 	var req model.ChannelRuntimeProbeRequest
-	if !s.bindBenchRuntimeJSON(w, r, &req) {
+	if !s.bindBenchRuntimeJSON(c, &req) {
 		return
 	}
 	query := runtimeQueryFromProbeRequest(req)
 	query, err := validateRuntimeQuery(query, true)
 	if err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := s.benchRuntime.Probe(r.Context(), query)
+	resp, err := s.benchRuntime.Probe(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(r, "probe", query, err)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		s.logBenchRuntimeFailure(c, "probe", query, err)
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if resp.Version == "" {
 		resp.Version = versionV1
 	}
-	writeJSON(w, http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) handleBenchChannelRuntimeEvict(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBenchChannelRuntimeEvict(c *gin.Context) {
 	if s.benchRuntime == nil {
-		writeBenchError(w, http.StatusNotImplemented, "bench channel runtime controller is not configured")
+		writeBenchError(c, http.StatusNotImplemented, "bench channel runtime controller is not configured")
 		return
 	}
 	var req model.ChannelRuntimeEvictRequest
-	if !s.bindBenchRuntimeJSON(w, r, &req) {
+	if !s.bindBenchRuntimeJSON(c, &req) {
 		return
 	}
 	query := runtimeQueryFromEvictRequest(req)
 	query, err := validateRuntimeQuery(query, true)
 	if err != nil {
-		writeBenchError(w, http.StatusBadRequest, err.Error())
+		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp, err := s.benchRuntime.Evict(r.Context(), query)
+	resp, err := s.benchRuntime.Evict(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(r, "evict", query, err)
-		writeBenchError(w, http.StatusInternalServerError, err.Error())
+		s.logBenchRuntimeFailure(c, "evict", query, err)
+		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if resp.Version == "" {
 		resp.Version = versionV1
 	}
-	writeJSON(w, http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) logBenchRuntimeFailure(r *http.Request, op string, query model.ChannelRuntimeQuery, err error) {
+func (s *Server) logBenchRuntimeFailure(c *gin.Context, op string, query model.ChannelRuntimeQuery, err error) {
 	if err == nil {
 		return
 	}
 	path := ""
 	method := ""
-	if r != nil {
+	if c != nil && c.Request != nil {
+		r := c.Request
 		method = r.Method
 		if r.URL != nil {
 			path = r.URL.Path
@@ -122,27 +124,26 @@ func (s *Server) logBenchRuntimeFailure(r *http.Request, op string, query model.
 	)
 }
 
-func runtimeQueryFromSnapshotRequest(r *http.Request) (model.ChannelRuntimeQuery, error) {
-	values := r.URL.Query()
+func runtimeQueryFromSnapshotRequest(c *gin.Context) (model.ChannelRuntimeQuery, error) {
 	query := model.ChannelRuntimeQuery{
-		RunID:   values.Get("run_id"),
-		Profile: values.Get("profile"),
+		RunID:   c.Query("run_id"),
+		Profile: c.Query("profile"),
 	}
-	if raw := values.Get("channel_type"); raw != "" {
+	if raw := c.Query("channel_type"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 || n > 255 {
 			return model.ChannelRuntimeQuery{}, fmt.Errorf("channel_type must be a uint8")
 		}
 		query.ChannelType = uint8(n)
 	}
-	if raw := values.Get("start"); raw != "" {
+	if raw := c.Query("start"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil {
 			return model.ChannelRuntimeQuery{}, fmt.Errorf("start must be an integer")
 		}
 		query.Range.Start = n
 	}
-	if raw := values.Get("end"); raw != "" {
+	if raw := c.Query("end"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil {
 			return model.ChannelRuntimeQuery{}, fmt.Errorf("end must be an integer")
@@ -152,10 +153,9 @@ func runtimeQueryFromSnapshotRequest(r *http.Request) (model.ChannelRuntimeQuery
 	return query, nil
 }
 
-func snapshotRangeBoundPresent(r *http.Request) bool {
-	values := r.URL.Query()
-	_, hasStart := values["start"]
-	_, hasEnd := values["end"]
+func snapshotRangeBoundPresent(c *gin.Context) bool {
+	_, hasStart := c.GetQuery("start")
+	_, hasEnd := c.GetQuery("end")
 	return hasStart || hasEnd
 }
 
@@ -208,33 +208,33 @@ func validateRuntimeQuery(query model.ChannelRuntimeQuery, requireRange bool) (m
 	return query, nil
 }
 
-func (s *Server) bindBenchRuntimeJSON(w http.ResponseWriter, r *http.Request, out any) bool {
-	body := r.Body
+func (s *Server) bindBenchRuntimeJSON(c *gin.Context, out any) bool {
+	body := c.Request.Body
 	if s.benchMaxPayloadBytes > 0 {
-		body = http.MaxBytesReader(w, r.Body, s.benchMaxPayloadBytes)
+		body = http.MaxBytesReader(c.Writer, c.Request.Body, s.benchMaxPayloadBytes)
 	}
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
-		writeBenchRuntimeJSONError(w, err)
+		writeBenchRuntimeJSONError(c, err)
 		return false
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
-			writeBenchError(w, http.StatusBadRequest, "invalid request: trailing JSON value")
+			writeBenchError(c, http.StatusBadRequest, "invalid request: trailing JSON value")
 			return false
 		}
-		writeBenchRuntimeJSONError(w, err)
+		writeBenchRuntimeJSONError(c, err)
 		return false
 	}
 	return true
 }
 
-func writeBenchRuntimeJSONError(w http.ResponseWriter, err error) {
+func writeBenchRuntimeJSONError(c *gin.Context, err error) {
 	var maxBytesErr *http.MaxBytesError
 	if errors.As(err, &maxBytesErr) {
-		writeBenchError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("payload too large: max %d bytes", maxBytesErr.Limit))
+		writeBenchError(c, http.StatusRequestEntityTooLarge, fmt.Sprintf("payload too large: max %d bytes", maxBytesErr.Limit))
 		return
 	}
-	writeBenchError(w, http.StatusBadRequest, "invalid request")
+	writeBenchError(c, http.StatusBadRequest, "invalid request")
 }

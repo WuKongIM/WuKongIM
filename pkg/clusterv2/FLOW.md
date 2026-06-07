@@ -110,6 +110,16 @@ Node.Propose
 
 The propose path returns typed not-ready/no-leader/not-leader errors and does not synchronously call Controller APIs.
 
+## Slot Metadata Facade Flow
+
+`node_meta.go` exposes small metadata facades used by `internalv2` adapters.
+Channel metadata and subscriber rows route by channel ID. UID-owned reverse
+tables route by UID, so `UpsertUserChannelMemberships` and
+`DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
+slot and submit one Slot proposal per touched hash slot. Reads such as
+`ListUserChannelMembershipPage` also route by UID and read the current local
+metadata shard for that UID hash slot.
+
 ## ChannelV2 Flow
 
 ```text

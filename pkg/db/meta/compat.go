@@ -395,6 +395,35 @@ func (s *ShardStore) HasSubscribers(ctx context.Context, channelID string, chann
 	return s.shard.HasSubscribers(ctx, channelID, channelType)
 }
 
+func (s *ShardStore) GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (UserChannelMembership, error) {
+	if err := s.validate(); err != nil {
+		return UserChannelMembership{}, err
+	}
+	membership, ok, err := s.shard.GetUserChannelMembership(ctx, uid, channelID, channelType)
+	return membership, foundError(ok, err)
+}
+
+func (s *ShardStore) UpsertUserChannelMembership(ctx context.Context, membership UserChannelMembership) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.UpsertUserChannelMembership(ctx, membership)
+}
+
+func (s *ShardStore) DeleteUserChannelMembership(ctx context.Context, uid string, key ConversationKey) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.DeleteUserChannelMembership(ctx, uid, key)
+}
+
+func (s *ShardStore) ListUserChannelMembershipPage(ctx context.Context, uid string, after UserChannelMembershipCursor, limit int) ([]UserChannelMembership, UserChannelMembershipCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, UserChannelMembershipCursor{}, false, err
+	}
+	return s.shard.ListUserChannelMembershipPage(ctx, uid, after, limit)
+}
+
 func (s *ShardStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
 	if err := s.validate(); err != nil {
 		return UserConversationState{}, err
@@ -978,6 +1007,20 @@ func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelTy
 
 func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion ...uint64) error {
 	return b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), false)
+}
+
+func (b *WriteBatch) UpsertUserChannelMembership(hashSlot uint16, membership UserChannelMembership) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.UpsertUserChannelMembership(HashSlot(hashSlot), membership)
+}
+
+func (b *WriteBatch) DeleteUserChannelMembership(hashSlot uint16, uid string, key ConversationKey) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	return b.batch.DeleteUserChannelMembership(HashSlot(hashSlot), uid, key)
 }
 
 func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {

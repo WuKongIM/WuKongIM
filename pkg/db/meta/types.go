@@ -32,6 +32,8 @@ const (
 	TableIDChannelMigration uint32 = 9
 	// TableIDHashSlotMigration stores hash-slot migration tasks.
 	TableIDHashSlotMigration uint32 = 10
+	// TableIDUserChannelMembership stores UID-owned channel membership rows.
+	TableIDUserChannelMembership uint32 = 11
 )
 
 const (
@@ -47,6 +49,9 @@ const (
 	channelActiveIndexID      uint16 = 3
 	subscriberPrimaryFamilyID uint16 = 0
 	subscriberPrimaryIndexID  uint16 = 1
+
+	userChannelMembershipPrimaryFamilyID uint16 = 0
+	userChannelMembershipPrimaryIndexID  uint16 = 1
 
 	conversationPrimaryIndexID uint16 = 1
 	conversationActiveIndexID  uint16 = 2

@@ -22,6 +22,7 @@ import (
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
+	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -300,6 +301,41 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	}
 	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; !ok {
 		t.Fatalf("delivery fanout rpc service was not registered")
+	}
+}
+
+func TestNewWiresChannelMembershipProjection(t *testing.T) {
+	cluster := &recordingDeliveryMetaNode{
+		snapshot: readyFakeClusterSnapshot(1, 16),
+	}
+	app, err := newTestApp(t,
+		Config{Cluster: clusterv2.Config{NodeID: 1}},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.channels == nil {
+		t.Fatal("channel usecase was not wired")
+	}
+
+	if err := app.channels.AddSubscribers(context.Background(), channelusecase.SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Subscribers: []string{"u1", "u2"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.membershipUpserts) != 1 {
+		t.Fatalf("membership upserts = %#v, want one call", cluster.membershipUpserts)
+	}
+	got := cluster.membershipUpserts[0]
+	if got.channelID != "g1" || got.channelType != int64(frame.ChannelTypeGroup) || !reflect.DeepEqual(got.uids, []string{"u1", "u2"}) {
+		t.Fatalf("membership upsert = %#v, want g1 group u1/u2", got)
 	}
 }
 
@@ -1656,6 +1692,36 @@ func TestNewWiresBenchRuntimeControllerWhenClusterSupportsIt(t *testing.T) {
 	}
 }
 
+func TestAppWiresLegacyChannelRoutesToClusterMetadata(t *testing.T) {
+	cluster := &recordingDeliveryMetaNode{}
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/info", strings.NewReader(`{"channel_id":"g1","channel_type":2,"ban":1,"allow_stranger":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if len(cluster.upserted) != 1 {
+		t.Fatalf("upserted = %#v, want one channel", cluster.upserted)
+	}
+	got := cluster.upserted[0]
+	if got.ChannelID != "g1" || got.ChannelType != int64(frame.ChannelTypeGroup) || got.Ban != 1 || got.AllowStranger != 1 {
+		t.Fatalf("upserted channel = %#v, want mapped legacy channel metadata", got)
+	}
+}
+
 func TestGatewayStartFailureStopsAPIThenCluster(t *testing.T) {
 	gatewayErr := errors.New("gateway start failed")
 	calls := make([]string, 0, 5)
@@ -1990,12 +2056,14 @@ type fakePresenceCluster struct {
 
 type recordingDeliveryMetaNode struct {
 	fakeCluster
-	mu          sync.Mutex
-	snapshot    clusterv2.Snapshot
-	upserted    []metadb.Channel
-	added       []recordedSubscriberMutation
-	subscribers map[string][]string
-	listCalls   int
+	mu                sync.Mutex
+	snapshot          clusterv2.Snapshot
+	upserted          []metadb.Channel
+	added             []recordedSubscriberMutation
+	membershipUpserts []recordedMembershipProjection
+	membershipDeletes []recordedMembershipProjection
+	subscribers       map[string][]string
+	listCalls         int
 }
 
 type recordedSubscriberMutation struct {
@@ -2003,6 +2071,14 @@ type recordedSubscriberMutation struct {
 	channelType int64
 	uids        []string
 	version     uint64
+}
+
+type recordedMembershipProjection struct {
+	channelID   string
+	channelType int64
+	uids        []string
+	joinSeq     uint64
+	updatedAt   int64
 }
 
 func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorityEvent) *fakePresenceCluster {
@@ -2047,7 +2123,45 @@ func (n *recordingDeliveryMetaNode) UpsertChannelMetadata(_ context.Context, cha
 	return nil
 }
 
+func (n *recordingDeliveryMetaNode) GetChannelMetadata(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for i := len(n.upserted) - 1; i >= 0; i-- {
+		ch := n.upserted[i]
+		if ch.ChannelID == channelID && ch.ChannelType == channelType {
+			return ch, nil
+		}
+	}
+	return metadb.Channel{}, metadb.ErrNotFound
+}
+
+func (n *recordingDeliveryMetaNode) DeleteChannelMetadata(_ context.Context, channelID string, channelType int64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	filtered := n.upserted[:0]
+	for _, ch := range n.upserted {
+		if ch.ChannelID != channelID || ch.ChannelType != channelType {
+			filtered = append(filtered, ch)
+		}
+	}
+	n.upserted = filtered
+	delete(n.subscribers, channelID)
+	return nil
+}
+
 func (n *recordingDeliveryMetaNode) AddChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, version uint64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.added = append(n.added, recordedSubscriberMutation{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		version:     version,
+	})
+	return nil
+}
+
+func (n *recordingDeliveryMetaNode) RemoveChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, version uint64) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.added = append(n.added, recordedSubscriberMutation{
@@ -2084,6 +2198,31 @@ func (n *recordingDeliveryMetaNode) ListChannelSubscribersPage(_ context.Context
 		return page, "", true, nil
 	}
 	return page, page[len(page)-1], false, nil
+}
+
+func (n *recordingDeliveryMetaNode) UpsertUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.membershipUpserts = append(n.membershipUpserts, recordedMembershipProjection{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		joinSeq:     joinSeq,
+		updatedAt:   updatedAt,
+	})
+	return nil
+}
+
+func (n *recordingDeliveryMetaNode) DeleteUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.membershipDeletes = append(n.membershipDeletes, recordedMembershipProjection{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		updatedAt:   updatedAt,
+	})
+	return nil
 }
 
 func (f *fakePresenceCluster) NodeID() uint64 {

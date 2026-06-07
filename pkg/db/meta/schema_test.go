@@ -8,8 +8,8 @@ import (
 
 func TestMetaSchemaValidateAllTables(t *testing.T) {
 	tables := Tables()
-	if len(tables) < 10 {
-		t.Fatalf("len(Tables()) = %d, want at least 10", len(tables))
+	if len(tables) < 11 {
+		t.Fatalf("len(Tables()) = %d, want at least 11", len(tables))
 	}
 	if len(tables) != len(defaultMetaRegistry.tables()) {
 		t.Fatalf("len(Tables()) = %d, registry length = %d", len(tables), len(defaultMetaRegistry.tables()))
@@ -22,6 +22,7 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	channelMigrationTerminalIndexRegistered := false
 	hashSlotMigrationPrimaryRegistered := false
 	subscriberPrimaryRegistered := false
+	userChannelMembershipPrimaryRegistered := false
 	conversationActiveIndexRegistered := false
 	cmdConversationActiveIndexRegistered := false
 	for _, table := range tables {
@@ -73,6 +74,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			len(table.Primary.Columns) == 3 {
 			subscriberPrimaryRegistered = true
 		}
+		if table.ID == TableIDUserChannelMembership &&
+			table.Primary.ID == userChannelMembershipPrimaryIndexID &&
+			table.Primary.Name == "pk_user_channel_membership" &&
+			len(table.Primary.Columns) == 3 {
+			userChannelMembershipPrimaryRegistered = true
+		}
 		if table.ID == TableIDConversation {
 			for _, index := range table.Indexes {
 				if index.ID == conversationActiveIndexID && index.Name == "idx_conversation_active" {
@@ -109,6 +116,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	if !subscriberPrimaryRegistered {
 		t.Fatalf("subscriber table missing typed primary index %d", subscriberPrimaryIndexID)
 	}
+	if !userChannelMembershipPrimaryRegistered {
+		t.Fatalf("user channel membership table missing typed primary index %d", userChannelMembershipPrimaryIndexID)
+	}
 	if !conversationActiveIndexRegistered {
 		t.Fatalf("conversation table missing idx_conversation_active index %d", conversationActiveIndexID)
 	}
@@ -126,6 +136,7 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 		TableIDPluginBinding,
 		TableIDChannelMigration,
 		TableIDHashSlotMigration,
+		TableIDUserChannelMembership,
 	} {
 		if _, ok := seen[tableID]; !ok {
 			t.Fatalf("table id %d missing from Tables()", tableID)

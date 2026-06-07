@@ -22,41 +22,44 @@ Current flow:
    publishing is unchanged.
 8. Channel reads populate an opportunistic in-memory cache, and channel
    mutations invalidate the affected cache entry after commit.
-9. Subscriber mutations sort and de-duplicate UIDs, keep membership rows through
-   the table runtime, update the channel subscriber mutation version in the same
-   commit, and invalidate the channel cache.
-10. Channel runtime metadata stores routing, leadership, retention, and write
+9. Subscriber mutations sort and de-duplicate UIDs, keep channel-owned
+   subscriber rows through the table runtime, update the channel subscriber
+   mutation version in the same commit, and invalidate the channel cache.
+10. User channel membership rows are UID-owned reverse membership records keyed
+    by `(uid, channel_id, channel_type)`, providing stable per-user channel
+    paging without touching rows on ordinary group message commits.
+11. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with a runtime-backed primary row and key-aware rowcodec value;
    typed methods keep monotonic upserts, guards, and retention semantics, while
    page scans use runtime primary-key order and cursor bounds.
-11. User and CMD conversation tables use the table runtime for primary rows,
+12. User and CMD conversation tables use the table runtime for primary rows,
    primary-prefix pages, active-index maintenance, and active scans; their typed
    methods keep merge, hide, clear, and read-advance business semantics.
-12. Channel migration tasks use the table runtime for primary rows and terminal
+13. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
    stores the active `task_id`; guarded task/runtime-meta mutations keep
    read-your-writes overlays before committing both records atomically.
-13. Hash-slot migration state uses the table runtime with a legacy primary key
+14. Hash-slot migration state uses the table runtime with a legacy primary key
    that omits the family suffix; applied-delta dedup rows and outbox rows stay
    as custom records under the same hash-slot partition, and typed values repeat
    the hash slot only for self-description.
-14. `Batch` stages typed operations, locks all touched hash slots in sorted
+15. `Batch` stages typed operations, locks all touched hash slots in sorted
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
    tasks, commits once, then publishes or invalidates channel cache entries.
-15. Hash-slot snapshots export row, index, and system spans for selected hash
+16. Hash-slot snapshots export row, index, and system spans for selected hash
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,
     and clear the channel cache.
-16. Preserving snapshot imports keep local hash-slot migration rows when they
+17. Preserving snapshot imports keep local hash-slot migration rows when they
     already exist, while still importing incoming migration rows that are not
     present locally.
-17. `DeleteHashSlotData` removes all row, index, and system spans for one hash
+18. `DeleteHashSlotData` removes all row, index, and system spans for one hash
     slot and clears the channel cache.
-18. Read-only inspect APIs expose stable diagnostic rows for known metadata
+19. Read-only inspect APIs expose stable diagnostic rows for known metadata
     tables, supporting explicit hash-slot scans and bounded local scans across
     hash slots without mutating storage.
-19. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
+20. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
     package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
     surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
 

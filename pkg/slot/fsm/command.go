@@ -43,6 +43,8 @@ const (
 	cmdTypeHideUserConversations                uint8 = 16
 	cmdTypeUpsertCMDConversationStates          uint8 = 17
 	cmdTypeAdvanceCMDConversationReadSeq        uint8 = 18
+	cmdTypeUpsertUserChannelMemberships         uint8 = 44
+	cmdTypeDeleteUserChannelMemberships         uint8 = 45
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -101,6 +103,14 @@ const (
 	tagSubscriberChannelType     uint8 = 2
 	tagSubscriberUIDs            uint8 = 3
 	tagSubscriberMutationVersion uint8 = 4
+
+	// User channel membership field tags.
+	tagUserChannelMembershipCommandEntry uint8 = 1
+	tagUserChannelMembershipEntryUID     uint8 = 1
+	tagUserChannelMembershipChannelID    uint8 = 2
+	tagUserChannelMembershipChannelType  uint8 = 3
+	tagUserChannelMembershipJoinSeq      uint8 = 4
+	tagUserChannelMembershipUpdatedAt    uint8 = 5
 
 	// User conversation state field tags.
 	tagUserConversationStateEntryUID          uint8 = 1
@@ -209,6 +219,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeHideUserConversations:                decodeHideUserConversations,
 	cmdTypeUpsertCMDConversationStates:          decodeUpsertCMDConversationStates,
 	cmdTypeAdvanceCMDConversationReadSeq:        decodeAdvanceCMDConversationReadSeq,
+	cmdTypeUpsertUserChannelMemberships:         decodeUpsertUserChannelMemberships,
+	cmdTypeDeleteUserChannelMemberships:         decodeDeleteUserChannelMemberships,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
@@ -335,6 +347,34 @@ type removeSubscribersCmd struct {
 
 func (c *removeSubscribersCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	return wb.RemoveSubscribers(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
+}
+
+// --- UserChannelMemberships ---
+
+type upsertUserChannelMembershipsCmd struct {
+	memberships []metadb.UserChannelMembership
+}
+
+func (c *upsertUserChannelMembershipsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, membership := range c.memberships {
+		if err := wb.UpsertUserChannelMembership(hashSlot, membership); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type deleteUserChannelMembershipsCmd struct {
+	memberships []metadb.UserChannelMembership
+}
+
+func (c *deleteUserChannelMembershipsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, membership := range c.memberships {
+		if err := wb.DeleteUserChannelMembership(hashSlot, membership.UID, metadb.ConversationKey{ChannelID: membership.ChannelID, ChannelType: membership.ChannelType}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // --- UpsertUserConversationStates ---
@@ -606,6 +646,42 @@ func EncodeRemoveSubscribersCommandChecked(channelID string, channelType int64, 
 	return EncodeRemoveSubscribersCommand(channelID, channelType, uids, subscriberMutationVersion...), nil
 }
 
+// EncodeUpsertUserChannelMembershipsCommand encodes UID-owned membership upserts.
+func EncodeUpsertUserChannelMembershipsCommand(memberships []metadb.UserChannelMembership) []byte {
+	buf := make([]byte, 0, headerSize+len(memberships)*64)
+	buf = append(buf, commandVersion, cmdTypeUpsertUserChannelMemberships)
+	for _, membership := range memberships {
+		buf = appendBytesTLVField(buf, tagUserChannelMembershipCommandEntry, encodeUserChannelMembershipEntry(membership, true))
+	}
+	return buf
+}
+
+// EncodeUpsertUserChannelMembershipsCommandChecked validates and encodes membership upserts.
+func EncodeUpsertUserChannelMembershipsCommandChecked(memberships []metadb.UserChannelMembership) ([]byte, error) {
+	if err := ValidateSubscriberCommandLimits(userChannelMembershipUIDs(memberships)); err != nil {
+		return nil, err
+	}
+	return EncodeUpsertUserChannelMembershipsCommand(memberships), nil
+}
+
+// EncodeDeleteUserChannelMembershipsCommand encodes UID-owned membership deletes.
+func EncodeDeleteUserChannelMembershipsCommand(memberships []metadb.UserChannelMembership) []byte {
+	buf := make([]byte, 0, headerSize+len(memberships)*48)
+	buf = append(buf, commandVersion, cmdTypeDeleteUserChannelMemberships)
+	for _, membership := range memberships {
+		buf = appendBytesTLVField(buf, tagUserChannelMembershipCommandEntry, encodeUserChannelMembershipEntry(membership, false))
+	}
+	return buf
+}
+
+// EncodeDeleteUserChannelMembershipsCommandChecked validates and encodes membership deletes.
+func EncodeDeleteUserChannelMembershipsCommandChecked(memberships []metadb.UserChannelMembership) ([]byte, error) {
+	if err := ValidateSubscriberCommandLimits(userChannelMembershipUIDs(memberships)); err != nil {
+		return nil, err
+	}
+	return EncodeDeleteUserChannelMembershipsCommand(memberships), nil
+}
+
 // ValidateSubscriberCommandLimits rejects subscriber mutations that would create oversized Raft entries.
 func ValidateSubscriberCommandLimits(uids []string) error {
 	if err := validateSubscriberCommandUIDCount(len(uids)); err != nil {
@@ -685,6 +761,26 @@ func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64
 	}
 	buf = appendBytesTLVField(buf, tagSubscriberUIDs, encodeStringSet(uids))
 	return buf
+}
+
+func encodeUserChannelMembershipEntry(membership metadb.UserChannelMembership, includeState bool) []byte {
+	buf := make([]byte, 0, 64)
+	buf = appendStringTLVField(buf, tagUserChannelMembershipEntryUID, membership.UID)
+	buf = appendStringTLVField(buf, tagUserChannelMembershipChannelID, membership.ChannelID)
+	buf = appendInt64TLVField(buf, tagUserChannelMembershipChannelType, membership.ChannelType)
+	if includeState {
+		buf = appendUint64TLVField(buf, tagUserChannelMembershipJoinSeq, membership.JoinSeq)
+		buf = appendInt64TLVField(buf, tagUserChannelMembershipUpdatedAt, membership.UpdatedAt)
+	}
+	return buf
+}
+
+func userChannelMembershipUIDs(memberships []metadb.UserChannelMembership) []string {
+	uids := make([]string, 0, len(memberships))
+	for _, membership := range memberships {
+		uids = append(uids, membership.UID)
+	}
+	return uids
 }
 
 func encodeUserConversationStateEntry(state metadb.UserConversationState) []byte {
@@ -861,6 +957,74 @@ func decodeCMDConversationReadPatchEntries(data []byte) ([]metadb.CMDConversatio
 		}
 	}
 	return patches, nil
+}
+
+func decodeUserChannelMembershipEntries(data []byte, requireState bool) ([]metadb.UserChannelMembership, error) {
+	var memberships []metadb.UserChannelMembership
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		switch tag {
+		case tagUserChannelMembershipCommandEntry:
+			membership, err := decodeUserChannelMembershipEntry(value, requireState)
+			if err != nil {
+				return nil, err
+			}
+			memberships = append(memberships, membership)
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	return memberships, nil
+}
+
+func decodeUserChannelMembershipEntry(data []byte, requireState bool) (metadb.UserChannelMembership, error) {
+	var membership metadb.UserChannelMembership
+	var haveUID, haveChannelID, haveChannelType, haveJoinSeq, haveUpdatedAt bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return metadb.UserChannelMembership{}, err
+		}
+		off += n
+		switch tag {
+		case tagUserChannelMembershipEntryUID:
+			membership.UID = string(value)
+			haveUID = true
+		case tagUserChannelMembershipChannelID:
+			membership.ChannelID = string(value)
+			haveChannelID = true
+		case tagUserChannelMembershipChannelType:
+			if len(value) != 8 {
+				return metadb.UserChannelMembership{}, fmt.Errorf("%w: bad user channel membership ChannelType length", metadb.ErrCorruptValue)
+			}
+			membership.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagUserChannelMembershipJoinSeq:
+			if len(value) != 8 {
+				return metadb.UserChannelMembership{}, fmt.Errorf("%w: bad user channel membership JoinSeq length", metadb.ErrCorruptValue)
+			}
+			membership.JoinSeq = binary.BigEndian.Uint64(value)
+			haveJoinSeq = true
+		case tagUserChannelMembershipUpdatedAt:
+			if len(value) != 8 {
+				return metadb.UserChannelMembership{}, fmt.Errorf("%w: bad user channel membership UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			membership.UpdatedAt = int64(binary.BigEndian.Uint64(value))
+			haveUpdatedAt = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveUID || !haveChannelID || !haveChannelType || requireState && (!haveJoinSeq || !haveUpdatedAt) {
+		return metadb.UserChannelMembership{}, fmt.Errorf("%w: incomplete user channel membership record", metadb.ErrCorruptValue)
+	}
+	return membership, nil
 }
 
 func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState, error) {
@@ -1150,6 +1314,28 @@ func decodeUpsertUserConversationStates(data []byte) (command, error) {
 		return nil, fmt.Errorf("%w: empty user conversation state batch", metadb.ErrInvalidArgument)
 	}
 	return &upsertUserConversationStatesCmd{states: states}, nil
+}
+
+func decodeUpsertUserChannelMemberships(data []byte) (command, error) {
+	memberships, err := decodeUserChannelMembershipEntries(data, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(memberships) == 0 {
+		return nil, fmt.Errorf("%w: empty user channel membership upsert batch", metadb.ErrInvalidArgument)
+	}
+	return &upsertUserChannelMembershipsCmd{memberships: memberships}, nil
+}
+
+func decodeDeleteUserChannelMemberships(data []byte) (command, error) {
+	memberships, err := decodeUserChannelMembershipEntries(data, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(memberships) == 0 {
+		return nil, fmt.Errorf("%w: empty user channel membership delete batch", metadb.ErrInvalidArgument)
+	}
+	return &deleteUserChannelMembershipsCmd{memberships: memberships}, nil
 }
 
 func decodeTouchUserConversationActiveAt(data []byte) (command, error) {
