@@ -1121,8 +1121,9 @@ func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConv
 	}
 	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
+		pk := KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)}
 		key := encodeConversationRowKey(HashSlot(hashSlot), state.UID, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
-		existing, exists, err := shard.getUserConversationStateByKey(ctx, key, state.UID, state.ChannelID, state.ChannelType)
+		existing, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 		if err != nil {
 			return err
 		}
@@ -1130,7 +1131,7 @@ func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConv
 		if exists {
 			next = mergeUserConversationState(existing, next)
 		}
-		return shard.stageUserConversationState(batch, key, existing, exists, next)
+		return shard.stageUserConversationStateWithOverlay(st, batch, key, existing, exists, next)
 	})
 	return nil
 }
@@ -1143,8 +1144,9 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 		p := patch
 		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
+			pk := KeyParts{String(p.UID), String(p.ChannelID), Int64Ordered(p.ChannelType)}
 			key := encodeConversationRowKey(HashSlot(hashSlot), p.UID, p.ChannelID, p.ChannelType, conversationPrimaryFamilyID)
-			current, exists, err := shard.getUserConversationStateByKey(ctx, key, p.UID, p.ChannelID, p.ChannelType)
+			current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 			if err != nil {
 				return err
 			}
@@ -1164,7 +1166,7 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 			if p.SparseActiveSet {
 				next.SparseActive = p.SparseActive
 			}
-			return shard.stageUserConversationState(batch, key, current, exists, next)
+			return shard.stageUserConversationStateWithOverlay(st, batch, key, current, exists, next)
 		})
 	}
 	return nil
@@ -1179,13 +1181,14 @@ func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, 
 		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
 			primaryKey := encodeConversationRowKey(HashSlot(hashSlot), uid, k.ChannelID, k.ChannelType, conversationPrimaryFamilyID)
-			current, exists, err := shard.getUserConversationStateByKey(ctx, primaryKey, uid, k.ChannelID, k.ChannelType)
+			pk := KeyParts{String(uid), String(k.ChannelID), Int64Ordered(k.ChannelType)}
+			current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, primaryKey)
 			if err != nil || !exists || current.ActiveAt == 0 {
 				return err
 			}
 			next := current
 			next.ActiveAt = 0
-			return shard.stageUserConversationState(batch, primaryKey, current, true, next)
+			return shard.stageUserConversationStateWithOverlay(st, batch, primaryKey, current, true, next)
 		})
 	}
 	return nil
@@ -1197,8 +1200,9 @@ func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationD
 	}
 	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
+		pk := KeyParts{String(req.UID), String(req.ChannelID), Int64Ordered(req.ChannelType)}
 		key := encodeConversationRowKey(HashSlot(hashSlot), req.UID, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
-		current, exists, err := shard.getUserConversationStateByKey(ctx, key, req.UID, req.ChannelID, req.ChannelType)
+		current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 		if err != nil {
 			return err
 		}
@@ -1217,7 +1221,7 @@ func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationD
 		if req.UpdatedAt > next.UpdatedAt {
 			next.UpdatedAt = req.UpdatedAt
 		}
-		return shard.stageUserConversationState(batch, key, current, exists, next)
+		return shard.stageUserConversationStateWithOverlay(st, batch, key, current, exists, next)
 	})
 	return nil
 }

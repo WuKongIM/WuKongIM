@@ -509,6 +509,130 @@ func TestShardStoreListsUserConversationActivePage(t *testing.T) {
 	}
 }
 
+func TestWriteBatchUserConversationUpsertUsesReadYourWrites(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	batch := db.NewWriteBatch()
+	defer batch.Close()
+	if err := batch.UpsertUserConversationState(3, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ReadSeq:      30,
+		DeletedToSeq: 20,
+		ActiveAt:     300,
+		UpdatedAt:    400,
+		SparseActive: true,
+	}); err != nil {
+		t.Fatalf("UpsertUserConversationState(first): %v", err)
+	}
+	if err := batch.UpsertUserConversationState(3, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ReadSeq:      10,
+		DeletedToSeq: 5,
+		ActiveAt:     100,
+		UpdatedAt:    200,
+	}); err != nil {
+		t.Fatalf("UpsertUserConversationState(second): %v", err)
+	}
+	if err := batch.Commit(); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+
+	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState(): %v", err)
+	}
+	if got.ReadSeq != 30 || got.DeletedToSeq != 20 || got.ActiveAt != 300 || got.UpdatedAt != 400 {
+		t.Fatalf("batch upsert state = %+v, want monotonic maxima", got)
+	}
+	if got.SparseActive {
+		t.Fatalf("SparseActive = true, want second explicit upsert false to clear")
+	}
+}
+
+func TestWriteBatchUserConversationTouchUsesReadYourWrites(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	batch := db.NewWriteBatch()
+	defer batch.Close()
+	if err := batch.TouchUserConversationActiveAt(3, []UserConversationActivePatch{
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300},
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, SparseActive: true, SparseActiveSet: true},
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, SparseActive: false, SparseActiveSet: true},
+	}); err != nil {
+		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+	}
+	if err := batch.Commit(); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+
+	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState(): %v", err)
+	}
+	if got.ActiveAt != 300 || got.SparseActive {
+		t.Fatalf("batch touch state = %+v, want max active_at 300 and sparse false", got)
+	}
+}
+
+func TestWriteBatchUserConversationTouchSeesStagedDeleteFence(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	batch := db.NewWriteBatch()
+	defer batch.Close()
+	if err := batch.UpsertUserConversationState(3, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+	}); err != nil {
+		t.Fatalf("UpsertUserConversationState(delete floor): %v", err)
+	}
+	if err := batch.TouchUserConversationActiveAt(3, []UserConversationActivePatch{
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 500, MessageSeq: 10},
+	}); err != nil {
+		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+	}
+	if err := batch.Commit(); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+
+	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState(): %v", err)
+	}
+	if got.DeletedToSeq != 10 || got.ActiveAt != 0 {
+		t.Fatalf("batch fenced touch state = %+v, want deleted_to_seq 10 and inactive", got)
+	}
+}
+
 func TestUserConversationRejectsInvalidInputs(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

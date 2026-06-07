@@ -411,6 +411,16 @@ func (s *Shard) stageUserConversationState(batch *engine.Batch, primaryKey []byt
 	return conversationTable.stagePutIndexEntries(batch, s.hashSlot, next, pk, value)
 }
 
+// stageUserConversationStateWithOverlay stages a user conversation row and exposes it to later batch operations.
+func (s *Shard) stageUserConversationStateWithOverlay(state *batchCommitState, batch *engine.Batch, primaryKey []byte, existing UserConversationState, exists bool, next UserConversationState) error {
+	if err := s.stageUserConversationState(batch, primaryKey, existing, exists, next); err != nil {
+		return err
+	}
+	value := encodeUserConversationValue(next)
+	state.tableRows[string(primaryKey)] = tableRowOverlay{value: append([]byte(nil), value...), exists: true}
+	return nil
+}
+
 func conversationPrimaryFromActiveIndexParts(parts KeyParts) (KeyParts, bool) {
 	if len(parts) != 4 {
 		return nil, false
