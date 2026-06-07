@@ -66,6 +66,14 @@ func TestStoreShowTablesAndDescribe(t *testing.T) {
 	if !resultHasRow(channelDesc, Row{"column": "ban", "type": "int64"}) {
 		t.Fatalf("describe meta.channel rows = %+v, want ban int64", channelDesc.Rows)
 	}
+
+	conversationDesc, err := store.Query(context.Background(), "describe meta.conversation")
+	if err != nil {
+		t.Fatalf("describe meta.conversation err = %v", err)
+	}
+	if !resultHasRow(conversationDesc, Row{"column": "sparse_active", "type": "bool"}) {
+		t.Fatalf("describe meta.conversation rows = %+v, want sparse_active bool", conversationDesc.Rows)
+	}
 }
 
 func TestStoreQueryMetaUserByUID(t *testing.T) {
@@ -88,6 +96,33 @@ func TestStoreQueryMetaUserByUID(t *testing.T) {
 	}
 	if _, ok := result.Rows[0]["device_flag"]; ok {
 		t.Fatalf("row = %+v, projected row should not include device_flag", result.Rows[0])
+	}
+}
+
+func TestStoreQueryMetaConversationSparseActiveProjection(t *testing.T) {
+	path := seedInspectConversations(t, 16, []meta.UserConversationState{{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ActiveAt:     100,
+		UpdatedAt:    101,
+		SparseActive: true,
+	}})
+	store, err := OpenStore(Options{MetaPath: path, HashSlotCount: 16})
+	if err != nil {
+		t.Fatalf("OpenStore() err = %v", err)
+	}
+	defer store.Close()
+
+	result, err := store.Query(context.Background(), "select sparse_active from meta.conversation where uid='u1' limit 10")
+	if err != nil {
+		t.Fatalf("Query() err = %v", err)
+	}
+	if len(result.Rows) != 1 || result.Rows[0]["sparse_active"] != true {
+		t.Fatalf("rows = %+v, want sparse_active true", result.Rows)
+	}
+	if _, ok := result.Rows[0]["uid"]; ok {
+		t.Fatalf("row = %+v, projected row should not include uid", result.Rows[0])
 	}
 }
 
@@ -255,6 +290,27 @@ func seedInspectMetaUsers(t *testing.T, hashSlotCount uint16, users []meta.User)
 		hashSlot := meta.HashSlot(cluster.HashSlotForKey(user.UID, hashSlotCount))
 		if err := db.HashSlot(hashSlot).UpsertUser(context.Background(), user); err != nil {
 			t.Fatalf("UpsertUser(%s) err = %v", user.UID, err)
+		}
+	}
+	if err := eng.Close(); err != nil {
+		t.Fatalf("engine.Close() err = %v", err)
+	}
+	return path
+}
+
+func seedInspectConversations(t *testing.T, hashSlotCount uint16, states []meta.UserConversationState) string {
+	t.Helper()
+
+	path := t.TempDir()
+	eng, err := engine.Open(path, engine.Options{})
+	if err != nil {
+		t.Fatalf("engine.Open() err = %v", err)
+	}
+	db := meta.NewDB(eng)
+	for _, state := range states {
+		hashSlot := meta.HashSlot(cluster.HashSlotForKey(state.UID, hashSlotCount))
+		if err := db.HashSlot(hashSlot).UpsertUserConversationState(context.Background(), state); err != nil {
+			t.Fatalf("UpsertUserConversationState(%s/%s) err = %v", state.UID, state.ChannelID, err)
 		}
 	}
 	if err := eng.Close(); err != nil {
