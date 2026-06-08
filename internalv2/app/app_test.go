@@ -2703,6 +2703,7 @@ type fakePresenceCluster struct {
 	appendSeq                uint64
 	mu                       sync.Mutex
 	conversationStateBatches [][]metadb.UserConversationState
+	conversationPatchBatches [][]metadb.UserConversationActivePatch
 	subscribers              map[string][]string
 }
 
@@ -3066,6 +3067,14 @@ func (f *fakePresenceCluster) UpsertUserConversationStatesBatch(_ context.Contex
 	defer f.mu.Unlock()
 	batch := append([]metadb.UserConversationState(nil), states...)
 	f.conversationStateBatches = append(f.conversationStateBatches, batch)
+	return nil
+}
+
+func (f *fakePresenceCluster) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	batch := append([]metadb.UserConversationActivePatch(nil), patches...)
+	f.conversationPatchBatches = append(f.conversationPatchBatches, batch)
 	return nil
 }
 

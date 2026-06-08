@@ -103,8 +103,10 @@ failed. Routing, readiness, and other read errors still fail the request.
 
 `ConversationProjectionStore` adapts the conversation projector ports to
 clusterv2 Slot metadata facades. Projection writes go to
-`UpsertUserConversationStatesBatch`, which routes each UID-owned row by UID hash
-slot. Member classification reads only one bounded subscriber page with
+`UpsertUserConversationStatesBatch` for full rows and
+`TouchUserConversationActiveAtBatch` for active-at patches; clusterv2 routes
+each UID-owned row or patch by UID hash slot. Member classification reads only
+one bounded subscriber page with
 `ListChannelSubscribersPage`; a complete page is treated as small-channel dense
 fanout input only when it contains at least one member, while an empty or
 truncated page tells the usecase to write sparse sender state instead.

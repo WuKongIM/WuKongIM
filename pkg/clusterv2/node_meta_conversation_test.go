@@ -86,6 +86,26 @@ func TestClusterV2TouchUserConversationActiveAtBatchRoutesByUID(t *testing.T) {
 	}
 }
 
+func TestClusterV2GetUserConversationStateUsesUIDHashSlot(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+	ctx := context.Background()
+	uid := "u-primary"
+	waitRouteKeyLeaderReady(t, node, uid)
+	state := metadb.UserConversationState{UID: uid, ChannelID: "g1", ChannelType: 2, ActiveAt: 100}
+	if err := node.UpsertUserConversationStatesBatch(ctx, []metadb.UserConversationState{state}); err != nil {
+		t.Fatalf("UpsertUserConversationStatesBatch() error = %v", err)
+	}
+	got, ok, err := node.GetUserConversationState(ctx, uid, "g1", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetUserConversationState() ok=%v err=%v, want ok", ok, err)
+	}
+	if got.UID != uid || got.ChannelID != "g1" || got.ActiveAt != 100 {
+		t.Fatalf("state = %#v, want %#v", got, state)
+	}
+}
+
 func TestClusterV2ListUserConversationActivePageUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)

@@ -10,6 +10,7 @@ import (
 // ConversationProjectionNode exposes clusterv2 metadata calls needed by conversation projection.
 type ConversationProjectionNode interface {
 	UpsertUserConversationStatesBatch(context.Context, []metadb.UserConversationState) error
+	TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
 }
 
@@ -32,6 +33,14 @@ func (s *ConversationProjectionStore) UpsertUserConversationStatesBatch(ctx cont
 		return nil
 	}
 	return s.node.UpsertUserConversationStatesBatch(ctx, append([]metadb.UserConversationState(nil), states...))
+}
+
+// TouchUserConversationActiveAtBatch persists UID-owned active-at patches.
+func (s *ConversationProjectionStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	if s == nil || s.node == nil || len(patches) == 0 {
+		return nil
+	}
+	return s.node.TouchUserConversationActiveAtBatch(ctx, append([]metadb.UserConversationActivePatch(nil), patches...))
 }
 
 // ClassifyMembers reads a bounded subscriber page to decide dense or sparse projection.

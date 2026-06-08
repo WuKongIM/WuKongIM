@@ -42,6 +42,20 @@ func TestConversationStoreListsActivePageAndClonesRows(t *testing.T) {
 	}
 }
 
+func TestConversationStoreWrapsActivePageAsView(t *testing.T) {
+	node := &conversationNodeFake{
+		rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+	}
+	store := NewConversationStore(node)
+	page, err := store.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g1" || page.Done {
+		t.Fatalf("page = %#v, want one row and fake done=false", page)
+	}
+}
+
 func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
@@ -199,6 +213,21 @@ func TestConversationProjectionStoreClonesStateBatch(t *testing.T) {
 	}
 }
 
+func TestConversationProjectionStoreTouchesActiveAtBatch(t *testing.T) {
+	node := &conversationNodeFake{}
+	store := NewConversationProjectionStore(node)
+	patches := []metadb.UserConversationActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10}}
+
+	if err := store.TouchUserConversationActiveAtBatch(context.Background(), patches); err != nil {
+		t.Fatalf("TouchUserConversationActiveAtBatch() error = %v", err)
+	}
+	patches[0].ChannelID = "mutated"
+
+	if got := node.activePatchBatches; len(got) != 1 || len(got[0]) != 1 || got[0][0].ChannelID != "g1" {
+		t.Fatalf("active patch batches = %#v, want cloned original patch", got)
+	}
+}
+
 type activePageCallFake struct {
 	uid   string
 	after metadb.UserConversationActiveCursor
@@ -242,6 +271,8 @@ type conversationNodeFake struct {
 	subscriberDone  bool
 	subscriberCalls []subscriberPageCallFake
 	stateBatches    [][]metadb.UserConversationState
+
+	activePatchBatches [][]metadb.UserConversationActivePatch
 }
 
 func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -303,6 +334,11 @@ func (n *conversationNodeFake) ListChannelSubscribersPage(_ context.Context, cha
 
 func (n *conversationNodeFake) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
 	n.stateBatches = append(n.stateBatches, append([]metadb.UserConversationState(nil), states...))
+	return nil
+}
+
+func (n *conversationNodeFake) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
+	n.activePatchBatches = append(n.activePatchBatches, append([]metadb.UserConversationActivePatch(nil), patches...))
 	return nil
 }
 
