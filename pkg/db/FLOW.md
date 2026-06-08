@@ -3,6 +3,9 @@
 `pkg/db` is the root package for node-local storage. It owns shared errors,
 options, and the root `NodeStore` handle.
 
+When changing existing durable table fields, follow
+[`SCHEMA_COMPATIBILITY.md`](SCHEMA_COMPATIBILITY.md).
+
 Current flow:
 
 1. Build `NodeStoreOptions` with `DefaultNodeStoreOptions` or explicit paths.

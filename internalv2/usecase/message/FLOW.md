@@ -27,14 +27,15 @@ SendBatch(items)
      payload fields
   -> append active channel groups through Appender.AppendBatch in first-seen
      channel order; gateway asynchronous dispatch owns outer concurrency
-     (omit result payloads when no committed sink is configured)
+     (omit result payloads when no committed sink needs appended payload bytes)
      (retry transient batch-level route errors within the active item deadline)
   -> record per-message append observations through the optional observer,
      including batch-level, item-level, and short-result append errors
   -> record `message.send_durable` sendtrace events for traced active items,
      including successful sequences and stable append error classes
   -> submit committed-message events after successful append when a sink is configured
-     (including sender identity, server timestamp, and request-scoped delivery UIDs)
+     (including sender identity and server timestamp, plus payload and request-scoped
+      delivery UIDs only when the configured committed sinks require payload bytes)
   -> return item-aligned SendBatchItemResult values
 ```
 

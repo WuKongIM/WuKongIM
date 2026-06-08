@@ -178,7 +178,7 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 // MessageConfig contains message usecase settings.
 type MessageConfig struct{}
 
-// ConversationConfig contains conversation projection and read-model settings.
+// ConversationConfig contains conversation authority and read-model settings.
 type ConversationConfig struct {
 	// SmallGroupFanoutLimit is the maximum member count eligible for dense conversation fanout.
 	SmallGroupFanoutLimit int

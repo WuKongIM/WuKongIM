@@ -25,9 +25,8 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
-     plus conversation list request latency/page-shape metrics and
-     conversation projector compatibility metrics plus authority-specific
-     admit, list, cache-pressure, and handoff counters
+     plus conversation list request latency/page-shape metrics and conversation
+     authority admit, list, cache-pressure, and handoff counters
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -202,8 +201,10 @@ messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
 After a durable append succeeds, `MessageCommitted` flows through the app-level
-committed sink group. When the cluster exposes conversation authority routing
-and metadata writes, the conversation authority committed sink runs the
+committed sink group. Metadata-only sinks receive events without payload or
+request-scoped UID copies, while delivery sinks still receive an independent
+full event clone. When the cluster exposes conversation authority routing and
+metadata writes, the conversation authority committed sink runs the
 `internalv2/usecase/conversation` projection policy in the foreground to derive
 UID-owned active patches. Person channels produce patches for the two
 participants, ordinary groups at or below
@@ -220,11 +221,11 @@ Flush, or Stop, so committed message projection is not lost when route movement
 or RPC timeouts interrupt admission. The local authority cache coalesces
 unflushed patches, serves list reads by merging cache rows with DB active rows,
 and writes durable active patches that atomically carry read/delete floors on
-explicit Flush/Stop.
-When local cache pressure prevents admitting a new row, the authority persists
-the projected rows directly through the UID-owned durable conversation table
-instead of returning cache pressure to the caller. This path is independent of
-delivery fanout and is wired even when `Delivery.Enabled=false`.
+explicit Flush/Stop. When local cache pressure prevents admitting a new row,
+the authority persists the projected rows directly through the UID-owned
+durable conversation table instead of returning cache pressure to the caller.
+This path is independent of delivery fanout and is wired even when
+`Delivery.Enabled=false`.
 
 Conversation admission with authority enabled:
 
@@ -269,7 +270,8 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> conversation authority sink Stop(ctx): cancel authority watcher, retry pending patches, and flush local cache rows
+  -> conversation committed worker Stop(ctx): authority sinks cancel watchers,
+     retry pending patches, and flush local cache rows
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```

@@ -119,7 +119,7 @@ WK_PRESENCE_TOUCH_FLUSH_INTERVAL=1s
 WK_PRESENCE_TOUCH_BATCH_SIZE=512
 WK_PRESENCE_ROUTE_TTL=90s
 
-# Conversation projection and list-read tuning.
+# Conversation authority and list-read tuning.
 # Small groups at or below this limit are densely fanned out; larger groups update only sparse sender rows.
 WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=1000
 # Bounds concurrent channel tail reads used to hydrate one /conversation/list page.

@@ -417,6 +417,42 @@ func TestAppendSegmentKeepsResultPayloadWhenCommittedSinkConfigured(t *testing.T
 	}
 }
 
+func TestAppendSegmentOmitsResultPayloadWhenCommittedSinkDoesNotNeedPayload(t *testing.T) {
+	appender := &recordingAppender{}
+	committed := &metadataOnlyCommitted{}
+	app := New(Options{Appender: appender, Committed: committed})
+	results := make([]SendBatchItemResult, 1)
+
+	app.appendSegment(channelAppendSegment{
+		channel: ChannelID{ID: "room", Type: 1},
+		items: []preparedSend{{
+			index: 0,
+			ctx:   context.Background(),
+			cmd: SendCommand{
+				MessageID:         1,
+				ChannelID:         "room",
+				ChannelType:       1,
+				FromUID:           "u1",
+				Payload:           []byte("payload"),
+				MessageScopedUIDs: []string{"u2"},
+			},
+		}},
+	}, results)
+
+	if got := len(appender.requests); got != 1 {
+		t.Fatalf("append requests = %d, want 1", got)
+	}
+	if !appender.requests[0].OmitResultPayload {
+		t.Fatalf("OmitResultPayload = false, want true for metadata-only committed sink")
+	}
+	if committed.calls != 1 {
+		t.Fatalf("committed calls = %d, want 1", committed.calls)
+	}
+	if len(committed.event.Payload) != 0 || len(committed.event.MessageScopedUIDs) != 0 {
+		t.Fatalf("metadata-only event retained payload/scoped fields: %#v", committed.event)
+	}
+}
+
 func TestSendBatchMapsAppendItemErrorsToReasons(t *testing.T) {
 	appender := &recordingAppender{itemErrs: []error{nil, ErrRouteNotReady}}
 	app := New(Options{Appender: appender, MessageID: &sequenceIDs{next: 10}})
@@ -1033,6 +1069,21 @@ type recordingCommitted struct{}
 
 func (recordingCommitted) Submit(context.Context, messageevents.MessageCommitted) error {
 	return nil
+}
+
+type metadataOnlyCommitted struct {
+	event messageevents.MessageCommitted
+	calls int
+}
+
+func (c *metadataOnlyCommitted) Submit(_ context.Context, event messageevents.MessageCommitted) error {
+	c.calls++
+	c.event = event.Clone()
+	return nil
+}
+
+func (c *metadataOnlyCommitted) RequiresCommittedPayload() bool {
+	return false
 }
 
 type capturingCommitted struct {

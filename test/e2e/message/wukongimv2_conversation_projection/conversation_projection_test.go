@@ -182,9 +182,8 @@ func TestWukongIMV2HundredKGroupConversationProjectionStaysSparse(t *testing.T) 
 		}
 	}
 
-	requireMetricValueEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_projected_rows_sum`, map[string]string{"result": "ok"}, 1)
-	requireMetricValueEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_write_rows_sum`, map[string]string{"phase": "batch", "result": "ok"}, 1)
-	requireMetricAtLeastEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_projection_events_total`, map[string]string{"mode": "sparse", "result": "ok"}, 1)
+	requireMetricAtLeastEventually(t, process, spec.APIAddr, `wukongim_conversation_authority_admit_total`, map[string]string{"result": "ok"}, 1)
+	requireMetricAtLeastEventually(t, process, spec.APIAddr, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
 }
 
 type messageSendResponse struct {

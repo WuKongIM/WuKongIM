@@ -615,7 +615,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Presence.RouteTTL != 3*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 3m", cfg.Presence.RouteTTL)
 	}
-	if cfg.Conversation.SmallGroupFanoutLimit != 256 || cfg.Conversation.MaxLastMessageConcurrency != 16 {
+	if cfg.Conversation.SmallGroupFanoutLimit != 256 ||
+		cfg.Conversation.MaxLastMessageConcurrency != 16 {
 		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||

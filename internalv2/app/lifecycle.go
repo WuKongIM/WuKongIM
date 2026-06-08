@@ -66,7 +66,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if a.conversationProjector != nil {
 		if err := a.conversationProjector.Start(ctx); err != nil {
-			a.logLifecycleError("conversation_projector", "start", err)
+			a.logLifecycleError("conversation_authority", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
@@ -139,7 +139,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	if a.conversationStarted && a.conversationProjector != nil {
 		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_projector", "stop", stopErr)
+			a.logLifecycleWarn("conversation_authority", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.conversationStarted = false
@@ -195,7 +195,7 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 	}
 	if a.conversationStarted && a.conversationProjector != nil {
 		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_projector", "rollback_stop", stopErr)
+			a.logLifecycleWarn("conversation_authority", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.conversationStarted = false

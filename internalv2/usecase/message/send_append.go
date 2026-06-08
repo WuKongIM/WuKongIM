@@ -95,7 +95,7 @@ func (a *App) appendRequest(channel ChannelID, active []preparedSend, attempt in
 		Messages:          make([]Message, 0, len(active)),
 		Attempt:           attempt,
 		CommitMode:        CommitModeQuorum,
-		OmitResultPayload: a == nil || a.committed == nil,
+		OmitResultPayload: !committedPayloadRequired(a.committed),
 	}
 	for _, item := range active {
 		if req.TraceID == "" && item.cmd.TraceID != "" {
@@ -258,6 +258,7 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, serverTimest
 	if appended.Message.ServerTimestampMS != 0 {
 		serverTimestampMS = appended.Message.ServerTimestampMS
 	}
+	needsPayload := committedPayloadRequired(a.committed)
 	event := messageevents.MessageCommitted{
 		MessageID:         appended.MessageID,
 		MessageSeq:        appended.MessageSeq,
@@ -268,13 +269,26 @@ func (a *App) submitCommitted(ctx context.Context, cmd SendCommand, serverTimest
 		SenderSessionID:   cmd.SenderSessionID,
 		ClientMsgNo:       cmd.ClientMsgNo,
 		ServerTimestampMS: serverTimestampMS,
-		Payload:           cloneBytes(appended.Message.Payload),
 		RedDot:            cmd.RedDot,
-		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),
+	}
+	if needsPayload {
+		event.Payload = cloneBytes(appended.Message.Payload)
+		event.MessageScopedUIDs = append([]string(nil), cmd.MessageScopedUIDs...)
 	}
 	if err := a.committed.Submit(ctx, event); err != nil && a.observer != nil {
 		a.observer.CommittedSinkError(cmd, err)
 	}
+}
+
+func committedPayloadRequired(sink CommittedSink) bool {
+	if sink == nil {
+		return false
+	}
+	policy, ok := sink.(CommittedPayloadPolicy)
+	if !ok {
+		return true
+	}
+	return policy.RequiresCommittedPayload()
 }
 
 func reasonForAppendError(err error) Reason {

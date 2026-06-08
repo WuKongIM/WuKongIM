@@ -464,7 +464,7 @@ func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T)
 
 func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := conversationProjectorMetricsObserver{metrics: reg}
+	observer := conversationAuthorityMetricsObserver{metrics: reg}
 
 	observer.ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent{Result: "timeout"})
 	observer.ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent{Phase: "admit", Result: "cache_pressure"})

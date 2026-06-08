@@ -255,7 +255,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 					RPCTimeout:        app.cfg.Conversation.AuthorityRPCTimeout,
 					RPCBatchRows:      app.cfg.Conversation.AuthorityRPCBatchRows,
 					RPCConcurrency:    app.cfg.Conversation.AuthorityRPCConcurrency,
-					Observer:          app.conversationProjectorObserver(),
 					AuthorityObserver: app.conversationAuthorityObserver(),
 				})
 				sink.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
@@ -264,15 +263,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: app.logger.Named("node")})
 			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
 		}
-	}
-	if app.conversationProjector == nil && app.conversationAuthorityClient == nil && hasProjectionNode && conversationReadStore != nil {
-		projectionStore := clusterinfra.NewConversationProjectionStore(projectionNode)
-		app.conversationProjector = newConversationProjector(conversationProjectorOptions{
-			store:                 projectionStore,
-			members:               projectionStore,
-			smallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
-			observer:              app.conversationProjectorObserver(),
-		})
 	}
 	if app.conversations == nil {
 		if conversationReadStore != nil {
@@ -596,18 +586,11 @@ func (a *App) conversationListObserver() accessapi.ConversationListObserver {
 	return conversationListMetricsObserver{metrics: a.metrics}
 }
 
-func (a *App) conversationProjectorObserver() conversationProjectorObserver {
-	if a == nil || a.metrics == nil {
-		return nil
-	}
-	return conversationProjectorMetricsObserver{metrics: a.metrics}
-}
-
 func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 	if a == nil || a.metrics == nil {
 		return nil
 	}
-	return conversationProjectorMetricsObserver{metrics: a.metrics}
+	return conversationAuthorityMetricsObserver{metrics: a.metrics}
 }
 
 func (a *App) gatewayObserver() gateway.Observer {

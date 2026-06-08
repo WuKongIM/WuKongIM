@@ -43,6 +43,12 @@ type CommittedSink interface {
 	Submit(context.Context, messageevents.MessageCommitted) error
 }
 
+// CommittedPayloadPolicy lets metadata-only sinks avoid appended payload copies.
+type CommittedPayloadPolicy interface {
+	// RequiresCommittedPayload reports whether committed events need appended payload bytes.
+	RequiresCommittedPayload() bool
+}
+
 // Observer receives non-fatal send path observations.
 type Observer interface {
 	CommittedSinkError(SendCommand, error)
