@@ -198,7 +198,7 @@ func (s *Shard) UpsertUserConversationState(ctx context.Context, state UserConve
 	return batch.Commit(true)
 }
 
-// TouchUserConversationActiveAt advances active_at without mutating read state.
+// TouchUserConversationActiveAt advances active_at and monotonic visibility floors.
 func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error {
 	if err := s.check(ctx); err != nil {
 		return err
