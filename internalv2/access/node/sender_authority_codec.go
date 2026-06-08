@@ -131,14 +131,14 @@ func readAuthorityTarget(body []byte, offset int) (authority.Target, int, error)
 		return authority.Target{}, offset, err
 	}
 	if v > uint64(^uint16(0)) {
-		return authority.Target{}, offset, fmt.Errorf("internalv2/access/node: sender authority hash slot overflows uint16")
+		return authority.Target{}, offset, fmt.Errorf("internalv2/access/node: authority target hash slot overflows uint16")
 	}
 	target.HashSlot = uint16(v)
 	if v, offset, err = readUvarint(body, offset); err != nil {
 		return authority.Target{}, offset, err
 	}
 	if v > uint64(^uint32(0)) {
-		return authority.Target{}, offset, fmt.Errorf("internalv2/access/node: sender authority slot id overflows uint32")
+		return authority.Target{}, offset, fmt.Errorf("internalv2/access/node: authority target slot id overflows uint32")
 	}
 	target.SlotID = uint32(v)
 	if target.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {

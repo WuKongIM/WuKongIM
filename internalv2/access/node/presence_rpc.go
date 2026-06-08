@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	rpcStatusOK            = "ok"
-	rpcStatusNotLeader     = "not_leader"
-	rpcStatusStaleRoute    = "stale_route"
-	rpcStatusRouteNotReady = "route_not_ready"
-	rpcStatusRejected      = "rejected"
+	rpcStatusOK                      = "ok"
+	rpcStatusNotLeader               = "not_leader"
+	rpcStatusStaleRoute              = "stale_route"
+	rpcStatusRouteNotReady           = "route_not_ready"
+	rpcStatusContextCanceled         = "context_canceled"
+	rpcStatusContextDeadlineExceeded = "context_deadline_exceeded"
+	rpcStatusRejected                = "rejected"
 
 	presenceOpRegisterRoute    = "register_route"
 	presenceOpCommitRoute      = "commit_route"

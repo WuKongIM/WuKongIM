@@ -82,6 +82,10 @@ func recipientAuthorityRPCStatusForError(err error) string {
 		return rpcStatusStaleRoute
 	case errors.Is(err, recipientusecase.ErrRouteNotReady):
 		return rpcStatusRouteNotReady
+	case errors.Is(err, context.Canceled):
+		return rpcStatusContextCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return rpcStatusContextDeadlineExceeded
 	default:
 		return rpcStatusRejected
 	}
@@ -97,6 +101,10 @@ func recipientAuthorityRPCErrorForStatus(status string) error {
 		return recipientusecase.ErrStaleRoute
 	case rpcStatusRouteNotReady:
 		return recipientusecase.ErrRouteNotReady
+	case rpcStatusContextCanceled:
+		return context.Canceled
+	case rpcStatusContextDeadlineExceeded:
+		return context.DeadlineExceeded
 	case rpcStatusRejected:
 		return fmt.Errorf("internalv2/access/node: recipient authority rpc rejected")
 	default:

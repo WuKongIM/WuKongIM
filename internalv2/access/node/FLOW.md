@@ -188,6 +188,8 @@ Stable response statuses are:
 - `not_leader`
 - `stale_route`
 - `route_not_ready`
+- `context_canceled`
+- `context_deadline_exceeded`
 - `cache_pressure`
 - `rejected`
 

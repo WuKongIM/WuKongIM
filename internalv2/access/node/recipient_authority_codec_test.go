@@ -2,6 +2,7 @@ package node
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
@@ -94,5 +95,22 @@ func TestRecipientAuthorityCodecRejectsOversizedRecipients(t *testing.T) {
 
 	if _, err := decodeRecipientAuthorityRequest(body); err == nil {
 		t.Fatal("decodeRecipientAuthorityRequest() error = nil, want oversized collection error")
+	}
+}
+
+func TestRecipientAuthorityCodecRejectsTargetOverflowWithNeutralError(t *testing.T) {
+	body := make([]byte, 0, 32)
+	body = append(body, recipientAuthorityRequestMagic[:]...)
+	body = appendUvarint(body, uint64(^uint16(0))+1)
+
+	_, err := decodeRecipientAuthorityRequest(body)
+	if err == nil {
+		t.Fatal("decodeRecipientAuthorityRequest() error = nil, want target overflow error")
+	}
+	if strings.Contains(err.Error(), "sender authority") {
+		t.Fatalf("target overflow error = %q, should not mention sender authority", err.Error())
+	}
+	if !strings.Contains(err.Error(), "authority target") {
+		t.Fatalf("target overflow error = %q, want authority target label", err.Error())
 	}
 }

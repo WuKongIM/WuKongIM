@@ -66,6 +66,48 @@ func TestRecipientAuthorityRPCHandlerMapsProcessorErrors(t *testing.T) {
 	}
 }
 
+func TestRecipientAuthorityRPCPreservesContextErrors(t *testing.T) {
+	req := recipientAuthorityTestProcessRequest()
+	body, err := encodeRecipientAuthorityRequest(recipientAuthorityRequest{
+		Target:     req.Target,
+		Event:      req.Event,
+		Recipients: req.Recipients,
+	})
+	if err != nil {
+		t.Fatalf("encodeRecipientAuthorityRequest() error = %v", err)
+	}
+	tests := []struct {
+		name   string
+		err    error
+		status string
+	}{
+		{name: "canceled", err: context.Canceled, status: rpcStatusContextCanceled},
+		{name: "deadline", err: context.DeadlineExceeded, status: rpcStatusContextDeadlineExceeded},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := New(Options{RecipientAuthority: &fakeRecipientAuthorityProcessor{err: tt.err}})
+
+			respBody, err := adapter.HandleRecipientAuthorityRPC(context.Background(), body)
+			if err != nil {
+				t.Fatalf("HandleRecipientAuthorityRPC() error = %v", err)
+			}
+			resp, err := decodeRecipientAuthorityResponse(respBody)
+			if err != nil {
+				t.Fatalf("decodeRecipientAuthorityResponse() error = %v", err)
+			}
+			if resp.Status != tt.status {
+				t.Fatalf("status = %q, want %q", resp.Status, tt.status)
+			}
+
+			clientErr := recipientAuthorityRPCErrorForStatus(resp.Status)
+			if !errors.Is(clientErr, tt.err) {
+				t.Fatalf("client error = %v, want %v", clientErr, tt.err)
+			}
+		})
+	}
+}
+
 func TestRecipientAuthorityRPCHandlerRejectsNilProcessor(t *testing.T) {
 	req := recipientAuthorityTestProcessRequest()
 	body, err := encodeRecipientAuthorityRequest(recipientAuthorityRequest{
@@ -129,6 +171,16 @@ func TestRecipientAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T) {
 	}
 }
 
+func TestRecipientAuthorityClientRejectsMalformedResponse(t *testing.T) {
+	req := recipientAuthorityTestProcessRequest()
+	node := &fakeRecipientAuthorityRPCNode{rawResponse: []byte("bad response")}
+
+	err := NewClient(node).ProcessRecipientAuthority(context.Background(), req.Target.LeaderNodeID, req)
+	if err == nil {
+		t.Fatal("ProcessRecipientAuthority(malformed response) error = nil, want error")
+	}
+}
+
 func TestRecipientAuthorityRPCStatusMapping(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -140,6 +192,8 @@ func TestRecipientAuthorityRPCStatusMapping(t *testing.T) {
 		{name: "not leader", err: recipientusecase.ErrNotLeader, status: rpcStatusNotLeader, want: recipientusecase.ErrNotLeader},
 		{name: "stale route", err: recipientusecase.ErrStaleRoute, status: rpcStatusStaleRoute, want: recipientusecase.ErrStaleRoute},
 		{name: "route not ready", err: recipientusecase.ErrRouteNotReady, status: rpcStatusRouteNotReady, want: recipientusecase.ErrRouteNotReady},
+		{name: "context canceled", err: context.Canceled, status: rpcStatusContextCanceled, want: context.Canceled},
+		{name: "context deadline", err: context.DeadlineExceeded, status: rpcStatusContextDeadlineExceeded, want: context.DeadlineExceeded},
 		{name: "rejected", err: errors.New("boom"), status: rpcStatusRejected},
 	}
 	for _, tt := range tests {
@@ -198,11 +252,12 @@ func (f *fakeRecipientAuthorityProcessor) Process(_ context.Context, req recipie
 }
 
 type fakeRecipientAuthorityRPCNode struct {
-	response  recipientAuthorityResponse
-	err       error
-	nodeID    uint64
-	serviceID uint8
-	payload   []byte
+	response    recipientAuthorityResponse
+	rawResponse []byte
+	err         error
+	nodeID      uint64
+	serviceID   uint8
+	payload     []byte
 }
 
 func (f *fakeRecipientAuthorityRPCNode) CallRPC(_ context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
@@ -211,6 +266,9 @@ func (f *fakeRecipientAuthorityRPCNode) CallRPC(_ context.Context, nodeID uint64
 	f.payload = append([]byte(nil), payload...)
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.rawResponse != nil {
+		return append([]byte(nil), f.rawResponse...), nil
 	}
 	return encodeRecipientAuthorityResponse(f.response)
 }
