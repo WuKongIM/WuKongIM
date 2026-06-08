@@ -34,8 +34,15 @@ func (p *Processor) Process(ctx context.Context, req ProcessRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	effectiveRecipients, effectiveUIDs := effectiveRecipientGroup(req.Recipients)
+	if len(effectiveUIDs) == 0 {
+		return nil
+	}
+	if p.delivery != nil && p.conversation == nil {
+		return ErrConversationRequired
+	}
 
-	patches := recipientConversationPatches(req.Event, req.Recipients)
+	patches := recipientConversationPatches(req.Event, effectiveRecipients)
 	if len(patches) > 0 && p.conversation != nil {
 		if err := p.conversation.AdmitPatches(ctx, patches); err != nil {
 			return err
@@ -43,10 +50,26 @@ func (p *Processor) Process(ctx context.Context, req ProcessRequest) error {
 	}
 	if p.delivery != nil {
 		event := req.Event.Clone()
-		event.MessageScopedUIDs = recipientUIDs(req.Recipients)
+		event.MessageScopedUIDs = effectiveUIDs
 		return p.delivery.SubmitDelivery(ctx, event)
 	}
 	return nil
+}
+
+func effectiveRecipientGroup(recipients []Recipient) ([]Recipient, []string) {
+	if len(recipients) == 0 {
+		return nil, nil
+	}
+	effectiveRecipients := make([]Recipient, 0, len(recipients))
+	uids := make([]string, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.UID == "" {
+			continue
+		}
+		effectiveRecipients = append(effectiveRecipients, recipient)
+		uids = append(uids, recipient.UID)
+	}
+	return effectiveRecipients, uids
 }
 
 func recipientConversationPatches(event messageevents.MessageCommitted, recipients []Recipient) []conversationusecase.ActivePatch {
@@ -55,9 +78,6 @@ func recipientConversationPatches(event messageevents.MessageCommitted, recipien
 	}
 	patches := make([]conversationusecase.ActivePatch, 0, len(recipients))
 	for _, recipient := range recipients {
-		if recipient.UID == "" {
-			continue
-		}
 		var visibleFloor uint64
 		if recipient.JoinSeq > 0 {
 			visibleFloor = recipient.JoinSeq - 1
@@ -74,18 +94,4 @@ func recipientConversationPatches(event messageevents.MessageCommitted, recipien
 		})
 	}
 	return patches
-}
-
-func recipientUIDs(recipients []Recipient) []string {
-	if len(recipients) == 0 {
-		return nil
-	}
-	uids := make([]string, 0, len(recipients))
-	for _, recipient := range recipients {
-		if recipient.UID == "" {
-			continue
-		}
-		uids = append(uids, recipient.UID)
-	}
-	return uids
 }

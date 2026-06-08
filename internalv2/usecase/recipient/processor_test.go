@@ -142,6 +142,51 @@ func TestProcessorAllowsMissingDependenciesAfterTargetValidation(t *testing.T) {
 	}
 }
 
+func TestProcessorSkipsAllEmptyRecipients(t *testing.T) {
+	conversation := &recordingConversationUpdater{}
+	delivery := &recordingDeliverySubmitter{}
+	processor := NewProcessor(ProcessorOptions{
+		LocalNodeID:  1,
+		Conversation: conversation,
+		Delivery:     delivery,
+	})
+
+	err := processor.Process(context.Background(), ProcessRequest{
+		Target:     localTarget(1),
+		Event:      messageevents.MessageCommitted{ChannelID: "group-1", ChannelType: 2},
+		Recipients: []Recipient{{UID: ""}, {UID: ""}},
+	})
+	if err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	if conversation.called {
+		t.Fatal("conversation called for all-empty recipients")
+	}
+	if delivery.called {
+		t.Fatal("delivery called for all-empty recipients")
+	}
+}
+
+func TestProcessorRequiresConversationBeforeDelivery(t *testing.T) {
+	delivery := &recordingDeliverySubmitter{}
+	processor := NewProcessor(ProcessorOptions{
+		LocalNodeID: 1,
+		Delivery:    delivery,
+	})
+
+	err := processor.Process(context.Background(), ProcessRequest{
+		Target:     localTarget(1),
+		Event:      messageevents.MessageCommitted{ChannelID: "group-1", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u1"}},
+	})
+	if !errors.Is(err, ErrConversationRequired) {
+		t.Fatalf("Process() error = %v, want %v", err, ErrConversationRequired)
+	}
+	if delivery.called {
+		t.Fatal("delivery called without conversation updater")
+	}
+}
+
 func TestProcessorFiltersEmptyRecipients(t *testing.T) {
 	conversation := &recordingConversationUpdater{}
 	delivery := &recordingDeliverySubmitter{}

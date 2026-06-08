@@ -13,6 +13,8 @@ var (
 	ErrNotLeader     = errors.New("internalv2/usecase/recipient: not leader")
 	ErrStaleRoute    = errors.New("internalv2/usecase/recipient: stale route")
 	ErrRouteNotReady = errors.New("internalv2/usecase/recipient: route not ready")
+	// ErrConversationRequired reports delivery configured without the required conversation updater.
+	ErrConversationRequired = errors.New("internalv2/usecase/recipient: conversation updater required")
 )
 
 // Recipient identifies one UID in a recipient-authority group.

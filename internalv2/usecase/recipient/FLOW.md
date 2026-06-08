@@ -5,7 +5,9 @@ This package owns local recipient-authority post-commit processing. It is entry-
 ```text
 Process(target,event,recipients)
   -> validate target is local recipient UID authority
+  -> filter non-empty recipient UIDs; stop when none remain
   -> build recipient-scoped conversation active patches
+  -> require a conversation updater before configured delivery
   -> AdmitPatches before delivery
   -> clone event and replace MessageScopedUIDs with this recipient group
   -> SubmitDelivery
@@ -14,6 +16,7 @@ Process(target,event,recipients)
 Responsibilities:
 
 - Reject work when the target is not local to this node.
+- Treat an empty effective recipient group as a no-op.
 - Update recent conversation state before any delivery submission.
 - Scope delivery to the non-empty recipient UIDs from the request.
 
