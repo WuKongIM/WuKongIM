@@ -73,6 +73,10 @@ type conversationListMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type conversationProjectorMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
@@ -238,6 +242,46 @@ func (o conversationListMetricsObserver) ObserveConversationList(event accessapi
 		return
 	}
 	o.metrics.Conversation.ObserveList(event.Result, event.More, event.Duration, event.ReturnedItems, event.SparseItems, event.LastMessageLoads, event.LastMessageErrors, event.ActiveIndexStaleSkips)
+}
+
+func (o conversationProjectorMetricsObserver) SetConversationProjectorDirty(event conversationProjectorDirtyEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.SetProjectorDirty(event.DirtyKeys, event.MaxDirtyEvents)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationProjectorSubmit(event conversationProjectorSubmitEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectorSubmit(event.Result)
+	o.metrics.Conversation.SetProjectorDirty(event.DirtyKeys, event.MaxDirtyEvents)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationProjectorFlush(event conversationProjectorFlushEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectorFlush(event.Result, event.Duration, event.DrainedEvents, event.ProjectedRows, event.DenseEvents, event.SparseEvents, event.RequeuedEvents)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationProjectorMemberClassify(event conversationProjectorMemberClassifyEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	cache := "miss"
+	if event.CacheHit {
+		cache = "hit"
+	}
+	o.metrics.Conversation.ObserveProjectorMemberClassify(event.Result, cache)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationProjectorWrite(event conversationProjectorWriteEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectorWrite(event.Phase, event.Result, event.Duration, event.Rows)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
@@ -1435,6 +1479,7 @@ var _ accessgateway.AsyncAuthObserver = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
 var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
+var _ conversationProjectorObserver = conversationProjectorMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelV2MetricsObserver{}
 var _ reactor.AppendQueuePressureObserver = channelV2MetricsObserver{}

@@ -364,6 +364,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				app.conversationProjector = newConversationProjector(conversationProjectorOptions{
 					store:                 store,
 					members:               store,
+					observer:              app.conversationProjectorObserver(),
 					smallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
 				})
 			}
@@ -530,6 +531,13 @@ func (a *App) conversationListObserver() accessapi.ConversationListObserver {
 		return nil
 	}
 	return conversationListMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) conversationProjectorObserver() conversationProjectorObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationProjectorMetricsObserver{metrics: a.metrics}
 }
 
 func (a *App) gatewayObserver() gateway.Observer {

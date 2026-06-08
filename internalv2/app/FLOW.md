@@ -25,7 +25,8 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
-     plus conversation list request latency and page-shape metrics
+     plus conversation list request latency/page-shape metrics and
+     conversation projector dirty-key, flush-shape, member-cache, and write metrics
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -190,8 +191,13 @@ channels fan out to the two participants, ordinary groups at or below
 page plus the sender when the subscriber snapshot omits it, and larger groups
 write only a sparse sender row. Member classification failures requeue only the
 affected dirty event. Batch write failures fall back to per-event writes and
-requeue only events that still fail. This projection is independent of delivery
-fanout and is written even when `Delivery.Enabled=false`.
+requeue only events that still fail. When metrics are enabled, projector
+observations update low-cardinality Prometheus metrics for submit result, dirty
+key pressure, flush event/row shape, dense/sparse projection counts, member
+classification cache hit/miss/error, write phase/result/duration, and requeued
+event counts. These metrics do not carry UID or channel labels. This projection
+is independent of delivery fanout and is written even when
+`Delivery.Enabled=false`.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so

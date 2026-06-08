@@ -19,11 +19,22 @@ const (
 	defaultConversationProjectorMaxDirtyEvents = 100000
 )
 
+const (
+	conversationProjectorResultAccepted  = "accepted"
+	conversationProjectorResultCoalesced = "coalesced"
+	conversationProjectorResultDropped   = "dropped"
+	conversationProjectorResultIgnored   = "ignored"
+	conversationProjectorResultOK        = "ok"
+	conversationProjectorResultError     = "error"
+)
+
 type conversationProjectorOptions struct {
 	// store persists coalesced UID-owned conversation rows outside the foreground send path.
 	store conversationusecase.ConversationBatchStore
 	// members classifies non-person channels for dense or sparse projection.
 	members conversationusecase.MemberSource
+	// observer receives low-cardinality projector pressure and flush observations.
+	observer conversationProjectorObserver
 	// smallGroupFanoutLimit bounds dense fanout for ordinary channels.
 	smallGroupFanoutLimit int
 	// maxDirtyEvents bounds unflushed committed-message keys retained in memory.
@@ -34,10 +45,57 @@ type conversationProjectorOptions struct {
 	shardCount int
 }
 
+type conversationProjectorObserver interface {
+	SetConversationProjectorDirty(conversationProjectorDirtyEvent)
+	ObserveConversationProjectorSubmit(conversationProjectorSubmitEvent)
+	ObserveConversationProjectorFlush(conversationProjectorFlushEvent)
+	ObserveConversationProjectorMemberClassify(conversationProjectorMemberClassifyEvent)
+	ObserveConversationProjectorWrite(conversationProjectorWriteEvent)
+}
+
+// conversationProjectorDirtyEvent reports current dirty-key pressure.
+type conversationProjectorDirtyEvent struct {
+	DirtyKeys      int
+	MaxDirtyEvents int
+}
+
+// conversationProjectorSubmitEvent reports foreground committed-message admission.
+type conversationProjectorSubmitEvent struct {
+	Result         string
+	DirtyKeys      int
+	MaxDirtyEvents int
+}
+
+// conversationProjectorFlushEvent reports one background projection flush.
+type conversationProjectorFlushEvent struct {
+	Result         string
+	Duration       time.Duration
+	DrainedEvents  int
+	ProjectedRows  int
+	DenseEvents    int
+	SparseEvents   int
+	RequeuedEvents int
+}
+
+// conversationProjectorMemberClassifyEvent reports one group member-classification lookup.
+type conversationProjectorMemberClassifyEvent struct {
+	Result   string
+	CacheHit bool
+}
+
+// conversationProjectorWriteEvent reports one durable projector write attempt.
+type conversationProjectorWriteEvent struct {
+	Phase    string
+	Result   string
+	Duration time.Duration
+	Rows     int
+}
+
 // conversationProjector coalesces committed messages before durable conversation-row flush.
 type conversationProjector struct {
 	store                 conversationusecase.ConversationBatchStore
 	members               conversationusecase.MemberSource
+	observer              conversationProjectorObserver
 	smallGroupFanoutLimit int
 	maxDirtyEvents        int
 	flushInterval         time.Duration
@@ -76,6 +134,7 @@ func newConversationProjector(opts conversationProjectorOptions) *conversationPr
 	projector := &conversationProjector{
 		store:                 opts.store,
 		members:               opts.members,
+		observer:              opts.observer,
 		smallGroupFanoutLimit: opts.smallGroupFanoutLimit,
 		maxDirtyEvents:        opts.maxDirtyEvents,
 		flushInterval:         opts.flushInterval,
@@ -84,6 +143,7 @@ func newConversationProjector(opts conversationProjectorOptions) *conversationPr
 	for i := range projector.shards {
 		projector.shards[i].events = make(map[conversationProjectorKey]messageevents.MessageCommitted)
 	}
+	projector.observeDirty()
 	return projector
 }
 
@@ -150,12 +210,16 @@ func (p *conversationProjector) run(ctx context.Context, stopCh <-chan struct{},
 }
 
 func (p *conversationProjector) Submit(_ context.Context, event messageevents.MessageCommitted) error {
-	if p == nil || p.store == nil || event.ChannelID == "" || event.ChannelType == 0 {
+	if p == nil {
+		return nil
+	}
+	if p.store == nil || event.ChannelID == "" || event.ChannelType == 0 {
+		p.observeSubmit(conversationProjectorResultIgnored)
 		return nil
 	}
 	event.Payload = nil
 	event.MessageScopedUIDs = nil
-	p.merge(event)
+	p.observeSubmit(p.merge(event))
 	return nil
 }
 
@@ -166,14 +230,17 @@ func (p *conversationProjector) Flush(ctx context.Context) error {
 	p.flushMu.Lock()
 	defer p.flushMu.Unlock()
 
+	startedAt := time.Now()
 	events := p.drain()
 	if len(events) == 0 {
 		return nil
 	}
-	members := newConversationProjectorMemberCache(p.members)
+	members := newConversationProjectorMemberCache(p.members, p.observer)
 	var attempts []conversationProjectionAttempt
 	var failedEvents []messageevents.MessageCommitted
 	var firstErr error
+	denseEvents := 0
+	sparseEvents := 0
 	for _, event := range events {
 		collector := newConversationStateCollector()
 		projector := conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
@@ -189,6 +256,12 @@ func (p *conversationProjector) Flush(ctx context.Context) error {
 			continue
 		}
 		if states := collector.states(); len(states) > 0 {
+			switch conversationProjectionMode(states) {
+			case "sparse":
+				sparseEvents++
+			default:
+				denseEvents++
+			}
 			attempts = append(attempts, conversationProjectionAttempt{
 				event:  event,
 				states: states,
@@ -198,16 +271,47 @@ func (p *conversationProjector) Flush(ctx context.Context) error {
 	states := collectProjectionAttemptStates(attempts)
 	if len(states) == 0 {
 		p.mergeEvents(failedEvents)
+		p.observeFlush(conversationProjectorFlushEvent{
+			Result:         conversationProjectorFlushResult(firstErr),
+			Duration:       time.Since(startedAt),
+			DrainedEvents:  len(events),
+			DenseEvents:    denseEvents,
+			SparseEvents:   sparseEvents,
+			RequeuedEvents: len(failedEvents),
+		})
 		return firstErr
 	}
+	writeStartedAt := time.Now()
 	if err := p.store.UpsertUserConversationStatesBatch(ctx, states); err != nil {
+		p.observeWrite(conversationProjectorWriteEvent{
+			Phase:    "batch",
+			Result:   conversationProjectorResultError,
+			Duration: time.Since(writeStartedAt),
+			Rows:     len(states),
+		})
 		retryErr, retryFailed := p.flushProjectionAttemptsIndividually(ctx, attempts)
 		if retryErr != nil && firstErr == nil {
 			firstErr = retryErr
 		}
 		failedEvents = append(failedEvents, retryFailed...)
+	} else {
+		p.observeWrite(conversationProjectorWriteEvent{
+			Phase:    "batch",
+			Result:   conversationProjectorResultOK,
+			Duration: time.Since(writeStartedAt),
+			Rows:     len(states),
+		})
 	}
 	p.mergeEvents(failedEvents)
+	p.observeFlush(conversationProjectorFlushEvent{
+		Result:         conversationProjectorFlushResult(firstErr),
+		Duration:       time.Since(startedAt),
+		DrainedEvents:  len(events),
+		ProjectedRows:  len(states),
+		DenseEvents:    denseEvents,
+		SparseEvents:   sparseEvents,
+		RequeuedEvents: len(failedEvents),
+	})
 	return firstErr
 }
 
@@ -231,20 +335,35 @@ func (p *conversationProjector) flushProjectionAttemptsIndividually(ctx context.
 		if len(attempt.states) == 0 {
 			continue
 		}
+		startedAt := time.Now()
 		if err := p.store.UpsertUserConversationStatesBatch(ctx, attempt.states); err != nil {
+			p.observeWrite(conversationProjectorWriteEvent{
+				Phase:    "fallback",
+				Result:   conversationProjectorResultError,
+				Duration: time.Since(startedAt),
+				Rows:     len(attempt.states),
+			})
 			if firstErr == nil {
 				firstErr = err
 			}
 			failed = append(failed, attempt.event)
+			continue
 		}
+		p.observeWrite(conversationProjectorWriteEvent{
+			Phase:    "fallback",
+			Result:   conversationProjectorResultOK,
+			Duration: time.Since(startedAt),
+			Rows:     len(attempt.states),
+		})
 	}
 	return firstErr, failed
 }
 
 type conversationProjectorMemberCache struct {
-	next conversationusecase.MemberSource
-	mu   sync.Mutex
-	rows map[conversationProjectorMemberKey]conversationProjectorMemberResult
+	next     conversationusecase.MemberSource
+	observer conversationProjectorObserver
+	mu       sync.Mutex
+	rows     map[conversationProjectorMemberKey]conversationProjectorMemberResult
 }
 
 type conversationProjectorMemberKey struct {
@@ -258,10 +377,11 @@ type conversationProjectorMemberResult struct {
 	err   error
 }
 
-func newConversationProjectorMemberCache(next conversationusecase.MemberSource) *conversationProjectorMemberCache {
+func newConversationProjectorMemberCache(next conversationusecase.MemberSource, observer conversationProjectorObserver) *conversationProjectorMemberCache {
 	return &conversationProjectorMemberCache{
-		next: next,
-		rows: map[conversationProjectorMemberKey]conversationProjectorMemberResult{},
+		next:     next,
+		observer: observer,
+		rows:     map[conversationProjectorMemberKey]conversationProjectorMemberResult{},
 	}
 }
 
@@ -273,6 +393,7 @@ func (c *conversationProjectorMemberCache) ClassifyMembers(ctx context.Context, 
 	c.mu.Lock()
 	if result, ok := c.rows[key]; ok {
 		c.mu.Unlock()
+		c.observeMemberClassify(result.err, true)
 		return result.class, result.err
 	}
 	c.mu.Unlock()
@@ -282,7 +403,19 @@ func (c *conversationProjectorMemberCache) ClassifyMembers(ctx context.Context, 
 	c.mu.Lock()
 	c.rows[key] = result
 	c.mu.Unlock()
+	c.observeMemberClassify(err, false)
 	return result.class, result.err
+}
+
+func (c *conversationProjectorMemberCache) observeMemberClassify(err error, cacheHit bool) {
+	if c == nil || c.observer == nil {
+		return
+	}
+	result := conversationProjectorResultOK
+	if err != nil {
+		result = conversationProjectorResultError
+	}
+	c.observer.ObserveConversationProjectorMemberClassify(conversationProjectorMemberClassifyEvent{Result: result, CacheHit: cacheHit})
 }
 
 func cloneMemberClass(class conversationusecase.MemberClass) conversationusecase.MemberClass {
@@ -302,6 +435,7 @@ func (p *conversationProjector) drain() []messageevents.MessageCommitted {
 		}
 		shard.mu.Unlock()
 	}
+	p.observeDirty()
 	sort.Slice(events, func(i, j int) bool {
 		if events[i].ChannelID != events[j].ChannelID {
 			return events[i].ChannelID < events[j].ChannelID
@@ -320,9 +454,9 @@ func (p *conversationProjector) mergeEvents(events []messageevents.MessageCommit
 	}
 }
 
-func (p *conversationProjector) merge(event messageevents.MessageCommitted) {
+func (p *conversationProjector) merge(event messageevents.MessageCommitted) string {
 	if p == nil || len(p.shards) == 0 {
-		return
+		return conversationProjectorResultIgnored
 	}
 	key := conversationProjectorKey{channelID: event.ChannelID, channelType: event.ChannelType, fromUID: event.FromUID}
 	shard := &p.shards[p.shardIndex(key)]
@@ -330,12 +464,17 @@ func (p *conversationProjector) merge(event messageevents.MessageCommitted) {
 	existing, ok := shard.events[key]
 	if !ok && !p.tryReserveDirtyEvent() {
 		shard.mu.Unlock()
-		return
+		return conversationProjectorResultDropped
 	}
 	if !ok || committedEventAfter(event, existing) {
 		shard.events[key] = event
 	}
 	shard.mu.Unlock()
+	if !ok {
+		p.observeDirty()
+		return conversationProjectorResultAccepted
+	}
+	return conversationProjectorResultCoalesced
 }
 
 func (p *conversationProjector) tryReserveDirtyEvent() bool {
@@ -349,6 +488,57 @@ func (p *conversationProjector) tryReserveDirtyEvent() bool {
 			return true
 		}
 	}
+}
+
+func conversationProjectionMode(states []metadb.UserConversationState) string {
+	for _, state := range states {
+		if state.SparseActive {
+			return "sparse"
+		}
+	}
+	return "dense"
+}
+
+func conversationProjectorFlushResult(err error) string {
+	if err != nil {
+		return conversationProjectorResultError
+	}
+	return conversationProjectorResultOK
+}
+
+func (p *conversationProjector) observeDirty() {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.SetConversationProjectorDirty(conversationProjectorDirtyEvent{
+		DirtyKeys:      int(p.dirtyEvents.Load()),
+		MaxDirtyEvents: p.maxDirtyEvents,
+	})
+}
+
+func (p *conversationProjector) observeSubmit(result string) {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.ObserveConversationProjectorSubmit(conversationProjectorSubmitEvent{
+		Result:         result,
+		DirtyKeys:      int(p.dirtyEvents.Load()),
+		MaxDirtyEvents: p.maxDirtyEvents,
+	})
+}
+
+func (p *conversationProjector) observeFlush(event conversationProjectorFlushEvent) {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.ObserveConversationProjectorFlush(event)
+}
+
+func (p *conversationProjector) observeWrite(event conversationProjectorWriteEvent) {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.ObserveConversationProjectorWrite(event)
 }
 
 func committedEventAfter(next, existing messageevents.MessageCommitted) bool {

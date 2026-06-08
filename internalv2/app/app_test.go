@@ -662,6 +662,141 @@ func TestConversationProjectorUsesSparseSenderRowWhenGroupExceedsLimit(t *testin
 	}
 }
 
+func TestConversationProjectorObservesSubmitFlushAndMemberCache(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	members := &recordingConversationMemberSource{
+		class: conversationusecase.MemberClass{
+			IsSmall: true,
+			Members: []conversationusecase.Member{
+				{UID: "sender-a"},
+				{UID: "sender-b"},
+				{UID: "member"},
+			},
+		},
+	}
+	observer := &recordingConversationProjectorObserver{}
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:                 store,
+		members:               members,
+		smallGroupFanoutLimit: 3,
+		observer:              observer,
+	})
+	for idx, sender := range []string{"sender-a", "sender-b"} {
+		if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+			MessageID:         uint64(idx + 1),
+			MessageSeq:        uint64(idx + 1),
+			ChannelID:         "g-observe",
+			ChannelType:       frame.ChannelTypeGroup,
+			FromUID:           sender,
+			ServerTimestampMS: int64(100 + idx),
+		}); err != nil {
+			t.Fatalf("Submit(%s) error = %v", sender, err)
+		}
+	}
+	if err := projector.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+
+	if got := observer.submitResults(); !reflect.DeepEqual(got, []string{"accepted", "accepted"}) {
+		t.Fatalf("submit results = %#v, want two accepted events", got)
+	}
+	if got := observer.memberClassifyLabels(); !reflect.DeepEqual(got, []string{"miss:ok", "hit:ok"}) {
+		t.Fatalf("member classify labels = %#v, want miss then hit", got)
+	}
+	if len(observer.flushes) != 1 {
+		t.Fatalf("flush observations = %#v, want one", observer.flushes)
+	}
+	flush := observer.flushes[0]
+	if flush.Result != "ok" || flush.DrainedEvents != 2 || flush.ProjectedRows != 3 ||
+		flush.DenseEvents != 2 || flush.SparseEvents != 0 || flush.RequeuedEvents != 0 ||
+		flush.Duration <= 0 {
+		t.Fatalf("flush observation = %#v, want dense two-event flush", flush)
+	}
+	if len(observer.writes) != 1 || observer.writes[0].Phase != "batch" ||
+		observer.writes[0].Result != "ok" || observer.writes[0].Rows != 3 ||
+		observer.writes[0].Duration <= 0 {
+		t.Fatalf("write observations = %#v, want successful batch write", observer.writes)
+	}
+	if got := observer.lastDirty(); got.DirtyKeys != 0 || got.MaxDirtyEvents != defaultConversationProjectorMaxDirtyEvents {
+		t.Fatalf("last dirty observation = %#v, want drained dirty keys", got)
+	}
+}
+
+func TestConversationProjectorObservesDroppedDirtyEvents(t *testing.T) {
+	store := &recordingConversationProjectionStore{}
+	observer := &recordingConversationProjectorObserver{}
+	projector := newConversationProjector(conversationProjectorOptions{
+		store:          store,
+		maxDirtyEvents: 1,
+		observer:       observer,
+	})
+	for _, channelID := range []string{
+		runtimechannelid.EncodePersonChannel("drop-a", "drop-b"),
+		runtimechannelid.EncodePersonChannel("drop-c", "drop-d"),
+	} {
+		if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
+			MessageID:         1,
+			MessageSeq:        1,
+			ChannelID:         channelID,
+			ChannelType:       frame.ChannelTypePerson,
+			FromUID:           strings.Split(channelID, "@")[0],
+			ServerTimestampMS: 100,
+		}); err != nil {
+			t.Fatalf("Submit(%s) error = %v", channelID, err)
+		}
+	}
+
+	if got := observer.submitResults(); !reflect.DeepEqual(got, []string{"accepted", "dropped"}) {
+		t.Fatalf("submit results = %#v, want accepted then dropped", got)
+	}
+	if dirty := observer.lastDirty(); dirty.DirtyKeys != 1 || dirty.MaxDirtyEvents != 1 {
+		t.Fatalf("last dirty observation = %#v, want full dirty budget", dirty)
+	}
+}
+
+func TestAppWiresConversationProjectorMetrics(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	app, err := newTestApp(t,
+		Config{
+			Cluster:       clusterv2.Config{NodeID: 3},
+			Observability: ObservabilityConfig{MetricsEnabled: true},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	channelID := runtimechannelid.EncodePersonChannel("metric-a", "metric-b")
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "metric-a",
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: "client-projector-metric-1",
+		Payload:     []byte("projector metric"),
+	})
+	if err != nil || result.Reason != message.ReasonSuccess {
+		t.Fatalf("Send() = %#v err=%v, want success", result, err)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
+
+	families, err := app.metrics.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	submits := requireAppMetricFamily(t, families, "wukongim_conversation_projector_submit_total")
+	if got := findAppMetricByLabels(t, submits, map[string]string{"result": "accepted"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("projector submit metric = %v, want 1", got)
+	}
+	flushes := requireAppMetricFamily(t, families, "wukongim_conversation_projector_flush_total")
+	if got := findAppMetricByLabels(t, flushes, map[string]string{"result": "ok"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("projector flush metric = %v, want 1", got)
+	}
+}
+
 func TestConversationProjectorStopCancelsInFlightBackgroundFlush(t *testing.T) {
 	store := &recordingConversationProjectionStore{}
 	members := newCancelThenReturnMemberSource()
@@ -2630,6 +2765,61 @@ func (s *recordingConversationProjectionStore) totalStates() int {
 		total += len(batch)
 	}
 	return total
+}
+
+type recordingConversationProjectorObserver struct {
+	dirty          []conversationProjectorDirtyEvent
+	submits        []conversationProjectorSubmitEvent
+	flushes        []conversationProjectorFlushEvent
+	memberClassify []conversationProjectorMemberClassifyEvent
+	writes         []conversationProjectorWriteEvent
+}
+
+func (o *recordingConversationProjectorObserver) SetConversationProjectorDirty(event conversationProjectorDirtyEvent) {
+	o.dirty = append(o.dirty, event)
+}
+
+func (o *recordingConversationProjectorObserver) ObserveConversationProjectorSubmit(event conversationProjectorSubmitEvent) {
+	o.submits = append(o.submits, event)
+}
+
+func (o *recordingConversationProjectorObserver) ObserveConversationProjectorFlush(event conversationProjectorFlushEvent) {
+	o.flushes = append(o.flushes, event)
+}
+
+func (o *recordingConversationProjectorObserver) ObserveConversationProjectorMemberClassify(event conversationProjectorMemberClassifyEvent) {
+	o.memberClassify = append(o.memberClassify, event)
+}
+
+func (o *recordingConversationProjectorObserver) ObserveConversationProjectorWrite(event conversationProjectorWriteEvent) {
+	o.writes = append(o.writes, event)
+}
+
+func (o *recordingConversationProjectorObserver) submitResults() []string {
+	out := make([]string, 0, len(o.submits))
+	for _, event := range o.submits {
+		out = append(out, event.Result)
+	}
+	return out
+}
+
+func (o *recordingConversationProjectorObserver) memberClassifyLabels() []string {
+	out := make([]string, 0, len(o.memberClassify))
+	for _, event := range o.memberClassify {
+		cache := "miss"
+		if event.CacheHit {
+			cache = "hit"
+		}
+		out = append(out, cache+":"+event.Result)
+	}
+	return out
+}
+
+func (o *recordingConversationProjectorObserver) lastDirty() conversationProjectorDirtyEvent {
+	if len(o.dirty) == 0 {
+		return conversationProjectorDirtyEvent{}
+	}
+	return o.dirty[len(o.dirty)-1]
 }
 
 type cancelThenReturnMemberSource struct {
