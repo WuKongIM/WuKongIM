@@ -111,6 +111,17 @@ one bounded subscriber page with
 fanout input only when it contains at least one member, while an empty or
 truncated page tells the usecase to write sparse sender state instead.
 
+`ConversationAuthorityClient` routes UID-owned active cache calls to the
+current authority leader and leaves cache/list business rules inside the local
+authority implementation.
+
+```text
+ConversationAuthorityClient
+  -> RouteKey(uid)
+  -> local conversation authority when target leader is this node
+  -> access/node ConversationAuthority RPC when target leader is remote
+```
+
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
