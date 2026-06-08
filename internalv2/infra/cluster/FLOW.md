@@ -147,6 +147,25 @@ bounded backoff so authority movement can settle without changing conversation
 usecase semantics. Raw clusterv2 route errors returned by remote RPC calls are
 mapped to the same conversation route sentinels before the retry decision.
 
+## Sender Authority Flow
+
+`SenderAuthorityClient` adapts the message usecase sender-authority resolver and
+remote-forwarding ports to clusterv2 UID routing and `internalv2/access/node`
+RPC. This adapter only resolves sender UID authority and forwards remote sender
+batches; it does not decide channel append policy or recipient fanout.
+
+```text
+SenderAuthorityClient
+  -> ResolveUIDAuthority(uid): clusterv2.RouteKey(uid) -> authority.Target
+  -> SendBatchToAuthority(target, items): access/node Sender Authority RPC to target.LeaderNodeID
+```
+
+Route-not-ready and missing-leader lookup failures are mapped to the message
+route-not-ready sentinel, not-leader lookup failures are mapped to the message
+not-leader sentinel, and context cancellation/deadline errors pass through
+unchanged. Remote batch results stay item-aligned and are returned without
+interpretation by this adapter.
+
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
