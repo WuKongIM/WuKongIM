@@ -68,6 +68,13 @@ validation, message ID allocation, channel grouping, or durable append. Remote
 RPC handlers call the local submitter directly so remote sends do not recurse
 through the router.
 
+Every local or remote authority call carries the exact UID authority target that
+the router resolved: hash slot, physical Slot ID, leader node ID, route
+revision, and authority epoch. The receiving node must verify that the target is
+still locally authoritative before committing. Stale targets return
+`not_leader`, `stale_route`, or `route_not_ready`; the router resolves a fresh
+target and retries within the caller's deadline.
+
 ### Channel Commit
 
 The local submitter is the existing channel commit usecase:
@@ -111,13 +118,21 @@ Recipient UID source rules:
 - other channels: page durable channel subscribers.
 
 `RecipientAuthorityProcessor` runs on the recipient UID authority node and
-executes a fixed sequence:
+executes a fixed sequence for the exact recipient UID group carried by the
+request:
 
 ```text
-project conversation active patches
+project recipient-scoped conversation active patches
   -> admit/update UID-owned conversation authority
   -> submit delivery envelope scoped to this recipient UID group
 ```
+
+Recipient-scoped means every UID in the group gets its own active conversation
+patch before that UID is eligible for delivery. The old large-group
+conversation behavior that only writes a sparse sender row is not used for
+recipient-authority delivery groups. Sender-only sparse projection may remain
+for sender display policy if needed, but it cannot satisfy the
+conversation-before-delivery requirement for recipients.
 
 The delivery runtime then resolves online routes and pushes to connection owner
 nodes:
@@ -131,6 +146,18 @@ delivery submit
 
 This keeps UID authority responsible for business ownership and connection
 owner responsible only for concrete session writes.
+
+### Subscriber Paging
+
+The recipient pipeline owns subscriber selection for post-commit delivery. It
+must scan subscribers page by page with bounded limits, group each page by UID
+authority target, and dispatch each target group independently. It must not load
+a full large channel into memory before grouping.
+
+The existing delivery runtime may keep connection-owner push, pending ack,
+presence lookup, and retry/drop behavior. It must not rescan channel subscribers
+for the new post-commit path; it receives scoped UID groups through
+`MessageScopedUIDs` and delivers only those UIDs.
 
 ## Components
 
@@ -148,12 +175,47 @@ Add a sender authority router:
 The router returns item-aligned `SendBatchItemResult` values so gateway
 micro-batching semantics stay unchanged.
 
+The package import-boundary test must continue to reject concrete routing and
+entry packages such as `pkg/clusterv2`, `internalv2/access`, and
+`internalv2/app`. Concrete authority resolution and RPC live behind ports.
+
+### `internalv2/usecase/recipient`
+
+Add a narrow usecase package for recipient-authority post-commit orchestration.
+This package owns business ordering and recipient grouping policy:
+
+- `Dispatcher.SubmitCommitted` admits committed events into a bounded async
+  worker.
+- `Dispatcher` resolves recipient UIDs by scoped list, person participants, or
+  paged channel subscribers.
+- `Dispatcher` groups recipient UIDs by fenced UID authority target.
+- `Processor.Process` validates the request target, projects recipient-scoped
+  conversation patches, admits those patches, then submits scoped delivery.
+- Ports provide subscriber paging, authority target resolution, remote
+  recipient forwarding, conversation patch admission, and delivery submission.
+
+The package must not import gateway frames, clusterv2, channelv2, access
+adapters, or the app composition root.
+
+The async worker contract:
+
+- bounded event queue, with admission failure recorded but not reflected in
+  `SENDACK`;
+- bounded subscriber page size and per-target UID batch size;
+- retry by `(event key, target, recipient UID group, cursor)` with max attempts
+  and max age;
+- route movement retries after resolving a fresh target;
+- graceful stop drains accepted work until the caller context expires;
+- low-cardinality observer events for admission, paging, target dispatch,
+  conversation update, delivery submit, retry, drop, and terminal result.
+
 ### `internalv2/access/node`
 
 Add sender authority RPC:
 
 - sender authority service ID in clusterv2 RPC service constants.
 - deterministic binary codec for send batch request and response.
+- request includes the fenced sender UID authority target.
 - `Client.SendToSenderAuthority(ctx, nodeID, batch)`.
 - `Adapter.HandleSenderAuthorityRPC`.
 
@@ -162,7 +224,9 @@ does not resolve routes or make business decisions.
 
 Add recipient authority RPC:
 
+- recipient authority service ID in clusterv2 RPC service constants.
 - deterministic binary codec for a committed event plus recipient UID list.
+- request includes the fenced recipient UID authority target for the UID group.
 - `Client.ProcessRecipientAuthority(ctx, nodeID, request)`.
 - `Adapter.HandleRecipientAuthorityRPC`.
 
@@ -180,7 +244,10 @@ Add sender authority routing adapter:
 
 Add recipient authority routing adapter:
 
-- groups recipient UIDs by `clusterv2.RouteKey(uid)`.
+- converts each `clusterv2.RouteKey(uid)` result into a fenced authority target
+  containing hash slot, Slot ID, leader node ID, route revision, and authority
+  epoch.
+- groups recipient UIDs by exact authority target.
 - dispatches local groups to the local processor.
 - dispatches remote groups to recipient authority RPC.
 - retries route-not-ready, stale-route, and not-leader with bounded backoff.
@@ -221,7 +288,15 @@ Existing `messageevents.MessageCommitted` already carries the required data:
 Add narrow RPC envelopes:
 
 ```text
+AuthorityTarget
+  HashSlot uint16
+  SlotID uint32
+  LeaderNodeID uint64
+  RouteRevision uint64
+  AuthorityEpoch uint64
+
 SenderAuthoritySendBatchRequest
+  Target AuthorityTarget
   Items []SenderAuthoritySendItem
 
 SenderAuthoritySendItem
@@ -229,14 +304,16 @@ SenderAuthoritySendItem
   TimeoutMS int64
 
 SenderAuthoritySendBatchResponse
+  Status SenderAuthorityStatus
   Results []message.SendBatchItemResult
 
 RecipientAuthorityProcessRequest
+  Target AuthorityTarget
   Event messageevents.MessageCommitted
   RecipientUIDs []string
 
 RecipientAuthorityProcessResponse
-  Status
+  Status RecipientAuthorityStatus
 ```
 
 Use relative timeout metadata for sender authority RPC instead of serializing
@@ -244,7 +321,52 @@ process-local contexts. The receiving node creates fresh bounded contexts.
 
 `RecipientAuthorityProcessor` sets `Event.MessageScopedUIDs` to the received
 recipient UID group before submitting delivery so the delivery runtime only
-delivers that group.
+delivers that group. It also uses that same recipient UID group to build
+conversation active patches; delivery must not receive a UID before that UID's
+conversation patch has been admitted.
+
+Sender authority RPC response loss after a remote durable commit is an
+at-least-once edge unless sender-side idempotency is implemented. The first
+implementation should add sender-authority idempotency keyed by
+`FromUID + ClientMsgNo` for gateway-origin sends with a non-empty
+`ClientMsgNo`, returning the existing committed message ID and sequence on
+retry. If `ClientMsgNo` is empty, the send remains at-least-once and the
+gateway/system should surface the system-error `SENDACK` on transport failure.
+
+### RPC Codec Contract
+
+Use the existing `internalv2/access/node` deterministic codec style:
+
+- sender authority request magic: `W K V S 1`
+- sender authority response magic: `W K V s 1`
+- recipient authority request magic: `W K V A 1`
+- recipient authority response magic: `W K V a 1`
+- length-delimited strings and byte slices;
+- varint/uvarint numeric fields matching the existing node codecs;
+- bounded collection sizes for batch items and recipient UIDs;
+- bounded payload size matching the surrounding gateway/message limits;
+- malformed payloads return decode errors and do not call usecases.
+
+Sender authority statuses:
+
+- `ok`
+- `not_leader`
+- `stale_route`
+- `route_not_ready`
+- `rejected`
+
+Recipient authority statuses:
+
+- `ok`
+- `not_leader`
+- `stale_route`
+- `route_not_ready`
+- `retryable`
+- `rejected`
+
+Status-to-error mapping must use the same sentinel style as the existing
+presence and conversation authority RPCs so route retry logic stays outside the
+RPC adapter.
 
 ## Error Handling
 
@@ -254,7 +376,8 @@ Synchronous errors affect `SENDACK`:
   invalid request reason.
 - sender UID authority route-not-ready, stale-route, or not-leader maps to
   `ReasonNodeNotMatch` through existing message error mapping.
-- sender authority RPC transport failure maps to a system-error `SENDACK`.
+- sender authority RPC transport failure maps to a system-error `SENDACK` when
+  no idempotent result can be recovered.
 - channel append route-not-ready, stale-route, or not-leader preserves the
   existing `ReasonNodeNotMatch` behavior.
 - channel append success followed by recipient pipeline admission failure does
@@ -275,8 +398,13 @@ Asynchronous errors do not affect `SENDACK`:
 
 - Use `(MessageID, MessageSeq, ChannelID, ChannelType)` as the committed-event
   idempotency basis.
+- Sender authority retry uses `FromUID + ClientMsgNo` when `ClientMsgNo` is
+  present to recover durable results after response loss.
 - Conversation active writes are idempotent UID/channel upserts or active
   patches.
+- Recipient pipeline retry is keyed by committed event, authority target,
+  recipient UID group, and subscriber cursor so partial target failures do not
+  replay unrelated groups.
 - Delivery retry is allowed; pending ack and sender echo suppression continue
   to rely on `MessageID`, `SessionID`, `SenderNodeID`, and `SenderSessionID`.
 - Preserve append-result order within one channel batch.
@@ -304,15 +432,24 @@ Unit tests first:
 - `SenderAuthorityRouter` routes remote UID leaders through RPC.
 - sender router preserves item-aligned batch results.
 - sender router maps route-not-ready, stale-route, and not-leader correctly.
+- sender router recovers an idempotent result for duplicate
+  `FromUID + ClientMsgNo` after response loss.
 - sender authority RPC codec round-trips commands and results.
 - sender authority RPC rejects malformed payloads.
+- sender authority RPC rejects stale fenced targets without committing.
 - `RecipientAuthorityDispatcher` handles scoped UIDs, person participants, and
   group subscriber pages.
-- recipient dispatcher groups by recipient UID hash-slot leader.
+- recipient dispatcher scans group subscribers page by page with bounded limits.
+- recipient dispatcher groups by exact recipient UID authority target.
 - recipient dispatcher isolates remote target failures to the affected group.
 - `RecipientAuthorityProcessor` calls conversation before delivery.
+- processor creates conversation patches for every UID in the recipient group,
+  including large groups.
 - processor skips delivery when conversation update fails.
 - processor returns retryable errors for delivery submit failures.
+- recipient authority RPC codec round-trips fenced target, event, and UIDs.
+- recipient authority RPC rejects stale fenced targets without updating
+  conversation or delivery.
 - `internalv2/app` injects gateway with sender router.
 - `internalv2/app` injects sender RPC with local submitter to avoid recursive
   forwarding.
@@ -334,6 +471,8 @@ Implementation must update relevant `FLOW.md` files:
 - `internalv2/access/gateway/FLOW.md`
 - `internalv2/access/node/FLOW.md`
 - `internalv2/usecase/message/FLOW.md`
+- `internalv2/usecase/recipient/FLOW.md` when the package is added
+- `internalv2/usecase/conversation/FLOW.md`
 - `internalv2/usecase/delivery/FLOW.md` if delivery entry semantics change
 - `internalv2/infra/cluster/FLOW.md`
 - `internalv2/app` flow documentation if added
