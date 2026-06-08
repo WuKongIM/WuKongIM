@@ -125,6 +125,23 @@ The boundary does not decide sender authority routing, channel append policy,
 recipient pipeline behavior, retries, or route-table resolution; those decisions
 stay in usecase and infra/cluster layers.
 
+## Recipient Authority RPC
+
+```text
+remote recipient authority client
+  -> encode W K V A 1 request
+  -> clusterv2 RPCRecipientAuthority
+  -> Adapter.HandleRecipientAuthorityRPC
+  -> RecipientAuthority.Process
+  -> encode W K V a 1 response
+```
+
+Recipient authority RPC transports one `recipient.ProcessRequest` to the
+target recipient authority node and returns a stable status. The boundary does
+not decide recipient authority routing, subscriber paging, conversation
+projection policy, delivery fanout policy, retries, or route-table resolution;
+those decisions stay in usecase and infra/cluster layers.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -151,6 +168,11 @@ Sender authority RPC uses fixed magic headers:
 
 - Request: `W K V S 1`
 - Response: `W K V s 1`
+
+Recipient authority RPC uses fixed magic headers:
+
+- Request: `W K V A 1`
+- Response: `W K V a 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -185,7 +207,9 @@ Delivery push and fanout responses currently use:
   projection-flush, or handoff business logic.
 - This package must not decide sender authority routing, append policy, storage
   lookup, or recipient pipeline behavior.
+- This package must not decide recipient authority routing, subscriber paging,
+  conversation projection policy, or delivery fanout policy.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
-  `SenderAuthority` interfaces.
+  `SenderAuthority` / `RecipientAuthority` interfaces.

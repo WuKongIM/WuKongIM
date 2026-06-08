@@ -117,14 +117,6 @@ func senderAuthorityRelativeTimeout(item message.SendBatchItem, now time.Time) t
 	return deadline.Sub(now)
 }
 
-func senderAuthorityErrorResults(n int, err error) []message.SendBatchItemResult {
-	results := make([]message.SendBatchItemResult, n)
-	for i := range results {
-		results[i].Err = err
-	}
-	return results
-}
-
 func senderAuthorityFillActiveErrors(results []message.SendBatchItemResult, indexes []int, err error) []message.SendBatchItemResult {
 	for _, index := range indexes {
 		results[index].Err = err
