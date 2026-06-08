@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,71 @@ func TestWukongIMV2GroupConversationProjectionDenseAndSparse(t *testing.T) {
 			t.Fatalf("uid %s unexpectedly has large-group conversation: %#v\n%s", uid, item, process.DumpDiagnostics())
 		}
 	}
+}
+
+func TestWukongIMV2HundredKGroupConversationProjectionStaysSparse(t *testing.T) {
+	if os.Getenv("WK_E2E_100K_CONVERSATION") != "1" {
+		t.Skip("set WK_E2E_100K_CONVERSATION=1 to run the 100k conversation projection stress test")
+	}
+
+	binaryPath := buildWukongIMV2Binary(t)
+	workspace := suite.NewWorkspace(t)
+	ports := suite.ReserveLoopbackPorts(t)
+	spec := newSingleNodeClusterSpec(workspace, ports)
+
+	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte(renderSingleNodeClusterConfig(spec)), 0o644))
+
+	process := &suite.NodeProcess{
+		Spec:       spec,
+		BinaryPath: binaryPath,
+	}
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		require.NoError(t, process.Stop())
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	require.NoError(t, suite.WaitHTTPReady(ctx, spec.APIAddr, "/readyz"), process.DumpDiagnostics())
+	require.NoError(t, suite.WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
+
+	apiBaseURL := "http://" + spec.APIAddr
+	const channelID = "e2e-conversation-100k-group"
+	postLegacyJSON(t, ctx, apiBaseURL+"/channel", map[string]any{
+		"channel_id":   channelID,
+		"channel_type": frame.ChannelTypeGroup,
+		"subscribers":  hundredKConversationSubscribers(),
+	})
+	sendResp := postMessageSend(t, ctx, apiBaseURL, map[string]any{
+		"from_uid":      "conv-100k-sender",
+		"channel_id":    channelID,
+		"channel_type":  frame.ChannelTypeGroup,
+		"client_msg_no": "conv-100k-1",
+		"payload":       base64.StdEncoding.EncodeToString([]byte("100k sparse projection")),
+	})
+	require.Equal(t, uint8(frame.ReasonSuccess), sendResp.Reason)
+
+	requireConversationEventually(t, process, spec.APIAddr, "conv-100k-sender", channelID, func(item conversationListItem) error {
+		if !item.SparseActive {
+			return fmt.Errorf("sparse_active = false, want sparse sender row")
+		}
+		if item.LastMessage == nil || item.LastMessage.MessageID != uint64(sendResp.MessageID) ||
+			item.LastMessage.MessageSeq != sendResp.MessageSeq || item.LastMessage.ClientMsgNo != "conv-100k-1" {
+			return fmt.Errorf("last_message = %#v, want 100k committed message", item.LastMessage)
+		}
+		return nil
+	})
+
+	for _, uid := range []string{hundredKConversationSubscriberUID(0), hundredKConversationSubscriberUID(50000), hundredKConversationSubscriberUID(99999)} {
+		page := fetchConversationList(t, ctx, spec.APIAddr, uid, 10)
+		if item, ok := findConversation(page, channelID); ok {
+			t.Fatalf("uid %s unexpectedly has 100k sparse conversation: %#v\n%s", uid, item, process.DumpDiagnostics())
+		}
+	}
+
+	requireMetricValueEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_projected_rows_sum`, map[string]string{"result": "ok"}, 1)
+	requireMetricValueEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_write_rows_sum`, map[string]string{"phase": "batch", "result": "ok"}, 1)
+	requireMetricAtLeastEventually(t, process, spec.APIAddr, `wukongim_conversation_projector_projection_events_total`, map[string]string{"mode": "sparse", "result": "ok"}, 1)
 }
 
 type messageSendResponse struct {
@@ -266,6 +332,111 @@ func findConversation(page conversationListPage, channelID string) (conversation
 	return conversationListItem{}, false
 }
 
+func requireMetricValueEventually(t *testing.T, process *suite.NodeProcess, apiAddr, metricName string, labels map[string]string, want float64) {
+	t.Helper()
+	requireMetricEventually(t, process, apiAddr, metricName, labels, func(got float64) bool {
+		return got == want
+	}, fmt.Sprintf("want %v", want))
+}
+
+func requireMetricAtLeastEventually(t *testing.T, process *suite.NodeProcess, apiAddr, metricName string, labels map[string]string, min float64) {
+	t.Helper()
+	requireMetricEventually(t, process, apiAddr, metricName, labels, func(got float64) bool {
+		return got >= min
+	}, fmt.Sprintf("want >= %v", min))
+}
+
+func requireMetricEventually(t *testing.T, process *suite.NodeProcess, apiAddr, metricName string, labels map[string]string, match func(float64) bool, want string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastBody string
+	var lastValue float64
+	var found bool
+	for {
+		body, err := fetchMetrics(ctx, apiAddr)
+		if err == nil {
+			lastBody = body
+			if value, ok := findPrometheusSample(body, metricName, labels); ok {
+				lastValue = value
+				found = true
+				if match(value) {
+					return
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("metric %s labels=%v value=%v found=%v %s\nmetrics:\n%s\n%s", metricName, labels, lastValue, found, want, lastBody, process.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func fetchMetrics(ctx context.Context, apiAddr string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+apiAddr+"/metrics", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("metrics returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return string(body), nil
+}
+
+func findPrometheusSample(body, metricName string, labels map[string]string) (float64, bool) {
+	for _, line := range strings.Split(body, "\n") {
+		if line == "" || strings.HasPrefix(line, "#") || !strings.HasPrefix(line, metricName) {
+			continue
+		}
+		nameAndLabels, rawValue, ok := strings.Cut(line, " ")
+		if !ok || !prometheusSampleHasLabels(nameAndLabels, labels) {
+			continue
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(rawValue), 64)
+		if err != nil {
+			continue
+		}
+		return value, true
+	}
+	return 0, false
+}
+
+func prometheusSampleHasLabels(nameAndLabels string, labels map[string]string) bool {
+	for key, value := range labels {
+		if !strings.Contains(nameAndLabels, fmt.Sprintf(`%s=%q`, key, value)) {
+			return false
+		}
+	}
+	return true
+}
+
+func hundredKConversationSubscribers() []string {
+	const count = 100000
+	subscribers := make([]string, count)
+	for i := range subscribers {
+		subscribers[i] = hundredKConversationSubscriberUID(i)
+	}
+	return subscribers
+}
+
+func hundredKConversationSubscriberUID(index int) string {
+	return fmt.Sprintf("conv-100k-member-%06d", index)
+}
+
 func buildWukongIMV2Binary(t *testing.T) string {
 	t.Helper()
 
@@ -302,6 +473,7 @@ WK_CLUSTER_INITIAL_SLOT_COUNT=1
 WK_CLUSTER_HASH_SLOT_COUNT=4
 WK_CLUSTER_SLOT_REPLICA_N=1
 WK_API_LISTEN_ADDR=%s
+WK_METRICS_ENABLE=true
 WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=2
 WK_GATEWAY_LISTENERS=%s
 WK_GATEWAY_SEND_TIMEOUT=5s
