@@ -39,6 +39,10 @@ SendBatch(items)
   -> return item-aligned SendBatchItemResult values
 ```
 
+Committed sinks may process events asynchronously and must not alter successful
+send results. The conversation projection sink is metadata-only and does not
+require committed payload bytes.
+
 `Send(ctx, cmd)` delegates to `SendBatch` with one item.
 
 Append contexts are derived from active item deadlines, including explicit

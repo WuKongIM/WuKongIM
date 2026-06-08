@@ -17,7 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-func TestConversationListAPIReadsAuthorityCacheBeforeFlush(t *testing.T) {
+func TestConversationListAPIReadsAuthorityCacheAfterProjectionFlush(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
 	app, err := New(cfg)
@@ -66,8 +66,18 @@ func TestConversationListAPIReadsAuthorityCacheBeforeFlush(t *testing.T) {
 	}
 
 	page := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
+	if len(page.Conversations) != 0 {
+		t.Fatalf("conversation count before flush = %d page=%#v, want async projection not visible yet", len(page.Conversations), page)
+	}
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer flushCancel()
+	if err := app.conversationProjector.Flush(flushCtx); err != nil {
+		t.Fatalf("conversation projector Flush() error = %v", err)
+	}
+
+	page = decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
 	if len(page.Conversations) != 1 {
-		t.Fatalf("conversation count = %d page=%#v, want one active row before flush", len(page.Conversations), page)
+		t.Fatalf("conversation count = %d page=%#v, want one active row after projection flush", len(page.Conversations), page)
 	}
 	got := page.Conversations[0]
 	if got.ChannelID != "sender-cache" || got.ChannelType != int64(frame.ChannelTypePerson) ||

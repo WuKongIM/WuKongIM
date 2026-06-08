@@ -151,7 +151,7 @@ type conversationAuthorityObserver interface {
 	ObserveConversationAuthorityHandoff(conversationAuthorityHandoffEvent)
 }
 
-// conversationAuthorityAdmitEvent reports one foreground authority admission outcome.
+// conversationAuthorityAdmitEvent reports one authority cache admission outcome.
 type conversationAuthorityAdmitEvent struct {
 	Result string
 }

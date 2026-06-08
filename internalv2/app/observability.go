@@ -77,6 +77,10 @@ type conversationAuthorityMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type conversationProjectionMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
@@ -270,6 +274,55 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityHandof
 		return
 	}
 	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
+}
+
+func (o conversationProjectionMetricsObserver) SetConversationProjectionDirty(event conversationProjectionDirtyEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.SetProjectionDirty(event.DirtyKeys, event.MaxDirtyEvents)
+}
+
+func (o conversationProjectionMetricsObserver) ObserveConversationProjectionSubmit(event conversationProjectionSubmitEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectionSubmit(event.Result)
+}
+
+func (o conversationProjectionMetricsObserver) ObserveConversationProjectionFlush(event conversationProjectionFlushEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectionFlush(event.Result, event.Duration, event.DrainedEvents, event.ProjectedPatches, event.DenseEvents, event.SparseEvents)
+}
+
+func (o conversationProjectionMetricsObserver) ObserveConversationProjectionMemberClassify(event conversationProjectionMemberClassifyEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectionMemberClassify(event.Result, event.CacheHit)
+}
+
+func (o conversationProjectionMetricsObserver) ObserveConversationProjectionAuthorityAdmit(event conversationProjectionAuthorityAdmitEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectionAuthorityAdmit(event.Result, event.TargetGroups, event.LocalBatches, event.RemoteBatches)
+}
+
+func (o conversationProjectionMetricsObserver) SetConversationProjectionRetry(event conversationProjectionRetryEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.SetProjectionRetry(event.Patches)
+}
+
+func (o conversationProjectionMetricsObserver) ObserveConversationProjectionRetryDrop(event conversationProjectionRetryDropEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveProjectionRetryDrop(event.Reason)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {

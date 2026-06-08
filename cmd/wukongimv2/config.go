@@ -86,11 +86,15 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID",
 	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
 	"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX",
-	"WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT",
 	"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT",
-	"WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT",
-	"WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS",
-	"WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY",
+	"WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL",
+	"WK_CONVERSATION_PROJECTION_SHARD_COUNT",
+	"WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS",
+	"WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES",
+	"WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE",
+	"WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS",
+	"WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY",
+	"WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT",
 	"WK_DELIVERY_ENABLE",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
@@ -744,16 +748,6 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Conversation.AuthorityListDBWindowMax = limit
 	}
-	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT"); raw != "" {
-		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT", raw)
-		if err != nil {
-			return app.Config{}, err
-		}
-		if timeout <= 0 {
-			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT: value must be > 0")
-		}
-		cfg.Conversation.AuthorityAdmissionTimeout = timeout
-	}
 	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"); raw != "" {
 		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", raw)
 		if err != nil {
@@ -764,35 +758,85 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Conversation.AuthorityHandoffTimeout = timeout
 	}
-	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT"); raw != "" {
-		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT", raw)
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		if timeout <= 0 {
-			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT: value must be > 0")
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL: value must be >= 0")
 		}
-		cfg.Conversation.AuthorityRPCTimeout = timeout
+		cfg.Conversation.ProjectionFlushInterval = interval
 	}
-	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS"); raw != "" {
-		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS", raw)
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_SHARD_COUNT"); raw != "" {
+		count, err := parseInt("WK_CONVERSATION_PROJECTION_SHARD_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if count <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_SHARD_COUNT: value must be > 0")
+		}
+		cfg.Conversation.ProjectionShardCount = count
+	}
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS: value must be > 0")
+		}
+		cfg.Conversation.ProjectionMaxDirtyEvents = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES: value must be > 0")
+		}
+		cfg.Conversation.ProjectionMaxRetryPatches = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE"); raw != "" {
+		age, err := parseDuration("WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if age <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE: value must be > 0")
+		}
+		cfg.Conversation.ProjectionRetryMaxAge = age
+	}
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS"); raw != "" {
+		rows, err := parseInt("WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
 		if rows <= 0 {
-			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS: value must be > 0")
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS: value must be > 0")
 		}
-		cfg.Conversation.AuthorityRPCBatchRows = rows
+		cfg.Conversation.ProjectionAdmitBatchRows = rows
 	}
-	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY"); raw != "" {
-		concurrency, err := parseInt("WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY", raw)
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
 		if concurrency <= 0 {
-			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY: value must be > 0")
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY: value must be > 0")
 		}
-		cfg.Conversation.AuthorityRPCConcurrency = concurrency
+		cfg.Conversation.ProjectionAdmitConcurrency = concurrency
+	}
+	if raw := configValue(values, "WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.ProjectionAdmitTimeout = timeout
 	}
 	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)

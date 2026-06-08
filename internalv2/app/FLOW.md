@@ -42,8 +42,9 @@ New(Config)
        when the cluster also exposes conversation authority routing and metadata
        writes, create one local authority cache plus one routed
        ConversationAuthorityClient, register the conversation authority RPC
-       adapter, and use that client as the conversation list Store while keeping
-       the read adapter as Messages
+       adapter, create the route-authority lifecycle and async conversation
+       projector, and use that client as the conversation list Store while
+       keeping the read adapter as Messages
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
@@ -66,9 +67,9 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, conversation authority
-     committed sink when exposed, optional delivery committed sink, and append metrics
-     observer only when delivery is enabled and messages were not overridden
+     message reader when exposed, node-scoped IDs, async conversation projector
+     when exposed, optional delivery committed sink, and append metrics observer
+     only when delivery is enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
      usecases, optional bench presence snapshot controller, and real benchmark
@@ -204,26 +205,30 @@ After a durable append succeeds, `MessageCommitted` flows through the app-level
 committed sink group. Metadata-only sinks receive events without payload or
 request-scoped UID copies, while delivery sinks still receive an independent
 full event clone. When the cluster exposes conversation authority routing and
-metadata writes, the conversation authority committed sink runs the
-`internalv2/usecase/conversation` projection policy in the foreground to derive
-UID-owned active patches. Person channels produce patches for the two
-participants, ordinary groups at or below
-`Config.Conversation.SmallGroupFanoutLimit` produce dense patches for the
-complete subscriber page plus the sender when needed, and larger groups produce
-only a sparse sender patch. The sink sends those patches through the shared
-`ConversationAuthorityClient`, which routes by UID hash slot; a single-node
-cluster still resolves through the route target and lands on the local
-authority cache. `Config.Conversation.AuthorityAdmissionTimeout`,
-`AuthorityRPCTimeout`, `AuthorityRPCBatchRows`, and `AuthorityRPCConcurrency`
-bound foreground admission work. The committed sink keeps derived patches that
-fail foreground authority admission and retries them on the next submit,
-Flush, or Stop, so committed message projection is not lost when route movement
-or RPC timeouts interrupt admission. The local authority cache coalesces
-unflushed patches, serves list reads by merging cache rows with DB active rows,
-and writes durable active patches that atomically carry read/delete floors on
-explicit Flush/Stop. When local cache pressure prevents admitting a new row,
-the authority persists the projected rows directly through the UID-owned
-durable conversation table instead of returning cache pressure to the caller.
+metadata writes, the async conversation projector only coalesces committed
+metadata in the foreground SENDACK path. Background flushes run the
+`internalv2/usecase/conversation` projection policy to derive UID-owned active
+patches. Person channels produce patches for the two participants, ordinary
+groups at or below `Config.Conversation.SmallGroupFanoutLimit` produce dense
+patches for the complete subscriber page plus the sender when needed, and
+larger groups produce only a sparse sender patch. The projector sends patches
+through the shared `ConversationAuthorityClient`, which routes by UID hash
+slot; a single-node cluster still resolves through the route target and lands
+on the local authority cache. `Config.Conversation.ProjectionFlushInterval`,
+`ProjectionShardCount`, `ProjectionMaxDirtyEvents`,
+`ProjectionMaxRetryPatches`, `ProjectionRetryMaxAge`,
+`ProjectionAdmitBatchRows`, `ProjectionAdmitConcurrency`, and
+`ProjectionAdmitTimeout` bound background projection work. Failed background
+authority admissions are retained in bounded retry state and retried by later
+background flushes. Conversation active rows are best-effort working-set hints:
+they may be delayed or dropped under pressure without changing message
+durability or SENDACK success. The local authority cache coalesces unflushed
+patches, serves list reads by merging cache rows with DB active rows, and
+writes durable active patches that atomically carry read/delete floors on
+explicit Stop, handoff drain, or cache pressure. When local cache pressure
+prevents admitting a new row, the authority persists the projected rows
+directly through the UID-owned durable conversation table instead of returning
+cache pressure to the caller.
 This path is independent of delivery fanout and is wired even when
 `Delivery.Enabled=false`.
 
@@ -232,15 +237,16 @@ Conversation admission with authority enabled:
 ```text
 MessageCommitted
   -> app-level committed sink group
-  -> conversation projection policy derives UID-owned ActivePatch values
+  -> async conversation projector coalesces metadata by channel/fromUID key
+  -> background flush derives UID-owned ActivePatch values
   -> ConversationAuthorityClient groups patches by current UID authority target
   -> local target:
        conversationAuthority.AdmitPatches coalesces rows into the local cache
   -> remote target:
        access/node Conversation Authority Admit RPC admits rows on the authority node
-  -> failed foreground admit:
-       keep coalesced pending patches and retry during later Submit/Flush/Stop
-  -> later Flush/DrainAuthority/Stop writes active patches with read/delete floors to UID-owned DB rows
+  -> failed background admit:
+       keep bounded coalesced retry patches and retry during later flushes
+  -> later DrainAuthority/Stop writes active patches with read/delete floors to UID-owned DB rows
   -> local cache pressure:
        write projected rows directly to UID-owned DB rows
 ```
@@ -259,8 +265,9 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
+  -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> presence touch worker Start(ctx)
-  -> conversation authority sink Start(ctx): watch route authorities and seed current targets
+  -> async conversation projector Start(ctx): periodically flush metadata into authority cache
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
   -> api.Start()
   -> gateway.Start()
@@ -270,8 +277,9 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> conversation committed worker Stop(ctx): authority sinks cancel watchers,
-     retry pending patches, and flush local cache rows
+  -> async conversation projector Stop(ctx): cancel periodic flush, retry retained patches,
+     and flush local cache rows
+  -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```

@@ -190,16 +190,24 @@ type ConversationConfig struct {
 	AuthorityCacheMaxRows int
 	// AuthorityListDBWindowMax bounds DB active rows read while merging cache rows for one List request.
 	AuthorityListDBWindowMax int
-	// AuthorityAdmissionTimeout bounds foreground cache admission after a durable message commit.
-	AuthorityAdmissionTimeout time.Duration
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
-	// AuthorityRPCTimeout bounds one conversation authority node RPC.
-	AuthorityRPCTimeout time.Duration
-	// AuthorityRPCBatchRows limits active patches carried by one authority admission RPC.
-	AuthorityRPCBatchRows int
-	// AuthorityRPCConcurrency limits concurrent authority admission RPCs per committed event.
-	AuthorityRPCConcurrency int
+	// ProjectionFlushInterval controls how often committed conversation events are projected in the background.
+	ProjectionFlushInterval time.Duration
+	// ProjectionShardCount bounds foreground lock contention while coalescing committed conversation events.
+	ProjectionShardCount int
+	// ProjectionMaxDirtyEvents bounds unprojected committed event keys retained in memory.
+	ProjectionMaxDirtyEvents int
+	// ProjectionMaxRetryPatches bounds active patches retained for background admission retry.
+	ProjectionMaxRetryPatches int
+	// ProjectionRetryMaxAge bounds how long retryable active patches remain in memory.
+	ProjectionRetryMaxAge time.Duration
+	// ProjectionAdmitBatchRows limits active patches in one background authority admission batch.
+	ProjectionAdmitBatchRows int
+	// ProjectionAdmitConcurrency limits concurrent background authority admission batches.
+	ProjectionAdmitConcurrency int
+	// ProjectionAdmitTimeout bounds one background authority admission call.
+	ProjectionAdmitTimeout time.Duration
 }
 
 // PresenceConfig contains connection presence and route-authority touch settings.
@@ -281,20 +289,32 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 	if cfg.AuthorityListDBWindowMax == 0 {
 		cfg.AuthorityListDBWindowMax = 1000
 	}
-	if cfg.AuthorityAdmissionTimeout == 0 {
-		cfg.AuthorityAdmissionTimeout = 500 * time.Millisecond
-	}
 	if cfg.AuthorityHandoffTimeout == 0 {
 		cfg.AuthorityHandoffTimeout = 3 * time.Second
 	}
-	if cfg.AuthorityRPCTimeout == 0 {
-		cfg.AuthorityRPCTimeout = 500 * time.Millisecond
+	if cfg.ProjectionFlushInterval == 0 {
+		cfg.ProjectionFlushInterval = 100 * time.Millisecond
 	}
-	if cfg.AuthorityRPCBatchRows == 0 {
-		cfg.AuthorityRPCBatchRows = 512
+	if cfg.ProjectionShardCount == 0 {
+		cfg.ProjectionShardCount = 64
 	}
-	if cfg.AuthorityRPCConcurrency == 0 {
-		cfg.AuthorityRPCConcurrency = 16
+	if cfg.ProjectionMaxDirtyEvents == 0 {
+		cfg.ProjectionMaxDirtyEvents = 100000
+	}
+	if cfg.ProjectionMaxRetryPatches == 0 {
+		cfg.ProjectionMaxRetryPatches = 100000
+	}
+	if cfg.ProjectionRetryMaxAge == 0 {
+		cfg.ProjectionRetryMaxAge = 30 * time.Second
+	}
+	if cfg.ProjectionAdmitBatchRows == 0 {
+		cfg.ProjectionAdmitBatchRows = 512
+	}
+	if cfg.ProjectionAdmitConcurrency == 0 {
+		cfg.ProjectionAdmitConcurrency = 16
+	}
+	if cfg.ProjectionAdmitTimeout == 0 {
+		cfg.ProjectionAdmitTimeout = 500 * time.Millisecond
 	}
 	return cfg
 }
@@ -403,20 +423,32 @@ func validateConversationConfig(cfg ConversationConfig) error {
 	if cfg.AuthorityListDBWindowMax <= 0 {
 		return fmt.Errorf("%w: conversation authority list db window max must be positive", ErrInvalidConfig)
 	}
-	if cfg.AuthorityAdmissionTimeout <= 0 {
-		return fmt.Errorf("%w: conversation authority admission timeout must be positive", ErrInvalidConfig)
-	}
 	if cfg.AuthorityHandoffTimeout <= 0 {
 		return fmt.Errorf("%w: conversation authority handoff timeout must be positive", ErrInvalidConfig)
 	}
-	if cfg.AuthorityRPCTimeout <= 0 {
-		return fmt.Errorf("%w: conversation authority rpc timeout must be positive", ErrInvalidConfig)
+	if cfg.ProjectionFlushInterval < 0 {
+		return fmt.Errorf("%w: conversation projection flush interval must be non-negative", ErrInvalidConfig)
 	}
-	if cfg.AuthorityRPCBatchRows <= 0 {
-		return fmt.Errorf("%w: conversation authority rpc batch rows must be positive", ErrInvalidConfig)
+	if cfg.ProjectionShardCount <= 0 {
+		return fmt.Errorf("%w: conversation projection shard count must be positive", ErrInvalidConfig)
 	}
-	if cfg.AuthorityRPCConcurrency <= 0 {
-		return fmt.Errorf("%w: conversation authority rpc concurrency must be positive", ErrInvalidConfig)
+	if cfg.ProjectionMaxDirtyEvents <= 0 {
+		return fmt.Errorf("%w: conversation projection max dirty events must be positive", ErrInvalidConfig)
+	}
+	if cfg.ProjectionMaxRetryPatches <= 0 {
+		return fmt.Errorf("%w: conversation projection max retry patches must be positive", ErrInvalidConfig)
+	}
+	if cfg.ProjectionRetryMaxAge <= 0 {
+		return fmt.Errorf("%w: conversation projection retry max age must be positive", ErrInvalidConfig)
+	}
+	if cfg.ProjectionAdmitBatchRows <= 0 {
+		return fmt.Errorf("%w: conversation projection admit batch rows must be positive", ErrInvalidConfig)
+	}
+	if cfg.ProjectionAdmitConcurrency <= 0 {
+		return fmt.Errorf("%w: conversation projection admit concurrency must be positive", ErrInvalidConfig)
+	}
+	if cfg.ProjectionAdmitTimeout <= 0 {
+		return fmt.Errorf("%w: conversation projection admit timeout must be positive", ErrInvalidConfig)
 	}
 	return nil
 }

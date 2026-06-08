@@ -56,6 +56,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		return errors.Join(err, stopErr)
 	}
+	if a.conversationRouteLifecycle != nil {
+		if err := a.conversationRouteLifecycle.Start(ctx); err != nil {
+			a.logLifecycleError("conversation_route_lifecycle", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.conversationRouteStarted = true
+	}
 	if a.presenceWorker != nil {
 		if err := a.presenceWorker.Start(ctx); err != nil {
 			a.logLifecycleError("presence_worker", "start", err)
@@ -145,6 +153,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.conversationStarted = false
 		}
 	}
+	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
+		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_route_lifecycle", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationRouteStarted = false
+		}
+	}
 	if a.presenceStarted && a.presenceWorker != nil {
 		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("presence_worker", "stop", stopErr)
@@ -161,7 +177,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.conversationStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.conversationStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -199,6 +215,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.conversationStarted = false
+		}
+	}
+	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
+		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_route_lifecycle", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationRouteStarted = false
 		}
 	}
 	if a.presenceStarted && a.presenceWorker != nil {

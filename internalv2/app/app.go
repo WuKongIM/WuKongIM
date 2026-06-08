@@ -83,6 +83,7 @@ type App struct {
 	deliveryRetry               *runtimedelivery.RetryScheduler
 	deliveryWorker              WorkerRuntime
 	conversationProjector       conversationCommittedWorker
+	conversationRouteLifecycle  WorkerRuntime
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
@@ -101,16 +102,17 @@ type App struct {
 	diagnosticsRestore func()
 	logger             wklog.Logger
 
-	lifecycleMu         sync.Mutex
-	started             bool
-	stopped             bool
-	clusterStarted      bool
-	presenceStarted     bool
-	conversationStarted bool
-	deliveryStarted     bool
-	apiStarted          bool
-	gatewayStarted      bool
-	deliveryErrors      atomic.Uint64
+	lifecycleMu              sync.Mutex
+	started                  bool
+	stopped                  bool
+	clusterStarted           bool
+	presenceStarted          bool
+	conversationRouteStarted bool
+	conversationStarted      bool
+	deliveryStarted          bool
+	apiStarted               bool
+	gatewayStarted           bool
+	deliveryErrors           atomic.Uint64
 }
 
 // New creates an internalv2 App.
@@ -229,36 +231,44 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				MaxRowsPerUID:        app.cfg.Conversation.AuthorityCacheMaxRowsPerUID,
 				MaxRows:              app.cfg.Conversation.AuthorityCacheMaxRows,
 				ListDBWindowMax:      app.cfg.Conversation.AuthorityListDBWindowMax,
-				AdmissionBatchRows:   app.cfg.Conversation.AuthorityRPCBatchRows,
-				AdmissionConcurrency: app.cfg.Conversation.AuthorityRPCConcurrency,
+				AdmissionBatchRows:   app.cfg.Conversation.ProjectionAdmitBatchRows,
+				AdmissionConcurrency: app.cfg.Conversation.ProjectionAdmitConcurrency,
 				HandoffTimeout:       app.cfg.Conversation.AuthorityHandoffTimeout,
 				Observer:             app.conversationAuthorityObserver(),
 			})
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
 			app.conversationAuthority = authority
 			app.conversationAuthorityClient = client
+			if app.conversationRouteLifecycle == nil {
+				routeLifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+					LocalAuthority: authority,
+					LocalNodeID:    authorityNode.NodeID(),
+					Initial:        app.currentPresenceAuthorities,
+					Watch:          authorityNode.WatchRouteAuthorities,
+					HandoffTimeout: app.cfg.Conversation.AuthorityHandoffTimeout,
+				})
+				routeLifecycle.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
+				app.conversationRouteLifecycle = routeLifecycle
+			}
 			if hasProjectionNode && app.conversationProjector == nil {
 				projectionStore := clusterinfra.NewConversationProjectionStore(projectionNode)
-				sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+				app.conversationProjector = newConversationAsyncProjector(conversationAsyncProjectorOptions{
 					Projector: conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
 						Members:               projectionStore,
 						SmallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
 					}),
-					Authority:         client,
-					Flusher:           authority,
-					LocalAuthority:    authority,
-					LocalNodeID:       authorityNode.NodeID(),
-					Initial:           app.currentPresenceAuthorities,
-					Watch:             authorityNode.WatchRouteAuthorities,
-					AdmissionTimeout:  app.cfg.Conversation.AuthorityAdmissionTimeout,
-					HandoffTimeout:    app.cfg.Conversation.AuthorityHandoffTimeout,
-					RPCTimeout:        app.cfg.Conversation.AuthorityRPCTimeout,
-					RPCBatchRows:      app.cfg.Conversation.AuthorityRPCBatchRows,
-					RPCConcurrency:    app.cfg.Conversation.AuthorityRPCConcurrency,
-					AuthorityObserver: app.conversationAuthorityObserver(),
+					Authority:        client,
+					Flusher:          authority,
+					FlushInterval:    app.cfg.Conversation.ProjectionFlushInterval,
+					ShardCount:       app.cfg.Conversation.ProjectionShardCount,
+					MaxDirtyEvents:   app.cfg.Conversation.ProjectionMaxDirtyEvents,
+					MaxRetryPatches:  app.cfg.Conversation.ProjectionMaxRetryPatches,
+					RetryMaxAge:      app.cfg.Conversation.ProjectionRetryMaxAge,
+					AdmitBatchRows:   app.cfg.Conversation.ProjectionAdmitBatchRows,
+					AdmitConcurrency: app.cfg.Conversation.ProjectionAdmitConcurrency,
+					AdmitTimeout:     app.cfg.Conversation.ProjectionAdmitTimeout,
+					Observer:         app.conversationProjectionObserver(),
 				})
-				sink.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
-				app.conversationProjector = sink
 			}
 			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: app.logger.Named("node")})
 			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
@@ -591,6 +601,13 @@ func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 		return nil
 	}
 	return conversationAuthorityMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) conversationProjectionObserver() conversationProjectionObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationProjectionMetricsObserver{metrics: a.metrics}
 }
 
 func (a *App) gatewayObserver() gateway.Observer {

@@ -1207,6 +1207,102 @@ func TestConversationMetricsTrackAuthorityCountersAndLowCardinalityLabels(t *tes
 	requireNoMetricFamily(t, families, "wukongim_conversation_authority_channel_id")
 }
 
+func TestConversationMetricsTrackAsyncProjection(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Conversation.SetProjectionDirty(7, 100)
+	reg.Conversation.ObserveProjectionSubmit("accepted")
+	reg.Conversation.ObserveProjectionSubmit("coalesced")
+	reg.Conversation.ObserveProjectionSubmit("dropped")
+	reg.Conversation.ObserveProjectionFlush("ok", 12*time.Millisecond, 5, 9, 4, 1)
+	reg.Conversation.ObserveProjectionMemberClassify("ok", true)
+	reg.Conversation.ObserveProjectionAuthorityAdmit("timeout", 3, 1, 2)
+	reg.Conversation.SetProjectionRetry(6)
+	reg.Conversation.ObserveProjectionRetryDrop("age")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	dirty := requireMetricFamily(t, families, "wukongim_conversation_projection_dirty_keys")
+	require.Equal(t, float64(7), findMetricByLabels(t, dirty, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	submit := requireMetricFamily(t, families, "wukongim_conversation_projection_submit_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, submit, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "accepted",
+	}).GetCounter().GetValue())
+
+	flush := requireMetricFamily(t, families, "wukongim_conversation_projection_flush_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, flush, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+	}).GetCounter().GetValue())
+
+	duration := requireMetricFamily(t, families, "wukongim_conversation_projection_flush_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, duration, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+	}).GetHistogram().GetSampleCount())
+
+	events := requireMetricFamily(t, families, "wukongim_conversation_projection_flush_events")
+	require.Equal(t, float64(5), findMetricByLabels(t, events, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "drained",
+	}).GetHistogram().GetSampleSum())
+
+	patches := requireMetricFamily(t, families, "wukongim_conversation_projection_flush_patches")
+	require.Equal(t, float64(9), findMetricByLabels(t, patches, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "projected",
+	}).GetHistogram().GetSampleSum())
+
+	classify := requireMetricFamily(t, families, "wukongim_conversation_projection_member_classify_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, classify, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"cache_hit": "true",
+	}).GetCounter().GetValue())
+
+	admit := requireMetricFamily(t, families, "wukongim_conversation_projection_authority_admit_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, admit, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "timeout",
+	}).GetCounter().GetValue())
+
+	retry := requireMetricFamily(t, families, "wukongim_conversation_projection_retry_patches")
+	require.Equal(t, float64(6), findMetricByLabels(t, retry, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	retryDrop := requireMetricFamily(t, families, "wukongim_conversation_projection_retry_drop_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, retryDrop, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"reason":    "age",
+	}).GetCounter().GetValue())
+
+	for _, family := range []*dto.MetricFamily{submit, flush, events, patches, classify, admit, retryDrop} {
+		for _, metric := range family.GetMetric() {
+			requireNoMetricLabel(t, metric, "uid")
+			requireNoMetricLabel(t, metric, "channel_id")
+			requireNoMetricLabel(t, metric, "channelID")
+		}
+	}
+	requireNoMetricFamily(t, families, "wukongim_conversation_projection_uid")
+	requireNoMetricFamily(t, families, "wukongim_conversation_projection_channel_id")
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {
