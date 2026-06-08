@@ -230,17 +230,49 @@ func TestDefaultConversationConfigUsesRuntimeDefaults(t *testing.T) {
 	}
 }
 
+func TestDefaultConversationAuthorityConfig(t *testing.T) {
+	cfg := defaultConversationConfig(ConversationConfig{})
+	if cfg.AuthorityCacheMaxRowsPerUID != 4096 ||
+		cfg.AuthorityCacheMaxRows != 100000 ||
+		cfg.AuthorityListDBWindowMax != 1000 ||
+		cfg.AuthorityAdmissionTimeout != 500*time.Millisecond ||
+		cfg.AuthorityHandoffTimeout != 3*time.Second ||
+		cfg.AuthorityRPCTimeout != 500*time.Millisecond ||
+		cfg.AuthorityRPCBatchRows != 512 ||
+		cfg.AuthorityRPCConcurrency != 16 {
+		t.Fatalf("conversation authority defaults = %#v", cfg)
+	}
+}
+
 func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 	tests := []struct {
-		name string
-		cfg  ConversationConfig
+		name   string
+		mutate func(*ConversationConfig)
 	}{
-		{name: "small group fanout limit", cfg: ConversationConfig{SmallGroupFanoutLimit: -1}},
-		{name: "last message concurrency", cfg: ConversationConfig{MaxLastMessageConcurrency: -1}},
+		{name: "small group fanout limit", mutate: func(cfg *ConversationConfig) { cfg.SmallGroupFanoutLimit = -1 }},
+		{name: "last message concurrency", mutate: func(cfg *ConversationConfig) { cfg.MaxLastMessageConcurrency = -1 }},
+		{name: "authority cache max rows per uid negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRowsPerUID = -1 }},
+		{name: "authority cache max rows per uid zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRowsPerUID = 0 }},
+		{name: "authority cache max rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRows = -1 }},
+		{name: "authority cache max rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRows = 0 }},
+		{name: "authority list db window max negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityListDBWindowMax = -1 }},
+		{name: "authority list db window max zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityListDBWindowMax = 0 }},
+		{name: "authority admission timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmissionTimeout = -time.Nanosecond }},
+		{name: "authority admission timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmissionTimeout = 0 }},
+		{name: "authority handoff timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = -time.Nanosecond }},
+		{name: "authority handoff timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = 0 }},
+		{name: "authority rpc timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCTimeout = -time.Nanosecond }},
+		{name: "authority rpc timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCTimeout = 0 }},
+		{name: "authority rpc batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCBatchRows = -1 }},
+		{name: "authority rpc batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCBatchRows = 0 }},
+		{name: "authority rpc concurrency negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCConcurrency = -1 }},
+		{name: "authority rpc concurrency zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityRPCConcurrency = 0 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := validateConversationConfig(tt.cfg); !errors.Is(err, ErrInvalidConfig) {
+			cfg := defaultConversationConfig(ConversationConfig{})
+			tt.mutate(&cfg)
+			if err := validateConversationConfig(cfg); !errors.Is(err, ErrInvalidConfig) {
 				t.Fatalf("validateConversationConfig() error = %v, want %v", err, ErrInvalidConfig)
 			}
 		})
@@ -378,6 +410,7 @@ func TestNewWiresChannelMembershipProjection(t *testing.T) {
 
 func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
 			Cluster:       clusterv2.Config{NodeID: 3},
@@ -428,8 +461,9 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
-func TestNewWiresConversationProjectorWhenDeliveryDisabled(t *testing.T) {
+func TestNewWiresConversationAuthorityWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
 			Cluster:  clusterv2.Config{NodeID: 3},
@@ -466,32 +500,109 @@ func TestNewWiresConversationProjectorWhenDeliveryDisabled(t *testing.T) {
 	}
 	cluster.mu.Unlock()
 	if app.conversationProjector == nil {
-		t.Fatal("conversation projector was not wired")
+		t.Fatal("conversation authority sink was not wired")
+	}
+	if app.conversationAuthority == nil {
+		t.Fatal("local conversation authority was not wired")
+	}
+	if app.conversationAuthorityClient == nil {
+		t.Fatal("conversation authority client was not reused by app wiring")
+	}
+	if _, ok := cluster.registeredHandlers[accessnode.ConversationAuthorityRPCServiceID]; !ok {
+		t.Fatalf("conversation authority rpc service was not registered")
+	}
+	list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Conversations().List() error = %v", err)
+	}
+	if len(list.Items) != 1 || list.Items[0].ChannelID != channelID || list.Items[0].ChannelType != int64(frame.ChannelTypePerson) {
+		t.Fatalf("conversation list = %#v, want authority-cache person row before flush", list.Items)
 	}
 	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation projector flush error = %v", err)
+		t.Fatalf("conversation authority flush error = %v", err)
 	}
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 2 {
-		t.Fatalf("conversation state batches = %#v, want one two-row batch", cluster.conversationStateBatches)
+	if len(cluster.conversationPatchBatches) != 1 || len(cluster.conversationPatchBatches[0]) != 2 {
+		t.Fatalf("conversation patch batches = %#v, want one two-row active patch batch", cluster.conversationPatchBatches)
 	}
-	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	rows := conversationPatchesByUID(cluster.conversationPatchBatches[0])
 	for _, uid := range []string{"u1", "u2"} {
 		got, ok := rows[uid]
 		if !ok {
-			t.Fatalf("conversation states = %#v, missing uid %s", cluster.conversationStateBatches[0], uid)
+			t.Fatalf("conversation patches = %#v, missing uid %s", cluster.conversationPatchBatches[0], uid)
 		}
 		if got.ChannelID != channelID || got.ChannelType != int64(frame.ChannelTypePerson) ||
-			got.ActiveAt <= 0 || got.UpdatedAt <= 0 || got.SparseActive {
-			t.Fatalf("conversation state for %s = %#v, want dense person projection", uid, got)
+			got.ActiveAt <= 0 || got.MessageSeq != result.MessageSeq || got.SparseActive {
+			t.Fatalf("conversation patch for %s = %#v, want dense person active patch", uid, got)
 		}
 	}
 }
 
-func TestConversationProjectorCoalescesConversationStatesBeforeFlush(t *testing.T) {
+func TestNewFallsBackToLegacyConversationProjectorWhenAuthorityUnavailable(t *testing.T) {
+	cluster := &fakeConversationFallbackCluster{}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 3},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.conversationAuthority != nil || app.conversationAuthorityClient != nil {
+		t.Fatalf("authority fields = (%T, %T), want authority unavailable", app.conversationAuthority, app.conversationAuthorityClient)
+	}
+	if app.conversationProjector == nil {
+		t.Fatal("legacy conversation projector was not wired")
+	}
+
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: "client-fallback-1",
+		Payload:     []byte("fallback payload"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonSuccess {
+		t.Fatalf("send reason = %v, want success", result.Reason)
+	}
+	if err := app.conversationProjector.Flush(context.Background()); err != nil {
+		t.Fatalf("legacy conversation projector Flush() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	stateBatches := append([][]metadb.UserConversationState(nil), cluster.conversationStateBatches...)
+	cluster.mu.Unlock()
+	if len(stateBatches) != 1 || len(stateBatches[0]) != 2 {
+		t.Fatalf("conversation state batches = %#v, want one two-row DB projection batch", stateBatches)
+	}
+
+	list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Conversations().List() error = %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("conversation list = %#v, want one DB fallback row", list.Items)
+	}
+	got := list.Items[0]
+	if got.ChannelID != channelID || got.ChannelType != int64(frame.ChannelTypePerson) ||
+		got.LastMessage == nil || got.LastMessage.MessageSeq != result.MessageSeq ||
+		string(got.LastMessage.Payload) != "fallback payload" {
+		t.Fatalf("conversation list item = %#v, want DB fallback row with last message", got)
+	}
+}
+
+func TestConversationAuthorityCoalescesActivePatchesBeforeFlush(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
 			Cluster:  clusterv2.Config{NodeID: 3},
@@ -531,24 +642,25 @@ func TestConversationProjectorCoalescesConversationStatesBeforeFlush(t *testing.
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 2 {
-		t.Fatalf("conversation state batches = %#v, want one coalesced two-row batch", cluster.conversationStateBatches)
+	if len(cluster.conversationPatchBatches) != 1 || len(cluster.conversationPatchBatches[0]) != 2 {
+		t.Fatalf("conversation patch batches = %#v, want one coalesced two-row batch", cluster.conversationPatchBatches)
 	}
-	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	rows := conversationPatchesByUID(cluster.conversationPatchBatches[0])
 	for _, uid := range []string{"u1", "u2"} {
 		got, ok := rows[uid]
 		if !ok {
-			t.Fatalf("conversation states = %#v, missing uid %s", cluster.conversationStateBatches[0], uid)
+			t.Fatalf("conversation patches = %#v, missing uid %s", cluster.conversationPatchBatches[0], uid)
 		}
 		if got.ChannelID != channelID || got.ChannelType != int64(frame.ChannelTypePerson) ||
-			got.ActiveAt <= 0 || got.UpdatedAt <= 0 || got.SparseActive {
-			t.Fatalf("coalesced conversation state for %s = %#v, want dense latest person projection", uid, got)
+			got.ActiveAt <= 0 || got.MessageSeq != second.MessageSeq || got.SparseActive {
+			t.Fatalf("coalesced conversation patch for %s = %#v, want dense latest person active patch", uid, got)
 		}
 	}
 }
 
-func TestConversationProjectorFansOutConfiguredSmallGroups(t *testing.T) {
+func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
@@ -578,14 +690,15 @@ func TestConversationProjectorFansOutConfiguredSmallGroups(t *testing.T) {
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	rows := conversationPatchesByUID(cluster.conversationPatchBatches[0])
 	if len(rows) != 2 || rows["sender"].SparseActive || rows["member"].SparseActive {
-		t.Fatalf("conversation rows = %#v, want dense rows for all small-group members", cluster.conversationStateBatches)
+		t.Fatalf("conversation patches = %#v, want dense patches for all small-group members", cluster.conversationPatchBatches)
 	}
 }
 
-func TestConversationProjectorIncludesSenderWhenSmallGroupSubscribersOmitSender(t *testing.T) {
+func TestConversationAuthorityIncludesSenderWhenSmallGroupSubscribersOmitSender(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
 	app, err := newTestApp(t,
 		Config{
@@ -615,15 +728,16 @@ func TestConversationProjectorIncludesSenderWhenSmallGroupSubscribersOmitSender(
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	rows := conversationStatesByUID(cluster.conversationStateBatches[0])
+	rows := conversationPatchesByUID(cluster.conversationPatchBatches[0])
 	if len(rows) != 2 || rows["sender"].UID != "sender" || rows["member"].UID != "member" ||
 		rows["sender"].SparseActive || rows["member"].SparseActive {
-		t.Fatalf("conversation rows = %#v, want dense rows for subscriber plus sender", cluster.conversationStateBatches)
+		t.Fatalf("conversation patches = %#v, want dense patches for subscriber plus sender", cluster.conversationPatchBatches)
 	}
 }
 
-func TestConversationProjectorUsesSparseSenderRowWhenGroupExceedsLimit(t *testing.T) {
+func TestConversationAuthorityUsesSparseSenderRowWhenGroupExceedsLimit(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
@@ -653,12 +767,12 @@ func TestConversationProjectorUsesSparseSenderRowWhenGroupExceedsLimit(t *testin
 
 	cluster.mu.Lock()
 	defer cluster.mu.Unlock()
-	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 1 {
-		t.Fatalf("conversation rows = %#v, want one sparse sender row", cluster.conversationStateBatches)
+	if len(cluster.conversationPatchBatches) != 1 || len(cluster.conversationPatchBatches[0]) != 1 {
+		t.Fatalf("conversation patches = %#v, want one sparse sender patch", cluster.conversationPatchBatches)
 	}
-	got := cluster.conversationStateBatches[0][0]
+	got := cluster.conversationPatchBatches[0][0]
 	if got.UID != "sender" || !got.SparseActive {
-		t.Fatalf("conversation row = %#v, want sparse sender row", got)
+		t.Fatalf("conversation patch = %#v, want sparse sender patch", got)
 	}
 }
 
@@ -754,8 +868,241 @@ func TestConversationProjectorObservesDroppedDirtyEvents(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityCommittedSinkAdmitsProjectedPatchesInBatches(t *testing.T) {
+	authority := &recordingConversationPatchAuthority{}
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:        conversationusecase.NewProjector(conversationusecase.ProjectorOptions{}),
+		Authority:        authority,
+		AdmissionTimeout: time.Second,
+		RPCTimeout:       time.Second,
+		RPCBatchRows:     1,
+		RPCConcurrency:   1,
+	})
+
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	if err := sink.Submit(context.Background(), messageevents.MessageCommitted{
+		MessageID:         11,
+		MessageSeq:        7,
+		ChannelID:         channelID,
+		ChannelType:       frame.ChannelTypePerson,
+		FromUID:           "u1",
+		ServerTimestampMS: 123,
+	}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+
+	if len(authority.batches) != 2 || len(authority.batches[0]) != 1 || len(authority.batches[1]) != 1 {
+		t.Fatalf("authority batches = %#v, want two one-row batches", authority.batches)
+	}
+	gotUIDs := map[string]bool{}
+	for _, batch := range authority.batches {
+		patch := batch[0]
+		gotUIDs[patch.UID] = true
+		if patch.ChannelID != channelID || patch.ChannelType != int64(frame.ChannelTypePerson) ||
+			patch.ActiveAt != 123 || patch.UpdatedAt != 123 || patch.MessageSeq != 7 || patch.SparseActive {
+			t.Fatalf("patch = %#v, want dense person active patch", patch)
+		}
+	}
+	if !gotUIDs["u1"] || !gotUIDs["u2"] {
+		t.Fatalf("patch UIDs = %#v, want u1 and u2", gotUIDs)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkWatchesLocalAuthorityEvents(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
+	node := &recordingConversationAuthorityRouteNode{
+		nodeID: 1,
+		routes: map[string]clusterv2.Route{
+			"u1": routeFromConversationTarget(target),
+		},
+		watch: watch,
+	}
+	client := clusterinfra.NewConversationAuthorityClient(node, local)
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Watch:          node.WatchRouteAuthorities,
+		HandoffTimeout: 50 * time.Millisecond,
+	})
+	if err := sink.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		if err := sink.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
+
+	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(target)}}
+	waitUntil(t, time.Second, func() bool {
+		return local.AdmitPatches(context.Background(), target, nil) == nil
+	})
+
+	patch := conversationusecase.ActivePatch{
+		UID:         "u1",
+		ChannelID:   "g-watch",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   101,
+		MessageSeq:  7,
+	}
+	if err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{patch}); err != nil {
+		t.Fatalf("client AdmitPatches() error = %v", err)
+	}
+	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("client ListUserConversationActiveView() error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g-watch" || page.Rows[0].ActiveAt != 100 {
+		t.Fatalf("authority page rows = %#v, want watched local cache row", page.Rows)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkRemoteEventDrainsPreviousLocalTarget(t *testing.T) {
+	localTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 11, AuthorityEpoch: 21}
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent)
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterv2.RouteAuthority {
+			return []clusterv2.RouteAuthority{authorityFromConversationTarget(localTarget)}
+		},
+		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 75 * time.Millisecond,
+	})
+	if err := sink.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := local.AdmitPatches(context.Background(), localTarget, []conversationusecase.ActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g-drain",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   101,
+		MessageSeq:  7,
+	}}); err != nil {
+		t.Fatalf("seed AdmitPatches() error = %v", err)
+	}
+
+	sent := make(chan struct{})
+	go func() {
+		watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+		close(sent)
+	}()
+	select {
+	case <-sent:
+	case <-time.After(time.Second):
+		t.Fatal("timed out sending remote route-authority event")
+	}
+	waitUntil(t, time.Second, func() bool {
+		return store.totalTouchPatches() == 1
+	})
+	if !store.lastTouchDeadlineWithin(75*time.Millisecond, 75*time.Millisecond) {
+		t.Fatalf("handoff drain deadline = %v, want about 75ms", store.lastTouchDeadline())
+	}
+	if _, err := local.ListUserConversationActiveViewForTarget(context.Background(), localTarget, "u1", metadb.UserConversationActiveCursor{}, 10); !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("stale local ListUserConversationActiveViewForTarget() error = %v, want %v", err, conversationusecase.ErrStaleRoute)
+	}
+	if err := local.AdmitPatches(context.Background(), localTarget, []conversationusecase.ActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g-drain-2",
+		ChannelType: 2,
+		ActiveAt:    102,
+		MessageSeq:  8,
+	}}); !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("stale local AdmitPatches() error = %v, want %v", err, conversationusecase.ErrStaleRoute)
+	}
+	if err := sink.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkIgnoresStaleRouteEvents(t *testing.T) {
+	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 9, AuthorityEpoch: 21}
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent)
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterv2.RouteAuthority {
+			return []clusterv2.RouteAuthority{authorityFromConversationTarget(currentTarget)}
+		},
+		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 50 * time.Millisecond,
+	})
+	if err := sink.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	sent := make(chan struct{})
+	go func() {
+		watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
+		close(sent)
+	}()
+	select {
+	case <-sent:
+	case <-time.After(time.Second):
+		t.Fatal("timed out sending stale route-authority event")
+	}
+	if err := sink.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if store.totalTouchPatches() != 0 {
+		t.Fatalf("touch patches = %d, want stale route event ignored without drain", store.totalTouchPatches())
+	}
+	if err := local.AdmitPatches(context.Background(), currentTarget, nil); err != nil {
+		t.Fatalf("current local target was not preserved: %v", err)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkStopCancelsWatcherAndFlushes(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent)
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		LocalAuthority: local,
+		Flusher:        local,
+		LocalNodeID:    1,
+		Initial: func() []clusterv2.RouteAuthority {
+			return []clusterv2.RouteAuthority{authorityFromConversationTarget(target)}
+		},
+		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 50 * time.Millisecond,
+	})
+	if err := sink.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := local.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g-stop",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   101,
+		MessageSeq:  7,
+	}}); err != nil {
+		t.Fatalf("seed AdmitPatches() error = %v", err)
+	}
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := sink.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if got := store.totalTouchPatches(); got != 1 {
+		t.Fatalf("touch patches after Stop() = %d, want local cache flushed", got)
+	}
+}
+
 func TestAppWiresConversationProjectorMetrics(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
 			Cluster:       clusterv2.Config{NodeID: 3},
@@ -1397,6 +1744,7 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 
 func TestNewWiresConversationUsecaseWhenClusterProvidesConversationReads(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t,
 		Config{Cluster: clusterv2.Config{NodeID: 1}},
 		WithCluster(cluster),
@@ -1825,8 +2173,8 @@ func TestStartOrderStartsClusterThenPresenceWorkerThenGateway(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if got := joinCalls(calls); got != "cluster.start,presence.start,gateway.start" {
-		t.Fatalf("calls = %s, want cluster.start,presence.start,gateway.start", got)
+	if got := joinCalls(calls); got != "cluster.start,presence.start,presence.start,gateway.start" {
+		t.Fatalf("calls = %s, want cluster.start,presence.start,presence.start,gateway.start", got)
 	}
 }
 
@@ -2304,6 +2652,7 @@ func TestAppWiresLegacyChannelRoutesToClusterMetadata(t *testing.T) {
 
 func TestAppWiresConversationListRouteToUsecase(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t, Config{
 		API: APIConfig{ListenAddr: "127.0.0.1:0"},
 	}, WithCluster(cluster))
@@ -2330,6 +2679,7 @@ func TestAppWiresConversationListRouteToUsecase(t *testing.T) {
 
 func TestAppWiresConversationListMetrics(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t, Config{
 		API:           APIConfig{ListenAddr: "127.0.0.1:0"},
 		Observability: ObservabilityConfig{MetricsEnabled: true},
@@ -2707,6 +3057,15 @@ type fakePresenceCluster struct {
 	subscribers              map[string][]string
 }
 
+type fakeConversationFallbackCluster struct {
+	fakeCluster
+	appendSeq                uint64
+	mu                       sync.Mutex
+	messages                 map[metadb.ConversationKey][]channelv2.Message
+	conversationStateBatches [][]metadb.UserConversationState
+	subscribers              map[string][]string
+}
+
 type recordingDeliveryMetaNode struct {
 	fakeCluster
 	mu                sync.Mutex
@@ -2746,6 +3105,14 @@ func conversationStatesByUID(states []metadb.UserConversationState) map[string]m
 	return out
 }
 
+func conversationPatchesByUID(patches []metadb.UserConversationActivePatch) map[string]metadb.UserConversationActivePatch {
+	out := make(map[string]metadb.UserConversationActivePatch, len(patches))
+	for _, patch := range patches {
+		out[patch.UID] = patch
+	}
+	return out
+}
+
 type recordingConversationProjectionStore struct {
 	mu      sync.Mutex
 	batches [][]metadb.UserConversationState
@@ -2766,6 +3133,152 @@ func (s *recordingConversationProjectionStore) totalStates() int {
 		total += len(batch)
 	}
 	return total
+}
+
+type recordingConversationPatchAuthority struct {
+	mu      sync.Mutex
+	batches [][]conversationusecase.ActivePatch
+}
+
+func (a *recordingConversationPatchAuthority) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.batches = append(a.batches, append([]conversationusecase.ActivePatch(nil), patches...))
+	return nil
+}
+
+type appRecordingConversationAuthorityStore struct {
+	mu                 sync.Mutex
+	touchBatches       [][]metadb.UserConversationActivePatch
+	rows               map[metadb.ConversationKey]metadb.UserConversationState
+	lastTouchDeadlineV time.Time
+}
+
+func (s *appRecordingConversationAuthorityStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows := make([]metadb.UserConversationState, 0, len(s.rows))
+	for _, row := range s.rows {
+		if row.UID == uid && conversationRowAfter(row, after) {
+			rows = append(rows, row)
+		}
+	}
+	sortConversationRows(rows)
+	if limit <= 0 || len(rows) <= limit {
+		return append([]metadb.UserConversationState(nil), rows...), conversationRowsCursor(rows, after), true, nil
+	}
+	page := append([]metadb.UserConversationState(nil), rows[:limit]...)
+	return page, conversationRowsCursor(page, after), false, nil
+}
+
+func (s *appRecordingConversationAuthorityStore) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	row, ok := s.rows[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok || row.UID != uid {
+		return metadb.UserConversationState{}, false, nil
+	}
+	return row, true, nil
+}
+
+func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if deadline, ok := ctx.Deadline(); ok {
+		s.lastTouchDeadlineV = deadline
+	}
+	s.touchBatches = append(s.touchBatches, append([]metadb.UserConversationActivePatch(nil), patches...))
+	if s.rows == nil {
+		s.rows = make(map[metadb.ConversationKey]metadb.UserConversationState)
+	}
+	for _, patch := range patches {
+		key := metadb.ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
+		row := s.rows[key]
+		row.UID = patch.UID
+		row.ChannelID = patch.ChannelID
+		row.ChannelType = patch.ChannelType
+		if patch.ActiveAt > row.ActiveAt {
+			row.ActiveAt = patch.ActiveAt
+		}
+		if patch.SparseActiveSet {
+			row.SparseActive = patch.SparseActive
+		}
+		s.rows[key] = row
+	}
+	return nil
+}
+
+func (s *appRecordingConversationAuthorityStore) totalTouchPatches() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	total := 0
+	for _, batch := range s.touchBatches {
+		total += len(batch)
+	}
+	return total
+}
+
+func (s *appRecordingConversationAuthorityStore) lastTouchDeadline() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastTouchDeadlineV
+}
+
+func (s *appRecordingConversationAuthorityStore) lastTouchDeadlineWithin(timeout, slop time.Duration) bool {
+	deadline := s.lastTouchDeadline()
+	if deadline.IsZero() {
+		return false
+	}
+	remaining := time.Until(deadline)
+	return remaining > 0 && remaining <= timeout+slop
+}
+
+type recordingConversationAuthorityRouteNode struct {
+	nodeID uint64
+	routes map[string]clusterv2.Route
+	watch  <-chan clusterv2.RouteAuthorityEvent
+}
+
+func (n *recordingConversationAuthorityRouteNode) NodeID() uint64 {
+	return n.nodeID
+}
+
+func (n *recordingConversationAuthorityRouteNode) RouteKey(uid string) (clusterv2.Route, error) {
+	route, ok := n.routes[uid]
+	if !ok {
+		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+	}
+	return route, nil
+}
+
+func (n *recordingConversationAuthorityRouteNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, errors.New("unexpected conversation authority rpc")
+}
+
+func (n *recordingConversationAuthorityRouteNode) RegisterRPC(uint8, clusterv2.NodeRPCHandler) {}
+
+func (n *recordingConversationAuthorityRouteNode) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
+	return n.watch
+}
+
+func routeFromConversationTarget(target conversationusecase.RouteTarget) clusterv2.Route {
+	return clusterv2.Route{
+		HashSlot:       target.HashSlot,
+		SlotID:         target.SlotID,
+		Leader:         target.LeaderNodeID,
+		Revision:       target.RouteRevision,
+		AuthorityEpoch: target.AuthorityEpoch,
+	}
+}
+
+func authorityFromConversationTarget(target conversationusecase.RouteTarget) clusterv2.RouteAuthority {
+	return clusterv2.RouteAuthority{
+		HashSlot:       target.HashSlot,
+		SlotID:         target.SlotID,
+		LeaderNodeID:   target.LeaderNodeID,
+		RouteRevision:  target.RouteRevision,
+		AuthorityEpoch: target.AuthorityEpoch,
+	}
 }
 
 type recordingConversationProjectorObserver struct {
@@ -3112,6 +3625,19 @@ func (f *fakePresenceCluster) ListUserConversationActivePage(_ context.Context, 
 	return nil, metadb.UserConversationActiveCursor{}, true, nil
 }
 
+func (f *fakePresenceCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := len(f.conversationStateBatches) - 1; i >= 0; i-- {
+		for _, state := range f.conversationStateBatches[i] {
+			if state.UID == uid && state.ChannelID == channelID && state.ChannelType == channelType {
+				return state, true, nil
+			}
+		}
+	}
+	return metadb.UserConversationState{}, false, nil
+}
+
 func (f *fakePresenceCluster) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
 	return channelv2.Message{}, false, nil
 }
@@ -3125,6 +3651,116 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuth
 	}
 	ch := make(chan clusterv2.RouteAuthorityEvent)
 	return ch
+}
+
+func (f *fakeConversationFallbackCluster) AppendChannelBatch(_ context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.messages == nil {
+		f.messages = make(map[metadb.ConversationKey][]channelv2.Message)
+	}
+	key := metadb.ConversationKey{ChannelID: req.ChannelID.ID, ChannelType: int64(req.ChannelID.Type)}
+	items := make([]channelv2.AppendBatchItemResult, 0, len(req.Messages))
+	for _, msg := range req.Messages {
+		f.appendSeq++
+		msg.MessageSeq = f.appendSeq
+		msg.Payload = append([]byte(nil), msg.Payload...)
+		f.messages[key] = append(f.messages[key], msg)
+		items = append(items, channelv2.AppendBatchItemResult{
+			MessageID:  msg.MessageID,
+			MessageSeq: msg.MessageSeq,
+			Message:    msg,
+		})
+	}
+	return channelv2.AppendBatchResult{Items: items}, nil
+}
+
+func (f *fakeConversationFallbackCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.conversationStateBatches = append(f.conversationStateBatches, append([]metadb.UserConversationState(nil), states...))
+	return nil
+}
+
+func (f *fakeConversationFallbackCluster) TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error {
+	return errors.New("unexpected authority active patch fallback write")
+}
+
+func (f *fakeConversationFallbackCluster) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
+	f.mu.Lock()
+	uids := append([]string(nil), f.subscribers[channelID]...)
+	f.mu.Unlock()
+	start := 0
+	for start < len(uids) && afterUID != "" {
+		if uids[start] == afterUID {
+			start++
+			break
+		}
+		start++
+	}
+	if limit <= 0 || start >= len(uids) {
+		return nil, "", true, nil
+	}
+	end := start + limit
+	if end > len(uids) {
+		end = len(uids)
+	}
+	page := append([]string(nil), uids[start:end]...)
+	if end >= len(uids) {
+		return page, "", true, nil
+	}
+	return page, page[len(page)-1], false, nil
+}
+
+func (f *fakeConversationFallbackCluster) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if limit <= 0 {
+		return nil, metadb.UserConversationActiveCursor{}, true, nil
+	}
+	latest := make(map[metadb.ConversationKey]metadb.UserConversationState)
+	for _, batch := range f.conversationStateBatches {
+		for _, state := range batch {
+			if state.UID != uid {
+				continue
+			}
+			key := metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
+			existing, ok := latest[key]
+			if !ok {
+				latest[key] = state
+				continue
+			}
+			latest[key] = mergeConversationState(existing, state)
+		}
+	}
+	rows := make([]metadb.UserConversationState, 0, len(latest))
+	for _, state := range latest {
+		if conversationRowAfter(state, after) {
+			rows = append(rows, state)
+		}
+	}
+	sortConversationRows(rows)
+	if len(rows) <= limit {
+		return rows, conversationRowsCursor(rows, after), true, nil
+	}
+	page := append([]metadb.UserConversationState(nil), rows[:limit]...)
+	return page, conversationRowsCursor(page, after), false, nil
+}
+
+func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
+	messages := f.messages[key]
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg.MessageSeq <= visibleAfterSeq {
+			continue
+		}
+		msg.Payload = append([]byte(nil), msg.Payload...)
+		return msg, true, nil
+	}
+	return channelv2.Message{}, false, nil
 }
 
 type touchBatch struct {

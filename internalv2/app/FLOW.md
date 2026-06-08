@@ -10,8 +10,8 @@ usecase, the gateway handler, the optional HTTP API runtime, the optional
 Prometheus metrics registry, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
-management, UID connection-route authority, conversation list projections, and
-opt-in local online delivery.
+management, UID connection-route authority, conversation authority active
+cache/list reads, and opt-in local online delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -26,7 +26,7 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus conversation list request latency/page-shape metrics and
-     conversation projector dirty-key, flush-shape, member-cache, and write metrics
+     conversation authority admission/flush compatibility metrics
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -37,9 +37,13 @@ New(Config)
        and, when exposed by the cluster, wire the same adapter as the
        UID-owned membership projection index
   -> when the cluster exposes conversation metadata reads:
-       create internalv2/usecase/conversation with an infra/cluster adapter
-       for UID-owned active conversation pages and channel-owned last visible
-       message reads
+       create an infra/cluster read adapter for channel-owned last visible
+       message reads and DB-only UID-owned active conversation pages
+       when the cluster also exposes conversation authority routing and metadata
+       writes, create one local authority cache plus one routed
+       ConversationAuthorityClient, register the conversation authority RPC
+       adapter, and use that client as the conversation list Store while keeping
+       the read adapter as Messages
   -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
      subscriber APIs, create a delivery metadata adapter backed by real storage
   -> when the cluster exposes presence routing:
@@ -62,7 +66,7 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, conversation projection
+     message reader when exposed, node-scoped IDs, conversation authority
      committed sink when exposed, optional delivery committed sink, and append metrics
      observer only when delivery is enabled and messages were not overridden
   -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
@@ -149,12 +153,16 @@ through the UID-owned membership facade for compatible metadata reads; the
 conversation list itself pages UID-owned active conversation rows instead.
 
 Conversation list reads flow from entry adapters through
-`internalv2/usecase/conversation` and the `internalv2/infra/cluster`
-`ConversationStore` adapter. The read model pages UID-owned active conversation
-rows directly, fetches the newest visible durable message only for the returned
-page with `Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read
-limit, and applies the public `active_at/channel_id/channel_type` cursor without
-scanning membership rows. Conversation rows do not store the last message.
+`internalv2/usecase/conversation`. When the cluster exposes the conversation
+authority surface, the list Store is the routed
+`internalv2/infra/cluster.ConversationAuthorityClient`, which resolves the UID
+hash-slot authority and reads the target-owned active view from the local or
+remote authority cache. The Messages port remains the `ConversationStore`
+adapter so last-message hydration reads committed ChannelV2 tails with
+`Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read limit.
+If a test or limited harness exposes conversation reads but not the authority
+surface, the usecase uses `ConversationStore` for both Store and Messages as a
+DB-only compatibility path. Conversation rows do not store the last message.
 When metrics are enabled, the app maps API conversation-list observations to
 Prometheus metrics for latency, returned items, sparse items, last-message
 loads, last-message errors, active-index stale skips, and whether another active
@@ -177,27 +185,22 @@ messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
 After a durable append succeeds, `MessageCommitted` flows through the app-level
-committed sink group. When the cluster exposes conversation projection metadata
-facades, the conversation projector records committed events in memory keyed by
-channel, type, and sender. `Submit` does not scan members or propose Slot
-commands. Dirty committed-event keys are bounded in memory; when the bound is
-full, new keys are dropped until a flush frees capacity while existing dirty
-keys can still coalesce newer committed messages. A cancellable background
-flush runs the `internalv2/usecase/conversation` projection policy, reuses a
-per-flush member classification cache, coalesces duplicate `(uid, channel)`
-rows, and writes one UID-owned `conversation` batch through clusterv2. Person
-channels fan out to the two participants, ordinary groups at or below
-`Config.Conversation.SmallGroupFanoutLimit` fan out to the complete subscriber
-page plus the sender when the subscriber snapshot omits it, and larger groups
-write only a sparse sender row. Member classification failures requeue only the
-affected dirty event. Batch write failures fall back to per-event writes and
-requeue only events that still fail. When metrics are enabled, projector
-observations update low-cardinality Prometheus metrics for submit result, dirty
-key pressure, flush event/row shape, dense/sparse projection counts, member
-classification cache hit/miss/error, write phase/result/duration, and requeued
-event counts. These metrics do not carry UID or channel labels. This projection
-is independent of delivery fanout and is written even when
-`Delivery.Enabled=false`.
+committed sink group. When the cluster exposes conversation authority routing
+and metadata writes, the conversation authority committed sink runs the
+`internalv2/usecase/conversation` projection policy in the foreground to derive
+UID-owned active patches. Person channels produce patches for the two
+participants, ordinary groups at or below
+`Config.Conversation.SmallGroupFanoutLimit` produce dense patches for the
+complete subscriber page plus the sender when needed, and larger groups produce
+only a sparse sender patch. The sink sends those patches through the shared
+`ConversationAuthorityClient`, which routes by UID hash slot; a single-node
+cluster still resolves through the route target and lands on the local
+authority cache. `Config.Conversation.AuthorityAdmissionTimeout`,
+`AuthorityRPCTimeout`, `AuthorityRPCBatchRows`, and `AuthorityRPCConcurrency`
+bound foreground admission work. The local authority cache coalesces unflushed
+patches, serves list reads by merging cache rows with DB active rows, and
+flushes active-touch patches on explicit Flush/Stop. This path is independent
+of delivery fanout and is wired even when `Delivery.Enabled=false`.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so
@@ -214,7 +217,7 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> presence touch worker Start(ctx)
-  -> conversation projector Start(ctx)
+  -> conversation authority sink Start(ctx): watch route authorities and seed current targets
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
   -> api.Start()
   -> gateway.Start()
@@ -224,7 +227,7 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> conversation projector Stop(ctx): stop ticker and flush dirty conversation rows
+  -> conversation authority sink Stop(ctx): cancel authority watcher and flush local cache rows
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -256,3 +259,23 @@ periodic flush
 The app worker has one authority watch loop and one periodic touch loop. It does
 not scan or replay owner-local active sessions when authority changes, and it
 does not create per-hash-slot workers.
+
+## Conversation Authority Handoff
+
+```text
+clusterv2.RouteAuthorityEvent
+  -> ignore stale events by hash-slot route revision and authority epoch
+  -> if local node becomes authority:
+       mark the exact conversation authority target active
+  -> if leader becomes unknown:
+       drain the previous local or warming target with AuthorityHandoffTimeout
+       mark the no-leader target warming
+  -> if another node becomes authority:
+       drain the previous local or warming target with AuthorityHandoffTimeout
+       leave the remote target unroutable to the local authority
+```
+
+Foreground committed-message admission still resolves the current UID authority
+through the routed `ConversationAuthorityClient`. The watcher only maintains
+local cache/list readiness for targets that this node can serve, and `Stop`
+flushes remaining local cache rows with the caller's stop context.

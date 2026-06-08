@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -632,6 +633,406 @@ func mergeConversationProjectionState(existing, next metadb.UserConversationStat
 }
 
 type committedSinkGroup []message.CommittedSink
+
+type conversationPatchProjector interface {
+	ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error)
+}
+
+type conversationPatchAuthority interface {
+	AdmitPatches(context.Context, []conversationusecase.ActivePatch) error
+}
+
+type conversationAuthorityFlusher interface {
+	Flush(context.Context) error
+}
+
+type conversationAuthorityCommittedOptions struct {
+	// Projector derives UID-owned active patches from committed message events.
+	Projector conversationPatchProjector
+	// Authority routes active patches to the current UID authority.
+	Authority conversationPatchAuthority
+	// Flusher persists any local authority cache rows during explicit flush/stop.
+	Flusher conversationAuthorityFlusher
+	// LocalAuthority tracks route-authority state for this node.
+	LocalAuthority *conversationAuthority
+	// LocalNodeID identifies this node when applying route-authority events.
+	LocalNodeID uint64
+	// Initial returns the currently known route authorities when the sink starts.
+	Initial func() []clusterv2.RouteAuthority
+	// Watch creates the route-authority event stream when the sink starts.
+	Watch func() <-chan clusterv2.RouteAuthorityEvent
+	// AdmissionTimeout bounds foreground cache admission after a durable commit.
+	AdmissionTimeout time.Duration
+	// HandoffTimeout bounds local authority drain during route-authority changes.
+	HandoffTimeout time.Duration
+	// RPCTimeout bounds one authority admission call.
+	RPCTimeout time.Duration
+	// RPCBatchRows limits active patches sent in one admission call.
+	RPCBatchRows int
+	// RPCConcurrency limits concurrent admission calls for one committed event.
+	RPCConcurrency int
+	// Observer receives low-cardinality compatibility observations.
+	Observer conversationProjectorObserver
+}
+
+type conversationAuthorityCommittedSink struct {
+	projector        conversationPatchProjector
+	authority        conversationPatchAuthority
+	flusher          conversationAuthorityFlusher
+	localAuthority   *conversationAuthority
+	localNodeID      uint64
+	initial          func() []clusterv2.RouteAuthority
+	watch            func() <-chan clusterv2.RouteAuthorityEvent
+	admissionTimeout time.Duration
+	handoffTimeout   time.Duration
+	rpcTimeout       time.Duration
+	rpcBatchRows     int
+	rpcConcurrency   int
+	observer         conversationProjectorObserver
+
+	mu     sync.Mutex
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	latest map[uint16]conversationusecase.RouteTarget
+}
+
+func newConversationAuthorityCommittedSink(opts conversationAuthorityCommittedOptions) *conversationAuthorityCommittedSink {
+	if opts.AdmissionTimeout <= 0 {
+		opts.AdmissionTimeout = 500 * time.Millisecond
+	}
+	if opts.HandoffTimeout <= 0 {
+		opts.HandoffTimeout = 3 * time.Second
+	}
+	if opts.RPCTimeout <= 0 {
+		opts.RPCTimeout = 500 * time.Millisecond
+	}
+	if opts.RPCBatchRows <= 0 {
+		opts.RPCBatchRows = 512
+	}
+	if opts.RPCConcurrency <= 0 {
+		opts.RPCConcurrency = 16
+	}
+	return &conversationAuthorityCommittedSink{
+		projector:        opts.Projector,
+		authority:        opts.Authority,
+		flusher:          opts.Flusher,
+		localAuthority:   opts.LocalAuthority,
+		localNodeID:      opts.LocalNodeID,
+		initial:          opts.Initial,
+		watch:            opts.Watch,
+		admissionTimeout: opts.AdmissionTimeout,
+		handoffTimeout:   opts.HandoffTimeout,
+		rpcTimeout:       opts.RPCTimeout,
+		rpcBatchRows:     opts.RPCBatchRows,
+		rpcConcurrency:   opts.RPCConcurrency,
+		observer:         opts.Observer,
+		latest:           make(map[uint16]conversationusecase.RouteTarget),
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) Start(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	var events <-chan clusterv2.RouteAuthorityEvent
+	if s.watch != nil {
+		events = s.watch()
+	}
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.mu.Unlock()
+		cancel()
+		return nil
+	}
+	s.cancel = cancel
+	if s.latest == nil {
+		s.latest = make(map[uint16]conversationusecase.RouteTarget)
+	}
+	if events != nil {
+		s.wg.Add(1)
+		go s.watchRouteAuthorities(runCtx, events)
+	}
+	s.mu.Unlock()
+	s.applyRouteAuthorities(runCtx, s.initialAuthorities())
+	return nil
+}
+
+func (s *conversationAuthorityCommittedSink) Stop(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	cancel := s.cancel
+	s.cancel = nil
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	s.wg.Wait()
+	return s.Flush(ctx)
+}
+
+func (s *conversationAuthorityCommittedSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
+	if s == nil || s.projector == nil || s.authority == nil {
+		s.observeSubmit(conversationProjectorResultIgnored)
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	admissionCtx, cancel := context.WithTimeout(ctx, s.admissionTimeout)
+	defer cancel()
+	patches, err := s.projector.ProjectActivePatches(admissionCtx, event)
+	if err != nil {
+		s.observeSubmit(conversationProjectorResultError)
+		return err
+	}
+	if len(patches) == 0 {
+		s.observeSubmit(conversationProjectorResultIgnored)
+		return nil
+	}
+	if err := s.admitBatches(admissionCtx, patches); err != nil {
+		s.observeSubmit(conversationProjectorResultError)
+		return err
+	}
+	s.observeSubmit(conversationProjectorResultAccepted)
+	return nil
+}
+
+func (s *conversationAuthorityCommittedSink) Flush(ctx context.Context) error {
+	if s == nil || s.flusher == nil {
+		return nil
+	}
+	startedAt := time.Now()
+	err := s.flusher.Flush(ctx)
+	result := conversationProjectorResultOK
+	if err != nil {
+		result = conversationProjectorResultError
+	}
+	s.observeFlush(conversationProjectorFlushEvent{Result: result, Duration: time.Since(startedAt)})
+	return err
+}
+
+func (s *conversationAuthorityCommittedSink) admitBatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
+	batches := conversationActivePatchBatches(patches, s.rpcBatchRows)
+	if len(batches) == 0 {
+		return nil
+	}
+	if s.rpcConcurrency <= 1 || len(batches) == 1 {
+		for _, batch := range batches {
+			if err := s.admitBatch(ctx, batch); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	workers := s.rpcConcurrency
+	if workers > len(batches) {
+		workers = len(batches)
+	}
+	workCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan []conversationusecase.ActivePatch)
+	var wg sync.WaitGroup
+	var firstErr error
+	var firstErrOnce sync.Once
+	setErr := func(err error) {
+		if err == nil {
+			return
+		}
+		firstErrOnce.Do(func() {
+			firstErr = err
+			cancel()
+		})
+	}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for batch := range jobs {
+				if err := s.admitBatch(workCtx, batch); err != nil {
+					setErr(err)
+				}
+			}
+		}()
+	}
+send:
+	for _, batch := range batches {
+		select {
+		case <-workCtx.Done():
+			break send
+		case jobs <- batch:
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *conversationAuthorityCommittedSink) admitBatch(ctx context.Context, patches []conversationusecase.ActivePatch) error {
+	if s.rpcTimeout <= 0 {
+		return s.authority.AdmitPatches(ctx, patches)
+	}
+	rpcCtx, cancel := context.WithTimeout(ctx, s.rpcTimeout)
+	defer cancel()
+	return s.authority.AdmitPatches(rpcCtx, patches)
+}
+
+func conversationActivePatchBatches(patches []conversationusecase.ActivePatch, batchRows int) [][]conversationusecase.ActivePatch {
+	if len(patches) == 0 {
+		return nil
+	}
+	if batchRows <= 0 || batchRows >= len(patches) {
+		return [][]conversationusecase.ActivePatch{append([]conversationusecase.ActivePatch(nil), patches...)}
+	}
+	batches := make([][]conversationusecase.ActivePatch, 0, (len(patches)+batchRows-1)/batchRows)
+	for start := 0; start < len(patches); start += batchRows {
+		end := start + batchRows
+		if end > len(patches) {
+			end = len(patches)
+		}
+		batches = append(batches, append([]conversationusecase.ActivePatch(nil), patches[start:end]...))
+	}
+	return batches
+}
+
+func (s *conversationAuthorityCommittedSink) initialAuthorities() []clusterv2.RouteAuthority {
+	if s == nil || s.initial == nil {
+		return nil
+	}
+	return s.initial()
+}
+
+func (s *conversationAuthorityCommittedSink) watchRouteAuthorities(ctx context.Context, events <-chan clusterv2.RouteAuthorityEvent) {
+	defer s.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			for _, authority := range event.Authorities {
+				s.handleRouteAuthority(ctx, authority)
+			}
+		}
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) applyRouteAuthorities(ctx context.Context, authorities []clusterv2.RouteAuthority) {
+	if s == nil || s.localAuthority == nil {
+		return
+	}
+	for _, authority := range authorities {
+		s.handleRouteAuthority(ctx, authority)
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) handleRouteAuthority(ctx context.Context, authority clusterv2.RouteAuthority) {
+	if s == nil || s.localAuthority == nil {
+		return
+	}
+	target := conversationRouteTarget(authority)
+	previous, hadPrevious, accepted := s.acceptRouteAuthorityTarget(target)
+	if !accepted {
+		return
+	}
+	switch {
+	case target.LeaderNodeID == s.localNodeID:
+		s.localAuthority.markActive(target)
+	case target.LeaderNodeID == 0:
+		if hadPrevious && s.localAuthorityCapable(previous) {
+			s.drainAuthorityTarget(ctx, previous)
+		}
+		s.localAuthority.markWarming(target)
+	default:
+		if hadPrevious && s.localAuthorityCapable(previous) {
+			s.drainAuthorityTarget(ctx, previous)
+		}
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) acceptRouteAuthorityTarget(target conversationusecase.RouteTarget) (conversationusecase.RouteTarget, bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.latest == nil {
+		s.latest = make(map[uint16]conversationusecase.RouteTarget)
+	}
+	current, ok := s.latest[target.HashSlot]
+	if ok && !conversationAuthorityRouteTargetNewer(target, current) {
+		return current, true, false
+	}
+	s.latest[target.HashSlot] = target
+	return current, ok, true
+}
+
+func conversationAuthorityRouteTargetNewer(next, current conversationusecase.RouteTarget) bool {
+	if next.RouteRevision != current.RouteRevision {
+		return next.RouteRevision > current.RouteRevision
+	}
+	return next.AuthorityEpoch > current.AuthorityEpoch
+}
+
+func (s *conversationAuthorityCommittedSink) localAuthorityCapable(target conversationusecase.RouteTarget) bool {
+	return target.LeaderNodeID == 0 || target.LeaderNodeID == s.localNodeID
+}
+
+func (s *conversationAuthorityCommittedSink) drainAuthorityTarget(ctx context.Context, target conversationusecase.RouteTarget) {
+	if s == nil || s.localAuthority == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	drainCtx := ctx
+	var cancel context.CancelFunc
+	if s.handoffTimeout > 0 {
+		drainCtx, cancel = context.WithTimeout(ctx, s.handoffTimeout)
+		defer cancel()
+	}
+	startedAt := time.Now()
+	_, err := s.localAuthority.DrainAuthority(drainCtx, target)
+	result := conversationProjectorResultOK
+	if err != nil {
+		result = conversationProjectorResultError
+	}
+	s.observeFlush(conversationProjectorFlushEvent{Result: result, Duration: time.Since(startedAt)})
+}
+
+func conversationRouteTarget(authority clusterv2.RouteAuthority) conversationusecase.RouteTarget {
+	return conversationusecase.RouteTarget{
+		HashSlot:       authority.HashSlot,
+		SlotID:         authority.SlotID,
+		LeaderNodeID:   authority.LeaderNodeID,
+		RouteRevision:  authority.RouteRevision,
+		AuthorityEpoch: authority.AuthorityEpoch,
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) observeSubmit(result string) {
+	if s == nil || s.observer == nil {
+		return
+	}
+	s.observer.ObserveConversationProjectorSubmit(conversationProjectorSubmitEvent{Result: result})
+}
+
+func (s *conversationAuthorityCommittedSink) observeFlush(event conversationProjectorFlushEvent) {
+	if s == nil || s.observer == nil {
+		return
+	}
+	s.observer.ObserveConversationProjectorFlush(event)
+}
 
 func combineCommittedSinks(sinks ...message.CommittedSink) message.CommittedSink {
 	group := committedSinkGroup{}

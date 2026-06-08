@@ -57,25 +57,34 @@ type WorkerRuntime interface {
 	Stop(context.Context) error
 }
 
+// conversationCommittedWorker is the managed committed-message sink for conversation activity.
+type conversationCommittedWorker interface {
+	message.CommittedSink
+	WorkerRuntime
+	Flush(context.Context) error
+}
+
 // Option customizes App construction.
 type Option func(*App)
 
 // App is the internalv2 composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg                   Config
-	cluster               ClusterRuntime
-	api                   APIRuntime
-	gateway               GatewayRuntime
-	handler               *accessgateway.Handler
-	messages              *message.App
-	channels              *channelusecase.App
-	conversations         *conversationusecase.App
-	users                 *userusecase.App
-	delivery              *deliveryusecase.App
-	deliveryManager       *runtimedelivery.Manager
-	deliveryRetry         *runtimedelivery.RetryScheduler
-	deliveryWorker        WorkerRuntime
-	conversationProjector *conversationProjector
+	cfg                         Config
+	cluster                     ClusterRuntime
+	api                         APIRuntime
+	gateway                     GatewayRuntime
+	handler                     *accessgateway.Handler
+	messages                    *message.App
+	channels                    *channelusecase.App
+	conversations               *conversationusecase.App
+	users                       *userusecase.App
+	delivery                    *deliveryusecase.App
+	deliveryManager             *runtimedelivery.Manager
+	deliveryRetry               *runtimedelivery.RetryScheduler
+	deliveryWorker              WorkerRuntime
+	conversationProjector       conversationCommittedWorker
+	conversationAuthority       *conversationAuthority
+	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
 	deliveryMeta        *deliveryMetaStore
@@ -203,14 +212,75 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.channels = channelusecase.New(channelOptions)
 		}
 	}
-	if app.conversations == nil {
-		if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
-			store := clusterinfra.NewConversationStore(node, clusterinfra.ConversationStoreOptions{
-				MaxLastMessageConcurrency: app.cfg.Conversation.MaxLastMessageConcurrency,
+	var conversationReadStore *clusterinfra.ConversationStore
+	if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
+		conversationReadStore = clusterinfra.NewConversationStore(node, clusterinfra.ConversationStoreOptions{
+			MaxLastMessageConcurrency: app.cfg.Conversation.MaxLastMessageConcurrency,
+		})
+	}
+	projectionNode, hasProjectionNode := app.cluster.(clusterinfra.ConversationProjectionNode)
+	if app.conversationAuthorityClient == nil {
+		authorityNode, hasAuthorityNode := app.cluster.(clusterinfra.ConversationAuthorityNode)
+		authorityStore, hasAuthorityStore := app.cluster.(conversationAuthorityStore)
+		if hasAuthorityNode && hasAuthorityStore {
+			authority := newConversationAuthority(conversationAuthorityOptions{
+				LocalNodeID:          authorityNode.NodeID(),
+				Store:                authorityStore,
+				MaxRowsPerUID:        app.cfg.Conversation.AuthorityCacheMaxRowsPerUID,
+				MaxRows:              app.cfg.Conversation.AuthorityCacheMaxRows,
+				ListDBWindowMax:      app.cfg.Conversation.AuthorityListDBWindowMax,
+				AdmissionBatchRows:   app.cfg.Conversation.AuthorityRPCBatchRows,
+				AdmissionConcurrency: app.cfg.Conversation.AuthorityRPCConcurrency,
+				HandoffTimeout:       app.cfg.Conversation.AuthorityHandoffTimeout,
 			})
+			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
+			app.conversationAuthority = authority
+			app.conversationAuthorityClient = client
+			if hasProjectionNode && app.conversationProjector == nil {
+				projectionStore := clusterinfra.NewConversationProjectionStore(projectionNode)
+				sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+					Projector: conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
+						Members:               projectionStore,
+						SmallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
+					}),
+					Authority:        client,
+					Flusher:          authority,
+					LocalAuthority:   authority,
+					LocalNodeID:      authorityNode.NodeID(),
+					Initial:          app.currentPresenceAuthorities,
+					Watch:            authorityNode.WatchRouteAuthorities,
+					AdmissionTimeout: app.cfg.Conversation.AuthorityAdmissionTimeout,
+					HandoffTimeout:   app.cfg.Conversation.AuthorityHandoffTimeout,
+					RPCTimeout:       app.cfg.Conversation.AuthorityRPCTimeout,
+					RPCBatchRows:     app.cfg.Conversation.AuthorityRPCBatchRows,
+					RPCConcurrency:   app.cfg.Conversation.AuthorityRPCConcurrency,
+					Observer:         app.conversationProjectorObserver(),
+				})
+				sink.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
+				app.conversationProjector = sink
+			}
+			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: app.logger.Named("node")})
+			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
+		}
+	}
+	if app.conversationProjector == nil && app.conversationAuthorityClient == nil && hasProjectionNode && conversationReadStore != nil {
+		projectionStore := clusterinfra.NewConversationProjectionStore(projectionNode)
+		app.conversationProjector = newConversationProjector(conversationProjectorOptions{
+			store:                 projectionStore,
+			members:               projectionStore,
+			smallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
+			observer:              app.conversationProjectorObserver(),
+		})
+	}
+	if app.conversations == nil {
+		if conversationReadStore != nil {
+			var store conversationusecase.Store = conversationReadStore
+			if app.conversationAuthorityClient != nil {
+				store = app.conversationAuthorityClient
+			}
 			app.conversations = conversationusecase.New(conversationusecase.Options{
 				Store:    store,
-				Messages: store,
+				Messages: conversationReadStore,
 			})
 		}
 	}
@@ -358,16 +428,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
 		}
 		var committedSinks []message.CommittedSink
-		if node, ok := app.cluster.(clusterinfra.ConversationProjectionNode); ok {
-			if app.conversationProjector == nil {
-				store := clusterinfra.NewConversationProjectionStore(node)
-				app.conversationProjector = newConversationProjector(conversationProjectorOptions{
-					store:                 store,
-					members:               store,
-					observer:              app.conversationProjectorObserver(),
-					smallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
-				})
-			}
+		if app.conversationProjector != nil {
 			committedSinks = append(committedSinks, app.conversationProjector)
 		}
 		if app.cfg.Delivery.Enabled {

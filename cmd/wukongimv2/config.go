@@ -83,6 +83,14 @@ var supportedConfigKeys = []string{
 	"WK_PRESENCE_ROUTE_TTL",
 	"WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT",
 	"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY",
+	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID",
+	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
+	"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX",
+	"WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS",
+	"WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY",
 	"WK_DELIVERY_ENABLE",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
@@ -705,6 +713,86 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY: value must be >= 0")
 		}
 		cfg.Conversation.MaxLastMessageConcurrency = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID: value must be > 0")
+		}
+		cfg.Conversation.AuthorityCacheMaxRowsPerUID = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityCacheMaxRows = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX: value must be > 0")
+		}
+		cfg.Conversation.AuthorityListDBWindowMax = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ADMISSION_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.AuthorityAdmissionTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.AuthorityHandoffTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.AuthorityRPCTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS"); raw != "" {
+		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if rows <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_BATCH_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityRPCBatchRows = rows
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if concurrency <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_RPC_CONCURRENCY: value must be > 0")
+		}
+		cfg.Conversation.AuthorityRPCConcurrency = concurrency
 	}
 	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)
