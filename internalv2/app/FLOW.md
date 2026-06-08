@@ -10,8 +10,9 @@ usecase, the gateway handler, the optional HTTP API runtime, the optional
 Prometheus metrics registry, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
-management, UID connection-route authority, conversation authority active
-cache/list reads, and opt-in local online delivery.
+management, UID connection-route authority, sender/recipient UID hash-slot
+authority routing, conversation authority active cache/list reads, and opt-in
+local online delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -42,11 +43,11 @@ New(Config)
        when the cluster also exposes conversation authority routing and metadata
        writes, create one local authority cache plus one routed
        ConversationAuthorityClient, register the conversation authority RPC
-       adapter, create the route-authority lifecycle and async conversation
-       projector, and use that client as the conversation list Store while
-       keeping the read adapter as Messages
-  -> when Delivery.Enabled=true and the cluster exposes clusterv2 Slot metadata
-     subscriber APIs, create a delivery metadata adapter backed by real storage
+       adapter, create the route-authority lifecycle, and use that client as
+       the conversation list Store while keeping the read adapter as Messages
+  -> when the cluster exposes clusterv2 Slot metadata subscriber APIs, create
+     a delivery metadata adapter backed by real storage for bench setup,
+     recipient-authority scans, and optional delivery fanout
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
@@ -66,11 +67,15 @@ New(Config)
        attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
+  -> when UID authority routing and conversation authority are available:
+       create recipient authority client, local processor, dispatcher, bounded
+       committed worker, and recipient authority RPC handler
   -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, async conversation projector
-     when exposed, optional delivery committed sink, and append metrics observer
-     only when delivery is enabled and messages were not overridden
-  -> create access/gateway.Handler with message and activation-timeout-wrapped presence usecases
+     message reader when exposed, node-scoped IDs, recipient committed worker,
+     and append metrics observer when delivery or metrics are enabled
+  -> create sender authority router for gateway/API sends and register sender
+     authority RPC handler that submits only to the raw local message.App
+  -> create access/gateway.Handler with sender-routed message and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
      usecases, optional bench presence snapshot controller, and real benchmark
      channel/subscriber data writer when API.ListenAddr is configured
@@ -78,13 +83,16 @@ New(Config)
 ```
 
 `Delivery.Enabled` defaults to false. With delivery disabled, committed message
-events are not emitted to the delivery runtime and the existing `SEND ->
-SENDACK` behavior is preserved. With delivery enabled, gateway RECVACK and
-session close feedback flows to the delivery usecase. Committed message events
-enter the runtime manager admission queue directly, so SENDACK latency is not
-coupled to subscriber scan or owner push execution. Closed admission returns a
-typed error; full-queue admission waits for capacity until the caller context
-expires, producing manager observations without changing the send result. Runtime
+events still enter the recipient-authority worker so recent conversation state
+is updated, but no online delivery is submitted. With delivery enabled, gateway
+RECVACK and session close feedback flows to the delivery usecase, and recipient
+processors submit only recipient-scoped committed events after conversation
+updates are admitted. The foreground SEND path waits for channel authority
+durable append; subscriber scan, remote recipient forwarding, conversation
+mutation, and owner push execution run after SENDACK. After append, the message
+usecase attempts bounded recipient queue admission. Closed or full recipient
+admission returns a typed committed-sink error for observation but does not
+change channel durability or the already-successful SENDACK decision. Runtime
 fanout failures are counted with normalized delivery error classes. Retryable
 fanout failures enter a bounded in-memory retry scheduler with a small fixed
 attempt cap; retry queue overflow is surfaced as `queue_full`. Owner-local
@@ -96,23 +104,18 @@ message observer records per-message append success/error latency and classifies
 append failures with low-cardinality labels for benchmark triage, including
 typed ChannelV2/cluster errors and short append results.
 
-The delivery adapter scopes unscoped person-channel committed events to the two
-channel participants before they enter runtime partition planning. This keeps a
-person message to one scoped fanout task instead of one task per authority
-partition. The app subscriber planner still derives both UIDs for direct
-person-channel scans. For non-person unscoped channel fanout it delegates to an
-optional durable subscriber source. If no source is supplied and delivery is
-enabled, the composition root installs a clusterv2 Slot-metadata-backed source
-when the cluster runtime exposes it. `/bench/v1/channels` and
-`/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
-through Slot proposals. The benchmark data writer uses bounded concurrency for
-independent channel/subscriber mutations while preserving subscriber mutation
-order within the same channel. Group fanout then pages a cached channel
-subscriber snapshot backed by the real subscriber table and filters UIDs by the
-task's UID hash-slot partition before presence resolution; subscriber mutations
-advance the cache version and force a fresh snapshot. Scoped UID delivery still
-bypasses subscriber scan and flows through presence resolution plus the local or
-RPC owner pusher.
+The recipient committed worker scopes unscoped person-channel events to the two
+channel participants before recipient dispatch. For non-person unscoped
+channels it pages durable subscribers through the clusterv2 Slot metadata source
+or an explicitly supplied subscriber source. Recipients are grouped by exact UID
+hash-slot authority target, then each recipient authority first admits active
+conversation patches and only then submits delivery scoped to that recipient
+group. `/bench/v1/channels` and `/bench/v1/channels/subscribers` write real
+channel metadata and subscriber rows through Slot proposals. The benchmark data
+writer uses bounded concurrency for independent channel/subscriber mutations
+while preserving subscriber mutation order within the same channel. Scoped UID
+delivery bypasses subscriber scan and flows through recipient authority,
+presence resolution, and the local or RPC owner pusher.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
@@ -195,60 +198,56 @@ System UID persistence reuses the compatible channel metadata store's internal
 subscriber-list model.
 
 Legacy message send and channel message sync requests flow from internalv2 HTTP
-through `internalv2/usecase/message`. Sends use the clusterv2 ChannelAppender
-and node-scoped message IDs. Channel message sync uses the
+through the app message facade. Sends use the sender authority router first;
+local sender-authority work uses `internalv2/usecase/message` with the
+clusterv2 ChannelAppender and node-scoped message IDs, while remote
+sender-authority work is forwarded through access/node Sender Authority RPC.
+Channel message sync stays on the raw message usecase and uses the
 `internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
 messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
-After a durable append succeeds, `MessageCommitted` flows through the app-level
-committed sink group. Metadata-only sinks receive events without payload or
-request-scoped UID copies, while delivery sinks still receive an independent
-full event clone. When the cluster exposes conversation authority routing and
-metadata writes, the async conversation projector only coalesces committed
-metadata in the foreground SENDACK path. Background flushes run the
-`internalv2/usecase/conversation` projection policy to derive UID-owned active
-patches. Person channels produce patches for the two participants, ordinary
-groups at or below `Config.Conversation.SmallGroupFanoutLimit` produce dense
-patches for the complete subscriber page plus the sender when needed, and
-larger groups produce only a sparse sender patch. The projector sends patches
-through the shared `ConversationAuthorityClient`, which routes by UID hash
-slot; a single-node cluster still resolves through the route target and lands
-on the local authority cache. `Config.Conversation.ProjectionFlushInterval`,
-`ProjectionShardCount`, `ProjectionMaxDirtyEvents`,
-`ProjectionMaxRetryPatches`, `ProjectionRetryMaxAge`,
-`ProjectionAdmitBatchRows`, `ProjectionAdmitConcurrency`, and
-`ProjectionAdmitTimeout` bound background projection work. Failed background
-authority admissions are retained in bounded retry state and retried by later
-background flushes. Conversation active rows are best-effort working-set hints:
-they may be delayed or dropped under pressure without changing message
-durability or SENDACK success. The local authority cache coalesces unflushed
-patches, serves list reads by merging cache rows with DB active rows, and
-writes durable active patches that atomically carry read/delete floors on
-explicit Stop, handoff drain, or cache pressure. When local cache pressure
-prevents admitting a new row, the authority persists the projected rows
-directly through the UID-owned durable conversation table instead of returning
-cache pressure to the caller.
-This path is independent of delivery fanout and is wired even when
-`Delivery.Enabled=false`.
+After a durable append succeeds, `MessageCommitted` flows to the app-level
+recipient committed worker. Before lifecycle start, tests and harnesses run this
+worker synchronously; after `Start`, it tries a non-blocking bounded enqueue and
+returns to the SEND path. The worker requests committed payload bytes only when
+delivery is wired; conversation-only recipient updates stay metadata-only.
+Person channels are scoped to the two participants. Group and other unscoped
+channels page durable subscribers progressively instead of loading the full
+subscriber set. The recipient dispatcher resolves each UID to the current UID
+hash-slot authority target, groups by exact target, processes local groups
+in-process, and forwards remote groups through access/node Recipient Authority
+RPC. The local recipient processor validates the fenced target is still current
+and local, admits recent-conversation patches through the shared
+`ConversationAuthorityClient`, then submits delivery scoped to that recipient
+group when delivery is enabled. Conversation active rows remain working-set
+hints: delayed or dropped recipient background work does not change message
+durability or SENDACK success. The local authority cache still coalesces active
+rows, serves list reads by merging cache rows with DB active rows, and writes
+durable active patches with read/delete floors on explicit Stop, handoff drain,
+or cache pressure.
 
-Conversation admission with authority enabled:
+SEND with sender and recipient authority enabled:
 
 ```text
-MessageCommitted
-  -> app-level committed sink group
-  -> async conversation projector coalesces metadata by channel/fromUID key
-  -> background flush derives UID-owned ActivePatch values
-  -> ConversationAuthorityClient groups patches by current UID authority target
-  -> local target:
-       conversationAuthority.AdmitPatches coalesces rows into the local cache
-  -> remote target:
-       access/node Conversation Authority Admit RPC admits rows on the authority node
-  -> failed background admit:
-       keep bounded coalesced retry patches and retry during later flushes
-  -> later DrainAuthority/Stop writes active patches with read/delete floors to UID-owned DB rows
-  -> local cache pressure:
-       write projected rows directly to UID-owned DB rows
+gateway/API send
+  -> SenderAuthorityRouter resolves FromUID hash-slot target
+  -> local sender target:
+       raw message.App appends to channel authority through clusterv2 ChannelAppender
+  -> remote sender target:
+       access/node Sender Authority RPC
+       remote local sender authority validates exact target
+       raw message.App appends to channel authority through clusterv2 ChannelAppender
+  -> channel authority persists message and returns append result
+  -> SENDACK returns to sender
+  -> recipient committed worker tries bounded enqueue of MessageCommitted
+  -> recipient dispatcher pages/scopes recipients and groups by UID authority target
+  -> local recipient target:
+       validate exact target
+       ConversationAuthorityClient.AdmitPatches
+       optional delivery.SubmitCommitted with MessageScopedUIDs
+  -> remote recipient target:
+       access/node Recipient Authority RPC then same local recipient processing
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
@@ -267,8 +266,8 @@ Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> presence touch worker Start(ctx)
-  -> async conversation projector Start(ctx): periodically flush metadata into authority cache
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
+  -> recipient committed worker Start(ctx): open bounded post-commit queue
   -> api.Start()
   -> gateway.Start()
 
@@ -276,9 +275,9 @@ Stop(ctx)
   -> restore diagnostics sendtrace sink
   -> gateway.Stop()
   -> api.Stop(ctx)
+  -> recipient committed worker Stop(ctx): close admission, drain accepted events,
+     and cancel in-flight dispatch if Stop times out
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> async conversation projector Stop(ctx): cancel periodic flush, retry retained patches,
-     and flush local cache rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)

@@ -31,20 +31,6 @@ type deliveryRuntimeAdapter struct {
 
 type deliveryWorkerGroup []WorkerRuntime
 
-type deliveryCommittedSink struct {
-	// delivery receives committed message events through the delivery usecase.
-	delivery interface {
-		SubmitCommitted(context.Context, messageevents.MessageCommitted) error
-	}
-}
-
-func (s deliveryCommittedSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
-	if s.delivery == nil {
-		return nil
-	}
-	return s.delivery.SubmitCommitted(ctx, event)
-}
-
 func (g deliveryWorkerGroup) Start(ctx context.Context) error {
 	for idx, worker := range g {
 		if worker == nil {

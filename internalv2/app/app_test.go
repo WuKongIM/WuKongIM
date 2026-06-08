@@ -18,6 +18,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
@@ -473,7 +474,7 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
-func TestNewWiresConversationAuthorityWhenDeliveryDisabled(t *testing.T) {
+func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -511,8 +512,8 @@ func TestNewWiresConversationAuthorityWhenDeliveryDisabled(t *testing.T) {
 		t.Fatalf("conversation state batches = %#v, want no synchronous DB write", cluster.conversationStateBatches)
 	}
 	cluster.mu.Unlock()
-	if app.conversationProjector == nil {
-		t.Fatal("conversation authority sink was not wired")
+	if app.recipientWorker == nil {
+		t.Fatal("recipient committed worker was not wired")
 	}
 	if app.conversationAuthority == nil {
 		t.Fatal("local conversation authority was not wired")
@@ -520,18 +521,20 @@ func TestNewWiresConversationAuthorityWhenDeliveryDisabled(t *testing.T) {
 	if app.conversationAuthorityClient == nil {
 		t.Fatal("conversation authority client was not reused by app wiring")
 	}
+	if app.recipientAuthorityClient == nil {
+		t.Fatal("recipient authority client was not wired")
+	}
 	if _, ok := cluster.registeredHandlers[accessnode.ConversationAuthorityRPCServiceID]; !ok {
 		t.Fatalf("conversation authority rpc service was not registered")
 	}
-	list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "u1", Limit: 10})
-	if err != nil {
-		t.Fatalf("Conversations().List() error = %v", err)
+	if _, ok := cluster.registeredHandlers[accessnode.SenderAuthorityRPCServiceID]; !ok {
+		t.Fatalf("sender authority rpc service was not registered")
 	}
-	if len(list.Items) != 0 {
-		t.Fatalf("conversation list before projection flush = %#v, want no async row yet", list.Items)
+	if _, ok := cluster.registeredHandlers[accessnode.RecipientAuthorityRPCServiceID]; !ok {
+		t.Fatalf("recipient authority rpc service was not registered")
 	}
-	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation authority flush error = %v", err)
+	if _, ok := app.senderMessages.(*message.SenderAuthorityRouter); !ok {
+		t.Fatalf("sender messages = %T, want sender authority router", app.senderMessages)
 	}
 
 	for _, uid := range []string{"u1", "u2"} {
@@ -562,8 +565,8 @@ func TestNewDoesNotWireLegacyConversationProjectorWhenAuthorityUnavailable(t *te
 	if app.conversationAuthority != nil || app.conversationAuthorityClient != nil {
 		t.Fatalf("authority fields = (%T, %T), want authority unavailable", app.conversationAuthority, app.conversationAuthorityClient)
 	}
-	if app.conversationProjector != nil {
-		t.Fatalf("conversation projector = %T, want no legacy fallback projector", app.conversationProjector)
+	if app.recipientWorker != nil {
+		t.Fatalf("recipient worker = %T, want no authority fallback worker", app.recipientWorker)
 	}
 
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
@@ -597,7 +600,7 @@ func TestNewDoesNotWireLegacyConversationProjectorWhenAuthorityUnavailable(t *te
 	}
 }
 
-func TestConversationAuthorityCoalescesActivePatchesBeforeFlush(t *testing.T) {
+func TestRecipientAuthorityUpdatesPersonConversationImmediately(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -633,9 +636,6 @@ func TestConversationAuthorityCoalescesActivePatchesBeforeFlush(t *testing.T) {
 	if err != nil || second.Reason != message.ReasonSuccess {
 		t.Fatalf("second Send() = %#v err=%v, want success", second, err)
 	}
-	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation projector flush error = %v", err)
-	}
 
 	for _, uid := range []string{"u1", "u2"} {
 		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
@@ -644,7 +644,7 @@ func TestConversationAuthorityCoalescesActivePatchesBeforeFlush(t *testing.T) {
 		}
 		if len(list.Items) != 1 || list.Items[0].ChannelID != channelID || list.Items[0].ChannelType != int64(frame.ChannelTypePerson) ||
 			list.Items[0].ActiveAt <= 0 || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want dense coalesced person active row", uid, list.Items)
+			t.Fatalf("conversation list for %s = %#v, want latest dense person active row", uid, list.Items)
 		}
 	}
 }
@@ -675,9 +675,6 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	if err != nil || result.Reason != message.ReasonSuccess {
 		t.Fatalf("Send() = %#v err=%v, want success", result, err)
 	}
-	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation projector Flush() error = %v", err)
-	}
 
 	for _, uid := range []string{"sender", "member"} {
 		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
@@ -690,7 +687,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	}
 }
 
-func TestConversationAuthorityIncludesSenderWhenSmallGroupSubscribersOmitSender(t *testing.T) {
+func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
@@ -716,22 +713,24 @@ func TestConversationAuthorityIncludesSenderWhenSmallGroupSubscribersOmitSender(
 	if err != nil || result.Reason != message.ReasonSuccess {
 		t.Fatalf("Send() = %#v err=%v, want success", result, err)
 	}
-	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation projector Flush() error = %v", err)
-	}
 
-	for _, uid := range []string{"sender", "member"} {
-		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
-		if err != nil {
-			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
-		}
-		if len(list.Items) != 1 || list.Items[0].ChannelID != "g-small-missing-sender" || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want dense small-group row", uid, list.Items)
-		}
+	memberList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "member", Limit: 10})
+	if err != nil {
+		t.Fatalf("Conversations().List(member) error = %v", err)
+	}
+	if len(memberList.Items) != 1 || memberList.Items[0].ChannelID != "g-small-missing-sender" || memberList.Items[0].SparseActive {
+		t.Fatalf("conversation list for member = %#v, want dense subscriber row", memberList.Items)
+	}
+	senderList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "sender", Limit: 10})
+	if err != nil {
+		t.Fatalf("Conversations().List(sender) error = %v", err)
+	}
+	if len(senderList.Items) != 0 {
+		t.Fatalf("conversation list for sender = %#v, want no row when sender is not a subscriber", senderList.Items)
 	}
 }
 
-func TestConversationAuthorityUsesSparseSenderRowWhenGroupExceedsLimit(t *testing.T) {
+func TestRecipientAuthorityPagesAllGroupSubscribersRegardlessSmallGroupLimit(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
@@ -757,23 +756,15 @@ func TestConversationAuthorityUsesSparseSenderRowWhenGroupExceedsLimit(t *testin
 	if err != nil || result.Reason != message.ReasonSuccess {
 		t.Fatalf("Send() = %#v err=%v, want success", result, err)
 	}
-	if err := app.conversationProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("conversation projector Flush() error = %v", err)
-	}
 
-	list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "sender", Limit: 10})
-	if err != nil {
-		t.Fatalf("Conversations().List(sender) error = %v", err)
-	}
-	if len(list.Items) != 1 || list.Items[0].ChannelID != "g-large" || !list.Items[0].SparseActive {
-		t.Fatalf("conversation list for sender = %#v, want sparse sender row", list.Items)
-	}
-	memberList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "member", Limit: 10})
-	if err != nil {
-		t.Fatalf("Conversations().List(member) error = %v", err)
-	}
-	if len(memberList.Items) != 0 {
-		t.Fatalf("conversation list for member = %#v, want no sparse row for large-group member", memberList.Items)
+	for _, uid := range []string{"sender", "member"} {
+		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
+		if err != nil {
+			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
+		}
+		if len(list.Items) != 1 || list.Items[0].ChannelID != "g-large" || list.Items[0].SparseActive {
+			t.Fatalf("conversation list for %s = %#v, want dense subscriber row", uid, list.Items)
+		}
 	}
 }
 
@@ -822,47 +813,42 @@ func TestConversationAsyncProjectorAdmitsProjectedPatchesInBatchesOnFlush(t *tes
 	}
 }
 
-func TestConversationAsyncProjectorUsesMetadataOnlyCommittedEvents(t *testing.T) {
-	authority := &recordingConversationPatchAuthority{}
-	patchProjector := &recordingConversationPatchProjector{
-		patches: []conversationusecase.ActivePatch{{
-			UID:         "u1",
-			ChannelID:   "g-meta-authority",
-			ChannelType: 2,
-			ActiveAt:    100,
-			UpdatedAt:   101,
-			MessageSeq:  7,
-		}},
+func TestRecipientCommittedWorkerRequiresPayloadAndScopesPersonEvent(t *testing.T) {
+	dispatcher := &recordingRecipientCommittedDispatcher{}
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	if !worker.RequiresCommittedPayload() {
+		t.Fatal("RequiresCommittedPayload() = false, want true")
 	}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    patchProjector,
-		Authority:    authority,
-		AdmitTimeout: time.Second,
-	})
-	group := combineCommittedSinks(projector)
-	if group == nil {
-		t.Fatal("committed sink group = nil")
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	event := messageevents.MessageCommitted{
+		MessageID:   11,
+		MessageSeq:  7,
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		FromUID:     "u1",
+		Payload:     []byte("payload reaches delivery"),
 	}
-	if group.(message.CommittedPayloadPolicy).RequiresCommittedPayload() {
-		t.Fatal("authority-only committed sink requires payload, want metadata-only")
-	}
-	if err := group.Submit(context.Background(), messageevents.MessageCommitted{
-		MessageID:         11,
-		MessageSeq:        7,
-		ChannelID:         "g-meta-authority",
-		ChannelType:       frame.ChannelTypeGroup,
-		FromUID:           "u1",
-		ServerTimestampMS: 100,
-		Payload:           []byte("payload should not reach authority"),
-		MessageScopedUIDs: []string{"u1", "u2"},
-	}); err != nil {
+	if err := worker.Submit(context.Background(), event); err != nil {
 		t.Fatalf("Submit() error = %v", err)
 	}
-	if err := projector.Flush(context.Background()); err != nil {
-		t.Fatalf("Flush() error = %v", err)
+	if len(dispatcher.events) != 1 {
+		t.Fatalf("dispatcher events = %d, want 1", len(dispatcher.events))
 	}
-	if len(patchProjector.event.Payload) != 0 || len(patchProjector.event.MessageScopedUIDs) != 0 {
-		t.Fatalf("projector event retained payload/scoped fields: %#v", patchProjector.event)
+	got := dispatcher.events[0]
+	scoped := map[string]bool{}
+	for _, uid := range got.MessageScopedUIDs {
+		scoped[uid] = true
+	}
+	if string(got.Payload) != "payload reaches delivery" ||
+		len(got.MessageScopedUIDs) != 2 || !scoped["u1"] || !scoped["u2"] {
+		t.Fatalf("committed event = %#v, want payload plus person scoped UIDs", got)
+	}
+}
+
+func TestRecipientCommittedWorkerCanRunMetadataOnlyWhenDeliveryDisabled(t *testing.T) {
+	worker := newRecipientCommittedWorker(&recordingRecipientCommittedDispatcher{}, 1, false, nil)
+	if worker.RequiresCommittedPayload() {
+		t.Fatal("RequiresCommittedPayload() = true, want false for conversation-only worker")
 	}
 }
 
@@ -1165,47 +1151,104 @@ func TestConversationAsyncProjectorStopFlushesLocalAuthority(t *testing.T) {
 	}
 }
 
-func TestCommittedSinkGroupUsesMetadataSubmitWithoutPayloadClone(t *testing.T) {
-	metadata := &recordingMetadataCommittedSink{}
-	delivery := &recordingCommittedSink{}
-	group := combineCommittedSinks(metadata, delivery)
-
-	payload := []byte("large payload")
-	scoped := []string{"u1", "u2"}
-	if err := group.Submit(context.Background(), messageevents.MessageCommitted{
-		MessageID:         1,
-		MessageSeq:        2,
-		ChannelID:         "g-meta",
-		ChannelType:       frame.ChannelTypeGroup,
-		FromUID:           "sender",
-		ServerTimestampMS: 100,
-		Payload:           payload,
-		MessageScopedUIDs: scoped,
-	}); err != nil {
+func TestRecipientCommittedWorkerDrainsAcceptedEventsOnStop(t *testing.T) {
+	dispatcher := &recordingRecipientCommittedDispatcher{}
+	worker := newRecipientCommittedWorker(dispatcher, 2, true, nil)
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
 		t.Fatalf("Submit() error = %v", err)
 	}
-	payload[0] = 'L'
-	scoped[0] = "mutated"
-
-	if metadata.submitCalls != 0 || metadata.metadataCalls != 1 {
-		t.Fatalf("metadata sink calls submit=%d metadata=%d, want only metadata submit", metadata.submitCalls, metadata.metadataCalls)
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := worker.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
-	if len(metadata.event.Payload) != 0 || len(metadata.event.MessageScopedUIDs) != 0 {
-		t.Fatalf("metadata event retained payload/scoped fields: %#v", metadata.event)
-	}
-	if delivery.calls != 1 || string(delivery.event.Payload) != "large payload" ||
-		len(delivery.event.MessageScopedUIDs) != 2 || delivery.event.MessageScopedUIDs[0] != "u1" {
-		t.Fatalf("delivery event = %#v, want independent full clone", delivery.event)
+	if len(dispatcher.events) != 1 || dispatcher.events[0].ChannelID != "g1" {
+		t.Fatalf("dispatcher events = %#v, want accepted event drained", dispatcher.events)
 	}
 }
 
-func TestCommittedSinkGroupRequiresPayloadWhenAnySinkNeedsIt(t *testing.T) {
-	metadata := &recordingMetadataCommittedSink{}
-	if group := combineCommittedSinks(metadata); group == nil || group.(message.CommittedPayloadPolicy).RequiresCommittedPayload() {
-		t.Fatalf("metadata-only committed group requires payload, want false")
+func TestRecipientCommittedWorkerFullQueueReturnsWithoutBlocking(t *testing.T) {
+	dispatcher := newBlockingRecipientCommittedDispatcher()
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
 	}
-	if group := combineCommittedSinks(metadata, &recordingCommittedSink{}); group == nil || !group.(message.CommittedPayloadPolicy).RequiresCommittedPayload() {
-		t.Fatalf("mixed committed group does not require payload, want true")
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit(first) error = %v", err)
+	}
+	dispatcher.waitEntered(t)
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g2", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit(second) error = %v", err)
+	}
+
+	start := time.Now()
+	err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g3", ChannelType: frame.ChannelTypeGroup})
+	if !errors.Is(err, errRecipientCommittedWorkerFull) {
+		t.Fatalf("Submit(third) error = %v, want queue full", err)
+	}
+	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
+		t.Fatalf("Submit(third) elapsed = %v, want non-blocking full queue result", elapsed)
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := worker.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop(blocked dispatcher) error = %v, want deadline exceeded", err)
+	}
+	dispatcher.waitCanceled(t)
+}
+
+func TestRecipientCommittedWorkerStopCancelsBlockedDispatchAfterDeadline(t *testing.T) {
+	dispatcher := newBlockingRecipientCommittedDispatcher()
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g-stop", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	dispatcher.waitEntered(t)
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := worker.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want deadline exceeded", err)
+	}
+	dispatcher.waitCanceled(t)
+}
+
+func TestSenderAuthorityLocalWrapsItemDeadlineIntoContext(t *testing.T) {
+	target := authority.Target{HashSlot: 7, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	resolver := &recordingUIDAuthorityResolver{target: target}
+	submitter := &recordingSenderAuthoritySubmitter{
+		results: []message.SendBatchItemResult{{Result: message.SendResult{Reason: message.ReasonSuccess}}},
+	}
+	local := senderAuthorityLocal{
+		localNodeID: target.LeaderNodeID,
+		resolver:    resolver,
+		submitter:   submitter,
+	}
+	deadline := time.Now().Add(time.Hour)
+
+	results := local.SendBatchForAuthority(context.Background(), target, []message.SendBatchItem{{
+		Deadline: deadline,
+		Command:  message.SendCommand{FromUID: "u-deadline"},
+	}})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != message.ReasonSuccess {
+		t.Fatalf("SendBatchForAuthority() = %#v, want success", results)
+	}
+	if resolver.ctxDeadline.IsZero() || !resolver.ctxDeadline.Equal(deadline) {
+		t.Fatalf("resolver deadline = %v, want %v", resolver.ctxDeadline, deadline)
+	}
+	if len(submitter.items) != 1 {
+		t.Fatalf("submitter items = %d, want 1", len(submitter.items))
+	}
+	submitDeadline, ok := submitter.items[0].Context.Deadline()
+	if !ok || !submitDeadline.Equal(deadline) {
+		t.Fatalf("submitter context deadline = %v ok=%v, want %v", submitDeadline, ok, deadline)
 	}
 }
 
@@ -1473,8 +1516,8 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	if req.ChannelID != "g1" || req.ChannelType != frame.ChannelTypeGroup || req.Limit != app.cfg.Delivery.FanoutPageSize {
 		t.Fatalf("subscriber request = %#v, want group channel with configured page size", req)
 	}
-	if req.Partition.LeaderNodeID != 1 || req.Partition.HashSlotStart != 0 || req.Partition.HashSlotEnd != 15 {
-		t.Fatalf("subscriber partition = %#v, want local authority hash slots 0..15", req.Partition)
+	if req.Partition != (runtimedelivery.Partition{}) {
+		t.Fatalf("subscriber partition = %#v, want recipient-authority unpartitioned scan", req.Partition)
 	}
 
 	if err := app.Handler().OnFrame(gateway.Context{Session: recipient, RequestContext: context.Background()}, &frame.RecvackPacket{
@@ -3309,6 +3352,86 @@ func (s *recordingCommittedSink) Submit(_ context.Context, event messageevents.M
 	s.calls++
 	s.event = event
 	return nil
+}
+
+type recordingRecipientCommittedDispatcher struct {
+	mu     sync.Mutex
+	events []messageevents.MessageCommitted
+	err    error
+}
+
+func (d *recordingRecipientCommittedDispatcher) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.events = append(d.events, event.Clone())
+	return d.err
+}
+
+type blockingRecipientCommittedDispatcher struct {
+	entered    chan struct{}
+	canceled   chan struct{}
+	enterOnce  sync.Once
+	cancelOnce sync.Once
+}
+
+func newBlockingRecipientCommittedDispatcher() *blockingRecipientCommittedDispatcher {
+	return &blockingRecipientCommittedDispatcher{
+		entered:  make(chan struct{}),
+		canceled: make(chan struct{}),
+	}
+}
+
+func (d *blockingRecipientCommittedDispatcher) SubmitCommitted(ctx context.Context, _ messageevents.MessageCommitted) error {
+	d.enterOnce.Do(func() { close(d.entered) })
+	<-ctx.Done()
+	d.cancelOnce.Do(func() { close(d.canceled) })
+	return ctx.Err()
+}
+
+func (d *blockingRecipientCommittedDispatcher) waitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-d.entered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked recipient dispatch")
+	}
+}
+
+func (d *blockingRecipientCommittedDispatcher) waitCanceled(t *testing.T) {
+	t.Helper()
+	select {
+	case <-d.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked recipient dispatch cancellation")
+	}
+}
+
+type recordingUIDAuthorityResolver struct {
+	target      authority.Target
+	ctxDeadline time.Time
+	calls       int
+	err         error
+}
+
+func (r *recordingUIDAuthorityResolver) ResolveUIDAuthority(ctx context.Context, _ string) (authority.Target, error) {
+	r.calls++
+	if deadline, ok := ctx.Deadline(); ok {
+		r.ctxDeadline = deadline
+	}
+	return r.target, r.err
+}
+
+type recordingSenderAuthoritySubmitter struct {
+	items   []message.SendBatchItem
+	results []message.SendBatchItemResult
+}
+
+func (s *recordingSenderAuthoritySubmitter) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	s.items = append([]message.SendBatchItem(nil), items...)
+	if s.results != nil {
+		return append([]message.SendBatchItemResult(nil), s.results...)
+	}
+	return make([]message.SendBatchItemResult, len(items))
 }
 
 func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Snapshot {

@@ -72,14 +72,6 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.presenceStarted = true
 	}
-	if a.conversationProjector != nil {
-		if err := a.conversationProjector.Start(ctx); err != nil {
-			a.logLifecycleError("conversation_authority", "start", err)
-			stopErr := a.rollbackStarted(ctx)
-			return errors.Join(err, stopErr)
-		}
-		a.conversationStarted = true
-	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -87,6 +79,14 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 		a.deliveryStarted = true
+	}
+	if a.recipientWorker != nil {
+		if err := a.recipientWorker.Start(ctx); err != nil {
+			a.logLifecycleError("recipient_worker", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.recipientStarted = true
 	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
@@ -137,20 +137,20 @@ func (a *App) Stop(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
+	if a.recipientStarted && a.recipientWorker != nil {
+		if stopErr := a.recipientWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("recipient_worker", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.recipientStarted = false
+		}
+	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
 		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("delivery_worker", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
-		}
-	}
-	if a.conversationStarted && a.conversationProjector != nil {
-		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_authority", "stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationStarted = false
 		}
 	}
 	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
@@ -177,7 +177,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.deliveryStarted && !a.conversationStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.recipientStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -201,20 +201,20 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
+	if a.recipientStarted && a.recipientWorker != nil {
+		if stopErr := a.recipientWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("recipient_worker", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.recipientStarted = false
+		}
+	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
 		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("delivery_worker", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
-		}
-	}
-	if a.conversationStarted && a.conversationProjector != nil {
-		if stopErr := a.conversationProjector.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_authority", "rollback_stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationStarted = false
 		}
 	}
 	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {

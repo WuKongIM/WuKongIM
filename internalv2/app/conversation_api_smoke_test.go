@@ -17,7 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-func TestConversationListAPIReadsAuthorityCacheAfterProjectionFlush(t *testing.T) {
+func TestConversationListAPIReadsAuthorityCacheAfterRecipientDispatch(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
 	app, err := New(cfg)
@@ -61,23 +61,13 @@ func TestConversationListAPIReadsAuthorityCacheAfterProjectionFlush(t *testing.T
 	if sendResp.Reason != uint8(frame.ReasonSuccess) || sendResp.MessageSeq == 0 || sendResp.MessageID == 0 {
 		t.Fatalf("send response = %#v, want successful committed message", sendResp)
 	}
-	if app.conversationProjector == nil {
-		t.Fatal("conversation authority sink was not wired")
-	}
-
-	page := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
-	if len(page.Conversations) != 0 {
-		t.Fatalf("conversation count before flush = %d page=%#v, want async projection not visible yet", len(page.Conversations), page)
-	}
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer flushCancel()
-	if err := app.conversationProjector.Flush(flushCtx); err != nil {
-		t.Fatalf("conversation projector Flush() error = %v", err)
-	}
-
-	page = decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
+	var page conversationListSmokeResponse
+	waitUntil(t, 3*time.Second, func() bool {
+		page = decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
+		return len(page.Conversations) == 1
+	})
 	if len(page.Conversations) != 1 {
-		t.Fatalf("conversation count = %d page=%#v, want one active row after projection flush", len(page.Conversations), page)
+		t.Fatalf("conversation count = %d page=%#v, want one active row after recipient dispatch", len(page.Conversations), page)
 	}
 	got := page.Conversations[0]
 	if got.ChannelID != "sender-cache" || got.ChannelType != int64(frame.ChannelTypePerson) ||
@@ -134,16 +124,6 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if sendResp.Reason != uint8(frame.ReasonSuccess) || sendResp.MessageSeq == 0 || sendResp.MessageID == 0 {
 		t.Fatalf("send response = %#v, want successful committed message", sendResp)
 	}
-	if app.conversationProjector == nil {
-		t.Fatal("conversation projector was not wired")
-	}
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer flushCancel()
-	if err := app.conversationProjector.Flush(flushCtx); err != nil {
-		t.Fatalf("conversation projector Flush() error = %v", err)
-	}
-
-	listBody := postAppJSON(t, handler, "/conversation/list", `{"uid":"sender","limit":10}`, http.StatusOK)
 	var listResp struct {
 		Conversations []struct {
 			ChannelID   string `json:"channel_id"`
@@ -161,6 +141,14 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 		} `json:"conversations"`
 		More int `json:"more"`
 	}
+	var listBody []byte
+	waitUntil(t, 3*time.Second, func() bool {
+		listBody = postAppJSON(t, handler, "/conversation/list", `{"uid":"sender","limit":10}`, http.StatusOK)
+		if err := json.Unmarshal(listBody, &listResp); err != nil {
+			return false
+		}
+		return len(listResp.Conversations) == 1
+	})
 	if err := json.Unmarshal(listBody, &listResp); err != nil {
 		t.Fatalf("decode conversation list response: %v body=%s", err, string(listBody))
 	}

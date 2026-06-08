@@ -6,10 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 )
-
-type committedSinkGroup []message.CommittedSink
 
 type conversationPatchProjector interface {
 	ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error)
@@ -76,56 +73,4 @@ func conversationActivePatchBatches(patches []conversationusecase.ActivePatch, b
 		batches = append(batches, append([]conversationusecase.ActivePatch(nil), patches[start:end]...))
 	}
 	return batches
-}
-
-type metadataCommittedSink interface {
-	SubmitMetadata(context.Context, messageevents.MessageCommitted) error
-}
-
-func combineCommittedSinks(sinks ...message.CommittedSink) message.CommittedSink {
-	group := committedSinkGroup{}
-	for _, sink := range sinks {
-		if sink != nil {
-			group = append(group, sink)
-		}
-	}
-	if len(group) == 0 {
-		return nil
-	}
-	return group
-}
-
-func (g committedSinkGroup) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
-	var firstErr error
-	for _, sink := range g {
-		if sink == nil {
-			continue
-		}
-		if err := submitCommittedEvent(ctx, sink, event); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
-}
-
-func (g committedSinkGroup) RequiresCommittedPayload() bool {
-	for _, sink := range g {
-		if sink == nil {
-			continue
-		}
-		policy, ok := sink.(message.CommittedPayloadPolicy)
-		if !ok || policy.RequiresCommittedPayload() {
-			return true
-		}
-	}
-	return false
-}
-
-func submitCommittedEvent(ctx context.Context, sink message.CommittedSink, event messageevents.MessageCommitted) error {
-	if metadataSink, ok := sink.(metadataCommittedSink); ok {
-		event.Payload = nil
-		event.MessageScopedUIDs = nil
-		return metadataSink.SubmitMetadata(ctx, event)
-	}
-	return sink.Submit(ctx, event.Clone())
 }

@@ -25,6 +25,7 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
+	recipientusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/recipient"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -57,13 +58,6 @@ type WorkerRuntime interface {
 	Stop(context.Context) error
 }
 
-// conversationCommittedWorker is the managed committed-message sink for conversation activity.
-type conversationCommittedWorker interface {
-	message.CommittedSink
-	WorkerRuntime
-	Flush(context.Context) error
-}
-
 // Option customizes App construction.
 type Option func(*App)
 
@@ -75,6 +69,8 @@ type App struct {
 	gateway                     GatewayRuntime
 	handler                     *accessgateway.Handler
 	messages                    *message.App
+	senderMessages              accessgateway.MessageUsecase
+	apiMessages                 accessapi.MessageUsecase
 	channels                    *channelusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App
@@ -82,10 +78,11 @@ type App struct {
 	deliveryManager             *runtimedelivery.Manager
 	deliveryRetry               *runtimedelivery.RetryScheduler
 	deliveryWorker              WorkerRuntime
-	conversationProjector       conversationCommittedWorker
+	recipientWorker             *recipientCommittedWorker
 	conversationRouteLifecycle  WorkerRuntime
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
+	recipientAuthorityClient    *clusterinfra.RecipientAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
 	deliveryMeta        *deliveryMetaStore
@@ -108,7 +105,7 @@ type App struct {
 	clusterStarted           bool
 	presenceStarted          bool
 	conversationRouteStarted bool
-	conversationStarted      bool
+	recipientStarted         bool
 	deliveryStarted          bool
 	apiStarted               bool
 	gatewayStarted           bool
@@ -196,11 +193,13 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if app.online == nil {
 		app.online = online.NewRegistry(online.RegistryOptions{})
 	}
-	if app.cfg.Delivery.Enabled && app.deliverySubscribers == nil {
+	if app.deliveryMeta == nil {
 		if node, ok := app.cluster.(deliveryMetaNode); ok {
 			app.deliveryMeta = newDeliveryMetaStore(node)
-			app.deliverySubscribers = app.deliveryMeta
 		}
+	}
+	if app.cfg.Delivery.Enabled && app.deliverySubscribers == nil {
+		app.deliverySubscribers = app.deliveryMeta
 	}
 	if app.channels == nil {
 		if node, ok := app.cluster.(clusterinfra.ChannelMetadataNode); ok {
@@ -220,7 +219,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			MaxLastMessageConcurrency: app.cfg.Conversation.MaxLastMessageConcurrency,
 		})
 	}
-	projectionNode, hasProjectionNode := app.cluster.(clusterinfra.ConversationProjectionNode)
 	if app.conversationAuthorityClient == nil {
 		authorityNode, hasAuthorityNode := app.cluster.(clusterinfra.ConversationAuthorityNode)
 		authorityStore, hasAuthorityStore := app.cluster.(conversationAuthorityStore)
@@ -249,26 +247,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				})
 				routeLifecycle.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
 				app.conversationRouteLifecycle = routeLifecycle
-			}
-			if hasProjectionNode && app.conversationProjector == nil {
-				projectionStore := clusterinfra.NewConversationProjectionStore(projectionNode)
-				app.conversationProjector = newConversationAsyncProjector(conversationAsyncProjectorOptions{
-					Projector: conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
-						Members:               projectionStore,
-						SmallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
-					}),
-					Authority:        client,
-					Flusher:          authority,
-					FlushInterval:    app.cfg.Conversation.ProjectionFlushInterval,
-					ShardCount:       app.cfg.Conversation.ProjectionShardCount,
-					MaxDirtyEvents:   app.cfg.Conversation.ProjectionMaxDirtyEvents,
-					MaxRetryPatches:  app.cfg.Conversation.ProjectionMaxRetryPatches,
-					RetryMaxAge:      app.cfg.Conversation.ProjectionRetryMaxAge,
-					AdmitBatchRows:   app.cfg.Conversation.ProjectionAdmitBatchRows,
-					AdmitConcurrency: app.cfg.Conversation.ProjectionAdmitConcurrency,
-					AdmitTimeout:     app.cfg.Conversation.ProjectionAdmitTimeout,
-					Observer:         app.conversationProjectionObserver(),
-				})
 			}
 			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: app.logger.Named("node")})
 			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
@@ -421,6 +399,44 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
 		}
 	}
+	if app.recipientWorker == nil {
+		if authorityNode, ok := app.cluster.(clusterinfra.RecipientAuthorityNode); ok && app.conversationAuthorityClient != nil {
+			recipientAuthority := clusterinfra.NewRecipientAuthorityClient(authorityNode, nil)
+			app.recipientAuthorityClient = recipientAuthority
+			var deliverySubmitter recipientusecase.DeliverySubmitter
+			if app.delivery != nil {
+				deliverySubmitter = recipientDeliverySubmitter{delivery: app.delivery}
+			}
+			processor := recipientusecase.NewProcessor(recipientusecase.ProcessorOptions{
+				LocalNodeID:  authorityNode.NodeID(),
+				Authority:    recipientAuthority,
+				Conversation: app.conversationAuthorityClient,
+				Delivery:     deliverySubmitter,
+			})
+			var recipientSource recipientusecase.RecipientSource
+			if app.deliveryMeta != nil {
+				recipientSource = app.deliveryMeta
+			} else if app.deliverySubscribers != nil {
+				recipientSource = deliverySubscriberRecipientSource{source: app.deliverySubscribers}
+			} else if subscriberNode, ok := app.cluster.(recipientSubscriberNode); ok {
+				recipientSource = recipientSubscriberStore{node: subscriberNode}
+			}
+			dispatcher := recipientusecase.NewDispatcher(recipientusecase.DispatcherOptions{
+				LocalNodeID:     authorityNode.NodeID(),
+				Recipients:      recipientSource,
+				Resolver:        recipientAuthority,
+				Local:           processor,
+				Remote:          recipientAuthority,
+				PageSize:        app.cfg.Delivery.FanoutPageSize,
+				TargetBatchSize: app.cfg.Delivery.PushBatchSize,
+			})
+			app.recipientWorker = newRecipientCommittedWorker(dispatcher, app.cfg.Delivery.EventQueueSize, app.delivery != nil, app.logger.Named("recipient"))
+			if registrar, ok := app.cluster.(nodeRPCRegistrar); ok {
+				adapter := accessnode.New(accessnode.Options{RecipientAuthority: processor, Logger: app.logger.Named("node")})
+				registerNodeRPC(registrar, accessnode.RecipientAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRecipientAuthorityRPC))
+			}
+		}
+	}
 	if app.messages == nil {
 		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
 		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
@@ -429,22 +445,51 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		if readNode, ok := app.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
 		}
-		var committedSinks []message.CommittedSink
-		if app.conversationProjector != nil {
-			committedSinks = append(committedSinks, app.conversationProjector)
-		}
-		if app.cfg.Delivery.Enabled {
-			committedSinks = append(committedSinks, deliveryCommittedSink{delivery: app.delivery})
-		}
-		messageOpts.Committed = combineCommittedSinks(committedSinks...)
+		messageOpts.Committed = app.recipientWorker
 		if app.cfg.Delivery.Enabled || app.metrics != nil {
 			messageOpts.Observer = deliveryMessageObserver{app: app}
 		}
 		app.messages = message.New(messageOpts)
 	}
+	if app.senderMessages == nil {
+		if senderNode, ok := app.cluster.(clusterinfra.SenderAuthorityNode); ok && app.messages != nil {
+			senderAuthority := clusterinfra.NewSenderAuthorityClient(senderNode, nil)
+			app.senderMessages = message.NewSenderAuthorityRouter(message.SenderAuthorityRouterOptions{
+				LocalNodeID: senderNode.NodeID(),
+				Resolver:    senderAuthority,
+				Local:       app.messages,
+				Remote:      senderAuthority,
+			})
+			var routes clusterWriteReadyRuntime
+			if routeRuntime, ok := app.cluster.(clusterWriteReadyRuntime); ok {
+				routes = routeRuntime
+			}
+			local := senderAuthorityLocal{
+				localNodeID: senderNode.NodeID(),
+				resolver:    senderAuthority,
+				routes:      routes,
+				submitter:   app.messages,
+			}
+			adapter := accessnode.New(accessnode.Options{SenderAuthority: local, Logger: app.logger.Named("node")})
+			senderNode.RegisterRPC(accessnode.SenderAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleSenderAuthorityRPC))
+		}
+	}
+	if app.apiMessages == nil && app.messages != nil {
+		sendUsecase := interface {
+			Send(context.Context, message.SendCommand) (message.SendResult, error)
+		}(app.messages)
+		if app.senderMessages != nil {
+			sendUsecase = app.senderMessages
+		}
+		app.apiMessages = authorityMessageUsecase{sender: sendUsecase, sync: app.messages}
+	}
 	if app.handler == nil {
+		handlerMessages := accessgateway.MessageUsecase(app.messages)
+		if app.senderMessages != nil {
+			handlerMessages = app.senderMessages
+		}
 		app.handler = accessgateway.New(accessgateway.Options{
-			Messages:        app.messages,
+			Messages:        handlerMessages,
 			Presence:        app.gatewayPresenceUsecase(),
 			Delivery:        app.delivery,
 			OwnerNodeID:     clusterCfg.NodeID,
@@ -466,7 +511,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			BenchData:                app.deliveryMeta,
 			Channels:                 app.channels,
 			Users:                    app.users,
-			Messages:                 app.messages,
+			Messages:                 app.apiMessages,
 			Conversations:            app.conversations,
 			ConversationListObserver: app.conversationListObserver(),
 			MetricsHandler:           app.metricsHandler(),
