@@ -113,14 +113,34 @@ truncated page tells the usecase to write sparse sender state instead.
 
 `ConversationAuthorityClient` routes UID-owned active cache calls to the
 current authority leader and leaves cache/list business rules inside the local
-authority implementation.
+authority implementation. Admission resolves each patch UID with
+`RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each group to
+the local authority when the target leader is this node or through
+access/node Conversation Authority RPC when the leader is remote. List resolves
+the requested UID once per retry attempt and reads the active view from that
+authority target; the active-view response is not satisfied by a local DB-only
+fallback when the UID authority is remote. Drain uses the caller-supplied exact
+target for authority handoff.
 
 ```text
 ConversationAuthorityClient
-  -> RouteKey(uid)
-  -> local conversation authority when target leader is this node
-  -> access/node ConversationAuthority RPC when target leader is remote
+  -> AdmitPatches([]ActivePatch)
+       -> RouteKey(patch.UID) for each patch
+       -> group by RouteTarget
+       -> local conversation authority for local groups
+       -> access/node Conversation Authority Admit RPC for remote groups
+  -> ListUserConversationActiveView(uid)
+       -> RouteKey(uid)
+       -> local conversation authority active view when local
+       -> access/node Conversation Authority List RPC when remote
+  -> DrainAuthority(target)
+       -> local drain when target leader is this node
+       -> access/node Conversation Authority Drain RPC when remote
 ```
+
+Route-not-ready, stale-route, and not-leader results are retried with a short
+bounded backoff so authority movement can settle without changing conversation
+usecase semantics.
 
 ## User Metadata Flow
 

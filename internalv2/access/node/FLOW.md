@@ -93,6 +93,18 @@ Supported conversation authority calls:
 - `ListUserConversationActiveViewForTarget(RouteTarget, uid, activeCursor, limit)`
 - `DrainAuthority(RouteTarget)`
 
+The RPC boundary is deliberately narrow:
+
+- Admit carries already-projected UID active patches to the current authority
+  target; projection policy stays in `internalv2/usecase/conversation` and the
+  app committed sink.
+- List reads the target-owned active view from the authority node. The local
+  authority implementation decides how to merge unflushed cache rows with DB
+  rows; this package only transports the request and response.
+- Drain asks an authority node to flush and retire one exact `RouteTarget`
+  during handoff. Handoff ordering and cache state transitions stay in the app
+  authority runtime.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -142,8 +154,8 @@ Delivery push and fanout responses currently use:
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
   sentinel errors, runtime delivery DTOs, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
-- This package must not implement conversation projection, cache merge, list,
-  or handoff business logic.
+- This package must not implement conversation projection, cache merge,
+  projection-flush, or handoff business logic.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority`

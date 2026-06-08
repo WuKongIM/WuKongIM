@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,70 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
+
+func TestConversationListAPIReadsAuthorityCacheBeforeFlush(t *testing.T) {
+	cfg := singleNodeClusterAppConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	app, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+	startCtx, startCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	node, ok := app.cluster.(*clusterv2.Node)
+	if !ok {
+		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+	}
+	waitSingleNodeClusterRouteLeader(t, node, "sender-cache", cfg.NodeID)
+	waitSingleNodeClusterRouteLeader(t, node, "receiver-cache", cfg.NodeID)
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	handler := apiSrv.Handler()
+	const clientMsgNo = "client-conv-cache-1"
+	sendBody := postAppJSON(t, handler, "/message/send", fmt.Sprintf(`{"from_uid":"sender-cache","channel_id":"receiver-cache","channel_type":1,"client_msg_no":%q,"payload":"aGVsbG8="}`, clientMsgNo), http.StatusOK)
+	var sendResp struct {
+		MessageID  int64  `json:"message_id"`
+		MessageSeq uint64 `json:"message_seq"`
+		Reason     uint8  `json:"reason"`
+	}
+	if err := json.Unmarshal(sendBody, &sendResp); err != nil {
+		t.Fatalf("decode send response: %v", err)
+	}
+	if sendResp.Reason != uint8(frame.ReasonSuccess) || sendResp.MessageSeq == 0 || sendResp.MessageID == 0 {
+		t.Fatalf("send response = %#v, want successful committed message", sendResp)
+	}
+	if app.conversationProjector == nil {
+		t.Fatal("conversation authority sink was not wired")
+	}
+
+	page := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver-cache","limit":10}`, http.StatusOK))
+	if len(page.Conversations) != 1 {
+		t.Fatalf("conversation count = %d page=%#v, want one active row before flush", len(page.Conversations), page)
+	}
+	got := page.Conversations[0]
+	if got.ChannelID != "sender-cache" || got.ChannelType != int64(frame.ChannelTypePerson) ||
+		got.LastMessage == nil || got.LastMessage.ClientMsgNo != clientMsgNo ||
+		got.LastMessage.MessageID != uint64(sendResp.MessageID) ||
+		got.LastMessage.MessageSeq != sendResp.MessageSeq {
+		t.Fatalf("conversation = %#v send=%#v, want authority-cache row with latest sent message", got, sendResp)
+	}
+	if page.More != 0 {
+		t.Fatalf("list metadata more = %d, want complete page", page.More)
+	}
+}
 
 func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)

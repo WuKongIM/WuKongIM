@@ -169,6 +169,22 @@ Prometheus metrics for latency, returned items, sparse items, last-message
 loads, last-message errors, active-index stale skips, and whether another active
 page exists using only low-cardinality labels.
 
+Conversation list with authority enabled:
+
+```text
+/conversation/list
+  -> access/api parses the UID page request
+  -> internalv2/usecase/conversation asks Store for the UID active view
+  -> ConversationAuthorityClient resolves the UID hash-slot authority
+  -> local authority:
+       validate the exact RouteTarget
+       merge unflushed authority-cache rows with UID-owned DB active rows
+  -> remote authority:
+       call access/node Conversation Authority List RPC for the target-owned view
+  -> usecase hydrates only the returned page with channel-owned last-visible messages
+  -> access/api shapes the legacy-compatible response
+```
+
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`
 `UserMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
@@ -202,6 +218,20 @@ bound foreground admission work. The local authority cache coalesces unflushed
 patches, serves list reads by merging cache rows with DB active rows, and
 flushes active-touch patches on explicit Flush/Stop. This path is independent
 of delivery fanout and is wired even when `Delivery.Enabled=false`.
+
+Conversation admission with authority enabled:
+
+```text
+MessageCommitted
+  -> app-level committed sink group
+  -> conversation projection policy derives UID-owned ActivePatch values
+  -> ConversationAuthorityClient groups patches by current UID authority target
+  -> local target:
+       conversationAuthority.AdmitPatches coalesces rows into the local cache
+  -> remote target:
+       access/node Conversation Authority Admit RPC admits rows on the authority node
+  -> later Flush/DrainAuthority/Stop writes active-touch patches to UID-owned DB rows
+```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so
