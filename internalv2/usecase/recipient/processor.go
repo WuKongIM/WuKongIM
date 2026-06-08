@@ -2,7 +2,9 @@ package recipient
 
 import (
 	"context"
+	"errors"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 )
@@ -10,6 +12,7 @@ import (
 // Processor handles local recipient-authority post-commit work.
 type Processor struct {
 	localNodeID  uint64
+	authority    RecipientAuthorityValidator
 	conversation ConversationUpdater
 	delivery     DeliverySubmitter
 }
@@ -18,6 +21,7 @@ type Processor struct {
 func NewProcessor(opts ProcessorOptions) *Processor {
 	return &Processor{
 		localNodeID:  opts.LocalNodeID,
+		authority:    opts.Authority,
 		conversation: opts.Conversation,
 		delivery:     opts.Delivery,
 	}
@@ -31,12 +35,21 @@ func (p *Processor) Process(ctx context.Context, req ProcessRequest) error {
 	if p == nil || !req.Target.IsLocal(p.localNodeID) {
 		return ErrNotLeader
 	}
+	if err := req.Target.Validate(); err != nil {
+		return ErrRouteNotReady
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	effectiveRecipients, effectiveUIDs := effectiveRecipientGroup(req.Recipients)
 	if len(effectiveUIDs) == 0 {
 		return nil
+	}
+	if p.authority == nil {
+		return ErrRouteNotReady
+	}
+	if err := p.authority.ValidateRecipientAuthority(ctx, req.Target); err != nil {
+		return recipientAuthorityError(err)
 	}
 	if p.delivery != nil && p.conversation == nil {
 		return ErrConversationRequired
@@ -54,6 +67,16 @@ func (p *Processor) Process(ctx context.Context, req ProcessRequest) error {
 		return p.delivery.SubmitDelivery(ctx, event)
 	}
 	return nil
+}
+
+func recipientAuthorityError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, authority.ErrInvalidTarget) {
+		return ErrRouteNotReady
+	}
+	return err
 }
 
 func effectiveRecipientGroup(recipients []Recipient) ([]Recipient, []string) {

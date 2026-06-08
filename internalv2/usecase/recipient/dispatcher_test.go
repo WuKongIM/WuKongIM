@@ -120,6 +120,18 @@ func TestDispatcherPassesConfiguredPageSizeToSource(t *testing.T) {
 	}
 }
 
+func TestDispatcherRequiresRecipientSourceForUnscopedEvents(t *testing.T) {
+	dispatcher := NewDispatcher(DispatcherOptions{LocalNodeID: 1})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:   "group-1",
+		ChannelType: 2,
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitCommitted() error = %v, want %v", err, ErrRouteNotReady)
+	}
+}
+
 func TestDispatcherGroupsRecipientsByAuthorityTarget(t *testing.T) {
 	local := &recordingLocalProcessor{}
 	remote := &recordingRecipientRemote{}

@@ -11,7 +11,7 @@ SubmitCommitted(event)
   -> local Processor for local targets; Remote for remote targets
 
 Process(target,event,recipients)
-  -> validate target is local recipient UID authority
+  -> validate target is local and current recipient UID authority
   -> filter non-empty recipient UIDs; stop when none remain
   -> build recipient-scoped conversation active patches
   -> require a conversation updater before configured delivery
@@ -23,6 +23,7 @@ Process(target,event,recipients)
 Responsibilities:
 
 - Reject work when the target is not local to this node.
+- Reject work when the target cannot be validated as the current authority fence.
 - Treat an empty effective recipient group as a no-op.
 - Page durable channel recipients progressively for unscoped committed events.
 - Route recipients by exact fenced authority target before processing.

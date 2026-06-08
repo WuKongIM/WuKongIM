@@ -55,6 +55,11 @@ type RecipientAuthorityResolver interface {
 	ResolveRecipientAuthority(context.Context, string) (authority.Target, error)
 }
 
+// RecipientAuthorityValidator verifies this node still owns a fenced recipient authority target.
+type RecipientAuthorityValidator interface {
+	ValidateRecipientAuthority(context.Context, authority.Target) error
+}
+
 // RecipientRemote forwards recipient-authority work to remote nodes.
 type RecipientRemote interface {
 	ProcessRemote(context.Context, ProcessRequest) error
@@ -79,6 +84,8 @@ type DeliverySubmitter interface {
 type ProcessorOptions struct {
 	// LocalNodeID is this node's clusterv2 identity.
 	LocalNodeID uint64
+	// Authority validates the exact fenced target before side effects.
+	Authority RecipientAuthorityValidator
 	// Conversation updates recent conversation state before delivery.
 	Conversation ConversationUpdater
 	// Delivery submits delivery after conversation state is updated.

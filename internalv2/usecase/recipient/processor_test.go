@@ -28,6 +28,7 @@ func TestProcessorUpdatesConversationBeforeDelivery(t *testing.T) {
 	}
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{},
 		Conversation: conversation,
 		Delivery:     delivery,
 	})
@@ -95,6 +96,7 @@ func TestProcessorSkipsDeliveryWhenConversationFails(t *testing.T) {
 	delivery := &recordingDeliverySubmitter{}
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{},
 		Conversation: conversation,
 		Delivery:     delivery,
 	})
@@ -115,6 +117,7 @@ func TestProcessorSkipsDeliveryWhenConversationFails(t *testing.T) {
 func TestProcessorRejectsStaleTarget(t *testing.T) {
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{},
 		Conversation: &recordingConversationUpdater{},
 		Delivery:     &recordingDeliverySubmitter{},
 	})
@@ -129,8 +132,8 @@ func TestProcessorRejectsStaleTarget(t *testing.T) {
 	}
 }
 
-func TestProcessorAllowsMissingDependenciesAfterTargetValidation(t *testing.T) {
-	processor := NewProcessor(ProcessorOptions{LocalNodeID: 1})
+func TestProcessorAllowsMissingDependenciesAfterAuthorityValidation(t *testing.T) {
+	processor := NewProcessor(ProcessorOptions{LocalNodeID: 1, Authority: &recordingAuthorityValidator{}})
 
 	err := processor.Process(context.Background(), ProcessRequest{
 		Target:     localTarget(1),
@@ -142,11 +145,63 @@ func TestProcessorAllowsMissingDependenciesAfterTargetValidation(t *testing.T) {
 	}
 }
 
+func TestProcessorRequiresAuthorityValidatorBeforeSideEffects(t *testing.T) {
+	conversation := &recordingConversationUpdater{}
+	delivery := &recordingDeliverySubmitter{}
+	processor := NewProcessor(ProcessorOptions{
+		LocalNodeID:  1,
+		Conversation: conversation,
+		Delivery:     delivery,
+	})
+
+	err := processor.Process(context.Background(), ProcessRequest{
+		Target:     localTarget(1),
+		Event:      messageevents.MessageCommitted{ChannelID: "group-1", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u1"}},
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("Process() error = %v, want %v", err, ErrRouteNotReady)
+	}
+	if conversation.called {
+		t.Fatal("conversation called without authority validator")
+	}
+	if delivery.called {
+		t.Fatal("delivery called without authority validator")
+	}
+}
+
+func TestProcessorStopsOnFailedAuthorityValidation(t *testing.T) {
+	conversation := &recordingConversationUpdater{}
+	delivery := &recordingDeliverySubmitter{}
+	processor := NewProcessor(ProcessorOptions{
+		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{err: ErrStaleRoute},
+		Conversation: conversation,
+		Delivery:     delivery,
+	})
+
+	err := processor.Process(context.Background(), ProcessRequest{
+		Target:     localTarget(1),
+		Event:      messageevents.MessageCommitted{ChannelID: "group-1", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u1"}},
+	})
+	if !errors.Is(err, ErrStaleRoute) {
+		t.Fatalf("Process() error = %v, want %v", err, ErrStaleRoute)
+	}
+	if conversation.called {
+		t.Fatal("conversation called after stale authority validation")
+	}
+	if delivery.called {
+		t.Fatal("delivery called after stale authority validation")
+	}
+}
+
 func TestProcessorSkipsAllEmptyRecipients(t *testing.T) {
 	conversation := &recordingConversationUpdater{}
 	delivery := &recordingDeliverySubmitter{}
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{},
 		Conversation: conversation,
 		Delivery:     delivery,
 	})
@@ -171,6 +226,7 @@ func TestProcessorRequiresConversationBeforeDelivery(t *testing.T) {
 	delivery := &recordingDeliverySubmitter{}
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID: 1,
+		Authority:   &recordingAuthorityValidator{},
 		Delivery:    delivery,
 	})
 
@@ -192,6 +248,7 @@ func TestProcessorFiltersEmptyRecipients(t *testing.T) {
 	delivery := &recordingDeliverySubmitter{}
 	processor := NewProcessor(ProcessorOptions{
 		LocalNodeID:  1,
+		Authority:    &recordingAuthorityValidator{},
 		Conversation: conversation,
 		Delivery:     delivery,
 	})
@@ -242,6 +299,18 @@ type recordingConversationUpdater struct {
 	patches []conversationusecase.ActivePatch
 	err     error
 	onAdmit func([]conversationusecase.ActivePatch)
+}
+
+type recordingAuthorityValidator struct {
+	called bool
+	target authority.Target
+	err    error
+}
+
+func (v *recordingAuthorityValidator) ValidateRecipientAuthority(_ context.Context, target authority.Target) error {
+	v.called = true
+	v.target = target
+	return v.err
 }
 
 func (u *recordingConversationUpdater) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {

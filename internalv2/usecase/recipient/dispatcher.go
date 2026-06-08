@@ -71,7 +71,7 @@ func (d *Dispatcher) SubmitCommitted(ctx context.Context, event messageevents.Me
 		return d.dispatchRecipients(ctx, event, recipients)
 	}
 	if d.recipients == nil {
-		return nil
+		return ErrRouteNotReady
 	}
 
 	var cursor string
