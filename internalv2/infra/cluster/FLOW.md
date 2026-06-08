@@ -166,6 +166,30 @@ not-leader sentinel, and context cancellation/deadline errors pass through
 unchanged. Remote batch results stay item-aligned and are returned without
 interpretation by this adapter.
 
+## Recipient Authority Flow
+
+`RecipientAuthorityClient` adapts the recipient usecase resolver, validator,
+and remote-forwarding ports to clusterv2 UID routing and
+`internalv2/access/node` RPC. This adapter only resolves recipient UID
+authority, validates exact fenced targets, and forwards remote recipient
+batches; it does not decide subscriber paging, conversation projection, or
+delivery fanout.
+
+```text
+RecipientAuthorityClient
+  -> ResolveRecipientAuthority(uid): clusterv2.RouteKey(uid) -> authority.Target
+  -> ValidateRecipientAuthority(target): clusterv2.RouteHashSlot(target.HashSlot)
+       -> require exact target match for local authority side effects
+  -> ProcessRemote(req): access/node Recipient Authority RPC to req.Target.LeaderNodeID
+```
+
+Route-not-ready and missing-leader lookup failures are mapped to the recipient
+route-not-ready sentinel, not-leader lookup failures are mapped to the
+recipient not-leader sentinel, exact-target mismatches on the same leader are
+mapped to stale-route, and context cancellation/deadline errors pass through
+unchanged. Remote RPC route statuses are returned as recipient usecase
+sentinels.
+
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
