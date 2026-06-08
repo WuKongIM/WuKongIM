@@ -1,6 +1,6 @@
 # internalv2/usecase/recipient Flow
 
-This package owns local recipient-authority post-commit processing. It is entry-agnostic: callers provide a fenced recipient authority target, one committed message event, and the recipient UIDs that belong to that target.
+This package owns recipient-authority post-commit dispatch and local processing. It is entry-agnostic: callers may submit committed events for bounded paging and authority resolution through dispatcher ports, or provide a fenced recipient authority target with the recipient UIDs that belong to that target.
 
 ```text
 SubmitCommitted(event)

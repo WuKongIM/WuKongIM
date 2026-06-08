@@ -54,6 +54,9 @@ func (d *Dispatcher) SubmitCommitted(ctx context.Context, event messageevents.Me
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if d == nil {
+		return ErrRouteNotReady
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -80,14 +83,14 @@ func (d *Dispatcher) SubmitCommitted(ctx context.Context, event messageevents.Me
 		if err != nil {
 			return err
 		}
+		if !page.Done && (page.Cursor == "" || page.Cursor == cursor) {
+			return ErrRouteNotReady
+		}
 		if err := d.dispatchRecipients(ctx, event, page.Recipients); err != nil {
 			return err
 		}
 		if page.Done {
 			return nil
-		}
-		if page.Cursor == "" || page.Cursor == cursor {
-			return ErrRouteNotReady
 		}
 		cursor = page.Cursor
 	}
@@ -106,6 +109,9 @@ func (d *Dispatcher) dispatchRecipients(ctx context.Context, event messageevents
 			return err
 		}
 		for start := 0; start < len(group.recipients); start += d.targetBatchSize {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			end := start + d.targetBatchSize
 			if end > len(group.recipients) {
 				end = len(group.recipients)
@@ -154,6 +160,9 @@ func (d *Dispatcher) groupByTarget(ctx context.Context, recipients []Recipient) 
 		target, err := d.resolver.ResolveRecipientAuthority(ctx, recipient.UID)
 		if err != nil {
 			return nil, err
+		}
+		if err := target.Validate(); err != nil {
+			return nil, ErrRouteNotReady
 		}
 		index, ok := indexByTarget[target]
 		if !ok {

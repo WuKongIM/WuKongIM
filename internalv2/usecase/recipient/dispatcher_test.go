@@ -93,6 +93,33 @@ func TestDispatcherPagesSubscribersWithoutLoadingAll(t *testing.T) {
 	}
 }
 
+func TestDispatcherPassesConfiguredPageSizeToSource(t *testing.T) {
+	source := &recordingRecipientSource{
+		pages: []RecipientPage{
+			{Done: true},
+		},
+	}
+	dispatcher := NewDispatcher(DispatcherOptions{
+		LocalNodeID: 1,
+		Recipients:  source,
+		PageSize:    17,
+	})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:   "group-1",
+		ChannelType: 2,
+	})
+	if err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if len(source.calls) != 1 {
+		t.Fatalf("source calls = %d, want 1", len(source.calls))
+	}
+	if source.calls[0].limit != 17 {
+		t.Fatalf("source limit = %d, want 17", source.calls[0].limit)
+	}
+}
+
 func TestDispatcherGroupsRecipientsByAuthorityTarget(t *testing.T) {
 	local := &recordingLocalProcessor{}
 	remote := &recordingRecipientRemote{}
@@ -141,6 +168,36 @@ func TestDispatcherGroupsRecipientsByAuthorityTarget(t *testing.T) {
 	}
 }
 
+func TestDispatcherRejectsInvalidResolvedTarget(t *testing.T) {
+	local := &recordingLocalProcessor{}
+	remote := &recordingRecipientRemote{}
+	dispatcher := NewDispatcher(DispatcherOptions{
+		LocalNodeID: 1,
+		Resolver: &mappingRecipientAuthorityResolver{
+			targets: map[string]authority.Target{
+				"u1": {},
+			},
+		},
+		Local:  local,
+		Remote: remote,
+	})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "group-1",
+		ChannelType:       2,
+		MessageScopedUIDs: []string{"u1"},
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitCommitted() error = %v, want %v", err, ErrRouteNotReady)
+	}
+	if len(local.requests) != 0 {
+		t.Fatalf("local requests = %d, want 0", len(local.requests))
+	}
+	if len(remote.requests) != 0 {
+		t.Fatalf("remote requests = %d, want 0", len(remote.requests))
+	}
+}
+
 func TestDispatcherSplitsTargetBatchSize(t *testing.T) {
 	local := &recordingLocalProcessor{}
 	dispatcher := NewDispatcher(DispatcherOptions{
@@ -172,6 +229,42 @@ func TestDispatcherSplitsTargetBatchSize(t *testing.T) {
 	}
 	if got := len(local.requests[1].Recipients); got != 1 {
 		t.Fatalf("second batch size = %d, want 1", got)
+	}
+}
+
+func TestDispatcherChecksContextBetweenTargetChunks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	local := &recordingLocalProcessor{
+		onProcess: func(ProcessRequest) {
+			cancel()
+		},
+	}
+	dispatcher := NewDispatcher(DispatcherOptions{
+		LocalNodeID: 1,
+		Resolver: &mappingRecipientAuthorityResolver{
+			targets: map[string]authority.Target{
+				"u1": localTarget(1),
+				"u2": localTarget(1),
+			},
+		},
+		Local:           local,
+		TargetBatchSize: 1,
+	})
+
+	err := dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
+		ChannelID:         "group-1",
+		ChannelType:       2,
+		MessageScopedUIDs: []string{"u1", "u2"},
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("SubmitCommitted() error = %v, want %v", err, context.Canceled)
+	}
+	if len(local.requests) != 1 {
+		t.Fatalf("local requests = %d, want 1", len(local.requests))
+	}
+	wantRecipients := []Recipient{{UID: "u1"}}
+	if !reflect.DeepEqual(local.requests[0].Recipients, wantRecipients) {
+		t.Fatalf("first request recipients = %#v, want %#v", local.requests[0].Recipients, wantRecipients)
 	}
 }
 
@@ -211,6 +304,72 @@ func TestDispatcherRejectsStuckCursor(t *testing.T) {
 				t.Fatalf("SubmitCommitted() error = %v, want %v", err, ErrRouteNotReady)
 			}
 		})
+	}
+}
+
+func TestDispatcherRejectsStuckCursorBeforeDispatchingNonFinalPage(t *testing.T) {
+	local := &recordingLocalProcessor{}
+	remote := &recordingRecipientRemote{}
+	dispatcher := NewDispatcher(DispatcherOptions{
+		LocalNodeID: 1,
+		Recipients: &recordingRecipientSource{
+			pages: []RecipientPage{
+				{Recipients: []Recipient{{UID: "u1"}}},
+			},
+		},
+		Resolver: &mappingRecipientAuthorityResolver{
+			targets: map[string]authority.Target{
+				"u1": localTarget(1),
+			},
+		},
+		Local:  local,
+		Remote: remote,
+	})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:   "group-1",
+		ChannelType: 2,
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitCommitted() error = %v, want %v", err, ErrRouteNotReady)
+	}
+	if len(local.requests) != 0 {
+		t.Fatalf("local requests = %d, want 0", len(local.requests))
+	}
+	if len(remote.requests) != 0 {
+		t.Fatalf("remote requests = %d, want 0", len(remote.requests))
+	}
+}
+
+func TestDispatcherDispatchesFinalPageWithEmptyCursor(t *testing.T) {
+	local := &recordingLocalProcessor{}
+	dispatcher := NewDispatcher(DispatcherOptions{
+		LocalNodeID: 1,
+		Recipients: &recordingRecipientSource{
+			pages: []RecipientPage{
+				{
+					Recipients: []Recipient{{UID: "u1"}},
+					Done:       true,
+				},
+			},
+		},
+		Resolver: &mappingRecipientAuthorityResolver{
+			targets: map[string]authority.Target{
+				"u1": localTarget(1),
+			},
+		},
+		Local: local,
+	})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:   "group-1",
+		ChannelType: 2,
+	})
+	if err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if len(local.requests) != 1 {
+		t.Fatalf("local requests = %d, want 1", len(local.requests))
 	}
 }
 
@@ -304,6 +463,19 @@ func TestDispatcherRequiresRemoteForRemoteTarget(t *testing.T) {
 		},
 		Local: &recordingLocalProcessor{},
 	})
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		ChannelID:         "group-1",
+		ChannelType:       2,
+		MessageScopedUIDs: []string{"u1"},
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitCommitted() error = %v, want %v", err, ErrRouteNotReady)
+	}
+}
+
+func TestNilDispatcherReturnsRouteNotReady(t *testing.T) {
+	var dispatcher *Dispatcher
 
 	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		ChannelID:         "group-1",
