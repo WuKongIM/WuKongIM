@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -30,12 +31,14 @@ type conversationAuthorityOptions struct {
 	MaxRows int
 	// ListDBWindowMax bounds DB overfetch needed to merge cache rows without dropping them.
 	ListDBWindowMax int
-	// AdmissionBatchRows is reserved for future batched admission or flush tuning.
+	// AdmissionBatchRows mirrors routed-client admission config; local cache admission is currently atomic under one lock.
 	AdmissionBatchRows int
-	// AdmissionConcurrency is reserved for future concurrent admission or flush tuning.
+	// AdmissionConcurrency mirrors routed-client admission config; local cache admission is currently atomic under one lock.
 	AdmissionConcurrency int
-	// HandoffTimeout is reserved for future degraded handoff handling.
+	// HandoffTimeout is enforced by the committed sink before calling DrainAuthority.
 	HandoffTimeout time.Duration
+	// Observer receives low-cardinality authority cache/list/handoff observations.
+	Observer conversationAuthorityObserver
 }
 
 type conversationAuthority struct {
@@ -57,6 +60,8 @@ type conversationAuthority struct {
 	byUID map[string]map[conversationAuthorityKey]conversationAuthorityEntry
 	// targets stores fenced authority state by full route target.
 	targets map[conversationAuthorityTargetKey]conversationAuthorityState
+	// observer receives authority-specific cache/list/handoff observations.
+	observer conversationAuthorityObserver
 }
 
 type conversationAuthorityKey struct {
@@ -123,6 +128,50 @@ const (
 	conversationDrainResultBusy        conversationDrainResult = "busy"
 )
 
+const (
+	conversationAuthorityPhaseAdmit = "admit"
+	conversationAuthorityPhaseList  = "list"
+	conversationAuthorityPhaseFlush = "flush"
+
+	conversationAuthorityResultOK            = "ok"
+	conversationAuthorityResultError         = "error"
+	conversationAuthorityResultIgnored       = "ignored"
+	conversationAuthorityResultCachePressure = "cache_pressure"
+	conversationAuthorityResultRouteNotReady = "route_not_ready"
+	conversationAuthorityResultStaleRoute    = "stale_route"
+	conversationAuthorityResultNotLeader     = "not_leader"
+	conversationAuthorityResultTimeout       = "timeout"
+	conversationAuthorityResultOther         = "other"
+)
+
+type conversationAuthorityObserver interface {
+	ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent)
+	ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent)
+	ObserveConversationAuthorityList(conversationAuthorityListEvent)
+	ObserveConversationAuthorityHandoff(conversationAuthorityHandoffEvent)
+}
+
+// conversationAuthorityAdmitEvent reports one foreground authority admission outcome.
+type conversationAuthorityAdmitEvent struct {
+	Result string
+}
+
+// conversationAuthorityCachePressureEvent reports local cache pressure by authority phase.
+type conversationAuthorityCachePressureEvent struct {
+	Phase  string
+	Result string
+}
+
+// conversationAuthorityListEvent reports one authority active-view list outcome.
+type conversationAuthorityListEvent struct {
+	Result string
+}
+
+// conversationAuthorityHandoffEvent reports one authority drain/handoff outcome.
+type conversationAuthorityHandoffEvent struct {
+	Result string
+}
+
 // newConversationAuthority constructs an unwired local authority cache runtime.
 func newConversationAuthority(opts conversationAuthorityOptions) *conversationAuthority {
 	if opts.MaxRowsPerUID <= 0 {
@@ -142,6 +191,7 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		listWindow:   opts.ListDBWindowMax,
 		byUID:        make(map[string]map[conversationAuthorityKey]conversationAuthorityEntry),
 		targets:      make(map[conversationAuthorityTargetKey]conversationAuthorityState),
+		observer:     opts.Observer,
 	}
 }
 
@@ -164,8 +214,14 @@ func (a *conversationAuthority) AdmitPatches(_ context.Context, target conversat
 	if a == nil {
 		return nil
 	}
+	observePressure := false
 	a.mu.Lock()
-	defer a.mu.Unlock()
+	defer func() {
+		a.mu.Unlock()
+		if observePressure {
+			a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
+		}
+	}()
 	if err := a.ensureTargetLocked(target); err != nil {
 		return err
 	}
@@ -184,11 +240,13 @@ func (a *conversationAuthority) AdmitPatches(_ context.Context, target conversat
 		key := conversationAuthorityKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
 		existing, exists := rows[key]
 		if !exists && (len(rows) >= a.maxRowsByUID || stagedTotalRows >= a.maxRows) {
+			observePressure = true
 			return conversationusecase.ErrCachePressure
 		}
 		if !exists {
 			stagedTotalRows++
 			if stagedTotalRows > a.maxRows {
+				observePressure = true
 				return conversationusecase.ErrCachePressure
 			}
 		}
@@ -281,39 +339,56 @@ func (a *conversationAuthority) flushEntriesToStore(ctx context.Context, entries
 }
 
 // DrainAuthority marks the target draining and flushes dirty rows for handoff.
-func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (conversationDrainResult, error) {
+func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (result conversationDrainResult, err error) {
 	if a == nil {
 		return conversationDrainResultNoDirty, nil
 	}
+	result = conversationDrainResultNoDirty
+	defer func() {
+		a.observeHandoff(result, err)
+	}()
 	if a.store == nil {
-		return conversationDrainResultBusy, conversationusecase.ErrRouteNotReady
+		result = conversationDrainResultBusy
+		err = conversationusecase.ErrRouteNotReady
+		return result, err
 	}
 	routeTarget := targetKey(target)
 	a.mu.Lock()
 	if target.LeaderNodeID != 0 && target.LeaderNodeID != a.localNodeID {
 		a.mu.Unlock()
-		return conversationDrainResultBusy, conversationusecase.ErrNotLeader
+		result = conversationDrainResultBusy
+		err = conversationusecase.ErrNotLeader
+		return result, err
 	}
 	if _, ok := a.targets[routeTarget]; !ok {
 		a.mu.Unlock()
-		return conversationDrainResultNoDirty, conversationusecase.ErrStaleRoute
+		err = conversationusecase.ErrStaleRoute
+		return result, err
 	}
 	a.setTargetStateLocked(routeTarget, conversationAuthorityDraining)
 	a.mu.Unlock()
 	entries := a.flushEntriesForTarget(routeTarget)
 	if len(entries) == 0 {
-		return conversationDrainResultNoDirty, nil
+		return result, nil
 	}
-	if err := a.flushEntriesToStore(ctx, entries); err != nil {
-		return conversationDrainResultBusy, err
+	if err = a.flushEntriesToStore(ctx, entries); err != nil {
+		result = conversationDrainResultBusy
+		return result, err
 	}
-	return conversationDrainResultDrained, nil
+	result = conversationDrainResultDrained
+	return result, nil
 }
 
 // ListUserConversationActiveView is a conservative test/backward adapter for unscoped reads.
 // Future local and RPC callers should use ListUserConversationActiveViewForTarget.
-func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	if a == nil || a.store == nil {
+func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
+	if a == nil {
+		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
+	}
+	defer func() {
+		a.observeList(err)
+	}()
+	if a.store == nil {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
 	target, err := a.unscopedListTarget()
@@ -324,13 +399,19 @@ func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Conte
 }
 
 // ListUserConversationActiveViewForTarget serves an active view after validating the exact local route target.
-func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	if a == nil || a.store == nil {
+func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
+	if a == nil {
+		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
+	}
+	defer func() {
+		a.observeList(err)
+	}()
+	if a.store == nil {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
 	targetKey := targetKey(target)
 	a.mu.Lock()
-	err := a.ensureTargetLocked(target)
+	err = a.ensureTargetLocked(target)
 	a.mu.Unlock()
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
@@ -671,5 +752,58 @@ func targetKey(target conversationusecase.RouteTarget) conversationAuthorityTarg
 		leaderNodeID:   target.LeaderNodeID,
 		routeRevision:  target.RouteRevision,
 		authorityEpoch: target.AuthorityEpoch,
+	}
+}
+
+func (a *conversationAuthority) observeCachePressure(phase string, err error) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	result := conversationAuthorityResultFromError(err, conversationAuthorityResultCachePressure)
+	a.observer.ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent{Phase: phase, Result: result})
+}
+
+func (a *conversationAuthority) observeList(err error) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	result := conversationAuthorityResultFromError(err, conversationAuthorityResultOK)
+	a.observer.ObserveConversationAuthorityList(conversationAuthorityListEvent{Result: result})
+	if errors.Is(err, conversationusecase.ErrCachePressure) {
+		a.observeCachePressure(conversationAuthorityPhaseList, err)
+	}
+}
+
+func (a *conversationAuthority) observeHandoff(result conversationDrainResult, err error) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	observed := string(result)
+	if err != nil {
+		observed = conversationAuthorityResultFromError(err, observed)
+	}
+	a.observer.ObserveConversationAuthorityHandoff(conversationAuthorityHandoffEvent{Result: observed})
+}
+
+func conversationAuthorityResultFromError(err error, okResult string) string {
+	if err == nil {
+		if okResult == "" {
+			return conversationAuthorityResultOK
+		}
+		return okResult
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return conversationAuthorityResultTimeout
+	case errors.Is(err, conversationusecase.ErrCachePressure):
+		return conversationAuthorityResultCachePressure
+	case errors.Is(err, conversationusecase.ErrRouteNotReady):
+		return conversationAuthorityResultRouteNotReady
+	case errors.Is(err, conversationusecase.ErrStaleRoute):
+		return conversationAuthorityResultStaleRoute
+	case errors.Is(err, conversationusecase.ErrNotLeader):
+		return conversationAuthorityResultNotLeader
+	default:
+		return conversationAuthorityResultError
 	}
 }

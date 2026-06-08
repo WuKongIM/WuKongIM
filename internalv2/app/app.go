@@ -232,6 +232,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				AdmissionBatchRows:   app.cfg.Conversation.AuthorityRPCBatchRows,
 				AdmissionConcurrency: app.cfg.Conversation.AuthorityRPCConcurrency,
 				HandoffTimeout:       app.cfg.Conversation.AuthorityHandoffTimeout,
+				Observer:             app.conversationAuthorityObserver(),
 			})
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
 			app.conversationAuthority = authority
@@ -243,18 +244,19 @@ func New(cfg Config, opts ...Option) (*App, error) {
 						Members:               projectionStore,
 						SmallGroupFanoutLimit: app.cfg.Conversation.SmallGroupFanoutLimit,
 					}),
-					Authority:        client,
-					Flusher:          authority,
-					LocalAuthority:   authority,
-					LocalNodeID:      authorityNode.NodeID(),
-					Initial:          app.currentPresenceAuthorities,
-					Watch:            authorityNode.WatchRouteAuthorities,
-					AdmissionTimeout: app.cfg.Conversation.AuthorityAdmissionTimeout,
-					HandoffTimeout:   app.cfg.Conversation.AuthorityHandoffTimeout,
-					RPCTimeout:       app.cfg.Conversation.AuthorityRPCTimeout,
-					RPCBatchRows:     app.cfg.Conversation.AuthorityRPCBatchRows,
-					RPCConcurrency:   app.cfg.Conversation.AuthorityRPCConcurrency,
-					Observer:         app.conversationProjectorObserver(),
+					Authority:         client,
+					Flusher:           authority,
+					LocalAuthority:    authority,
+					LocalNodeID:       authorityNode.NodeID(),
+					Initial:           app.currentPresenceAuthorities,
+					Watch:             authorityNode.WatchRouteAuthorities,
+					AdmissionTimeout:  app.cfg.Conversation.AuthorityAdmissionTimeout,
+					HandoffTimeout:    app.cfg.Conversation.AuthorityHandoffTimeout,
+					RPCTimeout:        app.cfg.Conversation.AuthorityRPCTimeout,
+					RPCBatchRows:      app.cfg.Conversation.AuthorityRPCBatchRows,
+					RPCConcurrency:    app.cfg.Conversation.AuthorityRPCConcurrency,
+					Observer:          app.conversationProjectorObserver(),
+					AuthorityObserver: app.conversationAuthorityObserver(),
 				})
 				sink.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
 				app.conversationProjector = sink
@@ -595,6 +597,13 @@ func (a *App) conversationListObserver() accessapi.ConversationListObserver {
 }
 
 func (a *App) conversationProjectorObserver() conversationProjectorObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationProjectorMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 	if a == nil || a.metrics == nil {
 		return nil
 	}

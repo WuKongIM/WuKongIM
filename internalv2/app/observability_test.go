@@ -462,6 +462,37 @@ func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T)
 	}
 }
 
+func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := conversationProjectorMetricsObserver{metrics: reg}
+
+	observer.ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent{Result: "timeout"})
+	observer.ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent{Phase: "admit", Result: "cache_pressure"})
+	observer.ObserveConversationAuthorityList(conversationAuthorityListEvent{Result: "route_not_ready"})
+	observer.ObserveConversationAuthorityHandoff(conversationAuthorityHandoffEvent{Result: "drained"})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	admit := requireAppMetricFamily(t, families, "wukongim_conversation_authority_admit_total")
+	if got := findAppMetricByLabels(t, admit, map[string]string{"result": "timeout"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("authority admit metric = %v, want 1", got)
+	}
+	pressure := requireAppMetricFamily(t, families, "wukongim_conversation_authority_cache_pressure_total")
+	if got := findAppMetricByLabels(t, pressure, map[string]string{"phase": "admit", "result": "cache_pressure"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("authority cache pressure metric = %v, want 1", got)
+	}
+	list := requireAppMetricFamily(t, families, "wukongim_conversation_authority_list_total")
+	if got := findAppMetricByLabels(t, list, map[string]string{"result": "route_not_ready"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("authority list metric = %v, want 1", got)
+	}
+	handoff := requireAppMetricFamily(t, families, "wukongim_conversation_authority_handoff_total")
+	if got := findAppMetricByLabels(t, handoff, map[string]string{"result": "drained"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("authority handoff metric = %v, want 1", got)
+	}
+}
+
 func requireAppMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {

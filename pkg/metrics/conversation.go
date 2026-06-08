@@ -31,6 +31,10 @@ type ConversationMetrics struct {
 	projectorWriteTotal       *prometheus.CounterVec
 	projectorWriteDuration    *prometheus.HistogramVec
 	projectorWriteRows        *prometheus.HistogramVec
+	authorityAdmitTotal       *prometheus.CounterVec
+	authorityCachePressure    *prometheus.CounterVec
+	authorityListTotal        *prometheus.CounterVec
+	authorityHandoffTotal     *prometheus.CounterVec
 }
 
 func newConversationMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ConversationMetrics {
@@ -147,6 +151,26 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			ConstLabels: labels,
 			Buckets:     conversationListSizeBuckets,
 		}, []string{"phase", "result"}),
+		authorityAdmitTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_authority_admit_total",
+			Help:        "Conversation authority foreground admissions by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		authorityCachePressure: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_authority_cache_pressure_total",
+			Help:        "Conversation authority cache pressure observations by phase and result.",
+			ConstLabels: labels,
+		}, []string{"phase", "result"}),
+		authorityListTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_authority_list_total",
+			Help:        "Conversation authority active-view list requests by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		authorityHandoffTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_authority_handoff_total",
+			Help:        "Conversation authority handoff and drain attempts by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -170,6 +194,10 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.projectorWriteTotal,
 		m.projectorWriteDuration,
 		m.projectorWriteRows,
+		m.authorityAdmitTotal,
+		m.authorityCachePressure,
+		m.authorityListTotal,
+		m.authorityHandoffTotal,
 	)
 
 	return m
@@ -252,10 +280,62 @@ func (m *ConversationMetrics) ObserveProjectorWrite(phase, result string, dur ti
 	m.projectorWriteRows.WithLabelValues(phase, result).Observe(float64(nonNegative(rows)))
 }
 
+// ObserveAuthorityAdmit records one conversation authority foreground admission outcome.
+func (m *ConversationMetrics) ObserveAuthorityAdmit(result string) {
+	if m == nil {
+		return
+	}
+	m.authorityAdmitTotal.WithLabelValues(conversationAuthorityResult(result)).Inc()
+}
+
+// ObserveAuthorityCachePressure records one authority cache pressure observation.
+func (m *ConversationMetrics) ObserveAuthorityCachePressure(phase, result string) {
+	if m == nil {
+		return
+	}
+	m.authorityCachePressure.WithLabelValues(conversationAuthorityPhase(phase), conversationAuthorityResult(result)).Inc()
+}
+
+// ObserveAuthorityList records one authority active-view list outcome.
+func (m *ConversationMetrics) ObserveAuthorityList(result string) {
+	if m == nil {
+		return
+	}
+	m.authorityListTotal.WithLabelValues(conversationAuthorityResult(result)).Inc()
+}
+
+// ObserveAuthorityHandoff records one authority handoff or drain outcome.
+func (m *ConversationMetrics) ObserveAuthorityHandoff(result string) {
+	if m == nil {
+		return
+	}
+	m.authorityHandoffTotal.WithLabelValues(conversationAuthorityResult(result)).Inc()
+}
+
 func conversationProjectorResult(result string) string {
 	switch result {
 	case "ok", "accepted", "coalesced", "dropped", "ignored", "error":
 		return result
+	default:
+		return "other"
+	}
+}
+
+func conversationAuthorityPhase(phase string) string {
+	switch phase {
+	case "admit", "list", "flush":
+		return phase
+	default:
+		return "other"
+	}
+}
+
+func conversationAuthorityResult(result string) string {
+	switch result {
+	case "ok", "error", "ignored", "cache_pressure", "route_not_ready", "stale_route", "not_leader", "timeout", "drained", "no_dirty", "busy", "transferred":
+		return result
+	case "accepted":
+		return "ok"
 	default:
 		return "other"
 	}

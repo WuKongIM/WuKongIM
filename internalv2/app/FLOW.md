@@ -26,7 +26,8 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus conversation list request latency/page-shape metrics and
-     conversation authority admission/flush compatibility metrics
+     conversation projector compatibility metrics plus authority-specific
+     admit, list, cache-pressure, and handoff counters
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink

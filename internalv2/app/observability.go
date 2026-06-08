@@ -284,6 +284,34 @@ func (o conversationProjectorMetricsObserver) ObserveConversationProjectorWrite(
 	o.metrics.Conversation.ObserveProjectorWrite(event.Phase, event.Result, event.Duration, event.Rows)
 }
 
+func (o conversationProjectorMetricsObserver) ObserveConversationAuthorityAdmit(event conversationAuthorityAdmitEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityAdmit(event.Result)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityCachePressure(event.Phase, event.Result)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationAuthorityList(event conversationAuthorityListEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityList(event.Result)
+}
+
+func (o conversationProjectorMetricsObserver) ObserveConversationAuthorityHandoff(event conversationAuthorityHandoffEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
+}
+
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
 	if o.metrics == nil {
 		return
@@ -1480,6 +1508,7 @@ var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
 var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
 var _ conversationProjectorObserver = conversationProjectorMetricsObserver{}
+var _ conversationAuthorityObserver = conversationProjectorMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelV2MetricsObserver{}
 var _ reactor.AppendQueuePressureObserver = channelV2MetricsObserver{}

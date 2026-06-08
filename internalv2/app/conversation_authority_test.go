@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
@@ -57,6 +58,143 @@ func TestConversationAuthorityCachePressureFailsList(t *testing.T) {
 	})
 	if !errors.Is(err, conversationusecase.ErrCachePressure) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
+	}
+}
+
+func TestConversationAuthorityObservesCachePressureInAdmitAndList(t *testing.T) {
+	admitObserver := &recordingConversationAuthorityObserver{}
+	admitAuthority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           &recordingConversationAuthorityStore{},
+		MaxRowsPerUID:   1,
+		MaxRows:         10,
+		ListDBWindowMax: 20,
+		Observer:        admitObserver,
+	})
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	admitAuthority.markActive(target)
+	err := admitAuthority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
+		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+	})
+	if !errors.Is(err, conversationusecase.ErrCachePressure) {
+		t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
+	}
+	if got := admitObserver.cachePressureLabels(); len(got) != 1 || got[0] != "admit:cache_pressure" {
+		t.Fatalf("cache pressure observations = %#v, want admit cache pressure", got)
+	}
+
+	listObserver := &recordingConversationAuthorityObserver{}
+	listAuthority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           &recordingConversationAuthorityStore{},
+		MaxRowsPerUID:   10,
+		MaxRows:         10,
+		ListDBWindowMax: 1,
+		Observer:        listObserver,
+	})
+	listAuthority.markActive(target)
+	if err := listAuthority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
+		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+	}); err != nil {
+		t.Fatalf("seed AdmitPatches() error = %v", err)
+	}
+	_, err = listAuthority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 1)
+	if !errors.Is(err, conversationusecase.ErrCachePressure) {
+		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v, want ErrCachePressure", err)
+	}
+	if got := listObserver.listResults(); len(got) != 1 || got[0] != "cache_pressure" {
+		t.Fatalf("list observations = %#v, want cache pressure", got)
+	}
+	if got := listObserver.cachePressureLabels(); len(got) != 1 || got[0] != "list:cache_pressure" {
+		t.Fatalf("cache pressure observations = %#v, want list cache pressure", got)
+	}
+}
+
+func TestConversationAuthorityAdmitCachePressureObserverRunsAfterUnlock(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	observer := &reentrantConversationAuthorityObserver{
+		target: target,
+		uid:    "u1",
+		done:   make(chan error, 1),
+	}
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           &recordingConversationAuthorityStore{},
+		MaxRowsPerUID:   1,
+		MaxRows:         10,
+		ListDBWindowMax: 20,
+		Observer:        observer,
+	})
+	observer.authority = authority
+	authority.markActive(target)
+	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
+		UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3,
+	}}); err != nil {
+		t.Fatalf("seed AdmitPatches() error = %v", err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
+			UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2,
+		}})
+	}()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, conversationusecase.ErrCachePressure) {
+			t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("AdmitPatches() did not return; cache-pressure observer likely ran while authority lock was held")
+	}
+	select {
+	case err := <-observer.done:
+		if err != nil {
+			t.Fatalf("observer reentrant list error = %v", err)
+		}
+	default:
+		t.Fatal("cache-pressure observer did not run")
+	}
+	if got := observer.cachePressureLabels(); len(got) != 1 || got[0] != "admit:cache_pressure" {
+		t.Fatalf("cache pressure observations = %#v, want admit cache pressure exactly once", got)
+	}
+	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "a" {
+		t.Fatalf("rows = %#v, want original row without partial pressure admission", page.Rows)
+	}
+}
+
+func TestConversationAuthorityObservesListSuccessAndError(t *testing.T) {
+	observer := &recordingConversationAuthorityObserver{}
+	store := &recordingConversationAuthorityStore{
+		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+	}
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           store,
+		MaxRowsPerUID:   10,
+		MaxRows:         100,
+		ListDBWindowMax: 20,
+		Observer:        observer,
+	})
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	authority.markActive(target)
+	if _, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10); err != nil {
+		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+	}
+
+	store.listErr = errors.New("store list failed")
+	if _, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10); err == nil {
+		t.Fatal("ListUserConversationActiveViewForTarget() error = nil, want store error")
+	}
+	if got := observer.listResults(); len(got) != 2 || got[0] != "ok" || got[1] != "error" {
+		t.Fatalf("list observations = %#v, want ok then error", got)
 	}
 }
 
@@ -538,6 +676,38 @@ func TestConversationAuthorityDrainCleanTargetReturnsNoDirty(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityObservesHandoffTimeout(t *testing.T) {
+	observer := &recordingConversationAuthorityObserver{}
+	store := &recordingConversationAuthorityStore{}
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           store,
+		MaxRowsPerUID:   10,
+		MaxRows:         100,
+		ListDBWindowMax: 20,
+		Observer:        observer,
+	})
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	authority.markActive(target)
+	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
+		UID: "u1", ChannelID: "dirty", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+	}}); err != nil {
+		t.Fatalf("AdmitPatches() error = %v", err)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	result, err := authority.DrainAuthority(ctx, target)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DrainAuthority() error = %v, want DeadlineExceeded", err)
+	}
+	if result != conversationDrainResultBusy {
+		t.Fatalf("DrainAuthority() result = %q, want busy", result)
+	}
+	if got := observer.handoffResults(); len(got) != 1 || got[0] != "timeout" {
+		t.Fatalf("handoff observations = %#v, want timeout", got)
+	}
+}
+
 func TestConversationAuthorityDrainUnknownTargetDoesNotPoisonActiveList(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
 		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
@@ -592,12 +762,16 @@ type recordingConversationAuthorityStore struct {
 	activeRows []metadb.UserConversationState
 	primary    map[metadb.ConversationKey]metadb.UserConversationState
 	touched    []metadb.UserConversationActivePatch
+	listErr    error
 	beforeList func()
 }
 
 func (s *recordingConversationAuthorityStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
 	if s.beforeList != nil {
 		s.beforeList()
+	}
+	if s.listErr != nil {
+		return nil, after, false, s.listErr
 	}
 	rows := append([]metadb.UserConversationState(nil), s.activeRows...)
 	sortConversationRows(rows)
@@ -628,9 +802,81 @@ func (s *recordingConversationAuthorityStore) GetUserConversationState(_ context
 	return row, ok, nil
 }
 
-func (s *recordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
+func (s *recordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.touched = append(s.touched, patches...)
 	return nil
+}
+
+type recordingConversationAuthorityObserver struct {
+	admit         []conversationAuthorityAdmitEvent
+	cachePressure []conversationAuthorityCachePressureEvent
+	lists         []conversationAuthorityListEvent
+	handoffs      []conversationAuthorityHandoffEvent
+}
+
+func (o *recordingConversationAuthorityObserver) ObserveConversationAuthorityAdmit(event conversationAuthorityAdmitEvent) {
+	o.admit = append(o.admit, event)
+}
+
+func (o *recordingConversationAuthorityObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
+	o.cachePressure = append(o.cachePressure, event)
+}
+
+func (o *recordingConversationAuthorityObserver) ObserveConversationAuthorityList(event conversationAuthorityListEvent) {
+	o.lists = append(o.lists, event)
+}
+
+func (o *recordingConversationAuthorityObserver) ObserveConversationAuthorityHandoff(event conversationAuthorityHandoffEvent) {
+	o.handoffs = append(o.handoffs, event)
+}
+
+func (o *recordingConversationAuthorityObserver) admitResults() []string {
+	out := make([]string, 0, len(o.admit))
+	for _, event := range o.admit {
+		out = append(out, event.Result)
+	}
+	return out
+}
+
+func (o *recordingConversationAuthorityObserver) listResults() []string {
+	out := make([]string, 0, len(o.lists))
+	for _, event := range o.lists {
+		out = append(out, event.Result)
+	}
+	return out
+}
+
+func (o *recordingConversationAuthorityObserver) handoffResults() []string {
+	out := make([]string, 0, len(o.handoffs))
+	for _, event := range o.handoffs {
+		out = append(out, event.Result)
+	}
+	return out
+}
+
+func (o *recordingConversationAuthorityObserver) cachePressureLabels() []string {
+	out := make([]string, 0, len(o.cachePressure))
+	for _, event := range o.cachePressure {
+		out = append(out, event.Phase+":"+event.Result)
+	}
+	return out
+}
+
+type reentrantConversationAuthorityObserver struct {
+	recordingConversationAuthorityObserver
+	authority *conversationAuthority
+	target    conversationusecase.RouteTarget
+	uid       string
+	done      chan error
+}
+
+func (o *reentrantConversationAuthorityObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
+	o.recordingConversationAuthorityObserver.ObserveConversationAuthorityCachePressure(event)
+	_, err := o.authority.ListUserConversationActiveViewForTarget(context.Background(), o.target, o.uid, metadb.UserConversationActiveCursor{}, 10)
+	o.done <- err
 }
 
 func conversationAuthorityChannelIDs(rows []metadb.UserConversationState) string {

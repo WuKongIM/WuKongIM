@@ -908,6 +908,70 @@ func TestConversationAuthorityCommittedSinkAdmitsProjectedPatchesInBatches(t *te
 	}
 }
 
+func TestConversationAuthorityCommittedSinkObservesAuthorityAdmitResults(t *testing.T) {
+	observer := &recordingConversationAuthorityObserver{}
+	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}
+	projector := staticConversationPatchProjector{patches: []conversationusecase.ActivePatch{patch}}
+
+	okSink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:         projector,
+		Authority:         &recordingConversationPatchAuthority{},
+		AdmissionTimeout:  time.Second,
+		RPCTimeout:        time.Second,
+		AuthorityObserver: observer,
+	})
+	if err := okSink.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit(ok) error = %v", err)
+	}
+
+	pressureSink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:         projector,
+		Authority:         &recordingConversationPatchAuthority{err: conversationusecase.ErrCachePressure},
+		AdmissionTimeout:  time.Second,
+		RPCTimeout:        time.Second,
+		AuthorityObserver: observer,
+	})
+	if err := pressureSink.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); !errors.Is(err, conversationusecase.ErrCachePressure) {
+		t.Fatalf("Submit(cache pressure) error = %v, want ErrCachePressure", err)
+	}
+
+	if got := observer.admitResults(); len(got) != 2 || got[0] != "ok" || got[1] != "cache_pressure" {
+		t.Fatalf("authority admit observations = %#v, want ok then cache_pressure", got)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkSubmitTimeoutReturnsErrorAndKeepsPayload(t *testing.T) {
+	observer := &recordingConversationAuthorityObserver{}
+	authority := &recordingConversationPatchAuthority{}
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:         blockingConversationPatchProjector{},
+		Authority:         authority,
+		AdmissionTimeout:  time.Millisecond,
+		RPCTimeout:        time.Second,
+		AuthorityObserver: observer,
+	})
+	event := messageevents.MessageCommitted{
+		ChannelID:         "g-timeout",
+		ChannelType:       frame.ChannelTypeGroup,
+		Payload:           []byte("payload stays"),
+		MessageScopedUIDs: []string{"u1"},
+	}
+
+	err := sink.Submit(context.Background(), event)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Submit() error = %v, want DeadlineExceeded", err)
+	}
+	if string(event.Payload) != "payload stays" || len(event.MessageScopedUIDs) != 1 || event.MessageScopedUIDs[0] != "u1" {
+		t.Fatalf("event after Submit() = %#v, want payload and scoped UIDs unchanged", event)
+	}
+	if len(authority.batches) != 0 {
+		t.Fatalf("authority batches = %#v, want no admission after projector deadline", authority.batches)
+	}
+	if got := observer.admitResults(); len(got) != 1 || got[0] != "timeout" {
+		t.Fatalf("authority admit observations = %#v, want timeout", got)
+	}
+}
+
 func TestConversationAuthorityCommittedSinkWatchesLocalAuthorityEvents(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
 	store := &appRecordingConversationAuthorityStore{}
@@ -3138,13 +3202,33 @@ func (s *recordingConversationProjectionStore) totalStates() int {
 type recordingConversationPatchAuthority struct {
 	mu      sync.Mutex
 	batches [][]conversationusecase.ActivePatch
+	err     error
 }
 
 func (a *recordingConversationPatchAuthority) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.batches = append(a.batches, append([]conversationusecase.ActivePatch(nil), patches...))
-	return nil
+	return a.err
+}
+
+type staticConversationPatchProjector struct {
+	patches []conversationusecase.ActivePatch
+	err     error
+}
+
+func (p staticConversationPatchProjector) ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
+}
+
+type blockingConversationPatchProjector struct{}
+
+func (blockingConversationPatchProjector) ProjectActivePatches(ctx context.Context, _ messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 type appRecordingConversationAuthorityStore struct {

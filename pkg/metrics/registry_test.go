@@ -1270,6 +1270,57 @@ func TestConversationMetricsTrackProjectorShapeAndWrites(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_conversation_projector_uid")
 }
 
+func TestConversationMetricsTrackAuthorityCountersAndLowCardinalityLabels(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Conversation.ObserveAuthorityAdmit("timeout")
+	reg.Conversation.ObserveAuthorityCachePressure("admit", "cache_pressure")
+	reg.Conversation.ObserveAuthorityList("route_not_ready")
+	reg.Conversation.ObserveAuthorityHandoff("drained")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	admit := requireMetricFamily(t, families, "wukongim_conversation_authority_admit_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, admit, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "timeout",
+	}).GetCounter().GetValue())
+
+	pressure := requireMetricFamily(t, families, "wukongim_conversation_authority_cache_pressure_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, pressure, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"phase":     "admit",
+		"result":    "cache_pressure",
+	}).GetCounter().GetValue())
+
+	list := requireMetricFamily(t, families, "wukongim_conversation_authority_list_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, list, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "route_not_ready",
+	}).GetCounter().GetValue())
+
+	handoff := requireMetricFamily(t, families, "wukongim_conversation_authority_handoff_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, handoff, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "drained",
+	}).GetCounter().GetValue())
+
+	for _, family := range []*dto.MetricFamily{admit, pressure, list, handoff} {
+		for _, metric := range family.GetMetric() {
+			requireNoMetricLabel(t, metric, "uid")
+			requireNoMetricLabel(t, metric, "channel_id")
+			requireNoMetricLabel(t, metric, "channelID")
+		}
+	}
+	requireNoMetricFamily(t, families, "wukongim_conversation_authority_uid")
+	requireNoMetricFamily(t, families, "wukongim_conversation_authority_channel_id")
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {
@@ -1298,6 +1349,13 @@ func requireMetricLabels(t *testing.T, metric *dto.Metric, want map[string]strin
 	}
 	for key, value := range want {
 		require.Equal(t, value, got[key], "label %s", key)
+	}
+}
+
+func requireNoMetricLabel(t *testing.T, metric *dto.Metric, name string) {
+	t.Helper()
+	for _, label := range metric.GetLabel() {
+		require.NotEqual(t, name, label.GetName())
 	}
 }
 

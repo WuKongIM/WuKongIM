@@ -673,22 +673,25 @@ type conversationAuthorityCommittedOptions struct {
 	RPCConcurrency int
 	// Observer receives low-cardinality compatibility observations.
 	Observer conversationProjectorObserver
+	// AuthorityObserver receives low-cardinality authority admission observations.
+	AuthorityObserver conversationAuthorityObserver
 }
 
 type conversationAuthorityCommittedSink struct {
-	projector        conversationPatchProjector
-	authority        conversationPatchAuthority
-	flusher          conversationAuthorityFlusher
-	localAuthority   *conversationAuthority
-	localNodeID      uint64
-	initial          func() []clusterv2.RouteAuthority
-	watch            func() <-chan clusterv2.RouteAuthorityEvent
-	admissionTimeout time.Duration
-	handoffTimeout   time.Duration
-	rpcTimeout       time.Duration
-	rpcBatchRows     int
-	rpcConcurrency   int
-	observer         conversationProjectorObserver
+	projector         conversationPatchProjector
+	authority         conversationPatchAuthority
+	flusher           conversationAuthorityFlusher
+	localAuthority    *conversationAuthority
+	localNodeID       uint64
+	initial           func() []clusterv2.RouteAuthority
+	watch             func() <-chan clusterv2.RouteAuthorityEvent
+	admissionTimeout  time.Duration
+	handoffTimeout    time.Duration
+	rpcTimeout        time.Duration
+	rpcBatchRows      int
+	rpcConcurrency    int
+	observer          conversationProjectorObserver
+	authorityObserver conversationAuthorityObserver
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -713,20 +716,21 @@ func newConversationAuthorityCommittedSink(opts conversationAuthorityCommittedOp
 		opts.RPCConcurrency = 16
 	}
 	return &conversationAuthorityCommittedSink{
-		projector:        opts.Projector,
-		authority:        opts.Authority,
-		flusher:          opts.Flusher,
-		localAuthority:   opts.LocalAuthority,
-		localNodeID:      opts.LocalNodeID,
-		initial:          opts.Initial,
-		watch:            opts.Watch,
-		admissionTimeout: opts.AdmissionTimeout,
-		handoffTimeout:   opts.HandoffTimeout,
-		rpcTimeout:       opts.RPCTimeout,
-		rpcBatchRows:     opts.RPCBatchRows,
-		rpcConcurrency:   opts.RPCConcurrency,
-		observer:         opts.Observer,
-		latest:           make(map[uint16]conversationusecase.RouteTarget),
+		projector:         opts.Projector,
+		authority:         opts.Authority,
+		flusher:           opts.Flusher,
+		localAuthority:    opts.LocalAuthority,
+		localNodeID:       opts.LocalNodeID,
+		initial:           opts.Initial,
+		watch:             opts.Watch,
+		admissionTimeout:  opts.AdmissionTimeout,
+		handoffTimeout:    opts.HandoffTimeout,
+		rpcTimeout:        opts.RPCTimeout,
+		rpcBatchRows:      opts.RPCBatchRows,
+		rpcConcurrency:    opts.RPCConcurrency,
+		observer:          opts.Observer,
+		authorityObserver: opts.AuthorityObserver,
+		latest:            make(map[uint16]conversationusecase.RouteTarget),
 	}
 }
 
@@ -779,6 +783,7 @@ func (s *conversationAuthorityCommittedSink) Stop(ctx context.Context) error {
 func (s *conversationAuthorityCommittedSink) Submit(ctx context.Context, event messageevents.MessageCommitted) error {
 	if s == nil || s.projector == nil || s.authority == nil {
 		s.observeSubmit(conversationProjectorResultIgnored)
+		s.observeAuthorityAdmit(conversationAuthorityResultIgnored)
 		return nil
 	}
 	if ctx == nil {
@@ -789,17 +794,21 @@ func (s *conversationAuthorityCommittedSink) Submit(ctx context.Context, event m
 	patches, err := s.projector.ProjectActivePatches(admissionCtx, event)
 	if err != nil {
 		s.observeSubmit(conversationProjectorResultError)
+		s.observeAuthorityAdmit(conversationAuthorityResultFromError(err, conversationAuthorityResultError))
 		return err
 	}
 	if len(patches) == 0 {
 		s.observeSubmit(conversationProjectorResultIgnored)
+		s.observeAuthorityAdmit(conversationAuthorityResultIgnored)
 		return nil
 	}
 	if err := s.admitBatches(admissionCtx, patches); err != nil {
 		s.observeSubmit(conversationProjectorResultError)
+		s.observeAuthorityAdmit(conversationAuthorityResultFromError(err, conversationAuthorityResultError))
 		return err
 	}
 	s.observeSubmit(conversationProjectorResultAccepted)
+	s.observeAuthorityAdmit(conversationAuthorityResultOK)
 	return nil
 }
 
@@ -1032,6 +1041,13 @@ func (s *conversationAuthorityCommittedSink) observeFlush(event conversationProj
 		return
 	}
 	s.observer.ObserveConversationProjectorFlush(event)
+}
+
+func (s *conversationAuthorityCommittedSink) observeAuthorityAdmit(result string) {
+	if s == nil || s.authorityObserver == nil {
+		return
+	}
+	s.authorityObserver.ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent{Result: result})
 }
 
 func combineCommittedSinks(sinks ...message.CommittedSink) message.CommittedSink {
