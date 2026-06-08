@@ -174,6 +174,113 @@ func TestSenderAuthorityClientMapsErrorsToItemAlignedResults(t *testing.T) {
 	}
 }
 
+func TestSenderAuthorityClientSkipsExpiredDeadlineWithoutRPC(t *testing.T) {
+	node := &fakeSenderAuthorityRPCNode{response: senderAuthorityResponse{Status: rpcStatusOK}}
+	client := NewClient(node)
+
+	got := client.SendBatchToAuthority(context.Background(), authority.Target{LeaderNodeID: 9}, []message.SendBatchItem{{
+		Deadline: time.Now().Add(-time.Second),
+		Command:  senderAuthorityTestCommand(),
+	}})
+
+	if node.called {
+		t.Fatal("CallRPC was called for expired item")
+	}
+	if len(got) != 1 {
+		t.Fatalf("results len = %d, want 1", len(got))
+	}
+	if !errors.Is(got[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("result err = %v, want context.DeadlineExceeded", got[0].Err)
+	}
+}
+
+func TestSenderAuthorityClientSkipsCanceledContextWithoutRPC(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	node := &fakeSenderAuthorityRPCNode{response: senderAuthorityResponse{Status: rpcStatusOK}}
+	client := NewClient(node)
+
+	got := client.SendBatchToAuthority(context.Background(), authority.Target{LeaderNodeID: 9}, []message.SendBatchItem{{
+		Context: ctx,
+		Command: senderAuthorityTestCommand(),
+	}})
+
+	if node.called {
+		t.Fatal("CallRPC was called for canceled item")
+	}
+	if len(got) != 1 {
+		t.Fatalf("results len = %d, want 1", len(got))
+	}
+	if !errors.Is(got[0].Err, context.Canceled) {
+		t.Fatalf("result err = %v, want context.Canceled", got[0].Err)
+	}
+}
+
+func TestSenderAuthorityClientSendsOnlyActiveItemsAndPreservesOrder(t *testing.T) {
+	expired := senderAuthorityTestCommand()
+	expired.ClientMsgNo = "expired"
+	active := senderAuthorityTestCommand()
+	active.ClientMsgNo = "active"
+	activeResult := message.SendBatchItemResult{Result: message.SendResult{MessageID: 1002, MessageSeq: 12, Reason: message.ReasonSuccess}}
+	node := &fakeSenderAuthorityRPCNode{response: senderAuthorityResponse{Status: rpcStatusOK, Results: []message.SendBatchItemResult{activeResult}}}
+	client := NewClient(node)
+
+	got := client.SendBatchToAuthority(context.Background(), authority.Target{LeaderNodeID: 9}, []message.SendBatchItem{
+		{Deadline: time.Now().Add(-time.Second), Command: expired},
+		{Command: active},
+	})
+
+	if !node.called {
+		t.Fatal("CallRPC was not called for active item")
+	}
+	req, err := decodeSenderAuthorityRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeSenderAuthorityRequest(client payload) error = %v", err)
+	}
+	if len(req.Items) != 1 {
+		t.Fatalf("rpc item len = %d, want 1", len(req.Items))
+	}
+	if req.Items[0].Command.ClientMsgNo != "active" {
+		t.Fatalf("rpc item ClientMsgNo = %q, want active", req.Items[0].Command.ClientMsgNo)
+	}
+	if len(got) != 2 {
+		t.Fatalf("results len = %d, want 2", len(got))
+	}
+	if !errors.Is(got[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("result[0].Err = %v, want context.DeadlineExceeded", got[0].Err)
+	}
+	if got[1] != activeResult {
+		t.Fatalf("result[1] = %#v, want %#v", got[1], activeResult)
+	}
+}
+
+func TestSenderAuthorityClientMapsShortResponseOnlyToActiveItems(t *testing.T) {
+	expired := senderAuthorityTestCommand()
+	expired.ClientMsgNo = "expired"
+	active := senderAuthorityTestCommand()
+	active.ClientMsgNo = "active"
+	node := &fakeSenderAuthorityRPCNode{response: senderAuthorityResponse{Status: rpcStatusOK, Results: nil}}
+	client := NewClient(node)
+
+	got := client.SendBatchToAuthority(context.Background(), authority.Target{LeaderNodeID: 9}, []message.SendBatchItem{
+		{Deadline: time.Now().Add(-time.Second), Command: expired},
+		{Command: active},
+	})
+
+	if !node.called {
+		t.Fatal("CallRPC was not called for active item")
+	}
+	if len(got) != 2 {
+		t.Fatalf("results len = %d, want 2", len(got))
+	}
+	if !errors.Is(got[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("result[0].Err = %v, want context.DeadlineExceeded", got[0].Err)
+	}
+	if !errors.Is(got[1].Err, message.ErrAppendResultMissing) {
+		t.Fatalf("result[1].Err = %v, want ErrAppendResultMissing", got[1].Err)
+	}
+}
+
 type fakeSenderAuthoritySubmitter struct {
 	target  authority.Target
 	items   []message.SendBatchItem
@@ -192,9 +299,11 @@ type fakeSenderAuthorityRPCNode struct {
 	nodeID    uint64
 	serviceID uint8
 	payload   []byte
+	called    bool
 }
 
 func (f *fakeSenderAuthorityRPCNode) CallRPC(_ context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	f.called = true
 	f.nodeID = nodeID
 	f.serviceID = serviceID
 	f.payload = append([]byte(nil), payload...)

@@ -50,36 +50,55 @@ func (a *Adapter) HandleSenderAuthorityRPC(ctx context.Context, payload []byte) 
 
 // SendBatchToAuthority forwards SEND items to the target sender authority node.
 func (c *Client) SendBatchToAuthority(ctx context.Context, target authority.Target, items []message.SendBatchItem) []message.SendBatchItemResult {
-	if c == nil || c.node == nil {
-		return senderAuthorityErrorResults(len(items), fmt.Errorf("internalv2/access/node: sender authority rpc client not configured"))
-	}
 	now := time.Now()
-	reqItems := make([]senderAuthorityItem, len(items))
+	results := make([]message.SendBatchItemResult, len(items))
+	reqItems := make([]senderAuthorityItem, 0, len(items))
+	activeIndexes := make([]int, 0, len(items))
 	for i, item := range items {
-		reqItems[i] = senderAuthorityItem{
+		if item.Context != nil {
+			if err := item.Context.Err(); err != nil {
+				results[i].Err = err
+				continue
+			}
+		}
+		if !item.Deadline.IsZero() && !item.Deadline.After(now) {
+			results[i].Err = context.DeadlineExceeded
+			continue
+		}
+		activeIndexes = append(activeIndexes, i)
+		reqItems = append(reqItems, senderAuthorityItem{
 			Command: item.Command,
 			Timeout: senderAuthorityRelativeTimeout(item, now),
-		}
+		})
+	}
+	if len(activeIndexes) == 0 {
+		return results
+	}
+	if c == nil || c.node == nil {
+		return senderAuthorityFillActiveErrors(results, activeIndexes, fmt.Errorf("internalv2/access/node: sender authority rpc client not configured"))
 	}
 	body, err := encodeSenderAuthorityRequest(senderAuthorityRequest{Target: target, Items: reqItems})
 	if err != nil {
-		return senderAuthorityErrorResults(len(items), err)
+		return senderAuthorityFillActiveErrors(results, activeIndexes, err)
 	}
 	respBody, err := c.node.CallRPC(ctx, target.LeaderNodeID, SenderAuthorityRPCServiceID, body)
 	if err != nil {
-		return senderAuthorityErrorResults(len(items), err)
+		return senderAuthorityFillActiveErrors(results, activeIndexes, err)
 	}
 	resp, err := decodeSenderAuthorityResponse(respBody)
 	if err != nil {
-		return senderAuthorityErrorResults(len(items), err)
+		return senderAuthorityFillActiveErrors(results, activeIndexes, err)
 	}
 	if err := senderAuthorityErrorForStatus(resp.Status); err != nil {
-		return senderAuthorityErrorResults(len(items), err)
+		return senderAuthorityFillActiveErrors(results, activeIndexes, err)
 	}
-	if len(resp.Results) != len(items) {
-		return senderAuthorityErrorResults(len(items), message.ErrAppendResultMissing)
+	if len(resp.Results) != len(activeIndexes) {
+		return senderAuthorityFillActiveErrors(results, activeIndexes, message.ErrAppendResultMissing)
 	}
-	return resp.Results
+	for i, result := range resp.Results {
+		results[activeIndexes[i]] = result
+	}
+	return results
 }
 
 func senderAuthorityRelativeTimeout(item message.SendBatchItem, now time.Time) time.Duration {
@@ -102,6 +121,13 @@ func senderAuthorityErrorResults(n int, err error) []message.SendBatchItemResult
 	results := make([]message.SendBatchItemResult, n)
 	for i := range results {
 		results[i].Err = err
+	}
+	return results
+}
+
+func senderAuthorityFillActiveErrors(results []message.SendBatchItemResult, indexes []int, err error) []message.SendBatchItemResult {
+	for _, index := range indexes {
+		results[index].Err = err
 	}
 	return results
 }

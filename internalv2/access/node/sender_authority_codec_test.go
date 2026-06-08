@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -87,6 +88,35 @@ func TestSenderAuthorityCodecRoundTripResponse(t *testing.T) {
 	}
 	if !errors.Is(got.Results[1].Err, message.ErrNotLeader) {
 		t.Fatalf("error = %v, want ErrNotLeader", got.Results[1].Err)
+	}
+}
+
+func TestSenderAuthorityCodecRoundTripContextErrors(t *testing.T) {
+	resp := senderAuthorityResponse{
+		Status: rpcStatusOK,
+		Results: []message.SendBatchItemResult{
+			{Err: context.Canceled},
+			{Err: context.DeadlineExceeded},
+		},
+	}
+
+	body, err := encodeSenderAuthorityResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeSenderAuthorityResponse() error = %v", err)
+	}
+	got, err := decodeSenderAuthorityResponse(body)
+	if err != nil {
+		t.Fatalf("decodeSenderAuthorityResponse() error = %v", err)
+	}
+
+	if len(got.Results) != 2 {
+		t.Fatalf("results len = %d, want 2", len(got.Results))
+	}
+	if !errors.Is(got.Results[0].Err, context.Canceled) {
+		t.Fatalf("result[0].Err = %v, want context.Canceled", got.Results[0].Err)
+	}
+	if !errors.Is(got.Results[1].Err, context.DeadlineExceeded) {
+		t.Fatalf("result[1].Err = %v, want context.DeadlineExceeded", got.Results[1].Err)
 	}
 }
 

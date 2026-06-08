@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -32,6 +33,8 @@ const (
 	senderAuthorityErrCodeRequestSubscribersRequireSyncOnce = "request_subscribers_require_sync_once"
 	senderAuthorityErrCodeRequestSubscribersConflictChannel = "request_subscribers_conflict_channel"
 	senderAuthorityErrCodeRequestSubscribersRequired        = "request_subscribers_required"
+	senderAuthorityErrCodeContextCanceled                   = "context_canceled"
+	senderAuthorityErrCodeContextDeadlineExceeded           = "context_deadline_exceeded"
 )
 
 // senderAuthorityItem is one send command plus the relative timeout transported over RPC.
@@ -404,6 +407,10 @@ func readSenderAuthorityResultError(body []byte, offset int) (error, int, error)
 		return message.ErrRequestSubscribersConflictChannel, offset, nil
 	case senderAuthorityErrCodeRequestSubscribersRequired:
 		return message.ErrRequestSubscribersRequired, offset, nil
+	case senderAuthorityErrCodeContextCanceled:
+		return context.Canceled, offset, nil
+	case senderAuthorityErrCodeContextDeadlineExceeded:
+		return context.DeadlineExceeded, offset, nil
 	case senderAuthorityErrCodeRejected:
 		if msg == "" {
 			msg = "sender authority result rejected"
@@ -444,6 +451,10 @@ func senderAuthorityErrorCode(err error) string {
 		return senderAuthorityErrCodeRequestSubscribersConflictChannel
 	case errors.Is(err, message.ErrRequestSubscribersRequired):
 		return senderAuthorityErrCodeRequestSubscribersRequired
+	case errors.Is(err, context.Canceled):
+		return senderAuthorityErrCodeContextCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return senderAuthorityErrCodeContextDeadlineExceeded
 	default:
 		return senderAuthorityErrCodeRejected
 	}
