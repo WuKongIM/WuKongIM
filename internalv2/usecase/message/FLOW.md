@@ -18,6 +18,8 @@ SendBatch(items)
   -> authorize send
   -> canonicalize person-channel IDs when `SendCommand.NormalizePersonChannel`
      is set by an entry adapter
+  -> check optional sender idempotency using the canonical sender/client
+     message key
   -> allocate message IDs for durable gateway-origin sends
   -> group sends by canonical channel while preserving per-channel order
   -> derive one server append timestamp per prepared send for durable storage

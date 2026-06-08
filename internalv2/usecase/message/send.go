@@ -96,6 +96,11 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 		}
 		cmd.ChannelID = channelID
 	}
+	if existing, ok, err := a.lookupIdempotentSend(ctx, cmd); err != nil {
+		return preparedSend{err: err}, true
+	} else if ok {
+		return preparedSend{result: existing}, true
+	}
 	if cmd.MessageID == 0 {
 		if a.messageID == nil {
 			return preparedSend{err: ErrMessageIDAllocatorRequired}, true
@@ -146,6 +151,11 @@ func (a *App) prepareRequestScopedSend(ctx context.Context, cmd SendCommand) (pr
 		}
 		return preparedSend{result: SendResult{Reason: reason}}, true
 	}
+	if existing, ok, err := a.lookupIdempotentSend(ctx, cmd); err != nil {
+		return preparedSend{err: err}, true
+	} else if ok {
+		return preparedSend{result: existing}, true
+	}
 	if cmd.MessageID == 0 {
 		if a.messageID == nil {
 			return preparedSend{err: ErrMessageIDAllocatorRequired}, true
@@ -153,6 +163,19 @@ func (a *App) prepareRequestScopedSend(ctx context.Context, cmd SendCommand) (pr
 		cmd.MessageID = a.messageID.Next()
 	}
 	return preparedSend{cmd: cmd, serverTimestampMS: time.Now().UnixMilli()}, false
+}
+
+// lookupIdempotentSend recovers a prior successful send for a canonical command.
+func (a *App) lookupIdempotentSend(ctx context.Context, cmd SendCommand) (SendResult, bool, error) {
+	if a == nil || a.idempotency == nil || cmd.ClientMsgNo == "" {
+		return SendResult{}, false, nil
+	}
+	return a.idempotency.LookupSend(ctx, IdempotencyQuery{
+		FromUID:     cmd.FromUID,
+		ClientMsgNo: cmd.ClientMsgNo,
+		ChannelID:   cmd.ChannelID,
+		ChannelType: cmd.ChannelType,
+	})
 }
 
 // channelAppendSegment preserves original item order for one canonical channel.

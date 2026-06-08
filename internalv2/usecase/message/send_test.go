@@ -87,6 +87,48 @@ func TestSendRequestScopedDerivesCommandChannel(t *testing.T) {
 	}
 }
 
+func TestSendRequestScopedIdempotencyUsesDerivedCommandChannel(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookup := &recordingIdempotency{
+		result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess},
+		ok:     true,
+	}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:           "system",
+		SyncOnce:          true,
+		RequestScoped:     true,
+		MessageScopedUIDs: []string{"u1", "u2"},
+		ClientMsgNo:       "cmd-1",
+		Payload:           []byte("cmd"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result != lookup.result {
+		t.Fatalf("Send() result = %#v, want idempotent result %#v", result, lookup.result)
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	if err != nil {
+		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
+	}
+	if got := len(lookup.queries); got != 1 {
+		t.Fatalf("lookup queries = %d, want 1", got)
+	}
+	if query := lookup.queries[0]; query.ChannelID != scoped.CommandChannelID || query.ChannelType != scoped.ChannelType {
+		t.Fatalf("lookup query = %#v, want derived command channel", query)
+	}
+	if appender.calls != 0 {
+		t.Fatalf("append calls = %d, want 0", appender.calls)
+	}
+	if ids.allocated != 0 {
+		t.Fatalf("allocated ids = %d, want 0", ids.allocated)
+	}
+}
+
 func TestSendRequestScopedRejectsInvalidSubscriberCommands(t *testing.T) {
 	app := New(Options{Appender: &recordingAppender{}, MessageID: &sequenceIDs{next: 1}})
 
@@ -928,6 +970,170 @@ func TestSendNormalizesPersonChannelBeforeAppendAndCommit(t *testing.T) {
 	}
 }
 
+func TestSendReturnsIdempotentResultBeforeAllocatingNewMessageID(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookup := &recordingIdempotency{
+		result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess},
+		ok:     true,
+	}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ClientMsgNo: "client-1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result != lookup.result {
+		t.Fatalf("Send() result = %#v, want idempotent result %#v", result, lookup.result)
+	}
+	if appender.calls != 0 {
+		t.Fatalf("append calls = %d, want 0", appender.calls)
+	}
+	if ids.next != 100 || ids.allocated != 0 {
+		t.Fatalf("ids next/allocated = %d/%d, want 100/0", ids.next, ids.allocated)
+	}
+	if got := len(lookup.queries); got != 1 {
+		t.Fatalf("lookup queries = %d, want 1", got)
+	}
+	query := lookup.queries[0]
+	if query.FromUID != "u1" || query.ClientMsgNo != "client-1" || query.ChannelID != "room" || query.ChannelType != 2 {
+		t.Fatalf("lookup query = %#v, want sender/client/canonical channel key", query)
+	}
+}
+
+func TestSendFallsThroughWhenIdempotencyMisses(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookup := &recordingIdempotency{}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ClientMsgNo: "client-1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.MessageID != 100 || result.MessageSeq != 1 || result.Reason != ReasonSuccess {
+		t.Fatalf("Send() result = %#v, want appended result id=100 seq=1 success", result)
+	}
+	if appender.calls != 1 {
+		t.Fatalf("append calls = %d, want 1", appender.calls)
+	}
+	if ids.allocated != 1 {
+		t.Fatalf("allocated ids = %d, want 1", ids.allocated)
+	}
+}
+
+func TestSendIdempotencyUsesNormalizedPersonChannel(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookup := &recordingIdempotency{
+		result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess},
+		ok:     true,
+	}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:                "u1",
+		ClientMsgNo:            "client-1",
+		ChannelID:              "u2",
+		ChannelType:            channelTypePerson,
+		NormalizePersonChannel: true,
+		Payload:                []byte("hello"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result != lookup.result {
+		t.Fatalf("Send() result = %#v, want idempotent result %#v", result, lookup.result)
+	}
+	if appender.calls != 0 {
+		t.Fatalf("append calls = %d, want 0", appender.calls)
+	}
+	if ids.allocated != 0 {
+		t.Fatalf("allocated ids = %d, want 0", ids.allocated)
+	}
+	wantChannelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	if got := len(lookup.queries); got != 1 {
+		t.Fatalf("lookup queries = %d, want 1", got)
+	}
+	if query := lookup.queries[0]; query.ChannelID != wantChannelID || query.ChannelType != channelTypePerson {
+		t.Fatalf("lookup query = %#v, want normalized channel %q/%d", query, wantChannelID, channelTypePerson)
+	}
+}
+
+func TestSendSkipsIdempotencyWhenClientMsgNoEmpty(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookup := &recordingIdempotency{
+		result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess},
+		ok:     true,
+	}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.MessageID != 100 || result.MessageSeq != 1 || result.Reason != ReasonSuccess {
+		t.Fatalf("Send() result = %#v, want appended result id=100 seq=1 success", result)
+	}
+	if got := len(lookup.queries); got != 0 {
+		t.Fatalf("lookup queries = %d, want 0", got)
+	}
+	if appender.calls != 1 {
+		t.Fatalf("append calls = %d, want 1", appender.calls)
+	}
+	if ids.allocated != 1 {
+		t.Fatalf("allocated ids = %d, want 1", ids.allocated)
+	}
+}
+
+func TestSendReturnsIdempotencyLookupErrorBeforeAppendOrAllocation(t *testing.T) {
+	appender := &recordingAppender{}
+	ids := &sequenceIDs{next: 100}
+	lookupErr := errors.New("lookup unavailable")
+	lookup := &recordingIdempotency{err: lookupErr}
+	app := New(Options{Appender: appender, MessageID: ids, Idempotency: lookup})
+
+	_, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ClientMsgNo: "client-1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	})
+
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("Send() error = %v, want %v", err, lookupErr)
+	}
+	if appender.calls != 0 {
+		t.Fatalf("append calls = %d, want 0", appender.calls)
+	}
+	if ids.next != 100 || ids.allocated != 0 {
+		t.Fatalf("ids next/allocated = %d/%d, want 100/0", ids.next, ids.allocated)
+	}
+}
+
 func TestSendReturnsErrorWhenAppenderOrAllocatorMissing(t *testing.T) {
 	noAppender := New(Options{MessageID: &sequenceIDs{next: 1}})
 	_, err := noAppender.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 1, Payload: []byte("hello")})
@@ -1057,6 +1263,18 @@ func (s *sequenceIDs) Next() uint64 {
 	s.next++
 	s.allocated++
 	return id
+}
+
+type recordingIdempotency struct {
+	result  SendResult
+	ok      bool
+	err     error
+	queries []IdempotencyQuery
+}
+
+func (r *recordingIdempotency) LookupSend(_ context.Context, query IdempotencyQuery) (SendResult, bool, error) {
+	r.queries = append(r.queries, query)
+	return r.result, r.ok, r.err
 }
 
 type failingCommitted struct{ err error }

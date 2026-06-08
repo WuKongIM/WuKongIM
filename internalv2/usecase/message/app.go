@@ -10,6 +10,8 @@ type Options struct {
 	MessageID MessageIDAllocator
 	// Authorizer decides whether a send may enter durable append.
 	Authorizer Authorizer
+	// Idempotency recovers successful sends after sender-authority response loss.
+	Idempotency SendIdempotencyLookup
 	// Committed receives durable append events.
 	Committed CommittedSink
 	// Observer receives non-fatal send path observations.
@@ -22,6 +24,7 @@ type App struct {
 	messageReader ChannelMessageReader
 	messageID     MessageIDAllocator
 	authorizer    Authorizer
+	idempotency   SendIdempotencyLookup
 	committed     CommittedSink
 	observer      Observer
 }
@@ -36,6 +39,7 @@ func New(opts Options) *App {
 		messageReader: opts.MessageReader,
 		messageID:     opts.MessageID,
 		authorizer:    opts.Authorizer,
+		idempotency:   opts.Idempotency,
 		committed:     opts.Committed,
 		observer:      opts.Observer,
 	}
