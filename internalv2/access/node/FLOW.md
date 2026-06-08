@@ -108,6 +108,23 @@ The RPC boundary is deliberately narrow:
   calling clusterv2 RPC. Raw transport errors are returned to the infra/cluster
   route adapter; this package does not decide whether they should retry.
 
+## Sender Authority RPC
+
+```text
+remote sender authority client
+  -> encode W K V S 1 request
+  -> clusterv2 RPCSenderAuthority
+  -> Adapter.HandleSenderAuthorityRPC
+  -> SenderAuthority.SendBatchForAuthority
+  -> encode W K V s 1 response
+```
+
+Sender authority RPC transports `message.SendCommand` DTOs to the target sender
+authority node and returns item-aligned `message.SendBatchItemResult` values.
+The boundary does not decide sender authority routing, channel append policy,
+recipient pipeline behavior, retries, or route-table resolution; those decisions
+stay in usecase and infra/cluster layers.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -129,6 +146,11 @@ Conversation authority RPC uses fixed magic headers:
 
 - Request: `W K V C 1`
 - Response: `W K V c 1`
+
+Sender authority RPC uses fixed magic headers:
+
+- Request: `W K V S 1`
+- Response: `W K V s 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -156,11 +178,14 @@ Delivery push and fanout responses currently use:
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
-  sentinel errors, runtime delivery DTOs, and the clusterv2 RPC service IDs.
+  sentinel errors, `internalv2/usecase/message` SEND DTOs and sentinel errors,
+  runtime delivery DTOs, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not implement conversation projection, cache merge,
   projection-flush, or handoff business logic.
+- This package must not decide sender authority routing, append policy, storage
+  lookup, or recipient pipeline behavior.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
-  `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority`
-  interfaces.
+  `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
+  `SenderAuthority` interfaces.
