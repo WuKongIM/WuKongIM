@@ -138,6 +138,67 @@ func TestListReturnsConversationWhenLastMessageMissing(t *testing.T) {
 	}
 }
 
+func TestListUsesAuthoritativeActiveView(t *testing.T) {
+	store := &recordingActiveViewStore{
+		rows: []metadb.UserConversationState{{
+			UID:         "u1",
+			ChannelID:   "cache-only",
+			ChannelType: 2,
+			ActiveAt:    500,
+		}},
+		cursor:  metadb.UserConversationActiveCursor{ActiveAt: 500, ChannelID: "cache-only", ChannelType: 2},
+		doneSet: true,
+		done:    false,
+	}
+	app := New(Options{Store: store, Messages: &recordingMessageStore{}})
+	got, err := app.List(context.Background(), ListRequest{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].ChannelID != "cache-only" {
+		t.Fatalf("items = %#v, want cache-only active view row", got.Items)
+	}
+	if len(store.calls) != 1 || store.calls[0].limit != 11 {
+		t.Fatalf("active view calls = %#v, want limit+1", store.calls)
+	}
+	if got.NextCursor != (Cursor{ActiveAt: 500, ChannelID: "cache-only", ChannelType: 2}) {
+		t.Fatalf("NextCursor = %#v, want active view cursor", got.NextCursor)
+	}
+}
+
+func TestListCursorDoesNotSkipOverfetchSentinel(t *testing.T) {
+	store := &dbStyleActiveViewStore{
+		rows: []metadb.UserConversationState{
+			{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300},
+			{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200},
+			{UID: "u1", ChannelID: "c", ChannelType: 2, ActiveAt: 100},
+		},
+	}
+	app := New(Options{Store: store, Messages: &recordingMessageStore{}})
+
+	first, err := app.List(context.Background(), ListRequest{UID: "u1", Limit: 2})
+	if err != nil {
+		t.Fatalf("List(first) error = %v", err)
+	}
+	if got, want := conversationIDs(first.Items), []string{"a", "b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first conversation IDs = %#v, want %#v", got, want)
+	}
+	if !first.HasMore {
+		t.Fatalf("first HasMore = false, want true")
+	}
+	if got, want := first.NextCursor, (Cursor{ActiveAt: 200, ChannelID: "b", ChannelType: 2}); got != want {
+		t.Fatalf("first cursor = %#v, want cursor for last emitted row", got)
+	}
+
+	second, err := app.List(context.Background(), ListRequest{UID: "u1", Cursor: first.NextCursor, Limit: 2})
+	if err != nil {
+		t.Fatalf("List(second) error = %v", err)
+	}
+	if got, want := conversationIDs(second.Items), []string{"c"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second conversation IDs = %#v, want %#v", got, want)
+	}
+}
+
 func TestListClonesPayload(t *testing.T) {
 	payload := []byte("stable")
 	store := &recordingActiveStore{
@@ -184,8 +245,77 @@ type recordingActiveStore struct {
 	calls []activePageCall
 }
 
-func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (s *recordingActiveStore) ListUserConversationActiveView(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
 	s.calls = append(s.calls, activePageCall{uid: uid, after: after, limit: limit})
+	start := 0
+	if after != (metadb.UserConversationActiveCursor{}) {
+		for start < len(s.rows) {
+			row := s.rows[start]
+			start++
+			if row.ActiveAt == after.ActiveAt && row.ChannelID == after.ChannelID && row.ChannelType == after.ChannelType {
+				break
+			}
+		}
+	}
+	page := make([]metadb.UserConversationState, 0, limit)
+	var cursor metadb.UserConversationActiveCursor
+	var previousCursor metadb.UserConversationActiveCursor
+	for start < len(s.rows) && len(page) < limit {
+		row := s.rows[start]
+		start++
+		if row.UID != uid {
+			continue
+		}
+		page = append(page, row)
+		nextCursor := metadb.UserConversationActiveCursor{ActiveAt: row.ActiveAt, ChannelID: row.ChannelID, ChannelType: row.ChannelType}
+		cursor = nextCursor
+		if len(page) == limit && previousCursor != (metadb.UserConversationActiveCursor{}) {
+			cursor = previousCursor
+		}
+		previousCursor = nextCursor
+	}
+	return ActiveViewPage{Rows: page, Cursor: cursor, Done: start >= len(s.rows)}, nil
+}
+
+type activeViewCall struct {
+	uid   string
+	after metadb.UserConversationActiveCursor
+	limit int
+}
+
+type recordingActiveViewStore struct {
+	rows    []metadb.UserConversationState
+	cursor  metadb.UserConversationActiveCursor
+	doneSet bool
+	done    bool
+	calls   []activeViewCall
+}
+
+func (s *recordingActiveViewStore) ListUserConversationActiveView(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
+	s.calls = append(s.calls, activeViewCall{uid: uid, after: after, limit: limit})
+	page := append([]metadb.UserConversationState(nil), s.rows...)
+	done := len(page) <= limit
+	if len(page) > limit {
+		page = page[:limit]
+	}
+	cursor := s.cursor
+	if len(page) > 0 {
+		last := page[len(page)-1]
+		if cursor == (metadb.UserConversationActiveCursor{}) {
+			cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+		}
+	}
+	if s.doneSet {
+		done = s.done
+	}
+	return ActiveViewPage{Rows: page, Cursor: cursor, Done: done}, nil
+}
+
+type dbStyleActiveViewStore struct {
+	rows []metadb.UserConversationState
+}
+
+func (s *dbStyleActiveViewStore) ListUserConversationActiveView(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
 	start := 0
 	if after != (metadb.UserConversationActiveCursor{}) {
 		for start < len(s.rows) {
@@ -207,7 +337,7 @@ func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context,
 		page = append(page, row)
 		cursor = metadb.UserConversationActiveCursor{ActiveAt: row.ActiveAt, ChannelID: row.ChannelID, ChannelType: row.ChannelType}
 	}
-	return page, cursor, start >= len(s.rows), nil
+	return ActiveViewPage{Rows: page, Cursor: cursor, Done: start >= len(s.rows)}, nil
 }
 
 type recordingMessageStore struct {

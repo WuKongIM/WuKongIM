@@ -85,7 +85,8 @@ per row while routing/readiness errors fail the request.
 
 ```text
 conversation list usecase
-  -> ListUserConversationActivePage(uid, active cursor)
+  -> ListUserConversationActiveView(uid, active cursor)
+       -> wraps ListUserConversationActivePage(uid, active cursor)
        -> UID-owned conversation rows routed by UID hash slot
   -> GetLastVisibleMessages(current page keys)
        -> ReadChannelLastVisible(channel, visible_after_seq)

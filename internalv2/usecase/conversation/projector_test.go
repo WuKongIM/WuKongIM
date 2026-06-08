@@ -40,6 +40,55 @@ func TestProjectorPersonalMessageTouchesSenderAndPeer(t *testing.T) {
 	}
 }
 
+func TestProjectorProjectActivePatchesCarriesMessageSeq(t *testing.T) {
+	projector := NewProjector(ProjectorOptions{})
+	patches, err := projector.ProjectActivePatches(context.Background(), messageevents.MessageCommitted{
+		MessageSeq:        42,
+		ChannelID:         "u1@u2",
+		ChannelType:       testChannelTypePerson,
+		FromUID:           "u1",
+		ServerTimestampMS: 1000,
+	})
+	if err != nil {
+		t.Fatalf("ProjectActivePatches() error = %v", err)
+	}
+	if len(patches) != 2 {
+		t.Fatalf("patches len = %d, want 2", len(patches))
+	}
+	for _, patch := range patches {
+		metaPatch := patch.ToMetaPatch()
+		if patch.MessageSeq != 42 || patch.ActiveAt != 1000 || patch.SparseActive || metaPatch.SparseActive || !metaPatch.SparseActiveSet {
+			t.Fatalf("patch = %#v, meta patch = %#v, want dense message seq, active at, and sparse flag set", patch, metaPatch)
+		}
+	}
+}
+
+func TestProjectorProjectActivePatchesMarksLargeGroupSparse(t *testing.T) {
+	members := &recordingMemberSource{classes: map[string]MemberClass{
+		"g-large": {IsSmall: false},
+	}}
+	projector := NewProjector(ProjectorOptions{Members: members, SmallGroupFanoutLimit: 2})
+	patches, err := projector.ProjectActivePatches(context.Background(), messageevents.MessageCommitted{
+		MessageSeq:        42,
+		ChannelID:         "g-large",
+		ChannelType:       testChannelTypeGroup,
+		FromUID:           "sender",
+		ServerTimestampMS: 1000,
+	})
+	if err != nil {
+		t.Fatalf("ProjectActivePatches() error = %v", err)
+	}
+	if len(patches) != 1 {
+		t.Fatalf("patches len = %d, want 1", len(patches))
+	}
+	for _, patch := range patches {
+		metaPatch := patch.ToMetaPatch()
+		if patch.MessageSeq != 42 || patch.ActiveAt != 1000 || !patch.SparseActive || !metaPatch.SparseActive || !metaPatch.SparseActiveSet {
+			t.Fatalf("patch = %#v, meta patch = %#v, want message seq, active at, sparse mode, and sparse flag set", patch, metaPatch)
+		}
+	}
+}
+
 func TestProjectorPersonalMessageOrdersSenderSecondParticipantFirst(t *testing.T) {
 	store := &recordingConversationBatchStore{}
 	projector := NewProjector(ProjectorOptions{Store: store})

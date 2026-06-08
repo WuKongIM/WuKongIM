@@ -53,6 +53,15 @@ func (s *ConversationStore) ListUserConversationActivePage(ctx context.Context, 
 	return append([]metadb.UserConversationState(nil), rows...), cursor, done, nil
 }
 
+// ListUserConversationActiveView wraps the current clusterv2 active-page facade for the usecase contract.
+func (s *ConversationStore) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+	rows, cursor, done, err := s.ListUserConversationActivePage(ctx, uid, after, limit)
+	if err != nil {
+		return conversationusecase.ActiveViewPage{}, err
+	}
+	return conversationusecase.ActiveViewPage{Rows: rows, Cursor: cursor, Done: done}, nil
+}
+
 // GetLastVisibleMessages reads each returned row's newest visible channel message.
 func (s *ConversationStore) GetLastVisibleMessages(ctx context.Context, requests []conversationusecase.LastVisibleMessageRequest) (map[metadb.ConversationKey]conversationusecase.LastMessage, error) {
 	out := make(map[metadb.ConversationKey]conversationusecase.LastMessage, len(requests))

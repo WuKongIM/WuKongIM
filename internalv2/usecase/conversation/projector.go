@@ -43,13 +43,7 @@ func (p *Projector) HandleCommitted(ctx context.Context, event messageevents.Mes
 	if p == nil {
 		return nil
 	}
-	var states []metadb.UserConversationState
-	var err error
-	if event.ChannelType == conversationChannelTypePerson {
-		states, err = p.personalStates(event)
-	} else {
-		states, err = p.groupStates(ctx, event)
-	}
+	states, err := p.projectStates(ctx, event)
 	if err != nil || len(states) == 0 {
 		return err
 	}
@@ -57,6 +51,39 @@ func (p *Projector) HandleCommitted(ctx context.Context, event messageevents.Mes
 		return ErrStoreRequired
 	}
 	return p.store.UpsertUserConversationStatesBatch(ctx, states)
+}
+
+// ProjectActivePatches projects one durable commit into UID-owned active patches.
+func (p *Projector) ProjectActivePatches(ctx context.Context, event messageevents.MessageCommitted) ([]ActivePatch, error) {
+	states, err := p.projectStates(ctx, event)
+	if err != nil || len(states) == 0 {
+		return nil, err
+	}
+	patches := make([]ActivePatch, 0, len(states))
+	for _, state := range states {
+		patches = append(patches, ActivePatch{
+			UID:          state.UID,
+			ChannelID:    state.ChannelID,
+			ChannelType:  state.ChannelType,
+			ReadSeq:      state.ReadSeq,
+			DeletedToSeq: state.DeletedToSeq,
+			ActiveAt:     state.ActiveAt,
+			UpdatedAt:    state.UpdatedAt,
+			SparseActive: state.SparseActive,
+			MessageSeq:   event.MessageSeq,
+		})
+	}
+	return patches, nil
+}
+
+func (p *Projector) projectStates(ctx context.Context, event messageevents.MessageCommitted) ([]metadb.UserConversationState, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if event.ChannelType == conversationChannelTypePerson {
+		return p.personalStates(event)
+	}
+	return p.groupStates(ctx, event)
 }
 
 func (p *Projector) personalStates(event messageevents.MessageCommitted) ([]metadb.UserConversationState, error) {

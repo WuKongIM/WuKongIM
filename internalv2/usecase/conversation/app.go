@@ -21,9 +21,9 @@ var (
 	ErrProjectorConfig = errors.New("internalv2/usecase/conversation: projector config invalid")
 )
 
-// Store pages UID-owned conversation active rows.
+// Store pages authoritative UID-owned conversation active rows.
 type Store interface {
-	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
+	ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error)
 }
 
 // LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
@@ -69,14 +69,17 @@ func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
 		return ListResult{}, err
 	}
 	limit := normalizeListLimit(req.Limit)
-	rows, cursor, done, err := a.store.ListUserConversationActivePage(ctx, req.UID, req.Cursor.toMeta(), limit+1)
+	page, err := a.store.ListUserConversationActiveView(ctx, req.UID, req.Cursor.toMeta(), limit+1)
 	if err != nil {
 		return ListResult{}, err
 	}
-	hasMore := !done
+	rows := page.Rows
+	hasMore := !page.Done
+	nextCursor := page.Cursor
 	if len(rows) > limit {
 		hasMore = true
 		rows = rows[:limit]
+		nextCursor = cursorFromRow(rows[len(rows)-1])
 	}
 	lastMessages, err := a.messages.GetLastVisibleMessages(ctx, lastVisibleMessageRequests(rows))
 	if err != nil {
@@ -88,11 +91,7 @@ func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
 		HasMore: hasMore,
 	}
 	if hasMore {
-		if len(items) > 0 {
-			result.NextCursor = cursorFromConversation(items[len(items)-1])
-		} else {
-			result.NextCursor = cursorFromMeta(cursor)
-		}
+		result.NextCursor = cursorFromMeta(nextCursor)
 	}
 	return result, nil
 }
@@ -136,11 +135,11 @@ func cursorFromMeta(cursor metadb.UserConversationActiveCursor) Cursor {
 	}
 }
 
-func cursorFromConversation(item Conversation) Cursor {
-	return Cursor{
-		ActiveAt:    item.ActiveAt,
-		ChannelID:   item.ChannelID,
-		ChannelType: item.ChannelType,
+func cursorFromRow(row metadb.UserConversationState) metadb.UserConversationActiveCursor {
+	return metadb.UserConversationActiveCursor{
+		ActiveAt:    row.ActiveAt,
+		ChannelID:   row.ChannelID,
+		ChannelType: row.ChannelType,
 	}
 }
 
