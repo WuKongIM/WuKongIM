@@ -35,6 +35,36 @@ type ProcessRequest struct {
 	Recipients []Recipient
 }
 
+// RecipientPage is one bounded recipient scan page.
+type RecipientPage struct {
+	// Recipients are the durable recipients found in this page.
+	Recipients []Recipient
+	// Cursor is the opaque continuation token for the next page.
+	Cursor string
+	// Done reports whether the scan is complete after this page.
+	Done bool
+}
+
+// RecipientSource pages durable channel recipients for unscoped committed events.
+type RecipientSource interface {
+	NextPage(context.Context, messageevents.MessageCommitted, string, int) (RecipientPage, error)
+}
+
+// RecipientAuthorityResolver resolves a recipient UID to its fenced authority target.
+type RecipientAuthorityResolver interface {
+	ResolveRecipientAuthority(context.Context, string) (authority.Target, error)
+}
+
+// RecipientRemote forwards recipient-authority work to remote nodes.
+type RecipientRemote interface {
+	ProcessRemote(context.Context, ProcessRequest) error
+}
+
+// LocalProcessor processes recipient-authority work on the local node.
+type LocalProcessor interface {
+	Process(context.Context, ProcessRequest) error
+}
+
 // ConversationUpdater accepts recipient-scoped active conversation patches.
 type ConversationUpdater interface {
 	AdmitPatches(context.Context, []conversationusecase.ActivePatch) error
@@ -53,4 +83,22 @@ type ProcessorOptions struct {
 	Conversation ConversationUpdater
 	// Delivery submits delivery after conversation state is updated.
 	Delivery DeliverySubmitter
+}
+
+// DispatcherOptions configures committed-message recipient dispatch.
+type DispatcherOptions struct {
+	// LocalNodeID is this node's clusterv2 identity for target locality checks.
+	LocalNodeID uint64
+	// Recipients pages durable recipients when the committed event is not scoped.
+	Recipients RecipientSource
+	// Resolver maps each recipient UID to its current fenced authority target.
+	Resolver RecipientAuthorityResolver
+	// Local processes recipient-authority batches owned by this node.
+	Local LocalProcessor
+	// Remote forwards recipient-authority batches owned by other nodes.
+	Remote RecipientRemote
+	// PageSize bounds each durable recipient scan page.
+	PageSize int
+	// TargetBatchSize bounds each processor request for one authority target.
+	TargetBatchSize int
 }

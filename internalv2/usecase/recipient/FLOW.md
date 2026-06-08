@@ -3,6 +3,13 @@
 This package owns local recipient-authority post-commit processing. It is entry-agnostic: callers provide a fenced recipient authority target, one committed message event, and the recipient UIDs that belong to that target.
 
 ```text
+SubmitCommitted(event)
+  -> if MessageScopedUIDs: use them directly
+  -> else page RecipientSource with bounded page size
+  -> resolve each recipient UID to authority.Target
+  -> group by exact target and chunk by TargetBatchSize
+  -> local Processor for local targets; Remote for remote targets
+
 Process(target,event,recipients)
   -> validate target is local recipient UID authority
   -> filter non-empty recipient UIDs; stop when none remain
@@ -17,12 +24,14 @@ Responsibilities:
 
 - Reject work when the target is not local to this node.
 - Treat an empty effective recipient group as a no-op.
+- Page durable channel recipients progressively for unscoped committed events.
+- Route recipients by exact fenced authority target before processing.
 - Update recent conversation state before any delivery submission.
 - Scope delivery to the non-empty recipient UIDs from the request.
 
 Non-responsibilities:
 
-- It does not page subscribers.
-- It does not resolve authority routes.
-- It does not send RPC.
+- It does not load all subscribers into memory.
+- It does not perform retry or backoff.
+- It does not implement node RPC transport.
 - It does not mutate gateway sessions.
