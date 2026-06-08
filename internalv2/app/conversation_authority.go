@@ -16,7 +16,7 @@ type conversationAuthorityStore interface {
 	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
 	// GetUserConversationState returns the durable primary row used for delete-barrier checks.
 	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
-	// TouchUserConversationActiveAtBatch flushes authority-cache activity hints without blind upserts.
+	// TouchUserConversationActiveAtBatch atomically flushes activity hints and visibility floors.
 	TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error
 }
 
@@ -210,19 +210,16 @@ func (a *conversationAuthority) markWarming(target conversationusecase.RouteTarg
 }
 
 // AdmitPatches coalesces activity hints into the local authority cache.
-func (a *conversationAuthority) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
+func (a *conversationAuthority) AdmitPatches(ctx context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
 	if a == nil {
 		return nil
 	}
-	observePressure := false
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	a.mu.Lock()
-	defer func() {
-		a.mu.Unlock()
-		if observePressure {
-			a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
-		}
-	}()
 	if err := a.ensureTargetLocked(target); err != nil {
+		a.mu.Unlock()
 		return err
 	}
 	routeTarget := targetKey(target)
@@ -240,14 +237,16 @@ func (a *conversationAuthority) AdmitPatches(_ context.Context, target conversat
 		key := conversationAuthorityKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
 		existing, exists := rows[key]
 		if !exists && (len(rows) >= a.maxRowsByUID || stagedTotalRows >= a.maxRows) {
-			observePressure = true
-			return conversationusecase.ErrCachePressure
+			a.mu.Unlock()
+			a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
+			return a.persistActivePatches(ctx, patches)
 		}
 		if !exists {
 			stagedTotalRows++
 			if stagedTotalRows > a.maxRows {
-				observePressure = true
-				return conversationusecase.ErrCachePressure
+				a.mu.Unlock()
+				a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
+				return a.persistActivePatches(ctx, patches)
 			}
 		}
 		rows[key] = conversationAuthorityEntry{patch: mergeConversationActivePatch(existing.patch, patch), target: routeTarget}
@@ -256,6 +255,7 @@ func (a *conversationAuthority) AdmitPatches(_ context.Context, target conversat
 		a.byUID[uid] = rows
 	}
 	a.totalRows = stagedTotalRows
+	a.mu.Unlock()
 	return nil
 }
 
@@ -327,14 +327,36 @@ func (a *conversationAuthority) Flush(ctx context.Context) error {
 }
 
 func (a *conversationAuthority) flushEntriesToStore(ctx context.Context, entries []conversationAuthorityFlushEntry) error {
-	patches := make([]metadb.UserConversationActivePatch, 0, len(entries))
+	patches := make([]conversationusecase.ActivePatch, 0, len(entries))
 	for _, entry := range entries {
-		patches = append(patches, entry.patch.ToMetaPatch())
+		patches = append(patches, entry.patch)
 	}
-	if err := a.store.TouchUserConversationActiveAtBatch(ctx, patches); err != nil {
+	if err := a.persistActivePatches(ctx, patches); err != nil {
 		return err
 	}
 	a.clearFlushed(entries)
+	return nil
+}
+
+func (a *conversationAuthority) persistActivePatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
+	if a == nil || a.store == nil {
+		return conversationusecase.ErrRouteNotReady
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	activePatches := make([]metadb.UserConversationActivePatch, 0, len(patches))
+	for _, patch := range patches {
+		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 || patch.ActiveAt <= 0 {
+			continue
+		}
+		activePatches = append(activePatches, patch.ToMetaPatch())
+	}
+	if len(activePatches) > 0 {
+		if err := a.store.TouchUserConversationActiveAtBatch(ctx, activePatches); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

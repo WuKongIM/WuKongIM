@@ -151,6 +151,9 @@ const (
 	tagUserConversationActivePatchSparseActive     uint8 = 6
 	tagUserConversationActivePatchSparseActiveSet  uint8 = 7
 	tagUserConversationActivePatchHashSlot         uint8 = 8
+	tagUserConversationActivePatchReadSeq          uint8 = 9
+	tagUserConversationActivePatchDeletedToSeq     uint8 = 10
+	tagUserConversationActivePatchUpdatedAt        uint8 = 11
 
 	// Clear user conversation active command field tags.
 	tagClearUserConversationActiveUID uint8 = 1
@@ -1308,7 +1311,10 @@ func encodeUserConversationActivePatchEntry(patch metadb.UserConversationActiveP
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryUID, patch.UID)
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryChannelID, patch.ChannelID)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryChannelType, patch.ChannelType)
+	buf = appendUint64TLVField(buf, tagUserConversationActivePatchReadSeq, patch.ReadSeq)
+	buf = appendUint64TLVField(buf, tagUserConversationActivePatchDeletedToSeq, patch.DeletedToSeq)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryActiveAt, patch.ActiveAt)
+	buf = appendInt64TLVField(buf, tagUserConversationActivePatchUpdatedAt, patch.UpdatedAt)
 	buf = appendUint64TLVField(buf, tagUserConversationActivePatchEntryMessageSeq, patch.MessageSeq)
 	buf = appendBoolTLVField(buf, tagUserConversationActivePatchSparseActive, patch.SparseActive)
 	buf = appendBoolTLVField(buf, tagUserConversationActivePatchSparseActiveSet, patch.SparseActiveSet)
@@ -1642,12 +1648,27 @@ func decodeUserConversationActivePatchEntry(data []byte) (userConversationActive
 			}
 			patch.ChannelType = int64(binary.BigEndian.Uint64(value))
 			haveChannelType = true
+		case tagUserConversationActivePatchReadSeq:
+			if len(value) != 8 {
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation ReadSeq length", metadb.ErrCorruptValue)
+			}
+			patch.ReadSeq = binary.BigEndian.Uint64(value)
+		case tagUserConversationActivePatchDeletedToSeq:
+			if len(value) != 8 {
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation DeletedToSeq length", metadb.ErrCorruptValue)
+			}
+			patch.DeletedToSeq = binary.BigEndian.Uint64(value)
 		case tagUserConversationActivePatchEntryActiveAt:
 			if len(value) != 8 {
 				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation ActiveAt length", metadb.ErrCorruptValue)
 			}
 			patch.ActiveAt = int64(binary.BigEndian.Uint64(value))
 			haveActiveAt = true
+		case tagUserConversationActivePatchUpdatedAt:
+			if len(value) != 8 {
+				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			patch.UpdatedAt = int64(binary.BigEndian.Uint64(value))
 		case tagUserConversationActivePatchEntryMessageSeq:
 			if len(value) != 8 {
 				return userConversationActivePatchEntry{}, fmt.Errorf("%w: bad conversation MessageSeq length", metadb.ErrCorruptValue)

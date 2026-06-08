@@ -104,6 +104,9 @@ The RPC boundary is deliberately narrow:
 - Drain asks an authority node to flush and retire one exact `RouteTarget`
   during handoff. Handoff ordering and cache state transitions stay in the app
   authority runtime.
+- The client chunks Admit patch collections at the codec collection limit before
+  calling clusterv2 RPC. Raw transport errors are returned to the infra/cluster
+  route adapter; this package does not decide whether they should retry.
 
 ## Codec Rules
 
@@ -129,7 +132,8 @@ Conversation authority RPC uses fixed magic headers:
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
-unknown operations, malformed varints, truncated payloads, and trailing bytes.
+unknown operations, malformed varints, oversized collections, truncated
+payloads, and trailing bytes.
 The codec is an internalv2 node-to-node contract and does not provide
 mixed-version rolling-upgrade compatibility yet; incompatible payload layout
 changes must bump the magic version when that compatibility is required.

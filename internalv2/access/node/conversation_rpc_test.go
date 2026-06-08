@@ -114,6 +114,36 @@ func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing
 	}
 }
 
+func TestConversationAuthorityClientChunksOversizedAdmitPayloads(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	patches := make([]conversationusecase.ActivePatch, maxConversationAuthorityCollectionLen+1)
+	for i := range patches {
+		patches[i] = conversationusecase.ActivePatch{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: int64(i + 1), MessageSeq: uint64(i + 1),
+		}
+	}
+	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusOK}}
+	client := NewClient(node)
+
+	if err := client.AdmitConversationPatches(context.Background(), 13, target, patches); err != nil {
+		t.Fatalf("AdmitConversationPatches() error = %v", err)
+	}
+	if len(node.payloads) != 2 {
+		t.Fatalf("rpc payload count = %d, want two chunks", len(node.payloads))
+	}
+	first, err := decodeConversationAuthorityRequest(node.payloads[0])
+	if err != nil {
+		t.Fatalf("decode first chunk: %v", err)
+	}
+	second, err := decodeConversationAuthorityRequest(node.payloads[1])
+	if err != nil {
+		t.Fatalf("decode second chunk: %v", err)
+	}
+	if len(first.Patches) != maxConversationAuthorityCollectionLen || len(second.Patches) != 1 {
+		t.Fatalf("chunk sizes = %d/%d, want %d/1", len(first.Patches), len(second.Patches), maxConversationAuthorityCollectionLen)
+	}
+}
+
 func TestConversationAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
 	calls := []struct {
@@ -227,12 +257,14 @@ type fakeConversationRPCNode struct {
 	nodeID    uint64
 	serviceID uint8
 	payload   []byte
+	payloads  [][]byte
 }
 
 func (f *fakeConversationRPCNode) CallRPC(_ context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.nodeID = nodeID
 	f.serviceID = serviceID
 	f.payload = append([]byte(nil), payload...)
+	f.payloads = append(f.payloads, append([]byte(nil), payload...))
 	if f.err != nil {
 		return nil, f.err
 	}

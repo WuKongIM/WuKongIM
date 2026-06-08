@@ -45,11 +45,31 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 
 // AdmitConversationPatches forwards active conversation patches to nodeID.
 func (c *Client) AdmitConversationPatches(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
-	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Patches: patches})
-	if err != nil {
-		return err
+	if len(patches) <= maxConversationAuthorityCollectionLen {
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Patches: patches})
+		if err != nil {
+			return err
+		}
+		return conversationRPCErrorForStatus(resp.Status)
 	}
-	return conversationRPCErrorForStatus(resp.Status)
+	for start := 0; start < len(patches); start += maxConversationAuthorityCollectionLen {
+		end := start + maxConversationAuthorityCollectionLen
+		if end > len(patches) {
+			end = len(patches)
+		}
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{
+			Op:      conversationOpAdmitPatches,
+			Target:  target,
+			Patches: patches[start:end],
+		})
+		if err != nil {
+			return err
+		}
+		if err := conversationRPCErrorForStatus(resp.Status); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListConversations reads the target-owned active conversation page from nodeID.

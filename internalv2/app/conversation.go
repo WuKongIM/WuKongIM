@@ -677,6 +677,15 @@ type conversationAuthorityCommittedOptions struct {
 	AuthorityObserver conversationAuthorityObserver
 }
 
+type conversationAuthorityPendingKey struct {
+	// uid owns the pending active patch.
+	uid string
+	// channelID identifies the pending conversation row.
+	channelID string
+	// channelType identifies the pending conversation namespace.
+	channelType int64
+}
+
 type conversationAuthorityCommittedSink struct {
 	projector         conversationPatchProjector
 	authority         conversationPatchAuthority
@@ -697,6 +706,8 @@ type conversationAuthorityCommittedSink struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	latest map[uint16]conversationusecase.RouteTarget
+	// pending keeps patches that were derived after a durable append but not admitted yet.
+	pending map[conversationAuthorityPendingKey]conversationusecase.ActivePatch
 }
 
 func newConversationAuthorityCommittedSink(opts conversationAuthorityCommittedOptions) *conversationAuthorityCommittedSink {
@@ -731,6 +742,7 @@ func newConversationAuthorityCommittedSink(opts conversationAuthorityCommittedOp
 		observer:          opts.Observer,
 		authorityObserver: opts.AuthorityObserver,
 		latest:            make(map[uint16]conversationusecase.RouteTarget),
+		pending:           make(map[conversationAuthorityPendingKey]conversationusecase.ActivePatch),
 	}
 }
 
@@ -802,28 +814,55 @@ func (s *conversationAuthorityCommittedSink) Submit(ctx context.Context, event m
 		s.observeAuthorityAdmit(conversationAuthorityResultIgnored)
 		return nil
 	}
-	if err := s.admitBatches(admissionCtx, patches); err != nil {
+	attempt := s.pendingSnapshotWith(patches)
+	if err := s.admitBatches(admissionCtx, attempt); err != nil {
+		s.rememberPending(attempt)
 		s.observeSubmit(conversationProjectorResultError)
 		s.observeAuthorityAdmit(conversationAuthorityResultFromError(err, conversationAuthorityResultError))
 		return err
 	}
+	s.clearPending(attempt)
 	s.observeSubmit(conversationProjectorResultAccepted)
 	s.observeAuthorityAdmit(conversationAuthorityResultOK)
 	return nil
 }
 
 func (s *conversationAuthorityCommittedSink) Flush(ctx context.Context) error {
-	if s == nil || s.flusher == nil {
+	if s == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	startedAt := time.Now()
-	err := s.flusher.Flush(ctx)
+	err := s.retryPending(ctx)
+	if s.flusher != nil {
+		if flushErr := s.flusher.Flush(ctx); err == nil {
+			err = flushErr
+		}
+	}
 	result := conversationProjectorResultOK
 	if err != nil {
 		result = conversationProjectorResultError
 	}
 	s.observeFlush(conversationProjectorFlushEvent{Result: result, Duration: time.Since(startedAt)})
 	return err
+}
+
+func (s *conversationAuthorityCommittedSink) retryPending(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	attempt := s.pendingSnapshotWith(nil)
+	if len(attempt) == 0 {
+		return nil
+	}
+	if err := s.admitBatches(ctx, attempt); err != nil {
+		s.rememberPending(attempt)
+		return err
+	}
+	s.clearPending(attempt)
+	return nil
 }
 
 func (s *conversationAuthorityCommittedSink) admitBatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
@@ -895,6 +934,91 @@ func (s *conversationAuthorityCommittedSink) admitBatch(ctx context.Context, pat
 	rpcCtx, cancel := context.WithTimeout(ctx, s.rpcTimeout)
 	defer cancel()
 	return s.authority.AdmitPatches(rpcCtx, patches)
+}
+
+func (s *conversationAuthorityCommittedSink) pendingSnapshotWith(patches []conversationusecase.ActivePatch) []conversationusecase.ActivePatch {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	merged := make(map[conversationAuthorityPendingKey]conversationusecase.ActivePatch, len(s.pending)+len(patches))
+	for key, patch := range s.pending {
+		merged[key] = patch
+	}
+	for _, patch := range patches {
+		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
+			continue
+		}
+		key := pendingConversationPatchKey(patch)
+		merged[key] = mergeConversationActivePatch(merged[key], patch)
+	}
+	return sortedPendingConversationPatches(merged)
+}
+
+func (s *conversationAuthorityCommittedSink) rememberPending(patches []conversationusecase.ActivePatch) {
+	if s == nil || len(patches) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		s.pending = make(map[conversationAuthorityPendingKey]conversationusecase.ActivePatch)
+	}
+	for _, patch := range patches {
+		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
+			continue
+		}
+		key := pendingConversationPatchKey(patch)
+		s.pending[key] = mergeConversationActivePatch(s.pending[key], patch)
+	}
+}
+
+func (s *conversationAuthorityCommittedSink) clearPending(patches []conversationusecase.ActivePatch) {
+	if s == nil || len(patches) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, patch := range patches {
+		key := pendingConversationPatchKey(patch)
+		current, ok := s.pending[key]
+		if ok && conversationActivePatchDominates(patch, current) {
+			delete(s.pending, key)
+		}
+	}
+}
+
+func pendingConversationPatchKey(patch conversationusecase.ActivePatch) conversationAuthorityPendingKey {
+	return conversationAuthorityPendingKey{uid: patch.UID, channelID: patch.ChannelID, channelType: patch.ChannelType}
+}
+
+func sortedPendingConversationPatches(patches map[conversationAuthorityPendingKey]conversationusecase.ActivePatch) []conversationusecase.ActivePatch {
+	if len(patches) == 0 {
+		return nil
+	}
+	keys := make([]conversationAuthorityPendingKey, 0, len(patches))
+	for key := range patches {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].uid != keys[j].uid {
+			return keys[i].uid < keys[j].uid
+		}
+		if keys[i].channelID != keys[j].channelID {
+			return keys[i].channelID < keys[j].channelID
+		}
+		return keys[i].channelType < keys[j].channelType
+	})
+	out := make([]conversationusecase.ActivePatch, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, patches[key])
+	}
+	return out
+}
+
+func conversationActivePatchDominates(admitted, current conversationusecase.ActivePatch) bool {
+	if current.UID == "" {
+		return true
+	}
+	return mergeConversationActivePatch(current, admitted) == admitted
 }
 
 func conversationActivePatchBatches(patches []conversationusecase.ActivePatch, batchRows int) [][]conversationusecase.ActivePatch {

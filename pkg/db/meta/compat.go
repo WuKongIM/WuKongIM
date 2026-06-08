@@ -1153,10 +1153,15 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 			if !exists {
 				current = UserConversationState{UID: p.UID, ChannelID: p.ChannelID, ChannelType: p.ChannelType}
 			}
-			activeBlocked := p.MessageSeq > 0 && p.MessageSeq <= current.DeletedToSeq
+			deleteBarrier := current.DeletedToSeq
+			if p.DeletedToSeq > deleteBarrier {
+				deleteBarrier = p.DeletedToSeq
+			}
+			activeBlocked := p.MessageSeq > 0 && p.MessageSeq <= deleteBarrier
 			activeChanged := !activeBlocked && p.ActiveAt > current.ActiveAt
 			sparseChanged := p.SparseActiveSet && p.SparseActive != current.SparseActive
-			if !activeChanged && !sparseChanged {
+			floorsChanged := p.ReadSeq > current.ReadSeq || p.DeletedToSeq > current.DeletedToSeq || p.UpdatedAt > current.UpdatedAt
+			if !activeChanged && !sparseChanged && !floorsChanged {
 				return nil
 			}
 			next := current
@@ -1165,6 +1170,15 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 			}
 			if p.SparseActiveSet {
 				next.SparseActive = p.SparseActive
+			}
+			if p.ReadSeq > next.ReadSeq {
+				next.ReadSeq = p.ReadSeq
+			}
+			if p.DeletedToSeq > next.DeletedToSeq {
+				next.DeletedToSeq = p.DeletedToSeq
+			}
+			if p.UpdatedAt > next.UpdatedAt {
+				next.UpdatedAt = p.UpdatedAt
 			}
 			return shard.stageUserConversationStateWithOverlay(st, batch, key, current, exists, next)
 		})

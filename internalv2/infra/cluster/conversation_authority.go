@@ -283,19 +283,21 @@ func (a remoteConversationAuthority) AdmitPatches(ctx context.Context, target co
 	if a.client == nil || a.nodeID == 0 {
 		return conversationusecase.ErrRouteNotReady
 	}
-	return a.client.AdmitConversationPatches(ctx, a.nodeID, target, patches)
+	return mapConversationRouteError(a.client.AdmitConversationPatches(ctx, a.nodeID, target, patches))
 }
 
 func (a remoteConversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	if a.client == nil || a.nodeID == 0 {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
-	return a.client.ListConversations(ctx, a.nodeID, target, uid, after, limit)
+	page, err := a.client.ListConversations(ctx, a.nodeID, target, uid, after, limit)
+	return page, mapConversationRouteError(err)
 }
 
 func (a remoteConversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (string, error) {
 	if a.client == nil || a.nodeID == 0 {
 		return "", conversationusecase.ErrRouteNotReady
 	}
-	return a.client.DrainConversationAuthority(ctx, a.nodeID, target)
+	result, err := a.client.DrainConversationAuthority(ctx, a.nodeID, target)
+	return result, mapConversationRouteError(err)
 }

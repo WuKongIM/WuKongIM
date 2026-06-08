@@ -126,8 +126,14 @@ type UserConversationActivePatch struct {
 	ChannelID string
 	// ChannelType identifies the channel namespace.
 	ChannelType int64
+	// ReadSeq is a monotonic read floor merged with the durable row.
+	ReadSeq uint64
+	// DeletedToSeq is a monotonic visibility floor merged with the durable row.
+	DeletedToSeq uint64
 	// ActiveAt is the candidate activity timestamp.
 	ActiveAt int64
+	// UpdatedAt records the latest projection update timestamp.
+	UpdatedAt int64
 	// MessageSeq fences stale activity hints after a user delete barrier.
 	MessageSeq uint64
 	// SparseActive is the requested sparse-active mode when SparseActiveSet is true.
@@ -214,10 +220,15 @@ func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserCon
 	if !exists {
 		current = UserConversationState{UID: patch.UID, ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
 	}
-	activeBlocked := patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq
+	deleteBarrier := current.DeletedToSeq
+	if patch.DeletedToSeq > deleteBarrier {
+		deleteBarrier = patch.DeletedToSeq
+	}
+	activeBlocked := patch.MessageSeq > 0 && patch.MessageSeq <= deleteBarrier
 	activeChanged := !activeBlocked && patch.ActiveAt > current.ActiveAt
 	sparseChanged := patch.SparseActiveSet && patch.SparseActive != current.SparseActive
-	if !activeChanged && !sparseChanged {
+	floorsChanged := patch.ReadSeq > current.ReadSeq || patch.DeletedToSeq > current.DeletedToSeq || patch.UpdatedAt > current.UpdatedAt
+	if !activeChanged && !sparseChanged && !floorsChanged {
 		return nil
 	}
 	next := current
@@ -226,6 +237,15 @@ func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserCon
 	}
 	if patch.SparseActiveSet {
 		next.SparseActive = patch.SparseActive
+	}
+	if patch.ReadSeq > next.ReadSeq {
+		next.ReadSeq = patch.ReadSeq
+	}
+	if patch.DeletedToSeq > next.DeletedToSeq {
+		next.DeletedToSeq = patch.DeletedToSeq
+	}
+	if patch.UpdatedAt > next.UpdatedAt {
+		next.UpdatedAt = patch.UpdatedAt
 	}
 
 	batch := s.db.engine.NewBatch()

@@ -143,7 +143,7 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6, SparseActive: true,
 		}},
 		Patches: []metadb.UserConversationActivePatch{{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 7, MessageSeq: 8, SparseActive: true, SparseActiveSet: true,
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 6, DeletedToSeq: 7, ActiveAt: 8, UpdatedAt: 9, MessageSeq: 10, SparseActive: true, SparseActiveSet: true,
 		}},
 		Keys: []metadb.ConversationKey{{ChannelID: "g1", ChannelType: 2}},
 		Deletes: []metadb.UserConversationDelete{{
@@ -160,7 +160,7 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	reqBody, err := encodeUserConversationStateRPCRequestBinary(req)
 	require.NoError(t, err)
 	require.True(t, isUserConversationStateRPCRequestBinary(reqBody))
-	require.True(t, runtimeMetaHasMagic(reqBody, []byte{'W', 'K', 'C', 'Q', 2}))
+	require.True(t, runtimeMetaHasMagic(reqBody, []byte{'W', 'K', 'C', 'Q', 3}))
 
 	gotReq, err := decodeUserConversationStateRPCRequest(reqBody)
 	require.NoError(t, err)

@@ -129,7 +129,8 @@ UID-owned conversation rows are the active recent-conversation path.
 route each row by `RouteKey(uid)`, group rows by physical Slot, and submit
 bounded Slot FSM commands that carry each row's real UID hash slot. The Slot FSM
 then applies each conversation state or active patch to that UID-owned hash
-slot, preserving `SparseActive` and the active ordering anchor. Reads such as
+slot, preserving `SparseActive`, read/delete visibility floors, and the active
+ordering anchor in one metadata mutation. Reads such as
 `ListUserConversationActivePage` route by UID and scan the local conversation
 active index for that UID hash slot with the `(active_at, channel_id,
 channel_type)` cursor. Legacy `channel_latest` remains a channel-owned

@@ -940,6 +940,62 @@ func TestConversationAuthorityCommittedSinkObservesAuthorityAdmitResults(t *test
 	}
 }
 
+func TestConversationAuthorityCommittedSinkRetriesPendingPatchesOnFlush(t *testing.T) {
+	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}
+	authority := &recordingConversationPatchAuthority{errs: []error{conversationusecase.ErrRouteNotReady, nil}}
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:        staticConversationPatchProjector{patches: []conversationusecase.ActivePatch{patch}},
+		Authority:        authority,
+		AdmissionTimeout: time.Second,
+		RPCTimeout:       time.Second,
+	})
+
+	err := sink.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
+	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
+		t.Fatalf("Submit() error = %v, want ErrRouteNotReady", err)
+	}
+	if len(authority.batches) != 1 {
+		t.Fatalf("authority batches after Submit = %#v, want one failed foreground batch", authority.batches)
+	}
+
+	if err := sink.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if len(authority.batches) != 2 || len(authority.batches[1]) != 1 || authority.batches[1][0] != patch {
+		t.Fatalf("authority batches after Flush = %#v, want pending patch retried", authority.batches)
+	}
+}
+
+func TestConversationAuthorityCommittedSinkClearsDominatedMergedPending(t *testing.T) {
+	projector := &mutableConversationPatchProjector{
+		patches: []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}},
+	}
+	authority := &recordingConversationPatchAuthority{errs: []error{conversationusecase.ErrRouteNotReady, nil}}
+	sink := newConversationAuthorityCommittedSink(conversationAuthorityCommittedOptions{
+		Projector:        projector,
+		Authority:        authority,
+		AdmissionTimeout: time.Second,
+		RPCTimeout:       time.Second,
+	})
+	if err := sink.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); !errors.Is(err, conversationusecase.ErrRouteNotReady) {
+		t.Fatalf("Submit(first) error = %v, want ErrRouteNotReady", err)
+	}
+
+	projector.patches = []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 10, SparseActive: true}}
+	if err := sink.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit(second) error = %v", err)
+	}
+	if len(authority.batches) != 2 || len(authority.batches[1]) != 1 || authority.batches[1][0].ActiveAt != 200 {
+		t.Fatalf("authority batches after second submit = %#v, want merged newer patch", authority.batches)
+	}
+	if err := sink.Flush(context.Background()); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if len(authority.batches) != 2 {
+		t.Fatalf("authority batches after Flush = %#v, want no stale pending retry", authority.batches)
+	}
+}
+
 func TestConversationAuthorityCommittedSinkSubmitTimeoutReturnsErrorAndKeepsPayload(t *testing.T) {
 	observer := &recordingConversationAuthorityObserver{}
 	authority := &recordingConversationPatchAuthority{}
@@ -3203,12 +3259,18 @@ type recordingConversationPatchAuthority struct {
 	mu      sync.Mutex
 	batches [][]conversationusecase.ActivePatch
 	err     error
+	errs    []error
 }
 
 func (a *recordingConversationPatchAuthority) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.batches = append(a.batches, append([]conversationusecase.ActivePatch(nil), patches...))
+	if len(a.errs) > 0 {
+		err := a.errs[0]
+		a.errs = a.errs[1:]
+		return err
+	}
 	return a.err
 }
 
@@ -3221,6 +3283,14 @@ func (p staticConversationPatchProjector) ProjectActivePatches(context.Context, 
 	if p.err != nil {
 		return nil, p.err
 	}
+	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
+}
+
+type mutableConversationPatchProjector struct {
+	patches []conversationusecase.ActivePatch
+}
+
+func (p *mutableConversationPatchProjector) ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
 	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
 }
 
@@ -3281,13 +3351,41 @@ func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBa
 		row.UID = patch.UID
 		row.ChannelID = patch.ChannelID
 		row.ChannelType = patch.ChannelType
+		if patch.ReadSeq > row.ReadSeq {
+			row.ReadSeq = patch.ReadSeq
+		}
+		if patch.DeletedToSeq > row.DeletedToSeq {
+			row.DeletedToSeq = patch.DeletedToSeq
+		}
 		if patch.ActiveAt > row.ActiveAt {
 			row.ActiveAt = patch.ActiveAt
+		}
+		if patch.UpdatedAt > row.UpdatedAt {
+			row.UpdatedAt = patch.UpdatedAt
 		}
 		if patch.SparseActiveSet {
 			row.SparseActive = patch.SparseActive
 		}
 		s.rows[key] = row
+	}
+	return nil
+}
+
+func (s *appRecordingConversationAuthorityStore) UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.rows == nil {
+		s.rows = make(map[metadb.ConversationKey]metadb.UserConversationState)
+	}
+	for _, state := range states {
+		key := metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
+		if existing, ok := s.rows[key]; ok && existing.UID == state.UID {
+			state = mergeConversationState(existing, state)
+		}
+		s.rows[key] = state
 	}
 	return nil
 }

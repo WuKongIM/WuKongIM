@@ -3354,6 +3354,46 @@ func TestApplyBatchTouchUserConversationActiveAtSetsSparseActive(t *testing.T) {
 	}
 }
 
+func TestApplyBatchTouchUserConversationActiveAtPersistsFloors(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForHashSlot(11)
+	bsm, ok := mustNewStateMachine(t, db, 11).(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
+	}
+
+	results, err := bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID:   11,
+		HashSlot: 11,
+		Index:    1,
+		Term:     1,
+		Data: EncodeTouchUserConversationActiveAtCommand([]metadb.UserConversationActivePatch{{
+			UID:          "u1",
+			ChannelID:    "g-floor",
+			ChannelType:  2,
+			ReadSeq:      8,
+			DeletedToSeq: 8,
+			ActiveAt:     300,
+			UpdatedAt:    301,
+			MessageSeq:   9,
+		}}),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch() error = %v", err)
+	}
+	if len(results) != 1 || string(results[0]) != ApplyResultOK {
+		t.Fatalf("ApplyBatch() results = %q", results)
+	}
+	got, err := shard.GetUserConversationState(ctx, "u1", "g-floor", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState() error = %v", err)
+	}
+	if got.ReadSeq != 8 || got.DeletedToSeq != 8 || got.ActiveAt != 300 || got.UpdatedAt != 301 {
+		t.Fatalf("state = %+v, want active patch floors persisted", got)
+	}
+}
+
 func TestApplyBatchUserConversationStateBatchAppliesPerRowHashSlot(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

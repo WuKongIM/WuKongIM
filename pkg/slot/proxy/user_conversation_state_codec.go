@@ -8,7 +8,8 @@ import (
 
 var (
 	userConversationStateRPCRequestMagicV1  = [...]byte{'W', 'K', 'C', 'Q', 1}
-	userConversationStateRPCRequestMagic    = [...]byte{'W', 'K', 'C', 'Q', 2}
+	userConversationStateRPCRequestMagicV2  = [...]byte{'W', 'K', 'C', 'Q', 2}
+	userConversationStateRPCRequestMagic    = [...]byte{'W', 'K', 'C', 'Q', 3}
 	userConversationStateRPCResponseMagicV1 = [...]byte{'W', 'K', 'C', 'S', 1}
 	userConversationStateRPCResponseMagic   = [...]byte{'W', 'K', 'C', 'S', 2}
 )
@@ -57,6 +58,7 @@ func decodeUserConversationStateRPCRequest(body []byte) (userConversationStateRP
 	}
 	offset := len(userConversationStateRPCRequestMagic)
 	includeSparse := version >= 2
+	includePatchFloors := version >= 3
 	if offset >= len(body) {
 		return userConversationStateRPCRequest{}, fmt.Errorf("metastore: short user conversation state op")
 	}
@@ -97,7 +99,7 @@ func decodeUserConversationStateRPCRequest(body []byte) (userConversationStateRP
 	if req.States, offset, err = readUserConversationStatesWithOptions(body, offset, includeSparse); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
-	if req.Patches, offset, err = readUserConversationActivePatchesWithOptions(body, offset, includeSparse); err != nil {
+	if req.Patches, offset, err = readUserConversationActivePatchesWithOptions(body, offset, includeSparse, includePatchFloors); err != nil {
 		return userConversationStateRPCRequest{}, err
 	}
 	if req.Keys, offset, err = runtimeMetaReadConversationKeys(body, offset); err != nil {
@@ -176,6 +178,9 @@ func isUserConversationStateRPCResponseBinary(body []byte) bool {
 func userConversationStateRPCRequestVersion(body []byte) (byte, bool) {
 	if runtimeMetaHasMagic(body, userConversationStateRPCRequestMagic[:]) {
 		return userConversationStateRPCRequestMagic[len(userConversationStateRPCRequestMagic)-1], true
+	}
+	if runtimeMetaHasMagic(body, userConversationStateRPCRequestMagicV2[:]) {
+		return userConversationStateRPCRequestMagicV2[len(userConversationStateRPCRequestMagicV2)-1], true
 	}
 	if runtimeMetaHasMagic(body, userConversationStateRPCRequestMagicV1[:]) {
 		return userConversationStateRPCRequestMagicV1[len(userConversationStateRPCRequestMagicV1)-1], true
@@ -390,7 +395,10 @@ func appendUserConversationActivePatches(dst []byte, patches []metadb.UserConver
 		dst = runtimeMetaAppendString(dst, patch.UID)
 		dst = runtimeMetaAppendString(dst, patch.ChannelID)
 		dst = runtimeMetaAppendVarint(dst, patch.ChannelType)
+		dst = runtimeMetaAppendUvarint(dst, patch.ReadSeq)
+		dst = runtimeMetaAppendUvarint(dst, patch.DeletedToSeq)
 		dst = runtimeMetaAppendVarint(dst, patch.ActiveAt)
+		dst = runtimeMetaAppendVarint(dst, patch.UpdatedAt)
 		dst = runtimeMetaAppendUvarint(dst, patch.MessageSeq)
 		dst = runtimeMetaAppendBool(dst, patch.SparseActive)
 		dst = runtimeMetaAppendBool(dst, patch.SparseActiveSet)
@@ -399,10 +407,10 @@ func appendUserConversationActivePatches(dst []byte, patches []metadb.UserConver
 }
 
 func readUserConversationActivePatches(body []byte, offset int) ([]metadb.UserConversationActivePatch, int, error) {
-	return readUserConversationActivePatchesWithOptions(body, offset, true)
+	return readUserConversationActivePatchesWithOptions(body, offset, true, true)
 }
 
-func readUserConversationActivePatchesWithOptions(body []byte, offset int, includeSparse bool) ([]metadb.UserConversationActivePatch, int, error) {
+func readUserConversationActivePatchesWithOptions(body []byte, offset int, includeSparse, includePatchFloors bool) ([]metadb.UserConversationActivePatch, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -423,8 +431,21 @@ func readUserConversationActivePatchesWithOptions(body []byte, offset int, inclu
 		if patches[i].ChannelType, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 			return nil, offset, err
 		}
+		if includePatchFloors {
+			if patches[i].ReadSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+				return nil, offset, err
+			}
+			if patches[i].DeletedToSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+				return nil, offset, err
+			}
+		}
 		if patches[i].ActiveAt, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 			return nil, offset, err
+		}
+		if includePatchFloors {
+			if patches[i].UpdatedAt, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+				return nil, offset, err
+			}
 		}
 		if patches[i].MessageSeq, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 			return nil, offset, err

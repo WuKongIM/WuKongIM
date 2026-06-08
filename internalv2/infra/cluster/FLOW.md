@@ -110,17 +110,21 @@ one bounded subscriber page with
 `ListChannelSubscribersPage`; a complete page is treated as small-channel dense
 fanout input only when it contains at least one member, while an empty or
 truncated page tells the usecase to write sparse sender state instead.
+Authority-cache flushes also use `TouchUserConversationActiveAtBatch`; those
+patches carry read/delete visibility floors so active timestamp advancement and
+floor merge happen in one UID-owned Slot metadata mutation.
 
 `ConversationAuthorityClient` routes UID-owned active cache calls to the
 current authority leader and leaves cache/list business rules inside the local
 authority implementation. Admission resolves each patch UID with
 `RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each group to
 the local authority when the target leader is this node or through
-access/node Conversation Authority RPC when the leader is remote. List resolves
-the requested UID once per retry attempt and reads the active view from that
-authority target; the active-view response is not satisfied by a local DB-only
-fallback when the UID authority is remote. Drain uses the caller-supplied exact
-target for authority handoff.
+access/node Conversation Authority RPC when the leader is remote. The remote
+RPC client chunks large patch groups at the codec collection limit before
+sending them. List resolves the requested UID once per retry attempt and reads
+the active view from that authority target; the active-view response is not
+satisfied by a local DB-only fallback when the UID authority is remote. Drain
+uses the caller-supplied exact target for authority handoff.
 
 ```text
 ConversationAuthorityClient
@@ -140,7 +144,8 @@ ConversationAuthorityClient
 
 Route-not-ready, stale-route, and not-leader results are retried with a short
 bounded backoff so authority movement can settle without changing conversation
-usecase semantics.
+usecase semantics. Raw clusterv2 route errors returned by remote RPC calls are
+mapped to the same conversation route sentinels before the retry decision.
 
 ## User Metadata Flow
 

@@ -479,6 +479,80 @@ func TestUserConversationTouchCanSetSparseActiveWithoutRegressingActiveAt(t *tes
 	}
 }
 
+func TestUserConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(3)
+	ctx := context.Background()
+
+	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:             "u1",
+		ChannelID:       "g-floor",
+		ChannelType:     2,
+		ReadSeq:         8,
+		DeletedToSeq:    8,
+		ActiveAt:        300,
+		UpdatedAt:       301,
+		MessageSeq:      9,
+		SparseActive:    true,
+		SparseActiveSet: true,
+	}); err != nil {
+		t.Fatalf("TouchUserConversationActiveAt(floor): %v", err)
+	}
+	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g-floor", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetUserConversationState(floor) ok=%v err=%v, want ok", ok, err)
+	}
+	if got.ReadSeq != 8 || got.DeletedToSeq != 8 || got.ActiveAt != 300 || got.UpdatedAt != 301 || !got.SparseActive {
+		t.Fatalf("floor patch state = %+v, want floors, active_at, updated_at, and sparse active", got)
+	}
+
+	if err := shard.UpsertUserConversationState(ctx, UserConversationState{
+		UID: "u1", ChannelID: "g-hidden", ChannelType: 2, DeletedToSeq: 10,
+	}); err != nil {
+		t.Fatalf("UpsertUserConversationState(hidden): %v", err)
+	}
+	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:          "u1",
+		ChannelID:    "g-hidden",
+		ChannelType:  2,
+		ReadSeq:      12,
+		DeletedToSeq: 12,
+		ActiveAt:     500,
+		UpdatedAt:    501,
+		MessageSeq:   9,
+	}); err != nil {
+		t.Fatalf("TouchUserConversationActiveAt(hidden floor): %v", err)
+	}
+	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g-hidden", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetUserConversationState(hidden) ok=%v err=%v, want ok", ok, err)
+	}
+	if got.ActiveAt != 0 || got.ReadSeq != 12 || got.DeletedToSeq != 12 || got.UpdatedAt != 501 {
+		t.Fatalf("hidden floor state = %+v, want active blocked and floors advanced", got)
+	}
+
+	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:          "u1",
+		ChannelID:    "g-self-hidden",
+		ChannelType:  2,
+		ReadSeq:      10,
+		DeletedToSeq: 10,
+		ActiveAt:     600,
+		UpdatedAt:    601,
+		MessageSeq:   9,
+	}); err != nil {
+		t.Fatalf("TouchUserConversationActiveAt(self hidden floor): %v", err)
+	}
+	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g-self-hidden", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetUserConversationState(self hidden) ok=%v err=%v, want ok", ok, err)
+	}
+	if got.ActiveAt != 0 || got.ReadSeq != 10 || got.DeletedToSeq != 10 || got.UpdatedAt != 601 {
+		t.Fatalf("self hidden floor state = %+v, want patch floor to block active", got)
+	}
+}
+
 func TestShardStoreListsUserConversationActivePage(t *testing.T) {
 	db, err := Open(t.TempDir())
 	if err != nil {

@@ -214,10 +214,17 @@ only a sparse sender patch. The sink sends those patches through the shared
 cluster still resolves through the route target and lands on the local
 authority cache. `Config.Conversation.AuthorityAdmissionTimeout`,
 `AuthorityRPCTimeout`, `AuthorityRPCBatchRows`, and `AuthorityRPCConcurrency`
-bound foreground admission work. The local authority cache coalesces unflushed
-patches, serves list reads by merging cache rows with DB active rows, and
-flushes active-touch patches on explicit Flush/Stop. This path is independent
-of delivery fanout and is wired even when `Delivery.Enabled=false`.
+bound foreground admission work. The committed sink keeps derived patches that
+fail foreground authority admission and retries them on the next submit,
+Flush, or Stop, so committed message projection is not lost when route movement
+or RPC timeouts interrupt admission. The local authority cache coalesces
+unflushed patches, serves list reads by merging cache rows with DB active rows,
+and writes durable active patches that atomically carry read/delete floors on
+explicit Flush/Stop.
+When local cache pressure prevents admitting a new row, the authority persists
+the projected rows directly through the UID-owned durable conversation table
+instead of returning cache pressure to the caller. This path is independent of
+delivery fanout and is wired even when `Delivery.Enabled=false`.
 
 Conversation admission with authority enabled:
 
@@ -230,7 +237,11 @@ MessageCommitted
        conversationAuthority.AdmitPatches coalesces rows into the local cache
   -> remote target:
        access/node Conversation Authority Admit RPC admits rows on the authority node
-  -> later Flush/DrainAuthority/Stop writes active-touch patches to UID-owned DB rows
+  -> failed foreground admit:
+       keep coalesced pending patches and retry during later Submit/Flush/Stop
+  -> later Flush/DrainAuthority/Stop writes active patches with read/delete floors to UID-owned DB rows
+  -> local cache pressure:
+       write projected rows directly to UID-owned DB rows
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
@@ -258,7 +269,7 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
-  -> conversation authority sink Stop(ctx): cancel authority watcher and flush local cache rows
+  -> conversation authority sink Stop(ctx): cancel authority watcher, retry pending patches, and flush local cache rows
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
 ```
@@ -309,4 +320,5 @@ clusterv2.RouteAuthorityEvent
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve, and `Stop`
-flushes remaining local cache rows with the caller's stop context.
+retries pending admission patches before flushing remaining local cache rows
+with the caller's stop context.

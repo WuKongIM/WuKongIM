@@ -41,7 +41,10 @@ Current flow:
    methods keep merge, hide, clear, and read-advance business semantics. User
    conversation rows are UID-owned active-index rows. `SparseActive` marks rows
    whose `ActiveAt` is a low-frequency ordering anchor, and active list pages use
-   `(uid, active_at desc, channel_id, channel_type)` cursors.
+   `(uid, active_at desc, channel_id, channel_type)` cursors. User conversation
+   active patches can also carry monotonic read/delete floors, so activity
+   advancement, sparse-active changes, delete-barrier checks, and floor merges
+   happen in one shard-locked mutation.
 14. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
    stores the active `task_id`; guarded task/runtime-meta mutations keep

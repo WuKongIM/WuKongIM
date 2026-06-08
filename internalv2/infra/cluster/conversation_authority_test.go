@@ -251,6 +251,38 @@ func TestConversationAuthorityClientRetriesRouteNotReadyListWithFreshRoute(t *te
 	}
 }
 
+func TestConversationAuthorityClientRetriesRawRemoteRouteErrorWithFreshRoute(t *testing.T) {
+	remoteAuthority := &fakeConversationAuthorityLocal{page: conversationusecase.ActiveViewPage{
+		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+		Done: true,
+	}}
+	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routes: []clusterv2.Route{
+			{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 10, AuthorityEpoch: 20},
+			{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 11, AuthorityEpoch: 21},
+		},
+		rpcErrs: []error{clusterv2.ErrNotLeader, nil},
+		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return adapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	client := NewConversationAuthorityClient(node, nil)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+	}
+	if node.routeKeyCalls != 2 || len(node.calls) != 2 {
+		t.Fatalf("route/call counts = %d/%d, want retry through fresh route", node.routeKeyCalls, len(node.calls))
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g1" {
+		t.Fatalf("page = %#v, want retried remote row", page)
+	}
+}
+
 func TestConversationAuthorityClientExhaustsBoundedRetries(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitAlwaysErr: conversationusecase.ErrNotLeader}
 	node := &fakeConversationAuthorityNode{
@@ -411,6 +443,7 @@ type fakeConversationAuthorityNode struct {
 	routesByUID   map[string]clusterv2.Route
 	routes        []clusterv2.Route
 	routeErr      error
+	rpcErrs       []error
 	handler       clusterv2.NodeRPCHandler
 	calls         []rpcCall
 	routeKeyCalls int
@@ -442,6 +475,13 @@ func (f *fakeConversationAuthorityNode) RouteKey(uid string) (clusterv2.Route, e
 
 func (f *fakeConversationAuthorityNode) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.calls = append(f.calls, rpcCall{nodeID: nodeID, serviceID: serviceID, payload: append([]byte(nil), payload...)})
+	if len(f.rpcErrs) > 0 {
+		err := f.rpcErrs[0]
+		f.rpcErrs = f.rpcErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	if f.handler != nil {
 		return f.handler.HandleRPC(ctx, payload)
 	}
