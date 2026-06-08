@@ -7,8 +7,10 @@ import (
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -59,6 +61,13 @@ type DeliveryFanoutRunner interface {
 	RunTask(context.Context, runtimedelivery.FanoutTask) error
 }
 
+// ConversationAuthority handles UID-owned conversation active cache requests.
+type ConversationAuthority interface {
+	AdmitPatches(context.Context, conversationusecase.RouteTarget, []conversationusecase.ActivePatch) error
+	ListUserConversationActiveViewForTarget(context.Context, conversationusecase.RouteTarget, string, metadb.UserConversationActiveCursor, int) (conversationusecase.ActiveViewPage, error)
+	DrainAuthority(context.Context, conversationusecase.RouteTarget) (string, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -69,6 +78,8 @@ type Options struct {
 	Delivery DeliveryOwnerPush
 	// DeliveryFanout handles authority-node delivery fanout tasks after payload decoding.
 	DeliveryFanout DeliveryFanoutRunner
+	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
+	ConversationAuthority ConversationAuthority
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -83,6 +94,8 @@ type Adapter struct {
 	delivery DeliveryOwnerPush
 	// deliveryFanout runs subscriber fanout tasks for this authority node.
 	deliveryFanout DeliveryFanoutRunner
+	// conversation owns UID conversation active cache decisions.
+	conversation ConversationAuthority
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -92,7 +105,7 @@ func New(opts Options) *Adapter {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
-	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout, logger: opts.Logger}
+	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout, conversation: opts.ConversationAuthority, logger: opts.Logger}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.

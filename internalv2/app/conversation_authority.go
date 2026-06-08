@@ -114,7 +114,7 @@ const (
 )
 
 // conversationDrainResult reports the local outcome of draining authority cache rows.
-type conversationDrainResult string
+type conversationDrainResult = string
 
 const (
 	conversationDrainResultDrained     conversationDrainResult = "drained"

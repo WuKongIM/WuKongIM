@@ -76,6 +76,23 @@ field order `Envelope`, `Partition`, `Cursor`, and `Attempt`. The receiving
 node runs only the subscriber fanout task; owner-node delivery still uses the
 separate Delivery Push RPC after presence resolution.
 
+## Conversation Authority RPC
+
+```text
+remote conversation authority client
+  -> encode W K V C 1 request
+  -> clusterv2 RPCConversationAuthority
+  -> Adapter.HandleConversationAuthorityRPC
+  -> ConversationAuthority port
+  -> encode W K V c 1 response
+```
+
+Supported conversation authority calls:
+
+- `AdmitPatches(RouteTarget, []ActivePatch)`
+- `ListUserConversationActiveViewForTarget(RouteTarget, uid, activeCursor, limit)`
+- `DrainAuthority(RouteTarget)`
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -93,6 +110,11 @@ Delivery fanout RPC uses fixed magic headers:
 - Request: `W K V F 1`
 - Response: `W K V f 1`
 
+Conversation authority RPC uses fixed magic headers:
+
+- Request: `W K V C 1`
+- Response: `W K V c 1`
+
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, truncated payloads, and trailing bytes.
@@ -106,6 +128,7 @@ Stable response statuses are:
 - `not_leader`
 - `stale_route`
 - `route_not_ready`
+- `cache_pressure`
 - `rejected`
 
 Delivery push and fanout responses currently use:
@@ -116,9 +139,12 @@ Delivery push and fanout responses currently use:
 ## Boundaries
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
-  presence sentinel errors, runtime delivery DTOs, and the clusterv2 RPC
-  service IDs.
+  presence sentinel errors, `internalv2/usecase/conversation` DTOs and
+  sentinel errors, runtime delivery DTOs, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
+- This package must not implement conversation projection, cache merge, list,
+  or handoff business logic.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
-  `DeliveryOwnerPush` / `DeliveryFanoutRunner` interfaces.
+  `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority`
+  interfaces.

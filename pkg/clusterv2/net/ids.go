@@ -44,4 +44,6 @@ const (
 	RPCChannelPullHintBatch
 	// RPCChannelLastVisible serves routed ChannelV2 last-visible message reads.
 	RPCChannelLastVisible
+	// RPCConversationAuthority serves internalv2 UID conversation authority cache requests.
+	RPCConversationAuthority
 )

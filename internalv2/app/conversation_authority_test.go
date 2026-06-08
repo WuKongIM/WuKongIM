@@ -5,9 +5,12 @@ import (
 	"errors"
 	"testing"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+var _ accessnode.ConversationAuthority = (*conversationAuthority)(nil)
 
 func TestConversationAuthorityListMergesCacheAndDB(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
