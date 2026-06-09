@@ -11,19 +11,23 @@ var channelWriteItemBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1
 
 // ChannelWriteMetrics exposes internalv2 channel authority write reactor metrics.
 type ChannelWriteMetrics struct {
-	routerTotal         *prometheus.CounterVec
-	routerDuration      *prometheus.HistogramVec
-	routerItems         *prometheus.HistogramVec
-	localAdmissionTotal *prometheus.CounterVec
-	localAdmissionItems *prometheus.HistogramVec
-	reactorMailbox      *prometheus.GaugeVec
-	reactorMailboxCap   *prometheus.GaugeVec
-	reactorEffectSlots  *prometheus.GaugeVec
-	reactorEffectCap    *prometheus.GaugeVec
-	reactorStateItems   *prometheus.GaugeVec
-	effectTotal         *prometheus.CounterVec
-	effectDuration      *prometheus.HistogramVec
-	effectItems         *prometheus.HistogramVec
+	routerTotal          *prometheus.CounterVec
+	routerDuration       *prometheus.HistogramVec
+	routerItems          *prometheus.HistogramVec
+	localAdmissionTotal  *prometheus.CounterVec
+	localAdmissionItems  *prometheus.HistogramVec
+	reactorMailbox       *prometheus.GaugeVec
+	reactorMailboxCap    *prometheus.GaugeVec
+	reactorEffectSlots   *prometheus.GaugeVec
+	reactorEffectCap     *prometheus.GaugeVec
+	reactorStateItems    *prometheus.GaugeVec
+	effectWorkerInflight *prometheus.GaugeVec
+	effectWorkerCap      *prometheus.GaugeVec
+	effectQueueDepth     *prometheus.GaugeVec
+	effectQueueCap       *prometheus.GaugeVec
+	effectTotal          *prometheus.CounterVec
+	effectDuration       *prometheus.HistogramVec
+	effectItems          *prometheus.HistogramVec
 }
 
 func newChannelWriteMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelWriteMetrics {
@@ -81,6 +85,26 @@ func newChannelWriteMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Current channel write state item counts by reactor and kind.",
 			ConstLabels: labels,
 		}, []string{"reactor_id", "kind"}),
+		effectWorkerInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_worker_inflight",
+			Help:        "Current busy internalv2 channel write effect workers by reactor and stage.",
+			ConstLabels: labels,
+		}, []string{"reactor_id", "stage"}),
+		effectWorkerCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_worker_capacity",
+			Help:        "Configured internalv2 channel write effect worker capacity by reactor and stage.",
+			ConstLabels: labels,
+		}, []string{"reactor_id", "stage"}),
+		effectQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_queue_depth",
+			Help:        "Current queued internalv2 channel write effects by reactor and stage.",
+			ConstLabels: labels,
+		}, []string{"reactor_id", "stage"}),
+		effectQueueCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_queue_capacity",
+			Help:        "Configured internalv2 channel write effect queue capacity by reactor and stage.",
+			ConstLabels: labels,
+		}, []string{"reactor_id", "stage"}),
 		effectTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelwrite_effect_total",
 			Help:        "Total internalv2 channel write asynchronous effects by stage and result.",
@@ -111,6 +135,10 @@ func newChannelWriteMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.reactorEffectSlots,
 		m.reactorEffectCap,
 		m.reactorStateItems,
+		m.effectWorkerInflight,
+		m.effectWorkerCap,
+		m.effectQueueDepth,
+		m.effectQueueCap,
 		m.effectTotal,
 		m.effectDuration,
 		m.effectItems,
@@ -158,6 +186,21 @@ func (m *ChannelWriteMetrics) SetReactorPressure(reactorID int, mailboxDepth int
 	m.reactorStateItems.WithLabelValues(id, "pending_append").Set(float64(pendingAppendItems))
 	m.reactorStateItems.WithLabelValues(id, "append_inflight").Set(float64(appendInflightItems))
 	m.reactorStateItems.WithLabelValues(id, "post_commit_backlog").Set(float64(postCommitBacklog))
+}
+
+// SetEffectWorkerPressure sets current effect worker and queue pressure gauges.
+func (m *ChannelWriteMetrics) SetEffectWorkerPressure(reactorID int, stage string, workerInflight int, workerCapacity int, queueDepth int, queueCapacity int) {
+	if m == nil {
+		return
+	}
+	if stage == "" {
+		stage = "unknown"
+	}
+	id := strconv.Itoa(reactorID)
+	m.effectWorkerInflight.WithLabelValues(id, stage).Set(float64(workerInflight))
+	m.effectWorkerCap.WithLabelValues(id, stage).Set(float64(workerCapacity))
+	m.effectQueueDepth.WithLabelValues(id, stage).Set(float64(queueDepth))
+	m.effectQueueCap.WithLabelValues(id, stage).Set(float64(queueCapacity))
 }
 
 // ObserveEffect records one asynchronous channel write effect.

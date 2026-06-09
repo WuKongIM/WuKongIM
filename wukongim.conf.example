@@ -315,8 +315,10 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_DELIVERY_ENABLE=false
 # WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT controls channel-hashed authority reactors for SEND append admission; zero derives a CPU-aware default.
 # WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=0
-# WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS controls the per-reactor worker count for prepare, append, replay, and post-commit effects; zero uses the bounded default.
+# WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS controls the per-reactor worker count for prepare, append, replay, and post-commit effects; zero uses the bounded default of 8 workers per reactor.
 # WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=0
+# WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY bounds per-message recipient-authority dispatch fanout inside one post-commit effect; zero uses the bounded default of 4 and keeps it independent from effect worker count.
+# WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=0
 # WK_DELIVERY_FANOUT_PAGE_SIZE=512
 # WK_DELIVERY_PUSH_BATCH_SIZE=512
 # WK_DELIVERY_PENDING_ACK_TTL=30s

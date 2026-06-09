@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
@@ -33,12 +34,17 @@ type ChannelAppendNode interface {
 
 // ChannelAppender adapts clusterv2 channel append to the channelwrite append port.
 type ChannelAppender struct {
-	node ChannelAppendNode
+	node   ChannelAppendNode
+	logger wklog.Logger
 }
 
 // NewChannelAppender creates a ChannelAppender.
-func NewChannelAppender(node ChannelAppendNode) *ChannelAppender {
-	return &ChannelAppender{node: node}
+func NewChannelAppender(node ChannelAppendNode, logger ...wklog.Logger) *ChannelAppender {
+	appender := &ChannelAppender{node: node}
+	if len(logger) > 0 {
+		appender.logger = logger[0]
+	}
+	return appender
 }
 
 // AppendBatch appends a channelwrite message batch through clusterv2.
@@ -68,6 +74,7 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelwrite.Appe
 	})
 	if err != nil {
 		mappedErr := mapAppendError(err)
+		a.logAppendChannelBatchError(req, err, mappedErr)
 		if traceEnabled {
 			recordChannelAppendTrace(req, nil, mappedErr, sendtrace.Elapsed(startedAt, time.Now()))
 		}
@@ -77,6 +84,40 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelwrite.Appe
 		recordChannelAppendTrace(req, res.Items, nil, sendtrace.Elapsed(startedAt, time.Now()))
 	}
 	return fromChannelAppendResult(res), nil
+}
+
+func (a *ChannelAppender) logAppendChannelBatchError(req channelwrite.AppendBatchRequest, rawErr error, mappedErr error) {
+	logger := a.loggerOrNop()
+	traceResult, errorCode := channelAppendTraceOutcome(mappedErr)
+	logger.Error("channel append batch failed",
+		wklog.Event("internalv2.infra.cluster.channel_append_batch_failed"),
+		wklog.ChannelID(req.ChannelID.ID),
+		wklog.ChannelType(int64(req.ChannelID.Type)),
+		wklog.String("channelKey", req.ChannelKey),
+		wklog.TraceID(req.TraceID),
+		wklog.Uint64("expectedEpoch", req.ExpectedEpoch),
+		wklog.Uint64("expectedLeaderEpoch", req.ExpectedLeaderEpoch),
+		wklog.Attempt(normalizedChannelAppendAttempt(req.Attempt)),
+		wklog.Int("records", len(req.Messages)),
+		wklog.Result(errorCode),
+		wklog.String("traceResult", string(traceResult)),
+		wklog.String("errorCode", errorCode),
+		wklog.Error(rawErr),
+	)
+}
+
+func (a *ChannelAppender) loggerOrNop() wklog.Logger {
+	if a == nil || a.logger == nil {
+		return wklog.NewNop()
+	}
+	return a.logger
+}
+
+func normalizedChannelAppendAttempt(attempt int) int {
+	if attempt <= 0 {
+		return channelAppendDefaultAttempt
+	}
+	return attempt
 }
 
 func toChannelMessages(in []channelwrite.Message) []channelv2.Message {
@@ -175,9 +216,7 @@ func recordChannelAppendTraceForMessage(req channelwrite.AppendBatchRequest, msg
 		channelKey = sendtrace.ChannelKeyFromID(req.ChannelID.ID, req.ChannelID.Type)
 	}
 	attempt := req.Attempt
-	if attempt <= 0 {
-		attempt = channelAppendDefaultAttempt
-	}
+	attempt = normalizedChannelAppendAttempt(attempt)
 	result, errorCode := channelAppendTraceOutcome(err)
 	event := sendtrace.Event{
 		Stage:       sendtrace.StageChannelAppendLocal,

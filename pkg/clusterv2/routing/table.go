@@ -131,7 +131,6 @@ func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
 			continue
 		}
 		if item.Leader == 0 {
-			delete(out.SlotLeaders, item.SlotID)
 			continue
 		}
 		out.SlotLeaders[item.SlotID] = item.Leader

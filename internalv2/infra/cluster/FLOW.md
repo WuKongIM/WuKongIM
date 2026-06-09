@@ -32,6 +32,11 @@ runtime stays cluster-agnostic.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
+When `ChannelAppendNode.AppendChannelBatch` returns a batch-level error, the
+adapter logs `internalv2.infra.cluster.channel_append_batch_failed` at ERROR
+level with the channel identity, authority fence, attempt, record count,
+mapped error result, and raw source error before returning the mapped
+channelwrite error.
 
 ## Message Sync Read Flow
 
@@ -110,12 +115,14 @@ current authority leader and leaves cache/list business rules inside the local
 authority implementation. Admission resolves each patch UID with
 `RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each group to
 the local authority when the target leader is this node or through
-access/node Conversation Authority RPC when the leader is remote. The remote
-RPC client chunks large patch groups at the codec collection limit before
-sending them. List resolves the requested UID once per retry attempt and reads
-the active view from that authority target; the active-view response is not
-satisfied by a local DB-only fallback when the UID authority is remote. Drain
-uses the caller-supplied exact target for authority handoff.
+access/node Conversation Authority RPC when the leader is remote. Admission is
+best-effort and does not retry route-not-ready, stale-route, or not-leader
+errors; callers are expected to log and drop failed post-commit projection.
+The remote RPC client chunks large patch groups at the codec collection limit
+before sending them. List resolves the requested UID once per retry attempt and
+reads the active view from that authority target; the active-view response is
+not satisfied by a local DB-only fallback when the UID authority is remote.
+Drain uses the caller-supplied exact target for authority handoff.
 
 ```text
 ConversationAuthorityClient
@@ -133,10 +140,11 @@ ConversationAuthorityClient
        -> access/node Conversation Authority Drain RPC when remote
 ```
 
-Route-not-ready, stale-route, and not-leader results are retried with a short
-bounded backoff so authority movement can settle without changing conversation
-usecase semantics. Raw clusterv2 route errors returned by remote RPC calls are
-mapped to the same conversation route sentinels before the retry decision.
+List route-not-ready, stale-route, and not-leader results are retried with a
+short bounded backoff so authority movement can settle without changing
+conversation list semantics. Admission returns those errors directly. Raw
+clusterv2 route errors returned by remote RPC calls are mapped to the same
+conversation route sentinels before the list retry decision.
 
 ## Channel Write Authority Flow
 

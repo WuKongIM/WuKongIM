@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
@@ -241,6 +242,42 @@ func TestChannelAppenderRecordsChannelAppendTraceOnBatchError(t *testing.T) {
 	requireChannelAppendTraceEvent(t, events[0], "trace-error", "channel/key-error", "client-error", "u1", 0, 3, 1, sendtrace.ResultError, "backpressured")
 }
 
+func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
+	logger := &recordingClusterLogger{}
+	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrNotReady}, logger)
+
+	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
+		ChannelID:           message.ChannelID{ID: "room", Type: 2},
+		ExpectedEpoch:       12,
+		ExpectedLeaderEpoch: 34,
+		TraceID:             "trace-error",
+		ChannelKey:          "channel/key-error",
+		Attempt:             3,
+		Messages: []message.Message{
+			{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-error", TraceID: "trace-error", ChannelKey: "channel/key-error"},
+			{MessageID: 11, FromUID: "u2", ClientMsgNo: "client-error-2"},
+		},
+	})
+	if !errors.Is(err, message.ErrRouteNotReady) {
+		t.Fatalf("AppendBatch() error = %v, want route not ready", err)
+	}
+
+	entry, ok := logger.find("ERROR", "internalv2.infra.cluster.channel_append_batch_failed")
+	if !ok {
+		t.Fatalf("missing append failure log entries=%#v", logger.entries)
+	}
+	requireLogField(t, entry.fields, "channelID", "room")
+	requireLogField(t, entry.fields, "channelType", int64(2))
+	requireLogField(t, entry.fields, "channelKey", "channel/key-error")
+	requireLogField(t, entry.fields, "traceID", "trace-error")
+	requireLogField(t, entry.fields, "attempt", 3)
+	requireLogField(t, entry.fields, "records", 2)
+	requireLogField(t, entry.fields, "expectedEpoch", uint64(12))
+	requireLogField(t, entry.fields, "expectedLeaderEpoch", uint64(34))
+	requireLogField(t, entry.fields, "result", "route_not_ready")
+	requireLogField(t, entry.fields, "error", channelv2.ErrNotReady)
+}
+
 func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *testing.T) {
 	sink := &recordingSendtraceSink{}
 	restore := sendtrace.SetSink(sink)
@@ -466,6 +503,56 @@ func assertMessageResult(t *testing.T, got, want message.AppendBatchItemResult) 
 
 type recordingSendtraceSink struct {
 	events []sendtrace.Event
+}
+
+type clusterLogEntry struct {
+	level  string
+	fields []wklog.Field
+}
+
+type recordingClusterLogger struct {
+	entries []clusterLogEntry
+}
+
+func (r *recordingClusterLogger) Debug(_ string, fields ...wklog.Field) { r.log("DEBUG", fields...) }
+func (r *recordingClusterLogger) Info(_ string, fields ...wklog.Field)  { r.log("INFO", fields...) }
+func (r *recordingClusterLogger) Warn(_ string, fields ...wklog.Field)  { r.log("WARN", fields...) }
+func (r *recordingClusterLogger) Error(_ string, fields ...wklog.Field) { r.log("ERROR", fields...) }
+func (r *recordingClusterLogger) Fatal(_ string, fields ...wklog.Field) { r.log("FATAL", fields...) }
+func (r *recordingClusterLogger) Named(string) wklog.Logger             { return r }
+func (r *recordingClusterLogger) With(...wklog.Field) wklog.Logger      { return r }
+func (r *recordingClusterLogger) Sync() error                           { return nil }
+
+func (r *recordingClusterLogger) log(level string, fields ...wklog.Field) {
+	r.entries = append(r.entries, clusterLogEntry{level: level, fields: append([]wklog.Field(nil), fields...)})
+}
+
+func (r *recordingClusterLogger) find(level string, event string) (clusterLogEntry, bool) {
+	for _, entry := range r.entries {
+		if entry.level != level {
+			continue
+		}
+		for _, field := range entry.fields {
+			if field.Key == "event" && field.Value == event {
+				return entry, true
+			}
+		}
+	}
+	return clusterLogEntry{}, false
+}
+
+func requireLogField(t *testing.T, fields []wklog.Field, key string, want any) {
+	t.Helper()
+	for _, field := range fields {
+		if field.Key != key {
+			continue
+		}
+		if field.Value != want {
+			t.Fatalf("log field %s = %#v, want %#v", key, field.Value, want)
+		}
+		return
+	}
+	t.Fatalf("missing log field %s in %#v", key, fields)
 }
 
 func (s *recordingSendtraceSink) RecordSendTrace(event sendtrace.Event) {

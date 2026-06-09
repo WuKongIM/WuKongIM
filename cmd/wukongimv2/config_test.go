@@ -150,6 +150,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_DELIVERY_ENABLE=true",
 		"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=10",
 		"WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=20",
+		"WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=6",
 		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
 		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
@@ -261,6 +262,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Delivery.ChannelWriteEffectWorkers != 20 {
 		t.Fatalf("Delivery.ChannelWriteEffectWorkers = %d, want 20", cfg.Delivery.ChannelWriteEffectWorkers)
+	}
+	if cfg.Delivery.ChannelWriteRecipientDispatchConcurrency != 6 {
+		t.Fatalf("Delivery.ChannelWriteRecipientDispatchConcurrency = %d, want 6", cfg.Delivery.ChannelWriteRecipientDispatchConcurrency)
 	}
 	if cfg.Delivery.FanoutPageSize != 256 {
 		t.Fatalf("Delivery.FanoutPageSize = %d, want 256", cfg.Delivery.FanoutPageSize)
@@ -536,6 +540,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", "7")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS", "14")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY", "5")
 	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
 	t.Setenv("WK_DELIVERY_PUSH_BATCH_SIZE", "32")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
@@ -615,6 +620,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
 		cfg.Delivery.ChannelWriteReactorCount != 7 || cfg.Delivery.ChannelWriteEffectWorkers != 14 ||
+		cfg.Delivery.ChannelWriteRecipientDispatchConcurrency != 5 ||
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
@@ -900,6 +906,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "conversation authority admit concurrency zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
+		{name: "delivery channel write recipient dispatch concurrency", line: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"},
+		{name: "delivery channel write recipient dispatch concurrency negative", line: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"},
 		{name: "delivery fanout page size", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=many", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
 		{name: "delivery fanout page size negative", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=-1", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
 		{name: "delivery push batch size", line: "WK_DELIVERY_PUSH_BATCH_SIZE=many", wantKey: "WK_DELIVERY_PUSH_BATCH_SIZE"},

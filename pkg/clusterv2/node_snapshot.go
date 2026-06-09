@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -190,11 +191,11 @@ func convertRoute(route routing.Route, err error) (Route, error) {
 func mapRouteError(err error) error {
 	switch {
 	case errors.Is(err, routing.ErrRouteNotReady):
-		return ErrRouteNotReady
+		return fmt.Errorf("%w: %w", ErrRouteNotReady, err)
 	case errors.Is(err, routing.ErrNoSlotLeader):
-		return ErrNoSlotLeader
+		return fmt.Errorf("%w: %w", ErrNoSlotLeader, err)
 	case errors.Is(err, routing.ErrRouteMismatch):
-		return ErrRouteNotReady
+		return fmt.Errorf("%w: %w", ErrRouteNotReady, err)
 	default:
 		return err
 	}

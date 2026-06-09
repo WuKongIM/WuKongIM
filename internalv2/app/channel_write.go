@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // channelWriteAuthorityLocal admits RPC-forwarded sends to the local authority reactor.
@@ -76,7 +78,7 @@ func (r channelWriteRecipientResolver) ResolveRecipientAuthority(ctx context.Con
 	}
 	route, err := r.node.RouteKey(uid)
 	if err != nil {
-		return channelwrite.RecipientAuthorityTarget{}, channelWriteRouteError(err)
+		return channelwrite.RecipientAuthorityTarget{}, fmt.Errorf("recipient route key uid=%q: %w", uid, channelWriteRouteError(err))
 	}
 	return channelWriteRecipientTargetFromRoute(route)
 }
@@ -99,16 +101,16 @@ func (r channelWriteRecipientResolver) ResolveRecipientAuthorities(ctx context.C
 	if batchNode, ok := r.node.(recipientAuthorityBatchRouteNode); ok {
 		routes, err := batchNode.RouteKeys(uids)
 		if err != nil {
-			return nil, channelWriteRouteError(err)
+			return nil, fmt.Errorf("recipient route keys uidCount=%d sampleUID=%q: %w", len(uids), firstUIDForRouteLog(uids), channelWriteRouteError(err))
 		}
 		if len(routes) != len(uids) {
-			return nil, channelwrite.ErrRouteNotReady
+			return nil, fmt.Errorf("recipient route keys returned %d routes for %d uids sampleUID=%q: %w", len(routes), len(uids), firstUIDForRouteLog(uids), channelwrite.ErrRouteNotReady)
 		}
 		targets := make(map[string]channelwrite.RecipientAuthorityTarget, len(uids))
 		for i, uid := range uids {
 			target, err := channelWriteRecipientTargetFromRoute(routes[i])
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("recipient route key uid=%q index=%d: %w", uid, i, err)
 			}
 			targets[uid] = target
 		}
@@ -127,7 +129,7 @@ func (r channelWriteRecipientResolver) ResolveRecipientAuthorities(ctx context.C
 
 func channelWriteRecipientTargetFromRoute(route clusterv2.Route) (channelwrite.RecipientAuthorityTarget, error) {
 	if route.Leader == 0 {
-		return channelwrite.RecipientAuthorityTarget{}, channelwrite.ErrRouteNotReady
+		return channelwrite.RecipientAuthorityTarget{}, fmt.Errorf("recipient route has no leader hashSlot=%d slotID=%d revision=%d authorityEpoch=%d: %w", route.HashSlot, route.SlotID, route.Revision, route.AuthorityEpoch, channelwrite.ErrRouteNotReady)
 	}
 	return channelwrite.RecipientAuthorityTarget{
 		HashSlot:       route.HashSlot,
@@ -136,6 +138,13 @@ func channelWriteRecipientTargetFromRoute(route clusterv2.Route) (channelwrite.R
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
 	}, nil
+}
+
+func firstUIDForRouteLog(uids []string) string {
+	if len(uids) == 0 {
+		return ""
+	}
+	return uids[0]
 }
 
 // channelWriteSubscriberSource pages durable channel subscribers for channelwrite.
@@ -197,9 +206,12 @@ func (s channelWriteDeliverySubscriberSource) NextSubscriberPage(ctx context.Con
 
 // channelWriteConversationProjector forwards recipient conversation patches to conversation authority routing.
 type channelWriteConversationProjector struct {
-	client interface {
-		AdmitPatches(context.Context, []conversationusecase.ActivePatch) error
-	}
+	client channelWriteConversationAdmissionClient
+	logger wklog.Logger
+}
+
+type channelWriteConversationAdmissionClient interface {
+	AdmitPatches(context.Context, []conversationusecase.ActivePatch) error
 }
 
 func (p channelWriteConversationProjector) AdmitRecipientPatches(ctx context.Context, patches []channelwrite.ConversationPatch) error {
@@ -220,7 +232,30 @@ func (p channelWriteConversationProjector) AdmitRecipientPatches(ctx context.Con
 			MessageSeq:   patch.MessageSeq,
 		})
 	}
-	return p.client.AdmitPatches(ctx, out)
+	err := p.client.AdmitPatches(ctx, out)
+	if err != nil {
+		p.logProjectionFailure(err, out)
+	}
+	return err
+}
+
+func (p channelWriteConversationProjector) logProjectionFailure(err error, patches []conversationusecase.ActivePatch) {
+	if p.logger == nil {
+		return
+	}
+	var first conversationusecase.ActivePatch
+	if len(patches) > 0 {
+		first = patches[0]
+	}
+	p.logger.Error("channelwrite conversation projection failed",
+		wklog.Event("internalv2.app.channelwrite.conversation_projection_failed"),
+		wklog.String("uid", first.UID),
+		wklog.Int("patchCount", len(patches)),
+		wklog.String("channelID", first.ChannelID),
+		wklog.Int64("channelType", first.ChannelType),
+		wklog.Uint64("messageSeq", first.MessageSeq),
+		wklog.Error(err),
+	)
 }
 
 // channelWritePresenceResolver adapts presence lookups to channelwrite flat routes.
@@ -293,9 +328,9 @@ func channelWriteRouteError(err error) error {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
 	case errors.Is(err, clusterv2.ErrNotLeader):
-		return channelwrite.ErrNotLeader
+		return fmt.Errorf("%w: %w", channelwrite.ErrNotLeader, err)
 	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader):
-		return channelwrite.ErrRouteNotReady
+		return fmt.Errorf("%w: %w", channelwrite.ErrRouteNotReady, err)
 	default:
 		return err
 	}

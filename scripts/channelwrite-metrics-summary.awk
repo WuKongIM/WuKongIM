@@ -107,6 +107,14 @@ BEGIN {
       } else if (kind == "post_commit_backlog") {
         post_commit_backlog_max = max_value(post_commit_backlog_max, value)
       }
+    } else if (name == "wukongim_channelwrite_effect_worker_inflight") {
+      effect_worker_inflight_max = max_value(effect_worker_inflight_max, value)
+    } else if (name == "wukongim_channelwrite_effect_worker_capacity") {
+      effect_worker_capacity_max = max_value(effect_worker_capacity_max, value)
+    } else if (name == "wukongim_channelwrite_effect_queue_depth") {
+      effect_queue_depth_max = max_value(effect_queue_depth_max, value)
+    } else if (name == "wukongim_channelwrite_effect_queue_capacity") {
+      effect_queue_capacity_max = max_value(effect_queue_capacity_max, value)
     }
   }
 
@@ -150,8 +158,16 @@ END {
   if (effect_slots_capacity_max > 0) {
     effect_slots_fill_max = effect_slots_max / effect_slots_capacity_max
   }
+  effect_worker_util_max = 0
+  if (effect_worker_capacity_max > 0) {
+    effect_worker_util_max = effect_worker_inflight_max / effect_worker_capacity_max
+  }
+  effect_queue_fill_max = 0
+  if (effect_queue_capacity_max > 0) {
+    effect_queue_fill_max = effect_queue_depth_max / effect_queue_capacity_max
+  }
 
-  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\n",
+  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\n",
     tag,
     node,
     counter_delta("router_total"),
@@ -177,5 +193,11 @@ END {
     counter_delta("effect_errors"),
     counter_delta("effect_stage:append"),
     counter_delta("effect_stage:post_commit"),
-    avg_delta_ms("effect_duration_sum", "effect_duration_count")
+    avg_delta_ms("effect_duration_sum", "effect_duration_count"),
+    effect_worker_inflight_max,
+    effect_worker_capacity_max,
+    effect_worker_util_max,
+    effect_queue_depth_max,
+    effect_queue_capacity_max,
+    effect_queue_fill_max
 }

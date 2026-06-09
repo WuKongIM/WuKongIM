@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	defaultReactorCount                = 1
-	defaultMailboxSize                 = 1024
-	defaultPendingItemHighWatermark    = 1024
-	defaultAppendInflightLimit         = 1
-	defaultEffectWorkerCount           = 1
-	defaultSubscriberPageSize          = 256
-	defaultRecipientBatchSize          = 256
-	defaultReplayPageSize              = 256
-	defaultDeliveryRetryMaxAttempts    = 3
-	defaultDeliveryRetryInitialBackoff = 5 * time.Millisecond
-	defaultDeliveryRetryMaxBackoff     = 100 * time.Millisecond
-	defaultCommitRetryMaxAttempts      = 3
+	defaultReactorCount                 = 1
+	defaultMailboxSize                  = 1024
+	defaultPendingItemHighWatermark     = 1024
+	defaultAppendInflightLimit          = 1
+	defaultEffectWorkerCount            = 1
+	defaultSubscriberPageSize           = 256
+	defaultRecipientBatchSize           = 256
+	defaultRecipientDispatchConcurrency = 4
+	defaultReplayPageSize               = 256
+	defaultDeliveryRetryMaxAttempts     = 3
+	defaultDeliveryRetryInitialBackoff  = 5 * time.Millisecond
+	defaultDeliveryRetryMaxBackoff      = 100 * time.Millisecond
 )
 
 // Clock provides the time source used by channel write runtime state.
@@ -124,6 +124,80 @@ type ReactorPressureObserver interface {
 	SetChannelWriteReactorPressure(ReactorPressureObservation)
 }
 
+// EffectWorkerPressureObservation describes effect worker utilization and queue pressure.
+type EffectWorkerPressureObservation struct {
+	// ReactorID is the local channel-hashed reactor id.
+	ReactorID int
+	// Stage is prepare, append, post_commit, or replay.
+	Stage string
+	// WorkerInflight is the current number of busy workers for this stage.
+	WorkerInflight int
+	// WorkerCapacity is the configured worker count for this stage.
+	WorkerCapacity int
+	// QueueDepth is the current number of queued effects for this stage.
+	QueueDepth int
+	// QueueCapacity is the configured queue capacity for this stage.
+	QueueCapacity int
+}
+
+// EffectWorkerPressureObserver receives effect worker and queue pressure gauges.
+type EffectWorkerPressureObserver interface {
+	// SetChannelWriteEffectWorkerPressure records current effect worker and queue pressure.
+	SetChannelWriteEffectWorkerPressure(EffectWorkerPressureObservation)
+}
+
+// PostCommitFailureObservation describes one best-effort post-commit side-effect failure.
+type PostCommitFailureObservation struct {
+	// ReactorID is the local channel-hashed reactor id.
+	ReactorID int
+	// ChannelID is the committed message channel id.
+	ChannelID string
+	// ChannelType is the committed message channel type.
+	ChannelType uint8
+	// MessageID is the committed message id.
+	MessageID uint64
+	// MessageSeq is the committed channel sequence.
+	MessageSeq uint64
+	// Attempt is the post-commit dispatch attempt number.
+	Attempt int
+	// Result is a low-cardinality error class.
+	Result string
+	// Phase identifies the post-commit sub-step that produced the failure.
+	Phase string
+	// UID is one representative recipient UID involved in the failure.
+	UID string
+	// UIDCount is the number of unique UIDs being resolved or processed.
+	UIDCount int
+	// RecipientCount is the number of recipient rows in the failed batch or page.
+	RecipientCount int
+	// TargetHashSlot is the recipient authority hash slot when known.
+	TargetHashSlot uint16
+	// TargetSlotID is the physical Slot that owns TargetHashSlot when known.
+	TargetSlotID uint32
+	// TargetLeaderNodeID is the recipient authority leader node when known.
+	TargetLeaderNodeID uint64
+	// TargetRouteRevision is the route-table revision used to resolve the target when known.
+	TargetRouteRevision uint64
+	// TargetAuthorityEpoch is the authority epoch used to fence the target when known.
+	TargetAuthorityEpoch uint64
+	// DispatchTargetCount is the number of recipient authority targets in the failed dispatch fanout.
+	DispatchTargetCount int
+	// DispatchBatchSize is the number of recipients in the failed dispatch batch.
+	DispatchBatchSize int
+	// DispatchOwnerNodeID is the owner node for a failed online delivery push.
+	DispatchOwnerNodeID uint64
+	// DispatchOwnerRouteNum is the number of online routes in a failed owner push.
+	DispatchOwnerRouteNum int
+	// Err is the concrete failure for structured logs.
+	Err error
+}
+
+// PostCommitFailureObserver receives best-effort post-commit failure events.
+type PostCommitFailureObserver interface {
+	// ObserveChannelWritePostCommitFailure records a dropped best-effort post-commit side effect.
+	ObserveChannelWritePostCommitFailure(PostCommitFailureObservation)
+}
+
 // EffectObservation describes one asynchronous channel write effect.
 type EffectObservation struct {
 	// Stage is append, post_commit, or replay.
@@ -223,8 +297,7 @@ type Options struct {
 	PendingItemHighWatermark int
 	// AppendInflightLimit bounds same-channel append batches in flight. Values <= 0 use one in-flight batch.
 	AppendInflightLimit int
-	// EffectWorkerCount is the bounded worker count for prepare, append, replay, and post-commit effects.
-	// It also bounds per-message recipient-authority dispatch concurrency. Values <= 0 use one worker of each kind.
+	// EffectWorkerCount is the bounded worker count for prepare, append, replay, and post-commit effects. Values <= 0 use one worker of each kind.
 	EffectWorkerCount int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
@@ -244,19 +317,19 @@ type Options struct {
 	SubscriberPageSize int
 	// RecipientBatchSize bounds one dispatched recipient batch. Values <= 0 use a bounded default.
 	RecipientBatchSize int
+	// RecipientDispatchConcurrency bounds per-message recipient-authority dispatch fanout. Values <= 0 use a bounded default.
+	RecipientDispatchConcurrency int
 	// DeliveryRetryMaxAttempts bounds retryable owner push attempts. Values <= 0 use a bounded default.
 	DeliveryRetryMaxAttempts int
 	// DeliveryRetryInitialBackoff is the first retry sleep for retryable owner pushes. Values <= 0 use a bounded default.
 	DeliveryRetryInitialBackoff time.Duration
 	// DeliveryRetryMaxBackoff caps retry sleeps for retryable owner pushes. Values <= 0 use a bounded default.
 	DeliveryRetryMaxBackoff time.Duration
-	// CommitRetryMaxAttempts bounds recipient dispatch retries before terminal in-memory drop. Values <= 0 use a bounded default.
-	CommitRetryMaxAttempts int
-	// CursorStore persists post-commit progress. Nil keeps post-commit replay in memory only.
+	// CursorStore is ignored because post-commit side effects are best-effort and no longer checkpointed.
 	CursorStore CursorStore
-	// CommittedReader reads durable channel messages for authority restart replay.
+	// CommittedReader is ignored because authority restart replay for post-commit side effects is disabled.
 	CommittedReader CommittedReader
-	// ReplayPageSize bounds each durable post-commit replay read page. Values <= 0 use a bounded default.
+	// ReplayPageSize is kept for compatibility with older option wiring and is ignored.
 	ReplayPageSize int
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
@@ -290,6 +363,9 @@ func applyDefaults(opts Options) Options {
 	if opts.RecipientBatchSize <= 0 {
 		opts.RecipientBatchSize = defaultRecipientBatchSize
 	}
+	if opts.RecipientDispatchConcurrency <= 0 {
+		opts.RecipientDispatchConcurrency = defaultRecipientDispatchConcurrency
+	}
 	if opts.ReplayPageSize <= 0 {
 		opts.ReplayPageSize = defaultReplayPageSize
 	}
@@ -301,9 +377,6 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.DeliveryRetryMaxBackoff <= 0 {
 		opts.DeliveryRetryMaxBackoff = defaultDeliveryRetryMaxBackoff
-	}
-	if opts.CommitRetryMaxAttempts <= 0 {
-		opts.CommitRetryMaxAttempts = defaultCommitRetryMaxAttempts
 	}
 	if opts.Authorizer == nil {
 		opts.Authorizer = allowAllAuthorizer{}
@@ -336,19 +409,15 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		subscribers:                  opts.Subscribers,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
 		recipientRouter:              opts.RecipientRouter,
-		cursorStore:                  opts.CursorStore,
 		subscriberPageSize:           opts.SubscriberPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,
-		recipientDispatchConcurrency: opts.EffectWorkerCount,
-		retryMaxAttempts:             opts.CommitRetryMaxAttempts,
+		recipientDispatchConcurrency: opts.RecipientDispatchConcurrency,
 		observer:                     opts.Observer,
 	}
 }
 
 func cursorPortsFromOptions(opts Options) cursorPorts {
 	return cursorPorts{
-		store:          opts.CursorStore,
-		reader:         opts.CommittedReader,
 		replayPageSize: opts.ReplayPageSize,
 		observer:       opts.Observer,
 	}

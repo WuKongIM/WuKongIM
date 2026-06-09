@@ -94,24 +94,30 @@ state is updated, but no online delivery is submitted. With delivery enabled,
 gateway RECVACK and session close feedback flows to the delivery usecase, while
 channelwrite post-commit effects resolve online routes and push to owner nodes.
 `Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
-count with a minimum of four, and `ChannelWriteEffectWorkers` defaults to two
-workers per reactor. Reactor count controls channel-state sharding; effect
-workers run prepare, append, replay, and post-commit work for that reactor.
-Per-channel append ordering remains capped by channel state even when different
-channels run through different reactors or workers.
+count with a minimum of four, `ChannelWriteEffectWorkers` defaults to eight
+workers per reactor, and `ChannelWriteRecipientDispatchConcurrency` defaults
+to four recipient-authority targets per post-commit envelope. Reactor count
+controls channel-state sharding; effect workers run prepare, append, replay,
+and post-commit work for that reactor. Per-channel append ordering remains
+capped by channel state even when different channels run through different
+reactors or workers.
 The foreground SEND path waits only for channel-authority durable append;
-subscriber scan, recipient authority grouping, conversation mutation, owner push
-execution, cursor persistence, and replay on restart all run after SENDACK from
-the authority reactor's post-commit pipeline. Post-commit failures retry inside
-the bounded reactor effect workers and do not change channel durability or the
-already-successful SENDACK decision. Runtime fanout failures are counted with
-normalized delivery error classes. Retryable fanout failures enter a bounded
-in-memory retry scheduler with a small fixed attempt cap; retry queue overflow
-is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values
-through `online.SessionHandle.WriteDelivery`. Each owner push snapshots the
-immutable envelope payload once and reuses that snapshot across recipient
-packets; closed-session and outbound-overflow write errors are terminal drops,
-while unknown write errors remain retryable. The same append observer records
+subscriber scan, recipient authority grouping, conversation mutation, and owner push
+execution all run after SENDACK from the authority reactor's best-effort
+post-commit pipeline. Durable post-commit cursor persistence and replay on
+restart are disabled. Post-commit failures are logged with the failing phase
+and route/dispatch context, counted through effect metrics, and dropped without
+retry; they do not change channel durability or the already-successful SENDACK
+decision. Conversation projection admission itself also performs no route
+retry; projection failures are logged directly at the app adapter before the
+outer post-commit failure observation is emitted. Runtime fanout failures are
+counted with normalized delivery error classes. Retryable fanout failures enter
+a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
+overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values through
+`online.SessionHandle.WriteDelivery`. Each owner push snapshots the immutable
+envelope payload once and reuses that snapshot across recipient packets;
+closed-session and outbound-overflow write errors are terminal drops, while
+unknown write errors remain retryable. The same append observer records
 per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed ChannelV2/cluster
 errors and short append results.
@@ -124,8 +130,9 @@ by exact UID hash-slot authority target; when clusterv2 exposes batch key
 routing, the app recipient resolver resolves each subscriber page's unique UIDs
 through one batch route lookup before grouping. The local channelwrite recipient
 processor then admits active conversation patches through the shared
-`ConversationAuthorityClient` and submits delivery scoped to that recipient
-group when delivery is enabled. `/bench/v1/channels` and
+`ConversationAuthorityClient` without route retry, logs projection admission
+failures, and submits delivery scoped to that recipient group when delivery is
+enabled. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation

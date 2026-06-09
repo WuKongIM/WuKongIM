@@ -258,9 +258,6 @@ func (r *reactor) recordCursorCompletion(event cursorCompletedEvent) {
 	}
 	if event.err != nil {
 		state.finishCursorReplayFailure()
-		if r.stopCtx.Err() == nil && state.replayAttempts < boundedPositive(r.commitPorts.retryMaxAttempts, defaultCommitRetryMaxAttempts) {
-			r.scheduleCursorLocked(event.key, state)
-		}
 		r.observePressureLocked()
 		return
 	}

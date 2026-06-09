@@ -70,6 +70,17 @@ func reactorPressureObserver(observer AppendObserver) ReactorPressureObserver {
 	return pressureObserver
 }
 
+func observeEffectWorkerPressure(observer AppendObserver, event EffectWorkerPressureObservation) {
+	pressureObserver, ok := observer.(EffectWorkerPressureObserver)
+	if !ok || pressureObserver == nil {
+		return
+	}
+	if event.Stage == "" {
+		event.Stage = "unknown"
+	}
+	pressureObserver.SetChannelWriteEffectWorkerPressure(event)
+}
+
 func observeEffect(observer AppendObserver, event EffectObservation) {
 	effectObserver, ok := observer.(EffectObserver)
 	if !ok || effectObserver == nil {
@@ -82,6 +93,17 @@ func observeEffect(observer AppendObserver, event EffectObservation) {
 		event.Result = channelWriteResultOther
 	}
 	effectObserver.ObserveChannelWriteEffect(event)
+}
+
+func observePostCommitFailure(observer AppendObserver, event PostCommitFailureObservation) {
+	failureObserver, ok := observer.(PostCommitFailureObserver)
+	if !ok || failureObserver == nil {
+		return
+	}
+	if event.Result == "" {
+		event.Result = channelWriteResultOther
+	}
+	failureObserver.ObserveChannelWritePostCommitFailure(event)
 }
 
 func routerResultsClass(results []SendBatchItemResult) string {

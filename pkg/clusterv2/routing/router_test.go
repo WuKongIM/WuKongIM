@@ -3,6 +3,7 @@ package routing
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -83,6 +84,44 @@ func TestRouterRouteKeysPreservesInputOrder(t *testing.T) {
 	}
 	if routes[1].HashSlot != 0 || routes[1].SlotID != 1 || routes[1].Leader != 1 {
 		t.Fatalf("second route = %#v, want hashSlot=0 slot=1 leader=1", routes[1])
+	}
+}
+
+func TestRouterIgnoresZeroLeaderObservation(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 0}})
+
+	route, err := r.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.Leader != 1 {
+		t.Fatalf("Leader = %d, want previous leader 1 to remain installed", route.Leader)
+	}
+}
+
+func TestRouterRouteKeysErrorIncludesKeyAndHashSlot(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}})
+	first := keyForHashSlot(t, 0, 4)
+	second := keyForHashSlot(t, 3, 4)
+
+	_, err := r.RouteKeys([]string{first, second})
+	if !errors.Is(err, ErrNoSlotLeader) {
+		t.Fatalf("RouteKeys() error = %v, want ErrNoSlotLeader", err)
+	}
+	msg := err.Error()
+	for _, want := range []string{"index=1", `key="` + second + `"`, "hashSlot=3"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("RouteKeys() error = %q, want %q", msg, want)
+		}
 	}
 }
 

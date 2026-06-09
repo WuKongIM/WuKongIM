@@ -91,6 +91,7 @@ var supportedConfigKeys = []string{
 	"WK_DELIVERY_ENABLE",
 	"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT",
 	"WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS",
+	"WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
 	"WK_DELIVERY_PENDING_ACK_TTL",
@@ -789,6 +790,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS: value must be >= 0")
 		}
 		cfg.Delivery.ChannelWriteEffectWorkers = workers
+	}
+	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if concurrency < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY: value must be >= 0")
+		}
+		cfg.Delivery.ChannelWriteRecipientDispatchConcurrency = concurrency
 	}
 	if raw := configValue(values, "WK_DELIVERY_FANOUT_PAGE_SIZE"); raw != "" {
 		pageSize, err := parseInt("WK_DELIVERY_FANOUT_PAGE_SIZE", raw)

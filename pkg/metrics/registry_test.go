@@ -875,6 +875,7 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 	reg.ChannelWrite.ObserveLocalAdmission(2, "accepted", 8)
 	reg.ChannelWrite.ObserveLocalAdmission(2, "backpressured", 4)
 	reg.ChannelWrite.SetReactorPressure(2, 3, 1024, 9, 1024, 7, 2, 5)
+	reg.ChannelWrite.SetEffectWorkerPressure(2, "append", 3, 16, 5, 1024)
 	reg.ChannelWrite.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
 	reg.ChannelWrite.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
 
@@ -913,7 +914,39 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"result":    "route_not_ready",
 	}).GetCounter().GetValue())
 
-	for _, family := range []*dto.MetricFamily{router, admission, state, effect} {
+	workerInflight := requireMetricFamily(t, families, "wukongim_channelwrite_effect_worker_inflight")
+	require.Equal(t, float64(3), findMetricByLabels(t, workerInflight, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"stage":      "append",
+	}).GetGauge().GetValue())
+
+	workerCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_worker_capacity")
+	require.Equal(t, float64(16), findMetricByLabels(t, workerCapacity, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"stage":      "append",
+	}).GetGauge().GetValue())
+
+	queueDepth := requireMetricFamily(t, families, "wukongim_channelwrite_effect_queue_depth")
+	require.Equal(t, float64(5), findMetricByLabels(t, queueDepth, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"stage":      "append",
+	}).GetGauge().GetValue())
+
+	queueCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_queue_capacity")
+	require.Equal(t, float64(1024), findMetricByLabels(t, queueCapacity, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"stage":      "append",
+	}).GetGauge().GetValue())
+
+	for _, family := range []*dto.MetricFamily{router, admission, state, effect, workerInflight, workerCapacity, queueDepth, queueCapacity} {
 		for _, metric := range family.GetMetric() {
 			requireNoMetricLabel(t, metric, "uid")
 			requireNoMetricLabel(t, metric, "channel_id")

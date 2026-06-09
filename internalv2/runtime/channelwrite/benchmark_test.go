@@ -105,22 +105,6 @@ func BenchmarkRouterAllItemsContextPlainBatch(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendItemsWakeSignalPlainBatch(b *testing.B) {
-	items := make([]preparedSend, 256)
-
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		wake, cleanup := appendItemsWakeSignal(items)
-		select {
-		case <-wake:
-			cleanup()
-			b.Fatalf("wake signal closed for plain active items")
-		default:
-		}
-		cleanup()
-	}
-}
-
 func BenchmarkObservePressureNoPressureObserver10KChannels(b *testing.B) {
 	reactor := newBenchmarkPressureReactor(10000, benchmarkAppendOnlyObserver{})
 

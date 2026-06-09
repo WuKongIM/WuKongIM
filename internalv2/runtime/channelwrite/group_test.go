@@ -29,6 +29,24 @@ func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
 	}
 }
 
+func TestRecipientDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T) {
+	group := New(Options{
+		LocalNodeID:                  1,
+		EffectWorkerCount:            16,
+		RecipientDispatchConcurrency: 4,
+		RecipientAuthorityResolver:   staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
+		RecipientRouter:              &recordingRecipientRouterForRecipientTest{},
+		RecipientBatchSize:           16,
+	})
+
+	if group.opts.EffectWorkerCount != 16 {
+		t.Fatalf("EffectWorkerCount = %d, want 16", group.opts.EffectWorkerCount)
+	}
+	if got := group.reactors[0].commitPorts.recipientDispatchConcurrency; got != 4 {
+		t.Fatalf("recipient dispatch concurrency = %d, want 4 independent from effect workers", got)
+	}
+}
+
 func TestSubmitLocalRejectsRemoteAuthorityWithoutState(t *testing.T) {
 	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 2}

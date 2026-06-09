@@ -355,17 +355,17 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 		writeNode, hasWriteNode := a.cluster.(clusterinfra.ChannelWriteNode)
 		if hasAppendNode && hasWriteNode {
 			opts := channelwrite.Options{
-				LocalNodeID:                 nodeID,
-				Appender:                    clusterinfra.NewChannelAppender(appendNode),
-				MessageID:                   newNodeMessageIDs(nodeID),
-				ReactorCount:                a.cfg.Delivery.ChannelWriteReactorCount,
-				EffectWorkerCount:           a.cfg.Delivery.ChannelWriteEffectWorkers,
-				RecipientBatchSize:          a.cfg.Delivery.PushBatchSize,
-				SubscriberPageSize:          a.cfg.Delivery.FanoutPageSize,
-				DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
-				DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
-				DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
-				CommitRetryMaxAttempts:      defaultDeliveryRetryMaxAttempts,
+				LocalNodeID:                  nodeID,
+				Appender:                     clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
+				MessageID:                    newNodeMessageIDs(nodeID),
+				ReactorCount:                 a.cfg.Delivery.ChannelWriteReactorCount,
+				EffectWorkerCount:            a.cfg.Delivery.ChannelWriteEffectWorkers,
+				RecipientDispatchConcurrency: a.cfg.Delivery.ChannelWriteRecipientDispatchConcurrency,
+				RecipientBatchSize:           a.cfg.Delivery.PushBatchSize,
+				SubscriberPageSize:           a.cfg.Delivery.FanoutPageSize,
+				DeliveryRetryMaxAttempts:     defaultDeliveryRetryMaxAttempts,
+				DeliveryRetryInitialBackoff:  defaultDeliveryRetryBackoff,
+				DeliveryRetryMaxBackoff:      defaultDeliveryRetryBackoff,
 			}
 			if a.deliveryMeta != nil {
 				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliveryMeta}
@@ -378,7 +378,7 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				opts.RecipientAuthorityResolver = channelWriteRecipientResolver{node: recipientNode}
 			}
 			if a.conversationAuthorityClient != nil {
-				opts.ConversationProjector = channelWriteConversationProjector{client: a.conversationAuthorityClient}
+				opts.ConversationProjector = channelWriteConversationProjector{client: a.conversationAuthorityClient, logger: a.logger.Named("delivery")}
 			}
 			if a.cfg.Delivery.Enabled {
 				opts.PresenceResolver = channelWritePresenceResolver{presence: a.presence}
@@ -388,12 +388,6 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 			if a.cfg.Delivery.Enabled || a.metrics != nil {
 				observer = deliveryMessageObserver{app: a}
 				opts.Observer = observer
-			}
-			if cursorNode, ok := a.cluster.(clusterinfra.ChannelWriteCursorMetadataNode); ok {
-				opts.CursorStore = clusterinfra.NewChannelWriteCursorStore(cursorNode)
-			}
-			if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-				opts.CommittedReader = clusterinfra.NewChannelWriteCommittedReader(readNode)
 			}
 			processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
 				ConversationProjector:       opts.ConversationProjector,

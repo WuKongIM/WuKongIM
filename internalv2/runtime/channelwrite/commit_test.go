@@ -83,8 +83,9 @@ func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 	}
 }
 
-func TestCommitEffectFailureRetriesSameEventBeforeNextEvent(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure"), nil, nil}}
+func TestCommitEffectFailureDropsAndAdvancesWithoutRetry(t *testing.T) {
+	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure"), nil}}
+	observer := &recordingPostCommitFailureObserverForTest{}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1000),
@@ -92,7 +93,7 @@ func TestCommitEffectFailureRetriesSameEventBeforeNextEvent(t *testing.T) {
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		RecipientRouter:            router,
 		RecipientBatchSize:         16,
-		CommitRetryMaxAttempts:     3,
+		Observer:                   observer,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -107,15 +108,47 @@ func TestCommitEffectFailureRetriesSameEventBeforeNextEvent(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1000, 1)
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1001, 2)
 
-	router.waitCalls(t, 3)
-	if got := router.messageIDs(); len(got) != 3 || got[0] != 1000 || got[1] != 1000 || got[2] != 1001 {
-		t.Fatalf("recipient dispatch message ids = %#v, want retry first before second", got)
+	router.waitCalls(t, 2)
+	if got := router.messageIDs(); len(got) != 2 || got[0] != 1000 || got[1] != 1001 {
+		t.Fatalf("recipient dispatch message ids = %#v, want failed first dropped then second", got)
+	}
+	observer.waitFailures(t, 1)
+	if got := observer.failures[0]; got.MessageID != 1000 || got.MessageSeq != 1 || got.Result != channelWriteResultOther {
+		t.Fatalf("post-commit failure observation = %#v, want first message failure", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
-func TestCommitEffectTerminalFailureDropsThenAdvances(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("first failure"), errors.New("terminal failure"), nil}}
+func TestCommitEffectFailureDoesNotRetryLater(t *testing.T) {
+	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure")}}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1050),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientRouter:            router,
+		RecipientBatchSize:         16,
+	})
+	target := localTargetForAppendTest("room")
+	item := appendSendItemForTest("u1", "room", "one")
+	item.Command.MessageScopedUIDs = []string{"u2"}
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1050, 1)
+
+	router.waitCalls(t, 1)
+	time.Sleep(30 * time.Millisecond)
+	if got := router.callCount(); got != 1 {
+		t.Fatalf("recipient dispatch calls after failure = %d, want no retry", got)
+	}
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+}
+
+func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
+	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("first failure"), errors.New("second failure"), nil}}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1100),
@@ -123,7 +156,6 @@ func TestCommitEffectTerminalFailureDropsThenAdvances(t *testing.T) {
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		RecipientRouter:            router,
 		RecipientBatchSize:         16,
-		CommitRetryMaxAttempts:     2,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -131,16 +163,19 @@ func TestCommitEffectTerminalFailureDropsThenAdvances(t *testing.T) {
 	first.Command.MessageScopedUIDs = []string{"u2"}
 	second := appendSendItemForTest("u1", "room", "two")
 	second.Command.MessageScopedUIDs = []string{"u3"}
-	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first, second})
+	third := appendSendItemForTest("u1", "room", "three")
+	third.Command.MessageScopedUIDs = []string{"u4"}
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first, second, third})
 	if err != nil {
 		t.Fatalf("SubmitLocal() error = %v", err)
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1100, 1)
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1101, 2)
+	requireAppendSuccess(t, waitFutureForTest(t, future), 2, 1102, 3)
 
 	router.waitCalls(t, 3)
-	if got := router.messageIDs(); len(got) != 3 || got[0] != 1100 || got[1] != 1100 || got[2] != 1101 {
-		t.Fatalf("recipient dispatch message ids = %#v, want terminal drop then next event", got)
+	if got := router.messageIDs(); len(got) != 3 || got[0] != 1100 || got[1] != 1101 || got[2] != 1102 {
+		t.Fatalf("recipient dispatch message ids = %#v, want failures dropped then next events", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
@@ -325,6 +360,36 @@ type scriptedRecipientRouterForCommitTest struct {
 	batches []RecipientBatch
 }
 
+type recordingPostCommitFailureObserverForTest struct {
+	mu       sync.Mutex
+	failures []PostCommitFailureObservation
+}
+
+func (o *recordingPostCommitFailureObserverForTest) AppendFinished(string, error, time.Duration) {}
+
+func (o *recordingPostCommitFailureObserverForTest) ObserveChannelWritePostCommitFailure(obs PostCommitFailureObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.failures = append(o.failures, obs)
+}
+
+func (o *recordingPostCommitFailureObserverForTest) waitFailures(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		o.mu.Lock()
+		got := len(o.failures)
+		o.mu.Unlock()
+		if got >= want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("post-commit failures = %d, want %d", got, want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func (r *scriptedRecipientRouterForCommitTest) DispatchRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -358,6 +423,12 @@ func (r *scriptedRecipientRouterForCommitTest) waitCalls(t *testing.T, want int)
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+func (r *scriptedRecipientRouterForCommitTest) callCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.batches)
 }
 
 func (r *scriptedRecipientRouterForCommitTest) messageIDs() []uint64 {

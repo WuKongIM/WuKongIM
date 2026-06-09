@@ -89,6 +89,13 @@ effect receives a monotonic sequence for the submitted authority target;
 completion events may arrive out of order, but the reactor drains them only in
 sequence so same-channel pending order matches submission order even with
 multiple workers.
+Effect worker pressure metrics report busy worker count, configured worker
+capacity, effect queue depth, and effect queue capacity per reactor and stage
+(`prepare`, `append`, `post_commit`, and `replay`) so saturation can be
+distinguished from downstream append or post-commit latency. Recipient
+authority dispatch fanout inside one `post_commit` effect is configured
+separately from the effect worker count so increasing effect workers does not
+also multiply downstream recipient-authority concurrency.
 
 The reactor loop applies prepare completion events, and only those completion
 events mutate `channelState`. Rejected and idempotent items complete their
@@ -116,40 +123,33 @@ append order for concurrent same-channel requests or serialize the requests
 internally. Append requests clone payloads at the appender boundary and carry
 the resolved authority epoch and leader epoch as append fences.
 
-Batch-level `ErrRouteNotReady`, `ErrNotLeader`, and `ErrStaleRoute` are retried
-with bounded backoff while at least one active item deadline remains. Short
-append results complete missing items with `ErrAppendResultMissing`; per-item
-append errors map to SENDACK reasons; successful append results complete
-`SENDACK` futures immediately with `ReasonSuccess`, message id, and channel
-sequence. Successful append items also enqueue `CommittedEnvelope` values in the
-same `channelState` as the handoff point for post-commit recipient work.
-When a durable cursor store is configured, the state first loads the last
-completed post-commit cursor and reads committed messages from
-`lastCompletedSeq + 1` in bounded pages before allowing live post-commit
-effects to run. Replay messages are inserted ahead of live committed backlog
-so authority restart repair preserves channel sequence order. Cursor load/read
-errors retry with the same bounded in-memory attempt cap as commit effects; a
-channel with exhausted replay attempts remains blocked by its backlog rather
-than running live recipient effects ahead of unreplayed durable messages.
+Batch-level append errors are returned to all active items from that single
+append attempt without retry. Short append results complete missing items with
+`ErrAppendResultMissing`; per-item append errors map to SENDACK reasons;
+successful append results complete `SENDACK` futures immediately with
+`ReasonSuccess`, message id, and channel sequence. Successful append items also
+enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
+point for best-effort post-commit recipient work. Durable post-commit cursor
+checkpoint and restart replay are intentionally disabled: `CursorStore`,
+`CommittedReader`, and `ReplayPageSize` options are ignored so old committed
+messages are not replayed for conversation or push side effects after authority
+restart.
 
 Post-commit work is scheduled from the authority `channelState` after durable
 append succeeds and is independent from `SENDACK` completion. A committed
-envelope remains pending until its recipient dispatch succeeds or reaches the
-bounded in-memory retry cap. Each channel keeps only one committed envelope in
-flight, so cursor checkpoint order remains message-sequential; concurrency is
-limited to recipient authority targets inside that envelope. Success then
-checkpoints the committed channel sequence through the cursor store after
-recipient authority dispatch is accepted, and prunes the payload-bearing
-envelope from the backlog. Cursor
-checkpoint errors retry the same committed envelope without changing the
-already-completed `SENDACK`; if the process restarts before checkpoint success,
-durable replay starts again from the previous cursor and duplicate replay must
-be tolerated by idempotent recipient-side projections. Terminal max-attempt
-failure explicitly drops the in-memory envelope for now so the reactor can
-advance, while a later restart can still replay uncheckpointed durable log
-entries. Unprocessed and in-flight commit backlog participates in the channel
-high-watermark so a lagging post-commit path can return `ErrChannelBusy`
-instead of retaining unbounded payloads.
+envelope remains pending only until one recipient dispatch attempt completes.
+Success prunes the payload-bearing envelope from the backlog. Failure is logged
+through `PostCommitFailureObserver`, counted through effect metrics, and then
+the envelope is dropped without retry so one bad conversation, presence, route,
+or push side effect cannot block later messages on the same channel. The
+failure observation carries a precise post-commit phase plus sampled recipient,
+target, and dispatch context so route-resolution failures can be distinguished
+from conversation projection, presence lookup, recipient dispatch, and owner
+push failures in logs. Each channel keeps only one committed envelope in flight
+at a time, and concurrency inside that envelope is limited to recipient
+authority targets. Unprocessed and in-flight commit backlog still participates
+in the channel high-watermark, but failed best-effort work is dropped promptly
+to avoid retaining unbounded payloads.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
@@ -158,11 +158,13 @@ size and dispatch each page before requesting the next one, so the runtime does
 not load all subscribers before recipient dispatch. A non-terminal subscriber
 page must return a non-empty cursor different from the previous cursor;
 otherwise dispatch fails before that page's recipients are dispatched, avoiding
-duplicate effects on retry. Recipient batches are grouped by the full fenced
-recipient authority target. UID authority resolution is performed once per
+partial dispatch for the invalid page before the envelope is dropped. Recipient
+batches are grouped by the full fenced recipient authority target. UID
+authority resolution is performed once per
 unique trimmed UID and uses the optional batch resolver when available; invalid
 or missing targets map to route-not-ready before dispatch. Different recipient
-authority targets may dispatch concurrently up to the effect worker count;
+authority targets may dispatch concurrently up to
+`RecipientDispatchConcurrency`;
 batches for the same target are dispatched sequentially.
 
 Recipient-authority processing applies conversation patches before resolving

@@ -217,6 +217,8 @@ type DeliveryConfig struct {
 	ChannelWriteReactorCount int
 	// ChannelWriteEffectWorkers is the per-reactor worker count for prepare, append, replay, and post-commit effects. Zero uses a bounded default.
 	ChannelWriteEffectWorkers int
+	// ChannelWriteRecipientDispatchConcurrency bounds per-message recipient authority dispatch fanout inside one post-commit effect. Zero uses a bounded default.
+	ChannelWriteRecipientDispatchConcurrency int
 	// FanoutPageSize limits subscriber UIDs read by one fanout page.
 	FanoutPageSize int
 	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
@@ -252,6 +254,9 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	if cfg.ChannelWriteEffectWorkers == 0 {
 		cfg.ChannelWriteEffectWorkers = defaultChannelWriteEffectWorkers()
 	}
+	if cfg.ChannelWriteRecipientDispatchConcurrency == 0 {
+		cfg.ChannelWriteRecipientDispatchConcurrency = defaultChannelWriteRecipientDispatchConcurrency()
+	}
 	if cfg.FanoutPageSize == 0 {
 		cfg.FanoutPageSize = 512
 	}
@@ -275,7 +280,11 @@ func defaultChannelWriteReactorCount() int {
 }
 
 func defaultChannelWriteEffectWorkers() int {
-	return 2
+	return 8
+}
+
+func defaultChannelWriteRecipientDispatchConcurrency() int {
+	return 4
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
@@ -378,6 +387,9 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	}
 	if cfg.ChannelWriteEffectWorkers < 0 {
 		return fmt.Errorf("%w: delivery channel write effect workers must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.ChannelWriteRecipientDispatchConcurrency < 0 {
+		return fmt.Errorf("%w: delivery channel write recipient dispatch concurrency must be non-negative", ErrInvalidConfig)
 	}
 	if cfg.FanoutPageSize < 0 {
 		return fmt.Errorf("%w: delivery fanout page size must be non-negative", ErrInvalidConfig)

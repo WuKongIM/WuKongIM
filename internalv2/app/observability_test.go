@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -1023,6 +1024,51 @@ func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
 	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.manager_terminal_failed")
 }
 
+func TestDeliveryMessageObserverLogsChannelWritePostCommitFailure(t *testing.T) {
+	logger := &recordingAppLogger{}
+	app := &App{logger: logger}
+	observer := deliveryMessageObserver{app: app}
+
+	observer.ObserveChannelWritePostCommitFailure(channelwrite.PostCommitFailureObservation{
+		ReactorID:             3,
+		ChannelID:             "room",
+		ChannelType:           2,
+		MessageID:             42,
+		MessageSeq:            7,
+		Attempt:               1,
+		Result:                "route_not_ready",
+		Phase:                 "recipient_target_validate",
+		UID:                   "u1",
+		UIDCount:              2,
+		RecipientCount:        3,
+		TargetHashSlot:        9,
+		TargetSlotID:          4,
+		TargetLeaderNodeID:    0,
+		TargetRouteRevision:   11,
+		TargetAuthorityEpoch:  5,
+		DispatchTargetCount:   1,
+		DispatchBatchSize:     3,
+		DispatchOwnerNodeID:   7,
+		DispatchOwnerRouteNum: 2,
+		Err:                   errors.New("route not ready"),
+	})
+
+	entry := requireAppLogEvent(t, logger, "ERROR", "internalv2.app.channelwrite.post_commit_failed")
+	requireAppLogField(t, entry, "phase", "recipient_target_validate")
+	requireAppLogField(t, entry, "uid", "u1")
+	requireAppLogField(t, entry, "uidCount", 2)
+	requireAppLogField(t, entry, "recipientCount", 3)
+	requireAppLogField(t, entry, "targetHashSlot", uint64(9))
+	requireAppLogField(t, entry, "targetSlotID", uint64(4))
+	requireAppLogField(t, entry, "targetLeaderNodeID", uint64(0))
+	requireAppLogField(t, entry, "targetRouteRevision", uint64(11))
+	requireAppLogField(t, entry, "targetAuthorityEpoch", uint64(5))
+	requireAppLogField(t, entry, "dispatchTargetCount", 1)
+	requireAppLogField(t, entry, "dispatchBatchSize", 3)
+	requireAppLogField(t, entry, "dispatchOwnerNodeID", uint64(7))
+	requireAppLogField(t, entry, "dispatchOwnerRouteNum", 2)
+}
+
 type recordingInternalV2SendTraceSink struct {
 	events []sendtrace.Event
 }
@@ -1035,7 +1081,7 @@ func (s *recordingInternalV2SendTraceSink) snapshot() []sendtrace.Event {
 	return append([]sendtrace.Event(nil), s.events...)
 }
 
-func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event string) {
+func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event string) recordedAppLogEntry {
 	t.Helper()
 	for _, entry := range logger.entries {
 		if entry.level != level {
@@ -1043,9 +1089,23 @@ func requireAppLogEvent(t *testing.T, logger *recordingAppLogger, level, event s
 		}
 		for _, field := range entry.fields {
 			if field.Key == "event" && field.Value == event {
-				return
+				return entry
 			}
 		}
 	}
 	t.Fatalf("missing app log event level=%s event=%s entries=%#v", level, event, logger.entries)
+	return recordedAppLogEntry{}
+}
+
+func requireAppLogField(t *testing.T, entry recordedAppLogEntry, key string, want any) {
+	t.Helper()
+	for _, field := range entry.fields {
+		if field.Key == key {
+			if field.Value != want {
+				t.Fatalf("log field %s = %#v, want %#v", key, field.Value, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing log field %s entries=%#v", key, entry.fields)
 }

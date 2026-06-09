@@ -136,11 +136,55 @@ func (o deliveryMessageObserver) SetChannelWriteReactorPressure(event channelwri
 	)
 }
 
+func (o deliveryMessageObserver) SetChannelWriteEffectWorkerPressure(event channelwrite.EffectWorkerPressureObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.SetEffectWorkerPressure(
+		event.ReactorID,
+		event.Stage,
+		event.WorkerInflight,
+		event.WorkerCapacity,
+		event.QueueDepth,
+		event.QueueCapacity,
+	)
+}
+
 func (o deliveryMessageObserver) ObserveChannelWriteEffect(event channelwrite.EffectObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
 	o.app.metrics.ChannelWrite.ObserveEffect(event.Stage, event.Result, event.Items, event.Duration)
+}
+
+func (o deliveryMessageObserver) ObserveChannelWritePostCommitFailure(event channelwrite.PostCommitFailureObservation) {
+	if o.app == nil {
+		return
+	}
+	o.app.deliveryLogger().Error("channelwrite post-commit failed",
+		wklog.Event("internalv2.app.channelwrite.post_commit_failed"),
+		wklog.Int("reactorID", event.ReactorID),
+		wklog.ChannelID(event.ChannelID),
+		wklog.ChannelType(int64(event.ChannelType)),
+		wklog.Uint64("messageID", event.MessageID),
+		wklog.MessageSeq(event.MessageSeq),
+		wklog.Int("attempt", event.Attempt),
+		wklog.String("result", event.Result),
+		wklog.String("phase", event.Phase),
+		wklog.UID(event.UID),
+		wklog.Int("uidCount", event.UIDCount),
+		wklog.Int("recipientCount", event.RecipientCount),
+		wklog.Uint64("targetHashSlot", uint64(event.TargetHashSlot)),
+		wklog.Uint64("targetSlotID", uint64(event.TargetSlotID)),
+		wklog.Uint64("targetLeaderNodeID", event.TargetLeaderNodeID),
+		wklog.Uint64("targetRouteRevision", event.TargetRouteRevision),
+		wklog.Uint64("targetAuthorityEpoch", event.TargetAuthorityEpoch),
+		wklog.Int("dispatchTargetCount", event.DispatchTargetCount),
+		wklog.Int("dispatchBatchSize", event.DispatchBatchSize),
+		wklog.Uint64("dispatchOwnerNodeID", event.DispatchOwnerNodeID),
+		wklog.Int("dispatchOwnerRouteNum", event.DispatchOwnerRouteNum),
+		wklog.Error(event.Err),
+	)
 }
 
 func appendFailureLogLine(path string, err error) string {

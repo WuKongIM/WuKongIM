@@ -38,7 +38,12 @@ func (r *Router) RouteKey(key string) (Route, error) {
 	if table == nil {
 		return Route{}, ErrRouteNotReady
 	}
-	return table.routeHashSlot(HashSlotForKey(key, table.HashSlotCount))
+	hashSlot := HashSlotForKey(key, table.HashSlotCount)
+	route, err := table.routeHashSlot(hashSlot)
+	if err != nil {
+		return Route{}, fmt.Errorf("route key=%q hashSlot=%d: %w", key, hashSlot, err)
+	}
+	return route, nil
 }
 
 // RouteKeys routes keys through one current table snapshot and preserves input order.
@@ -52,9 +57,10 @@ func (r *Router) RouteKeys(keys []string) ([]Route, error) {
 	}
 	routes := make([]Route, len(keys))
 	for i, key := range keys {
-		route, err := table.routeHashSlot(HashSlotForKey(key, table.HashSlotCount))
+		hashSlot := HashSlotForKey(key, table.HashSlotCount)
+		route, err := table.routeHashSlot(hashSlot)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("route key index=%d key=%q hashSlot=%d: %w", i, key, hashSlot, err)
 		}
 		routes[i] = route
 	}

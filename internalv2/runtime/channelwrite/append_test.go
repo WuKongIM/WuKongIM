@@ -3,7 +3,6 @@ package channelwrite
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -212,11 +211,11 @@ func TestAppendItemDeadlineDoesNotPoisonSameBatch(t *testing.T) {
 	}
 }
 
-func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {
-	for _, retryErr := range []error{ErrRouteNotReady, ErrNotLeader, ErrStaleRoute} {
-		t.Run(retryErr.Error(), func(t *testing.T) {
+func TestAppendBatchRouteErrorsFailWithoutRetry(t *testing.T) {
+	for _, appendErr := range []error{ErrRouteNotReady, ErrNotLeader, ErrStaleRoute} {
+		t.Run(appendErr.Error(), func(t *testing.T) {
 			appender := newRecordingAppenderForAppendTest()
-			appender.err = retryErr
+			appender.err = appendErr
 			group := newStartedTestGroup(t, Options{
 				LocalNodeID: 1,
 				MessageID:   newSequenceIDsForPrepare(300),
@@ -226,39 +225,21 @@ func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {
 
 			future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{{
 				Context:  context.Background(),
-				Deadline: time.Now().Add(25 * time.Millisecond),
-				Command:  appendCommandForTest("u1", "room", "retry"),
+				Deadline: time.Now().Add(time.Second),
+				Command:  appendCommandForTest("u1", "room", "fail-once"),
 			}})
 			if err != nil {
 				t.Fatalf("SubmitLocal() error = %v", err)
 			}
 
 			results := waitFutureForTest(t, future)
-			if !errors.Is(results[0].Err, context.DeadlineExceeded) {
-				t.Fatalf("result error = %v, want DeadlineExceeded after retry window", results[0].Err)
+			if !errors.Is(results[0].Err, appendErr) {
+				t.Fatalf("result error = %v, want %v", results[0].Err, appendErr)
 			}
-			if got := appender.Calls(); got < 2 {
-				t.Fatalf("append calls = %d, want retry before deadline", got)
+			if got := appender.Calls(); got != 1 {
+				t.Fatalf("append calls = %d, want no retry", got)
 			}
 		})
-	}
-}
-
-func TestAppendItemsWakeSignalDoesNotStartWaitersForPlainItems(t *testing.T) {
-	items := make([]preparedSend, 128)
-	before := runtime.NumGoroutine()
-	wake, cleanup := appendItemsWakeSignal(items)
-	defer cleanup()
-	select {
-	case <-wake:
-		t.Fatalf("wake signal closed for plain active items")
-	default:
-	}
-	time.Sleep(20 * time.Millisecond)
-	after := runtime.NumGoroutine()
-	if delta := after - before; delta > 8 {
-		cleanup()
-		t.Fatalf("appendItemsWakeSignal spawned %d goroutines for plain items, want <= 8", delta)
 	}
 }
 
@@ -346,9 +327,9 @@ func TestRecordAppendCompletionDoesNotAllocateSingleDispatch(t *testing.T) {
 	}
 }
 
-func TestAppendRetryDropsExpiredItemsAndContinuesEligibleItems(t *testing.T) {
+func TestAppendBatchErrorKeepsPreAppendExpiredItemsSeparate(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
-	appender.errs = []error{ErrRouteNotReady, ErrRouteNotReady, nil}
+	appender.err = ErrRouteNotReady
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID: 1,
 		MessageID:   newSequenceIDsForPrepare(350),
@@ -356,9 +337,8 @@ func TestAppendRetryDropsExpiredItemsAndContinuesEligibleItems(t *testing.T) {
 	})
 	target := localTargetForAppendTest("room")
 	first := appendSendItemForTest("u1", "room", "early")
-	first.Deadline = time.Now().Add(8 * time.Millisecond)
+	first.Deadline = time.Now().Add(-time.Millisecond)
 	second := appendSendItemForTest("u2", "room", "later")
-	second.Deadline = time.Now().Add(200 * time.Millisecond)
 
 	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first, second})
 	if err != nil {
@@ -369,13 +349,15 @@ func TestAppendRetryDropsExpiredItemsAndContinuesEligibleItems(t *testing.T) {
 	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
 		t.Fatalf("first result error = %v, want DeadlineExceeded", results[0].Err)
 	}
-	requireAppendSuccess(t, results, 1, 351, 1)
-	requests := appender.Requests()
-	if len(requests) < 3 {
-		t.Fatalf("append requests = %d, want retries", len(requests))
+	if !errors.Is(results[1].Err, ErrRouteNotReady) {
+		t.Fatalf("second result error = %v, want ErrRouteNotReady", results[1].Err)
 	}
-	if len(requests[len(requests)-1].Messages) != 1 || requests[len(requests)-1].Messages[0].ClientMsgNo != "u2-later" {
-		t.Fatalf("last retry request messages = %#v, want only later item", requests[len(requests)-1].Messages)
+	requests := appender.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("append requests = %d, want single attempt", len(requests))
+	}
+	if len(requests[0].Messages) != 1 || requests[0].Messages[0].ClientMsgNo != "u2-later" {
+		t.Fatalf("append request messages = %#v, want only later item", requests[0].Messages)
 	}
 }
 

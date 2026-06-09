@@ -14,7 +14,7 @@ func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, p
 		return nil
 	}
 	if err := contextErr(ctx); err != nil {
-		return err
+		return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
 	if len(event.MessageScopedUIDs) > 0 {
 		return dispatchRecipientSet(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
@@ -22,7 +22,7 @@ func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, p
 	if event.ChannelType == channelTypePerson {
 		left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
 		if err != nil {
-			return err
+			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
 		}
 		return dispatchRecipientSet(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
 	}
@@ -38,7 +38,7 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 	for {
 		previousCursor := cursor
 		if err := contextErr(ctx); err != nil {
-			return err
+			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 		}
 		page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
 			ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
@@ -46,10 +46,13 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 			Limit:     pageSize,
 		})
 		if err != nil {
-			return err
+			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_page"})
 		}
 		if !page.Done && (page.Cursor == "" || page.Cursor == previousCursor) {
-			return ErrInvalidSubscriberCursor
+			return withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
+				Phase:          "subscriber_cursor",
+				RecipientCount: len(page.Recipients),
+			})
 		}
 		if err := dispatchRecipientSet(ctx, event, page.Recipients, ports); err != nil {
 			return err
@@ -66,7 +69,7 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		return nil
 	}
 	if ports.recipientAuthorityResolver == nil {
-		return errors.New("channelwrite: recipient authority resolver required")
+		return withPostCommitFailureDetail(errors.New("channelwrite: recipient authority resolver required"), PostCommitFailureDetail{Phase: "recipient_route_resolve"})
 	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
 	recipients, uids := normalizeRecipientsForAuthorityResolution(recipients)
@@ -75,14 +78,24 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 	}
 	targets, err := resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, uids)
 	if err != nil {
-		return err
+		return withPostCommitFailureDetail(err, PostCommitFailureDetail{
+			Phase:          "recipient_route_resolve",
+			UID:            firstString(uids),
+			UIDCount:       len(uids),
+			RecipientCount: len(recipients),
+		})
 	}
 	grouped := make(map[RecipientAuthorityTarget][]Recipient)
 	order := make([]RecipientAuthorityTarget, 0)
 	for _, recipient := range recipients {
 		target := targets[recipient.UID]
 		if err := target.Validate(); err != nil {
-			return ErrRouteNotReady
+			detail := postCommitTargetDetail(target)
+			detail.Phase = "recipient_target_validate"
+			detail.UID = recipient.UID
+			detail.UIDCount = len(uids)
+			detail.RecipientCount = len(recipients)
+			return withPostCommitFailureDetail(ErrRouteNotReady, detail)
 		}
 		if _, ok := grouped[target]; !ok {
 			order = append(order, target)
@@ -92,7 +105,7 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
 	if concurrency <= 1 || len(order) <= 1 {
 		for _, target := range order {
-			if err := dispatchRecipientTarget(ctx, event, target, grouped[target], batchSize, ports.recipientRouter); err != nil {
+			if err := dispatchRecipientTarget(ctx, event, target, grouped[target], batchSize, len(order), ports.recipientRouter); err != nil {
 				return err
 			}
 		}
@@ -140,7 +153,7 @@ func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAut
 	return targets, nil
 }
 
-func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, target RecipientAuthorityTarget, recipients []Recipient, batchSize int, router RecipientAuthorityRouter) error {
+func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, target RecipientAuthorityTarget, recipients []Recipient, batchSize int, targetCount int, router RecipientAuthorityRouter) error {
 	for len(recipients) > 0 {
 		n := batchSize
 		if n > len(recipients) {
@@ -151,7 +164,13 @@ func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, targe
 			Recipients: append([]Recipient(nil), recipients[:n]...),
 		}
 		if err := router.DispatchRecipientBatch(ctx, target, batch); err != nil {
-			return err
+			detail := postCommitTargetDetail(target)
+			detail.Phase = "recipient_dispatch"
+			detail.UID = firstRecipientUID(batch.Recipients)
+			detail.RecipientCount = len(recipients)
+			detail.DispatchTargetCount = targetCount
+			detail.DispatchBatchSize = len(batch.Recipients)
+			return withPostCommitFailureDetail(err, detail)
 		}
 		recipients = recipients[n:]
 	}
@@ -170,7 +189,7 @@ func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnve
 	worker := func() {
 		defer wg.Done()
 		for target := range targets {
-			if err := dispatchRecipientTarget(runCtx, event, target, grouped[target], batchSize, router); err != nil {
+			if err := dispatchRecipientTarget(runCtx, event, target, grouped[target], batchSize, len(order), router); err != nil {
 				select {
 				case errs <- err:
 					cancel()
@@ -202,6 +221,20 @@ func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnve
 	default:
 	}
 	return runCtx.Err()
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func firstRecipientUID(recipients []Recipient) string {
+	if len(recipients) == 0 {
+		return ""
+	}
+	return recipients[0].UID
 }
 
 func recipientsFromUIDs(uids []string) []Recipient {

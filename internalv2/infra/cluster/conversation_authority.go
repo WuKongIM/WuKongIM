@@ -56,44 +56,23 @@ func (c *ConversationAuthorityClient) AdmitPatches(ctx context.Context, patches 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	remaining := append([]conversationusecase.ActivePatch(nil), patches...)
-	for attempt := 0; attempt < defaultConversationRouteRetryAttempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		groups, err := c.groupByTarget(remaining)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	groups, err := c.groupByTarget(patches)
+	if err != nil {
+		return err
+	}
+	for _, group := range groups {
+		authority, err := c.authorityForTarget(group.target)
 		if err != nil {
-			if attempt+1 < defaultConversationRouteRetryAttempts && shouldRetryConversationRouteLookup(err) {
-				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
-					return sleepErr
-				}
-				continue
-			}
 			return err
 		}
-		var retry []conversationusecase.ActivePatch
-		for i, group := range groups {
-			authority, err := c.authorityForTarget(group.target)
-			if err != nil {
-				return err
-			}
-			if err := authority.AdmitPatches(ctx, group.target, group.patches); err != nil {
-				if attempt+1 < defaultConversationRouteRetryAttempts && shouldRetryConversationRoute(err) {
-					retry = pendingConversationPatches(groups[i:])
-					break
-				}
-				return err
-			}
-		}
-		if len(retry) == 0 {
-			return nil
-		}
-		remaining = append(remaining[:0], retry...)
-		if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
-			return sleepErr
+		if err := authority.AdmitPatches(ctx, group.target, group.patches); err != nil {
+			return err
 		}
 	}
-	return conversationusecase.ErrRouteNotReady
+	return nil
 }
 
 // ListUserConversationActiveView reads one UID's active view from the current authority leader.
@@ -146,14 +125,6 @@ func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecas
 		})
 	}
 	return groups, nil
-}
-
-func pendingConversationPatches(groups []conversationAuthorityPatchGroup) []conversationusecase.ActivePatch {
-	var out []conversationusecase.ActivePatch
-	for _, group := range groups {
-		out = append(out, group.patches...)
-	}
-	return out
 }
 
 func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {

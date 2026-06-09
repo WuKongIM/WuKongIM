@@ -36,6 +36,10 @@ type reactor struct {
 	pendingAppendItems  atomic.Int64
 	appendInflightItems atomic.Int64
 	postCommitBacklog   atomic.Int64
+	prepareWorkerBusy   atomic.Int64
+	appendWorkerBusy    atomic.Int64
+	commitWorkerBusy    atomic.Int64
+	cursorWorkerBusy    atomic.Int64
 
 	startOnce  sync.Once
 	closeOnce  sync.Once
@@ -159,12 +163,16 @@ func (r *reactor) run() {
 			default:
 			}
 			r.pendingPrepare = r.pendingPrepare[1:]
+			r.observeEffectWorkerPressure("prepare")
 		case appendOut <- nextAppend:
 			r.pendingAppend = r.pendingAppend[1:]
+			r.observeEffectWorkerPressure("append")
 		case commitOut <- nextCommit:
 			r.pendingCommit = r.pendingCommit[1:]
+			r.observeEffectWorkerPressure("post_commit")
 		case cursorOut <- nextCursor:
 			r.pendingCursor = r.pendingCursor[1:]
+			r.observeEffectWorkerPressure("replay")
 		case event, ok := <-mailbox:
 			if !ok {
 				mailbox = nil
@@ -226,30 +234,39 @@ func (r *reactor) startEffectWorkers() {
 	if workerCount <= 0 {
 		workerCount = 1
 	}
+	r.observeAllEffectWorkerPressure()
 	r.effectWG.Add(workerCount * 4)
 	for i := 0; i < workerCount; i++ {
 		go func() {
 			defer r.effectWG.Done()
 			for effect := range r.effects {
+				r.addEffectWorkerBusy("prepare", 1)
 				r.completions <- effect.run(r.stopCtx, r.ports)
+				r.addEffectWorkerBusy("prepare", -1)
 			}
 		}()
 		go func() {
 			defer r.effectWG.Done()
 			for effect := range r.appendEffects {
+				r.addEffectWorkerBusy("append", 1)
 				r.completions <- effect.run(r.stopCtx, r.appendPorts)
+				r.addEffectWorkerBusy("append", -1)
 			}
 		}()
 		go func() {
 			defer r.effectWG.Done()
 			for effect := range r.commitEffects {
+				r.addEffectWorkerBusy("post_commit", 1)
 				r.completions <- effect.run(r.stopCtx, r.commitPorts)
+				r.addEffectWorkerBusy("post_commit", -1)
 			}
 		}()
 		go func() {
 			defer r.effectWG.Done()
 			for effect := range r.cursorEffects {
+				r.addEffectWorkerBusy("replay", 1)
 				r.completions <- effect.run(r.stopCtx, r.cursorPorts)
+				r.addEffectWorkerBusy("replay", -1)
 			}
 		}()
 	}
@@ -409,6 +426,73 @@ func (r *reactor) pressureObservation() ReactorPressureObservation {
 		AppendInflightItems: int(r.appendInflightItems.Load()),
 		PostCommitBacklog:   int(r.postCommitBacklog.Load()),
 	}
+}
+
+func (r *reactor) observeAllEffectWorkerPressure() {
+	r.observeEffectWorkerPressure("prepare")
+	r.observeEffectWorkerPressure("append")
+	r.observeEffectWorkerPressure("post_commit")
+	r.observeEffectWorkerPressure("replay")
+}
+
+func (r *reactor) observeEffectWorkerPressure(stage string) {
+	if r == nil {
+		return
+	}
+	observeEffectWorkerPressure(r.appendPorts.observer, r.effectWorkerPressureObservation(stage))
+}
+
+func (r *reactor) effectWorkerPressureObservation(stage string) EffectWorkerPressureObservation {
+	queueDepth, queueCapacity := r.effectQueuePressure(stage)
+	return EffectWorkerPressureObservation{
+		ReactorID:      r.id,
+		Stage:          stage,
+		WorkerInflight: int(r.effectWorkerBusy(stage).Load()),
+		WorkerCapacity: r.effectWorkerCapacity(),
+		QueueDepth:     queueDepth,
+		QueueCapacity:  queueCapacity,
+	}
+}
+
+func (r *reactor) effectWorkerCapacity() int {
+	if r.effectWorkerCount > 0 {
+		return r.effectWorkerCount
+	}
+	return 1
+}
+
+func (r *reactor) effectWorkerBusy(stage string) *atomic.Int64 {
+	switch stage {
+	case "append":
+		return &r.appendWorkerBusy
+	case "post_commit":
+		return &r.commitWorkerBusy
+	case "replay":
+		return &r.cursorWorkerBusy
+	default:
+		return &r.prepareWorkerBusy
+	}
+}
+
+func (r *reactor) effectQueuePressure(stage string) (int, int) {
+	switch stage {
+	case "append":
+		return len(r.appendEffects), cap(r.appendEffects)
+	case "post_commit":
+		return len(r.commitEffects), cap(r.commitEffects)
+	case "replay":
+		return len(r.cursorEffects), cap(r.cursorEffects)
+	default:
+		return len(r.effects), cap(r.effects)
+	}
+}
+
+func (r *reactor) addEffectWorkerBusy(stage string, delta int) {
+	if r == nil || delta == 0 {
+		return
+	}
+	r.effectWorkerBusy(stage).Add(int64(delta))
+	r.observeEffectWorkerPressure(stage)
 }
 
 func (r *reactor) addPendingAppendItems(delta int) {

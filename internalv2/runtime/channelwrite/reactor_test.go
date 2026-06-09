@@ -52,6 +52,39 @@ func TestReactorRunsPrepareAsWorkerEffect(t *testing.T) {
 	requireAppendSuccess(t, results, 0, 500, 1)
 }
 
+func TestEffectWorkerPressureTracksBusyPrepareWorkers(t *testing.T) {
+	authorizer := newBlockingAuthorizerForTest()
+	observer := newRecordingEffectWorkerPressureObserverForTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:       1,
+		MessageID:         newSequenceIDsForPrepare(550),
+		Authorizer:        authorizer,
+		Appender:          newRecordingAppenderForAppendTest(),
+		EffectWorkerCount: 1,
+		Observer:          observer,
+	})
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
+
+	submitC := make(chan submitResult, 1)
+	go func() {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+			sendItemForPrepare(validPrepareCommand("u1", "room", "payload")),
+		})
+		submitC <- submitResult{future: future, err: err}
+	}()
+
+	authorizer.waitStarted(t)
+	observer.waitEffectWorkerPressure(t, 0, "prepare", 1, 1)
+	result := receiveSubmitResult(t, submitC)
+	if result.err != nil {
+		t.Fatalf("SubmitLocal() error = %v", result.err)
+	}
+
+	authorizer.release()
+	requireAppendSuccess(t, waitFutureForTest(t, result.future), 0, 550, 1)
+	observer.waitEffectWorkerPressure(t, 0, "prepare", 0, 1)
+}
+
 func TestReactorPreservesSameChannelOrderAcrossConcurrentPrepareWorkers(t *testing.T) {
 	authorizer := newPayloadBlockingAuthorizerForTest("first")
 	appender := newRecordingAppenderForAppendTest()
@@ -343,6 +376,54 @@ type blockingAuthorizerForTest struct {
 type futureWaitResultForTest struct {
 	results []SendBatchItemResult
 	err     error
+}
+
+type effectWorkerPressureKeyForTest struct {
+	reactorID int
+	stage     string
+}
+
+type recordingEffectWorkerPressureObserverForTest struct {
+	mu       sync.Mutex
+	events   map[effectWorkerPressureKeyForTest]EffectWorkerPressureObservation
+	changedC chan struct{}
+}
+
+func newRecordingEffectWorkerPressureObserverForTest() *recordingEffectWorkerPressureObserverForTest {
+	return &recordingEffectWorkerPressureObserverForTest{
+		events:   make(map[effectWorkerPressureKeyForTest]EffectWorkerPressureObservation),
+		changedC: make(chan struct{}),
+	}
+}
+
+func (o *recordingEffectWorkerPressureObserverForTest) AppendFinished(string, error, time.Duration) {}
+
+func (o *recordingEffectWorkerPressureObserverForTest) SetChannelWriteEffectWorkerPressure(event EffectWorkerPressureObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events[effectWorkerPressureKeyForTest{reactorID: event.ReactorID, stage: event.Stage}] = event
+	close(o.changedC)
+	o.changedC = make(chan struct{})
+}
+
+func (o *recordingEffectWorkerPressureObserverForTest) waitEffectWorkerPressure(t *testing.T, reactorID int, stage string, inflight int, capacity int) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	key := effectWorkerPressureKeyForTest{reactorID: reactorID, stage: stage}
+	for {
+		o.mu.Lock()
+		event, ok := o.events[key]
+		changedC := o.changedC
+		o.mu.Unlock()
+		if ok && event.WorkerInflight == inflight && event.WorkerCapacity == capacity {
+			return
+		}
+		select {
+		case <-changedC:
+		case <-deadline:
+			t.Fatalf("effect worker pressure for reactor=%d stage=%s did not reach inflight=%d capacity=%d; last=%+v ok=%v", reactorID, stage, inflight, capacity, event, ok)
+		}
+	}
 }
 
 func newBlockingAuthorizerForTest() *blockingAuthorizerForTest {

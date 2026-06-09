@@ -2,13 +2,12 @@ package channelwrite
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"testing"
 )
 
-func TestCursorReplayLoadsBeforeLiveCommitDispatch(t *testing.T) {
+func TestCursorStoreAndCommittedReaderAreIgnoredForBestEffortPostCommit(t *testing.T) {
 	router := &scriptedRecipientRouterForCommitTest{}
 	store := &recordingCursorStoreForTest{loaded: 3}
 	appender := newRecordingAppenderForAppendTest()
@@ -47,23 +46,21 @@ func TestCursorReplayLoadsBeforeLiveCommitDispatch(t *testing.T) {
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 3005, 3005)
 
-	router.waitCalls(t, 2)
-	if got := router.messageIDs(); !reflect.DeepEqual(got, []uint64{3004, 3005}) {
-		t.Fatalf("recipient dispatch message ids = %#v, want replay before live append", got)
+	router.waitCalls(t, 1)
+	if got := router.messageIDs(); !reflect.DeepEqual(got, []uint64{3005}) {
+		t.Fatalf("recipient dispatch message ids = %#v, want only live in-memory event", got)
 	}
-	if got := reader.calls; len(got) != 2 || got[0].fromSeq != 4 || got[0].limit != 1 || got[1].fromSeq != 5 || got[1].limit != 1 {
-		t.Fatalf("reader calls = %#v, want bounded replay from cursor+1 then next page", got)
+	if len(reader.calls) != 0 {
+		t.Fatalf("reader calls = %d, want committed reader ignored", len(reader.calls))
 	}
-	if got := store.storedSeqs(); !reflect.DeepEqual(got, []uint64{4, 3005}) {
-		t.Fatalf("stored cursor seqs = %#v, want replay then live checkpoints", got)
+	if got := store.storedSeqs(); len(got) != 0 {
+		t.Fatalf("stored cursor seqs = %#v, want no post-commit checkpoint", got)
 	}
 }
 
-func TestCursorStoreErrorKeepsCommittedEventRetryableWithoutBlockingSendack(t *testing.T) {
+func TestCursorStoreErrorsDoNotRetryOrBlockBestEffortPostCommit(t *testing.T) {
 	router := &scriptedRecipientRouterForCommitTest{}
-	store := &recordingCursorStoreForTest{
-		storeErrs: []error{errors.New("temporary cursor write failure")},
-	}
+	store := &recordingCursorStoreForTest{storeErrs: []error{assertErrForCursorTest}}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(3100),
@@ -71,7 +68,6 @@ func TestCursorStoreErrorKeepsCommittedEventRetryableWithoutBlockingSendack(t *t
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		RecipientRouter:            router,
 		RecipientBatchSize:         16,
-		CommitRetryMaxAttempts:     3,
 		CursorStore:                store,
 		ReplayPageSize:             2,
 	})
@@ -85,45 +81,12 @@ func TestCursorStoreErrorKeepsCommittedEventRetryableWithoutBlockingSendack(t *t
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 3100, 1)
 
-	router.waitCalls(t, 2)
-	if got := router.messageIDs(); !reflect.DeepEqual(got, []uint64{3100, 3100}) {
-		t.Fatalf("recipient dispatch message ids = %#v, want retry of same committed event", got)
-	}
-	if got := store.storedSeqs(); !reflect.DeepEqual(got, []uint64{1}) {
-		t.Fatalf("stored cursor seqs = %#v, want only successful retry checkpoint", got)
-	}
-	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
-}
-
-func TestCursorReplayLoadErrorRetriesQueuedCommitBacklog(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{}
-	store := &recordingCursorStoreForTest{
-		loadErrs: []error{errors.New("temporary cursor load failure")},
-	}
-	group := newStartedTestGroup(t, Options{
-		LocalNodeID:                1,
-		MessageID:                  newSequenceIDsForPrepare(3150),
-		Appender:                   newRecordingAppenderForAppendTest(),
-		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
-		RecipientBatchSize:         16,
-		CommitRetryMaxAttempts:     3,
-		CursorStore:                store,
-		ReplayPageSize:             2,
-	})
-	target := localTargetForAppendTest("room")
-	item := appendSendItemForTest("u1", "room", "payload")
-	item.Command.MessageScopedUIDs = []string{"u2"}
-
-	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
-	if err != nil {
-		t.Fatalf("SubmitLocal() error = %v", err)
-	}
-	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 3150, 1)
-
 	router.waitCalls(t, 1)
-	if got := router.messageIDs(); !reflect.DeepEqual(got, []uint64{3150}) {
-		t.Fatalf("recipient dispatch message ids = %#v, want live commit after cursor retry", got)
+	if got := router.messageIDs(); !reflect.DeepEqual(got, []uint64{3100}) {
+		t.Fatalf("recipient dispatch message ids = %#v, want no retry", got)
+	}
+	if got := store.storedSeqs(); len(got) != 0 {
+		t.Fatalf("stored cursor seqs = %#v, want no checkpoint writes", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
@@ -163,6 +126,12 @@ func TestNilCursorStoreReplaysOnlyInMemoryCommittedEvents(t *testing.T) {
 		t.Fatalf("reader calls = %d, want nil cursor store to disable durable replay", len(reader.calls))
 	}
 }
+
+var assertErrForCursorTest = &cursorTestError{}
+
+type cursorTestError struct{}
+
+func (*cursorTestError) Error() string { return "cursor should be ignored" }
 
 type recordingCursorStoreForTest struct {
 	mu        sync.Mutex

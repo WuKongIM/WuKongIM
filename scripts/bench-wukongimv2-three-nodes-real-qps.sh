@@ -325,6 +325,8 @@ HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 MIN_ACTUAL_RATIO=$MIN_ACTUAL_RATIO
 SENDER_PICK=$SENDER_PICK
+DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS:-0}
+DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=${WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}
@@ -408,7 +410,7 @@ runtime_pool_attempt_summary() {
 channelwrite_attempt_summary() {
   local metrics="$1"
   if [[ ! -f "$metrics" ]]; then
-    printf '0\t0\t0\t0\t0\t0\t0\t0.000\t0.000\t0\t0\n'
+    printf '0\t0\t0\t0\t0\t0\t0\t0.000\t0.000\t0\t0\t0.000\t0.000\n'
     return
   fi
   awk -F'\t' '
@@ -446,9 +448,11 @@ channelwrite_attempt_summary() {
       }
       post_commit_backlog = max_value(post_commit_backlog, metric_value("post_commit_backlog_max"))
       effect_error += metric_value("effect_error_delta")
+      effect_worker_util = max_value(effect_worker_util, metric_value("effect_worker_util_max"))
+      effect_queue_fill = max_value(effect_queue_fill, metric_value("effect_queue_fill_max"))
     }
     END {
-      printf "%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+      printf "%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.3f\t%.0f\t%.0f\t%.3f\t%.3f\n",
         router_total,
         router_error,
         router_backpressured,
@@ -459,7 +463,9 @@ channelwrite_attempt_summary() {
         mailbox_fill,
         effect_slots_fill,
         post_commit_backlog,
-        effect_error
+        effect_error,
+        effect_worker_util,
+        effect_queue_fill
     }
   ' "$metrics"
 }
@@ -645,12 +651,12 @@ append_attempt_summary() {
         result = "FAIL"
         note = "actual_ratio"
       }
-      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
         tag, offered, attempt_dir, child_exit, status, ratio, actual, send_success, send_errors,
         connect_error_rate, sendack_error_rate, p50, p95, p99, max,
         pool[1], pool[2], pool[3], pool[4], pool[5],
         pool[6], pool[7], pool[8], pool[9], pool[10],
-        cw[1], cw[2], cw[3], cw[4], cw[5], cw[6], cw[7], cw[8], cw[9], cw[10], cw[11],
+        cw[1], cw[2], cw[3], cw[4], cw[5], cw[6], cw[7], cw[8], cw[9], cw[10], cw[11], cw[12], cw[13],
         result, note, attempt_dir
     }
   ' "$summary" >>"$OUT_DIR/summary.tsv"
@@ -661,7 +667,7 @@ write_display_summary() {
   awk -F'\t' '
     BEGIN {
       print "# real qps result"
-      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %9s %9s %8s %8s %8s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "cw_err", "cw_busy", "cw_bp", "cw_mb", "cw_eff", "cw_pc", "note"
+      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %9s %9s %8s %8s %8s %8s %8s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "cw_err", "cw_busy", "cw_bp", "cw_mb", "cw_eff", "cw_wkr", "cw_eq", "cw_pc", "note"
     }
     NR == 1 { next }
     {
@@ -678,10 +684,12 @@ write_display_summary() {
       cw_mailbox_fill = $33 + 0
       cw_effect_fill = $34 + 0
       cw_post_commit = $35 + 0
-      result = $37
-      note = $38
-      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.0f %9.0f %9.0f %8.3f %8.3f %8.0f %s\n",
-        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, cw_error, cw_busy, cw_backpressured, cw_mailbox_fill, cw_effect_fill, cw_post_commit, note
+      cw_worker_util = $37 + 0
+      cw_queue_fill = $38 + 0
+      result = $39
+      note = $40
+      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.0f %9.0f %9.0f %8.3f %8.3f %8.3f %8.3f %8.0f %s\n",
+        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, cw_error, cw_busy, cw_backpressured, cw_mailbox_fill, cw_effect_fill, cw_worker_util, cw_queue_fill, cw_post_commit, note
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
   append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
@@ -770,7 +778,7 @@ main() {
   mkdir -p "$OUT_DIR"
   write_metadata
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	channelwrite_router_total_delta	channelwrite_router_error_delta	channelwrite_router_backpressured_delta	channelwrite_router_channel_busy_delta	channelwrite_router_route_not_ready_delta	channelwrite_router_timeout_delta	channelwrite_local_admission_rejected_delta	channelwrite_mailbox_fill_max	channelwrite_effect_slots_fill_max	channelwrite_post_commit_backlog_max	channelwrite_effect_error_delta	result	note	attempt_dir
+tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	channelwrite_router_total_delta	channelwrite_router_error_delta	channelwrite_router_backpressured_delta	channelwrite_router_channel_busy_delta	channelwrite_router_route_not_ready_delta	channelwrite_router_timeout_delta	channelwrite_local_admission_rejected_delta	channelwrite_mailbox_fill_max	channelwrite_effect_slots_fill_max	channelwrite_post_commit_backlog_max	channelwrite_effect_error_delta	channelwrite_effect_worker_util_max	channelwrite_effect_queue_fill_max	result	note	attempt_dir
 EOF
   local qps
   for qps in "${QPS_VALUES[@]}"; do

@@ -50,7 +50,11 @@ identity changes for a hash slot and is included in `RouteKey`, `RouteKeys`,
 and `RouteHashSlot` results. `RouteKeys` resolves all keys against one installed
 routing snapshot and returns results in input order, allowing upper layers to
 batch UID authority lookups without repeatedly loading the foreground route
-table.
+table. Default Slot leader observation treats `Leader=0` as an unknown
+observation and keeps the last known non-zero Slot leader in the foreground
+router until a new non-zero leader is observed. This prevents transient Raft
+status gaps from briefly removing an otherwise valid route; stale leaders are
+still fenced by downstream Slot/Channel leadership checks.
 
 ## Start Flow
 

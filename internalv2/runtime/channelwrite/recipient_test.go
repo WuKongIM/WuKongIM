@@ -328,8 +328,39 @@ func TestInvalidRecipientAuthorityTargetMapsRouteNotReady(t *testing.T) {
 	if !errors.Is(err, ErrRouteNotReady) {
 		t.Fatalf("dispatchRecipientSet() error = %v, want ErrRouteNotReady", err)
 	}
+	detail := postCommitFailureDetailFromError(err)
+	if detail.Phase != "recipient_target_validate" || detail.UID != "u1" || detail.RecipientCount != 1 ||
+		detail.TargetLeaderNodeID != 0 {
+		t.Fatalf("post-commit failure detail = %#v, want invalid target detail for u1", detail)
+	}
 	if router.callCount() != 0 {
 		t.Fatalf("router calls = %d, want 0 for invalid target", router.callCount())
+	}
+}
+
+func TestRecipientAuthorityResolveFailureCarriesPostCommitFailureDetail(t *testing.T) {
+	router := &recordingRecipientRouterForRecipientTest{}
+	resolver := failingRecipientAuthorityResolverForRecipientTest{err: ErrRouteNotReady}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{
+		{UID: "u1"},
+		{UID: "u2"},
+		{UID: "u1"},
+	}, commitPorts{
+		recipientAuthorityResolver: resolver,
+		recipientRouter:            router,
+		recipientBatchSize:         16,
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("dispatchRecipientSet() error = %v, want ErrRouteNotReady", err)
+	}
+	detail := postCommitFailureDetailFromError(err)
+	if detail.Phase != "recipient_route_resolve" || detail.UID != "u1" || detail.UIDCount != 2 ||
+		detail.RecipientCount != 3 {
+		t.Fatalf("post-commit failure detail = %#v, want resolver detail with sample uid and counts", detail)
+	}
+	if router.callCount() != 0 {
+		t.Fatalf("router calls = %d, want 0 when authority resolution fails", router.callCount())
 	}
 }
 
@@ -388,6 +419,14 @@ type mapRecipientAuthorityResolverForRecipientTest struct {
 
 func (r mapRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(_ context.Context, uid string) (RecipientAuthorityTarget, error) {
 	return r.targets[uid], nil
+}
+
+type failingRecipientAuthorityResolverForRecipientTest struct {
+	err error
+}
+
+func (r failingRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(context.Context, string) (RecipientAuthorityTarget, error) {
+	return RecipientAuthorityTarget{}, r.err
 }
 
 type countingRecipientAuthorityResolverForRecipientTest struct {

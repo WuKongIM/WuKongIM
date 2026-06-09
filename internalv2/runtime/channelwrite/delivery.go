@@ -9,7 +9,7 @@ import (
 var (
 	// ErrInvalidSubscriberCursor reports a non-terminal subscriber page without a usable next cursor.
 	ErrInvalidSubscriberCursor = errors.New("internalv2/channelwrite: invalid subscriber cursor")
-	// ErrCommitEffectFailed reports a post-commit effect failure that will be retried or terminally dropped.
+	// ErrCommitEffectFailed reports a post-commit effect failure that will be logged and dropped.
 	ErrCommitEffectFailed = errors.New("internalv2/channelwrite: commit effect failed")
 	// ErrDeliveryRetryExhausted reports retryable owner push routes after the final delivery attempt.
 	ErrDeliveryRetryExhausted = errors.New("internalv2/channelwrite: delivery retry exhausted")
@@ -72,22 +72,25 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 		return nil
 	}
 	if err := contextErr(ctx); err != nil {
-		return err
+		return withPostCommitFailureDetail(err, postCommitBatchDetail("context", batch))
 	}
 	if ports.conversations != nil {
 		if err := ports.conversations.AdmitRecipientPatches(ctx, conversationPatchesForRecipients(batch)); err != nil {
-			return err
+			return withPostCommitFailureDetail(err, postCommitBatchDetail("conversation_projector", batch))
 		}
 	}
 	if ports.presence == nil || ports.pusher == nil {
 		return nil
 	}
 	if ports.conversations == nil {
-		return ErrConversationProjectorRequired
+		return withPostCommitFailureDetail(ErrConversationProjectorRequired, postCommitBatchDetail("delivery_config", batch))
 	}
-	routes, err := ports.presence.EndpointsByUIDs(ctx, recipientUIDs(batch.Recipients))
+	uids := recipientUIDs(batch.Recipients)
+	routes, err := ports.presence.EndpointsByUIDs(ctx, uids)
 	if err != nil {
-		return err
+		detail := postCommitBatchDetail("presence_resolve", batch)
+		detail.UIDCount = len(uids)
+		return withPostCommitFailureDetail(err, detail)
 	}
 	routes = filterSenderEchoRoute(batch.Event, routes)
 	grouped, ownerOrder := routesByOwner(routes)
@@ -98,10 +101,25 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 			Envelope:    batch.Event.Clone(),
 			Routes:      ownerRoutes,
 		}); err != nil {
-			return err
+			detail := postCommitBatchDetail("owner_push", batch)
+			detail.UID = firstRouteUID(ownerRoutes)
+			detail.UIDCount = len(uids)
+			detail.DispatchOwnerNodeID = ownerNodeID
+			detail.DispatchOwnerRouteNum = len(ownerRoutes)
+			return withPostCommitFailureDetail(err, detail)
 		}
 	}
 	return nil
+}
+
+func postCommitBatchDetail(phase string, batch RecipientBatch) PostCommitFailureDetail {
+	uids := recipientUIDs(batch.Recipients)
+	return PostCommitFailureDetail{
+		Phase:          phase,
+		UID:            firstString(uids),
+		UIDCount:       len(uids),
+		RecipientCount: len(batch.Recipients),
+	}
 }
 
 func conversationPatchesForRecipients(batch RecipientBatch) []ConversationPatch {
@@ -160,6 +178,13 @@ func routesByOwner(routes []Route) (map[uint64][]Route, []uint64) {
 		out[route.OwnerNodeID] = append(out[route.OwnerNodeID], route)
 	}
 	return out, order
+}
+
+func firstRouteUID(routes []Route) string {
+	if len(routes) == 0 {
+		return ""
+	}
+	return routes[0].UID
 }
 
 func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd PushCommand) error {

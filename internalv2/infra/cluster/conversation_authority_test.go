@@ -159,7 +159,7 @@ func TestConversationAuthorityClientCoalescesIdenticalExactTargets(t *testing.T)
 	}
 }
 
-func TestConversationAuthorityClientRetriesWithFreshRoute(t *testing.T) {
+func TestConversationAuthorityClientAdmitPatchesDoesNotRetryStaleRoute(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrStaleRoute, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -169,32 +169,24 @@ func TestConversationAuthorityClientRetriesWithFreshRoute(t *testing.T) {
 		},
 	}
 	client := NewConversationAuthorityClient(node, local)
-	client.routeRetryBackoff = time.Millisecond
-	sleepCalls := 0
-	client.routeRetrySleep = func(ctx context.Context, d time.Duration) error {
-		sleepCalls++
-		if d != time.Millisecond {
-			t.Fatalf("retry backoff = %s, want 1ms", d)
-		}
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		t.Fatal("AdmitPatches should not sleep between retries")
 		return nil
 	}
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
-	if err != nil {
-		t.Fatalf("AdmitPatches() error = %v", err)
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitPatches() error = %v, want ErrStaleRoute", err)
 	}
-	if node.routeKeyCalls != 2 {
-		t.Fatalf("RouteKey calls = %d, want 2", node.routeKeyCalls)
+	if node.routeKeyCalls != 1 {
+		t.Fatalf("RouteKey calls = %d, want 1", node.routeKeyCalls)
 	}
-	if sleepCalls != 1 {
-		t.Fatalf("retry sleeps = %d, want 1", sleepCalls)
-	}
-	if len(local.targets) != 2 || local.targets[1].RouteRevision != 11 {
-		t.Fatalf("targets = %#v, want retry with fresh route revision 11", local.targets)
+	if len(local.targets) != 1 || local.targets[0].RouteRevision != 10 {
+		t.Fatalf("targets = %#v, want one admit with original route revision 10", local.targets)
 	}
 }
 
-func TestConversationAuthorityClientRetriesRouteNotReadyAdmitWithFreshRoute(t *testing.T) {
+func TestConversationAuthorityClientAdmitPatchesDoesNotRetryRouteNotReady(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrRouteNotReady, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -204,17 +196,20 @@ func TestConversationAuthorityClientRetriesRouteNotReadyAdmitWithFreshRoute(t *t
 		},
 	}
 	client := NewConversationAuthorityClient(node, local)
-	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		t.Fatal("AdmitPatches should not sleep between retries")
+		return nil
+	}
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
-	if err != nil {
-		t.Fatalf("AdmitPatches() error = %v", err)
+	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
+		t.Fatalf("AdmitPatches() error = %v, want ErrRouteNotReady", err)
 	}
-	if node.routeKeyCalls != 2 {
-		t.Fatalf("RouteKey calls = %d, want 2", node.routeKeyCalls)
+	if node.routeKeyCalls != 1 {
+		t.Fatalf("RouteKey calls = %d, want 1", node.routeKeyCalls)
 	}
-	if len(local.targets) != 2 || local.targets[1].RouteRevision != 11 {
-		t.Fatalf("targets = %#v, want retry with fresh route revision 11", local.targets)
+	if len(local.targets) != 1 || local.targets[0].RouteRevision != 10 {
+		t.Fatalf("targets = %#v, want one admit with original route revision 10", local.targets)
 	}
 }
 
@@ -283,7 +278,7 @@ func TestConversationAuthorityClientRetriesRawRemoteRouteErrorWithFreshRoute(t *
 	}
 }
 
-func TestConversationAuthorityClientExhaustsBoundedRetries(t *testing.T) {
+func TestConversationAuthorityClientAdmitPatchesDoesNotExhaustBoundedRetries(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitAlwaysErr: conversationusecase.ErrNotLeader}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -294,33 +289,33 @@ func TestConversationAuthorityClientExhaustsBoundedRetries(t *testing.T) {
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, conversationusecase.ErrNotLeader) {
-		t.Fatalf("AdmitPatches() error = %v, want ErrNotLeader after bounded retries", err)
+		t.Fatalf("AdmitPatches() error = %v, want ErrNotLeader", err)
 	}
-	if len(local.targets) != defaultConversationRouteRetryAttempts {
-		t.Fatalf("admit attempts = %d, want %d", len(local.targets), defaultConversationRouteRetryAttempts)
+	if len(local.targets) != 1 {
+		t.Fatalf("admit attempts = %d, want 1", len(local.targets))
 	}
 }
 
-func TestConversationAuthorityClientRetrySleepReturnsContextCancellation(t *testing.T) {
-	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrStaleRoute}}
+func TestConversationAuthorityClientAdmitPatchesReturnsContextCancellationBeforeRouting(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
 		route:  clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 	}
 	client := NewConversationAuthorityClient(node, local)
 	ctx, cancel := context.WithCancel(context.Background())
-	client.routeRetrySleep = func(ctx context.Context, _ time.Duration) error {
-		cancel()
-		return ctx.Err()
-	}
+	cancel()
 
 	err := client.AdmitPatches(ctx, []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("AdmitPatches() error = %v, want context.Canceled", err)
 	}
+	if node.routeKeyCalls != 0 {
+		t.Fatalf("RouteKey calls = %d, want 0", node.routeKeyCalls)
+	}
 }
 
-func TestConversationAuthorityClientRetriesNotLeaderWithFreshRoute(t *testing.T) {
+func TestConversationAuthorityClientAdmitPatchesDoesNotRetryNotLeader(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrNotLeader, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -330,21 +325,24 @@ func TestConversationAuthorityClientRetriesNotLeaderWithFreshRoute(t *testing.T)
 		},
 	}
 	client := NewConversationAuthorityClient(node, local)
-	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		t.Fatal("AdmitPatches should not sleep between retries")
+		return nil
+	}
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
-	if err != nil {
-		t.Fatalf("AdmitPatches() error = %v", err)
+	if !errors.Is(err, conversationusecase.ErrNotLeader) {
+		t.Fatalf("AdmitPatches() error = %v, want ErrNotLeader", err)
 	}
-	if node.routeKeyCalls != 2 {
-		t.Fatalf("RouteKey calls = %d, want 2", node.routeKeyCalls)
+	if node.routeKeyCalls != 1 {
+		t.Fatalf("RouteKey calls = %d, want 1", node.routeKeyCalls)
 	}
-	if len(local.targets) != 2 || local.targets[1].RouteRevision != 11 {
-		t.Fatalf("targets = %#v, want retry with fresh route revision 11", local.targets)
+	if len(local.targets) != 1 || local.targets[0].RouteRevision != 10 {
+		t.Fatalf("targets = %#v, want one admit with original route revision 10", local.targets)
 	}
 }
 
-func TestConversationAuthorityClientKeepsUnvisitedGroupsPendingAfterRetryableError(t *testing.T) {
+func TestConversationAuthorityClientAdmitPatchesStopsAtRetryableGroupError(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrStaleRoute, nil, nil, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -355,7 +353,10 @@ func TestConversationAuthorityClientKeepsUnvisitedGroupsPendingAfterRetryableErr
 		},
 	}
 	client := NewConversationAuthorityClient(node, local)
-	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+	client.routeRetrySleep = func(context.Context, time.Duration) error {
+		t.Fatal("AdmitPatches should not sleep between retries")
+		return nil
+	}
 	patches := []conversationusecase.ActivePatch{
 		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
 		{UID: "u2", ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
@@ -363,17 +364,14 @@ func TestConversationAuthorityClientKeepsUnvisitedGroupsPendingAfterRetryableErr
 	}
 
 	err := client.AdmitPatches(context.Background(), patches)
-	if err != nil {
-		t.Fatalf("AdmitPatches() error = %v", err)
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitPatches() error = %v, want ErrStaleRoute", err)
 	}
-	got := deliveredConversationPatchUIDCounts(local.deliveredPatches)
-	for _, uid := range []string{"u1", "u2", "u3"} {
-		if got[uid] != 1 {
-			t.Fatalf("delivered patch counts = %#v, want %s delivered exactly once", got, uid)
-		}
+	if len(local.targets) != 1 {
+		t.Fatalf("targets = %#v, want only first group attempted", local.targets)
 	}
-	if len(local.deliveredPatches) != len(patches) {
-		t.Fatalf("delivered patches = %#v, want exactly %#v", local.deliveredPatches, patches)
+	if len(local.deliveredPatches) != 0 {
+		t.Fatalf("delivered patches = %#v, want none after first group failure", local.deliveredPatches)
 	}
 }
 
