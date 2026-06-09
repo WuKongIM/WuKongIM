@@ -12,7 +12,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unsafe"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
@@ -46,6 +45,22 @@ func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
 		t.Cleanup(app.restoreDiagnosticsSink)
 	}
 	return app, err
+}
+
+func startTestApp(t *testing.T, app *App) {
+	t.Helper()
+	startCtx, startCancel := context.WithTimeout(context.Background(), time.Second)
+	defer startCancel()
+	if err := app.Start(startCtx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second)
+		defer stopCancel()
+		if err := app.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
 }
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
@@ -416,6 +431,10 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	if app.messages == nil {
 		t.Fatal("message usecase was not wired")
 	}
+	if app.channelWrites == nil || app.channelWriteRouter == nil {
+		t.Fatalf("channel write runtime = (%T, %T), want group and router", app.channelWrites, app.channelWriteRouter)
+	}
+	startTestApp(t, app)
 
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "u1",
@@ -468,6 +487,10 @@ func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 	if app.messages == nil {
 		t.Fatal("message usecase was not wired")
 	}
+	if app.channelWrites == nil || app.channelWriteRouter == nil {
+		t.Fatalf("channel write runtime = (%T, %T), want group and router", app.channelWrites, app.channelWriteRouter)
+	}
+	startTestApp(t, app)
 
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
@@ -489,8 +512,8 @@ func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 		t.Fatalf("conversation state batches = %#v, want no synchronous DB write", cluster.conversationStateBatches)
 	}
 	cluster.mu.Unlock()
-	if app.recipientWorker == nil {
-		t.Fatal("recipient committed worker was not wired")
+	if app.recipientWorker != nil {
+		t.Fatalf("recipient committed worker = %T, want channel write commit effects", app.recipientWorker)
 	}
 	if app.conversationAuthority == nil {
 		t.Fatal("local conversation authority was not wired")
@@ -498,31 +521,24 @@ func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 	if app.conversationAuthorityClient == nil {
 		t.Fatal("conversation authority client was not reused by app wiring")
 	}
-	if app.recipientAuthorityClient == nil {
-		t.Fatal("recipient authority client was not wired")
+	if app.recipientAuthorityClient != nil {
+		t.Fatalf("recipient authority client = %T, want channel write recipient resolver", app.recipientAuthorityClient)
 	}
 	if _, ok := cluster.registeredHandlers[accessnode.ConversationAuthorityRPCServiceID]; !ok {
 		t.Fatalf("conversation authority rpc service was not registered")
 	}
-	if _, ok := cluster.registeredHandlers[accessnode.SenderAuthorityRPCServiceID]; !ok {
-		t.Fatalf("sender authority rpc service was not registered")
+	if _, ok := cluster.registeredHandlers[accessnode.ChannelWriteRPCServiceID]; !ok {
+		t.Fatalf("channel write rpc service was not registered")
 	}
-	if _, ok := cluster.registeredHandlers[accessnode.RecipientAuthorityRPCServiceID]; !ok {
-		t.Fatalf("recipient authority rpc service was not registered")
+	if _, ok := cluster.registeredHandlers[accessnode.RecipientAuthorityRPCServiceID]; ok {
+		t.Fatalf("recipient authority rpc service was registered, want channel write commit effects")
 	}
-	if _, ok := app.senderMessages.(*message.SenderAuthorityRouter); !ok {
-		t.Fatalf("sender messages = %T, want sender authority router", app.senderMessages)
+	if _, ok := cluster.registeredHandlers[accessnode.SenderAuthorityRPCServiceID]; ok {
+		t.Fatalf("sender authority rpc service was registered, want channel write authority rpc")
 	}
 
 	for _, uid := range []string{"u1", "u2"} {
-		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
-		if err != nil {
-			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
-		}
-		if len(list.Items) != 1 || list.Items[0].ChannelID != channelID || list.Items[0].ChannelType != int64(frame.ChannelTypePerson) ||
-			list.Items[0].ActiveAt <= 0 || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want dense person active row", uid, list.Items)
-		}
+		requireConversationEventually(t, app, uid, channelID, frame.ChannelTypePerson)
 	}
 }
 
@@ -545,6 +561,10 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	if app.recipientWorker != nil {
 		t.Fatalf("recipient worker = %T, want no authority fallback worker", app.recipientWorker)
 	}
+	if app.channelWrites == nil || app.channelWriteRouter == nil {
+		t.Fatalf("channel write runtime = (%T, %T), want append-only group and router", app.channelWrites, app.channelWriteRouter)
+	}
+	startTestApp(t, app)
 
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
@@ -591,6 +611,7 @@ func TestRecipientAuthorityUpdatesPersonConversationImmediately(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	startTestApp(t, app)
 
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	first, err := app.messages.Send(context.Background(), message.SendCommand{
@@ -615,14 +636,7 @@ func TestRecipientAuthorityUpdatesPersonConversationImmediately(t *testing.T) {
 	}
 
 	for _, uid := range []string{"u1", "u2"} {
-		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
-		if err != nil {
-			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
-		}
-		if len(list.Items) != 1 || list.Items[0].ChannelID != channelID || list.Items[0].ChannelType != int64(frame.ChannelTypePerson) ||
-			list.Items[0].ActiveAt <= 0 || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want latest dense person active row", uid, list.Items)
-		}
+		requireConversationEventually(t, app, uid, channelID, frame.ChannelTypePerson)
 	}
 }
 
@@ -640,6 +654,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	startTestApp(t, app)
 
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "sender",
@@ -653,13 +668,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	}
 
 	for _, uid := range []string{"sender", "member"} {
-		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
-		if err != nil {
-			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
-		}
-		if len(list.Items) != 1 || list.Items[0].ChannelID != "g-small" || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want dense small-group row", uid, list.Items)
-		}
+		requireConversationEventually(t, app, uid, "g-small", frame.ChannelTypeGroup)
 	}
 }
 
@@ -677,6 +686,7 @@ func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testin
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	startTestApp(t, app)
 
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "sender",
@@ -689,13 +699,7 @@ func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testin
 		t.Fatalf("Send() = %#v err=%v, want success", result, err)
 	}
 
-	memberList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "member", Limit: 10})
-	if err != nil {
-		t.Fatalf("Conversations().List(member) error = %v", err)
-	}
-	if len(memberList.Items) != 1 || memberList.Items[0].ChannelID != "g-small-missing-sender" || memberList.Items[0].SparseActive {
-		t.Fatalf("conversation list for member = %#v, want dense subscriber row", memberList.Items)
-	}
+	requireConversationEventually(t, app, "member", "g-small-missing-sender", frame.ChannelTypeGroup)
 	senderList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "sender", Limit: 10})
 	if err != nil {
 		t.Fatalf("Conversations().List(sender) error = %v", err)
@@ -719,6 +723,7 @@ func TestRecipientAuthorityPagesAllGroupSubscribers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	startTestApp(t, app)
 
 	result, err := app.messages.Send(context.Background(), message.SendCommand{
 		FromUID:     "sender",
@@ -732,13 +737,7 @@ func TestRecipientAuthorityPagesAllGroupSubscribers(t *testing.T) {
 	}
 
 	for _, uid := range []string{"sender", "member"} {
-		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
-		if err != nil {
-			t.Fatalf("Conversations().List(%s) error = %v", uid, err)
-		}
-		if len(list.Items) != 1 || list.Items[0].ChannelID != "g-large" || list.Items[0].SparseActive {
-			t.Fatalf("conversation list for %s = %#v, want dense subscriber row", uid, list.Items)
-		}
+		requireConversationEventually(t, app, uid, "g-large", frame.ChannelTypeGroup)
 	}
 }
 
@@ -2675,13 +2674,28 @@ func TestRollbackStopFailureLeavesClusterCleanupRetryPossible(t *testing.T) {
 }
 
 func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
-	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(&fakeCluster{}))
+	cluster := newFakePresenceCluster(7, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(7, 16)
+	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(cluster))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	startTestApp(t, app)
 
-	ids := messageIDAllocatorFromApp(t, app)
-	if got, want := ids.Next(), uint64(7<<48)+1; got != want {
+	result, err := app.Messages().Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room-message-id",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "client-message-id-1",
+		Payload:     []byte("seed"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonSuccess {
+		t.Fatalf("send reason = %v, want success", result.Reason)
+	}
+	if got, want := result.MessageID, uint64(7<<48)+1; got != want {
 		t.Fatalf("first message id = %d, want %d", got, want)
 	}
 }
@@ -3226,6 +3240,21 @@ func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Sna
 	}
 }
 
+func fakeChannelAuthorityMeta(nodeID uint64, id channelv2.ChannelID) channelv2.Meta {
+	leader := channelv2.NodeID(nodeID)
+	return channelv2.Meta{
+		Key:         channelv2.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      leader,
+		Replicas:    []channelv2.NodeID{leader},
+		ISR:         []channelv2.NodeID{leader},
+		MinISR:      1,
+		Status:      channelv2.StatusActive,
+	}
+}
+
 func testUIDForHashSlot(t *testing.T, want, count uint16) string {
 	t.Helper()
 	for i := 0; i < 100000; i++ {
@@ -3357,6 +3386,10 @@ func (n *recordingDeliveryMetaNode) DeleteUserChannelMemberships(_ context.Conte
 
 func (f *fakePresenceCluster) NodeID() uint64 {
 	return f.nodeID
+}
+
+func (f *fakePresenceCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+	return fakeChannelAuthorityMeta(f.nodeID, id), nil
 }
 
 func (f *fakePresenceCluster) RouteKey(uid string) (clusterv2.Route, error) {
@@ -3497,6 +3530,14 @@ func (f *fakeConversationFallbackCluster) AppendChannelBatch(_ context.Context, 
 		})
 	}
 	return channelv2.AppendBatchResult{Items: items}, nil
+}
+
+func (f *fakeConversationFallbackCluster) NodeID() uint64 {
+	return 3
+}
+
+func (f *fakeConversationFallbackCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+	return fakeChannelAuthorityMeta(3, id), nil
 }
 
 func (f *fakeConversationFallbackCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
@@ -3794,6 +3835,36 @@ func (w *sendackSmokeSessionWrites) waitForRecvPacket(t *testing.T, timeout time
 	}
 }
 
+func requireConversationEventually(t *testing.T, app *App, uid, channelID string, channelType uint8) conversationusecase.Conversation {
+	t.Helper()
+	var got []conversationusecase.Conversation
+	var lastErr error
+	waitUntil(t, time.Second, func() bool {
+		list, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: uid, Limit: 10})
+		lastErr = err
+		if err != nil {
+			return false
+		}
+		got = list.Items
+		if len(got) != 1 {
+			return false
+		}
+		item := got[0]
+		return item.ChannelID == channelID &&
+			item.ChannelType == int64(channelType) &&
+			item.ActiveAt > 0 &&
+			!item.SparseActive
+	})
+	if lastErr != nil {
+		t.Fatalf("Conversations().List(%s) error = %v", uid, lastErr)
+	}
+	item := got[0]
+	if item.ChannelID != channelID || item.ChannelType != int64(channelType) || item.ActiveAt <= 0 || item.SparseActive {
+		t.Fatalf("conversation list for %s = %#v, want dense row for %s/%d", uid, got, channelID, channelType)
+	}
+	return item
+}
+
 func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -3970,25 +4041,4 @@ func (f *stateGateway) runningState() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.running
-}
-
-type messageIDAllocator interface {
-	Next() uint64
-}
-
-func messageIDAllocatorFromApp(t *testing.T, app *App) messageIDAllocator {
-	t.Helper()
-	messages := app.Messages()
-	if messages == nil {
-		t.Fatalf("Messages() = nil")
-	}
-	field := reflect.ValueOf(messages).Elem().FieldByName("messageID")
-	if !field.IsValid() {
-		t.Fatalf("message app has no messageID field")
-	}
-	ids, ok := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(messageIDAllocator)
-	if !ok {
-		t.Fatalf("messageID field does not implement Next() uint64")
-	}
-	return ids
 }

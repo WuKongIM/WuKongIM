@@ -11,6 +11,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -273,6 +274,7 @@ func (a *App) wireUsers() {
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
 		localPusher := &localOwnerPusher{online: a.online, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
+		a.localOwnerPusher = localPusher
 		deliveryObserver := a.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
 		var fanoutRemote runtimedelivery.FanoutTaskForwarder
@@ -386,6 +388,95 @@ func (a *App) wireRecipientAuthority() {
 	}
 }
 
+func (a *App) wireChannelWrite(nodeID uint64) {
+	if a.channelWrites == nil {
+		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
+		writeNode, hasWriteNode := a.cluster.(clusterinfra.ChannelWriteNode)
+		if hasAppendNode && hasWriteNode {
+			opts := channelwrite.Options{
+				LocalNodeID:                 nodeID,
+				Appender:                    clusterinfra.NewChannelAppender(appendNode),
+				MessageID:                   newNodeMessageIDs(nodeID),
+				RecipientBatchSize:          a.cfg.Delivery.PushBatchSize,
+				SubscriberPageSize:          a.cfg.Delivery.FanoutPageSize,
+				DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
+				DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
+				DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
+				CommitRetryMaxAttempts:      defaultDeliveryRetryMaxAttempts,
+			}
+			if a.deliveryMeta != nil {
+				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliveryMeta}
+			} else if a.deliverySubscribers != nil {
+				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliverySubscribers}
+			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
+				opts.Subscribers = channelWriteSubscriberSource{node: subscriberNode}
+			}
+			if recipientNode, ok := a.cluster.(recipientAuthorityRouteNode); ok {
+				opts.RecipientAuthorityResolver = channelWriteRecipientResolver{node: recipientNode}
+			}
+			if a.conversationAuthorityClient != nil {
+				opts.ConversationProjector = channelWriteConversationProjector{client: a.conversationAuthorityClient}
+			}
+			if a.cfg.Delivery.Enabled {
+				opts.PresenceResolver = channelWritePresenceResolver{presence: a.presence}
+				opts.OwnerPusher = a.channelWriteOwnerPusher(nodeID)
+			}
+			if a.cfg.Delivery.Enabled || a.metrics != nil {
+				opts.Observer = deliveryMessageObserver{app: a}
+			}
+			if cursorNode, ok := a.cluster.(clusterinfra.ChannelWriteCursorMetadataNode); ok {
+				opts.CursorStore = clusterinfra.NewChannelWriteCursorStore(cursorNode)
+			}
+			if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
+				opts.CommittedReader = clusterinfra.NewChannelWriteCommittedReader(readNode)
+			}
+			processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
+				ConversationProjector:       opts.ConversationProjector,
+				PresenceResolver:            opts.PresenceResolver,
+				OwnerPusher:                 opts.OwnerPusher,
+				DeliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
+				DeliveryRetryInitialBackoff: opts.DeliveryRetryInitialBackoff,
+				DeliveryRetryMaxBackoff:     opts.DeliveryRetryMaxBackoff,
+			})
+			opts.RecipientRouter = channelWriteRecipientRouter{processor: processor}
+			group := channelwrite.New(opts)
+			var remote clusterinfra.ChannelWriteRemoteForwarder
+			if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
+				remote = accessnode.NewClient(rpcNode)
+			}
+			client := clusterinfra.NewChannelWriteClient(writeNode, remote)
+			router := channelwrite.NewRouter(channelwrite.RouterOptions{
+				LocalNodeID:        nodeID,
+				Resolver:           client,
+				Local:              group,
+				Remote:             client,
+				MaxOutboundPerNode: a.cfg.Delivery.EventQueueSize,
+				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
+			})
+			a.channelWrites = group
+			a.channelWriteRouter = router
+			if registrar, ok := a.cluster.(nodeRPCRegistrar); ok {
+				adapter := accessnode.NewChannelWriteAdapter(accessnode.ChannelWriteOptions{
+					ChannelWrite: channelWriteAuthorityLocal{group: group},
+					Logger:       a.logger.Named("node"),
+				})
+				registerNodeRPC(registrar, accessnode.ChannelWriteRPCServiceID, nodeRPCHandlerFunc(adapter.HandleChannelWriteRPC))
+			}
+		}
+	}
+}
+
+func (a *App) channelWriteOwnerPusher(nodeID uint64) channelwrite.OwnerPusher {
+	if a.localOwnerPusher == nil {
+		return nil
+	}
+	var pusher runtimedelivery.Pusher = a.localOwnerPusher
+	if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
+		pusher = clusterinfra.NewDeliveryPusher(nodeID, a.localOwnerPusher, accessnode.NewClient(rpcNode))
+	}
+	return channelWriteOwnerPusher{next: pusher}
+}
+
 func (a *App) recipientSource() recipientusecase.RecipientSource {
 	if a.deliveryMeta != nil {
 		return a.deliveryMeta
@@ -399,18 +490,11 @@ func (a *App) recipientSource() recipientusecase.RecipientSource {
 	return nil
 }
 
-func (a *App) wireMessages(nodeID uint64) {
+func (a *App) wireMessages() {
 	if a.messages == nil {
-		messageOpts := message.Options{MessageID: newNodeMessageIDs(nodeID)}
-		if appendNode, ok := a.cluster.(clusterinfra.ChannelAppendNode); ok {
-			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
-		}
+		messageOpts := message.Options{Submitter: a.channelWriteRouter}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
-		}
-		messageOpts.Committed = a.recipientWorker
-		if a.cfg.Delivery.Enabled || a.metrics != nil {
-			messageOpts.Observer = deliveryMessageObserver{app: a}
+			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
 		}
 		a.messages = message.New(messageOpts)
 	}
@@ -452,22 +536,13 @@ func (a *App) wireSenderAuthority() {
 
 func (a *App) wireAPIMessageFacade() {
 	if a.apiMessages == nil && a.messages != nil {
-		sendUsecase := interface {
-			SendBatch([]message.SendBatchItem) []message.SendBatchItemResult
-		}(a.messages)
-		if a.senderMessages != nil {
-			sendUsecase = a.senderMessages
-		}
-		a.apiMessages = authorityMessageUsecase{sender: sendUsecase, sync: a.messages}
+		a.apiMessages = a.messages
 	}
 }
 
 func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 	if a.handler == nil {
 		handlerMessages := accessgateway.MessageUsecase(a.messages)
-		if a.senderMessages != nil {
-			handlerMessages = a.senderMessages
-		}
 		a.handler = accessgateway.New(accessgateway.Options{
 			Messages:        handlerMessages,
 			Presence:        a.gatewayPresenceUsecase(),

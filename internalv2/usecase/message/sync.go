@@ -132,10 +132,10 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 		}
 		channelID = normalized
 	}
-	if a == nil || a.messageReader == nil {
+	if a == nil || a.reader == nil {
 		return SyncChannelMessagesResult{}, ErrMessageReaderRequired
 	}
-	page, err := a.messageReader.SyncMessages(ctx, ChannelMessageQuery{
+	page, err := a.reader.SyncMessages(ctx, ChannelMessageQuery{
 		ChannelID: ChannelID{ID: channelID, Type: query.ChannelType},
 		StartSeq:  query.StartMessageSeq,
 		EndSeq:    query.EndMessageSeq,
@@ -170,5 +170,14 @@ func cloneSyncedMessages(in []SyncedMessage) []SyncedMessage {
 	for i := range out {
 		out[i].Payload = cloneBytes(out[i].Payload)
 	}
+	return out
+}
+
+func cloneBytes(in []byte) []byte {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]byte, len(in))
+	copy(out, in)
 	return out
 }

@@ -16,7 +16,7 @@ func TestSyncChannelMessagesNormalizesPersonChannelAndCapsLimit(t *testing.T) {
 			HasMore:  true,
 		},
 	}
-	app := New(Options{MessageReader: reader})
+	app := New(Options{Reader: reader})
 
 	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:        "u1",
@@ -47,7 +47,7 @@ func TestSyncChannelMessagesNormalizesPersonChannelAndCapsLimit(t *testing.T) {
 }
 
 func TestSyncChannelMessagesReturnsEmptyForMissingChannelRuntime(t *testing.T) {
-	app := New(Options{MessageReader: &recordingChannelMessageReader{err: metadb.ErrNotFound}})
+	app := New(Options{Reader: &recordingChannelMessageReader{err: metadb.ErrNotFound}})
 
 	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:    "u1",
@@ -65,7 +65,7 @@ func TestSyncChannelMessagesReturnsEmptyForMissingChannelRuntime(t *testing.T) {
 }
 
 func TestSyncChannelMessagesRejectsMissingRequiredFields(t *testing.T) {
-	app := New(Options{MessageReader: &recordingChannelMessageReader{}})
+	app := New(Options{Reader: &recordingChannelMessageReader{}})
 
 	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		ChannelID:   "g1",
@@ -79,7 +79,7 @@ func TestSyncChannelMessagesRejectsMissingRequiredFields(t *testing.T) {
 
 func TestSyncChannelMessagesPropagatesReaderError(t *testing.T) {
 	readerErr := errors.New("reader failed")
-	app := New(Options{MessageReader: &recordingChannelMessageReader{err: readerErr}})
+	app := New(Options{Reader: &recordingChannelMessageReader{err: readerErr}})
 
 	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:    "u1",

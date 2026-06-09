@@ -10,9 +10,10 @@ usecase, the gateway handler, the optional HTTP API runtime, the optional
 Prometheus metrics registry, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
-management, UID connection-route authority, sender/recipient UID hash-slot
-authority routing, conversation authority active cache/list reads, and opt-in
-local online delivery.
+management, UID connection-route authority, channel-authority write routing,
+channel write reactors, UID recipient authority inside post-commit effects,
+conversation authority active cache/list reads, and opt-in local online
+delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
 and protocol details stay in access packages.
@@ -27,8 +28,8 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus conversation list request latency/page-shape metrics and conversation
-     authority admit, list, cache-pressure, and handoff counters, plus
-     sender-authority route and recipient-authority queue/dispatch counters
+     authority admit, list, cache-pressure, and handoff counters, plus channel
+     write append and post-commit counters
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -48,7 +49,7 @@ New(Config)
        the conversation list Store while keeping the read adapter as Messages
   -> when the cluster exposes clusterv2 Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
-     recipient-authority scans, and optional delivery fanout
+     channelwrite subscriber scans, and optional delivery fanout
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
@@ -68,15 +69,19 @@ New(Config)
        attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
-  -> when UID authority routing and conversation authority are available:
-       create recipient authority client, local processor, dispatcher, bounded
-       committed worker, and recipient authority RPC handler
-  -> create message.App with clusterv2 ChannelAppender, clusterv2 committed
-     message reader when exposed, node-scoped IDs, recipient committed worker,
-     and append metrics observer when delivery or metrics are enabled
-  -> create sender authority router for gateway/API sends and register sender
-     authority RPC handler that submits only to the raw local message.App
-  -> create access/gateway.Handler with sender-routed message and activation-timeout-wrapped presence usecases
+  -> when the cluster exposes ChannelV2 append plus channel append authority:
+       create channelwrite.Group with multiple channel-hashed authority reactors,
+       clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
+       recipient authority resolver, conversation projector, optional delivery
+       presence/owner pusher, committed cursor store/replay reader, and append
+       metrics observer
+       create channelwrite.Router for local authority admission and remote
+       channel-authority forwarding
+       register Channel Write RPC so remote nodes can submit to the local
+       authority reactor
+  -> create message.App as a thin facade over channelwrite.Router, with the
+     clusterv2 committed message reader when exposed for channel message sync
+  -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
      usecases, optional bench presence snapshot controller, and real benchmark
      channel/subscriber data writer when API.ListenAddr is configured
@@ -84,44 +89,42 @@ New(Config)
 ```
 
 `Delivery.Enabled` defaults to false. With delivery disabled, committed message
-events still enter the recipient-authority worker so recent conversation state
-is updated, but no online delivery is submitted. With delivery enabled, gateway
-RECVACK and session close feedback flows to the delivery usecase, and recipient
-processors submit only recipient-scoped committed events after conversation
-updates are admitted. The foreground SEND path waits for channel authority
-durable append; subscriber scan, remote recipient forwarding, conversation
-mutation, and owner push execution run after SENDACK. After append, the message
-usecase attempts bounded recipient queue admission. Closed or full recipient
-admission returns a typed committed-sink error for observation but does not
-change channel durability or the already-successful SENDACK decision. Runtime
-fanout failures are counted with normalized delivery error classes. Retryable
-fanout failures enter a bounded in-memory retry scheduler with a small fixed
-attempt cap; retry queue overflow is surfaced as `queue_full`. Owner-local
-pushes write `RecvPacket` values through `online.SessionHandle.WriteDelivery`.
-Each owner push snapshots the immutable envelope payload once and reuses that
-snapshot across recipient packets; closed-session and outbound-overflow write
-errors are terminal drops, while unknown write errors remain retryable. The same
-message observer records per-message append success/error latency and classifies
-append failures with low-cardinality labels for benchmark triage, including
-typed ChannelV2/cluster errors and short append results.
+effects still run inside the channel authority reactor so recent conversation
+state is updated, but no online delivery is submitted. With delivery enabled,
+gateway RECVACK and session close feedback flows to the delivery usecase, while
+channelwrite post-commit effects resolve online routes and push to owner nodes.
+The foreground SEND path waits only for channel-authority durable append;
+subscriber scan, recipient authority grouping, conversation mutation, owner push
+execution, cursor persistence, and replay on restart all run after SENDACK from
+the authority reactor's post-commit pipeline. Post-commit failures retry inside
+the bounded reactor effect workers and do not change channel durability or the
+already-successful SENDACK decision. Runtime fanout failures are counted with
+normalized delivery error classes. Retryable fanout failures enter a bounded
+in-memory retry scheduler with a small fixed attempt cap; retry queue overflow
+is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values
+through `online.SessionHandle.WriteDelivery`. Each owner push snapshots the
+immutable envelope payload once and reuses that snapshot across recipient
+packets; closed-session and outbound-overflow write errors are terminal drops,
+while unknown write errors remain retryable. The same append observer records
+per-message append success/error latency and classifies append failures with
+low-cardinality labels for benchmark triage, including typed ChannelV2/cluster
+errors and short append results.
 
-The recipient committed worker scopes unscoped person-channel events to the two
-channel participants before recipient dispatch. For non-person unscoped
-channels it pages durable subscribers through the clusterv2 Slot metadata source
-or an explicitly supplied subscriber source. Recipients are grouped by exact UID
-hash-slot authority target, then each recipient authority first admits active
-conversation patches and only then submits delivery scoped to that recipient
-group. `/bench/v1/channels` and `/bench/v1/channels/subscribers` write real
-channel metadata and subscriber rows through Slot proposals. The benchmark data
-writer uses bounded concurrency for independent channel/subscriber mutations
-while preserving subscriber mutation order within the same channel. Scoped UID
-delivery bypasses subscriber scan and flows through recipient authority,
-presence resolution, and the local or RPC owner pusher.
-When metrics are enabled, sender authority route decisions are counted as
-`local`, `remote`, or normalized route/error results, and recipient authority
-work is counted by committed-worker queue result plus dispatch phase
-(`worker`, `conversation`, or `delivery`) and normalized result. These metrics
-do not include UID, channel, slot, or node labels.
+The channel write commit pipeline scopes unscoped person-channel events to the
+two channel participants. For non-person unscoped channels it pages durable
+subscribers through the app delivery metadata source, an explicitly supplied
+subscriber source, or the clusterv2 Slot metadata source. Recipients are grouped
+by exact UID hash-slot authority target, then the local channelwrite recipient
+processor admits active conversation patches through the shared
+`ConversationAuthorityClient` and submits delivery scoped to that recipient
+group when delivery is enabled. `/bench/v1/channels` and
+`/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
+through Slot proposals. The benchmark data writer uses bounded concurrency for
+independent channel/subscriber mutations while preserving subscriber mutation
+order within the same channel. Scoped UID delivery bypasses subscriber scan and
+flows through recipient authority grouping, presence resolution, and the local
+or RPC owner pusher. These metrics do not include UID, channel, slot, or node
+labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
@@ -204,56 +207,42 @@ System UID persistence reuses the compatible channel metadata store's internal
 subscriber-list model.
 
 Legacy message send and channel message sync requests flow from internalv2 HTTP
-through the app message facade. Sends use the sender authority router first;
-local sender-authority work uses `internalv2/usecase/message` with the
-clusterv2 ChannelAppender and node-scoped message IDs, while remote
-sender-authority work is forwarded through access/node Sender Authority RPC.
-Channel message sync stays on the raw message usecase and uses the
+through the app message facade. Sends delegate to `channelwrite.Router`, which
+resolves the canonical channel's append authority. Local authority sends are
+admitted to the local `channelwrite.Group`; remote authority sends are forwarded
+through access/node Channel Write RPC to the target node, where they enter only
+that node's authority reactor. Channel message sync uses the
 `internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
 messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
-After a durable append succeeds, `MessageCommitted` flows to the app-level
-recipient committed worker. Before lifecycle start, tests and harnesses run this
-worker synchronously; after `Start`, it tries a non-blocking bounded enqueue and
-returns to the SEND path. The worker requests committed payload bytes only when
-delivery is wired; conversation-only recipient updates stay metadata-only.
-Person channels are scoped to the two participants. Group and other unscoped
-channels page durable subscribers progressively instead of loading the full
-subscriber set. The recipient dispatcher resolves each UID to the current UID
-hash-slot authority target, groups by exact target, processes local groups
-in-process, and forwards remote groups through access/node Recipient Authority
-RPC. The local recipient processor validates the fenced target is still current
-and local, admits recent-conversation patches through the shared
-`ConversationAuthorityClient`, then submits delivery scoped to that recipient
-group when delivery is enabled. Conversation active rows remain working-set
-hints: delayed or dropped recipient background work does not change message
-durability or SENDACK success. The local authority cache still coalesces active
-rows, serves list reads by merging cache rows with DB active rows, and writes
-durable active patches with read/delete floors on explicit Stop, handoff drain,
-or cache pressure.
+Conversation active rows remain working-set hints: delayed or dropped
+post-commit work does not change message durability or SENDACK success. The
+local conversation authority cache still coalesces active rows, serves list
+reads by merging cache rows with DB active rows, and writes durable active
+patches with read/delete floors on explicit Stop, handoff drain, or cache
+pressure.
 
-SEND with sender and recipient authority enabled:
+SEND with channel authority routing enabled:
 
 ```text
 gateway/API send
-  -> SenderAuthorityRouter resolves FromUID hash-slot targets and groups the batch by exact target
-  -> local sender target:
-       raw message.App.SendBatch appends grouped items to channel authority through clusterv2 ChannelAppender
-  -> remote sender target:
-       access/node Sender Authority RPC forwards the grouped items
-       remote local sender authority validates exact target
-       raw message.App.SendBatch appends grouped items to channel authority through clusterv2 ChannelAppender
-  -> channel authority persists message and returns append result
+  -> message.App delegates to channelwrite.Router
+  -> Router resolves channel append authority
+  -> local channel authority:
+       channelwrite.Group admits the batch to the channel-hashed reactor
+  -> remote channel authority:
+       access/node Channel Write RPC forwards the batch
+       remote node admits it to its local channel-hashed reactor
+  -> authority reactor prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
+  -> ChannelV2 persists messages and returns append result
   -> SENDACK returns to sender
-  -> recipient committed worker tries bounded enqueue of MessageCommitted
-  -> recipient dispatcher pages/scopes recipients and groups by UID authority target
-  -> local recipient target:
-       validate exact target
+  -> authority reactor post-commit effect:
+       scope person recipients or page subscribers
+       group recipients by UID authority target
        ConversationAuthorityClient.AdmitPatches
-       optional delivery.SubmitCommitted with MessageScopedUIDs
-  -> remote recipient target:
-       access/node Recipient Authority RPC then same local recipient processing
+       optional presence resolve and owner-node push
+       persist the post-commit cursor after successful recipient dispatch
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
@@ -272,8 +261,8 @@ Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> presence touch worker Start(ctx)
+  -> channel write group Start(ctx): open local channel-authority reactor admission
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
-  -> recipient committed worker Start(ctx): open bounded post-commit queue
   -> api.Start()
   -> gateway.Start()
 
@@ -281,8 +270,7 @@ Stop(ctx)
   -> restore diagnostics sendtrace sink
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> recipient committed worker Stop(ctx): close admission, drain accepted events,
-     and cancel in-flight dispatch if Stop times out
+  -> channel write group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)

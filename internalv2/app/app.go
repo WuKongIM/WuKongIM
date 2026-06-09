@@ -14,6 +14,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -66,6 +67,8 @@ type App struct {
 	messages                    *message.App
 	senderMessages              accessgateway.MessageUsecase
 	apiMessages                 accessapi.MessageUsecase
+	channelWrites               *channelwrite.Group
+	channelWriteRouter          *channelwrite.Router
 	channels                    *channelusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App
@@ -73,6 +76,7 @@ type App struct {
 	deliveryManager             *runtimedelivery.Manager
 	deliveryRetry               *runtimedelivery.RetryScheduler
 	deliveryWorker              WorkerRuntime
+	localOwnerPusher            *localOwnerPusher
 	recipientWorker             *recipientCommittedWorker
 	conversationRouteLifecycle  WorkerRuntime
 	conversationAuthority       *conversationAuthority
@@ -101,6 +105,7 @@ type App struct {
 	presenceStarted          bool
 	conversationRouteStarted bool
 	recipientStarted         bool
+	channelWriteStarted      bool
 	deliveryStarted          bool
 	apiStarted               bool
 	gatewayStarted           bool
@@ -140,9 +145,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wirePresence()
 	app.wireUsers()
 	app.wireDelivery()
-	app.wireRecipientAuthority()
-	app.wireMessages(clusterCfg.NodeID)
-	app.wireSenderAuthority()
+	app.wireChannelWrite(clusterCfg.NodeID)
+	app.wireMessages()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
 	app.wireAPI()

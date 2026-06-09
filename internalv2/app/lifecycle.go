@@ -72,6 +72,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.presenceStarted = true
 	}
+	if a.channelWrites != nil {
+		if err := a.channelWrites.Start(ctx); err != nil {
+			a.logLifecycleError("channel_write", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.channelWriteStarted = true
+	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -145,6 +153,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.recipientStarted = false
 		}
 	}
+	if a.channelWriteStarted && a.channelWrites != nil {
+		if stopErr := a.channelWrites.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_write", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.channelWriteStarted = false
+		}
+	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
 		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("delivery_worker", "stop", stopErr)
@@ -177,7 +193,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.recipientStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.recipientStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -207,6 +223,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.recipientStarted = false
+		}
+	}
+	if a.channelWriteStarted && a.channelWrites != nil {
+		if stopErr := a.channelWrites.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_write", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.channelWriteStarted = false
 		}
 	}
 	if a.deliveryStarted && a.deliveryWorker != nil {

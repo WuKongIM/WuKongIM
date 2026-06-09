@@ -8,6 +8,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
+// Submitter accepts channel write commands and returns item-aligned results.
+type Submitter = channelwrite.Submitter
+
 // Appender owns durable channel append routing.
 type Appender interface {
 	AppendBatch(context.Context, AppendBatchRequest) (AppendBatchResult, error)
