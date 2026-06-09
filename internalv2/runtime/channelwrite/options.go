@@ -63,7 +63,7 @@ type Options struct {
 	PendingItemHighWatermark int
 	// AppendInflightLimit bounds future append effects per channel. Values <= 0 use one append inflight.
 	AppendInflightLimit int
-	// EffectWorkerCount is reserved for future bounded effect workers. Values <= 0 use one worker.
+	// EffectWorkerCount is the number of bounded pre-append prepare workers. Values <= 0 use one worker.
 	EffectWorkerCount int
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock

@@ -39,12 +39,28 @@ selection, and mailbox enqueue, then released while waiting for reactor
 admission ack so `Stop` can close admission promptly.
 
 Accepted submit events dispatch preparation to bounded effect workers. The
-reactor loop applies prepare completion events, and only those completion
+reactor bounds accepted prepare work with the same capacity as its mailbox, so
+new submissions return `ErrBackpressured` instead of growing unbounded in
+memory when workers are saturated. Each accepted prepare effect receives a
+monotonic sequence for the submitted authority target; completion events may
+arrive out of order, but the reactor drains them only in sequence so
+same-channel pending order matches submission order even with multiple workers.
+
+The reactor loop applies prepare completion events, and only those completion
 events mutate `channelState`. Rejected and idempotent items complete their
 item-aligned future slots immediately with their reason/error/result. Valid
-prepared items receive one message id and one server timestamp, then enter the
-owning channel state's pending queue in input order. Until durable append is
-implemented, those valid prepared future slots complete with item-level
-`ErrNotAppended`, making the absence of append explicit without reporting fake
-durable success. Durable append, post-commit fanout, recipient delivery,
-router/RPC forwarding, and flow-control enforcement are later tasks.
+prepared items receive one message id and one server timestamp. Before a
+prepared item can enter the pending queue, its canonical prepared channel must
+still match the submitted `AuthorityTarget`; request-scoped derivation or
+person-channel normalization that changes the channel away from the target
+returns `ErrStaleRoute` for that item and creates no state. Matching prepared
+items enter the owning channel state's pending queue in input order. Until
+durable append is implemented, those valid prepared future slots complete with
+item-level `ErrNotAppended`, making the absence of append explicit without
+reporting fake durable success.
+
+`Stop` cancels the runtime context passed to prepare effects before waiting for
+reactors to drain. Prepare ports must respect their context promptly for Stop to
+complete without waiting for the caller's timeout. Durable append, post-commit
+fanout, recipient delivery, router/RPC forwarding, and flow-control enforcement
+are later tasks.

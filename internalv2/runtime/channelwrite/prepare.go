@@ -43,7 +43,7 @@ func (allowAllAuthorizer) AuthorizeSend(context.Context, SendCommand) (Decision,
 	return Decision{Allowed: true, Reason: ReasonSuccess}, nil
 }
 
-func prepareBatch(items []SendBatchItem, ports preparePorts) prepareOutcome {
+func prepareBatch(runtimeCtx context.Context, items []SendBatchItem, ports preparePorts) prepareOutcome {
 	results := make([]SendBatchItemResult, len(items))
 	prepared := make([]preparedSend, 0, len(items))
 
@@ -52,7 +52,9 @@ func prepareBatch(items []SendBatchItem, ports preparePorts) prepareOutcome {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		next, done := prepareSend(ctx, item.Command, ports)
+		effectCtx, cancelEffectCtx := prepareItemContext(runtimeCtx, ctx)
+		next, done := prepareSend(effectCtx, item.Command, ports)
+		cancelEffectCtx()
 		next.setItemMetadata(i, ctx, item.Deadline)
 		if done {
 			results[i] = SendBatchItemResult{Result: next.result, Err: next.err}
@@ -65,6 +67,30 @@ func prepareBatch(items []SendBatchItem, ports preparePorts) prepareOutcome {
 	return prepareOutcome{
 		results:  results,
 		prepared: prepared,
+	}
+}
+
+func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (context.Context, context.CancelFunc) {
+	if itemCtx == nil {
+		itemCtx = context.Background()
+	}
+	if runtimeCtx == nil {
+		ctx, cancel := context.WithCancel(itemCtx)
+		return ctx, cancel
+	}
+	ctx, cancel := context.WithCancel(itemCtx)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-runtimeCtx.Done():
+			cancel()
+		case <-ctx.Done():
+		case <-done:
+		}
+	}()
+	return ctx, func() {
+		close(done)
+		cancel()
 	}
 }
 

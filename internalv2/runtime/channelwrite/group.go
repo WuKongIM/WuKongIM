@@ -58,6 +58,8 @@ var (
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
 	// ErrBackpressured reports bounded runtime pressure or closed admission.
 	ErrBackpressured = contract.ErrBackpressured
+	// ErrStaleRoute reports that append used stale channel metadata.
+	ErrStaleRoute = contract.ErrStaleRoute
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.
 	ErrRequestSubscribersRequireSyncOnce = contract.ErrRequestSubscribersRequireSyncOnce
 	// ErrRequestSubscribersConflictChannel reports that request-scoped sends cannot specify a channel.

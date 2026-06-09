@@ -81,8 +81,16 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 	ids := newSequenceIDsForPrepare(100)
 	clock := fixedClockForPrepare{now: time.Unix(123, 456_000_000)}
 	group := newPreparedGroup(t, preparePortsForTest{ids: ids, clock: clock})
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u2", "u3"})
+	if err != nil {
+		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
+	}
 
-	got := group.submitAndDrainPrepare(t, sendItemForPrepare(SendCommand{
+	got := group.submitAndDrainPrepareToTarget(t, AuthorityTarget{
+		ChannelID:    ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType},
+		ChannelKey:   channelKey(ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType}),
+		LeaderNodeID: 1,
+	}, sendItemForPrepare(SendCommand{
 		FromUID:           "u1",
 		Payload:           []byte("payload"),
 		SyncOnce:          true,
@@ -95,10 +103,6 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 		t.Fatalf("prepared items = %d, want 1", len(got.Prepared))
 	}
 	prepared := got.Prepared[0]
-	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u2", "u3"})
-	if err != nil {
-		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
-	}
 	if prepared.Command.ChannelID != scoped.CommandChannelID || prepared.Command.ChannelType != scoped.ChannelType {
 		t.Fatalf("request-scoped channel = %q/%d, want %q/%d", prepared.Command.ChannelID, prepared.Command.ChannelType, scoped.CommandChannelID, scoped.ChannelType)
 	}
@@ -118,8 +122,13 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 
 func TestPrepareNormalizesPersonChannel(t *testing.T) {
 	group := newPreparedGroup(t, preparePortsForTest{ids: newSequenceIDsForPrepare(200)})
+	want := runtimechannelid.EncodePersonChannel("u1", "u2")
 
-	got := group.submitAndDrainPrepare(t, sendItemForPrepare(SendCommand{
+	got := group.submitAndDrainPrepareToTarget(t, AuthorityTarget{
+		ChannelID:    ChannelID{ID: want, Type: 1},
+		ChannelKey:   channelKey(ChannelID{ID: want, Type: 1}),
+		LeaderNodeID: 1,
+	}, sendItemForPrepare(SendCommand{
 		FromUID:                "u1",
 		ChannelID:              "u2",
 		ChannelType:            1,
@@ -131,9 +140,70 @@ func TestPrepareNormalizesPersonChannel(t *testing.T) {
 	if len(got.Prepared) != 1 {
 		t.Fatalf("prepared items = %d, want 1", len(got.Prepared))
 	}
-	want := runtimechannelid.EncodePersonChannel("u1", "u2")
 	if got.Prepared[0].Command.ChannelID != want {
 		t.Fatalf("prepared channel id = %q, want normalized %q", got.Prepared[0].Command.ChannelID, want)
+	}
+}
+
+func TestPrepareRequestScopedTargetMismatchReturnsStaleRouteWithoutState(t *testing.T) {
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:  1,
+		ReactorCount: 4,
+		MessageID:    newSequenceIDsForPrepare(100),
+	})
+	target := AuthorityTarget{
+		ChannelID:    ChannelID{ID: "original", Type: 2},
+		ChannelKey:   channelKey(ChannelID{ID: "original", Type: 2}),
+		LeaderNodeID: 1,
+	}
+
+	got := group.submitAndDrainPrepareToTarget(t, target, sendItemForPrepare(SendCommand{
+		FromUID:           "u1",
+		Payload:           []byte("payload"),
+		SyncOnce:          true,
+		RequestScoped:     true,
+		MessageScopedUIDs: []string{"u2", "u3"},
+	}))
+
+	if !errors.Is(got.Results[0].Err, ErrStaleRoute) {
+		t.Fatalf("result error = %v, want ErrStaleRoute", got.Results[0].Err)
+	}
+	if len(got.Prepared) != 0 {
+		t.Fatalf("prepared state items = %d, want 0", len(got.Prepared))
+	}
+	if group.group.StateCountForTest() != 0 {
+		t.Fatalf("state count = %d, want 0", group.group.StateCountForTest())
+	}
+}
+
+func TestPrepareNormalizedPersonTargetMismatchReturnsStaleRouteWithoutState(t *testing.T) {
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:  1,
+		ReactorCount: 4,
+		MessageID:    newSequenceIDsForPrepare(100),
+	})
+	target := AuthorityTarget{
+		ChannelID:    ChannelID{ID: "u2", Type: 1},
+		ChannelKey:   channelKey(ChannelID{ID: "u2", Type: 1}),
+		LeaderNodeID: 1,
+	}
+
+	got := group.submitAndDrainPrepareToTarget(t, target, sendItemForPrepare(SendCommand{
+		FromUID:                "u1",
+		ChannelID:              "u2",
+		ChannelType:            1,
+		NormalizePersonChannel: true,
+		Payload:                []byte("payload"),
+	}))
+
+	if !errors.Is(got.Results[0].Err, ErrStaleRoute) {
+		t.Fatalf("result error = %v, want ErrStaleRoute", got.Results[0].Err)
+	}
+	if len(got.Prepared) != 0 {
+		t.Fatalf("prepared state items = %d, want 0", len(got.Prepared))
+	}
+	if group.group.StateCountForTest() != 0 {
+		t.Fatalf("state count = %d, want 0", group.group.StateCountForTest())
 	}
 }
 
@@ -364,6 +434,12 @@ func newPreparedGroup(t *testing.T, ports preparePortsForTest) *preparedGroupFor
 		EffectWorkerCount: 1,
 		Clock:             ports.clock,
 	}
+	return newPreparedGroupWithOptions(t, opts)
+}
+
+func newPreparedGroupWithOptions(t *testing.T, opts Options) *preparedGroupForTest {
+	t.Helper()
+
 	group := newStartedTestGroup(t, opts)
 	return &preparedGroupForTest{group: group}
 }
@@ -371,7 +447,13 @@ func newPreparedGroup(t *testing.T, ports preparePortsForTest) *preparedGroupFor
 func (g *preparedGroupForTest) submitAndDrainPrepare(t *testing.T, items ...SendBatchItem) prepareDrainForTest {
 	t.Helper()
 
-	future, err := g.group.SubmitLocal(context.Background(), targetForPrepareItems(items), items)
+	return g.submitAndDrainPrepareToTarget(t, targetForPrepareItems(items), items...)
+}
+
+func (g *preparedGroupForTest) submitAndDrainPrepareToTarget(t *testing.T, target AuthorityTarget, items ...SendBatchItem) prepareDrainForTest {
+	t.Helper()
+
+	future, err := g.group.SubmitLocal(context.Background(), target, items)
 	if err != nil {
 		t.Fatalf("SubmitLocal() error = %v", err)
 	}

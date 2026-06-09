@@ -10,6 +10,7 @@ type reactor struct {
 	mailbox           chan any
 	effects           chan prepareEffect
 	completions       chan reactorEvent
+	effectSlots       chan struct{}
 	limits            channelStateLimits
 	ports             preparePorts
 	effectWorkerCount int
@@ -17,10 +18,16 @@ type reactor struct {
 	mu     sync.Mutex
 	states map[string]*channelState
 
-	startOnce sync.Once
-	closeOnce sync.Once
-	done      chan struct{}
-	effectWG  sync.WaitGroup
+	nextPrepareSeq   map[string]uint64
+	nextDrainSeq     map[string]uint64
+	completedPrepare map[string]map[uint64]prepareCompletedEvent
+
+	startOnce  sync.Once
+	closeOnce  sync.Once
+	done       chan struct{}
+	effectWG   sync.WaitGroup
+	stopCtx    context.Context
+	stopCancel context.CancelFunc
 }
 
 type reactorEvent interface {
@@ -40,16 +47,23 @@ type pendingPrepareEffect struct {
 }
 
 func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts) *reactor {
+	stopCtx, stopCancel := context.WithCancel(context.Background())
 	return &reactor{
 		id:                id,
 		mailbox:           make(chan any, mailboxSize),
 		effects:           make(chan prepareEffect, mailboxSize),
 		completions:       make(chan reactorEvent, mailboxSize),
+		effectSlots:       make(chan struct{}, mailboxSize),
 		limits:            limits,
 		ports:             ports,
 		effectWorkerCount: effectWorkerCount,
 		states:            make(map[string]*channelState),
+		nextPrepareSeq:    make(map[string]uint64),
+		nextDrainSeq:      make(map[string]uint64),
+		completedPrepare:  make(map[string]map[uint64]prepareCompletedEvent),
 		done:              make(chan struct{}),
+		stopCtx:           stopCtx,
+		stopCancel:        stopCancel,
 	}
 }
 
@@ -90,7 +104,11 @@ func (r *reactor) run() {
 				continue
 			}
 			if submit, ok := event.(submitLocalEvent); ok {
-				pendingEffects = append(pendingEffects, submit.pendingPrepareEffect())
+				pendingEffects = append(pendingEffects, submit.pendingPrepareEffect(r.nextPrepareSequence(targetKey(submit.target))))
+				select {
+				case submit.ack <- nil:
+				default:
+				}
 				continue
 			}
 			if reactorEvent, ok := event.(reactorEvent); ok {
@@ -116,7 +134,7 @@ func (r *reactor) startEffectWorkers() {
 		go func() {
 			defer r.effectWG.Done()
 			for effect := range r.effects {
-				r.completions <- effect.run(r.ports)
+				r.completions <- effect.run(r.stopCtx, r.ports)
 			}
 		}()
 	}
@@ -128,6 +146,7 @@ func (r *reactor) startEffectWorkers() {
 
 func (r *reactor) close() {
 	r.closeOnce.Do(func() {
+		r.stopCancel()
 		close(r.mailbox)
 	})
 }
@@ -149,6 +168,12 @@ func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []S
 		return nil, err
 	}
 
+	select {
+	case r.effectSlots <- struct{}{}:
+	default:
+		return nil, ErrBackpressured
+	}
+
 	ack := make(chan error, 1)
 	event := submitLocalEvent{
 		target: target,
@@ -160,18 +185,35 @@ func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []S
 	select {
 	case r.mailbox <- event:
 	default:
+		r.releaseEffectSlot()
 		return nil, ErrBackpressured
 	}
 
 	return ack, nil
 }
 
-func (e submitLocalEvent) pendingPrepareEffect() pendingPrepareEffect {
+func (r *reactor) nextPrepareSequence(key string) uint64 {
+	seq := r.nextPrepareSeq[key]
+	r.nextPrepareSeq[key] = seq + 1
+	return seq
+}
+
+func (r *reactor) releaseEffectSlot() {
+	select {
+	case <-r.effectSlots:
+	default:
+	}
+}
+
+func (e submitLocalEvent) pendingPrepareEffect(seq uint64) pendingPrepareEffect {
+	key := targetKey(e.target)
 	return pendingPrepareEffect{
 		effect: prepareEffect{
 			target: e.target,
 			items:  e.items,
 			future: e.future,
+			key:    key,
+			seq:    seq,
 		},
 		ack: e.ack,
 	}
