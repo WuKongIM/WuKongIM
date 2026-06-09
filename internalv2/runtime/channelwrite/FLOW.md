@@ -29,9 +29,10 @@ restarted because reactor mailboxes are closed as part of shutdown.
 ## Current Reactor Scope
 
 The runtime currently implements local authority validation, reactor routing,
-lifecycle, pre-append preparation, lazy state creation, and item-aligned
-futures. Submission checks caller cancellation before mailbox enqueue; after
-that check, bounded mailbox enqueue is non-blocking and returns
+lifecycle, pre-append preparation, lazy state creation, channel-level append
+flow control, durable append scheduling, committed-message handoff, and
+item-aligned futures. Submission checks caller cancellation before mailbox
+enqueue; after that check, bounded mailbox enqueue is non-blocking and returns
 `ErrBackpressured` when full. Once a submit event is accepted into a reactor
 mailbox, caller cancellation no longer turns the accepted event into a rejected
 submit. The group lock is held only through closed-state validation, reactor
@@ -39,12 +40,14 @@ selection, and mailbox enqueue, then released while waiting for reactor
 admission ack so `Stop` can close admission promptly.
 
 Accepted submit events dispatch preparation to bounded effect workers. The
-reactor bounds accepted prepare work with the same capacity as its mailbox, so
-new submissions return `ErrBackpressured` instead of growing unbounded in
-memory when workers are saturated. Each accepted prepare effect receives a
-monotonic sequence for the submitted authority target; completion events may
-arrive out of order, but the reactor drains them only in sequence so
-same-channel pending order matches submission order even with multiple workers.
+reactor bounds accepted prepare/append work with the same capacity as its
+mailbox, so new submissions return `ErrBackpressured` instead of growing
+unbounded in memory when workers or appenders are saturated. The reserved slot
+is released only when the item-aligned future completes. Each accepted prepare
+effect receives a monotonic sequence for the submitted authority target;
+completion events may arrive out of order, but the reactor drains them only in
+sequence so same-channel pending order matches submission order even with
+multiple workers.
 
 The reactor loop applies prepare completion events, and only those completion
 events mutate `channelState`. Rejected and idempotent items complete their
@@ -57,13 +60,28 @@ returns `ErrStaleRoute` for that item and creates no state. Idempotency hits
 use the same canonical target validation before their stored result can
 complete successfully, so stale routes cannot bypass authority ownership by
 returning an older successful result. Matching prepared items enter the owning
-channel state's pending queue in input order. Until durable append is
-implemented, those valid prepared future slots complete with item-level
-`ErrNotAppended`, making the absence of append explicit without reporting fake
-durable success.
+channel state's pending queue in input order only when the state's pending plus
+in-flight item count is below `PendingItemHighWatermark`; saturated channels
+complete those items with `ErrChannelBusy` before they reach the append port.
+
+The owning reactor builds channel-aligned append batches from prepared pending
+items and keeps one append in flight per channel by default. Raising
+`AppendInflightLimit` allows additional same-channel append effects, but append
+completion events are still drained by the reactor in scheduling order before
+future slots are completed. Blocking `Appender.AppendBatch` calls run in worker
+goroutines and return completion events to the same authority reactor. Append
+requests clone payloads at the appender boundary.
+
+Batch-level `ErrRouteNotReady`, `ErrNotLeader`, and `ErrStaleRoute` are retried
+with bounded backoff while at least one active item deadline remains. Short
+append results complete missing items with `ErrAppendResultMissing`; per-item
+append errors map to SENDACK reasons; successful append results complete
+`SENDACK` futures immediately with `ReasonSuccess`, message id, and channel
+sequence. Successful append items also enqueue `CommittedEnvelope` values in the
+same `channelState` as the handoff point for later post-commit recipient work.
+Recipient selection, delivery, router/RPC forwarding, and committed cursor
+processing are later tasks.
 
 `Stop` cancels the runtime context passed to prepare effects before waiting for
-reactors to drain. Prepare ports must respect their context promptly for Stop to
-complete without waiting for the caller's timeout. Durable append, post-commit
-fanout, recipient delivery, router/RPC forwarding, and flow-control enforcement
-are later tasks.
+reactors to drain. Prepare and append ports must respect their context promptly
+for Stop to complete without waiting for the caller's timeout.

@@ -14,6 +14,7 @@ func TestReactorRunsPrepareAsWorkerEffect(t *testing.T) {
 		LocalNodeID:       1,
 		MessageID:         newSequenceIDsForPrepare(500),
 		Authorizer:        authorizer,
+		Appender:          newRecordingAppenderForAppendTest(),
 		EffectWorkerCount: 1,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
@@ -48,16 +49,18 @@ func TestReactorRunsPrepareAsWorkerEffect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Future.Wait() error = %v", err)
 	}
-	requireNotAppended(t, results, 0)
+	requireAppendSuccess(t, results, 0, 500, 1)
 }
 
 func TestReactorPreservesSameChannelOrderAcrossConcurrentPrepareWorkers(t *testing.T) {
 	authorizer := newPayloadBlockingAuthorizerForTest("first")
+	appender := newRecordingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:       1,
 		MailboxSize:       4,
 		MessageID:         newSequenceIDsForPrepare(700),
 		Authorizer:        authorizer,
+		Appender:          appender,
 		EffectWorkerCount: 2,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
@@ -97,26 +100,26 @@ func TestReactorPreservesSameChannelOrderAcrossConcurrentPrepareWorkers(t *testi
 
 	authorizer.release()
 	firstResults := waitFutureForTest(t, first.future)
-	requireNotAppended(t, firstResults, 0)
+	requireAppendSuccessAnyID(t, firstResults, 0)
 	select {
 	case second := <-secondWaitC:
 		if second.err != nil {
 			t.Fatalf("second Future.Wait() error = %v", second.err)
 		}
-		requireNotAppended(t, second.results, 0)
+		requireAppendSuccessAnyID(t, second.results, 0)
 	case <-time.After(time.Second):
 		t.Fatalf("second future did not complete after first prepare released")
 	}
 
-	pending := (&preparedGroupForTest{group: group}).pendingForChannel(t, ChannelID{ID: "room", Type: 2})
-	if len(pending) != 2 {
-		t.Fatalf("pending items = %d, want 2", len(pending))
+	requests := appender.Requests()
+	if len(requests) != 2 {
+		t.Fatalf("append requests = %d, want 2", len(requests))
 	}
-	if got := string(pending[0].Command.Payload); got != "first" {
-		t.Fatalf("pending[0] payload = %q, want first", got)
+	if got := string(requests[0].Messages[0].Payload); got != "first" {
+		t.Fatalf("append[0] payload = %q, want first", got)
 	}
-	if got := string(pending[1].Command.Payload); got != "second" {
-		t.Fatalf("pending[1] payload = %q, want second", got)
+	if got := string(requests[1].Messages[0].Payload); got != "second" {
+		t.Fatalf("append[1] payload = %q, want second", got)
 	}
 }
 
@@ -127,6 +130,7 @@ func TestSubmitLocalReturnsBackpressureWhenPrepareEffectsAreFull(t *testing.T) {
 		MailboxSize:       1,
 		MessageID:         newSequenceIDsForPrepare(900),
 		Authorizer:        authorizer,
+		Appender:          newRecordingAppenderForAppendTest(),
 		EffectWorkerCount: 1,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
@@ -162,7 +166,7 @@ func TestSubmitLocalReturnsBackpressureWhenPrepareEffectsAreFull(t *testing.T) {
 	}
 
 	authorizer.release()
-	requireNotAppended(t, waitFutureForTest(t, first.future), 0)
+	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 900, 1)
 }
 
 func TestStopCancelsOutstandingPreparePortContexts(t *testing.T) {

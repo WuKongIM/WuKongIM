@@ -113,8 +113,12 @@ func TestSubmitLocalIgnoresCallerCancellationAfterMailboxAcceptance(t *testing.T
 	}
 }
 
-func TestSubmitLocalFutureCompletesWithNotAppendedResults(t *testing.T) {
-	group := newStartedTestGroup(t, Options{LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(1)})
+func TestSubmitLocalFutureCompletesWithAppendResults(t *testing.T) {
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(1),
+		Appender:    newRecordingAppenderForAppendTest(),
+	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
 	items := []SendBatchItem{
 		testSendItem("u1", "room"),
@@ -135,11 +139,8 @@ func TestSubmitLocalFutureCompletesWithNotAppendedResults(t *testing.T) {
 	if len(results) != len(items) {
 		t.Fatalf("results len = %d, want %d", len(results), len(items))
 	}
-	for i, result := range results {
-		if !errors.Is(result.Err, ErrNotAppended) {
-			t.Fatalf("results[%d].Err = %v, want ErrNotAppended", i, result.Err)
-		}
-	}
+	requireAppendSuccess(t, results, 0, 1, 1)
+	requireAppendSuccess(t, results, 1, 2, 2)
 }
 
 func TestStopTimeoutClosesAdmissionWhileSubmitWaitsForAck(t *testing.T) {

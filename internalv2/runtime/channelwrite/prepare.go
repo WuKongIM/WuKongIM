@@ -22,6 +22,7 @@ type preparedSend struct {
 	Command SendCommand
 	// ServerTimestampMS is the server timestamp assigned exactly once during prepare.
 	ServerTimestampMS int64
+	future            *Future
 }
 
 type preparePorts struct {
@@ -69,7 +70,6 @@ func prepareBatch(runtimeCtx context.Context, items []SendBatchItem, ports prepa
 			continue
 		}
 		prepared = append(prepared, next.item)
-		results[i] = SendBatchItemResult{Err: ErrNotAppended}
 	}
 
 	return prepareOutcome{

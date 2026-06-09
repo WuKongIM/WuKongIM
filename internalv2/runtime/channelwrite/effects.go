@@ -1,6 +1,9 @@
 package channelwrite
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type prepareEffect struct {
 	target AuthorityTarget
@@ -72,12 +75,15 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 	}
 
 	matching := make([]preparedSend, 0, len(e.prepared))
+	matchingIndex := make(map[int]struct{}, len(e.prepared))
 	for _, item := range e.prepared {
 		if !preparedCommandMatchesTarget(e.target, item.Command) {
 			e.results[item.Index] = SendBatchItemResult{Err: ErrStaleRoute}
 			continue
 		}
+		item.future = e.future
 		matching = append(matching, item)
+		matchingIndex[item.Index] = struct{}{}
 	}
 
 	r.mu.Lock()
@@ -88,12 +94,96 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 			state = newChannelState(e.target, r.limits)
 			r.states[key] = state
 		}
-		state.enqueuePrepared(matching)
+		if state.canAdmit(len(matching)) {
+			state.enqueuePrepared(matching)
+			r.scheduleAppendLocked(key, state)
+		} else {
+			for _, item := range matching {
+				delete(matchingIndex, item.Index)
+				e.results[item.Index] = SendBatchItemResult{Err: ErrChannelBusy}
+			}
+		}
 	}
 	r.mu.Unlock()
 
-	e.future.complete(e.results)
-	r.releaseEffectSlot()
+	e.future.completeItems(e.results, func(index int) bool {
+		_, isPendingAppend := matchingIndex[index]
+		return !isPendingAppend
+	})
+}
+
+func (e appendCompletedEvent) apply(r *reactor) {
+	r.recordAppendCompletion(e)
+}
+
+func (r *reactor) recordAppendCompletion(event appendCompletedEvent) {
+	var dispatch []appendCompletionDispatch
+	r.mu.Lock()
+	state := r.states[event.key]
+	if state == nil {
+		r.mu.Unlock()
+		for _, completion := range event.items {
+			completion.result = SendBatchItemResult{Err: ErrStaleRoute}
+			completion.traceErr = ErrStaleRoute
+			dispatch = append(dispatch, appendCompletionDispatch{completion: completion, duration: event.duration})
+		}
+		for _, item := range dispatch {
+			r.dispatchAppendItemCompletion(item.completion, item.duration)
+		}
+		return
+	}
+	state.recordAppendCompletion(event)
+	for {
+		next, ok := state.popNextAppendCompletion()
+		if !ok {
+			break
+		}
+		state.finishAppend(len(next.items))
+		for _, completion := range next.items {
+			if completion.traceErr == nil && completion.result.Err == nil && completion.result.Result.Reason == ReasonSuccess {
+				state.enqueueCommitted(committedEnvelopeForAppend(completion.item, completion.appended))
+			}
+			dispatch = append(dispatch, appendCompletionDispatch{completion: completion, duration: next.duration})
+		}
+		r.scheduleAppendLocked(event.key, state)
+	}
+	r.mu.Unlock()
+	for _, item := range dispatch {
+		r.dispatchAppendItemCompletion(item.completion, item.duration)
+	}
+}
+
+type appendCompletionDispatch struct {
+	completion appendItemCompletion
+	duration   time.Duration
+}
+
+func (r *reactor) dispatchAppendItemCompletion(completion appendItemCompletion, dur time.Duration) {
+	observeAppendCompletion(r.appendPorts.observer, completion, dur)
+	recordAppendDurableTrace(completion.item, appendTraceMessageSeq(completion), completion.traceErr, dur)
+	completion.item.future.completeItem(completion.item.Index, completion.result)
+}
+
+func appendTraceMessageSeq(completion appendItemCompletion) uint64 {
+	if completion.appended.MessageSeq != 0 {
+		return completion.appended.MessageSeq
+	}
+	return completion.result.Result.MessageSeq
+}
+
+func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
+	for {
+		seq, items, ok := state.nextAppendBatch()
+		if !ok {
+			return
+		}
+		r.pendingAppend = append(r.pendingAppend, appendEffect{
+			target: state.target,
+			key:    key,
+			seq:    seq,
+			items:  items,
+		})
+	}
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {

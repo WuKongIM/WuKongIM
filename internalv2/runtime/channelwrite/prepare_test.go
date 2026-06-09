@@ -98,25 +98,23 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 		MessageScopedUIDs: []string{"u2", " u3 ", "u2"},
 	}))
 
-	requireNotAppended(t, got.Results, 0)
-	if len(got.Prepared) != 1 {
-		t.Fatalf("prepared items = %d, want 1", len(got.Prepared))
+	requireAppendSuccess(t, got.Results, 0, 100, 1)
+	request := group.singleAppendRequest(t)
+	if request.ChannelID.ID != scoped.CommandChannelID || request.ChannelID.Type != scoped.ChannelType {
+		t.Fatalf("request-scoped channel = %q/%d, want %q/%d", request.ChannelID.ID, request.ChannelID.Type, scoped.CommandChannelID, scoped.ChannelType)
 	}
-	prepared := got.Prepared[0]
-	if prepared.Command.ChannelID != scoped.CommandChannelID || prepared.Command.ChannelType != scoped.ChannelType {
-		t.Fatalf("request-scoped channel = %q/%d, want %q/%d", prepared.Command.ChannelID, prepared.Command.ChannelType, scoped.CommandChannelID, scoped.ChannelType)
+	committed := committedForAppendTest(t, group.group, request.ChannelID)
+	if len(committed) != 1 {
+		t.Fatalf("committed events = %d, want 1", len(committed))
 	}
-	if gotUIDs := prepared.Command.MessageScopedUIDs; len(gotUIDs) != 2 || gotUIDs[0] != "u2" || gotUIDs[1] != "u3" {
+	if gotUIDs := committed[0].MessageScopedUIDs; len(gotUIDs) != 2 || gotUIDs[0] != "u2" || gotUIDs[1] != "u3" {
 		t.Fatalf("message-scoped uids = %#v, want normalized u2,u3", gotUIDs)
 	}
-	if prepared.Command.NormalizePersonChannel {
-		t.Fatalf("NormalizePersonChannel = true, want false after request-scoped derivation")
+	if request.Messages[0].MessageID != 100 {
+		t.Fatalf("message id = %d, want 100", request.Messages[0].MessageID)
 	}
-	if prepared.Command.MessageID != 100 {
-		t.Fatalf("message id = %d, want 100", prepared.Command.MessageID)
-	}
-	if prepared.ServerTimestampMS != clock.now.UnixMilli() {
-		t.Fatalf("server timestamp = %d, want %d", prepared.ServerTimestampMS, clock.now.UnixMilli())
+	if request.Messages[0].ServerTimestampMS != clock.now.UnixMilli() {
+		t.Fatalf("server timestamp = %d, want %d", request.Messages[0].ServerTimestampMS, clock.now.UnixMilli())
 	}
 }
 
@@ -136,12 +134,10 @@ func TestPrepareNormalizesPersonChannel(t *testing.T) {
 		Payload:                []byte("payload"),
 	}))
 
-	requireNotAppended(t, got.Results, 0)
-	if len(got.Prepared) != 1 {
-		t.Fatalf("prepared items = %d, want 1", len(got.Prepared))
-	}
-	if got.Prepared[0].Command.ChannelID != want {
-		t.Fatalf("prepared channel id = %q, want normalized %q", got.Prepared[0].Command.ChannelID, want)
+	requireAppendSuccess(t, got.Results, 0, 200, 1)
+	request := group.singleAppendRequest(t)
+	if request.ChannelID.ID != want {
+		t.Fatalf("append channel id = %q, want normalized %q", request.ChannelID.ID, want)
 	}
 }
 
@@ -451,26 +447,27 @@ func TestPrepareCanceledItemsDoNotBlockOtherItems(t *testing.T) {
 		sendItemForPrepare(validPrepareCommand("u1", "room", "third")),
 	)
 
-	requireNotAppended(t, got.Results, 0)
+	requireAppendSuccess(t, got.Results, 0, 300, 1)
 	if !errors.Is(got.Results[1].Err, context.Canceled) {
 		t.Fatalf("canceled result error = %v, want context.Canceled", got.Results[1].Err)
 	}
-	requireNotAppended(t, got.Results, 2)
-	if len(got.Prepared) != 2 {
-		t.Fatalf("prepared items = %d, want 2", len(got.Prepared))
+	requireAppendSuccess(t, got.Results, 2, 301, 2)
+	request := group.singleAppendRequest(t)
+	if len(request.Messages) != 2 {
+		t.Fatalf("appended messages = %d, want 2", len(request.Messages))
 	}
-	if payload := string(got.Prepared[0].Command.Payload); payload != "first" {
-		t.Fatalf("first prepared payload = %q, want first", payload)
+	if payload := string(request.Messages[0].Payload); payload != "first" {
+		t.Fatalf("first append payload = %q, want first", payload)
 	}
-	if payload := string(got.Prepared[1].Command.Payload); payload != "third" {
-		t.Fatalf("second prepared payload = %q, want third", payload)
+	if payload := string(request.Messages[1].Payload); payload != "third" {
+		t.Fatalf("second append payload = %q, want third", payload)
 	}
 	if ids.allocatedCount() != 2 {
 		t.Fatalf("allocated ids = %d, want 2", ids.allocatedCount())
 	}
 }
 
-func TestPrepareValidItemsEnterPendingQueueInInputOrder(t *testing.T) {
+func TestPrepareValidItemsAppendInInputOrder(t *testing.T) {
 	ids := newSequenceIDsForPrepare(400)
 	clock := fixedClockForPrepare{now: time.Unix(500, 0)}
 	group := newPreparedGroup(t, preparePortsForTest{ids: ids, clock: clock})
@@ -481,12 +478,12 @@ func TestPrepareValidItemsEnterPendingQueueInInputOrder(t *testing.T) {
 		sendItemForPrepare(validPrepareCommand("u1", "room", "three")),
 	)
 
-	for i := range got.Results {
-		requireNotAppended(t, got.Results, i)
-	}
-	pending := group.pendingForChannel(t, ChannelID{ID: "room", Type: 2})
-	if len(pending) != 3 {
-		t.Fatalf("pending items = %d, want 3", len(pending))
+	requireAppendSuccess(t, got.Results, 0, 400, 1)
+	requireAppendSuccess(t, got.Results, 1, 401, 2)
+	requireAppendSuccess(t, got.Results, 2, 402, 3)
+	request := group.singleAppendRequest(t)
+	if len(request.Messages) != 3 {
+		t.Fatalf("appended messages = %d, want 3", len(request.Messages))
 	}
 	for i, want := range []struct {
 		payload   string
@@ -496,14 +493,14 @@ func TestPrepareValidItemsEnterPendingQueueInInputOrder(t *testing.T) {
 		{payload: "two", messageID: 401},
 		{payload: "three", messageID: 402},
 	} {
-		if gotPayload := string(pending[i].Command.Payload); gotPayload != want.payload {
-			t.Fatalf("pending[%d] payload = %q, want %q", i, gotPayload, want.payload)
+		if gotPayload := string(request.Messages[i].Payload); gotPayload != want.payload {
+			t.Fatalf("append[%d] payload = %q, want %q", i, gotPayload, want.payload)
 		}
-		if pending[i].Command.MessageID != want.messageID {
-			t.Fatalf("pending[%d] message id = %d, want %d", i, pending[i].Command.MessageID, want.messageID)
+		if request.Messages[i].MessageID != want.messageID {
+			t.Fatalf("append[%d] message id = %d, want %d", i, request.Messages[i].MessageID, want.messageID)
 		}
-		if pending[i].ServerTimestampMS != clock.now.UnixMilli() {
-			t.Fatalf("pending[%d] server timestamp = %d, want %d", i, pending[i].ServerTimestampMS, clock.now.UnixMilli())
+		if request.Messages[i].ServerTimestampMS != clock.now.UnixMilli() {
+			t.Fatalf("append[%d] server timestamp = %d, want %d", i, request.Messages[i].ServerTimestampMS, clock.now.UnixMilli())
 		}
 	}
 }
@@ -517,7 +514,8 @@ type preparePortsForTest struct {
 }
 
 type preparedGroupForTest struct {
-	group *Group
+	group    *Group
+	appender *recordingAppenderForAppendTest
 }
 
 type prepareDrainForTest struct {
@@ -543,8 +541,15 @@ func newPreparedGroup(t *testing.T, ports preparePortsForTest) *preparedGroupFor
 func newPreparedGroupWithOptions(t *testing.T, opts Options) *preparedGroupForTest {
 	t.Helper()
 
+	var appender *recordingAppenderForAppendTest
+	if opts.Appender == nil {
+		appender = newRecordingAppenderForAppendTest()
+		opts.Appender = appender
+	} else {
+		appender, _ = opts.Appender.(*recordingAppenderForAppendTest)
+	}
 	group := newStartedTestGroup(t, opts)
-	return &preparedGroupForTest{group: group}
+	return &preparedGroupForTest{group: group, appender: appender}
 }
 
 func (g *preparedGroupForTest) submitAndDrainPrepare(t *testing.T, items ...SendBatchItem) prepareDrainForTest {
@@ -602,6 +607,18 @@ func (g *preparedGroupForTest) pendingForChannel(t *testing.T, channelID Channel
 	return nil
 }
 
+func (g *preparedGroupForTest) singleAppendRequest(t *testing.T) AppendBatchRequest {
+	t.Helper()
+	if g.appender == nil {
+		t.Fatalf("prepared group appender is not recording")
+	}
+	requests := g.appender.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(requests))
+	}
+	return requests[0]
+}
+
 func (g *Group) preparedForTest() []preparedSend {
 	var out []preparedSend
 	for _, reactor := range g.reactors {
@@ -641,16 +658,6 @@ func requireResultReason(t *testing.T, results []SendBatchItemResult, index int,
 	}
 	if results[index].Result.Reason != reason {
 		t.Fatalf("results[%d] reason = %v, want %v", index, results[index].Result.Reason, reason)
-	}
-}
-
-func requireNotAppended(t *testing.T, results []SendBatchItemResult, index int) {
-	t.Helper()
-	if len(results) <= index {
-		t.Fatalf("results len = %d, want index %d", len(results), index)
-	}
-	if !errors.Is(results[index].Err, ErrNotAppended) {
-		t.Fatalf("results[%d] error = %v, want ErrNotAppended", index, results[index].Err)
 	}
 }
 

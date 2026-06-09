@@ -50,16 +50,55 @@ type SendBatchItemResult = contract.SendBatchItemResult
 // Decision is the result of send authorization.
 type Decision = contract.Decision
 
+// CommitMode controls when durable append completes.
+type CommitMode = contract.CommitMode
+
+const (
+	// CommitModeQuorum waits for quorum commit.
+	CommitModeQuorum = contract.CommitModeQuorum
+	// CommitModeLocal completes after local durable append.
+	CommitModeLocal = contract.CommitModeLocal
+)
+
 // IdempotencyQuery identifies one canonical sender/client message key.
 type IdempotencyQuery = contract.IdempotencyQuery
+
+// Message is the durable append payload used by the channel appender port.
+type Message = contract.Message
+
+// AppendBatchRequest appends messages to one canonical channel.
+type AppendBatchRequest = contract.AppendBatchRequest
+
+// AppendBatchResult returns item-aligned append outcomes.
+type AppendBatchResult = contract.AppendBatchResult
+
+// AppendBatchItemResult is one append result inside a batch.
+type AppendBatchItemResult = contract.AppendBatchItemResult
+
+// CommittedEnvelope carries one committed message into post-commit effects.
+type CommittedEnvelope = contract.CommittedEnvelope
 
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
 	// ErrBackpressured reports bounded runtime pressure or closed admission.
 	ErrBackpressured = contract.ErrBackpressured
+	// ErrChannelBusy reports that channel-level write flow control is saturated.
+	ErrChannelBusy = contract.ErrChannelBusy
+	// ErrAppenderRequired reports that durable append is not configured.
+	ErrAppenderRequired = contract.ErrAppenderRequired
 	// ErrStaleRoute reports that append used stale channel metadata.
 	ErrStaleRoute = contract.ErrStaleRoute
+	// ErrRouteNotReady reports that cluster routing is not ready for foreground writes.
+	ErrRouteNotReady = contract.ErrRouteNotReady
+	// ErrNotLeader reports that the append target is no longer the leader.
+	ErrNotLeader = contract.ErrNotLeader
+	// ErrChannelNotFound reports that the target channel is not available.
+	ErrChannelNotFound = contract.ErrChannelNotFound
+	// ErrAppendFailed wraps unexpected append failures.
+	ErrAppendFailed = contract.ErrAppendFailed
+	// ErrAppendResultMissing reports a successful batch append response without a matching item result.
+	ErrAppendResultMissing = contract.ErrAppendResultMissing
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.
 	ErrRequestSubscribersRequireSyncOnce = contract.ErrRequestSubscribersRequireSyncOnce
 	// ErrRequestSubscribersConflictChannel reports that request-scoped sends cannot specify a channel.
@@ -87,8 +126,9 @@ func New(opts Options) *Group {
 	group := &Group{opts: opts}
 	limits := stateLimitsFromOptions(opts)
 	ports := preparePortsFromOptions(opts)
+	appendPorts := appendPortsFromOptions(opts)
 	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports))
+		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts))
 	}
 	return group
 }

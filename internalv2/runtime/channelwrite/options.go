@@ -43,10 +43,24 @@ type SenderFenceValidator interface {
 	ValidateSender(context.Context, SendCommand) error
 }
 
+// Appender owns blocking durable append for one channel batch.
+type Appender interface {
+	// AppendBatch appends one channel-aligned message batch.
+	AppendBatch(context.Context, AppendBatchRequest) (AppendBatchResult, error)
+}
+
+// AppendObserver receives per-message durable append observations.
+type AppendObserver interface {
+	// AppendFinished observes one append item outcome.
+	AppendFinished(path string, err error, dur time.Duration)
+}
+
 // Options configures the channel write reactor group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
 	LocalNodeID uint64
+	// Appender owns blocking durable append for prepared channel messages.
+	Appender Appender
 	// MessageID allocates message ids for non-idempotent gateway-origin sends.
 	MessageID MessageIDAllocator
 	// Authorizer decides whether a send may enter the pending append queue.
@@ -65,6 +79,8 @@ type Options struct {
 	AppendInflightLimit int
 	// EffectWorkerCount is the number of bounded pre-append prepare workers. Values <= 0 use one worker.
 	EffectWorkerCount int
+	// Observer receives non-fatal append observations.
+	Observer AppendObserver
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -107,6 +123,13 @@ func preparePortsFromOptions(opts Options) preparePorts {
 		idempotency: opts.Idempotency,
 		senderFence: opts.SenderFence,
 		clock:       opts.Clock,
+	}
+}
+
+func appendPortsFromOptions(opts Options) appendPorts {
+	return appendPorts{
+		appender: opts.Appender,
+		observer: opts.Observer,
 	}
 }
 
