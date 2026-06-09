@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 )
 
 const (
@@ -98,18 +100,20 @@ func (r *Router) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 	results := make([]SendBatchItemResult, len(items))
 	pending := make([]int, 0, len(items))
 	attempts := make([]int, len(items))
+	routeChannels := make([]ChannelID, len(items))
 	for i, item := range items {
-		prepared, result, done := prepareRouterItem(item, time.Now())
+		prepared, routeChannel, result, done := prepareRouterItem(item, time.Now())
 		if done {
 			results[i] = result
 			continue
 		}
 		items[i] = prepared
+		routeChannels[i] = routeChannel
 		pending = append(pending, i)
 	}
 
 	for len(pending) > 0 {
-		groups, nextPending := r.resolvePending(items, results, pending, attempts)
+		groups, nextPending := r.resolvePending(items, routeChannels, results, pending, attempts)
 		for _, group := range groups {
 			groupResults := r.submitGroup(group)
 			for i, result := range normalizeRouterGroupResults(len(group.indexes), groupResults) {
@@ -136,7 +140,7 @@ type routerBatchGroup struct {
 	items   []SendBatchItem
 }
 
-func (r *Router) resolvePending(items []SendBatchItem, results []SendBatchItemResult, pending []int, attempts []int) ([]routerBatchGroup, []int) {
+func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID, results []SendBatchItemResult, pending []int, attempts []int) ([]routerBatchGroup, []int) {
 	groups := make([]routerBatchGroup, 0, len(pending))
 	groupIndexes := make(map[AuthorityTarget]int, len(pending))
 	nextPending := make([]int, 0)
@@ -151,7 +155,7 @@ func (r *Router) resolvePending(items []SendBatchItem, results []SendBatchItemRe
 			results[index] = SendBatchItemResult{Err: ErrRouteNotReady}
 			continue
 		}
-		channelID := ChannelID{ID: item.Command.ChannelID, Type: item.Command.ChannelType}
+		channelID := routeChannels[index]
 		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(item), channelID)
 		if err != nil {
 			if shouldRetryRouterError(err) && canRetryRouterItem(item, attempts[index], r.maxRouteAttempts, time.Now()) {
@@ -179,52 +183,106 @@ func (r *Router) resolvePending(items []SendBatchItem, results []SendBatchItemRe
 }
 
 func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
+	results := make([]SendBatchItemResult, len(group.items))
+	activeItems, activePositions := activeRouterGroupItems(group.items, results, time.Now())
+	if len(activeItems) == 0 {
+		return results
+	}
 	localNodeID := uint64(0)
 	if r != nil {
 		localNodeID = r.localNodeID
 	}
+	ctx, cancel := routerAllItemsContext(activeItems)
+	defer cancel()
+	var activeResults []SendBatchItemResult
 	if group.target.LeaderNodeID == localNodeID {
 		if r == nil || r.local == nil {
-			return routerErrorResults(len(group.items), ErrRouteNotReady)
+			activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
+			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 		}
-		ctx, cancel := routerGroupContext(group.items)
-		defer cancel()
-		future, err := r.local.SubmitLocal(ctx, group.target, group.items)
+		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
-			return routerErrorResults(len(group.items), err)
+			activeResults = routerErrorResults(len(activeItems), err)
+			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 		}
 		if future == nil {
-			return routerErrorResults(len(group.items), ErrAppendResultMissing)
+			activeResults = routerErrorResults(len(activeItems), ErrAppendResultMissing)
+			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 		}
-		results, err := future.Wait(ctx)
+		activeResults, err = future.Wait(ctx)
 		if err != nil {
-			return routerErrorResults(len(group.items), err)
+			activeResults = routerErrorResults(len(activeItems), err)
 		}
-		return results
+		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 	}
 	if r == nil || r.remote == nil {
-		return routerErrorResults(len(group.items), ErrRouteNotReady)
+		activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
+		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 	}
 	if !r.acquireOutbound(group.target.LeaderNodeID) {
-		return routerErrorResults(len(group.items), ErrBackpressured)
+		activeResults = routerErrorResults(len(activeItems), ErrBackpressured)
+		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 	}
 	defer r.releaseOutbound(group.target.LeaderNodeID)
-	ctx, cancel := routerGroupContext(group.items)
-	defer cancel()
-	return r.remote.ForwardSendBatch(ctx, group.target, group.items)
+	activeResults = r.remote.ForwardSendBatch(ctx, group.target, activeItems)
+	return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
 }
 
-func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, SendBatchItemResult, bool) {
+func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
 	if item.Context == nil {
 		item.Context = context.Background()
 	}
 	if err := routerItemError(item, now); err != nil {
-		return item, SendBatchItemResult{Err: err}, true
+		return item, ChannelID{}, SendBatchItemResult{Err: err}, true
 	}
-	if item.Command.ChannelID == "" || item.Command.ChannelType == 0 {
-		return item, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
+	routeChannel, result, done := preRouteChannel(item.Command)
+	return item, routeChannel, result, done
+}
+
+func preRouteChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
+	if cmd.FromUID == "" {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonAuthFail}}, true
 	}
-	return item, SendBatchItemResult{}, false
+	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
+		return preRouteRequestScopedChannel(cmd)
+	}
+	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
+	}
+	if cmd.NoPersist {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonUnsupported}}, true
+	}
+	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
+		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		if err != nil {
+			return ChannelID{}, SendBatchItemResult{Err: err}, true
+		}
+		return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
+	}
+	return ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
+}
+
+func preRouteRequestScopedChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
+	if len(cmd.Payload) == 0 {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
+	}
+	if !cmd.SyncOnce {
+		return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersRequireSyncOnce}, true
+	}
+	if cmd.ChannelID != "" {
+		return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersConflictChannel}, true
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor(cmd.MessageScopedUIDs)
+	if err != nil {
+		if errors.Is(err, runtimechannelid.ErrRequestSubscribersRequired) {
+			return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersRequired}, true
+		}
+		return ChannelID{}, SendBatchItemResult{Err: err}, true
+	}
+	if cmd.NoPersist {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonUnsupported}}, true
+	}
+	return ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType}, SendBatchItemResult{}, false
 }
 
 func routerItemError(item SendBatchItem, now time.Time) error {
@@ -294,7 +352,12 @@ func (r *Router) waitBeforeRetry(items []SendBatchItem, pending []int) {
 	}
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
-	<-timer.C
+	wake, cleanup := routerPendingWakeSignal(items, pending)
+	defer cleanup()
+	select {
+	case <-timer.C:
+	case <-wake:
+	}
 }
 
 func retryDelayForRouterItems(items []SendBatchItem, pending []int, base time.Duration, now time.Time) time.Duration {
@@ -330,27 +393,121 @@ func routerItemDeadline(item SendBatchItem) (time.Time, bool) {
 	return deadline, ok
 }
 
-func routerGroupContext(items []SendBatchItem) (context.Context, context.CancelFunc) {
-	base := context.Background()
-	baseSet := false
-	var earliest time.Time
-	hasDeadline := false
-	for _, item := range items {
-		if !baseSet && item.Context != nil {
-			base = item.Context
-			baseSet = true
+func activeRouterGroupItems(items []SendBatchItem, results []SendBatchItemResult, now time.Time) ([]SendBatchItem, []int) {
+	activeItems := make([]SendBatchItem, 0, len(items))
+	activePositions := make([]int, 0, len(items))
+	for i, item := range items {
+		if err := routerItemError(item, now); err != nil {
+			results[i] = SendBatchItemResult{Err: err}
+			continue
 		}
-		if deadline, ok := routerItemDeadline(item); ok {
-			if !hasDeadline || deadline.Before(earliest) {
-				earliest = deadline
-				hasDeadline = true
+		activePositions = append(activePositions, i)
+		activeItems = append(activeItems, item)
+	}
+	return activeItems, activePositions
+}
+
+func mergeActiveRouterResults(items []SendBatchItem, activePositions []int, activeResults []SendBatchItemResult, results []SendBatchItemResult) []SendBatchItemResult {
+	activeResults = normalizeRouterGroupResults(len(activePositions), activeResults)
+	for i, result := range activeResults {
+		position := activePositions[i]
+		if err := routerItemError(items[position], time.Now()); err != nil {
+			results[position] = SendBatchItemResult{Err: err}
+			continue
+		}
+		results[position] = result
+	}
+	return results
+}
+
+func routerAllItemsContext(items []SendBatchItem) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	if len(items) == 0 {
+		cancel()
+		return ctx, cancel
+	}
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+	stopAll := func() {
+		stopOnce.Do(func() {
+			close(stop)
+			cancel()
+		})
+	}
+	done := make(chan struct{}, len(items))
+	for _, item := range items {
+		go func(item SendBatchItem) {
+			waitRouterItemTerminal(item, stop)
+			select {
+			case done <- struct{}{}:
+			case <-stop:
+			}
+		}(item)
+	}
+	go func() {
+		for range items {
+			select {
+			case <-done:
+			case <-stop:
+				return
 			}
 		}
+		cancel()
+	}()
+	return ctx, stopAll
+}
+
+func routerPendingWakeSignal(items []SendBatchItem, pending []int) (<-chan struct{}, func()) {
+	wake := make(chan struct{})
+	stop := make(chan struct{})
+	var wakeOnce sync.Once
+	signal := func() {
+		wakeOnce.Do(func() { close(wake) })
 	}
+	var stopOnce sync.Once
+	cleanup := func() {
+		stopOnce.Do(func() { close(stop) })
+	}
+	for _, index := range pending {
+		item := items[index]
+		if err := routerItemError(item, time.Now()); err != nil {
+			signal()
+			break
+		}
+		go func(item SendBatchItem) {
+			waitRouterItemTerminal(item, stop)
+			signal()
+		}(item)
+	}
+	return wake, cleanup
+}
+
+func waitRouterItemTerminal(item SendBatchItem, stop <-chan struct{}) {
+	deadline, hasDeadline := routerItemDeadline(item)
+	var timer *time.Timer
+	var timerC <-chan time.Time
 	if hasDeadline {
-		return context.WithDeadline(base, earliest)
+		delay := time.Until(deadline)
+		if delay <= 0 {
+			return
+		}
+		timer = time.NewTimer(delay)
+		timerC = timer.C
+		defer timer.Stop()
 	}
-	return context.WithCancel(base)
+	var ctxDone <-chan struct{}
+	if item.Context != nil {
+		ctxDone = item.Context.Done()
+	}
+	if ctxDone == nil && timerC == nil {
+		<-stop
+		return
+	}
+	select {
+	case <-ctxDone:
+	case <-timerC:
+	case <-stop:
+	}
 }
 
 func normalizeRouterGroupResults(want int, got []SendBatchItemResult) []SendBatchItemResult {

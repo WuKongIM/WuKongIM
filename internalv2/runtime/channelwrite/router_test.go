@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 )
 
 func TestRouterLocalPathCallsSubmitLocal(t *testing.T) {
@@ -46,6 +48,87 @@ func TestRouterRemotePathCallsForwardSendBatch(t *testing.T) {
 	}
 }
 
+func TestRouterRoutesRequestScopedSendByCanonicalChannel(t *testing.T) {
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{" u2 ", "u1", "u2"})
+	if err != nil {
+		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
+	}
+	canonical := ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType}
+	target := routerTarget(canonical.ID, canonical.Type, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{canonical: target}}
+	local := &routerLocalSubmitterForTest{results: []SendBatchItemResult{{Result: SendResult{MessageID: 20, Reason: ReasonSuccess}}}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	item := routerItem("u1", "", 0)
+	item.Command.RequestScoped = true
+	item.Command.SyncOnce = true
+	item.Command.MessageScopedUIDs = []string{" u2 ", "u1", "u2"}
+
+	results := router.SendBatch([]SendBatchItem{item})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.MessageID != 20 {
+		t.Fatalf("results = %#v, want request-scoped local success", results)
+	}
+	if resolver.lastID != canonical {
+		t.Fatalf("resolved channel = %#v, want canonical request-scoped channel %#v", resolver.lastID, canonical)
+	}
+	if local.target.ChannelID != canonical {
+		t.Fatalf("local target channel = %#v, want canonical request-scoped channel %#v", local.target.ChannelID, canonical)
+	}
+	if len(local.items) != 1 || local.items[0].Command.ChannelID != "" || !local.items[0].Command.RequestScoped {
+		t.Fatalf("submitted item command = %#v, want original request-scoped command preserved for reactor prepare", local.items)
+	}
+}
+
+func TestRouterRoutesNormalizePersonSendByCanonicalChannel(t *testing.T) {
+	canonicalID, err := runtimechannelid.NormalizePersonChannel("u1", "u2")
+	if err != nil {
+		t.Fatalf("NormalizePersonChannel() error = %v", err)
+	}
+	canonical := ChannelID{ID: canonicalID, Type: channelTypePerson}
+	target := routerTarget(canonical.ID, canonical.Type, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{canonical: target}}
+	local := &routerLocalSubmitterForTest{results: []SendBatchItemResult{{Result: SendResult{MessageID: 21, Reason: ReasonSuccess}}}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	item := routerItem("u1", "u2", channelTypePerson)
+	item.Command.NormalizePersonChannel = true
+
+	results := router.SendBatch([]SendBatchItem{item})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.MessageID != 21 {
+		t.Fatalf("results = %#v, want normalize-person local success", results)
+	}
+	if resolver.lastID != canonical {
+		t.Fatalf("resolved channel = %#v, want canonical person channel %#v", resolver.lastID, canonical)
+	}
+	if local.target.ChannelID != canonical {
+		t.Fatalf("local target channel = %#v, want canonical person channel %#v", local.target.ChannelID, canonical)
+	}
+	if len(local.items) != 1 || local.items[0].Command.ChannelID != "u2" || !local.items[0].Command.NormalizePersonChannel {
+		t.Fatalf("submitted item command = %#v, want original normalize-person command preserved for reactor prepare", local.items)
+	}
+}
+
+func TestRouterRejectsInvalidCommandWithoutRouteLookup(t *testing.T) {
+	target := routerTarget("invalid", 2, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver})
+
+	results := router.SendBatch([]SendBatchItem{{
+		Context: context.Background(),
+		Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   "invalid",
+			ChannelType: 2,
+		},
+	}})
+	if len(results) != 1 || results[0].Result.Reason != ReasonInvalidRequest {
+		t.Fatalf("results = %#v, want invalid request", results)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("resolver calls = %d, want invalid command to avoid route lookup", resolver.calls)
+	}
+}
+
 func TestRouterRetriesRouteErrorsWithinDeadline(t *testing.T) {
 	for _, retryErr := range []error{ErrStaleRoute, ErrNotChannelAuthority, ErrNotLeader, ErrRouteNotReady} {
 		t.Run(retryErr.Error(), func(t *testing.T) {
@@ -67,6 +150,89 @@ func TestRouterRetriesRouteErrorsWithinDeadline(t *testing.T) {
 				t.Fatalf("resolver/local calls = %d/%d, want retry through fresh resolve and submit", resolver.calls, local.calls)
 			}
 		})
+	}
+}
+
+func TestRouterItemCancellationDoesNotPoisonSameAuthorityBatch(t *testing.T) {
+	target := routerTarget("ctx-batch", 2, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	local := &routerLocalSubmitterForTest{
+		results: []SendBatchItemResult{
+			{Result: SendResult{MessageID: 1, Reason: ReasonSuccess}},
+			{Result: SendResult{MessageID: 2, Reason: ReasonSuccess}},
+		},
+		completeDelay: 5 * time.Millisecond,
+		onSubmit:      cancelFirst,
+	}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	first := routerItem("u1", "ctx-batch", 2)
+	first.Context = firstCtx
+	second := routerItem("u2", "ctx-batch", 2)
+
+	results := router.SendBatch([]SendBatchItem{first, second})
+	if len(results) != 2 {
+		t.Fatalf("results len = %d, want 2", len(results))
+	}
+	if !errors.Is(results[0].Err, context.Canceled) {
+		t.Fatalf("first result = %#v, want context canceled", results[0])
+	}
+	if results[1].Err != nil || results[1].Result.MessageID != 2 {
+		t.Fatalf("second result = %#v, want unaffected success", results[1])
+	}
+	if local.calls != 1 || len(local.batches) != 1 || len(local.batches[0]) != 2 {
+		t.Fatalf("local batches = %#v, want both initially-active items submitted once", local.batches)
+	}
+}
+
+func TestRouterItemDeadlineDoesNotPoisonSameAuthorityBatch(t *testing.T) {
+	target := routerTarget("deadline-batch", 2, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	local := &routerLocalSubmitterForTest{
+		results: []SendBatchItemResult{
+			{Result: SendResult{MessageID: 1, Reason: ReasonSuccess}},
+			{Result: SendResult{MessageID: 2, Reason: ReasonSuccess}},
+		},
+		completeDelay: 15 * time.Millisecond,
+	}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	first := routerItem("u1", "deadline-batch", 2)
+	first.Deadline = time.Now().Add(5 * time.Millisecond)
+	second := routerItem("u2", "deadline-batch", 2)
+
+	results := router.SendBatch([]SendBatchItem{first, second})
+	if len(results) != 2 {
+		t.Fatalf("results len = %d, want 2", len(results))
+	}
+	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("first result = %#v, want deadline exceeded", results[0])
+	}
+	if results[1].Err != nil || results[1].Result.MessageID != 2 {
+		t.Fatalf("second result = %#v, want unaffected success", results[1])
+	}
+}
+
+func TestRouterRetryBackoffWakesOnCanceledPendingItem(t *testing.T) {
+	target := routerTarget("retry-cancel", 2, 7)
+	ctx, cancel := context.WithCancel(context.Background())
+	resolver := &routerResolverForTest{errs: []error{ErrRouteNotReady, ErrRouteNotReady}, targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, RetryBackoff: time.Hour})
+	item := routerItem("u1", "retry-cancel", 2)
+	item.Context = ctx
+	item.Deadline = time.Now().Add(time.Second)
+	cancelSoon := time.AfterFunc(10*time.Millisecond, cancel)
+	defer cancelSoon.Stop()
+
+	started := time.Now()
+	results := router.SendBatch([]SendBatchItem{item})
+	elapsed := time.Since(started)
+	if len(results) != 1 || !errors.Is(results[0].Err, context.Canceled) {
+		t.Fatalf("results = %#v, want context canceled", results)
+	}
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("retry wait elapsed %s, want prompt wake after cancellation", elapsed)
 	}
 }
 
@@ -170,12 +336,14 @@ type routerResolverForTest struct {
 	targetsByChannel map[ChannelID]AuthorityTarget
 	targets          []AuthorityTarget
 	errs             []error
+	lastID           ChannelID
 	calls            int
 }
 
 func (r *routerResolverForTest) ResolveAppendAuthority(_ context.Context, id ChannelID) (AuthorityTarget, error) {
 	call := r.calls
 	r.calls++
+	r.lastID = id
 	if call < len(r.errs) && r.errs[call] != nil {
 		return AuthorityTarget{}, r.errs[call]
 	}
@@ -189,11 +357,14 @@ func (r *routerResolverForTest) ResolveAppendAuthority(_ context.Context, id Cha
 }
 
 type routerLocalSubmitterForTest struct {
-	results []SendBatchItemResult
-	errs    []error
-	target  AuthorityTarget
-	items   []SendBatchItem
-	calls   int
+	results       []SendBatchItemResult
+	errs          []error
+	target        AuthorityTarget
+	items         []SendBatchItem
+	batches       [][]SendBatchItem
+	calls         int
+	onSubmit      func()
+	completeDelay time.Duration
 }
 
 func (s *routerLocalSubmitterForTest) SubmitLocal(_ context.Context, target AuthorityTarget, items []SendBatchItem) (*Future, error) {
@@ -201,10 +372,21 @@ func (s *routerLocalSubmitterForTest) SubmitLocal(_ context.Context, target Auth
 	s.calls++
 	s.target = target
 	s.items = append(s.items, items...)
+	s.batches = append(s.batches, append([]SendBatchItem(nil), items...))
+	if s.onSubmit != nil {
+		s.onSubmit()
+	}
 	if call < len(s.errs) && s.errs[call] != nil {
 		return nil, s.errs[call]
 	}
 	future := newFuture(len(items))
+	if s.completeDelay > 0 {
+		go func() {
+			time.Sleep(s.completeDelay)
+			future.complete(s.results)
+		}()
+		return future, nil
+	}
 	future.complete(s.results)
 	return future, nil
 }

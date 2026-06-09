@@ -136,6 +136,35 @@ bounded backoff so authority movement can settle without changing conversation
 usecase semantics. Raw clusterv2 route errors returned by remote RPC calls are
 mapped to the same conversation route sentinels before the retry decision.
 
+## Channel Write Authority Flow
+
+`ChannelWriteClient` adapts the channelwrite router authority ports to
+clusterv2. It resolves canonical channel append authority through the narrow
+`Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
+ChannelV2 service so metadata creation policy remains in `pkg/clusterv2/channels`.
+The adapter maps `channelv2.Meta` to `channelwrite.AuthorityTarget` with the
+canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`, and
+`LeaderEpoch`.
+
+```text
+channelwrite.Router
+  -> ChannelWriteClient.ResolveAppendAuthority(canonical channel)
+       -> clusterv2.Node.ResolveChannelAppendAuthority
+       -> channels.Service.ResolveAppendAuthority
+       -> ChannelMetaEnsurer.EnsureChannelMeta when append would create metadata
+  -> local authority: channelwrite.Group.SubmitLocal
+  -> remote authority: ChannelWriteClient.ForwardSendBatch
+       -> injected ChannelWriteRemoteForwarder
+```
+
+Route errors are translated at this adapter boundary:
+`channelv2.ErrNotLeader` becomes `channelwrite.ErrNotChannelAuthority`,
+`channelv2.ErrStaleMeta` becomes `channelwrite.ErrStaleRoute`, and
+`channelv2.ErrNotReady` plus clusterv2 readiness errors become
+`channelwrite.ErrRouteNotReady`. Remote forwarding is a narrow injected port in
+Task 5; concrete node RPC remains a later access/node task and remote item
+results are returned item-aligned without interpreting successful payloads.
+
 ## Sender Authority Flow
 
 `SenderAuthorityClient` adapts the message usecase sender-authority resolver and

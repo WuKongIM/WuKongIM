@@ -6,13 +6,48 @@
 It is the in-memory reactor group entered only after routing has resolved that
 the local node is the current channel authority.
 
+## Router Flow
+
+`Router` is the channel-authority routing front door for SEND batches. Before
+it resolves authority, it performs only side-effect-safe command checks and
+canonical channel derivation: malformed terminal commands fail item-locally
+without resolving or creating channel metadata, request-scoped sends derive the
+stable temporary command channel, and person-channel sends with
+`NormalizePersonChannel` derive the canonical person channel. The original send
+command is still submitted unchanged so reactor prepare remains the
+authoritative validation, idempotency, message-id allocation, and canonical
+command mutation point.
+
+```text
+Router.SendBatch
+  -> side-effect-safe pre-route validation / canonical channel derivation
+  -> AuthorityResolver.ResolveAppendAuthority(canonical channel)
+  -> local target: LocalSubmitter.SubmitLocal(target, original items)
+  -> remote target: RemoteForwarder.ForwardSendBatch(target, original items)
+  -> item-aligned results
+```
+
+The local path is the only path that may enter `SubmitLocal`; remote targets are
+forwarded and must not create local `channelState`. Route movement errors
+(`ErrStaleRoute`, `ErrNotChannelAuthority`, `ErrNotLeader`,
+`ErrRouteNotReady`) are retried with bounded backoff while item deadlines allow
+it. Retry sleeps wake when pending item cancellation or deadlines arrive, so
+expired work does not wait for the whole backoff. Remote outbound admission is
+bounded per `LeaderNodeID`, not per channel, so different channels to the same
+remote authority share the same pressure limit.
+
+Router submit contexts are neutral batch transport contexts. Per-item contexts
+and deadlines are checked before route lookup, before submission, and after
+local/remote completion. This prevents one item context or deadline from
+canceling other items that happen to share the same authority batch.
+
 ## Authority-Only State
 
 `SubmitLocal` accepts an `AuthorityTarget` that carries the channel authority
 identity. The group rejects targets whose `LeaderNodeID` does not match
-`Options.LocalNodeID` before choosing a reactor. Remote channels must be
-forwarded by a later router/RPC layer and never create proxy `channelState`
-inside this package.
+`Options.LocalNodeID` before choosing a reactor. Remote channels are handled by
+`Router` through the `RemoteForwarder` port and never create proxy
+`channelState` inside this package.
 
 `channelState` is created lazily by the owning reactor after local authority
 validation. State is keyed by the channel routing key derived from
@@ -79,8 +114,8 @@ append errors map to SENDACK reasons; successful append results complete
 `SENDACK` futures immediately with `ReasonSuccess`, message id, and channel
 sequence. Successful append items also enqueue `CommittedEnvelope` values in the
 same `channelState` as the handoff point for later post-commit recipient work.
-Recipient selection, delivery, router/RPC forwarding, and committed cursor
-processing are later tasks.
+Recipient selection, delivery, concrete node RPC forwarding, and committed
+cursor processing are later tasks.
 
 `Stop` cancels the runtime context passed to prepare effects before waiting for
 reactors to drain. Prepare and append ports must respect their context promptly
