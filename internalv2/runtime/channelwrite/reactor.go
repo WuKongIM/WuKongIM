@@ -94,6 +94,7 @@ func (r *reactor) run() {
 	commitEffects := r.commitEffects
 	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 {
 		if r.stopCtx.Err() != nil && len(r.pendingCommit) > 0 {
+			r.releasePendingCommitEffects(r.pendingCommit)
 			r.pendingCommit = nil
 		}
 		if mailbox == nil && len(r.pendingPrepare) == 0 && effects != nil {
@@ -160,6 +161,21 @@ func (r *reactor) run() {
 			}
 			event.apply(r)
 		}
+	}
+}
+
+func (r *reactor) releasePendingCommitEffects(effects []commitEffect) {
+	if len(effects) == 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, effect := range effects {
+		state := r.states[effect.key]
+		if state == nil {
+			continue
+		}
+		state.cancelCommitDispatch()
 	}
 }
 

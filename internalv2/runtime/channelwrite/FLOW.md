@@ -134,9 +134,10 @@ committed channel id. Other channels page subscribers with the configured page
 size and dispatch each page before requesting the next one, so the runtime does
 not load all subscribers before recipient dispatch. A non-terminal subscriber
 page must return a non-empty cursor different from the previous cursor;
-otherwise dispatch fails with an invalid-cursor error instead of truncating or
-spinning. Recipient batches are grouped by the full fenced recipient authority
-target, and invalid targets map to route-not-ready before dispatch.
+otherwise dispatch fails before that page's recipients are dispatched, avoiding
+duplicate effects on retry. Recipient batches are grouped by the full fenced
+recipient authority target, and invalid targets map to route-not-ready before
+dispatch.
 
 Recipient-authority processing applies conversation patches before resolving
 online delivery routes. Delivery pushes are grouped by owner node. The sender's

@@ -185,6 +185,43 @@ func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
 	}
 }
 
+func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
+	target := localTargetForAppendTest("room")
+	key := targetKey(target)
+	reactor := newReactor(
+		0,
+		1,
+		channelStateLimits{},
+		1,
+		preparePorts{},
+		appendPorts{},
+		commitPorts{recipientRouter: &recordingRecipientRouterForRecipientTest{}},
+	)
+	state := newChannelState(target, channelStateLimits{})
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1400, ChannelID: "room", ChannelType: 2, MessageScopedUIDs: []string{"u2"}})
+	effect, ok := state.nextCommitEffect(key)
+	if !ok {
+		t.Fatalf("nextCommitEffect() ok = false, want true")
+	}
+	if !state.commitInflight {
+		t.Fatalf("commitInflight = false, want reserved before unsent pending effect")
+	}
+	reactor.states[key] = state
+	reactor.pendingCommit = []commitEffect{effect}
+	reactor.startEffectWorkers()
+	reactor.close()
+	go reactor.run()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := reactor.wait(waitCtx); err != nil {
+		t.Fatalf("reactor wait error = %v, want drained after releasing unsent pending commit", err)
+	}
+	if state.commitInflight {
+		t.Fatalf("commitInflight = true after canceled unsent pending commit")
+	}
+}
+
 type staticRecipientAuthorityResolverForCommitTest struct {
 	nodeID uint64
 }

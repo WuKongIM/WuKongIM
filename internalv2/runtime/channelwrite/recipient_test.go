@@ -217,6 +217,9 @@ func TestSubscriberPageInvalidCursorReturnsError(t *testing.T) {
 			if !errors.Is(err, ErrInvalidSubscriberCursor) {
 				t.Fatalf("dispatchCommittedRecipients() error = %v, want ErrInvalidSubscriberCursor", err)
 			}
+			if got := router.allUIDs(); !reflect.DeepEqual(got, []string{"first"}) {
+				t.Fatalf("dispatched recipients = %#v, want only prior valid page before invalid cursor", got)
+			}
 		})
 	}
 }

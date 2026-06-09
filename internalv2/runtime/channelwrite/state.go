@@ -133,6 +133,13 @@ func (s *channelState) finishCommitFailure() {
 	s.commitInflight = false
 }
 
+func (s *channelState) cancelCommitDispatch() {
+	s.commitInflight = false
+	if s.commitAttempts > 0 {
+		s.commitAttempts--
+	}
+}
+
 func (s *channelState) dropCurrentCommit() {
 	if s.commitCursor >= len(s.committed) {
 		s.commitAttempts = 0

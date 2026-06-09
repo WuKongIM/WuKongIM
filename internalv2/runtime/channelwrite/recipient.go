@@ -47,14 +47,14 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 		if err != nil {
 			return err
 		}
+		if !page.Done && (page.Cursor == "" || page.Cursor == previousCursor) {
+			return ErrInvalidSubscriberCursor
+		}
 		if err := dispatchRecipientSet(ctx, event, page.Recipients, ports); err != nil {
 			return err
 		}
 		if page.Done {
 			return nil
-		}
-		if page.Cursor == "" || page.Cursor == previousCursor {
-			return ErrInvalidSubscriberCursor
 		}
 		cursor = page.Cursor
 	}
