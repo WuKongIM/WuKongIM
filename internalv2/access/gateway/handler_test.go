@@ -262,10 +262,10 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OnFrame() error = %v", err)
 	}
-	if len(usecase.sendCommands) != 1 {
-		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
 	}
-	cmd := usecase.sendCommands[0]
+	cmd := usecase.batchItems[0].Command
 	if cmd.FromUID != "u1" || cmd.SenderNodeID != 9 || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
 		t.Fatalf("mapped sender fields = uid=%q node=%d session=%d version=%d", cmd.FromUID, cmd.SenderNodeID, cmd.SenderSessionID, cmd.ProtocolVersion)
 	}
@@ -292,6 +292,37 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonSuccess)
+	}
+}
+
+func TestOnFrameSendPacketUsesBatchMessageUsecase(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &batchOnlyMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 22, MessageSeq: 202, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "batch-one", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch items = %d, want 1", len(usecase.batchItems))
+	}
+	cmd := usecase.batchItems[0].Command
+	if cmd.ClientMsgNo != "batch-one" || cmd.SenderNodeID != 9 {
+		t.Fatalf("batch command = %#v, want mapped single send", cmd)
+	}
+	ack := requireSendack(t, written, 0)
+	if ack.MessageID != 22 || ack.MessageSeq != 202 || ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("ack = %#v, want batch result ack", ack)
 	}
 }
 
@@ -324,10 +355,10 @@ func TestOnFrameSendTraceDisabledDoesNotGenerateTraceMetadata(t *testing.T) {
 	if generated != 0 {
 		t.Fatalf("trace generator calls = %d, want 0 while sendtrace is disabled", generated)
 	}
-	if len(usecase.sendCommands) != 1 {
-		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
 	}
-	cmd := usecase.sendCommands[0]
+	cmd := usecase.batchItems[0].Command
 	if cmd.TraceID != "" || cmd.ChannelKey != "" {
 		t.Fatalf("trace fields = traceID:%q channelKey:%q, want empty", cmd.TraceID, cmd.ChannelKey)
 	}
@@ -359,10 +390,10 @@ func TestOnFrameSendTraceEnabledRecordsGatewaySendAndSendack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OnFrame() error = %v", err)
 	}
-	if len(usecase.sendCommands) != 1 {
-		t.Fatalf("send command count = %d, want 1", len(usecase.sendCommands))
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
 	}
-	cmd := usecase.sendCommands[0]
+	cmd := usecase.batchItems[0].Command
 	if cmd.TraceID != "trace-single" || cmd.ChannelKey != wantChannelKey {
 		t.Fatalf("command trace fields = traceID:%q channelKey:%q, want trace-single/%q", cmd.TraceID, cmd.ChannelKey, wantChannelKey)
 	}
@@ -911,52 +942,6 @@ func TestOnSendBatchNilMessagesWritesSystemErrorSendacks(t *testing.T) {
 	}
 }
 
-func TestOnSendBatchFallsBackToSingleSendUsecase(t *testing.T) {
-	var written []frame.Frame
-	var metas []session.OutboundMeta
-	sess := newTestSessionWithMeta(t, &written, &metas)
-	sess.SetValue(coregateway.SessionValueUID, "u1")
-	usecase := &singleOnlyMessages{
-		results: []message.SendResult{
-			{MessageID: 21, MessageSeq: 201, Reason: message.ReasonSuccess},
-			{Reason: message.ReasonNodeNotMatch},
-		},
-	}
-	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
-
-	err := handler.OnSendBatch([]coregateway.SendBatchItem{
-		{
-			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
-			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
-		},
-		{
-			Context:    coregateway.Context{Session: sess, RequestContext: context.Background()},
-			ReplyToken: "reply-2",
-			Frame:      &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
-		},
-	})
-	if err != nil {
-		t.Fatalf("OnSendBatch() error = %v", err)
-	}
-	if len(usecase.commands) != 2 {
-		t.Fatalf("single send call count = %d, want 2", len(usecase.commands))
-	}
-	if usecase.commands[0].ClientMsgNo != "a" || usecase.commands[1].ClientMsgNo != "b" {
-		t.Fatalf("single send commands not aligned: %#v", usecase.commands)
-	}
-	first := requireSendack(t, written, 0)
-	if first.ClientSeq != 1 || first.ClientMsgNo != "a" || first.MessageID != 21 || first.MessageSeq != 201 || first.ReasonCode != frame.ReasonSuccess {
-		t.Fatalf("first ack = %#v", first)
-	}
-	second := requireSendack(t, written, 1)
-	if second.ClientSeq != 2 || second.ClientMsgNo != "b" || second.ReasonCode != frame.ReasonNodeNotMatch {
-		t.Fatalf("second ack = %#v", second)
-	}
-	if got := metas[1].ReplyToken; got != "reply-2" {
-		t.Fatalf("second reply token = %q, want reply-2", got)
-	}
-}
-
 func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
 	var written []frame.Frame
 	sess := newTestSession(t, &written)
@@ -984,42 +969,33 @@ func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
 }
 
 type recordingMessages struct {
-	sendResult   message.SendResult
-	sendErr      error
-	sendCommands []message.SendCommand
+	sendResult message.SendResult
+	sendErr    error
 
 	batchResults []message.SendBatchItemResult
 	batchItems   []message.SendBatchItem
 }
 
-func (m *recordingMessages) Send(_ context.Context, cmd message.SendCommand) (message.SendResult, error) {
-	m.sendCommands = append(m.sendCommands, cmd)
-	return m.sendResult, m.sendErr
-}
-
 func (m *recordingMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
 	m.batchItems = append([]message.SendBatchItem(nil), items...)
+	if m.batchResults == nil {
+		results := make([]message.SendBatchItemResult, len(items))
+		for i := range results {
+			results[i] = message.SendBatchItemResult{Result: m.sendResult, Err: m.sendErr}
+		}
+		return results
+	}
 	return m.batchResults
 }
 
-type singleOnlyMessages struct {
-	results  []message.SendResult
-	errs     []error
-	commands []message.SendCommand
+type batchOnlyMessages struct {
+	batchResults []message.SendBatchItemResult
+	batchItems   []message.SendBatchItem
 }
 
-func (m *singleOnlyMessages) Send(_ context.Context, cmd message.SendCommand) (message.SendResult, error) {
-	m.commands = append(m.commands, cmd)
-	index := len(m.commands) - 1
-	var result message.SendResult
-	if index < len(m.results) {
-		result = m.results[index]
-	}
-	var err error
-	if index < len(m.errs) {
-		err = m.errs[index]
-	}
-	return result, err
+func (m *batchOnlyMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	m.batchItems = append([]message.SendBatchItem(nil), items...)
+	return m.batchResults
 }
 
 type recordingSendackObserver struct {

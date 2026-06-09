@@ -237,13 +237,13 @@ SEND with sender and recipient authority enabled:
 
 ```text
 gateway/API send
-  -> SenderAuthorityRouter resolves FromUID hash-slot target
+  -> SenderAuthorityRouter resolves FromUID hash-slot targets and groups the batch by exact target
   -> local sender target:
-       raw message.App appends to channel authority through clusterv2 ChannelAppender
+       raw message.App.SendBatch appends grouped items to channel authority through clusterv2 ChannelAppender
   -> remote sender target:
-       access/node Sender Authority RPC
+       access/node Sender Authority RPC forwards the grouped items
        remote local sender authority validates exact target
-       raw message.App appends to channel authority through clusterv2 ChannelAppender
+       raw message.App.SendBatch appends grouped items to channel authority through clusterv2 ChannelAppender
   -> channel authority persists message and returns append result
   -> SENDACK returns to sender
   -> recipient committed worker tries bounded enqueue of MessageCommitted

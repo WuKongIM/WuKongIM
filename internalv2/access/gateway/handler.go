@@ -38,13 +38,8 @@ var fallbackTraceIDCounter uint64
 // TraceIDGenerator creates one diagnostics trace id for a gateway SEND.
 type TraceIDGenerator func() string
 
-// MessageUsecase is the single-message entry used by the gateway adapter.
+// MessageUsecase is the batch SEND entry used by the gateway adapter.
 type MessageUsecase interface {
-	Send(context.Context, message.SendCommand) (message.SendResult, error)
-}
-
-// MessageBatchUsecase is the batch SEND entry used by gateway micro-batching.
-type MessageBatchUsecase interface {
 	SendBatch([]message.SendBatchItem) []message.SendBatchItemResult
 }
 
@@ -63,7 +58,7 @@ type DeliveryUsecase interface {
 
 // Options configures the internalv2 gateway handler.
 type Options struct {
-	// Messages processes single SEND commands.
+	// Messages processes gateway SEND batches.
 	Messages MessageUsecase
 	// Presence activates and deactivates authenticated gateway sessions.
 	Presence PresenceUsecase
@@ -262,10 +257,14 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonSystemError}, sendackSourceSingleMissingRequestContext, sendackErrorClassMissingRequestContext, sendTraceFieldsFromCommand(cmd))
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
-	defer cancel()
-
-	result, source, class := h.sendOne(reqCtx, cmd)
+	result, source, class, err := h.sendBatchOne(message.SendBatchItem{
+		Context:  ctx.RequestContext,
+		Deadline: time.Now().Add(h.sendTimeout),
+		Command:  cmd,
+	})
+	if err != nil {
+		return err
+	}
 	return h.writeSendack(ctx, pkt, result, source, class, sendTraceFieldsFromCommand(cmd))
 }
 
@@ -296,38 +295,43 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 	return err
 }
 
-func (h *Handler) sendOne(ctx context.Context, cmd message.SendCommand) (message.SendResult, string, string) {
+func (h *Handler) sendBatchOne(item message.SendBatchItem) (message.SendResult, string, string, error) {
+	cmd := item.Command
 	var startedAt time.Time
 	if cmd.TraceID != "" {
 		startedAt = time.Now()
 	}
 	if h == nil || h.messages == nil {
-		if h != nil {
-			h.frameLogger().Error("gateway message usecase missing",
-				wklog.Event("internalv2.access.gateway.message_usecase_missing"),
-				wklog.SourceModule("message.send"),
-			)
-		}
+		h.logMessageUsecaseMissing()
 		result := message.SendResult{Reason: message.ReasonSystemError}
 		if cmd.TraceID != "" {
 			recordGatewayMessagesSend(cmd, result, sendackErrorClassOther, sendtraceElapsedSince(startedAt))
 		}
-		return result, sendackSourceSingleResult, sendackErrorClassOther
+		return result, sendackSourceSingleResult, sendackErrorClassOther, nil
 	}
-	result, err := h.messages.Send(ctx, cmd)
-	if err != nil {
-		result.Reason = reasonForError(err)
-		class := sendackErrorClassForError(err)
-		h.logSendFailure(cmd, sendackSourceSingleError, class, err)
+	results := h.messages.SendBatch([]message.SendBatchItem{item})
+	duration := time.Duration(0)
+	if cmd.TraceID != "" {
+		duration = sendtraceElapsedSince(startedAt)
+	}
+	if len(results) != 1 {
+		h.logSendBatchResultCountMismatch(1, 1, len(results))
+		return message.SendResult{}, "", "", ErrSendBatchResultCountMismatch
+	}
+	result := results[0].Result
+	if results[0].Err != nil {
+		result.Reason = reasonForError(results[0].Err)
+		class := sendackErrorClassForError(results[0].Err)
+		h.logSendFailure(cmd, sendackSourceSingleError, class, results[0].Err)
 		if cmd.TraceID != "" {
-			recordGatewayMessagesSend(cmd, result, class, sendtraceElapsedSince(startedAt))
+			recordGatewayMessagesSend(cmd, result, class, duration)
 		}
-		return result, sendackSourceSingleError, class
+		return result, sendackSourceSingleError, class, nil
 	}
 	if cmd.TraceID != "" {
-		recordGatewayMessagesSend(cmd, result, sendackErrorClassNone, sendtraceElapsedSince(startedAt))
+		recordGatewayMessagesSend(cmd, result, sendackErrorClassNone, duration)
 	}
-	return result, sendackSourceSingleResult, sendackErrorClassNone
+	return result, sendackSourceSingleResult, sendackErrorClassNone, nil
 }
 
 func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult, source string, class string, trace sendTraceFields) error {
@@ -399,6 +403,29 @@ func (h *Handler) logMissingRequestContext(ctx *coregateway.Context, pkt *frame.
 		wklog.Error(ErrMissingRequestContext),
 	}, gatewaySendFields(ctx, pkt)...)
 	h.frameLogger().Warn("gateway request context missing", fields...)
+}
+
+func (h *Handler) logMessageUsecaseMissing() {
+	if h == nil {
+		return
+	}
+	h.frameLogger().Error("gateway message usecase missing",
+		wklog.Event("internalv2.access.gateway.message_usecase_missing"),
+		wklog.SourceModule("message.send"),
+	)
+}
+
+func (h *Handler) logSendBatchResultCountMismatch(items, validItems, results int) {
+	if h == nil {
+		return
+	}
+	h.frameLogger().Error("gateway send batch result count mismatch",
+		wklog.Event("internalv2.access.gateway.send_batch_result_count_mismatch"),
+		wklog.Int("items", items),
+		wklog.Int("validItems", validItems),
+		wklog.Int("results", results),
+		wklog.Error(ErrSendBatchResultCountMismatch),
+	)
 }
 
 func shouldLogSendErrorClass(class string) bool {

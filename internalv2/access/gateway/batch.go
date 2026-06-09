@@ -1,14 +1,12 @@
 package gateway
 
 import (
-	"context"
 	"errors"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
@@ -61,24 +59,29 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
 	}
 
-	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
+	if h == nil || h.messages == nil {
+		h.logMessageUsecaseMissing()
+		for j, index := range validIndexes {
+			result := message.SendResult{Reason: message.ReasonSystemError}
+			results[index] = result
+			sources[index] = sendackSourceBatchResult
+			classes[index] = sendackErrorClassOther
+			if traceFields != nil {
+				recordGatewayMessagesSend(validItems[j].Command, result, classes[index], 0)
+			}
+		}
+	} else {
 		var startedAt time.Time
 		if traceFields != nil {
 			startedAt = time.Now()
 		}
-		batchResults := batcher.SendBatch(validItems)
+		batchResults := h.messages.SendBatch(validItems)
 		duration := time.Duration(0)
 		if traceFields != nil {
 			duration = sendtraceElapsedSince(startedAt)
 		}
 		if len(batchResults) != len(validItems) {
-			h.frameLogger().Error("gateway send batch result count mismatch",
-				wklog.Event("internalv2.access.gateway.send_batch_result_count_mismatch"),
-				wklog.Int("items", len(items)),
-				wklog.Int("validItems", len(validItems)),
-				wklog.Int("results", len(batchResults)),
-				wklog.Error(ErrSendBatchResultCountMismatch),
-			)
+			h.logSendBatchResultCountMismatch(len(items), len(validItems), len(batchResults))
 			return ErrSendBatchResultCountMismatch
 		}
 		for j, index := range validIndexes {
@@ -96,21 +99,6 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			if traceFields != nil {
 				recordGatewayMessagesSend(validItems[j].Command, result, classes[index], duration)
 			}
-		}
-	} else {
-		for j, index := range validIndexes {
-			item := validItems[j]
-			reqCtx, cancel := context.WithDeadline(item.Context, item.Deadline)
-			result, source, class := h.sendOne(reqCtx, item.Command)
-			if source == sendackSourceSingleError {
-				source = sendackSourceBatchFallbackError
-			} else {
-				source = sendackSourceBatchFallbackResult
-			}
-			results[index] = result
-			sources[index] = source
-			classes[index] = class
-			cancel()
 		}
 	}
 

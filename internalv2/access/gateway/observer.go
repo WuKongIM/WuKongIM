@@ -15,8 +15,6 @@ const (
 	sendackSourceBatchMissingRequestContext  = "batch_missing_request_context"
 	sendackSourceBatchResult                 = "batch_result"
 	sendackSourceBatchResultError            = "batch_result_error"
-	sendackSourceBatchFallbackResult         = "batch_fallback_result"
-	sendackSourceBatchFallbackError          = "batch_fallback_error"
 )
 
 const (

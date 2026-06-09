@@ -53,6 +53,22 @@ batch item deadlines supplied by entry adapters, and are not tied to a single
 client context cancellation. Items that are already canceled are filtered before
 append and get their own error result.
 
+## SenderAuthorityRouter Flow
+
+```text
+SendBatch(items)
+  -> reject unauthenticated items without route lookup
+  -> resolve each active FromUID to the current sender authority target
+  -> group items by exact authority target while preserving item order inside each group
+  -> submit each local group once through the local message.App.SendBatch
+  -> submit each remote group once through RemoteSenderAuthority.SendBatchToAuthority
+  -> merge group results back into the original input order
+```
+
+The router only decides sender UID authority placement. Local and remote
+submissions still use `SendBatch`, so channel grouping and durable append
+remain in the raw message app.
+
 ## SyncChannelMessages Flow
 
 ```text

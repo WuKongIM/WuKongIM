@@ -47,6 +47,7 @@ must not import `pkg/gateway`, `pkg/protocol/frame`, `pkg/clusterv2`,
 ```text
 pkg/gateway SendPacket
   -> internalv2/access/gateway.Handler
+  -> internalv2/usecase/message.SenderAuthorityRouter groups sends by sender UID authority target
   -> internalv2/usecase/message.App.SendBatch
   -> internalv2/infra/cluster.ChannelAppender
   -> pkg/clusterv2.Node.AppendChannelBatch

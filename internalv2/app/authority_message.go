@@ -177,7 +177,7 @@ func fillSenderAuthorityActiveResults(results []message.SendBatchItemResult, ind
 // authorityMessageUsecase routes sends through sender authority and keeps channel sync on the raw message app.
 type authorityMessageUsecase struct {
 	sender interface {
-		Send(context.Context, message.SendCommand) (message.SendResult, error)
+		SendBatch([]message.SendBatchItem) []message.SendBatchItemResult
 	}
 	sync interface {
 		SyncChannelMessages(context.Context, message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error)
@@ -185,10 +185,18 @@ type authorityMessageUsecase struct {
 }
 
 func (u authorityMessageUsecase) Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error) {
-	if u.sender == nil {
-		return message.SendResult{}, message.ErrRouteNotReady
+	results := u.SendBatch([]message.SendBatchItem{{Context: ctx, Command: cmd}})
+	if len(results) == 0 {
+		return message.SendResult{}, nil
 	}
-	return u.sender.Send(ctx, cmd)
+	return results[0].Result, results[0].Err
+}
+
+func (u authorityMessageUsecase) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	if u.sender == nil {
+		return fillSenderAuthorityResults(make([]message.SendBatchItemResult, len(items)), message.ErrRouteNotReady)
+	}
+	return u.sender.SendBatch(items)
 }
 
 func (u authorityMessageUsecase) SyncChannelMessages(ctx context.Context, query message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error) {
