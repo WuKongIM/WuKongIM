@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,9 +13,7 @@ import (
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
-	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
-	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -25,12 +22,10 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	recipientusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/recipient"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
-	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -121,432 +116,40 @@ func New(cfg Config, opts ...Option) (*App, error) {
 			app.restoreDiagnosticsSink()
 		}
 	}()
-	app.cfg.Presence = defaultPresenceConfig(app.cfg.Presence)
-	if err := validatePresenceConfig(app.cfg.Presence); err != nil {
+
+	if err := app.applyConfigDefaults(); err != nil {
 		return nil, err
 	}
-	app.cfg.Conversation = defaultConversationConfig(app.cfg.Conversation)
-	if err := validateConversationConfig(app.cfg.Conversation); err != nil {
+	app.applyOptions(opts)
+	if err := app.ensureLogger(); err != nil {
 		return nil, err
 	}
-	app.cfg.Delivery = defaultDeliveryConfig(app.cfg.Delivery)
-	if err := validateDeliveryConfig(app.cfg.Delivery); err != nil {
+
+	clusterCfg := defaultClusterConfig(app.cfg)
+	app.configureObservability(&clusterCfg)
+	if err := app.ensureCluster(clusterCfg); err != nil {
 		return nil, err
 	}
-	app.cfg.Observability = defaultObservabilityConfig(app.cfg.Observability)
-	if err := validateObservabilityConfig(app.cfg.Observability); err != nil {
+
+	app.ensureOnlineRegistry()
+	app.wireDeliveryMetadata()
+	app.wireChannels()
+	conversationReadStore := app.newConversationReadStore()
+	app.wireConversationAuthority()
+	app.wireConversations(conversationReadStore)
+	app.wirePresence()
+	app.wireUsers()
+	app.wireDelivery()
+	app.wireRecipientAuthority()
+	app.wireMessages(clusterCfg.NodeID)
+	app.wireSenderAuthority()
+	app.wireAPIMessageFacade()
+	app.wireGatewayHandler(clusterCfg.NodeID)
+	app.wireAPI()
+	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
-	app.cfg.Log = defaultLogConfig(app.cfg.Log)
-	for _, opt := range opts {
-		if opt != nil {
-			opt(app)
-		}
-	}
-	cfg = app.cfg
-	if app.logger == nil {
-		logger, err := applog.NewLogger(applog.Config{
-			Level:      cfg.Log.Level,
-			Dir:        cfg.Log.Dir,
-			MaxSize:    cfg.Log.MaxSize,
-			MaxAge:     cfg.Log.MaxAge,
-			MaxBackups: cfg.Log.MaxBackups,
-			Compress:   cfg.Log.Compress,
-			Console:    cfg.Log.Console,
-			Format:     cfg.Log.Format,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("internalv2/app: create logger: %w", err)
-		}
-		app.logger = logger
-	}
-	clusterCfg := defaultClusterConfig(cfg)
-	if cfg.Observability.MetricsEnabled {
-		app.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
-		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: app.metrics})
-		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: app.metrics})
-		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: app.metrics})
-		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, storageCommitMetricsObserver{
-			metrics: app.metrics,
-			workers: commitCoordinatorWorkerCount(clusterCfg.Storage.CommitShards),
-		})
-		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: app.metrics})
-	}
-	if cfg.Observability.Diagnostics.Enabled {
-		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
-		app.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
-		samplerOptions := diagnosticsSamplerOptions(cfg)
-		samplerOptions.TrackingRules = app.diagnosticsTracking
-		sink := obsdiagnostics.NewSendTraceSink(app.diagnostics, obsdiagnostics.NewSampler(samplerOptions))
-		if app.metrics != nil {
-			sink = sink.WithMetrics(app.metrics.Diagnostics)
-		}
-		app.diagnosticsRestore = sendtrace.SetSink(sink)
-	}
-	if app.cluster == nil {
-		node, err := clusterv2.New(clusterCfg)
-		if err != nil {
-			return nil, err
-		}
-		app.cluster = node
-	}
-	if app.online == nil {
-		app.online = online.NewRegistry(online.RegistryOptions{})
-	}
-	if app.deliveryMeta == nil {
-		if node, ok := app.cluster.(deliveryMetaNode); ok {
-			app.deliveryMeta = newDeliveryMetaStore(node)
-		}
-	}
-	if app.cfg.Delivery.Enabled && app.deliverySubscribers == nil {
-		app.deliverySubscribers = app.deliveryMeta
-	}
-	if app.channels == nil {
-		if node, ok := app.cluster.(clusterinfra.ChannelMetadataNode); ok {
-			store := clusterinfra.NewChannelMetadataStore(node)
-			channelOptions := channelusecase.Options{
-				Store: store,
-			}
-			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
-				channelOptions.MembershipIndex = store
-			}
-			app.channels = channelusecase.New(channelOptions)
-		}
-	}
-	var conversationReadStore *clusterinfra.ConversationStore
-	if node, ok := app.cluster.(clusterinfra.ConversationNode); ok {
-		conversationReadStore = clusterinfra.NewConversationStore(node, clusterinfra.ConversationStoreOptions{
-			MaxLastMessageConcurrency: app.cfg.Conversation.MaxLastMessageConcurrency,
-		})
-	}
-	if app.conversationAuthorityClient == nil {
-		authorityNode, hasAuthorityNode := app.cluster.(clusterinfra.ConversationAuthorityNode)
-		authorityStore, hasAuthorityStore := app.cluster.(conversationAuthorityStore)
-		if hasAuthorityNode && hasAuthorityStore {
-			authority := newConversationAuthority(conversationAuthorityOptions{
-				LocalNodeID:          authorityNode.NodeID(),
-				Store:                authorityStore,
-				MaxRowsPerUID:        app.cfg.Conversation.AuthorityCacheMaxRowsPerUID,
-				MaxRows:              app.cfg.Conversation.AuthorityCacheMaxRows,
-				ListDBWindowMax:      app.cfg.Conversation.AuthorityListDBWindowMax,
-				AdmissionBatchRows:   app.cfg.Conversation.AuthorityAdmitBatchRows,
-				AdmissionConcurrency: app.cfg.Conversation.AuthorityAdmitConcurrency,
-				HandoffTimeout:       app.cfg.Conversation.AuthorityHandoffTimeout,
-				Observer:             app.conversationAuthorityObserver(),
-			})
-			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
-			app.conversationAuthority = authority
-			app.conversationAuthorityClient = client
-			if app.conversationRouteLifecycle == nil {
-				routeLifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
-					LocalAuthority: authority,
-					LocalNodeID:    authorityNode.NodeID(),
-					Initial:        app.currentPresenceAuthorities,
-					Watch:          authorityNode.WatchRouteAuthorities,
-					HandoffTimeout: app.cfg.Conversation.AuthorityHandoffTimeout,
-				})
-				routeLifecycle.applyRouteAuthorities(context.Background(), app.currentPresenceAuthorities())
-				app.conversationRouteLifecycle = routeLifecycle
-			}
-			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: app.logger.Named("node")})
-			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
-		}
-	}
-	if app.conversations == nil {
-		if conversationReadStore != nil {
-			var store conversationusecase.Store = conversationReadStore
-			if app.conversationAuthorityClient != nil {
-				store = app.conversationAuthorityClient
-			}
-			app.conversations = conversationusecase.New(conversationusecase.Options{
-				Store:    store,
-				Messages: conversationReadStore,
-			})
-		}
-	}
-	if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-		directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: presenceNode.NodeID()})
-		app.presenceDirectory = directory
-		authority := presenceDirectoryAuthority{directory: directory}
-		ownerActions := presenceOwnerActions{local: app.online}
-		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
-		client.SetLocalOwner(ownerActions)
-		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: app.logger.Named("node")})
-		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
-		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
-		if app.presence == nil {
-			ownerBootID := newOwnerBootID()
-			app.presence = presence.New(presence.Options{
-				Local:        app.online,
-				Authority:    client,
-				OwnerActions: client,
-				OwnerNodeID:  presenceNode.NodeID(),
-				OwnerBootID:  ownerBootID,
-				HashSlot: func(uid string) (uint16, error) {
-					target, err := client.ResolveRouteTarget(uid)
-					if err != nil {
-						return 0, err
-					}
-					return target.HashSlot, nil
-				},
-			})
-		}
-		if app.presenceWorker == nil {
-			app.presenceWorker = newPresenceTouchWorker(presenceTouchWorkerOptions{
-				NodeID:        presenceNode.NodeID(),
-				Watch:         presenceNode.WatchRouteAuthorities,
-				Initial:       app.currentPresenceAuthorities,
-				Local:         app.online,
-				Authority:     client,
-				Directory:     directory,
-				FlushInterval: app.cfg.Presence.TouchFlushInterval,
-				BatchSize:     app.cfg.Presence.TouchBatchSize,
-				RouteTTL:      app.cfg.Presence.RouteTTL,
-				Logger:        app.logger.Named("presence_touch"),
-			})
-		}
-	}
-	if app.users == nil {
-		if node, ok := app.cluster.(clusterinfra.UserMetadataNode); ok {
-			userStore := clusterinfra.NewUserMetadataStore(node)
-			var systemUIDs userusecase.SystemUIDStore
-			if channelNode, ok := app.cluster.(clusterinfra.ChannelMetadataNode); ok {
-				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode)
-			}
-			app.users = userusecase.New(userusecase.Options{
-				Users:        userStore,
-				Devices:      userStore,
-				DeviceReader: userStore,
-				Online:       app.online,
-				Presence:     app.presence,
-				SystemUIDs:   systemUIDs,
-				Logger:       app.logger.Named("usecase.user"),
-			})
-		}
-	}
-	if app.cfg.Delivery.Enabled && app.delivery == nil {
-		localPusher := &localOwnerPusher{online: app.online, pendingAckTTL: app.cfg.Delivery.PendingAckTTL, logger: app.logger.Named("delivery.owner")}
-		deliveryObserver := app.deliveryObserver()
-		var push runtimedelivery.Pusher = localPusher
-		var fanoutRemote runtimedelivery.FanoutTaskForwarder
-		var localNodeID uint64
-		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-			localNodeID = presenceNode.NodeID()
-			nodeClient := accessnode.NewClient(presenceNode)
-			push = clusterinfra.NewDeliveryPusher(localNodeID, localPusher, nodeClient)
-			fanoutRemote = nodeClient
-		}
-		var partitioner runtimedelivery.Partitioner
-		if routes, ok := app.cluster.(clusterWriteReadyRuntime); ok {
-			partitioner = clusterinfra.NewDeliveryPartitioner(routes)
-		}
-		fanoutWorker := runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-			Subscribers: appSubscriberPlanner{
-				channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
-					Source: app.deliverySubscribers,
-				}),
-			},
-			Presence:      presenceResolverAdapter{presence: app.presence},
-			Push:          push,
-			PageSize:      app.cfg.Delivery.FanoutPageSize,
-			PushBatchSize: app.cfg.Delivery.PushBatchSize,
-			Observer:      deliveryObserver,
-		})
-		var fanoutRunner runtimedelivery.FanoutTaskRunner = fanoutWorker
-		if localNodeID != 0 {
-			fanoutRunner = runtimedelivery.NewFanoutTaskRouter(runtimedelivery.FanoutTaskRouterOptions{
-				LocalNodeID: localNodeID,
-				Local:       fanoutWorker,
-				Remote:      fanoutRemote,
-				Observer:    deliveryObserver,
-			})
-		}
-		var retryObserver runtimedelivery.RetryObserver
-		if observer, ok := deliveryObserver.(runtimedelivery.RetryObserver); ok {
-			retryObserver = observer
-		}
-		retryScheduler := runtimedelivery.NewRetryScheduler(runtimedelivery.RetrySchedulerOptions{
-			Runner:      fanoutRunner,
-			Capacity:    app.cfg.Delivery.EventQueueSize,
-			MaxAttempts: defaultDeliveryRetryMaxAttempts,
-			Backoff:     defaultDeliveryRetryBackoff,
-			Observer:    retryObserver,
-		})
-		var managerObserver runtimedelivery.ManagerObserver
-		if observer, ok := deliveryObserver.(runtimedelivery.ManagerObserver); ok {
-			managerObserver = observer
-		}
-		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner:         runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:          retryScheduler,
-			AsyncQueueSize:  app.cfg.Delivery.EventQueueSize,
-			AsyncWorkers:    1,
-			ManagerObserver: managerObserver,
-			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
-				MaxPendingPerSession: app.cfg.Delivery.PendingAckMaxPerSession,
-			}),
-		})
-		localPusher.delivery = manager
-		app.deliveryManager = manager
-		app.deliveryRetry = retryScheduler
-		app.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
-		if app.deliveryWorker == nil {
-			app.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager}
-		}
-		if presenceNode, ok := app.cluster.(clusterinfra.PresenceNode); ok {
-			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker, Logger: app.logger.Named("node")})
-			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
-			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
-		}
-	}
-	if app.recipientWorker == nil {
-		if authorityNode, ok := app.cluster.(clusterinfra.RecipientAuthorityNode); ok && app.conversationAuthorityClient != nil {
-			recipientAuthority := clusterinfra.NewRecipientAuthorityClient(authorityNode, nil)
-			app.recipientAuthorityClient = recipientAuthority
-			authorityObserver := app.authorityObserver()
-			var deliverySubmitter recipientusecase.DeliverySubmitter
-			if app.delivery != nil {
-				deliverySubmitter = recipientDeliverySubmitter{delivery: app.delivery, observer: authorityObserver}
-			}
-			var conversationUpdater recipientusecase.ConversationUpdater = app.conversationAuthorityClient
-			if authorityObserver != nil {
-				conversationUpdater = observedRecipientConversationUpdater{next: conversationUpdater, observer: authorityObserver}
-			}
-			processor := recipientusecase.NewProcessor(recipientusecase.ProcessorOptions{
-				LocalNodeID:  authorityNode.NodeID(),
-				Authority:    recipientAuthority,
-				Conversation: conversationUpdater,
-				Delivery:     deliverySubmitter,
-			})
-			var recipientSource recipientusecase.RecipientSource
-			if app.deliveryMeta != nil {
-				recipientSource = app.deliveryMeta
-			} else if app.deliverySubscribers != nil {
-				recipientSource = deliverySubscriberRecipientSource{source: app.deliverySubscribers}
-			} else if subscriberNode, ok := app.cluster.(recipientSubscriberNode); ok {
-				recipientSource = recipientSubscriberStore{node: subscriberNode}
-			}
-			dispatcher := recipientusecase.NewDispatcher(recipientusecase.DispatcherOptions{
-				LocalNodeID:     authorityNode.NodeID(),
-				Recipients:      recipientSource,
-				Resolver:        recipientAuthority,
-				Local:           processor,
-				Remote:          recipientAuthority,
-				PageSize:        app.cfg.Delivery.FanoutPageSize,
-				TargetBatchSize: app.cfg.Delivery.PushBatchSize,
-			})
-			app.recipientWorker = newRecipientCommittedWorker(dispatcher, app.cfg.Delivery.EventQueueSize, app.delivery != nil, app.logger.Named("recipient"), authorityObserver)
-			if registrar, ok := app.cluster.(nodeRPCRegistrar); ok {
-				adapter := accessnode.New(accessnode.Options{RecipientAuthority: processor, Logger: app.logger.Named("node")})
-				registerNodeRPC(registrar, accessnode.RecipientAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRecipientAuthorityRPC))
-			}
-		}
-	}
-	if app.messages == nil {
-		messageOpts := message.Options{MessageID: newNodeMessageIDs(clusterCfg.NodeID)}
-		if appendNode, ok := app.cluster.(clusterinfra.ChannelAppendNode); ok {
-			messageOpts.Appender = clusterinfra.NewChannelAppender(appendNode)
-		}
-		if readNode, ok := app.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-			messageOpts.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
-		}
-		messageOpts.Committed = app.recipientWorker
-		if app.cfg.Delivery.Enabled || app.metrics != nil {
-			messageOpts.Observer = deliveryMessageObserver{app: app}
-		}
-		app.messages = message.New(messageOpts)
-	}
-	if app.senderMessages == nil {
-		if senderNode, ok := app.cluster.(clusterinfra.SenderAuthorityNode); ok && app.messages != nil {
-			senderAuthority := clusterinfra.NewSenderAuthorityClient(senderNode, nil)
-			var senderResolver message.UIDAuthorityResolver = senderAuthority
-			if authorityObserver := app.authorityObserver(); authorityObserver != nil {
-				senderResolver = observedSenderAuthorityResolver{
-					localNodeID: senderNode.NodeID(),
-					next:        senderAuthority,
-					observer:    authorityObserver,
-				}
-			}
-			app.senderMessages = message.NewSenderAuthorityRouter(message.SenderAuthorityRouterOptions{
-				LocalNodeID: senderNode.NodeID(),
-				Resolver:    senderResolver,
-				Local:       app.messages,
-				Remote:      senderAuthority,
-			})
-			var routes clusterWriteReadyRuntime
-			if routeRuntime, ok := app.cluster.(clusterWriteReadyRuntime); ok {
-				routes = routeRuntime
-			}
-			local := senderAuthorityLocal{
-				localNodeID: senderNode.NodeID(),
-				resolver:    senderAuthority,
-				routes:      routes,
-				submitter:   app.messages,
-			}
-			adapter := accessnode.New(accessnode.Options{SenderAuthority: local, Logger: app.logger.Named("node")})
-			senderNode.RegisterRPC(accessnode.SenderAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleSenderAuthorityRPC))
-		}
-	}
-	if app.apiMessages == nil && app.messages != nil {
-		sendUsecase := interface {
-			Send(context.Context, message.SendCommand) (message.SendResult, error)
-		}(app.messages)
-		if app.senderMessages != nil {
-			sendUsecase = app.senderMessages
-		}
-		app.apiMessages = authorityMessageUsecase{sender: sendUsecase, sync: app.messages}
-	}
-	if app.handler == nil {
-		handlerMessages := accessgateway.MessageUsecase(app.messages)
-		if app.senderMessages != nil {
-			handlerMessages = app.senderMessages
-		}
-		app.handler = accessgateway.New(accessgateway.Options{
-			Messages:        handlerMessages,
-			Presence:        app.gatewayPresenceUsecase(),
-			Delivery:        app.delivery,
-			OwnerNodeID:     clusterCfg.NodeID,
-			SendTimeout:     cfg.Gateway.SendTimeout,
-			SendackObserver: app.sendackObserver(),
-			Logger:          app.logger.Named("access.gateway"),
-		})
-	}
-	if app.api == nil && strings.TrimSpace(cfg.API.ListenAddr) != "" {
-		app.api = accessapi.New(accessapi.Options{
-			ListenAddr:               cfg.API.ListenAddr,
-			Readyz:                   app.readyzReport,
-			BenchEnabled:             cfg.Bench.APIEnabled,
-			BenchMaxBatchSize:        cfg.Bench.APIMaxBatchSize,
-			BenchMaxPayloadBytes:     cfg.Bench.APIMaxPayloadBytes,
-			Gateway:                  apiGatewayAddresses(cfg.API, cfg.Gateway.Listeners),
-			BenchRuntime:             app.benchRuntimeController(),
-			BenchPresence:            app.benchPresenceController(),
-			BenchData:                app.deliveryMeta,
-			Channels:                 app.channels,
-			Users:                    app.users,
-			Messages:                 app.apiMessages,
-			Conversations:            app.conversations,
-			ConversationListObserver: app.conversationListObserver(),
-			MetricsHandler:           app.metricsHandler(),
-			PProfEnabled:             cfg.Observability.PProfEnabled,
-			Logger:                   app.logger.Named("access.api"),
-		})
-	}
-	if app.gateway == nil && len(cfg.Gateway.Listeners) > 0 {
-		gw, err := gateway.New(gateway.Options{
-			Handler:        app.handler,
-			Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: clusterCfg.NodeID}),
-			Listeners:      cfg.Gateway.Listeners,
-			DefaultSession: cfg.Gateway.Session,
-			Transport:      cfg.Gateway.Transport,
-			Observer:       app.gatewayObserver(),
-			Logger:         app.logger.Named("gateway"),
-		})
-		if err != nil {
-			return nil, err
-		}
-		app.gateway = gw
-	}
+
 	constructionOK = true
 	return app, nil
 }
