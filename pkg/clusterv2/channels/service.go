@@ -181,6 +181,20 @@ func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	return s.appendBatchFresh(ctx, req)
 }
 
+// ResolveAppendAuthority resolves the current append authority using append metadata admission.
+func (s *Service) ResolveAppendAuthority(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	started := time.Now()
+	meta, ok, err := s.resolveAppendMetaFresh(ctx, id)
+	s.observeAppendStage("meta_resolve", err, time.Since(started))
+	if err != nil {
+		return ch.Meta{}, err
+	}
+	if !ok || meta.Leader == 0 {
+		return ch.Meta{}, ch.ErrNotReady
+	}
+	return meta, nil
+}
+
 // Tick advances ChannelV2 background work.
 func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 

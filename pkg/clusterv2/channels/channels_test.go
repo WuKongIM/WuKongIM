@@ -1244,6 +1244,48 @@ func TestServiceEnsuresMetaBeforeForwardedAppend(t *testing.T) {
 	}
 }
 
+func TestServiceResolveAppendAuthorityUsesAppendEnsurePath(t *testing.T) {
+	id := ch.ChannelID{ID: "resolve-authority", Type: 1}
+	want := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 7, LeaderEpoch: 9, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}
+	source := &fakeEnsuringMetaSource{meta: want}
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	got, err := svc.ResolveAppendAuthority(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveAppendAuthority() error = %v", err)
+	}
+	if source.ensureCalls != 1 || source.resolveCalls != 0 {
+		t.Fatalf("ensure=%d resolve=%d, want resolver to use append ensure path", source.ensureCalls, source.resolveCalls)
+	}
+	if got.ID != id || got.Key != ch.ChannelKeyForID(id) || got.Leader != 2 || got.Epoch != 7 || got.LeaderEpoch != 9 {
+		t.Fatalf("authority meta = %#v, want identity/leader/epochs from ensure path", got)
+	}
+}
+
+func TestServiceResolveAppendAuthorityCreatesMissingRuntimeMeta(t *testing.T) {
+	id := ch.ChannelID{ID: "resolve-authority-create", Type: 1}
+	reader := &runtimeMetaReaderFake{err: metadb.ErrNotFound}
+	source := NewSlotMetaSource(reader, SlotMetaSourceOptions{DefaultReplicas: []ch.NodeID{2, 1}, DefaultMinISR: 1})
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	got, err := svc.ResolveAppendAuthority(context.Background(), id)
+	if err != nil {
+		t.Fatalf("ResolveAppendAuthority() error = %v", err)
+	}
+	if reader.upserts != 1 {
+		t.Fatalf("upserts = %d, want missing metadata to be created", reader.upserts)
+	}
+	if got.ID != id || got.Key != ch.ChannelKeyForID(id) || got.Leader != 2 || got.Epoch != 1 || got.LeaderEpoch != 1 {
+		t.Fatalf("created authority meta = %#v, want deterministic initial authority", got)
+	}
+}
+
 func TestServiceForwardsAppendBatchToResolvedLeader(t *testing.T) {
 	id := ch.ChannelID{ID: "forward-append-batch", Type: 1}
 	meta := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 1, Status: ch.StatusActive}

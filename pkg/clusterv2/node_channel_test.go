@@ -114,6 +114,44 @@ func TestNodeAppendChannelDelegatesToService(t *testing.T) {
 	}
 }
 
+func TestNodeResolveChannelAppendAuthorityDelegatesToService(t *testing.T) {
+	channelID := channelv2.ChannelID{ID: "resolve-node-authority", Type: 2}
+	source := &nodeEnsuringMetaSource{meta: channelv2.Meta{
+		Key:         channelv2.ChannelKeyForID(channelID),
+		ID:          channelID,
+		Epoch:       12,
+		LeaderEpoch: 4,
+		Leader:      2,
+		Replicas:    []channelv2.NodeID{1, 2},
+		ISR:         []channelv2.NodeID{1, 2},
+		MinISR:      1,
+		Status:      channelv2.StatusActive,
+	}}
+	svc, err := channels.NewService(channels.Config{Runtime: &nodeChannelRuntime{}, LocalNode: 1, MetaSource: source})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	node, err := New(validNodeConfig(t), WithChannels(svc))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	got, err := node.ResolveChannelAppendAuthority(context.Background(), channelID)
+	if err != nil {
+		t.Fatalf("ResolveChannelAppendAuthority() error = %v", err)
+	}
+	if source.ensureCalls != 1 || source.resolveCalls != 0 {
+		t.Fatalf("ensure=%d resolve=%d, want Node facade to delegate to service resolver", source.ensureCalls, source.resolveCalls)
+	}
+	if got.ID != channelID || got.Key != channelv2.ChannelKeyForID(channelID) || got.Leader != 2 || got.Epoch != 12 || got.LeaderEpoch != 4 {
+		t.Fatalf("resolved meta = %#v, want hosted service authority meta", got)
+	}
+}
+
 func TestNodeStopClosesChannelService(t *testing.T) {
 	runtime := &nodeChannelRuntime{}
 	svc, err := channels.NewService(channels.Config{Runtime: runtime})
@@ -213,4 +251,20 @@ func (r *nodeChannelRuntime) HandlePullHint(context.Context, channeltransport.Pu
 }
 func (r *nodeChannelRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
 	return nil
+}
+
+type nodeEnsuringMetaSource struct {
+	meta         channelv2.Meta
+	ensureCalls  int
+	resolveCalls int
+}
+
+func (s *nodeEnsuringMetaSource) ResolveChannelMeta(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
+	s.resolveCalls++
+	return s.meta, nil
+}
+
+func (s *nodeEnsuringMetaSource) EnsureChannelMeta(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
+	s.ensureCalls++
+	return s.meta, nil
 }

@@ -28,6 +28,7 @@ type slotReconciler interface {
 type channelService interface {
 	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+	ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
 	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
 	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
 	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
@@ -345,6 +346,20 @@ func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatch
 		return channelv2.AppendBatchResult{}, ErrNotStarted
 	}
 	return n.channels.AppendBatch(ctx, req)
+}
+
+// ResolveChannelAppendAuthority resolves the ChannelV2 append authority through the hosted service.
+func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channelv2.Meta{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return channelv2.Meta{}, err
+	}
+	if n.channels == nil {
+		return channelv2.Meta{}, ErrNotStarted
+	}
+	return n.channels.ResolveAppendAuthority(ctx, id)
 }
 
 // ReadChannelCommitted reads locally committed channel messages from the Node-created ChannelV2 store.
