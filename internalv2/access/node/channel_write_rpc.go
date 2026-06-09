@@ -161,10 +161,16 @@ func channelWriteErrorForStatus(status string) error {
 		return nil
 	case rpcStatusNotLeader:
 		return channelwrite.ErrNotLeader
+	case channelWriteErrCodeNotChannelAuthority:
+		return channelwrite.ErrNotChannelAuthority
 	case rpcStatusStaleRoute:
 		return channelwrite.ErrStaleRoute
 	case rpcStatusRouteNotReady:
 		return channelwrite.ErrRouteNotReady
+	case channelWriteErrCodeBackpressured:
+		return channelwrite.ErrBackpressured
+	case channelWriteErrCodeAppendResultMissing:
+		return channelwrite.ErrAppendResultMissing
 	case channelWriteErrCodeChannelBusy:
 		return channelwrite.ErrChannelBusy
 	case rpcStatusContextCanceled:

@@ -168,8 +168,11 @@ func TestChannelWriteClientMapsStatusesAndErrorsToItemAlignedResults(t *testing.
 		wantString string
 	}{
 		{name: "not leader status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusNotLeader}}, wantIs: channelwrite.ErrNotLeader},
+		{name: "not channel authority status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: "not_channel_authority"}}, wantIs: channelwrite.ErrNotChannelAuthority},
 		{name: "stale route status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusStaleRoute}}, wantIs: channelwrite.ErrStaleRoute},
 		{name: "route not ready status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusRouteNotReady}}, wantIs: channelwrite.ErrRouteNotReady},
+		{name: "backpressured status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: "backpressured"}}, wantIs: channelwrite.ErrBackpressured},
+		{name: "append result missing status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: "append_result_missing"}}, wantIs: channelwrite.ErrAppendResultMissing},
 		{name: "context canceled status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusContextCanceled}}, wantIs: context.Canceled},
 		{name: "deadline status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusContextDeadlineExceeded}}, wantIs: context.DeadlineExceeded},
 		{name: "rejected status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusRejected}}, wantString: "internalv2/access/node: channel write rpc rejected"},

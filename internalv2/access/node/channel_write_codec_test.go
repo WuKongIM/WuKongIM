@@ -119,8 +119,11 @@ func TestChannelWriteCodecResultErrorsPreserveStableStatuses(t *testing.T) {
 	}{
 		{name: "ok"},
 		{name: "not leader", err: channelwrite.ErrNotLeader, want: channelwrite.ErrNotLeader},
+		{name: "not channel authority", err: channelwrite.ErrNotChannelAuthority, want: channelwrite.ErrNotChannelAuthority},
 		{name: "stale route", err: channelwrite.ErrStaleRoute, want: channelwrite.ErrStaleRoute},
 		{name: "route not ready", err: channelwrite.ErrRouteNotReady, want: channelwrite.ErrRouteNotReady},
+		{name: "backpressured", err: channelwrite.ErrBackpressured, want: channelwrite.ErrBackpressured},
+		{name: "append result missing", err: channelwrite.ErrAppendResultMissing, want: channelwrite.ErrAppendResultMissing},
 		{name: "channel busy", err: channelwrite.ErrChannelBusy, want: channelwrite.ErrChannelBusy},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled},
 		{name: "context deadline exceeded", err: context.DeadlineExceeded, want: context.DeadlineExceeded},

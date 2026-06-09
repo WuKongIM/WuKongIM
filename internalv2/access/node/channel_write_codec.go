@@ -24,6 +24,9 @@ const (
 	channelWriteErrCodeContextCanceled         = "context_canceled"
 	channelWriteErrCodeContextDeadlineExceeded = "context_deadline_exceeded"
 	channelWriteErrCodeRejected                = "rejected"
+	channelWriteErrCodeNotChannelAuthority     = "not_channel_authority"
+	channelWriteErrCodeBackpressured           = "backpressured"
+	channelWriteErrCodeAppendResultMissing     = "append_result_missing"
 )
 
 // channelWriteItem is one send command plus the relative timeout transported over RPC.
@@ -371,10 +374,16 @@ func readChannelWriteResultError(body []byte, offset int) (error, int, error) {
 		return nil, offset, nil
 	case channelWriteErrCodeNotLeader:
 		return channelwrite.ErrNotLeader, offset, nil
+	case channelWriteErrCodeNotChannelAuthority:
+		return channelwrite.ErrNotChannelAuthority, offset, nil
 	case channelWriteErrCodeStaleRoute:
 		return channelwrite.ErrStaleRoute, offset, nil
 	case channelWriteErrCodeRouteNotReady:
 		return channelwrite.ErrRouteNotReady, offset, nil
+	case channelWriteErrCodeBackpressured:
+		return channelwrite.ErrBackpressured, offset, nil
+	case channelWriteErrCodeAppendResultMissing:
+		return channelwrite.ErrAppendResultMissing, offset, nil
 	case channelWriteErrCodeChannelBusy:
 		return channelwrite.ErrChannelBusy, offset, nil
 	case channelWriteErrCodeContextCanceled:
@@ -397,10 +406,16 @@ func channelWriteErrorCode(err error) string {
 		return rpcStatusOK
 	case errors.Is(err, channelwrite.ErrNotLeader):
 		return channelWriteErrCodeNotLeader
+	case errors.Is(err, channelwrite.ErrNotChannelAuthority):
+		return channelWriteErrCodeNotChannelAuthority
 	case errors.Is(err, channelwrite.ErrStaleRoute):
 		return channelWriteErrCodeStaleRoute
 	case errors.Is(err, channelwrite.ErrRouteNotReady):
 		return channelWriteErrCodeRouteNotReady
+	case errors.Is(err, channelwrite.ErrBackpressured):
+		return channelWriteErrCodeBackpressured
+	case errors.Is(err, channelwrite.ErrAppendResultMissing):
+		return channelWriteErrCodeAppendResultMissing
 	case errors.Is(err, channelwrite.ErrChannelBusy):
 		return channelWriteErrCodeChannelBusy
 	case errors.Is(err, context.Canceled):

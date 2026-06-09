@@ -214,9 +214,18 @@ Stable response statuses are:
 - `route_not_ready`
 - `context_canceled`
 - `context_deadline_exceeded`
-- `channel_busy`
-- `cache_pressure`
 - `rejected`
+
+Conversation authority responses may additionally use:
+
+- `cache_pressure`
+
+Channel write RPC statuses and item error codes preserve:
+
+- `not_channel_authority`
+- `backpressured`
+- `append_result_missing`
+- `channel_busy`
 
 Delivery push and fanout responses currently use:
 
