@@ -191,6 +191,82 @@ func TestStopTimeoutClosesAdmissionWhileSubmitWaitsForAck(t *testing.T) {
 	}
 }
 
+func TestSubmitLocalFullMailboxReturnsBackpressureAndDoesNotBlockStop(t *testing.T) {
+	group := New(Options{LocalNodeID: 1, MailboxSize: 1})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
+	reactor := group.reactorForTarget(target)
+	release := blockReactorForTest(t, reactor)
+	defer closeReleaseForTest(&release)
+
+	queuedC := make(chan submitResult, 1)
+	go func() {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")})
+		queuedC <- submitResult{future: future, err: err}
+	}()
+	waitForMailboxLen(t, reactor, 1)
+
+	fullC := make(chan submitResult, 1)
+	go func() {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u2", "room")})
+		fullC <- submitResult{future: future, err: err}
+	}()
+
+	var fullResult submitResult
+	fullReturned := false
+	select {
+	case fullResult = <-fullC:
+		fullReturned = true
+	case <-time.After(50 * time.Millisecond):
+	}
+	if !fullReturned {
+		closeReleaseForTest(&release)
+		_ = receiveSubmitResult(t, queuedC)
+		_ = receiveSubmitResult(t, fullC)
+		drainCtx, cancelDrain := context.WithTimeout(context.Background(), time.Second)
+		defer cancelDrain()
+		_ = group.Stop(drainCtx)
+		t.Fatalf("full mailbox SubmitLocal did not return backpressure promptly")
+	}
+	if !errors.Is(fullResult.err, ErrBackpressured) {
+		t.Fatalf("full mailbox SubmitLocal() error = %v, want ErrBackpressured", fullResult.err)
+	}
+	if fullResult.future != nil {
+		t.Fatalf("full mailbox future = %v, want nil", fullResult.future)
+	}
+
+	stopC := make(chan error, 1)
+	go func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		stopC <- group.Stop(stopCtx)
+	}()
+	select {
+	case err := <-stopC:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Stop() error = %v, want context deadline", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("Stop() did not observe context after full mailbox backpressure")
+	}
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u3", "room")}); !errors.Is(err, ErrBackpressured) {
+		t.Fatalf("SubmitLocal() after Stop error = %v, want ErrBackpressured", err)
+	}
+
+	closeReleaseForTest(&release)
+	result := receiveSubmitResult(t, queuedC)
+	if result.err != nil {
+		t.Fatalf("queued SubmitLocal() error = %v", result.err)
+	}
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDrain()
+	if err := group.Stop(drainCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
+	}
+}
+
 func TestStopTimeoutKeepsAdmissionClosedAndAllowsLaterDrain(t *testing.T) {
 	group := New(Options{LocalNodeID: 1})
 	if err := group.Start(context.Background()); err != nil {

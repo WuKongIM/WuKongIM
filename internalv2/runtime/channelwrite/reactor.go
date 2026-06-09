@@ -87,8 +87,8 @@ func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []S
 
 	select {
 	case r.mailbox <- event:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	default:
+		return nil, ErrBackpressured
 	}
 
 	return ack, nil
