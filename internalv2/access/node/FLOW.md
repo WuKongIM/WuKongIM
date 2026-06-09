@@ -125,8 +125,9 @@ item-aligned `channelwrite.SendCommand` values to the target channel authority
 node. The server only submits to the local channel authority port; it does not
 resolve routes, create proxy channel state, append directly outside the
 authority reactor, or run post-commit side effects outside that reactor. The
-client skips canceled or expired items before transport and preserves active
-item order in returned item-aligned results.
+client skips canceled or expired items before transport, normalizes transport
+canceled/timeout errors to standard context errors, and preserves active item
+order in returned item-aligned results.
 
 ## Codec Rules
 

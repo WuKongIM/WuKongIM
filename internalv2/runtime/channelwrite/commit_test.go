@@ -48,6 +48,41 @@ func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientE
 	}
 }
 
+func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
+	appender := newRecordingAppenderForAppendTest()
+	router := &scriptedRecipientRouterForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(950),
+		Appender:                   appender,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientRouter:            router,
+		RecipientBatchSize:         16,
+	})
+	target := localTargetForAppendTest("room")
+	item := appendSendItemForTest("u1", "room", "original-payload")
+	item.Command.MessageScopedUIDs = []string{"u2"}
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 950, 1)
+	router.waitCalls(t, 1)
+
+	requests := appender.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(requests))
+	}
+	if !requests[0].OmitResultPayload {
+		t.Fatalf("OmitResultPayload = false, want true to avoid payload copy in append result")
+	}
+	payloads := router.payloads()
+	if len(payloads) != 1 || string(payloads[0]) != "original-payload" {
+		t.Fatalf("recipient payloads = %q, want original payload dispatched after omitted append result", payloads)
+	}
+}
+
 func TestCommitEffectFailureRetriesSameEventBeforeNextEvent(t *testing.T) {
 	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure"), nil, nil}}
 	group := newStartedTestGroup(t, Options{
@@ -331,6 +366,16 @@ func (r *scriptedRecipientRouterForCommitTest) messageIDs() []uint64 {
 	out := make([]uint64, 0, len(r.batches))
 	for _, batch := range r.batches {
 		out = append(out, batch.Event.MessageID)
+	}
+	return out
+}
+
+func (r *scriptedRecipientRouterForCommitTest) payloads() [][]byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([][]byte, 0, len(r.batches))
+	for _, batch := range r.batches {
+		out = append(out, append([]byte(nil), batch.Event.Payload...))
 	}
 	return out
 }

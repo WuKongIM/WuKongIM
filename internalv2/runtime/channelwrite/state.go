@@ -1,5 +1,7 @@
 package channelwrite
 
+const committedCompactMinPrefix = 1024
+
 // channelState holds in-memory state for one locally authoritative channel.
 type channelState struct {
 	target AuthorityTarget
@@ -11,6 +13,10 @@ type channelState struct {
 	appendInflightItems      int
 	nextAppendSeq            uint64
 	nextAppendDrainSeq       uint64
+	// readyAppendCompletion stores the next in-order append completion without allocating the out-of-order map.
+	readyAppendCompletion appendCompletedEvent
+	// hasReadyAppendCompletion reports whether readyAppendCompletion is populated.
+	hasReadyAppendCompletion bool
 	completedAppends         map[uint64]appendCompletedEvent
 	committed                []CommittedEnvelope
 	nextCommitSeq            uint64
@@ -69,12 +75,14 @@ func (s *channelState) nextAppendBatch() (uint64, []preparedSend, bool) {
 	if len(s.pendingItems) == 0 {
 		return 0, nil, false
 	}
-	// Keep same-channel append strictly single-flight until a future task
-	// proves the appender can preserve durable order across concurrent batches.
-	if s.appendInflight >= 1 {
+	limit := s.appendInflightLimit
+	if limit <= 0 {
+		limit = 1
+	}
+	if s.appendInflight >= limit {
 		return 0, nil, false
 	}
-	items := append([]preparedSend(nil), s.pendingItems...)
+	items := s.pendingItems
 	s.pendingItems = nil
 	seq := s.nextAppendSeq
 	s.nextAppendSeq++
@@ -94,6 +102,11 @@ func (s *channelState) finishAppend(items int) {
 }
 
 func (s *channelState) recordAppendCompletion(event appendCompletedEvent) {
+	if event.seq == s.nextAppendDrainSeq && !s.hasReadyAppendCompletion {
+		s.readyAppendCompletion = event
+		s.hasReadyAppendCompletion = true
+		return
+	}
 	if s.completedAppends == nil {
 		s.completedAppends = make(map[uint64]appendCompletedEvent)
 	}
@@ -101,6 +114,13 @@ func (s *channelState) recordAppendCompletion(event appendCompletedEvent) {
 }
 
 func (s *channelState) popNextAppendCompletion() (appendCompletedEvent, bool) {
+	if s.hasReadyAppendCompletion && s.readyAppendCompletion.seq == s.nextAppendDrainSeq {
+		event := s.readyAppendCompletion
+		s.readyAppendCompletion = appendCompletedEvent{}
+		s.hasReadyAppendCompletion = false
+		s.nextAppendDrainSeq++
+		return event, true
+	}
 	if s.completedAppends == nil {
 		return appendCompletedEvent{}, false
 	}
@@ -170,7 +190,7 @@ func (s *channelState) dropCurrentCommit() {
 	s.committed[s.commitCursor] = CommittedEnvelope{}
 	s.commitCursor++
 	s.commitAttempts = 0
-	s.pruneCommittedPrefix()
+	s.pruneCommittedPrefixIfNeeded()
 }
 
 func (s *channelState) nextCursorEffect(key string, limit int) (cursorEffect, bool) {
@@ -247,7 +267,7 @@ func (s *channelState) commitBacklog() int {
 	return backlog
 }
 
-func (s *channelState) pruneCommittedPrefix() {
+func (s *channelState) pruneCommittedPrefixIfNeeded() {
 	if s.commitCursor == 0 {
 		return
 	}
@@ -255,6 +275,9 @@ func (s *channelState) pruneCommittedPrefix() {
 		s.committed = nil
 		s.commitCursor = 0
 		s.replayInsertIndex = 0
+		return
+	}
+	if s.commitCursor < committedCompactMinPrefix || s.commitCursor*2 < len(s.committed) {
 		return
 	}
 	copy(s.committed, s.committed[s.commitCursor:])

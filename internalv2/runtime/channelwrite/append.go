@@ -57,14 +57,20 @@ type appendItemCompletion struct {
 }
 
 func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendCompletedEvent {
+	effectStartedAt := time.Now()
+	effectResult := channelWriteResultOK
 	completion := appendCompletedEvent{
 		key: e.key,
 		seq: e.seq,
 	}
+	defer func() {
+		observeEffect(ports.observer, EffectObservation{Stage: "append", Result: effectResult, Items: len(e.items), Duration: elapsedSince(effectStartedAt)})
+	}()
 	if len(e.items) == 0 {
 		return completion
 	}
 	if ports.appender == nil {
+		effectResult = channelWriteResultAppendFailed
 		completion.items = appendBatchErrorCompletions(e.items, ErrAppenderRequired)
 		return completion
 	}
@@ -87,6 +93,7 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 		cancel()
 		completion.duration = appendDur
 		if err != nil {
+			effectResult = errorClass(err)
 			var expired []appendItemCompletion
 			active, expired = activeAppendItems(active)
 			completion.items = append(completion.items, expired...)
@@ -110,6 +117,7 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 			return completion
 		}
 		completion.items = append(completion.items, appendResultCompletions(attemptItems, res)...)
+		effectResult = appendCompletionsResultClass(completion.items)
 		return completion
 	}
 }
@@ -125,7 +133,7 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 		Messages:            make([]Message, 0, len(active)),
 		Attempt:             attempt,
 		CommitMode:          CommitModeQuorum,
-		OmitResultPayload:   false,
+		OmitResultPayload:   true,
 	}
 	for _, item := range active {
 		cmd := item.Command
@@ -155,14 +163,24 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 }
 
 func activeAppendItems(items []preparedSend) ([]preparedSend, []appendItemCompletion) {
-	active := make([]preparedSend, 0, len(items))
-	inactive := make([]appendItemCompletion, 0)
-	for _, item := range items {
+	var active []preparedSend
+	var inactive []appendItemCompletion
+	filtered := false
+	for i, item := range items {
 		if err := appendItemError(item); err != nil {
+			filtered = true
+			if active == nil {
+				active = append([]preparedSend(nil), items[:i]...)
+			}
 			inactive = append(inactive, appendItemErrorCompletion(item, err))
 			continue
 		}
-		active = append(active, item)
+		if filtered {
+			active = append(active, item)
+		}
+	}
+	if !filtered {
+		return items, inactive
 	}
 	return active, inactive
 }
@@ -219,6 +237,24 @@ func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appe
 		})
 	}
 	return out
+}
+
+func appendCompletionsResultClass(items []appendItemCompletion) string {
+	if len(items) == 0 {
+		return channelWriteResultOK
+	}
+	class := ""
+	for _, item := range items {
+		next := resultClass(item.result)
+		if class == "" {
+			class = next
+			continue
+		}
+		if class != next {
+			return channelWriteResultMixed
+		}
+	}
+	return class
 }
 
 func appendBatchContext(runtimeCtx context.Context) (context.Context, context.CancelFunc) {
@@ -300,12 +336,22 @@ func appendItemsWakeSignal(items []preparedSend) (<-chan struct{}, func()) {
 			signal()
 			break
 		}
+		if !appendItemHasTerminalSignal(item) {
+			continue
+		}
 		go func(item preparedSend) {
 			waitAppendItemTerminal(item, stop)
 			signal()
 		}(item)
 	}
 	return wake, cleanup
+}
+
+func appendItemHasTerminalSignal(item preparedSend) bool {
+	if _, ok := appendItemDeadline(item); ok {
+		return true
+	}
+	return item.Context != nil && item.Context.Done() != nil
 }
 
 func waitAppendItemTerminal(item preparedSend, stop <-chan struct{}) {

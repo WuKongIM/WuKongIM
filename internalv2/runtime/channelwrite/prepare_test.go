@@ -476,6 +476,22 @@ func TestPrepareCanceledItemsDoNotBlockOtherItems(t *testing.T) {
 	}
 }
 
+func TestPrepareItemContextReusesRuntimeContextForPlainItem(t *testing.T) {
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	effectCtx, cleanup := prepareItemContext(runtimeCtx, context.Background())
+
+	cleanup()
+	if err := contextErr(effectCtx); err != nil {
+		runtimeCancel()
+		t.Fatalf("cleanup canceled plain item effect context: %v", err)
+	}
+
+	runtimeCancel()
+	if err := contextErr(effectCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("runtime cancellation error = %v, want context.Canceled", err)
+	}
+}
+
 func TestPrepareValidItemsAppendInInputOrder(t *testing.T) {
 	ids := newSequenceIDsForPrepare(400)
 	clock := fixedClockForPrepare{now: time.Unix(500, 0)}

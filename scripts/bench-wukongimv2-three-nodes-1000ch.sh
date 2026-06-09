@@ -737,6 +737,21 @@ channelv2_metrics_summary() {
   done
 }
 
+channelwrite_metrics_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/channelwrite_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/channelwrite-metrics-summary.awk"
+  local addr id before after
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    [[ -f "$before" && -f "$after" ]] || continue
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" >>"$out" || true
+  done
+}
+
 runtime_pool_pressure_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -783,6 +798,7 @@ run_attempt() {
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
   channelv2_metrics_summary "$tag" "$duration"
+  channelwrite_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
@@ -1038,6 +1054,7 @@ print_summary() {
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
   printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
   printf '  channelv2: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
+  printf '  channelwrite: %s\n' "$OUT_DIR/channelwrite_metrics_summary.tsv"
   printf '  runtime_pool: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
   printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
@@ -1072,6 +1089,7 @@ write_evidence_summary() {
 - reports: reports/
 - rpc_pull: rpc_pull_qps.tsv
 - channelv2_metrics: channelv2_metrics_summary.tsv
+- channelwrite_metrics: channelwrite_metrics_summary.tsv
 - runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
 - runtime_pool_pressure: runtime_pool_pressure_summary.tsv
 - summary_tsv: summary.tsv
@@ -1103,6 +1121,9 @@ tag	node	rpc_pull_delta	rpc_pull_qps
 EOF
   cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
 tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms	rpc_pull_batch_calls_delta	rpc_pull_batch_items_delta	rpc_pull_batch_avg_items	rpc_pull_hint_batch_calls_delta	rpc_pull_hint_batch_items_delta	rpc_pull_hint_batch_avg_items	store_append_batch_calls_delta	store_append_batch_items_delta	store_append_batch_avg_items	store_apply_batch_calls_delta	store_apply_batch_items_delta	store_apply_batch_avg_items
+EOF
+  cat >"$OUT_DIR/channelwrite_metrics_summary.tsv" <<'EOF'
+tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms
 EOF
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason

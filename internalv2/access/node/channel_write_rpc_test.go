@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 func TestChannelWriteRPCHandlerSubmitsToLocalAuthority(t *testing.T) {
@@ -176,6 +177,8 @@ func TestChannelWriteClientMapsStatusesAndErrorsToItemAlignedResults(t *testing.
 		{name: "context canceled status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusContextCanceled}}, wantIs: context.Canceled},
 		{name: "deadline status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusContextDeadlineExceeded}}, wantIs: context.DeadlineExceeded},
 		{name: "rejected status", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusRejected}}, wantString: "internalv2/access/node: channel write rpc rejected"},
+		{name: "transport canceled", node: &fakeChannelWriteRPCNode{err: transportv2.ErrCanceled}, wantIs: context.Canceled},
+		{name: "transport timeout", node: &fakeChannelWriteRPCNode{err: transportv2.ErrTimeout}, wantIs: context.DeadlineExceeded},
 		{name: "transport error", node: &fakeChannelWriteRPCNode{err: errors.New("transport down")}, wantString: "transport down"},
 		{name: "short response", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusOK, Results: []channelwrite.SendBatchItemResult{{}}}}, wantIs: channelwrite.ErrAppendResultMissing},
 		{name: "item error", node: &fakeChannelWriteRPCNode{response: channelWriteResponse{Status: rpcStatusOK, Results: []channelwrite.SendBatchItemResult{{Err: channelwrite.ErrChannelBusy}, {Err: channelwrite.ErrChannelBusy}}}}, wantIs: channelwrite.ErrChannelBusy},

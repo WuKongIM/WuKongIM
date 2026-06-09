@@ -148,6 +148,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
 		"WK_DELIVERY_ENABLE=true",
+		"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=10",
+		"WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=20",
 		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
 		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
@@ -253,6 +255,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	})
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true")
+	}
+	if cfg.Delivery.ChannelWriteReactorCount != 10 {
+		t.Fatalf("Delivery.ChannelWriteReactorCount = %d, want 10", cfg.Delivery.ChannelWriteReactorCount)
+	}
+	if cfg.Delivery.ChannelWriteEffectWorkers != 20 {
+		t.Fatalf("Delivery.ChannelWriteEffectWorkers = %d, want 20", cfg.Delivery.ChannelWriteEffectWorkers)
 	}
 	if cfg.Delivery.FanoutPageSize != 256 {
 		t.Fatalf("Delivery.FanoutPageSize = %d, want 256", cfg.Delivery.FanoutPageSize)
@@ -526,6 +534,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
 	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", "7")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS", "14")
 	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
 	t.Setenv("WK_DELIVERY_PUSH_BATCH_SIZE", "32")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
@@ -604,6 +614,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
+		cfg.Delivery.ChannelWriteReactorCount != 7 || cfg.Delivery.ChannelWriteEffectWorkers != 14 ||
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)

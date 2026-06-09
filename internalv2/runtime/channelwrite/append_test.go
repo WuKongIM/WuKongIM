@@ -3,6 +3,7 @@ package channelwrite
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 11, 2)
 }
 
-func TestAppendInflightLimitAboveOneStillKeepsOneSameChannelAppend(t *testing.T) {
+func TestAppendInflightLimitAboveOneAllowsSecondSameChannelAppend(t *testing.T) {
 	appender := newBlockingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:         1,
@@ -60,16 +61,15 @@ func TestAppendInflightLimitAboveOneStillKeepsOneSameChannelAppend(t *testing.T)
 	firstStart := appender.waitStarted(t)
 
 	secondC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "second"))
-	time.Sleep(20 * time.Millisecond)
-	if got := appender.Calls(); got != 1 {
-		t.Fatalf("append calls while first same-channel append in-flight = %d, want 1", got)
+	secondStart := appender.waitStarted(t)
+	if got := appender.Calls(); got != 2 {
+		t.Fatalf("append calls while first same-channel append in-flight = %d, want 2", got)
 	}
 
 	firstStart.Release()
 	first := receiveSubmitResult(t, firstC)
 	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 30, 1)
 
-	secondStart := appender.waitStarted(t)
 	secondStart.Release()
 	second := receiveSubmitResult(t, secondC)
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 31, 2)
@@ -241,6 +241,108 @@ func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {
 				t.Fatalf("append calls = %d, want retry before deadline", got)
 			}
 		})
+	}
+}
+
+func TestAppendItemsWakeSignalDoesNotStartWaitersForPlainItems(t *testing.T) {
+	items := make([]preparedSend, 128)
+	before := runtime.NumGoroutine()
+	wake, cleanup := appendItemsWakeSignal(items)
+	defer cleanup()
+	select {
+	case <-wake:
+		t.Fatalf("wake signal closed for plain active items")
+	default:
+	}
+	time.Sleep(20 * time.Millisecond)
+	after := runtime.NumGoroutine()
+	if delta := after - before; delta > 8 {
+		cleanup()
+		t.Fatalf("appendItemsWakeSignal spawned %d goroutines for plain items, want <= 8", delta)
+	}
+}
+
+func TestActiveAppendItemsDoesNotAllocateForAllActiveItems(t *testing.T) {
+	items := make([]preparedSend, 16)
+	allocs := testing.AllocsPerRun(100, func() {
+		active, inactive := activeAppendItems(items)
+		if len(active) != len(items) {
+			t.Fatalf("active items = %d, want %d", len(active), len(items))
+		}
+		if len(inactive) != 0 {
+			t.Fatalf("inactive items = %d, want 0", len(inactive))
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("activeAppendItems allocations = %.1f, want 0", allocs)
+	}
+}
+
+func TestActiveAppendItemsKeepsLaterItemsWhenFirstInactive(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	items := []preparedSend{
+		{Index: 0, Context: canceled},
+		{Index: 1, Context: context.Background()},
+	}
+
+	active, inactive := activeAppendItems(items)
+	if len(active) != 1 || active[0].Index != 1 {
+		t.Fatalf("active items = %+v, want only index 1", active)
+	}
+	if len(inactive) != 1 || inactive[0].item.Index != 0 || !errors.Is(inactive[0].traceErr, context.Canceled) {
+		t.Fatalf("inactive items = %+v, want canceled index 0", inactive)
+	}
+}
+
+func TestAppendCompletionsResultClassDoesNotAllocate(t *testing.T) {
+	items := []appendItemCompletion{
+		{result: SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}},
+		{result: SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}},
+	}
+	allocs := testing.AllocsPerRun(100, func() {
+		if got := appendCompletionsResultClass(items); got != channelWriteResultOK {
+			t.Fatalf("result class = %q, want %q", got, channelWriteResultOK)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("appendCompletionsResultClass allocations = %.1f, want 0", allocs)
+	}
+}
+
+func TestRecordAppendCompletionDoesNotAllocateSingleDispatch(t *testing.T) {
+	target := localTargetForAppendTest("room")
+	key := targetKey(target)
+	r := newReactor(
+		0,
+		1,
+		channelStateLimits{},
+		1,
+		preparePorts{},
+		appendPorts{},
+		commitPorts{},
+		cursorPorts{},
+	)
+	state := newChannelState(target, r.limits)
+	r.states[key] = state
+	event := appendCompletedEvent{
+		key: key,
+		seq: 0,
+		items: []appendItemCompletion{{
+			item:     preparedSend{Index: 0},
+			result:   SendBatchItemResult{Err: ErrAppendFailed},
+			traceErr: ErrAppendFailed,
+		}},
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		state.appendInflight = 1
+		state.appendInflightItems = 1
+		state.nextAppendDrainSeq = 0
+		r.recordAppendCompletion(event)
+	})
+	if allocs != 0 {
+		t.Fatalf("recordAppendCompletion allocations = %.1f, want 0", allocs)
 	}
 }
 
@@ -456,6 +558,9 @@ func (a *recordingAppenderForAppendTest) successResult(req AppendBatchRequest, i
 	items := make([]AppendBatchItemResult, itemCount)
 	for i, msg := range req.Messages[:itemCount] {
 		msg.MessageSeq = a.nextSeq
+		if req.OmitResultPayload {
+			msg.Payload = nil
+		}
 		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 		if i < len(itemErrs) {
 			items[i].Err = itemErrs[i]

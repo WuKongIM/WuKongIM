@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -170,10 +171,19 @@ func TestValidatePresenceConfigRejectsInvalidTouchValues(t *testing.T) {
 }
 
 func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) {
+	oldProcs := runtime.GOMAXPROCS(6)
+	t.Cleanup(func() { runtime.GOMAXPROCS(oldProcs) })
+
 	cfg := defaultDeliveryConfig(DeliveryConfig{})
 
 	if cfg.Enabled {
 		t.Fatalf("Enabled = true, want false by default")
+	}
+	if cfg.ChannelWriteReactorCount != 6 {
+		t.Fatalf("ChannelWriteReactorCount = %d, want 6", cfg.ChannelWriteReactorCount)
+	}
+	if cfg.ChannelWriteEffectWorkers != 2 {
+		t.Fatalf("ChannelWriteEffectWorkers = %d, want 2", cfg.ChannelWriteEffectWorkers)
 	}
 	if cfg.FanoutPageSize != 512 {
 		t.Fatalf("FanoutPageSize = %d, want 512", cfg.FanoutPageSize)
@@ -192,14 +202,17 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	}
 
 	negative := defaultDeliveryConfig(DeliveryConfig{
-		Enabled:                 true,
-		FanoutPageSize:          -1,
-		PushBatchSize:           -2,
-		PendingAckTTL:           -time.Second,
-		PendingAckMaxPerSession: -3,
-		EventQueueSize:          -4,
+		Enabled:                   true,
+		ChannelWriteReactorCount:  -5,
+		ChannelWriteEffectWorkers: -6,
+		FanoutPageSize:            -1,
+		PushBatchSize:             -2,
+		PendingAckTTL:             -time.Second,
+		PendingAckMaxPerSession:   -3,
+		EventQueueSize:            -4,
 	})
-	if !negative.Enabled || negative.FanoutPageSize != -1 || negative.PushBatchSize != -2 ||
+	if !negative.Enabled || negative.ChannelWriteReactorCount != -5 || negative.ChannelWriteEffectWorkers != -6 ||
+		negative.FanoutPageSize != -1 || negative.PushBatchSize != -2 ||
 		negative.PendingAckTTL != -time.Second || negative.PendingAckMaxPerSession != -3 ||
 		negative.EventQueueSize != -4 {
 		t.Fatalf("negative delivery values were overwritten: %#v", negative)
@@ -211,6 +224,8 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 		name string
 		cfg  DeliveryConfig
 	}{
+		{name: "channelwrite reactor count", cfg: DeliveryConfig{ChannelWriteReactorCount: -1}},
+		{name: "channelwrite effect workers", cfg: DeliveryConfig{ChannelWriteEffectWorkers: -1}},
 		{name: "fanout page size", cfg: DeliveryConfig{FanoutPageSize: -1}},
 		{name: "push batch size", cfg: DeliveryConfig{PushBatchSize: -1}},
 		{name: "pending ack ttl", cfg: DeliveryConfig{PendingAckTTL: -time.Nanosecond}},

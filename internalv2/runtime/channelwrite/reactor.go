@@ -3,6 +3,7 @@ package channelwrite
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 )
 
 type reactor struct {
@@ -31,6 +32,10 @@ type reactor struct {
 	pendingAppend    []appendEffect
 	pendingCommit    []commitEffect
 	pendingCursor    []cursorEffect
+
+	pendingAppendItems  atomic.Int64
+	appendInflightItems atomic.Int64
+	postCommitBacklog   atomic.Int64
 
 	startOnce  sync.Once
 	closeOnce  sync.Once
@@ -275,12 +280,15 @@ func (r *reactor) wait(ctx context.Context) error {
 
 func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []SendBatchItem, future *Future) (<-chan error, error) {
 	if err := contextErr(ctx); err != nil {
+		observeLocalAdmission(r.appendPorts.observer, LocalAdmissionObservation{ReactorID: r.id, Result: errorClass(err), Items: len(items)})
 		return nil, err
 	}
 
 	select {
 	case r.effectSlots <- struct{}{}:
 	default:
+		observeLocalAdmission(r.appendPorts.observer, LocalAdmissionObservation{ReactorID: r.id, Result: channelWriteResultBackpressured, Items: len(items)})
+		r.observePressure()
 		return nil, ErrBackpressured
 	}
 	future.setOnDone(r.releaseEffectSlot)
@@ -297,9 +305,13 @@ func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []S
 	case r.mailbox <- event:
 	default:
 		r.releaseEffectSlot()
+		observeLocalAdmission(r.appendPorts.observer, LocalAdmissionObservation{ReactorID: r.id, Result: channelWriteResultBackpressured, Items: len(items)})
+		r.observePressure()
 		return nil, ErrBackpressured
 	}
 
+	observeLocalAdmission(r.appendPorts.observer, LocalAdmissionObservation{ReactorID: r.id, Result: "accepted", Items: len(items)})
+	r.observePressure()
 	return ack, nil
 }
 
@@ -314,6 +326,7 @@ func (r *reactor) releaseEffectSlot() {
 	case <-r.effectSlots:
 	default:
 	}
+	r.observePressure()
 }
 
 func (r *reactor) hasAppendInflight() bool {
@@ -361,4 +374,60 @@ func (e submitLocalEvent) pendingPrepareEffect(seq uint64) pendingPrepareEffect 
 		},
 		ack: e.ack,
 	}
+}
+
+func (r *reactor) observePressure() {
+	if r == nil {
+		return
+	}
+	observer := reactorPressureObserver(r.appendPorts.observer)
+	if observer == nil {
+		return
+	}
+	observer.SetChannelWriteReactorPressure(r.pressureObservation())
+}
+
+func (r *reactor) observePressureLocked() {
+	if r == nil {
+		return
+	}
+	observer := reactorPressureObserver(r.appendPorts.observer)
+	if observer == nil {
+		return
+	}
+	observer.SetChannelWriteReactorPressure(r.pressureObservation())
+}
+
+func (r *reactor) pressureObservation() ReactorPressureObservation {
+	return ReactorPressureObservation{
+		ReactorID:           r.id,
+		MailboxDepth:        len(r.mailbox),
+		MailboxCapacity:     cap(r.mailbox),
+		EffectSlotsUsed:     len(r.effectSlots),
+		EffectSlotsCapacity: cap(r.effectSlots),
+		PendingAppendItems:  int(r.pendingAppendItems.Load()),
+		AppendInflightItems: int(r.appendInflightItems.Load()),
+		PostCommitBacklog:   int(r.postCommitBacklog.Load()),
+	}
+}
+
+func (r *reactor) addPendingAppendItems(delta int) {
+	if r == nil || delta == 0 {
+		return
+	}
+	r.pendingAppendItems.Add(int64(delta))
+}
+
+func (r *reactor) addAppendInflightItems(delta int) {
+	if r == nil || delta == 0 {
+		return
+	}
+	r.appendInflightItems.Add(int64(delta))
+}
+
+func (r *reactor) addPostCommitBacklog(delta int) {
+	if r == nil || delta == 0 {
+		return
+	}
+	r.postCommitBacklog.Add(int64(delta))
 }

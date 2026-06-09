@@ -97,6 +97,7 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 		}
 		if state.canAdmit(len(matching)) {
 			state.enqueuePrepared(matching)
+			r.addPendingAppendItems(len(matching))
 			r.scheduleAppendLocked(key, state)
 		} else {
 			for _, item := range matching {
@@ -105,6 +106,7 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 			}
 		}
 	}
+	r.observePressureLocked()
 	r.mu.Unlock()
 
 	e.future.completeItems(e.results, func(index int) bool {
@@ -118,7 +120,7 @@ func (e appendCompletedEvent) apply(r *reactor) {
 }
 
 func (r *reactor) recordAppendCompletion(event appendCompletedEvent) {
-	var dispatch []appendCompletionDispatch
+	var dispatch appendCompletionDispatchBuffer
 	r.mu.Lock()
 	state := r.states[event.key]
 	if state == nil {
@@ -126,11 +128,9 @@ func (r *reactor) recordAppendCompletion(event appendCompletedEvent) {
 		for _, completion := range event.items {
 			completion.result = SendBatchItemResult{Err: ErrStaleRoute}
 			completion.traceErr = ErrStaleRoute
-			dispatch = append(dispatch, appendCompletionDispatch{completion: completion, duration: event.duration})
+			dispatch.add(appendCompletionDispatch{completion: completion, duration: event.duration})
 		}
-		for _, item := range dispatch {
-			r.dispatchAppendItemCompletion(item.completion, item.duration)
-		}
+		dispatch.run(r)
 		return
 	}
 	state.recordAppendCompletion(event)
@@ -140,24 +140,57 @@ func (r *reactor) recordAppendCompletion(event appendCompletedEvent) {
 			break
 		}
 		state.finishAppend(len(next.items))
+		r.addAppendInflightItems(-len(next.items))
 		for _, completion := range next.items {
 			if completion.traceErr == nil && completion.result.Err == nil && completion.result.Result.Reason == ReasonSuccess {
 				state.enqueueCommitted(committedEnvelopeForAppend(completion.item, completion.appended))
+				r.addPostCommitBacklog(1)
 				r.scheduleCommitLocked(event.key, state)
 			}
-			dispatch = append(dispatch, appendCompletionDispatch{completion: completion, duration: next.duration})
+			dispatch.add(appendCompletionDispatch{completion: completion, duration: next.duration})
 		}
 		r.scheduleAppendLocked(event.key, state)
 	}
+	r.observePressureLocked()
 	r.mu.Unlock()
-	for _, item := range dispatch {
-		r.dispatchAppendItemCompletion(item.completion, item.duration)
-	}
+	dispatch.run(r)
 }
 
 type appendCompletionDispatch struct {
 	completion appendItemCompletion
 	duration   time.Duration
+}
+
+type appendCompletionDispatchBuffer struct {
+	first appendCompletionDispatch
+	rest  []appendCompletionDispatch
+	count int
+}
+
+func (b *appendCompletionDispatchBuffer) add(item appendCompletionDispatch) {
+	if b.count == 0 {
+		b.first = item
+		b.count = 1
+		return
+	}
+	if b.count == 1 {
+		b.rest = append(b.rest, b.first)
+	}
+	b.rest = append(b.rest, item)
+	b.count++
+}
+
+func (b *appendCompletionDispatchBuffer) run(r *reactor) {
+	if b.count == 0 {
+		return
+	}
+	if b.count == 1 {
+		r.dispatchAppendItemCompletion(b.first.completion, b.first.duration)
+		return
+	}
+	for _, item := range b.rest {
+		r.dispatchAppendItemCompletion(item.completion, item.duration)
+	}
 }
 
 func (r *reactor) dispatchAppendItemCompletion(completion appendItemCompletion, dur time.Duration) {
@@ -185,6 +218,8 @@ func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
 			seq:    seq,
 			items:  items,
 		})
+		r.addPendingAppendItems(-len(items))
+		r.addAppendInflightItems(len(items))
 	}
 }
 
@@ -226,14 +261,19 @@ func (r *reactor) recordCursorCompletion(event cursorCompletedEvent) {
 		if r.stopCtx.Err() == nil && state.replayAttempts < boundedPositive(r.commitPorts.retryMaxAttempts, defaultCommitRetryMaxAttempts) {
 			r.scheduleCursorLocked(event.key, state)
 		}
+		r.observePressureLocked()
 		return
 	}
+	backlogBefore := state.commitBacklog()
 	state.finishCursorReplaySuccess(event.loadedCursor, event.messages, event.nextSeq, event.done)
+	r.addPostCommitBacklog(state.commitBacklog() - backlogBefore)
 	if event.done {
 		r.scheduleCommitLocked(event.key, state)
+		r.observePressureLocked()
 		return
 	}
 	r.scheduleCursorLocked(event.key, state)
+	r.observePressureLocked()
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {

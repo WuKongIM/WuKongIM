@@ -169,6 +169,131 @@ func TestSubmitLocalReturnsBackpressureWhenPrepareEffectsAreFull(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 900, 1)
 }
 
+func TestObservePressureWithoutPressureObserverDoesNotTakeStateLock(t *testing.T) {
+	observer := &recordingAppendObserverForTest{}
+	r := newReactor(
+		0,
+		1,
+		channelStateLimits{},
+		1,
+		preparePorts{},
+		appendPorts{observer: observer},
+		commitPorts{},
+		cursorPorts{},
+	)
+	r.mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		r.observePressure()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(50 * time.Millisecond):
+		r.mu.Unlock()
+		<-done
+		t.Fatalf("observePressure blocked on state lock without a pressure observer")
+	}
+	r.mu.Unlock()
+}
+
+func TestObservePressureWithPressureObserverDoesNotTakeStateLock(t *testing.T) {
+	observer := &benchmarkPressureObserver{}
+	r := newReactor(
+		0,
+		1,
+		channelStateLimits{},
+		1,
+		preparePorts{},
+		appendPorts{observer: observer},
+		commitPorts{},
+		cursorPorts{},
+	)
+	r.mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		r.observePressure()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(50 * time.Millisecond):
+		r.mu.Unlock()
+		<-done
+		t.Fatalf("observePressure blocked on state lock with a pressure observer")
+	}
+	r.mu.Unlock()
+}
+
+func TestPressureObservationTracksQueueCounters(t *testing.T) {
+	observer := &benchmarkPressureObserver{}
+	r := newReactor(
+		0,
+		16,
+		channelStateLimits{pendingItemHighWatermark: 8, appendInflightLimit: 1},
+		1,
+		preparePorts{},
+		appendPorts{observer: observer},
+		commitPorts{},
+		cursorPorts{},
+	)
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
+	key := targetKey(target)
+	state := newChannelState(target, r.limits)
+	command := validPrepareCommand("u1", "room", "payload")
+	item := preparedSend{
+		Index:   0,
+		Context: context.Background(),
+		Command: command,
+		future:  newFuture(1),
+	}
+
+	r.mu.Lock()
+	r.states[key] = state
+	state.enqueuePrepared([]preparedSend{item})
+	r.addPendingAppendItems(1)
+	r.scheduleAppendLocked(key, state)
+	r.observePressureLocked()
+	r.mu.Unlock()
+
+	if got := observer.last; got.PendingAppendItems != 0 || got.AppendInflightItems != 1 || got.PostCommitBacklog != 0 {
+		t.Fatalf("after append schedule pressure = %+v, want pending=0 inflight=1 backlog=0", got)
+	}
+
+	r.recordAppendCompletion(appendCompletedEvent{
+		key: key,
+		seq: 0,
+		items: []appendItemCompletion{{
+			item:   item,
+			result: SendBatchItemResult{Result: SendResult{MessageID: 1, MessageSeq: 10, Reason: ReasonSuccess}},
+			appended: AppendBatchItemResult{
+				MessageID:  1,
+				MessageSeq: 10,
+				Message: Message{
+					MessageID:   1,
+					MessageSeq:  10,
+					ChannelID:   command.ChannelID,
+					ChannelType: command.ChannelType,
+					FromUID:     command.FromUID,
+					ClientMsgNo: command.ClientMsgNo,
+				},
+			},
+		}},
+	})
+
+	if got := observer.last; got.PendingAppendItems != 0 || got.AppendInflightItems != 0 || got.PostCommitBacklog != 1 {
+		t.Fatalf("after append completion pressure = %+v, want pending=0 inflight=0 backlog=1", got)
+	}
+
+	r.recordCommitCompletion(commitCompletedEvent{key: key, seq: 0, checkpointSeq: 10})
+
+	if got := observer.last; got.PendingAppendItems != 0 || got.AppendInflightItems != 0 || got.PostCommitBacklog != 0 {
+		t.Fatalf("after commit completion pressure = %+v, want pending=0 inflight=0 backlog=0", got)
+	}
+}
+
 func TestStopCancelsOutstandingPreparePortContexts(t *testing.T) {
 	fence := newContextBlockingFenceForTest()
 	group := New(Options{

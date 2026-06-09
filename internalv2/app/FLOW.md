@@ -93,6 +93,12 @@ effects still run inside the channel authority reactor so recent conversation
 state is updated, but no online delivery is submitted. With delivery enabled,
 gateway RECVACK and session close feedback flows to the delivery usecase, while
 channelwrite post-commit effects resolve online routes and push to owner nodes.
+`Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
+count with a minimum of four, and `ChannelWriteEffectWorkers` defaults to two
+workers per reactor. Reactor count controls channel-state sharding; effect
+workers run prepare, append, replay, and post-commit work for that reactor.
+Per-channel append ordering remains capped by channel state even when different
+channels run through different reactors or workers.
 The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, recipient authority grouping, conversation mutation, owner push
 execution, cursor persistence, and replay on restart all run after SENDACK from
@@ -114,8 +120,10 @@ The channel write commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
 subscriber source, or the clusterv2 Slot metadata source. Recipients are grouped
-by exact UID hash-slot authority target, then the local channelwrite recipient
-processor admits active conversation patches through the shared
+by exact UID hash-slot authority target; when clusterv2 exposes batch key
+routing, the app recipient resolver resolves each subscriber page's unique UIDs
+through one batch route lookup before grouping. The local channelwrite recipient
+processor then admits active conversation patches through the shared
 `ConversationAuthorityClient` and submits delivery scoped to that recipient
 group when delivery is enabled. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows

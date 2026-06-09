@@ -89,6 +89,8 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
 	"WK_DELIVERY_ENABLE",
+	"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT",
+	"WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
 	"WK_DELIVERY_PENDING_ACK_TTL",
@@ -767,6 +769,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Delivery.Enabled = enabled
+	}
+	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT"); raw != "" {
+		reactors, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if reactors < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT: value must be >= 0")
+		}
+		cfg.Delivery.ChannelWriteReactorCount = reactors
+	}
+	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS: value must be >= 0")
+		}
+		cfg.Delivery.ChannelWriteEffectWorkers = workers
 	}
 	if raw := configValue(values, "WK_DELIVERY_FANOUT_PAGE_SIZE"); raw != "" {
 		pageSize, err := parseInt("WK_DELIVERY_FANOUT_PAGE_SIZE", raw)

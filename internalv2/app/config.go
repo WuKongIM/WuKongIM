@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -212,6 +213,10 @@ type PresenceConfig struct {
 type DeliveryConfig struct {
 	// Enabled wires committed messages into the delivery runtime when true.
 	Enabled bool
+	// ChannelWriteReactorCount is the number of channel-hashed authority reactors. Zero derives a CPU-aware default.
+	ChannelWriteReactorCount int
+	// ChannelWriteEffectWorkers is the per-reactor worker count for prepare, append, replay, and post-commit effects. Zero uses a bounded default.
+	ChannelWriteEffectWorkers int
 	// FanoutPageSize limits subscriber UIDs read by one fanout page.
 	FanoutPageSize int
 	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
@@ -241,6 +246,12 @@ func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 }
 
 func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
+	if cfg.ChannelWriteReactorCount == 0 {
+		cfg.ChannelWriteReactorCount = defaultChannelWriteReactorCount()
+	}
+	if cfg.ChannelWriteEffectWorkers == 0 {
+		cfg.ChannelWriteEffectWorkers = defaultChannelWriteEffectWorkers()
+	}
 	if cfg.FanoutPageSize == 0 {
 		cfg.FanoutPageSize = 512
 	}
@@ -257,6 +268,14 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 		cfg.EventQueueSize = 1024
 	}
 	return cfg
+}
+
+func defaultChannelWriteReactorCount() int {
+	return appMaxInt(4, runtime.GOMAXPROCS(0))
+}
+
+func defaultChannelWriteEffectWorkers() int {
+	return 2
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
@@ -354,6 +373,12 @@ func validatePresenceConfig(cfg PresenceConfig) error {
 }
 
 func validateDeliveryConfig(cfg DeliveryConfig) error {
+	if cfg.ChannelWriteReactorCount < 0 {
+		return fmt.Errorf("%w: delivery channel write reactor count must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.ChannelWriteEffectWorkers < 0 {
+		return fmt.Errorf("%w: delivery channel write effect workers must be non-negative", ErrInvalidConfig)
+	}
 	if cfg.FanoutPageSize < 0 {
 		return fmt.Errorf("%w: delivery fanout page size must be non-negative", ErrInvalidConfig)
 	}
@@ -426,4 +451,11 @@ func validateObservabilityConfig(cfg ObservabilityConfig) error {
 
 func validDiagnosticsSampleRate(rate float64) bool {
 	return !math.IsNaN(rate) && !math.IsInf(rate, 0) && rate >= 0 && rate <= 1
+}
+
+func appMaxInt(a, b int) int {
+	if a >= b {
+		return a
+	}
+	return b
 }

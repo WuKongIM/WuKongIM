@@ -18,6 +18,7 @@ func TestPublicAPICompile(t *testing.T) {
 	_ = node.NodeID()
 	_ = node.Snapshot()
 	_, _ = node.RouteKey("u1")
+	_, _ = node.RouteKeys([]string{"u1", "u2"})
 	_, _ = node.RouteHashSlot(0)
 	_ = node.Propose(context.Background(), clusterv2.ProposeRequest{Key: "u1", Command: []byte("cmd")})
 	_, _ = node.AppendChannel(context.Background(), channelv2.AppendRequest{})

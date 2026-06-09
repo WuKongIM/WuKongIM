@@ -88,9 +88,11 @@ func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (co
 	if itemCtx == nil {
 		itemCtx = context.Background()
 	}
-	if runtimeCtx == nil {
-		ctx, cancel := context.WithCancel(itemCtx)
-		return ctx, cancel
+	if runtimeCtx == nil || runtimeCtx.Done() == nil {
+		return itemCtx, noopCancel
+	}
+	if itemCtx.Done() == nil {
+		return runtimeCancelContext{values: itemCtx, runtime: runtimeCtx}, noopCancel
 	}
 	ctx, cancel := context.WithCancel(itemCtx)
 	done := make(chan struct{})
@@ -107,6 +109,29 @@ func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (co
 		cancel()
 	}
 }
+
+type runtimeCancelContext struct {
+	values  context.Context
+	runtime context.Context
+}
+
+func (c runtimeCancelContext) Deadline() (time.Time, bool) {
+	return c.runtime.Deadline()
+}
+
+func (c runtimeCancelContext) Done() <-chan struct{} {
+	return c.runtime.Done()
+}
+
+func (c runtimeCancelContext) Err() error {
+	return c.runtime.Err()
+}
+
+func (c runtimeCancelContext) Value(key any) any {
+	return c.values.Value(key)
+}
+
+func noopCancel() {}
 
 type prepareSendResult struct {
 	item            preparedSend

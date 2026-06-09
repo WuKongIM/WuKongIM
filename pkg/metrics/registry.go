@@ -15,6 +15,7 @@ type Registry struct {
 
 	Gateway         *GatewayMetrics
 	Channel         *ChannelMetrics
+	ChannelWrite    *ChannelWriteMetrics
 	ChannelV2       *ChannelV2Metrics
 	Slot            *SlotMetrics
 	Controller      *ControllerMetrics
@@ -41,6 +42,7 @@ func New(nodeID uint64, nodeName string) *Registry {
 		registry:        registry,
 		Gateway:         newGatewayMetrics(registry, labels),
 		Channel:         newChannelMetrics(registry, labels),
+		ChannelWrite:    newChannelWriteMetrics(registry, labels),
 		ChannelV2:       newChannelV2Metrics(registry, labels),
 		Slot:            newSlotMetrics(registry, labels),
 		Controller:      newControllerMetrics(registry, labels),

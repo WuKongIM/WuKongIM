@@ -62,6 +62,30 @@ func TestRouterRouteKeyUsesCRC32HashSlot(t *testing.T) {
 	}
 }
 
+func TestRouterRouteKeysPreservesInputOrder(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
+	first := keyForHashSlot(t, 3, 4)
+	second := keyForHashSlot(t, 0, 4)
+
+	routes, err := r.RouteKeys([]string{first, second})
+	if err != nil {
+		t.Fatalf("RouteKeys() error = %v", err)
+	}
+	if len(routes) != 2 {
+		t.Fatalf("routes = %d, want 2", len(routes))
+	}
+	if routes[0].HashSlot != 3 || routes[0].SlotID != 2 || routes[0].Leader != 2 {
+		t.Fatalf("first route = %#v, want hashSlot=3 slot=2 leader=2", routes[0])
+	}
+	if routes[1].HashSlot != 0 || routes[1].SlotID != 1 || routes[1].Leader != 1 {
+		t.Fatalf("second route = %#v, want hashSlot=0 slot=1 leader=1", routes[1])
+	}
+}
+
 func TestRouterReturnsTypedErrors(t *testing.T) {
 	r := NewRouter()
 	if _, err := r.RouteHashSlot(0); !errors.Is(err, ErrRouteNotReady) {

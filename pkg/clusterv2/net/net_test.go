@@ -154,12 +154,12 @@ func TestTransportClientShardsRPCsByService(t *testing.T) {
 	}
 }
 
-func TestTransportServerUsesLargerAppendServiceConcurrency(t *testing.T) {
-	const wantAppendConcurrency = 512
+func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T) {
+	const wantWriteConcurrency = 512
 
 	observer := &recordingTransportObserver{}
 	server := NewTransportServer(TransportServerConfig{Observer: observer})
-	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelAppendBatch} {
+	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelAppendBatch, RPCChannelWrite} {
 		serviceID := serviceID
 		server.Register(serviceID, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 			return []byte{serviceID}, nil
@@ -181,6 +181,9 @@ func TestTransportServerUsesLargerAppendServiceConcurrency(t *testing.T) {
 	if _, err := client.Call(context.Background(), 2, RPCChannelAppendBatch, []byte("append")); err != nil {
 		t.Fatalf("Call(append batch) error = %v", err)
 	}
+	if _, err := client.Call(context.Background(), 2, RPCChannelWrite, []byte("channel write")); err != nil {
+		t.Fatalf("Call(channel write) error = %v", err)
+	}
 
 	pullEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
 		return event.Name == "service_inflight" &&
@@ -196,8 +199,17 @@ func TestTransportServerUsesLargerAppendServiceConcurrency(t *testing.T) {
 			event.ServiceID == uint16(RPCChannelAppendBatch) &&
 			event.Inflight == 1
 	})
-	if appendEvent.Capacity != wantAppendConcurrency {
-		t.Fatalf("append service capacity = %d, want %d", appendEvent.Capacity, wantAppendConcurrency)
+	if appendEvent.Capacity != wantWriteConcurrency {
+		t.Fatalf("append service capacity = %d, want %d", appendEvent.Capacity, wantWriteConcurrency)
+	}
+
+	writeEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+		return event.Name == "service_inflight" &&
+			event.ServiceID == uint16(RPCChannelWrite) &&
+			event.Inflight == 1
+	})
+	if writeEvent.Capacity != wantWriteConcurrency {
+		t.Fatalf("channel write service capacity = %d, want %d", writeEvent.Capacity, wantWriteConcurrency)
 	}
 }
 

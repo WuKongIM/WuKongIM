@@ -2,11 +2,13 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -114,7 +116,7 @@ func (c *Client) ForwardSendBatch(ctx context.Context, target channelwrite.Autho
 	}
 	respBody, err := c.node.CallRPC(ctx, target.LeaderNodeID, ChannelWriteRPCServiceID, body)
 	if err != nil {
-		return channelWriteFillActiveErrors(results, activeIndexes, err)
+		return channelWriteFillActiveErrors(results, activeIndexes, channelWriteRPCError(err))
 	}
 	resp, err := decodeChannelWriteResponse(respBody)
 	if err != nil {
@@ -130,6 +132,19 @@ func (c *Client) ForwardSendBatch(ctx context.Context, target channelwrite.Autho
 		results[activeIndexes[i]] = result
 	}
 	return results
+}
+
+func channelWriteRPCError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, transportv2.ErrCanceled):
+		return context.Canceled
+	case errors.Is(err, transportv2.ErrTimeout):
+		return context.DeadlineExceeded
+	default:
+		return err
+	}
 }
 
 func channelWriteRelativeTimeout(item channelwrite.SendBatchItem, now time.Time) time.Duration {

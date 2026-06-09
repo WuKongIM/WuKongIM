@@ -55,6 +55,10 @@ type recipientAuthorityRouteNode interface {
 	RouteKey(string) (clusterv2.Route, error)
 }
 
+type recipientAuthorityBatchRouteNode interface {
+	RouteKeys([]string) ([]clusterv2.Route, error)
+}
+
 func (r channelWriteRecipientResolver) ResolveRecipientAuthority(ctx context.Context, uid string) (channelwrite.RecipientAuthorityTarget, error) {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -74,6 +78,54 @@ func (r channelWriteRecipientResolver) ResolveRecipientAuthority(ctx context.Con
 	if err != nil {
 		return channelwrite.RecipientAuthorityTarget{}, channelWriteRouteError(err)
 	}
+	return channelWriteRecipientTargetFromRoute(route)
+}
+
+func (r channelWriteRecipientResolver) ResolveRecipientAuthorities(ctx context.Context, uids []string) (map[string]channelwrite.RecipientAuthorityTarget, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if r.node == nil {
+		return nil, channelwrite.ErrRouteNotReady
+	}
+	if batchNode, ok := r.node.(recipientAuthorityBatchRouteNode); ok {
+		routes, err := batchNode.RouteKeys(uids)
+		if err != nil {
+			return nil, channelWriteRouteError(err)
+		}
+		if len(routes) != len(uids) {
+			return nil, channelwrite.ErrRouteNotReady
+		}
+		targets := make(map[string]channelwrite.RecipientAuthorityTarget, len(uids))
+		for i, uid := range uids {
+			target, err := channelWriteRecipientTargetFromRoute(routes[i])
+			if err != nil {
+				return nil, err
+			}
+			targets[uid] = target
+		}
+		return targets, nil
+	}
+	targets := make(map[string]channelwrite.RecipientAuthorityTarget, len(uids))
+	for _, uid := range uids {
+		target, err := r.ResolveRecipientAuthority(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		targets[uid] = target
+	}
+	return targets, nil
+}
+
+func channelWriteRecipientTargetFromRoute(route clusterv2.Route) (channelwrite.RecipientAuthorityTarget, error) {
 	if route.Leader == 0 {
 		return channelwrite.RecipientAuthorityTarget{}, channelwrite.ErrRouteNotReady
 	}

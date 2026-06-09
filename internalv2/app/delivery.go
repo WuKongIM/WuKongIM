@@ -8,6 +8,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
@@ -103,6 +104,43 @@ func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time
 	if o.app.metrics != nil {
 		o.app.metrics.Message.ObserveAppend(path, result, dur)
 	}
+}
+
+func (o deliveryMessageObserver) ObserveChannelWriteRouter(event channelwrite.RouterObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.ObserveRouter(event.Path, event.Result, event.Items, event.Duration)
+}
+
+func (o deliveryMessageObserver) ObserveChannelWriteLocalAdmission(event channelwrite.LocalAdmissionObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.ObserveLocalAdmission(event.ReactorID, event.Result, event.Items)
+}
+
+func (o deliveryMessageObserver) SetChannelWriteReactorPressure(event channelwrite.ReactorPressureObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.SetReactorPressure(
+		event.ReactorID,
+		event.MailboxDepth,
+		event.MailboxCapacity,
+		event.EffectSlotsUsed,
+		event.EffectSlotsCapacity,
+		event.PendingAppendItems,
+		event.AppendInflightItems,
+		event.PostCommitBacklog,
+	)
+}
+
+func (o deliveryMessageObserver) ObserveChannelWriteEffect(event channelwrite.EffectObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.ObserveEffect(event.Stage, event.Result, event.Items, event.Duration)
 }
 
 func appendFailureLogLine(path string, err error) string {

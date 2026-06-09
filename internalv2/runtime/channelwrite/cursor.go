@@ -3,12 +3,14 @@ package channelwrite
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type cursorPorts struct {
 	store          CursorStore
 	reader         CommittedReader
 	replayPageSize int
+	observer       AppendObserver
 }
 
 type cursorEffect struct {
@@ -33,6 +35,12 @@ func (p cursorPorts) enabled() bool {
 }
 
 func (e cursorEffect) run(runtimeCtx context.Context, ports cursorPorts) cursorCompletedEvent {
+	startedAt := time.Now()
+	result := channelWriteResultOK
+	items := 0
+	defer func() {
+		observeEffect(ports.observer, EffectObservation{Stage: "replay", Result: result, Items: items, Duration: elapsedSince(startedAt)})
+	}()
 	event := cursorCompletedEvent{key: e.key, done: true}
 	if ports.store == nil {
 		return event
@@ -42,6 +50,7 @@ func (e cursorEffect) run(runtimeCtx context.Context, ports cursorPorts) cursorC
 	if e.load {
 		cursor, err := ports.store.LoadPostCommitCursor(runtimeCtx, e.channelID)
 		if err != nil {
+			result = errorClass(err)
 			event.err = fmt.Errorf("%w: load post-commit cursor: %w", ErrCommitEffectFailed, err)
 			return event
 		}
@@ -57,10 +66,12 @@ func (e cursorEffect) run(runtimeCtx context.Context, ports cursorPorts) cursorC
 	limit := boundedPositive(e.limit, defaultReplayPageSize)
 	messages, err := ports.reader.ReadCommittedFrom(runtimeCtx, e.channelID, fromSeq, limit)
 	if err != nil {
+		result = errorClass(err)
 		event.err = fmt.Errorf("%w: read post-commit replay: %w", ErrCommitEffectFailed, err)
 		return event
 	}
 	event.messages = cloneCommittedMessages(messages)
+	items = len(event.messages)
 	event.nextSeq = nextReplaySeq(fromSeq, event.messages)
 	event.done = len(event.messages) < limit
 	return event

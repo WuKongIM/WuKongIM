@@ -163,6 +163,31 @@ func (n *Node) RouteKey(key string) (Route, error) {
 	return n.routeWithAuthorityEpoch(convertRoute(n.router.RouteKey(key)))
 }
 
+// RouteKeys routes keys using the currently installed route snapshot and preserves input order.
+func (n *Node) RouteKeys(keys []string) ([]Route, error) {
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	routes, err := n.router.RouteKeys(keys)
+	if err != nil {
+		return nil, mapRouteError(err)
+	}
+	out := make([]Route, len(routes))
+	for i, route := range routes {
+		converted, err := convertRoute(route, nil)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = converted
+	}
+	n.mu.RLock()
+	for i := range out {
+		out[i].AuthorityEpoch = n.routeAuthorityEpochs[out[i].HashSlot]
+	}
+	n.mu.RUnlock()
+	return out, nil
+}
+
 // RouteHashSlot routes hashSlot using the currently installed route snapshot.
 func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 	if err := n.ensureForeground(); err != nil {

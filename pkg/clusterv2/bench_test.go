@@ -2,6 +2,7 @@ package clusterv2
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -21,6 +22,21 @@ func BenchmarkRouteKey(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := router.RouteKey("bench-user"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRouteKeys64(b *testing.B) {
+	router := newBenchRouter(b, 1)
+	keys := make([]string, 64)
+	for i := range keys {
+		keys[i] = "bench-user-" + strconv.Itoa(i)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := router.RouteKeys(keys); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 )
@@ -68,18 +69,18 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		return errors.New("channelwrite: recipient authority resolver required")
 	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
+	recipients, uids := normalizeRecipientsForAuthorityResolution(recipients)
+	if len(recipients) == 0 {
+		return nil
+	}
+	targets, err := resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, uids)
+	if err != nil {
+		return err
+	}
 	grouped := make(map[RecipientAuthorityTarget][]Recipient)
 	order := make([]RecipientAuthorityTarget, 0)
 	for _, recipient := range recipients {
-		uid := strings.TrimSpace(recipient.UID)
-		if uid == "" {
-			continue
-		}
-		recipient.UID = uid
-		target, err := ports.recipientAuthorityResolver.ResolveRecipientAuthority(ctx, uid)
-		if err != nil {
-			return err
-		}
+		target := targets[recipient.UID]
 		if err := target.Validate(); err != nil {
 			return ErrRouteNotReady
 		}
@@ -88,24 +89,119 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		}
 		grouped[target] = append(grouped[target], recipient)
 	}
-	for _, target := range order {
-		recipients := grouped[target]
-		for len(recipients) > 0 {
-			n := batchSize
-			if n > len(recipients) {
-				n = len(recipients)
-			}
-			batch := RecipientBatch{
-				Event:      event.Clone(),
-				Recipients: append([]Recipient(nil), recipients[:n]...),
-			}
-			if err := ports.recipientRouter.DispatchRecipientBatch(ctx, target, batch); err != nil {
+	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
+	if concurrency <= 1 || len(order) <= 1 {
+		for _, target := range order {
+			if err := dispatchRecipientTarget(ctx, event, target, grouped[target], batchSize, ports.recipientRouter); err != nil {
 				return err
 			}
-			recipients = recipients[n:]
 		}
+		return nil
+	}
+	return dispatchRecipientTargetsConcurrent(ctx, event, order, grouped, batchSize, concurrency, ports.recipientRouter)
+}
+
+func normalizeRecipientsForAuthorityResolution(recipients []Recipient) ([]Recipient, []string) {
+	normalized := make([]Recipient, 0, len(recipients))
+	uids := make([]string, 0, len(recipients))
+	seen := make(map[string]struct{}, len(recipients))
+	for _, recipient := range recipients {
+		uid := strings.TrimSpace(recipient.UID)
+		if uid == "" {
+			continue
+		}
+		recipient.UID = uid
+		normalized = append(normalized, recipient)
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		uids = append(uids, uid)
+	}
+	return normalized, uids
+}
+
+func resolveRecipientAuthorityTargets(ctx context.Context, resolver RecipientAuthorityResolver, uids []string) (map[string]RecipientAuthorityTarget, error) {
+	if batchResolver, ok := resolver.(BatchRecipientAuthorityResolver); ok {
+		targets, err := batchResolver.ResolveRecipientAuthorities(ctx, append([]string(nil), uids...))
+		if err != nil {
+			return nil, err
+		}
+		return targets, nil
+	}
+	targets := make(map[string]RecipientAuthorityTarget, len(uids))
+	for _, uid := range uids {
+		target, err := resolver.ResolveRecipientAuthority(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		targets[uid] = target
+	}
+	return targets, nil
+}
+
+func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, target RecipientAuthorityTarget, recipients []Recipient, batchSize int, router RecipientAuthorityRouter) error {
+	for len(recipients) > 0 {
+		n := batchSize
+		if n > len(recipients) {
+			n = len(recipients)
+		}
+		batch := RecipientBatch{
+			Event:      event.Clone(),
+			Recipients: append([]Recipient(nil), recipients[:n]...),
+		}
+		if err := router.DispatchRecipientBatch(ctx, target, batch); err != nil {
+			return err
+		}
+		recipients = recipients[n:]
 	}
 	return nil
+}
+
+func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnvelope, order []RecipientAuthorityTarget, grouped map[RecipientAuthorityTarget][]Recipient, batchSize int, concurrency int, router RecipientAuthorityRouter) error {
+	if concurrency > len(order) {
+		concurrency = len(order)
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	targets := make(chan RecipientAuthorityTarget)
+	errs := make(chan error, 1)
+	var wg sync.WaitGroup
+	worker := func() {
+		defer wg.Done()
+		for target := range targets {
+			if err := dispatchRecipientTarget(runCtx, event, target, grouped[target], batchSize, router); err != nil {
+				select {
+				case errs <- err:
+					cancel()
+				default:
+				}
+				return
+			}
+		}
+	}
+	wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go worker()
+	}
+	for _, target := range order {
+		select {
+		case targets <- target:
+		case <-runCtx.Done():
+			break
+		}
+		if runCtx.Err() != nil {
+			break
+		}
+	}
+	close(targets)
+	wg.Wait()
+	select {
+	case err := <-errs:
+		return err
+	default:
+	}
+	return runCtx.Err()
 }
 
 func recipientsFromUIDs(uids []string) []Recipient {

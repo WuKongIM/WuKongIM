@@ -868,6 +868,60 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_message_committed_replay_pass_duration_seconds")
 }
 
+func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
+	reg := New(12, "node-12")
+	reg.ChannelWrite.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
+	reg.ChannelWrite.ObserveRouter("remote", "backpressured", 4, 5*time.Millisecond)
+	reg.ChannelWrite.ObserveLocalAdmission(2, "accepted", 8)
+	reg.ChannelWrite.ObserveLocalAdmission(2, "backpressured", 4)
+	reg.ChannelWrite.SetReactorPressure(2, 3, 1024, 9, 1024, 7, 2, 5)
+	reg.ChannelWrite.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
+	reg.ChannelWrite.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	router := requireMetricFamily(t, families, "wukongim_channelwrite_router_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, router, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"path":      "remote",
+		"result":    "backpressured",
+	}).GetCounter().GetValue())
+
+	admission := requireMetricFamily(t, families, "wukongim_channelwrite_local_admission_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, admission, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"result":     "accepted",
+	}).GetCounter().GetValue())
+
+	state := requireMetricFamily(t, families, "wukongim_channelwrite_reactor_state_items")
+	require.Equal(t, float64(5), findMetricByLabels(t, state, map[string]string{
+		"node_id":    "12",
+		"node_name":  "node-12",
+		"reactor_id": "2",
+		"kind":       "post_commit_backlog",
+	}).GetGauge().GetValue())
+
+	effect := requireMetricFamily(t, families, "wukongim_channelwrite_effect_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, effect, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "post_commit",
+		"result":    "route_not_ready",
+	}).GetCounter().GetValue())
+
+	for _, family := range []*dto.MetricFamily{router, admission, state, effect} {
+		for _, metric := range family.GetMetric() {
+			requireNoMetricLabel(t, metric, "uid")
+			requireNoMetricLabel(t, metric, "channel_id")
+			requireNoMetricLabel(t, metric, "channelID")
+		}
+	}
+}
+
 func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	reg := New(1, "n1")
 	reg.Delivery.ObserveResolve("person", "ok", 2*time.Millisecond, 1, 2)

@@ -3,6 +3,7 @@ package channelwrite
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -45,6 +46,52 @@ func TestRouterRemotePathCallsForwardSendBatch(t *testing.T) {
 	}
 	if local.calls != 0 {
 		t.Fatalf("local calls = %d, want 0", local.calls)
+	}
+}
+
+func TestRouterResolvesSameChannelBatchOnce(t *testing.T) {
+	target := routerTarget("same", 2, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	local := &routerLocalSubmitterForTest{results: []SendBatchItemResult{
+		{Result: SendResult{MessageID: 10, MessageSeq: 1, Reason: ReasonSuccess}},
+		{Result: SendResult{MessageID: 11, MessageSeq: 2, Reason: ReasonSuccess}},
+	}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	results := router.SendBatch([]SendBatchItem{
+		routerItem("u1", "same", 2),
+		routerItem("u2", "same", 2),
+	})
+
+	if len(results) != 2 || results[0].Result.MessageID != 10 || results[1].Result.MessageID != 11 {
+		t.Fatalf("results = %#v, want both local successes", results)
+	}
+	if resolver.calls != 1 {
+		t.Fatalf("resolver calls = %d, want one authority resolve for same channel batch", resolver.calls)
+	}
+	if local.calls != 1 || len(local.items) != 2 {
+		t.Fatalf("local calls/items = %d/%d, want one submit with both items", local.calls, len(local.items))
+	}
+}
+
+func TestRouterAllItemsContextDoesNotStartWaitersForPlainItems(t *testing.T) {
+	items := make([]SendBatchItem, 128)
+	for i := range items {
+		items[i] = routerItem("u1", "room", 2)
+		items[i].Context = context.Background()
+	}
+
+	before := runtime.NumGoroutine()
+	ctx, cancel := routerAllItemsContext(items)
+	defer cancel()
+	if err := contextErr(ctx); err != nil {
+		t.Fatalf("routerAllItemsContext() context error = %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	after := runtime.NumGoroutine()
+	if delta := after - before; delta > 8 {
+		cancel()
+		t.Fatalf("routerAllItemsContext spawned %d goroutines for plain items, want <= 8", delta)
 	}
 }
 
@@ -211,6 +258,21 @@ func TestRouterItemDeadlineDoesNotPoisonSameAuthorityBatch(t *testing.T) {
 	}
 	if results[1].Err != nil || results[1].Result.MessageID != 2 {
 		t.Fatalf("second result = %#v, want unaffected success", results[1])
+	}
+}
+
+func TestRouterMapsTerminalCanceledAfterItemDeadlineToTimeout(t *testing.T) {
+	target := routerTarget("deadline-timeout", 2, 8)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}
+	remote := &routerRemoteForTest{waitContextDone: true}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Remote: remote})
+
+	item := routerItem("u1", "deadline-timeout", 2)
+	item.Deadline = time.Now().Add(5 * time.Millisecond)
+
+	results := router.SendBatch([]SendBatchItem{item})
+	if len(results) != 1 || !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("results = %#v, want deadline exceeded", results)
 	}
 }
 
@@ -392,17 +454,18 @@ func (s *routerLocalSubmitterForTest) SubmitLocal(_ context.Context, target Auth
 }
 
 type routerRemoteForTest struct {
-	mu      sync.Mutex
-	results []SendBatchItemResult
-	target  AuthorityTarget
-	items   []SendBatchItem
-	calls   int
-	entered chan<- struct{}
-	once    sync.Once
-	release <-chan struct{}
+	mu              sync.Mutex
+	results         []SendBatchItemResult
+	target          AuthorityTarget
+	items           []SendBatchItem
+	calls           int
+	entered         chan<- struct{}
+	once            sync.Once
+	release         <-chan struct{}
+	waitContextDone bool
 }
 
-func (r *routerRemoteForTest) ForwardSendBatch(_ context.Context, target AuthorityTarget, items []SendBatchItem) []SendBatchItemResult {
+func (r *routerRemoteForTest) ForwardSendBatch(ctx context.Context, target AuthorityTarget, items []SendBatchItem) []SendBatchItemResult {
 	r.mu.Lock()
 	r.calls++
 	r.target = target
@@ -413,6 +476,10 @@ func (r *routerRemoteForTest) ForwardSendBatch(_ context.Context, target Authori
 	}
 	if r.release != nil {
 		<-r.release
+	}
+	if r.waitContextDone {
+		<-ctx.Done()
+		return routerErrorResults(len(items), ctx.Err())
 	}
 	return r.results
 }

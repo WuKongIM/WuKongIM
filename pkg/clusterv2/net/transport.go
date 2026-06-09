@@ -11,7 +11,7 @@ import (
 const defaultTransportQueueSize = 4096
 const defaultTransportPoolSize = 16
 const defaultTransportServiceConcurrency = 128
-const defaultTransportAppendServiceConcurrency = 512
+const defaultTransportForegroundWriteServiceConcurrency = 512
 const defaultTransportServiceQueueSize = 4096
 const defaultTransportServiceMaxQueueBytes = 64 << 20
 
@@ -22,7 +22,7 @@ type TransportServerConfig struct {
 	// MaxPayload rejects inbound RPC payloads larger than this many bytes when positive.
 	MaxPayload int
 	// Service configures the bounded worker pool used for typed RPC services.
-	// Append forward services use a higher default concurrency when Concurrency is unset.
+	// Foreground channel write services use a higher default concurrency when Concurrency is unset.
 	Service TransportServiceConfig
 	// Limits bounds inbound frame sizes, scheduler queues, batching, and write timeouts.
 	Limits transportv2.Limits
@@ -221,15 +221,15 @@ func servicePriority(serviceID uint8) transportv2.Priority {
 
 func (s *TransportServer) serviceOptions(serviceID uint8) transportv2.ServiceOptions {
 	cfg := s.cfg.Service
-	if isAppendForwardService(serviceID) && cfg.Concurrency <= 0 {
-		cfg.Concurrency = defaultTransportAppendServiceConcurrency
+	if isForegroundChannelWriteService(serviceID) && cfg.Concurrency <= 0 {
+		cfg.Concurrency = defaultTransportForegroundWriteServiceConcurrency
 	}
 	return normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
 }
 
-func isAppendForwardService(serviceID uint8) bool {
+func isForegroundChannelWriteService(serviceID uint8) bool {
 	switch serviceID {
-	case RPCChannelAppend, RPCChannelAppendBatch:
+	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelWrite:
 		return true
 	default:
 		return false

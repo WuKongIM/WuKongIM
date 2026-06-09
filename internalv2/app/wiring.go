@@ -358,6 +358,8 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				LocalNodeID:                 nodeID,
 				Appender:                    clusterinfra.NewChannelAppender(appendNode),
 				MessageID:                   newNodeMessageIDs(nodeID),
+				ReactorCount:                a.cfg.Delivery.ChannelWriteReactorCount,
+				EffectWorkerCount:           a.cfg.Delivery.ChannelWriteEffectWorkers,
 				RecipientBatchSize:          a.cfg.Delivery.PushBatchSize,
 				SubscriberPageSize:          a.cfg.Delivery.FanoutPageSize,
 				DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
@@ -382,8 +384,10 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				opts.PresenceResolver = channelWritePresenceResolver{presence: a.presence}
 				opts.OwnerPusher = a.channelWriteOwnerPusher(nodeID)
 			}
+			var observer deliveryMessageObserver
 			if a.cfg.Delivery.Enabled || a.metrics != nil {
-				opts.Observer = deliveryMessageObserver{app: a}
+				observer = deliveryMessageObserver{app: a}
+				opts.Observer = observer
 			}
 			if cursorNode, ok := a.cluster.(clusterinfra.ChannelWriteCursorMetadataNode); ok {
 				opts.CursorStore = clusterinfra.NewChannelWriteCursorStore(cursorNode)
@@ -413,6 +417,7 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				Remote:             client,
 				MaxOutboundPerNode: a.cfg.Delivery.EventQueueSize,
 				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
+				Observer:           observer,
 			})
 			a.channelWrites = group
 			a.channelWriteRouter = router

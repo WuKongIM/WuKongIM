@@ -405,6 +405,65 @@ runtime_pool_attempt_summary() {
   ' "$metrics"
 }
 
+channelwrite_attempt_summary() {
+  local metrics="$1"
+  if [[ ! -f "$metrics" ]]; then
+    printf '0\t0\t0\t0\t0\t0\t0\t0.000\t0.000\t0\t0\n'
+    return
+  fi
+  awk -F'\t' '
+    function metric_value(name, col) {
+      col = idx[name]
+      if (col <= 0) {
+        return 0
+      }
+      return $col + 0
+    }
+    function max_value(current, value) {
+      if (value > current) {
+        return value
+      }
+      return current
+    }
+    NR == 1 {
+      for (i = 1; i <= NF; i++) {
+        idx[$i] = i
+      }
+      next
+    }
+    {
+      router_total += metric_value("router_total_delta")
+      router_error += metric_value("router_error_delta")
+      router_backpressured += metric_value("router_backpressured_delta")
+      router_channel_busy += metric_value("router_channel_busy_delta")
+      router_route_not_ready += metric_value("router_route_not_ready_delta")
+      router_timeout += metric_value("router_timeout_delta")
+      local_rejected += metric_value("local_admission_rejected_delta")
+      mailbox_fill = max_value(mailbox_fill, metric_value("mailbox_fill_max"))
+      effect_slots_capacity = metric_value("effect_slots_capacity_max")
+      if (effect_slots_capacity > 0) {
+        effect_slots_fill = max_value(effect_slots_fill, metric_value("effect_slots_max") / effect_slots_capacity)
+      }
+      post_commit_backlog = max_value(post_commit_backlog, metric_value("post_commit_backlog_max"))
+      effect_error += metric_value("effect_error_delta")
+    }
+    END {
+      printf "%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+        router_total,
+        router_error,
+        router_backpressured,
+        router_channel_busy,
+        router_route_not_ready,
+        router_timeout,
+        local_rejected,
+        mailbox_fill,
+        effect_slots_fill,
+        post_commit_backlog,
+        effect_error
+    }
+  ' "$metrics"
+}
+
 write_runtime_pool_pressure_summary() {
   local out="$OUT_DIR/runtime_pool_pressure_summary.tsv"
   local qps tag attempt_dir file line
@@ -523,11 +582,13 @@ append_attempt_summary() {
   local summary="$attempt_dir/summary.tsv"
   local p99_limit
   local runtime_pool
+  local channelwrite
   p99_limit="$(duration_seconds "$STABLE_P99")"
   runtime_pool="$(runtime_pool_attempt_summary "$attempt_dir/channelv2_metrics_summary.tsv")"
+  channelwrite="$(channelwrite_attempt_summary "$attempt_dir/channelwrite_metrics_summary.tsv")"
   if [[ ! -f "$summary" ]]; then
-    printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\tFAIL\tmissing_summary\t%s\n' \
-      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
+    printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\t%s\tFAIL\tmissing_summary\t%s\n' \
+      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$channelwrite" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
     return
   fi
   awk -F'\t' \
@@ -535,9 +596,11 @@ append_attempt_summary() {
     -v child_exit="$child_exit" \
     -v min_ratio="$MIN_ACTUAL_RATIO" \
     -v p99_limit="$p99_limit" \
-    -v runtime_pool="$runtime_pool" '
+    -v runtime_pool="$runtime_pool" \
+    -v channelwrite="$channelwrite" '
     BEGIN {
       split(runtime_pool, pool, "\t")
+      split(channelwrite, cw, "\t")
     }
     NR == 1 { next }
     {
@@ -582,11 +645,12 @@ append_attempt_summary() {
         result = "FAIL"
         note = "actual_ratio"
       }
-      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+      printf "%s\t%.6g\t%s\t%s\t%s\t%.3f\t%.1f\t%.0f\t%.0f\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%.6g\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
         tag, offered, attempt_dir, child_exit, status, ratio, actual, send_success, send_errors,
         connect_error_rate, sendack_error_rate, p50, p95, p99, max,
         pool[1], pool[2], pool[3], pool[4], pool[5],
         pool[6], pool[7], pool[8], pool[9], pool[10],
+        cw[1], cw[2], cw[3], cw[4], cw[5], cw[6], cw[7], cw[8], cw[9], cw[10], cw[11],
         result, note, attempt_dir
     }
   ' "$summary" >>"$OUT_DIR/summary.tsv"
@@ -597,7 +661,7 @@ write_display_summary() {
   awk -F'\t' '
     BEGIN {
       print "# real qps result"
-      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %11s %9s %9s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "poolfill", "poolinflight", "full", "busy", "note"
+      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %9s %9s %8s %8s %8s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "cw_err", "cw_busy", "cw_bp", "cw_mb", "cw_eff", "cw_pc", "note"
     }
     NR == 1 { next }
     {
@@ -608,14 +672,16 @@ write_display_summary() {
       p95 = $13 + 0
       p99 = $14 + 0
       max = $15 + 0
-      pool_fill = $17 + 0
-      pool_inflight = $20 + 0
-      pool_full = $22 + 0
-      pool_busy = $23 + 0
-      result = $26
-      note = $27
-      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.3f %11.0f %9.0f %9.0f %s\n",
-        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, pool_fill, pool_inflight, pool_full, pool_busy, note
+      cw_error = $27 + 0
+      cw_backpressured = $28 + 0
+      cw_busy = $29 + 0
+      cw_mailbox_fill = $33 + 0
+      cw_effect_fill = $34 + 0
+      cw_post_commit = $35 + 0
+      result = $37
+      note = $38
+      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.0f %9.0f %9.0f %8.3f %8.3f %8.0f %s\n",
+        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, cw_error, cw_busy, cw_backpressured, cw_mailbox_fill, cw_effect_fill, cw_post_commit, note
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
   append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
@@ -649,6 +715,7 @@ write_markdown_summary() {
 - attempt_dirs: one child directory per offered QPS value
 - runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns
 - runtime_pool_pressure: runtime_pool_pressure_summary.tsv
+- channelwrite_metrics: each attempt's channelwrite_metrics_summary.tsv, aggregated into summary.tsv
 
 ## Result
 $(awk '/^# runtime pool pressure/ { exit } NR > 1 { print }' "$OUT_DIR/summary.txt" 2>/dev/null || true)
@@ -703,7 +770,7 @@ main() {
   mkdir -p "$OUT_DIR"
   write_metadata
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	result	note	attempt_dir
+tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	channelwrite_router_total_delta	channelwrite_router_error_delta	channelwrite_router_backpressured_delta	channelwrite_router_channel_busy_delta	channelwrite_router_route_not_ready_delta	channelwrite_router_timeout_delta	channelwrite_local_admission_rejected_delta	channelwrite_mailbox_fill_max	channelwrite_effect_slots_fill_max	channelwrite_post_commit_backlog_max	channelwrite_effect_error_delta	result	note	attempt_dir
 EOF
   local qps
   for qps in "${QPS_VALUES[@]}"; do

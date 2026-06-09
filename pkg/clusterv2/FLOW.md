@@ -46,8 +46,11 @@ pull and pull-hint traffic.
 installed routing table. Each `RouteAuthority` carries
 `(HashSlot, SlotID, LeaderNodeID, RouteRevision, AuthorityEpoch)` so callers can
 fence authority-side state. `AuthorityEpoch` changes when the observed authority
-identity changes for a hash slot and is included in `RouteKey` / `RouteHashSlot`
-results.
+identity changes for a hash slot and is included in `RouteKey`, `RouteKeys`,
+and `RouteHashSlot` results. `RouteKeys` resolves all keys against one installed
+routing snapshot and returns results in input order, allowing upper layers to
+batch UID authority lookups without repeatedly loading the foreground route
+table.
 
 ## Start Flow
 
@@ -155,12 +158,14 @@ Node.AppendChannel / AppendChannelBatch
 
 Append forwarding uses a channel-key shard on the typed node RPC transport, and
 the default transportv2 wiring gives append, follower pull, and pull-hint
-traffic separate service queues plus weighted priorities. Append forward
-services also use a larger default service concurrency because their handlers
-mostly wait on ChannelV2 append/quorum futures while ChannelV2 and DB pools keep
-the real storage backpressure boundary. This keeps foreground append pressure
-visible separately from replication traffic and reduces head-of-line blocking
-when they share peer connections. If a forwarded append times out and the origin
+traffic separate service queues plus weighted priorities. Foreground channel
+write services also use a larger default service concurrency: ChannelV2
+append-forward handlers mostly wait on ChannelV2 append/quorum futures, and
+internalv2 `RPCChannelWrite` handlers wait on channelwrite append futures.
+ChannelV2, channelwrite reactors, and DB pools keep the real storage
+backpressure boundary. This keeps foreground write pressure visible separately
+from replication traffic and reduces head-of-line blocking when they share peer
+connections. If a forwarded append times out and the origin
 node is also a channel replica, `channels.Service` may perform a bounded local
 committed-message lookup. Recovery reports success only for message ids whose
 durable row is visible under local HW; missing or uncommitted rows keep the

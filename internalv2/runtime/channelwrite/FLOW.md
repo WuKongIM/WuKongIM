@@ -42,7 +42,10 @@ waiting for retry wakeups. Once local or remote authority returns item-aligned
 results, those results are preserved so a late deadline cannot erase a durable
 append success or its committed handoff. This prevents one item context or
 deadline from canceling other items that happen to share the same authority
-batch.
+batch. When a shared transport context is canceled only after an item's own
+deadline has expired, the item result is reported as deadline-exceeded rather
+than a generic cancellation so metrics keep send-timeout failures distinct from
+caller/session cancellation.
 
 ## Authority-Only State
 
@@ -103,12 +106,15 @@ in-flight item count is below `PendingItemHighWatermark`; saturated channels
 complete those items with `ErrChannelBusy` before they reach the append port.
 
 The owning reactor builds channel-aligned append batches from prepared pending
-items and keeps one append in flight per channel. `AppendInflightLimit` is
-reserved for future ordered appender work and is not honored yet for
-same-channel concurrency. Blocking `Appender.AppendBatch` calls run in worker
-goroutines and return completion events to the same authority reactor. Append
-requests clone payloads at the appender boundary and carry the resolved
-authority epoch and leader epoch as append fences.
+items and keeps up to `AppendInflightLimit` append batches in flight per
+channel. Blocking `Appender.AppendBatch` calls run in worker goroutines and
+return completion events to the same authority reactor. Completion events are
+drained by append sequence before mutating `channelState`, so SENDACK and
+post-commit handoff remain in submission order even when same-channel append
+workers finish out of order. The appender port must preserve durable per-channel
+append order for concurrent same-channel requests or serialize the requests
+internally. Append requests clone payloads at the appender boundary and carry
+the resolved authority epoch and leader epoch as append fences.
 
 Batch-level `ErrRouteNotReady`, `ErrNotLeader`, and `ErrStaleRoute` are retried
 with bounded backoff while at least one active item deadline remains. Short
@@ -129,9 +135,12 @@ than running live recipient effects ahead of unreplayed durable messages.
 Post-commit work is scheduled from the authority `channelState` after durable
 append succeeds and is independent from `SENDACK` completion. A committed
 envelope remains pending until its recipient dispatch succeeds or reaches the
-bounded in-memory retry cap. Success checkpoints the committed channel
-sequence through the cursor store after recipient authority dispatch is
-accepted, then prunes the payload-bearing envelope from the backlog. Cursor
+bounded in-memory retry cap. Each channel keeps only one committed envelope in
+flight, so cursor checkpoint order remains message-sequential; concurrency is
+limited to recipient authority targets inside that envelope. Success then
+checkpoints the committed channel sequence through the cursor store after
+recipient authority dispatch is accepted, and prunes the payload-bearing
+envelope from the backlog. Cursor
 checkpoint errors retry the same committed envelope without changing the
 already-completed `SENDACK`; if the process restarts before checkpoint success,
 durable replay starts again from the previous cursor and duplicate replay must
@@ -150,8 +159,11 @@ not load all subscribers before recipient dispatch. A non-terminal subscriber
 page must return a non-empty cursor different from the previous cursor;
 otherwise dispatch fails before that page's recipients are dispatched, avoiding
 duplicate effects on retry. Recipient batches are grouped by the full fenced
-recipient authority target, and invalid targets map to route-not-ready before
-dispatch.
+recipient authority target. UID authority resolution is performed once per
+unique trimmed UID and uses the optional batch resolver when available; invalid
+or missing targets map to route-not-ready before dispatch. Different recipient
+authority targets may dispatch concurrently up to the effect worker count;
+batches for the same target are dispatched sequentially.
 
 Recipient-authority processing applies conversation patches before resolving
 online delivery routes. Delivery pushes are grouped by owner node. The sender's

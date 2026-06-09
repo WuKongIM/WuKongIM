@@ -64,6 +64,84 @@ type AppendObserver interface {
 	AppendFinished(path string, err error, dur time.Duration)
 }
 
+// RouterObservation describes one routed foreground SEND group.
+type RouterObservation struct {
+	// Path is local, remote, or pre_route.
+	Path string
+	// Result is a low-cardinality result or error class.
+	Result string
+	// Items is the number of items in the observed group.
+	Items int
+	// Duration is the foreground routing and submit duration.
+	Duration time.Duration
+}
+
+// RouterObserver receives foreground channel authority routing observations.
+type RouterObserver interface {
+	// ObserveChannelWriteRouter records one routed foreground SEND group.
+	ObserveChannelWriteRouter(RouterObservation)
+}
+
+// LocalAdmissionObservation describes local reactor admission for one group.
+type LocalAdmissionObservation struct {
+	// ReactorID is the local channel-hashed reactor id.
+	ReactorID int
+	// Result is accepted or a low-cardinality rejection class.
+	Result string
+	// Items is the number of items in the admitted group.
+	Items int
+}
+
+// LocalAdmissionObserver receives local authority admission observations.
+type LocalAdmissionObserver interface {
+	// ObserveChannelWriteLocalAdmission records one local reactor admission attempt.
+	ObserveChannelWriteLocalAdmission(LocalAdmissionObservation)
+}
+
+// ReactorPressureObservation describes bounded local authority reactor state.
+type ReactorPressureObservation struct {
+	// ReactorID is the local channel-hashed reactor id.
+	ReactorID int
+	// MailboxDepth is the current reactor mailbox depth.
+	MailboxDepth int
+	// MailboxCapacity is the configured reactor mailbox capacity.
+	MailboxCapacity int
+	// EffectSlotsUsed is the current accepted prepare/append/commit slot count.
+	EffectSlotsUsed int
+	// EffectSlotsCapacity is the configured accepted effect slot capacity.
+	EffectSlotsCapacity int
+	// PendingAppendItems is the total prepared-but-not-appended item count.
+	PendingAppendItems int
+	// AppendInflightItems is the total appender-owned item count.
+	AppendInflightItems int
+	// PostCommitBacklog is the total committed post-commit backlog count.
+	PostCommitBacklog int
+}
+
+// ReactorPressureObserver receives local reactor pressure gauges.
+type ReactorPressureObserver interface {
+	// SetChannelWriteReactorPressure records current bounded reactor pressure.
+	SetChannelWriteReactorPressure(ReactorPressureObservation)
+}
+
+// EffectObservation describes one asynchronous channel write effect.
+type EffectObservation struct {
+	// Stage is append, post_commit, or replay.
+	Stage string
+	// Result is ok or a low-cardinality error class.
+	Result string
+	// Items is the number of logical items handled by the effect.
+	Items int
+	// Duration is the effect runtime.
+	Duration time.Duration
+}
+
+// EffectObserver receives asynchronous append/post-commit/replay observations.
+type EffectObserver interface {
+	// ObserveChannelWriteEffect records one channel write effect.
+	ObserveChannelWriteEffect(EffectObservation)
+}
+
 // SubscriberSource pages channel subscribers for post-commit recipient selection.
 type SubscriberSource interface {
 	// NextSubscriberPage returns one bounded subscriber page for the requested channel.
@@ -77,6 +155,12 @@ type RecipientAuthorityTarget = authority.Target
 type RecipientAuthorityResolver interface {
 	// ResolveRecipientAuthority returns the recipient authority target for uid.
 	ResolveRecipientAuthority(context.Context, string) (RecipientAuthorityTarget, error)
+}
+
+// BatchRecipientAuthorityResolver resolves authority targets for multiple recipient UIDs.
+type BatchRecipientAuthorityResolver interface {
+	// ResolveRecipientAuthorities returns authority targets keyed by UID.
+	ResolveRecipientAuthorities(context.Context, []string) (map[string]RecipientAuthorityTarget, error)
 }
 
 // RecipientAuthorityRouter dispatches recipient batches to their authority target.
@@ -137,9 +221,10 @@ type Options struct {
 	MailboxSize int
 	// PendingItemHighWatermark is reserved for per-channel admission pressure. Values <= 0 use a bounded default.
 	PendingItemHighWatermark int
-	// AppendInflightLimit is reserved for future per-channel append concurrency; same-channel append is currently hard-capped at one in flight.
+	// AppendInflightLimit bounds same-channel append batches in flight. Values <= 0 use one in-flight batch.
 	AppendInflightLimit int
-	// EffectWorkerCount is the number of bounded prepare and append workers. Values <= 0 use one worker of each kind.
+	// EffectWorkerCount is the bounded worker count for prepare, append, replay, and post-commit effects.
+	// It also bounds per-message recipient-authority dispatch concurrency. Values <= 0 use one worker of each kind.
 	EffectWorkerCount int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
@@ -248,13 +333,15 @@ func appendPortsFromOptions(opts Options) appendPorts {
 
 func commitPortsFromOptions(opts Options) commitPorts {
 	return commitPorts{
-		subscribers:                opts.Subscribers,
-		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
-		recipientRouter:            opts.RecipientRouter,
-		cursorStore:                opts.CursorStore,
-		subscriberPageSize:         opts.SubscriberPageSize,
-		recipientBatchSize:         opts.RecipientBatchSize,
-		retryMaxAttempts:           opts.CommitRetryMaxAttempts,
+		subscribers:                  opts.Subscribers,
+		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
+		recipientRouter:              opts.RecipientRouter,
+		cursorStore:                  opts.CursorStore,
+		subscriberPageSize:           opts.SubscriberPageSize,
+		recipientBatchSize:           opts.RecipientBatchSize,
+		recipientDispatchConcurrency: opts.EffectWorkerCount,
+		retryMaxAttempts:             opts.CommitRetryMaxAttempts,
+		observer:                     opts.Observer,
 	}
 }
 
@@ -263,6 +350,7 @@ func cursorPortsFromOptions(opts Options) cursorPorts {
 		store:          opts.CursorStore,
 		reader:         opts.CommittedReader,
 		replayPageSize: opts.ReplayPageSize,
+		observer:       opts.Observer,
 	}
 }
 
