@@ -29,10 +29,14 @@ restarted because reactor mailboxes are closed as part of shutdown.
 ## Current Skeleton Scope
 
 This task implements only local authority validation, reactor routing,
-lifecycle, lazy state creation, and item-aligned futures. Once a submit event is
-accepted into a reactor mailbox, caller cancellation no longer turns the
-accepted event into a rejected submit. The skeleton completes the returned
-future with item-aligned `ErrNotAppended` results after admission, making the
-absence of durable append explicit without reporting fake append success.
-Prepare/validation effects, durable append, post-commit fanout, recipient
-delivery, router/RPC forwarding, and flow-control enforcement are later tasks.
+lifecycle, lazy state creation, and item-aligned futures. Submission checks
+caller cancellation before mailbox enqueue; once a submit event is accepted into
+a reactor mailbox, caller cancellation no longer turns the accepted event into a
+rejected submit. The group lock is held only through closed-state validation,
+reactor selection, and mailbox enqueue, then released while waiting for reactor
+admission ack so `Stop` can close admission promptly. The skeleton completes the
+returned future with item-aligned `ErrNotAppended` results after admission,
+making the absence of durable append explicit without reporting fake append
+success. Prepare/validation effects, durable append, post-commit fanout,
+recipient delivery, router/RPC forwarding, and flow-control enforcement are
+later tasks.

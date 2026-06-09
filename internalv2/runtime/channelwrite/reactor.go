@@ -72,7 +72,11 @@ func (r *reactor) wait(ctx context.Context) error {
 	}
 }
 
-func (r *reactor) submit(ctx context.Context, target AuthorityTarget, items []SendBatchItem, future *Future) error {
+func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []SendBatchItem, future *Future) (<-chan error, error) {
+	if err := contextErr(ctx); err != nil {
+		return nil, err
+	}
+
 	ack := make(chan error, 1)
 	event := submitLocalEvent{
 		target: target,
@@ -84,10 +88,10 @@ func (r *reactor) submit(ctx context.Context, target AuthorityTarget, items []Se
 	select {
 	case r.mailbox <- event:
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 
-	return <-ack
+	return ack, nil
 }
 
 func (e submitLocalEvent) apply(r *reactor) {

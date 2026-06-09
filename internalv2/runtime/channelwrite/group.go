@@ -128,9 +128,12 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 		return nil, ErrBackpressured
 	}
 	reactor := g.reactorForTarget(target)
-	err := reactor.submit(ctx, target, copiedItems, future)
+	ack, err := reactor.enqueue(ctx, target, copiedItems, future)
 	g.mu.RUnlock()
 	if err != nil {
+		return nil, err
+	}
+	if err := <-ack; err != nil {
 		return nil, err
 	}
 	return future, nil

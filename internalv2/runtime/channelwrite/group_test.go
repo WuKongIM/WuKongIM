@@ -40,6 +40,36 @@ func TestSubmitLocalRejectsRemoteAuthorityWithoutState(t *testing.T) {
 	}
 }
 
+func TestSubmitLocalCanceledBeforeSubmitNeverEnqueues(t *testing.T) {
+	for i := 0; i < 256; i++ {
+		group := New(Options{LocalNodeID: 1})
+		if err := group.Start(context.Background()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		future, err := group.SubmitLocal(ctx, target, []SendBatchItem{testSendItem("u1", "room")})
+		stateCount := group.StateCountForTest()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second)
+		stopErr := group.Stop(stopCtx)
+		stopCancel()
+		if stopErr != nil {
+			t.Fatalf("Stop() error = %v", stopErr)
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("iteration %d: SubmitLocal() error = %v, want context.Canceled", i, err)
+		}
+		if future != nil {
+			t.Fatalf("iteration %d: future = %v, want nil", i, future)
+		}
+		if stateCount != 0 {
+			t.Fatalf("iteration %d: canceled submit created %d states", i, stateCount)
+		}
+	}
+}
+
 func TestStartAfterStopKeepsAdmissionClosed(t *testing.T) {
 	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -108,6 +138,56 @@ func TestSubmitLocalFutureCompletesWithNotAppendedResults(t *testing.T) {
 		if !errors.Is(result.Err, ErrNotAppended) {
 			t.Fatalf("results[%d].Err = %v, want ErrNotAppended", i, result.Err)
 		}
+	}
+}
+
+func TestStopTimeoutClosesAdmissionWhileSubmitWaitsForAck(t *testing.T) {
+	group := New(Options{LocalNodeID: 1, MailboxSize: 1})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
+	reactor := group.reactorForTarget(target)
+	release := blockReactorForTest(t, reactor)
+	defer closeReleaseForTest(&release)
+
+	submitC := make(chan submitResult, 1)
+	go func() {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")})
+		submitC <- submitResult{future: future, err: err}
+	}()
+	waitForMailboxLen(t, reactor, 1)
+
+	stopC := make(chan error, 1)
+	go func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		stopC <- group.Stop(stopCtx)
+	}()
+	select {
+	case err := <-stopC:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Stop() error = %v, want context deadline", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatalf("Stop() did not observe context while submit waited for ack")
+	}
+	if err := group.Start(context.Background()); !errors.Is(err, ErrBackpressured) {
+		t.Fatalf("Start() error = %v, want ErrBackpressured", err)
+	}
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u2", "room")}); !errors.Is(err, ErrBackpressured) {
+		t.Fatalf("SubmitLocal() error = %v, want ErrBackpressured", err)
+	}
+
+	closeReleaseForTest(&release)
+	result := receiveSubmitResult(t, submitC)
+	if result.err != nil {
+		t.Fatalf("admitted SubmitLocal() error = %v", result.err)
+	}
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDrain()
+	if err := group.Stop(drainCtx); err != nil {
+		t.Fatalf("second Stop() error = %v", err)
 	}
 }
 
@@ -220,6 +300,14 @@ func blockReactorForTest(t *testing.T, reactor *reactor) chan struct{} {
 		t.Fatalf("reactor did not enter blocking event")
 	}
 	return release
+}
+
+func closeReleaseForTest(release *chan struct{}) {
+	if *release == nil {
+		return
+	}
+	close(*release)
+	*release = nil
 }
 
 func waitForMailboxLen(t *testing.T, reactor *reactor, want int) {
