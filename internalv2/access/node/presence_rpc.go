@@ -82,10 +82,6 @@ type Options struct {
 	DeliveryFanout DeliveryFanoutRunner
 	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
 	ConversationAuthority ConversationAuthority
-	// SenderAuthority handles sender UID authority SEND batches after payload decoding.
-	SenderAuthority SenderAuthority
-	// RecipientAuthority handles recipient UID authority post-commit requests after payload decoding.
-	RecipientAuthority RecipientAuthority
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -102,10 +98,6 @@ type Adapter struct {
 	deliveryFanout DeliveryFanoutRunner
 	// conversation owns UID conversation active cache decisions.
 	conversation ConversationAuthority
-	// senderAuthority owns sender UID authority SEND decisions.
-	senderAuthority SenderAuthority
-	// recipientAuthority owns recipient UID authority post-commit decisions.
-	recipientAuthority RecipientAuthority
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -115,7 +107,7 @@ func New(opts Options) *Adapter {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
-	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout, conversation: opts.ConversationAuthority, senderAuthority: opts.SenderAuthority, recipientAuthority: opts.RecipientAuthority, logger: opts.Logger}
+	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout, conversation: opts.ConversationAuthority, logger: opts.Logger}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
@@ -31,7 +31,7 @@ type ChannelAppendNode interface {
 	AppendChannelBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
 }
 
-// ChannelAppender adapts clusterv2 channel append to the message usecase port.
+// ChannelAppender adapts clusterv2 channel append to the channelwrite append port.
 type ChannelAppender struct {
 	node ChannelAppendNode
 }
@@ -41,10 +41,10 @@ func NewChannelAppender(node ChannelAppendNode) *ChannelAppender {
 	return &ChannelAppender{node: node}
 }
 
-// AppendBatch appends a message batch through clusterv2.
-func (a *ChannelAppender) AppendBatch(ctx context.Context, req message.AppendBatchRequest) (message.AppendBatchResult, error) {
+// AppendBatch appends a channelwrite message batch through clusterv2.
+func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelwrite.AppendBatchRequest) (channelwrite.AppendBatchResult, error) {
 	if a == nil || a.node == nil {
-		return message.AppendBatchResult{}, message.ErrAppenderRequired
+		return channelwrite.AppendBatchResult{}, channelwrite.ErrAppenderRequired
 	}
 	traceEnabled := appendRequestHasTrace(req) && sendtrace.Enabled()
 	var startedAt time.Time
@@ -71,7 +71,7 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req message.AppendBat
 		if traceEnabled {
 			recordChannelAppendTrace(req, nil, mappedErr, sendtrace.Elapsed(startedAt, time.Now()))
 		}
-		return message.AppendBatchResult{}, mappedErr
+		return channelwrite.AppendBatchResult{}, mappedErr
 	}
 	if traceEnabled {
 		recordChannelAppendTrace(req, res.Items, nil, sendtrace.Elapsed(startedAt, time.Now()))
@@ -79,7 +79,7 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req message.AppendBat
 	return fromChannelAppendResult(res), nil
 }
 
-func toChannelMessages(in []message.Message) []channelv2.Message {
+func toChannelMessages(in []channelwrite.Message) []channelv2.Message {
 	out := make([]channelv2.Message, 0, len(in))
 	for _, msg := range in {
 		out = append(out, channelv2.Message{
@@ -98,28 +98,28 @@ func toChannelMessages(in []message.Message) []channelv2.Message {
 	return out
 }
 
-func toChannelCommitMode(mode message.CommitMode) channelv2.CommitMode {
-	if mode == message.CommitModeLocal {
+func toChannelCommitMode(mode channelwrite.CommitMode) channelv2.CommitMode {
+	if mode == channelwrite.CommitModeLocal {
 		return channelv2.CommitModeLocal
 	}
 	return channelv2.CommitModeQuorum
 }
 
-func fromChannelAppendResult(res channelv2.AppendBatchResult) message.AppendBatchResult {
-	items := make([]message.AppendBatchItemResult, 0, len(res.Items))
+func fromChannelAppendResult(res channelv2.AppendBatchResult) channelwrite.AppendBatchResult {
+	items := make([]channelwrite.AppendBatchItemResult, 0, len(res.Items))
 	for _, item := range res.Items {
-		items = append(items, message.AppendBatchItemResult{
+		items = append(items, channelwrite.AppendBatchItemResult{
 			MessageID:  item.MessageID,
 			MessageSeq: item.MessageSeq,
 			Message:    fromChannelMessage(item.Message),
 			Err:        mapAppendError(item.Err),
 		})
 	}
-	return message.AppendBatchResult{Items: items}
+	return channelwrite.AppendBatchResult{Items: items}
 }
 
-func fromChannelMessage(msg channelv2.Message) message.Message {
-	return message.Message{
+func fromChannelMessage(msg channelv2.Message) channelwrite.Message {
+	return channelwrite.Message{
 		MessageID:         msg.MessageID,
 		MessageSeq:        msg.MessageSeq,
 		ChannelID:         msg.ChannelID,
@@ -133,7 +133,7 @@ func fromChannelMessage(msg channelv2.Message) message.Message {
 	}
 }
 
-func recordChannelAppendTrace(req message.AppendBatchRequest, items []channelv2.AppendBatchItemResult, batchErr error, duration time.Duration) {
+func recordChannelAppendTrace(req channelwrite.AppendBatchRequest, items []channelv2.AppendBatchItemResult, batchErr error, duration time.Duration) {
 	if !appendRequestHasTrace(req) || !sendtrace.Enabled() {
 		return
 	}
@@ -148,7 +148,7 @@ func recordChannelAppendTrace(req message.AppendBatchRequest, items []channelv2.
 	if recorded {
 		return
 	}
-	var first message.Message
+	var first channelwrite.Message
 	if len(req.Messages) > 0 {
 		first = req.Messages[0]
 	}
@@ -159,7 +159,7 @@ func recordChannelAppendTrace(req message.AppendBatchRequest, items []channelv2.
 	recordChannelAppendTraceForMessage(req, first, itemMessageSeq(items, 0), err, duration)
 }
 
-func recordChannelAppendTraceForMessage(req message.AppendBatchRequest, msg message.Message, messageSeq uint64, err error, duration time.Duration) {
+func recordChannelAppendTraceForMessage(req channelwrite.AppendBatchRequest, msg channelwrite.Message, messageSeq uint64, err error, duration time.Duration) {
 	traceID := msg.TraceID
 	if traceID == "" {
 		traceID = req.TraceID
@@ -198,7 +198,7 @@ func recordChannelAppendTraceForMessage(req message.AppendBatchRequest, msg mess
 	sendtrace.Record(event)
 }
 
-func appendRequestHasTrace(req message.AppendBatchRequest) bool {
+func appendRequestHasTrace(req channelwrite.AppendBatchRequest) bool {
 	if req.TraceID != "" {
 		return true
 	}
@@ -238,17 +238,17 @@ func channelAppendTraceOutcome(err error) (sendtrace.Result, string) {
 		return sendtrace.ResultCanceled, channelAppendTraceErrorCodeCanceled
 	case errors.Is(err, context.DeadlineExceeded):
 		return sendtrace.ResultTimeout, channelAppendTraceErrorCodeTimeout
-	case errors.Is(err, message.ErrRouteNotReady):
+	case errors.Is(err, channelwrite.ErrRouteNotReady):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeRouteNotReady
-	case errors.Is(err, message.ErrStaleRoute):
+	case errors.Is(err, channelwrite.ErrStaleRoute):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeStaleRoute
-	case errors.Is(err, message.ErrNotLeader):
+	case errors.Is(err, channelwrite.ErrNotLeader):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeNotLeader
-	case errors.Is(err, message.ErrChannelNotFound):
+	case errors.Is(err, channelwrite.ErrChannelNotFound):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeChannelNotFound
-	case errors.Is(err, message.ErrBackpressured):
+	case errors.Is(err, channelwrite.ErrBackpressured):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeBackpressured
-	case errors.Is(err, message.ErrAppendFailed):
+	case errors.Is(err, channelwrite.ErrAppendFailed):
 		return sendtrace.ResultError, channelAppendTraceErrorCodeAppendFailed
 	default:
 		return sendtrace.ResultError, channelAppendTraceErrorCodeOther

@@ -3,9 +3,10 @@
 ## Responsibility
 
 `internalv2/access/node` owns node-to-node RPC adaptation for the internalv2
-path. It decodes deterministic binary payloads, calls entry-agnostic authority
-or owner ports, and encodes stable binary responses. It does not own presence
-conflict policy, routing policy, retries, leases, or gateway session state.
+path. It decodes deterministic binary payloads, calls entry-agnostic authority,
+owner, delivery, or channel-write ports, and encodes stable binary responses.
+It does not own presence conflict policy, channel routing policy, retries,
+leases, or gateway session state.
 
 ## Presence Authority RPC
 
@@ -108,40 +109,6 @@ The RPC boundary is deliberately narrow:
   calling clusterv2 RPC. Raw transport errors are returned to the infra/cluster
   route adapter; this package does not decide whether they should retry.
 
-## Sender Authority RPC
-
-```text
-remote sender authority client
-  -> encode W K V S 1 request
-  -> clusterv2 RPCSenderAuthority
-  -> Adapter.HandleSenderAuthorityRPC
-  -> SenderAuthority.SendBatchForAuthority
-  -> encode W K V s 1 response
-```
-
-Sender authority RPC transports `message.SendCommand` DTOs to the target sender
-authority node and returns item-aligned `message.SendBatchItemResult` values.
-The boundary does not decide sender authority routing, channel append policy,
-recipient pipeline behavior, retries, or route-table resolution; those decisions
-stay in usecase and infra/cluster layers.
-
-## Recipient Authority RPC
-
-```text
-remote recipient authority client
-  -> encode W K V A 1 request
-  -> clusterv2 RPCRecipientAuthority
-  -> Adapter.HandleRecipientAuthorityRPC
-  -> RecipientAuthority.Process
-  -> encode W K V a 1 response
-```
-
-Recipient authority RPC transports one `recipient.ProcessRequest` to the
-target recipient authority node and returns a stable status. The boundary does
-not decide recipient authority routing, subscriber paging, conversation
-projection policy, delivery fanout policy, retries, or route-table resolution;
-those decisions stay in usecase and infra/cluster layers.
-
 ## Channel Write RPC
 
 ```text
@@ -157,9 +124,9 @@ Channel write RPC transports one exact `channelwrite.AuthorityTarget` plus
 item-aligned `channelwrite.SendCommand` values to the target channel authority
 node. The server only submits to the local channel authority port; it does not
 resolve routes, create proxy channel state, append directly outside the
-authority reactor, or run post-commit side effects. The client skips canceled or
-expired items before transport and preserves active item order in returned
-item-aligned results.
+authority reactor, or run post-commit side effects outside that reactor. The
+client skips canceled or expired items before transport and preserves active
+item order in returned item-aligned results.
 
 ## Codec Rules
 
@@ -182,16 +149,6 @@ Conversation authority RPC uses fixed magic headers:
 
 - Request: `W K V C 1`
 - Response: `W K V c 1`
-
-Sender authority RPC uses fixed magic headers:
-
-- Request: `W K V S 1`
-- Response: `W K V s 1`
-
-Recipient authority RPC uses fixed magic headers:
-
-- Request: `W K V A 1`
-- Response: `W K V a 1`
 
 Channel write RPC uses fixed magic headers:
 
@@ -236,20 +193,15 @@ Delivery push and fanout responses currently use:
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
-  sentinel errors, `internalv2/usecase/message` SEND DTOs and sentinel errors,
+  sentinel errors, `internalv2/contracts/channelwrite` DTOs and sentinel errors,
   runtime delivery DTOs, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not implement conversation projection, cache merge,
   projection-flush, or handoff business logic.
-- This package must not decide sender authority routing, append policy, storage
-  lookup, or recipient pipeline behavior.
-- This package must not decide recipient authority routing, subscriber paging,
-  conversation projection policy, or delivery fanout policy.
 - This package must not decide channel authority routing, create proxy channel
   state, perform non-authority appends, or run channel-write post-commit
   effects.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
-  `SenderAuthority` / `RecipientAuthority` interfaces, or through the
   standalone channel-write `ChannelWrite` adapter interface.

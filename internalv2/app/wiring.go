@@ -20,7 +20,6 @@ import (
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	recipientusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/recipient"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -350,44 +349,6 @@ func (a *App) wireDelivery() {
 	}
 }
 
-func (a *App) wireRecipientAuthority() {
-	if a.recipientWorker == nil {
-		if authorityNode, ok := a.cluster.(clusterinfra.RecipientAuthorityNode); ok && a.conversationAuthorityClient != nil {
-			recipientAuthority := clusterinfra.NewRecipientAuthorityClient(authorityNode, nil)
-			a.recipientAuthorityClient = recipientAuthority
-			authorityObserver := a.authorityObserver()
-			var deliverySubmitter recipientusecase.DeliverySubmitter
-			if a.delivery != nil {
-				deliverySubmitter = recipientDeliverySubmitter{delivery: a.delivery, observer: authorityObserver}
-			}
-			var conversationUpdater recipientusecase.ConversationUpdater = a.conversationAuthorityClient
-			if authorityObserver != nil {
-				conversationUpdater = observedRecipientConversationUpdater{next: conversationUpdater, observer: authorityObserver}
-			}
-			processor := recipientusecase.NewProcessor(recipientusecase.ProcessorOptions{
-				LocalNodeID:  authorityNode.NodeID(),
-				Authority:    recipientAuthority,
-				Conversation: conversationUpdater,
-				Delivery:     deliverySubmitter,
-			})
-			dispatcher := recipientusecase.NewDispatcher(recipientusecase.DispatcherOptions{
-				LocalNodeID:     authorityNode.NodeID(),
-				Recipients:      a.recipientSource(),
-				Resolver:        recipientAuthority,
-				Local:           processor,
-				Remote:          recipientAuthority,
-				PageSize:        a.cfg.Delivery.FanoutPageSize,
-				TargetBatchSize: a.cfg.Delivery.PushBatchSize,
-			})
-			a.recipientWorker = newRecipientCommittedWorker(dispatcher, a.cfg.Delivery.EventQueueSize, a.delivery != nil, a.logger.Named("recipient"), authorityObserver)
-			if registrar, ok := a.cluster.(nodeRPCRegistrar); ok {
-				adapter := accessnode.New(accessnode.Options{RecipientAuthority: processor, Logger: a.logger.Named("node")})
-				registerNodeRPC(registrar, accessnode.RecipientAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRecipientAuthorityRPC))
-			}
-		}
-	}
-}
-
 func (a *App) wireChannelWrite(nodeID uint64) {
 	if a.channelWrites == nil {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
@@ -460,7 +421,7 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 					ChannelWrite: channelWriteAuthorityLocal{group: group},
 					Logger:       a.logger.Named("node"),
 				})
-				registerNodeRPC(registrar, accessnode.ChannelWriteRPCServiceID, nodeRPCHandlerFunc(adapter.HandleChannelWriteRPC))
+				registrar.RegisterRPC(accessnode.ChannelWriteRPCServiceID, nodeRPCHandlerFunc(adapter.HandleChannelWriteRPC))
 			}
 		}
 	}
@@ -477,19 +438,6 @@ func (a *App) channelWriteOwnerPusher(nodeID uint64) channelwrite.OwnerPusher {
 	return channelWriteOwnerPusher{next: pusher}
 }
 
-func (a *App) recipientSource() recipientusecase.RecipientSource {
-	if a.deliveryMeta != nil {
-		return a.deliveryMeta
-	}
-	if a.deliverySubscribers != nil {
-		return deliverySubscriberRecipientSource{source: a.deliverySubscribers}
-	}
-	if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
-		return recipientSubscriberStore{node: subscriberNode}
-	}
-	return nil
-}
-
 func (a *App) wireMessages() {
 	if a.messages == nil {
 		messageOpts := message.Options{Submitter: a.channelWriteRouter}
@@ -497,40 +445,6 @@ func (a *App) wireMessages() {
 			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
 		}
 		a.messages = message.New(messageOpts)
-	}
-}
-
-func (a *App) wireSenderAuthority() {
-	if a.senderMessages == nil {
-		if senderNode, ok := a.cluster.(clusterinfra.SenderAuthorityNode); ok && a.messages != nil {
-			senderAuthority := clusterinfra.NewSenderAuthorityClient(senderNode, nil)
-			var senderResolver message.UIDAuthorityResolver = senderAuthority
-			if authorityObserver := a.authorityObserver(); authorityObserver != nil {
-				senderResolver = observedSenderAuthorityResolver{
-					localNodeID: senderNode.NodeID(),
-					next:        senderAuthority,
-					observer:    authorityObserver,
-				}
-			}
-			a.senderMessages = message.NewSenderAuthorityRouter(message.SenderAuthorityRouterOptions{
-				LocalNodeID: senderNode.NodeID(),
-				Resolver:    senderResolver,
-				Local:       a.messages,
-				Remote:      senderAuthority,
-			})
-			var routes clusterWriteReadyRuntime
-			if routeRuntime, ok := a.cluster.(clusterWriteReadyRuntime); ok {
-				routes = routeRuntime
-			}
-			local := senderAuthorityLocal{
-				localNodeID: senderNode.NodeID(),
-				resolver:    senderAuthority,
-				routes:      routes,
-				submitter:   a.messages,
-			}
-			adapter := accessnode.New(accessnode.Options{SenderAuthority: local, Logger: a.logger.Named("node")})
-			senderNode.RegisterRPC(accessnode.SenderAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleSenderAuthorityRPC))
-		}
 	}
 }
 

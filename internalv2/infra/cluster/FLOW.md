@@ -3,30 +3,32 @@
 ## Responsibility
 
 `internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
-`pkg/clusterv2` and `pkg/channelv2`. It maps message append DTOs to
-`pkg/channelv2` DTOs, adapts legacy-compatible channel metadata usecase calls to
-clusterv2 Slot metadata facades, adapts legacy-compatible user metadata calls
-to UID Slot metadata facades, adapts conversation list reads to UID-owned
-conversation active rows plus channel-owned committed message logs, and adapts
-presence/delivery ports to clusterv2 routing and node RPC.
+`pkg/clusterv2` and `pkg/channelv2`. It maps channelwrite append DTOs to
+`pkg/channelv2` DTOs, resolves channel append authority through clusterv2,
+persists channelwrite post-commit cursors in app-local channel metadata, adapts
+legacy-compatible channel metadata usecase calls to clusterv2 Slot metadata
+facades, adapts legacy-compatible user metadata calls to UID Slot metadata
+facades, adapts conversation list reads to UID-owned active rows plus
+channel-owned committed message logs, and adapts presence/delivery ports to
+clusterv2 routing and node RPC.
 
 ## Append Flow
 
 ```text
-message.AppendBatchRequest
+channelwrite.AppendBatchRequest
   -> channelv2.AppendBatchRequest
      (expected channel/leader epochs fence stale authority writes)
      (trace id, diagnostics channel key, append attempt, and per-message trace metadata stay transient)
   -> ChannelAppendNode.AppendChannelBatch
   -> record sendtrace `channel.append.local` for traced messages after completion
   -> channelv2.AppendBatchResult
-  -> message.AppendBatchResult
+  -> channelwrite.AppendBatchResult
 ```
 
-Payloads are cloned in both directions unless the message usecase marks result
+Payloads are cloned in both directions unless the channelwrite runtime marks result
 payloads as unnecessary for SENDACK-only flows. Commit mode, expected authority
-epoch fences, and typed errors are mapped at this boundary so the message
-usecase stays cluster-agnostic.
+epoch fences, and typed errors are mapped at this boundary so the channelwrite
+runtime stays cluster-agnostic.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
@@ -161,9 +163,9 @@ Route errors are translated at this adapter boundary:
 `channelv2.ErrNotLeader` becomes `channelwrite.ErrNotChannelAuthority`,
 `channelv2.ErrStaleMeta` becomes `channelwrite.ErrStaleRoute`, and
 `channelv2.ErrNotReady` plus clusterv2 readiness errors become
-`channelwrite.ErrRouteNotReady`. Remote forwarding is a narrow injected port in
-Task 5; concrete node RPC remains a later access/node task and remote item
-results are returned item-aligned without interpreting successful payloads.
+`channelwrite.ErrRouteNotReady`. Remote forwarding is supplied by the
+`internalv2/access/node` Channel Write RPC client; remote item results are
+returned item-aligned without interpreting successful payloads.
 
 ## Channel Write Cursor Flow
 
@@ -187,49 +189,6 @@ bounded limit and returning `CommittedMessage` DTOs. This keeps replay ordering
 and pagination in the runtime while preserving clusterv2/channelv2 as an
 infrastructure detail.
 
-## Sender Authority Flow
-
-`SenderAuthorityClient` adapts the message usecase sender-authority resolver and
-remote-forwarding ports to clusterv2 UID routing and `internalv2/access/node`
-RPC. This adapter only resolves sender UID authority and forwards remote sender
-batches; it does not decide channel append policy or recipient fanout.
-
-```text
-SenderAuthorityClient
-  -> ResolveUIDAuthority(uid): clusterv2.RouteKey(uid) -> authority.Target
-  -> SendBatchToAuthority(target, items): access/node Sender Authority RPC to target.LeaderNodeID
-```
-
-Route-not-ready and missing-leader lookup failures are mapped to the message
-route-not-ready sentinel, not-leader lookup failures are mapped to the message
-not-leader sentinel, and context cancellation/deadline errors pass through
-unchanged. Remote batch results stay item-aligned and are returned without
-interpretation by this adapter.
-
-## Recipient Authority Flow
-
-`RecipientAuthorityClient` adapts the recipient usecase resolver, validator,
-and remote-forwarding ports to clusterv2 UID routing and
-`internalv2/access/node` RPC. This adapter only resolves recipient UID
-authority, validates exact fenced targets, and forwards remote recipient
-batches; it does not decide subscriber paging, recipient conversation updates,
-or delivery fanout.
-
-```text
-RecipientAuthorityClient
-  -> ResolveRecipientAuthority(uid): clusterv2.RouteKey(uid) -> authority.Target
-  -> ValidateRecipientAuthority(target): clusterv2.RouteHashSlot(target.HashSlot)
-       -> require exact target match for local authority side effects
-  -> ProcessRemote(req): access/node Recipient Authority RPC to req.Target.LeaderNodeID
-```
-
-Route-not-ready and missing-leader lookup failures are mapped to the recipient
-route-not-ready sentinel, not-leader lookup failures are mapped to the
-recipient not-leader sentinel, exact-target mismatches on the same leader are
-mapped to stale-route, and context cancellation/deadline errors pass through
-unchanged. Remote RPC route statuses are returned as recipient usecase
-sentinels.
-
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
@@ -249,13 +208,13 @@ the current hash-slot metadata store.
 ## Error Mapping
 
 ```text
-channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> message.ErrNotLeader
-channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> message.ErrStaleRoute
-channelv2.ErrChannelNotFound                         -> message.ErrChannelNotFound
-channelv2.ErrBackpressured                           -> message.ErrBackpressured
-clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> message.ErrRouteNotReady
+channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> channelwrite.ErrNotLeader
+channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> channelwrite.ErrStaleRoute
+channelv2.ErrChannelNotFound                         -> channelwrite.ErrChannelNotFound
+channelv2.ErrBackpressured                           -> channelwrite.ErrBackpressured
+clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> channelwrite.ErrRouteNotReady
 context cancellation/deadline                        -> unchanged
-other errors                                         -> message.ErrAppendFailed wrapping source
+other errors                                         -> channelwrite.ErrAppendFailed wrapping source
 ```
 
 ## Presence Authority Flow

@@ -44,7 +44,6 @@ func TestMessageUsecaseImportBoundary(t *testing.T) {
 func TestMessagePackageAliasesChannelWriteTypes(t *testing.T) {
 	var _ channelwrite.SendCommand = message.SendCommand{}
 	var _ channelwrite.Decision = message.Decision{}
-	var _ channelwrite.IdempotencyQuery = message.IdempotencyQuery{}
 
 	reasons := []struct {
 		name     string

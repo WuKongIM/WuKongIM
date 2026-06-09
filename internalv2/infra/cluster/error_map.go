@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
@@ -19,17 +19,17 @@ func mapAppendError(err error) error {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
 	case appendErrorMatches(err, channelv2.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
-		return fmt.Errorf("%w: %w", message.ErrNotLeader, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrNotLeader, err)
 	case appendErrorMatches(err, channelv2.ErrStaleMeta), appendErrorMatches(err, channelv2.ErrNotReplica):
-		return fmt.Errorf("%w: %w", message.ErrStaleRoute, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrStaleRoute, err)
 	case appendErrorMatches(err, channelv2.ErrChannelNotFound):
-		return fmt.Errorf("%w: %w", message.ErrChannelNotFound, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrChannelNotFound, err)
 	case appendErrorMatches(err, channelv2.ErrBackpressured):
-		return fmt.Errorf("%w: %w", message.ErrBackpressured, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrBackpressured, err)
 	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady):
-		return fmt.Errorf("%w: %w", message.ErrRouteNotReady, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrRouteNotReady, err)
 	default:
-		return fmt.Errorf("%w: %w", message.ErrAppendFailed, err)
+		return fmt.Errorf("%w: %w", channelwrite.ErrAppendFailed, err)
 	}
 }
 

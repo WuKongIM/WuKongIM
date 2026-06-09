@@ -493,48 +493,6 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	}
 }
 
-func TestObservabilityAuthorityMetricsObserverMapsCounters(t *testing.T) {
-	reg := obsmetrics.New(1, "n1")
-	observer := authorityMetricsObserver{metrics: reg}
-
-	observer.ObserveAuthoritySenderRoute(authoritySenderRouteEvent{Result: "local"})
-	observer.ObserveAuthoritySenderRoute(authoritySenderRouteEvent{Result: "route_not_ready"})
-	observer.ObserveAuthorityRecipientQueue(authorityRecipientQueueEvent{Result: "accepted"})
-	observer.ObserveAuthorityRecipientQueue(authorityRecipientQueueEvent{Result: "full"})
-	observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{Phase: "worker", Result: "ok", Duration: time.Millisecond})
-	observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{Phase: "conversation", Result: "error", Duration: 2 * time.Millisecond})
-
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("Gather() error = %v", err)
-	}
-	sender := requireAppMetricFamily(t, families, "wukongim_authority_sender_route_total")
-	if got := findAppMetricByLabels(t, sender, map[string]string{"result": "local"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("sender route metric = %v, want 1", got)
-	}
-	if got := findAppMetricByLabels(t, sender, map[string]string{"result": "route_not_ready"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("sender route route_not_ready metric = %v, want 1", got)
-	}
-	queue := requireAppMetricFamily(t, families, "wukongim_authority_recipient_queue_total")
-	if got := findAppMetricByLabels(t, queue, map[string]string{"result": "accepted"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("recipient queue metric = %v, want 1", got)
-	}
-	if got := findAppMetricByLabels(t, queue, map[string]string{"result": "full"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("recipient queue full metric = %v, want 1", got)
-	}
-	dispatch := requireAppMetricFamily(t, families, "wukongim_authority_recipient_dispatch_total")
-	if got := findAppMetricByLabels(t, dispatch, map[string]string{"phase": "worker", "result": "ok"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("recipient dispatch metric = %v, want 1", got)
-	}
-	if got := findAppMetricByLabels(t, dispatch, map[string]string{"phase": "conversation", "result": "error"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("recipient dispatch error metric = %v, want 1", got)
-	}
-	duration := requireAppMetricFamily(t, families, "wukongim_authority_recipient_dispatch_duration_seconds")
-	if got := findAppMetricByLabels(t, duration, map[string]string{"phase": "worker", "result": "ok"}).GetHistogram().GetSampleCount(); got != 1 {
-		t.Fatalf("recipient dispatch duration count = %v, want 1", got)
-	}
-}
-
 func requireAppMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {

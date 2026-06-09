@@ -17,7 +17,6 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
-	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
@@ -470,7 +469,7 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
-func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
+func TestNewWiresChannelWriteCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -512,29 +511,17 @@ func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 		t.Fatalf("conversation state batches = %#v, want no synchronous DB write", cluster.conversationStateBatches)
 	}
 	cluster.mu.Unlock()
-	if app.recipientWorker != nil {
-		t.Fatalf("recipient committed worker = %T, want channel write commit effects", app.recipientWorker)
-	}
 	if app.conversationAuthority == nil {
 		t.Fatal("local conversation authority was not wired")
 	}
 	if app.conversationAuthorityClient == nil {
 		t.Fatal("conversation authority client was not reused by app wiring")
 	}
-	if app.recipientAuthorityClient != nil {
-		t.Fatalf("recipient authority client = %T, want channel write recipient resolver", app.recipientAuthorityClient)
-	}
 	if _, ok := cluster.registeredHandlers[accessnode.ConversationAuthorityRPCServiceID]; !ok {
 		t.Fatalf("conversation authority rpc service was not registered")
 	}
 	if _, ok := cluster.registeredHandlers[accessnode.ChannelWriteRPCServiceID]; !ok {
 		t.Fatalf("channel write rpc service was not registered")
-	}
-	if _, ok := cluster.registeredHandlers[accessnode.RecipientAuthorityRPCServiceID]; ok {
-		t.Fatalf("recipient authority rpc service was registered, want channel write commit effects")
-	}
-	if _, ok := cluster.registeredHandlers[accessnode.SenderAuthorityRPCServiceID]; ok {
-		t.Fatalf("sender authority rpc service was registered, want channel write authority rpc")
 	}
 
 	for _, uid := range []string{"u1", "u2"} {
@@ -557,9 +544,6 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	}
 	if app.conversationAuthority != nil || app.conversationAuthorityClient != nil {
 		t.Fatalf("authority fields = (%T, %T), want authority unavailable", app.conversationAuthority, app.conversationAuthorityClient)
-	}
-	if app.recipientWorker != nil {
-		t.Fatalf("recipient worker = %T, want no authority fallback worker", app.recipientWorker)
 	}
 	if app.channelWrites == nil || app.channelWriteRouter == nil {
 		t.Fatalf("channel write runtime = (%T, %T), want append-only group and router", app.channelWrites, app.channelWriteRouter)
@@ -597,7 +581,7 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	}
 }
 
-func TestRecipientAuthorityUpdatesPersonConversationImmediately(t *testing.T) {
+func TestChannelWriteUpdatesPersonConversationEventually(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -672,7 +656,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	}
 }
 
-func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testing.T) {
+func TestChannelWriteUsesDurableSubscribersWithoutImplicitSender(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
@@ -709,7 +693,7 @@ func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testin
 	}
 }
 
-func TestRecipientAuthorityPagesAllGroupSubscribers(t *testing.T) {
+func TestChannelWritePagesAllGroupSubscribers(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
@@ -738,86 +722,6 @@ func TestRecipientAuthorityPagesAllGroupSubscribers(t *testing.T) {
 
 	for _, uid := range []string{"sender", "member"} {
 		requireConversationEventually(t, app, uid, "g-large", frame.ChannelTypeGroup)
-	}
-}
-
-func TestRecipientCommittedWorkerRequiresPayloadAndScopesPersonEvent(t *testing.T) {
-	dispatcher := &recordingRecipientCommittedDispatcher{}
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, nil)
-	if !worker.RequiresCommittedPayload() {
-		t.Fatal("RequiresCommittedPayload() = false, want true")
-	}
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-	event := messageevents.MessageCommitted{
-		MessageID:   11,
-		MessageSeq:  7,
-		ChannelID:   channelID,
-		ChannelType: frame.ChannelTypePerson,
-		FromUID:     "u1",
-		Payload:     []byte("payload reaches delivery"),
-	}
-	if err := worker.Submit(context.Background(), event); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	if len(dispatcher.events) != 1 {
-		t.Fatalf("dispatcher events = %d, want 1", len(dispatcher.events))
-	}
-	got := dispatcher.events[0]
-	scoped := map[string]bool{}
-	for _, uid := range got.MessageScopedUIDs {
-		scoped[uid] = true
-	}
-	if string(got.Payload) != "payload reaches delivery" ||
-		len(got.MessageScopedUIDs) != 2 || !scoped["u1"] || !scoped["u2"] {
-		t.Fatalf("committed event = %#v, want payload plus person scoped UIDs", got)
-	}
-}
-
-func TestRecipientCommittedWorkerCanRunMetadataOnlyWhenDeliveryDisabled(t *testing.T) {
-	worker := newRecipientCommittedWorker(&recordingRecipientCommittedDispatcher{}, 1, false, nil, nil)
-	if worker.RequiresCommittedPayload() {
-		t.Fatal("RequiresCommittedPayload() = true, want false for conversation-only worker")
-	}
-}
-
-func TestRecipientCommittedWorkerObservesQueueAndDispatch(t *testing.T) {
-	observer := &recordingAuthorityObserver{}
-	dispatcher := &recordingRecipientCommittedDispatcher{}
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
-	if err := worker.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(ok) error = %v", err)
-	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := worker.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop(ok) error = %v", err)
-	}
-	if got := observer.recipientQueueResults(); len(got) != 1 || got[0] != "accepted" {
-		t.Fatalf("recipient queue observations = %#v, want accepted", got)
-	}
-	if got := observer.recipientDispatchResults(); len(got) != 1 || got[0] != "worker:ok" {
-		t.Fatalf("recipient dispatch observations = %#v, want worker:ok", got)
-	}
-
-	observer = &recordingAuthorityObserver{}
-	dispatcher = &recordingRecipientCommittedDispatcher{err: errors.New("dispatch failed")}
-	worker = newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
-	if err := worker.Start(context.Background()); err != nil {
-		t.Fatalf("Start(error) error = %v", err)
-	}
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g2", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(error) error = %v", err)
-	}
-	stopCtx, cancel = context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := worker.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop(error) error = %v", err)
-	}
-	if got := observer.recipientDispatchResults(); len(got) != 1 || got[0] != "worker:error" {
-		t.Fatalf("recipient dispatch observations = %#v, want worker:error", got)
 	}
 }
 
@@ -972,111 +876,6 @@ func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T
 	}
 	if err := local.AdmitPatches(context.Background(), currentTarget, nil); err != nil {
 		t.Fatalf("current local target was not preserved: %v", err)
-	}
-}
-
-func TestRecipientCommittedWorkerDrainsAcceptedEventsOnStop(t *testing.T) {
-	dispatcher := &recordingRecipientCommittedDispatcher{}
-	worker := newRecipientCommittedWorker(dispatcher, 2, true, nil, nil)
-	if err := worker.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := worker.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if len(dispatcher.events) != 1 || dispatcher.events[0].ChannelID != "g1" {
-		t.Fatalf("dispatcher events = %#v, want accepted event drained", dispatcher.events)
-	}
-}
-
-func TestRecipientCommittedWorkerFullQueueReturnsWithoutBlocking(t *testing.T) {
-	dispatcher := newBlockingRecipientCommittedDispatcher()
-	observer := &recordingAuthorityObserver{}
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
-	if err := worker.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(first) error = %v", err)
-	}
-	dispatcher.waitEntered(t)
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g2", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(second) error = %v", err)
-	}
-
-	start := time.Now()
-	err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g3", ChannelType: frame.ChannelTypeGroup})
-	if !errors.Is(err, errRecipientCommittedWorkerFull) {
-		t.Fatalf("Submit(third) error = %v, want queue full", err)
-	}
-	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
-		t.Fatalf("Submit(third) elapsed = %v, want non-blocking full queue result", elapsed)
-	}
-	if got := observer.recipientQueueResults(); len(got) != 3 || got[0] != "accepted" || got[1] != "accepted" || got[2] != "full" {
-		t.Fatalf("recipient queue observations = %#v, want accepted, accepted, full", got)
-	}
-
-	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if err := worker.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Stop(blocked dispatcher) error = %v, want deadline exceeded", err)
-	}
-	dispatcher.waitCanceled(t)
-}
-
-func TestRecipientCommittedWorkerStopCancelsBlockedDispatchAfterDeadline(t *testing.T) {
-	dispatcher := newBlockingRecipientCommittedDispatcher()
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, nil)
-	if err := worker.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g-stop", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	dispatcher.waitEntered(t)
-
-	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if err := worker.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Stop() error = %v, want deadline exceeded", err)
-	}
-	dispatcher.waitCanceled(t)
-}
-
-func TestSenderAuthorityLocalWrapsItemDeadlineIntoContext(t *testing.T) {
-	target := authority.Target{HashSlot: 7, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
-	resolver := &recordingUIDAuthorityResolver{target: target}
-	submitter := &recordingSenderAuthoritySubmitter{
-		results: []message.SendBatchItemResult{{Result: message.SendResult{Reason: message.ReasonSuccess}}},
-	}
-	local := senderAuthorityLocal{
-		localNodeID: target.LeaderNodeID,
-		resolver:    resolver,
-		submitter:   submitter,
-	}
-	deadline := time.Now().Add(time.Hour)
-
-	results := local.SendBatchForAuthority(context.Background(), target, []message.SendBatchItem{{
-		Deadline: deadline,
-		Command:  message.SendCommand{FromUID: "u-deadline"},
-	}})
-	if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != message.ReasonSuccess {
-		t.Fatalf("SendBatchForAuthority() = %#v, want success", results)
-	}
-	if resolver.ctxDeadline.IsZero() || !resolver.ctxDeadline.Equal(deadline) {
-		t.Fatalf("resolver deadline = %v, want %v", resolver.ctxDeadline, deadline)
-	}
-	if len(submitter.items) != 1 {
-		t.Fatalf("submitter items = %d, want 1", len(submitter.items))
-	}
-	submitDeadline, ok := submitter.items[0].Context.Deadline()
-	if !ok || !submitDeadline.Equal(deadline) {
-		t.Fatalf("submitter context deadline = %v ok=%v, want %v", submitDeadline, ok, deadline)
 	}
 }
 
@@ -2911,49 +2710,6 @@ func conversationPatchesByUID(patches []metadb.UserConversationActivePatch) map[
 	return out
 }
 
-type recordingAuthorityObserver struct {
-	mu                sync.Mutex
-	senderRoutes      []string
-	recipientQueues   []string
-	recipientDispatch []string
-}
-
-func (o *recordingAuthorityObserver) ObserveAuthoritySenderRoute(event authoritySenderRouteEvent) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.senderRoutes = append(o.senderRoutes, event.Result)
-}
-
-func (o *recordingAuthorityObserver) ObserveAuthorityRecipientQueue(event authorityRecipientQueueEvent) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.recipientQueues = append(o.recipientQueues, event.Result)
-}
-
-func (o *recordingAuthorityObserver) ObserveAuthorityRecipientDispatch(event authorityRecipientDispatchEvent) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.recipientDispatch = append(o.recipientDispatch, event.Phase+":"+event.Result)
-}
-
-func (o *recordingAuthorityObserver) senderRouteResults() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]string(nil), o.senderRoutes...)
-}
-
-func (o *recordingAuthorityObserver) recipientQueueResults() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]string(nil), o.recipientQueues...)
-}
-
-func (o *recordingAuthorityObserver) recipientDispatchResults() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]string(nil), o.recipientDispatch...)
-}
-
 type appRecordingConversationAuthorityStore struct {
 	mu                 sync.Mutex
 	touchBatches       [][]metadb.UserConversationActivePatch
@@ -3114,119 +2870,6 @@ func authorityFromConversationTarget(target conversationusecase.RouteTarget) clu
 		RouteRevision:  target.RouteRevision,
 		AuthorityEpoch: target.AuthorityEpoch,
 	}
-}
-
-type recordingMetadataCommittedSink struct {
-	event         messageevents.MessageCommitted
-	submitCalls   int
-	metadataCalls int
-}
-
-func (s *recordingMetadataCommittedSink) Submit(_ context.Context, event messageevents.MessageCommitted) error {
-	s.submitCalls++
-	s.event = event
-	return nil
-}
-
-func (s *recordingMetadataCommittedSink) SubmitMetadata(_ context.Context, event messageevents.MessageCommitted) error {
-	s.metadataCalls++
-	s.event = event
-	return nil
-}
-
-func (s *recordingMetadataCommittedSink) RequiresCommittedPayload() bool {
-	return false
-}
-
-type recordingCommittedSink struct {
-	event messageevents.MessageCommitted
-	calls int
-}
-
-func (s *recordingCommittedSink) Submit(_ context.Context, event messageevents.MessageCommitted) error {
-	s.calls++
-	s.event = event
-	return nil
-}
-
-type recordingRecipientCommittedDispatcher struct {
-	mu     sync.Mutex
-	events []messageevents.MessageCommitted
-	err    error
-}
-
-func (d *recordingRecipientCommittedDispatcher) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.events = append(d.events, event.Clone())
-	return d.err
-}
-
-type blockingRecipientCommittedDispatcher struct {
-	entered    chan struct{}
-	canceled   chan struct{}
-	enterOnce  sync.Once
-	cancelOnce sync.Once
-}
-
-func newBlockingRecipientCommittedDispatcher() *blockingRecipientCommittedDispatcher {
-	return &blockingRecipientCommittedDispatcher{
-		entered:  make(chan struct{}),
-		canceled: make(chan struct{}),
-	}
-}
-
-func (d *blockingRecipientCommittedDispatcher) SubmitCommitted(ctx context.Context, _ messageevents.MessageCommitted) error {
-	d.enterOnce.Do(func() { close(d.entered) })
-	<-ctx.Done()
-	d.cancelOnce.Do(func() { close(d.canceled) })
-	return ctx.Err()
-}
-
-func (d *blockingRecipientCommittedDispatcher) waitEntered(t *testing.T) {
-	t.Helper()
-	select {
-	case <-d.entered:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for blocked recipient dispatch")
-	}
-}
-
-func (d *blockingRecipientCommittedDispatcher) waitCanceled(t *testing.T) {
-	t.Helper()
-	select {
-	case <-d.canceled:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for blocked recipient dispatch cancellation")
-	}
-}
-
-type recordingUIDAuthorityResolver struct {
-	target      authority.Target
-	ctxDeadline time.Time
-	calls       int
-	err         error
-}
-
-func (r *recordingUIDAuthorityResolver) ResolveUIDAuthority(ctx context.Context, _ string) (authority.Target, error) {
-	r.calls++
-	if deadline, ok := ctx.Deadline(); ok {
-		r.ctxDeadline = deadline
-	}
-	return r.target, r.err
-}
-
-type recordingSenderAuthoritySubmitter struct {
-	items   []message.SendBatchItem
-	results []message.SendBatchItemResult
-}
-
-func (s *recordingSenderAuthoritySubmitter) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
-	s.items = append([]message.SendBatchItem(nil), items...)
-	if s.results != nil {
-		return append([]message.SendBatchItemResult(nil), s.results...)
-	}
-	return make([]message.SendBatchItemResult, len(items))
 }
 
 func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Snapshot {

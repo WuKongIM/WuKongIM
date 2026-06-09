@@ -88,14 +88,6 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.deliveryStarted = true
 	}
-	if a.recipientWorker != nil {
-		if err := a.recipientWorker.Start(ctx); err != nil {
-			a.logLifecycleError("recipient_worker", "start", err)
-			stopErr := a.rollbackStarted(ctx)
-			return errors.Join(err, stopErr)
-		}
-		a.recipientStarted = true
-	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
 			a.logLifecycleError("api", "start", err)
@@ -145,14 +137,6 @@ func (a *App) Stop(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
-	if a.recipientStarted && a.recipientWorker != nil {
-		if stopErr := a.recipientWorker.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("recipient_worker", "stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.recipientStarted = false
-		}
-	}
 	if a.channelWriteStarted && a.channelWrites != nil {
 		if stopErr := a.channelWrites.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("channel_write", "stop", stopErr)
@@ -193,7 +177,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.recipientStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -215,14 +199,6 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.apiStarted = false
-		}
-	}
-	if a.recipientStarted && a.recipientWorker != nil {
-		if stopErr := a.recipientWorker.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("recipient_worker", "rollback_stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.recipientStarted = false
 		}
 	}
 	if a.channelWriteStarted && a.channelWrites != nil {

@@ -7,9 +7,7 @@ import (
 	"sync/atomic"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
-	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	recipientusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/recipient"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -182,42 +180,6 @@ func (s *deliveryMetaStore) ListSubscribers(ctx context.Context, req runtimedeli
 	}
 	filtered := s.filterPartition(snapshot, req.Partition)
 	return subscriberPageFromSnapshot(filtered, req.Cursor, limit)
-}
-
-// NextPage pages durable channel subscribers for recipient-authority dispatch without partition filtering.
-func (s *deliveryMetaStore) NextPage(ctx context.Context, event messageevents.MessageCommitted, cursor string, limit int) (recipientusecase.RecipientPage, error) {
-	if s == nil || s.node == nil {
-		return recipientusecase.RecipientPage{Done: true}, nil
-	}
-	return nextRecipientSubscriberPage(ctx, s.node, event, cursor, limit)
-}
-
-type recipientSubscriberStore struct {
-	node recipientSubscriberNode
-}
-
-func (s recipientSubscriberStore) NextPage(ctx context.Context, event messageevents.MessageCommitted, cursor string, limit int) (recipientusecase.RecipientPage, error) {
-	if s.node == nil {
-		return recipientusecase.RecipientPage{Done: true}, nil
-	}
-	return nextRecipientSubscriberPage(ctx, s.node, event, cursor, limit)
-}
-
-func nextRecipientSubscriberPage(ctx context.Context, node recipientSubscriberNode, event messageevents.MessageCommitted, cursor string, limit int) (recipientusecase.RecipientPage, error) {
-	if limit <= 0 {
-		limit = 1
-	}
-	uids, nextCursor, done, err := node.ListChannelSubscribersPage(ctx, event.ChannelID, int64(event.ChannelType), cursor, limit)
-	if err != nil {
-		return recipientusecase.RecipientPage{}, err
-	}
-	recipients := make([]recipientusecase.Recipient, 0, len(uids))
-	for _, uid := range uids {
-		if uid != "" {
-			recipients = append(recipients, recipientusecase.Recipient{UID: uid})
-		}
-	}
-	return recipientusecase.RecipientPage{Recipients: recipients, Cursor: nextCursor, Done: done}, nil
 }
 
 func (s *deliveryMetaStore) subscriberSnapshot(ctx context.Context, key deliveryMetaSubscriberKey) ([]string, error) {

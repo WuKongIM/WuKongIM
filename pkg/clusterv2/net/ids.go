@@ -46,10 +46,6 @@ const (
 	RPCChannelLastVisible
 	// RPCConversationAuthority serves internalv2 UID conversation authority cache requests.
 	RPCConversationAuthority
-	// RPCSenderAuthority serves internalv2 sender UID authority SEND requests.
-	RPCSenderAuthority
-	// RPCRecipientAuthority serves internalv2 recipient UID authority post-commit requests.
-	RPCRecipientAuthority
 	// RPCChannelWrite serves internalv2 channel authority write forwarding requests.
 	RPCChannelWrite
 )

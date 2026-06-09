@@ -65,7 +65,6 @@ type App struct {
 	gateway                     GatewayRuntime
 	handler                     *accessgateway.Handler
 	messages                    *message.App
-	senderMessages              accessgateway.MessageUsecase
 	apiMessages                 accessapi.MessageUsecase
 	channelWrites               *channelwrite.Group
 	channelWriteRouter          *channelwrite.Router
@@ -77,11 +76,9 @@ type App struct {
 	deliveryRetry               *runtimedelivery.RetryScheduler
 	deliveryWorker              WorkerRuntime
 	localOwnerPusher            *localOwnerPusher
-	recipientWorker             *recipientCommittedWorker
 	conversationRouteLifecycle  WorkerRuntime
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
-	recipientAuthorityClient    *clusterinfra.RecipientAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers runtimedelivery.ChannelSubscriberSource
 	deliveryMeta        *deliveryMetaStore
@@ -104,7 +101,6 @@ type App struct {
 	clusterStarted           bool
 	presenceStarted          bool
 	conversationRouteStarted bool
-	recipientStarted         bool
 	channelWriteStarted      bool
 	deliveryStarted          bool
 	apiStarted               bool
@@ -412,6 +408,10 @@ type nodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)
 
 func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	return f(ctx, payload)
+}
+
+type nodeRPCRegistrar interface {
+	RegisterRPC(uint8, clusterv2.NodeRPCHandler)
 }
 
 type presenceDirectoryAuthority struct {

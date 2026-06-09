@@ -77,10 +77,6 @@ type conversationAuthorityMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-type authorityMetricsObserver struct {
-	metrics *obsmetrics.Registry
-}
-
 type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
@@ -274,27 +270,6 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityHandof
 		return
 	}
 	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
-}
-
-func (o authorityMetricsObserver) ObserveAuthoritySenderRoute(event authoritySenderRouteEvent) {
-	if o.metrics == nil || o.metrics.Authority == nil {
-		return
-	}
-	o.metrics.Authority.ObserveSenderRoute(event.Result)
-}
-
-func (o authorityMetricsObserver) ObserveAuthorityRecipientQueue(event authorityRecipientQueueEvent) {
-	if o.metrics == nil || o.metrics.Authority == nil {
-		return
-	}
-	o.metrics.Authority.ObserveRecipientQueue(event.Result)
-}
-
-func (o authorityMetricsObserver) ObserveAuthorityRecipientDispatch(event authorityRecipientDispatchEvent) {
-	if o.metrics == nil || o.metrics.Authority == nil {
-		return
-	}
-	o.metrics.Authority.ObserveRecipientDispatch(event.Phase, event.Result, event.Duration)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
