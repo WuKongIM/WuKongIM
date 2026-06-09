@@ -33,8 +33,9 @@ type preparePorts struct {
 }
 
 type prepareOutcome struct {
-	results  []SendBatchItemResult
-	prepared []preparedSend
+	results          []SendBatchItemResult
+	prepared         []preparedSend
+	canonicalResults []canonicalTerminalResult
 }
 
 type allowAllAuthorizer struct{}
@@ -46,6 +47,7 @@ func (allowAllAuthorizer) AuthorizeSend(context.Context, SendCommand) (Decision,
 func prepareBatch(runtimeCtx context.Context, items []SendBatchItem, ports preparePorts) prepareOutcome {
 	results := make([]SendBatchItemResult, len(items))
 	prepared := make([]preparedSend, 0, len(items))
+	canonicalResults := make([]canonicalTerminalResult, 0, len(items))
 
 	for i, item := range items {
 		ctx := item.Context
@@ -58,6 +60,12 @@ func prepareBatch(runtimeCtx context.Context, items []SendBatchItem, ports prepa
 		next.setItemMetadata(i, ctx, item.Deadline)
 		if done {
 			results[i] = SendBatchItemResult{Result: next.result, Err: next.err}
+			if next.canonicalResult {
+				canonicalResults = append(canonicalResults, canonicalTerminalResult{
+					index:   i,
+					command: next.command,
+				})
+			}
 			continue
 		}
 		prepared = append(prepared, next.item)
@@ -65,9 +73,15 @@ func prepareBatch(runtimeCtx context.Context, items []SendBatchItem, ports prepa
 	}
 
 	return prepareOutcome{
-		results:  results,
-		prepared: prepared,
+		results:          results,
+		prepared:         prepared,
+		canonicalResults: canonicalResults,
 	}
+}
+
+type canonicalTerminalResult struct {
+	index   int
+	command SendCommand
 }
 
 func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (context.Context, context.CancelFunc) {
@@ -95,9 +109,11 @@ func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (co
 }
 
 type prepareSendResult struct {
-	item   preparedSend
-	result SendResult
-	err    error
+	item            preparedSend
+	result          SendResult
+	err             error
+	command         SendCommand
+	canonicalResult bool
 }
 
 func (r *prepareSendResult) setItemMetadata(index int, ctx context.Context, deadline time.Time) {
@@ -181,7 +197,7 @@ func prepareCanonicalSend(ctx context.Context, cmd SendCommand, ports preparePor
 	if existing, ok, err := lookupIdempotentSend(ctx, cmd, ports); err != nil {
 		return prepareSendResult{err: err}, true
 	} else if ok {
-		return prepareSendResult{result: existing}, true
+		return prepareSendResult{result: existing, command: cmd, canonicalResult: true}, true
 	}
 	if cmd.MessageID == 0 {
 		if ports.messageID == nil {

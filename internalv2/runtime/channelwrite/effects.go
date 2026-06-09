@@ -11,23 +11,25 @@ type prepareEffect struct {
 }
 
 type prepareCompletedEvent struct {
-	target   AuthorityTarget
-	results  []SendBatchItemResult
-	prepared []preparedSend
-	future   *Future
-	key      string
-	seq      uint64
+	target           AuthorityTarget
+	results          []SendBatchItemResult
+	prepared         []preparedSend
+	canonicalResults []canonicalTerminalResult
+	future           *Future
+	key              string
+	seq              uint64
 }
 
 func (e prepareEffect) run(runtimeCtx context.Context, ports preparePorts) prepareCompletedEvent {
 	outcome := prepareBatch(runtimeCtx, e.items, ports)
 	return prepareCompletedEvent{
-		target:   e.target,
-		results:  outcome.results,
-		prepared: outcome.prepared,
-		future:   e.future,
-		key:      e.key,
-		seq:      e.seq,
+		target:           e.target,
+		results:          outcome.results,
+		prepared:         outcome.prepared,
+		canonicalResults: outcome.canonicalResults,
+		future:           e.future,
+		key:              e.key,
+		seq:              e.seq,
 	}
 }
 
@@ -63,6 +65,12 @@ func (r *reactor) drainCompletedPrepare(key string) {
 }
 
 func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
+	for _, item := range e.canonicalResults {
+		if !preparedCommandMatchesTarget(e.target, item.command) {
+			e.results[item.index] = SendBatchItemResult{Err: ErrStaleRoute}
+		}
+	}
+
 	matching := make([]preparedSend, 0, len(e.prepared))
 	for _, item := range e.prepared {
 		if !preparedCommandMatchesTarget(e.target, item.Command) {

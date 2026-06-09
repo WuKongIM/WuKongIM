@@ -306,8 +306,13 @@ func TestPrepareIdempotencyUsesNormalizedPersonChannel(t *testing.T) {
 	existing := SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}
 	idempotency := &recordingIdempotencyForPrepare{result: existing, ok: true}
 	group := newPreparedGroup(t, preparePortsForTest{ids: ids, idempotency: idempotency})
+	wantChannelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 
-	got := group.submitAndDrainPrepare(t, sendItemForPrepare(SendCommand{
+	got := group.submitAndDrainPrepareToTarget(t, AuthorityTarget{
+		ChannelID:    ChannelID{ID: wantChannelID, Type: 1},
+		ChannelKey:   channelKey(ChannelID{ID: wantChannelID, Type: 1}),
+		LeaderNodeID: 1,
+	}, sendItemForPrepare(SendCommand{
 		FromUID:                "u1",
 		ClientMsgNo:            "client-1",
 		ChannelID:              "u2",
@@ -328,11 +333,109 @@ func TestPrepareIdempotencyUsesNormalizedPersonChannel(t *testing.T) {
 	if ids.allocatedCount() != 0 {
 		t.Fatalf("allocated ids = %d, want 0", ids.allocatedCount())
 	}
+	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
+		t.Fatalf("idempotency queries = %d, want 1", len(gotQueries))
+	} else if gotQueries[0].ChannelID != wantChannelID || gotQueries[0].ChannelType != 1 {
+		t.Fatalf("idempotency query = %#v, want normalized channel %q/1", gotQueries[0], wantChannelID)
+	}
+}
+
+func TestPrepareIdempotencyNormalizedPersonTargetMismatchReturnsStaleRoute(t *testing.T) {
+	ids := newSequenceIDsForPrepare(100)
+	existing := SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}
+	idempotency := &recordingIdempotencyForPrepare{result: existing, ok: true}
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:  1,
+		ReactorCount: 4,
+		MessageID:    ids,
+		Idempotency:  idempotency,
+	})
+	target := AuthorityTarget{
+		ChannelID:    ChannelID{ID: "u2", Type: 1},
+		ChannelKey:   channelKey(ChannelID{ID: "u2", Type: 1}),
+		LeaderNodeID: 1,
+	}
+
+	got := group.submitAndDrainPrepareToTarget(t, target, sendItemForPrepare(SendCommand{
+		FromUID:                "u1",
+		ClientMsgNo:            "client-1",
+		ChannelID:              "u2",
+		ChannelType:            1,
+		NormalizePersonChannel: true,
+		Payload:                []byte("payload"),
+	}))
+
+	if !errors.Is(got.Results[0].Err, ErrStaleRoute) {
+		t.Fatalf("result error = %v, want ErrStaleRoute", got.Results[0].Err)
+	}
+	if got.Results[0].Result != (SendResult{}) {
+		t.Fatalf("result = %#v, want zero result after stale route", got.Results[0].Result)
+	}
+	if len(got.Prepared) != 0 {
+		t.Fatalf("prepared state items = %d, want 0", len(got.Prepared))
+	}
+	if group.group.StateCountForTest() != 0 {
+		t.Fatalf("state count = %d, want 0", group.group.StateCountForTest())
+	}
+	if ids.allocatedCount() != 0 {
+		t.Fatalf("allocated ids = %d, want 0", ids.allocatedCount())
+	}
 	wantChannelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
 		t.Fatalf("idempotency queries = %d, want 1", len(gotQueries))
 	} else if gotQueries[0].ChannelID != wantChannelID || gotQueries[0].ChannelType != 1 {
 		t.Fatalf("idempotency query = %#v, want normalized channel %q/1", gotQueries[0], wantChannelID)
+	}
+}
+
+func TestPrepareIdempotencyRequestScopedTargetMismatchReturnsStaleRoute(t *testing.T) {
+	ids := newSequenceIDsForPrepare(100)
+	existing := SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}
+	idempotency := &recordingIdempotencyForPrepare{result: existing, ok: true}
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:  1,
+		ReactorCount: 4,
+		MessageID:    ids,
+		Idempotency:  idempotency,
+	})
+	target := AuthorityTarget{
+		ChannelID:    ChannelID{ID: "original", Type: 2},
+		ChannelKey:   channelKey(ChannelID{ID: "original", Type: 2}),
+		LeaderNodeID: 1,
+	}
+
+	got := group.submitAndDrainPrepareToTarget(t, target, sendItemForPrepare(SendCommand{
+		FromUID:           "u1",
+		ClientMsgNo:       "client-1",
+		Payload:           []byte("payload"),
+		SyncOnce:          true,
+		RequestScoped:     true,
+		MessageScopedUIDs: []string{"u2", "u3"},
+	}))
+
+	if !errors.Is(got.Results[0].Err, ErrStaleRoute) {
+		t.Fatalf("result error = %v, want ErrStaleRoute", got.Results[0].Err)
+	}
+	if got.Results[0].Result != (SendResult{}) {
+		t.Fatalf("result = %#v, want zero result after stale route", got.Results[0].Result)
+	}
+	if len(got.Prepared) != 0 {
+		t.Fatalf("prepared state items = %d, want 0", len(got.Prepared))
+	}
+	if group.group.StateCountForTest() != 0 {
+		t.Fatalf("state count = %d, want 0", group.group.StateCountForTest())
+	}
+	if ids.allocatedCount() != 0 {
+		t.Fatalf("allocated ids = %d, want 0", ids.allocatedCount())
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u2", "u3"})
+	if err != nil {
+		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
+	}
+	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
+		t.Fatalf("idempotency queries = %d, want 1", len(gotQueries))
+	} else if gotQueries[0].ChannelID != scoped.CommandChannelID || gotQueries[0].ChannelType != scoped.ChannelType {
+		t.Fatalf("idempotency query = %#v, want request-scoped channel %q/%d", gotQueries[0], scoped.CommandChannelID, scoped.ChannelType)
 	}
 }
 

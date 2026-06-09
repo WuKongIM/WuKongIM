@@ -53,11 +53,14 @@ prepared items receive one message id and one server timestamp. Before a
 prepared item can enter the pending queue, its canonical prepared channel must
 still match the submitted `AuthorityTarget`; request-scoped derivation or
 person-channel normalization that changes the channel away from the target
-returns `ErrStaleRoute` for that item and creates no state. Matching prepared
-items enter the owning channel state's pending queue in input order. Until
-durable append is implemented, those valid prepared future slots complete with
-item-level `ErrNotAppended`, making the absence of append explicit without
-reporting fake durable success.
+returns `ErrStaleRoute` for that item and creates no state. Idempotency hits
+use the same canonical target validation before their stored result can
+complete successfully, so stale routes cannot bypass authority ownership by
+returning an older successful result. Matching prepared items enter the owning
+channel state's pending queue in input order. Until durable append is
+implemented, those valid prepared future slots complete with item-level
+`ErrNotAppended`, making the absence of append explicit without reporting fake
+durable success.
 
 `Stop` cancels the runtime context passed to prepare effects before waiting for
 reactors to drain. Prepare ports must respect their context promptly for Stop to
