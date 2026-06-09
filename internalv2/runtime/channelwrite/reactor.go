@@ -6,10 +6,13 @@ import (
 )
 
 type reactor struct {
-	id      int
-	mailbox chan reactorEvent
-	limits  channelStateLimits
-	clock   Clock
+	id                int
+	mailbox           chan any
+	effects           chan prepareEffect
+	completions       chan reactorEvent
+	limits            channelStateLimits
+	ports             preparePorts
+	effectWorkerCount int
 
 	mu     sync.Mutex
 	states map[string]*channelState
@@ -17,6 +20,7 @@ type reactor struct {
 	startOnce sync.Once
 	closeOnce sync.Once
 	done      chan struct{}
+	effectWG  sync.WaitGroup
 }
 
 type reactorEvent interface {
@@ -30,28 +34,96 @@ type submitLocalEvent struct {
 	ack    chan error
 }
 
-func newReactor(id int, mailboxSize int, limits channelStateLimits, clock Clock) *reactor {
+type pendingPrepareEffect struct {
+	effect prepareEffect
+	ack    chan error
+}
+
+func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts) *reactor {
 	return &reactor{
-		id:      id,
-		mailbox: make(chan reactorEvent, mailboxSize),
-		limits:  limits,
-		clock:   clock,
-		states:  make(map[string]*channelState),
-		done:    make(chan struct{}),
+		id:                id,
+		mailbox:           make(chan any, mailboxSize),
+		effects:           make(chan prepareEffect, mailboxSize),
+		completions:       make(chan reactorEvent, mailboxSize),
+		limits:            limits,
+		ports:             ports,
+		effectWorkerCount: effectWorkerCount,
+		states:            make(map[string]*channelState),
+		done:              make(chan struct{}),
 	}
 }
 
 func (r *reactor) start() {
 	r.startOnce.Do(func() {
+		r.startEffectWorkers()
 		go r.run()
 	})
 }
 
 func (r *reactor) run() {
 	defer close(r.done)
-	for event := range r.mailbox {
-		event.apply(r)
+	mailbox := r.mailbox
+	completions := r.completions
+	effects := r.effects
+	var pendingEffects []pendingPrepareEffect
+	for mailbox != nil || completions != nil || len(pendingEffects) > 0 {
+		if mailbox == nil && len(pendingEffects) == 0 && effects != nil {
+			close(effects)
+			effects = nil
+		}
+		var effectOut chan prepareEffect
+		var nextEffect pendingPrepareEffect
+		if len(pendingEffects) > 0 {
+			effectOut = effects
+			nextEffect = pendingEffects[0]
+		}
+		select {
+		case effectOut <- nextEffect.effect:
+			select {
+			case nextEffect.ack <- nil:
+			default:
+			}
+			pendingEffects = pendingEffects[1:]
+		case event, ok := <-mailbox:
+			if !ok {
+				mailbox = nil
+				continue
+			}
+			if submit, ok := event.(submitLocalEvent); ok {
+				pendingEffects = append(pendingEffects, submit.pendingPrepareEffect())
+				continue
+			}
+			if reactorEvent, ok := event.(reactorEvent); ok {
+				reactorEvent.apply(r)
+			}
+		case event, ok := <-completions:
+			if !ok {
+				completions = nil
+				continue
+			}
+			event.apply(r)
+		}
 	}
+}
+
+func (r *reactor) startEffectWorkers() {
+	workerCount := r.effectWorkerCount
+	if workerCount <= 0 {
+		workerCount = 1
+	}
+	r.effectWG.Add(workerCount)
+	for i := 0; i < workerCount; i++ {
+		go func() {
+			defer r.effectWG.Done()
+			for effect := range r.effects {
+				r.completions <- effect.run(r.ports)
+			}
+		}()
+	}
+	go func() {
+		r.effectWG.Wait()
+		close(r.completions)
+	}()
 }
 
 func (r *reactor) close() {
@@ -94,17 +166,13 @@ func (r *reactor) enqueue(ctx context.Context, target AuthorityTarget, items []S
 	return ack, nil
 }
 
-func (e submitLocalEvent) apply(r *reactor) {
-	r.mu.Lock()
-	key := targetKey(e.target)
-	if _, ok := r.states[key]; !ok {
-		r.states[key] = newChannelState(e.target, r.limits)
-	}
-	r.mu.Unlock()
-
-	e.future.complete(notAppendedResults(len(e.items)))
-	select {
-	case e.ack <- nil:
-	default:
+func (e submitLocalEvent) pendingPrepareEffect() pendingPrepareEffect {
+	return pendingPrepareEffect{
+		effect: prepareEffect{
+			target: e.target,
+			items:  e.items,
+			future: e.future,
+		},
+		ack: e.ack,
 	}
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
-	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
+	group := newStartedTestGroup(t, Options{LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(1)})
 	target := AuthorityTarget{
 		ChannelID:    ChannelID{ID: "room", Type: 2},
 		ChannelKey:   "2:room",
@@ -23,6 +23,7 @@ func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
 	if future == nil {
 		t.Fatalf("future is nil")
 	}
+	waitFutureForTest(t, future)
 	if !group.HasStateForTest(target.ChannelID) {
 		t.Fatalf("authority state was not created")
 	}
@@ -113,7 +114,7 @@ func TestSubmitLocalIgnoresCallerCancellationAfterMailboxAcceptance(t *testing.T
 }
 
 func TestSubmitLocalFutureCompletesWithNotAppendedResults(t *testing.T) {
-	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
+	group := newStartedTestGroup(t, Options{LocalNodeID: 1, MessageID: newSequenceIDsForPrepare(1)})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
 	items := []SendBatchItem{
 		testSendItem("u1", "room"),
@@ -412,4 +413,15 @@ func receiveSubmitResult(t *testing.T, resultC <-chan submitResult) submitResult
 		t.Fatalf("SubmitLocal did not return")
 		return submitResult{}
 	}
+}
+
+func waitFutureForTest(t *testing.T, future *Future) []SendBatchItemResult {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	results, err := future.Wait(ctx)
+	if err != nil {
+		t.Fatalf("Future.Wait() error = %v", err)
+	}
+	return results
 }

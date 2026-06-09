@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// ErrNotAppended marks an admitted skeleton submission that has not run durable append.
+// ErrNotAppended marks a prepared submission that has not run durable append.
 var ErrNotAppended = errors.New("internalv2/channelwrite: not appended")
 
 // Future represents the eventual item-aligned result of an admitted send batch.
@@ -29,7 +29,8 @@ func newFuture(itemCount int) *Future {
 }
 
 // Wait blocks until the batch completes or the context expires.
-// The Task 2 skeleton completes admitted batches with item-level ErrNotAppended.
+// Until durable append is implemented, prepared-but-not-appended items complete
+// with item-level ErrNotAppended.
 func (f *Future) Wait(ctx context.Context) ([]SendBatchItemResult, error) {
 	if f == nil {
 		return nil, nil
@@ -61,15 +62,4 @@ func (f *Future) snapshot() []SendBatchItemResult {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]SendBatchItemResult(nil), f.results...)
-}
-
-func notAppendedResults(itemCount int) []SendBatchItemResult {
-	if itemCount <= 0 {
-		return nil
-	}
-	results := make([]SendBatchItemResult, itemCount)
-	for i := range results {
-		results[i].Err = ErrNotAppended
-	}
-	return results
 }

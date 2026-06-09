@@ -18,6 +18,26 @@ type AuthorityTarget = contract.AuthorityTarget
 // SendCommand is an entry-agnostic SEND request.
 type SendCommand = contract.SendCommand
 
+// Reason is the entry-agnostic result code for SEND.
+type Reason = contract.Reason
+
+const (
+	// ReasonSuccess means the send was durably accepted.
+	ReasonSuccess = contract.ReasonSuccess
+	// ReasonInvalidRequest means the command is malformed.
+	ReasonInvalidRequest = contract.ReasonInvalidRequest
+	// ReasonAuthFail means the sender is not authenticated.
+	ReasonAuthFail = contract.ReasonAuthFail
+	// ReasonChannelNotExist means the channel cannot accept this send.
+	ReasonChannelNotExist = contract.ReasonChannelNotExist
+	// ReasonNodeNotMatch means the client should retry through a fresher route.
+	ReasonNodeNotMatch = contract.ReasonNodeNotMatch
+	// ReasonSystemError means the send failed due to infrastructure pressure or error.
+	ReasonSystemError = contract.ReasonSystemError
+	// ReasonUnsupported means the phase-1 stack does not implement this send mode.
+	ReasonUnsupported = contract.ReasonUnsupported
+)
+
 // SendResult is the client-facing SEND outcome.
 type SendResult = contract.SendResult
 
@@ -27,11 +47,25 @@ type SendBatchItem = contract.SendBatchItem
 // SendBatchItemResult aligns with one SendBatch item.
 type SendBatchItemResult = contract.SendBatchItemResult
 
+// Decision is the result of send authorization.
+type Decision = contract.Decision
+
+// IdempotencyQuery identifies one canonical sender/client message key.
+type IdempotencyQuery = contract.IdempotencyQuery
+
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
 	// ErrBackpressured reports bounded runtime pressure or closed admission.
 	ErrBackpressured = contract.ErrBackpressured
+	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.
+	ErrRequestSubscribersRequireSyncOnce = contract.ErrRequestSubscribersRequireSyncOnce
+	// ErrRequestSubscribersConflictChannel reports that request-scoped sends cannot specify a channel.
+	ErrRequestSubscribersConflictChannel = contract.ErrRequestSubscribersConflictChannel
+	// ErrRequestSubscribersRequired reports that request-scoped sends need at least one usable subscriber.
+	ErrRequestSubscribersRequired = contract.ErrRequestSubscribersRequired
+	// ErrMessageIDAllocatorRequired reports that message id allocation is not configured.
+	ErrMessageIDAllocatorRequired = contract.ErrMessageIDAllocatorRequired
 )
 
 // Group owns a set of channel-hashed local authority write reactors.
@@ -50,8 +84,9 @@ func New(opts Options) *Group {
 	opts = applyDefaults(opts)
 	group := &Group{opts: opts}
 	limits := stateLimitsFromOptions(opts)
+	ports := preparePortsFromOptions(opts)
 	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.Clock))
+		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports))
 	}
 	return group
 }
