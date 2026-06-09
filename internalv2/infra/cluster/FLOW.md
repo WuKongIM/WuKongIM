@@ -15,6 +15,7 @@ presence/delivery ports to clusterv2 routing and node RPC.
 ```text
 message.AppendBatchRequest
   -> channelv2.AppendBatchRequest
+     (expected channel/leader epochs fence stale authority writes)
      (trace id, diagnostics channel key, append attempt, and per-message trace metadata stay transient)
   -> ChannelAppendNode.AppendChannelBatch
   -> record sendtrace `channel.append.local` for traced messages after completion
@@ -23,8 +24,9 @@ message.AppendBatchRequest
 ```
 
 Payloads are cloned in both directions unless the message usecase marks result
-payloads as unnecessary for SENDACK-only flows. Commit mode and typed errors are
-mapped at this boundary so the message usecase stays cluster-agnostic.
+payloads as unnecessary for SENDACK-only flows. Commit mode, expected authority
+epoch fences, and typed errors are mapped at this boundary so the message
+usecase stays cluster-agnostic.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.
