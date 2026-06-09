@@ -1,4 +1,4 @@
-package message
+package message_test
 
 import (
 	"go/parser"
@@ -6,6 +6,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 )
 
 func TestMessageUsecaseImportBoundary(t *testing.T) {
@@ -34,6 +37,31 @@ func TestMessageUsecaseImportBoundary(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+func TestMessagePackageAliasesChannelWriteTypes(t *testing.T) {
+	var _ channelwrite.SendCommand = message.SendCommand{}
+	var _ channelwrite.Decision = message.Decision{}
+	var _ channelwrite.IdempotencyQuery = message.IdempotencyQuery{}
+
+	reasons := []struct {
+		name     string
+		message  message.Reason
+		contract channelwrite.Reason
+	}{
+		{name: "success", message: message.ReasonSuccess, contract: channelwrite.ReasonSuccess},
+		{name: "invalid request", message: message.ReasonInvalidRequest, contract: channelwrite.ReasonInvalidRequest},
+		{name: "auth fail", message: message.ReasonAuthFail, contract: channelwrite.ReasonAuthFail},
+		{name: "channel not exist", message: message.ReasonChannelNotExist, contract: channelwrite.ReasonChannelNotExist},
+		{name: "node not match", message: message.ReasonNodeNotMatch, contract: channelwrite.ReasonNodeNotMatch},
+		{name: "system error", message: message.ReasonSystemError, contract: channelwrite.ReasonSystemError},
+		{name: "unsupported", message: message.ReasonUnsupported, contract: channelwrite.ReasonUnsupported},
+	}
+	for _, reason := range reasons {
+		if reason.message != reason.contract {
+			t.Fatalf("%s reason alias mismatch: message=%d contract=%d", reason.name, reason.message, reason.contract)
 		}
 	}
 }

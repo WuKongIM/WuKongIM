@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
@@ -24,12 +25,7 @@ type MessageIDAllocator interface {
 }
 
 // Decision is the result of send authorization.
-type Decision struct {
-	// Allowed reports whether the send may proceed.
-	Allowed bool
-	// Reason explains rejected decisions.
-	Reason Reason
-}
+type Decision = channelwrite.Decision
 
 // Authorizer decides whether a send may enter durable append.
 type Authorizer interface {

@@ -1,18 +1,13 @@
 package message
 
-import "context"
+import (
+	"context"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+)
 
 // IdempotencyQuery identifies one canonical sender/client message key.
-type IdempotencyQuery struct {
-	// FromUID is the authenticated sender UID.
-	FromUID string
-	// ClientMsgNo is the sender-provided idempotency key.
-	ClientMsgNo string
-	// ChannelID is the canonical channel ID after request normalization.
-	ChannelID string
-	// ChannelType is the canonical channel type.
-	ChannelType uint8
-}
+type IdempotencyQuery = channelwrite.IdempotencyQuery
 
 // SendIdempotencyLookup recovers a previously committed send result.
 type SendIdempotencyLookup interface {

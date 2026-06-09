@@ -1,10 +1,14 @@
 package message
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+)
 
 var (
 	// ErrInvalidCommand reports a malformed send command.
-	ErrInvalidCommand = errors.New("internalv2/message: invalid command")
+	ErrInvalidCommand = channelwrite.ErrInvalidCommand
 	// ErrSyncLoginUIDRequired reports that a legacy message sync request has no login UID.
 	ErrSyncLoginUIDRequired = errors.New("login_uid不能为空！")
 	// ErrSyncChannelIDRequired reports that a legacy message sync request has no channel ID.
@@ -14,27 +18,31 @@ var (
 	// ErrMessageReaderRequired reports that channel message sync is not configured.
 	ErrMessageReaderRequired = errors.New("internalv2/message: message reader required")
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.
-	ErrRequestSubscribersRequireSyncOnce = errors.New("internalv2/message: request subscribers require sync_once")
+	ErrRequestSubscribersRequireSyncOnce = channelwrite.ErrRequestSubscribersRequireSyncOnce
 	// ErrRequestSubscribersConflictChannel reports that request-scoped sends cannot specify a channel.
-	ErrRequestSubscribersConflictChannel = errors.New("internalv2/message: request subscribers cannot include channel_id")
+	ErrRequestSubscribersConflictChannel = channelwrite.ErrRequestSubscribersConflictChannel
 	// ErrRequestSubscribersRequired reports that request-scoped sends need at least one usable subscriber.
-	ErrRequestSubscribersRequired = errors.New("internalv2/message: request subscribers required")
+	ErrRequestSubscribersRequired = channelwrite.ErrRequestSubscribersRequired
 	// ErrAppenderRequired reports that durable append is not configured.
-	ErrAppenderRequired = errors.New("internalv2/message: appender required")
+	ErrAppenderRequired = channelwrite.ErrAppenderRequired
 	// ErrMessageIDAllocatorRequired reports that message id allocation is not configured.
-	ErrMessageIDAllocatorRequired = errors.New("internalv2/message: message id allocator required")
+	ErrMessageIDAllocatorRequired = channelwrite.ErrMessageIDAllocatorRequired
 	// ErrNotLeader reports that the append target is no longer the leader.
-	ErrNotLeader = errors.New("internalv2/message: not leader")
+	ErrNotLeader = channelwrite.ErrNotLeader
+	// ErrNotChannelAuthority reports that the local node is not the channel authority.
+	ErrNotChannelAuthority = channelwrite.ErrNotChannelAuthority
 	// ErrStaleRoute reports that append used stale channel metadata.
-	ErrStaleRoute = errors.New("internalv2/message: stale route")
+	ErrStaleRoute = channelwrite.ErrStaleRoute
 	// ErrRouteNotReady reports that cluster routing is not ready for foreground writes.
-	ErrRouteNotReady = errors.New("internalv2/message: route not ready")
+	ErrRouteNotReady = channelwrite.ErrRouteNotReady
 	// ErrChannelNotFound reports that the target channel is not available.
-	ErrChannelNotFound = errors.New("internalv2/message: channel not found")
+	ErrChannelNotFound = channelwrite.ErrChannelNotFound
 	// ErrBackpressured reports bounded runtime pressure.
-	ErrBackpressured = errors.New("internalv2/message: backpressured")
+	ErrBackpressured = channelwrite.ErrBackpressured
+	// ErrChannelBusy reports that channel-level write flow control is saturated.
+	ErrChannelBusy = channelwrite.ErrChannelBusy
 	// ErrAppendFailed wraps unexpected append failures.
-	ErrAppendFailed = errors.New("internalv2/message: append failed")
+	ErrAppendFailed = channelwrite.ErrAppendFailed
 	// ErrAppendResultMissing reports a successful batch append response without a matching item result.
-	ErrAppendResultMissing = errors.New("internalv2/message: append result missing")
+	ErrAppendResultMissing = channelwrite.ErrAppendResultMissing
 )
