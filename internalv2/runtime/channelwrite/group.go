@@ -78,6 +78,9 @@ type AppendBatchItemResult = contract.AppendBatchItemResult
 // CommittedEnvelope carries one committed message into post-commit effects.
 type CommittedEnvelope = contract.CommittedEnvelope
 
+// CommittedMessage is a durable committed message read for post-commit replay.
+type CommittedMessage = contract.CommittedMessage
+
 // Recipient identifies one UID selected for committed-message effects.
 type Recipient = contract.Recipient
 
@@ -152,8 +155,9 @@ func New(opts Options) *Group {
 	ports := preparePortsFromOptions(opts)
 	appendPorts := appendPortsFromOptions(opts)
 	commitPorts := commitPortsFromOptions(opts)
+	cursorPorts := cursorPortsFromOptions(opts)
 	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts, commitPorts))
+		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts, commitPorts, cursorPorts))
 	}
 	return group
 }

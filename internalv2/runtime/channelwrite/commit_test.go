@@ -196,6 +196,7 @@ func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
 		preparePorts{},
 		appendPorts{},
 		commitPorts{recipientRouter: &recordingRecipientRouterForRecipientTest{}},
+		cursorPorts{},
 	)
 	state := newChannelState(target, channelStateLimits{})
 	state.enqueueCommitted(CommittedEnvelope{MessageID: 1400, ChannelID: "room", ChannelType: 2, MessageScopedUIDs: []string{"u2"}})

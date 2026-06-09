@@ -117,16 +117,30 @@ append errors map to SENDACK reasons; successful append results complete
 `SENDACK` futures immediately with `ReasonSuccess`, message id, and channel
 sequence. Successful append items also enqueue `CommittedEnvelope` values in the
 same `channelState` as the handoff point for post-commit recipient work.
+When a durable cursor store is configured, the state first loads the last
+completed post-commit cursor and reads committed messages from
+`lastCompletedSeq + 1` in bounded pages before allowing live post-commit
+effects to run. Replay messages are inserted ahead of live committed backlog
+so authority restart repair preserves channel sequence order. Cursor load/read
+errors retry with the same bounded in-memory attempt cap as commit effects; a
+channel with exhausted replay attempts remains blocked by its backlog rather
+than running live recipient effects ahead of unreplayed durable messages.
 
 Post-commit work is scheduled from the authority `channelState` after durable
 append succeeds and is independent from `SENDACK` completion. A committed
 envelope remains pending until its recipient dispatch succeeds or reaches the
-bounded in-memory retry cap. Success prunes the payload-bearing envelope from
-the backlog; terminal max-attempt failure explicitly drops it for now so the
-reactor can advance. Task 8 durable cursor/replay will make this handoff
-reliable across process loss. Unprocessed and in-flight commit backlog
-participates in the channel high-watermark so a lagging post-commit path can
-return `ErrChannelBusy` instead of retaining unbounded payloads.
+bounded in-memory retry cap. Success checkpoints the committed channel
+sequence through the cursor store after recipient authority dispatch is
+accepted, then prunes the payload-bearing envelope from the backlog. Cursor
+checkpoint errors retry the same committed envelope without changing the
+already-completed `SENDACK`; if the process restarts before checkpoint success,
+durable replay starts again from the previous cursor and duplicate replay must
+be tolerated by idempotent recipient-side projections. Terminal max-attempt
+failure explicitly drops the in-memory envelope for now so the reactor can
+advance, while a later restart can still replay uncheckpointed durable log
+entries. Unprocessed and in-flight commit backlog participates in the channel
+high-watermark so a lagging post-commit path can return `ErrChannelBusy`
+instead of retaining unbounded payloads.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
@@ -148,8 +162,9 @@ retried with bounded backoff and an attempt cap; routes still retryable after
 the final attempt return an explicit retry-exhausted error. Owner-local
 concrete session writes remain outside `channelState`.
 
-`Stop` cancels the runtime context passed to prepare, append, and post-commit
-effects before waiting for reactors to drain. Once cancellation is observed,
-the reactor does not schedule more post-commit backlog, avoiding a one-by-one
-walk of canceled work during shutdown. Ports must respect their context
-promptly for Stop to complete without waiting for the caller's timeout.
+`Stop` cancels the runtime context passed to prepare, append, replay, and
+post-commit effects before waiting for reactors to drain. Once cancellation is
+observed, the reactor does not schedule more replay or post-commit backlog,
+avoiding a one-by-one walk of canceled work during shutdown. Ports must
+respect their context promptly for Stop to complete without waiting for the
+caller's timeout.

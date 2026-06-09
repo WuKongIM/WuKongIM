@@ -17,6 +17,13 @@ type channelState struct {
 	commitCursor             int
 	commitInflight           bool
 	commitAttempts           int
+	cursorSeq                uint64
+	replayEnabled            bool
+	replayDone               bool
+	replayInflight           bool
+	replayNextSeq            uint64
+	replayInsertIndex        int
+	replayAttempts           int
 }
 
 type channelStateLimits struct {
@@ -24,12 +31,21 @@ type channelStateLimits struct {
 	appendInflightLimit      int
 }
 
-func newChannelState(target AuthorityTarget, limits channelStateLimits) *channelState {
-	return &channelState{
+func newChannelState(target AuthorityTarget, limits channelStateLimits, replayEnabled ...bool) *channelState {
+	enabled := false
+	if len(replayEnabled) > 0 {
+		enabled = replayEnabled[0]
+	}
+	state := &channelState{
 		target:                   target,
 		pendingItemHighWatermark: limits.pendingItemHighWatermark,
 		appendInflightLimit:      limits.appendInflightLimit,
 	}
+	if !enabled {
+		state.replayDone = true
+	}
+	state.replayEnabled = enabled
+	return state
 }
 
 func (s *channelState) enqueuePrepared(items []preparedSend) {
@@ -105,6 +121,9 @@ func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
 }
 
 func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
+	if !s.replayDone {
+		return commitEffect{}, false
+	}
 	if s.commitInflight {
 		return commitEffect{}, false
 	}
@@ -124,8 +143,11 @@ func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
 	return effect, true
 }
 
-func (s *channelState) finishCommitSuccess() {
+func (s *channelState) finishCommitSuccess(checkpointSeq uint64) {
 	s.commitInflight = false
+	if checkpointSeq > s.cursorSeq {
+		s.cursorSeq = checkpointSeq
+	}
 	s.dropCurrentCommit()
 }
 
@@ -151,6 +173,72 @@ func (s *channelState) dropCurrentCommit() {
 	s.pruneCommittedPrefix()
 }
 
+func (s *channelState) nextCursorEffect(key string, limit int) (cursorEffect, bool) {
+	if !s.replayEnabled || s.replayDone || s.replayInflight {
+		return cursorEffect{}, false
+	}
+	effect := cursorEffect{
+		key:       key,
+		channelID: s.target.ChannelID,
+		fromSeq:   s.replayNextSeq,
+		limit:     limit,
+		load:      s.replayNextSeq == 0,
+	}
+	s.replayInflight = true
+	s.replayAttempts++
+	return effect, true
+}
+
+func (s *channelState) finishCursorReplaySuccess(loadedCursor uint64, messages []CommittedMessage, nextSeq uint64, done bool) {
+	s.replayInflight = false
+	s.replayAttempts = 0
+	if loadedCursor > s.cursorSeq {
+		s.cursorSeq = loadedCursor
+	}
+	if s.replayNextSeq == 0 {
+		s.replayNextSeq = nextPostCommitSeq(s.cursorSeq)
+	}
+	if nextSeq > 0 {
+		s.replayNextSeq = nextSeq
+	}
+	s.enqueueReplayCommitted(messages)
+	if done {
+		s.replayDone = true
+	}
+}
+
+func (s *channelState) finishCursorReplayFailure() {
+	s.replayInflight = false
+}
+
+func (s *channelState) cancelCursorReplayDispatch() {
+	s.replayInflight = false
+}
+
+func (s *channelState) enqueueReplayCommitted(messages []CommittedMessage) {
+	if len(messages) == 0 {
+		return
+	}
+	replay := make([]CommittedEnvelope, 0, len(messages))
+	for _, msg := range messages {
+		if msg.MessageSeq <= s.cursorSeq {
+			continue
+		}
+		replay = append(replay, msg.Clone())
+	}
+	if len(replay) == 0 {
+		return
+	}
+	insertAt := s.replayInsertIndex
+	if insertAt > len(s.committed) {
+		insertAt = len(s.committed)
+	}
+	s.committed = append(s.committed, make([]CommittedEnvelope, len(replay))...)
+	copy(s.committed[insertAt+len(replay):], s.committed[insertAt:])
+	copy(s.committed[insertAt:], replay)
+	s.replayInsertIndex = insertAt + len(replay)
+}
+
 func (s *channelState) commitBacklog() int {
 	backlog := len(s.committed) - s.commitCursor
 	if backlog < 0 {
@@ -166,10 +254,16 @@ func (s *channelState) pruneCommittedPrefix() {
 	if s.commitCursor >= len(s.committed) {
 		s.committed = nil
 		s.commitCursor = 0
+		s.replayInsertIndex = 0
 		return
 	}
 	copy(s.committed, s.committed[s.commitCursor:])
 	clear(s.committed[len(s.committed)-s.commitCursor:])
 	s.committed = s.committed[:len(s.committed)-s.commitCursor]
+	if s.replayInsertIndex >= s.commitCursor {
+		s.replayInsertIndex -= s.commitCursor
+	} else {
+		s.replayInsertIndex = 0
+	}
 	s.commitCursor = 0
 }

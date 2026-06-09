@@ -15,6 +15,7 @@ const (
 	defaultEffectWorkerCount           = 1
 	defaultSubscriberPageSize          = 256
 	defaultRecipientBatchSize          = 256
+	defaultReplayPageSize              = 256
 	defaultDeliveryRetryMaxAttempts    = 3
 	defaultDeliveryRetryInitialBackoff = 5 * time.Millisecond
 	defaultDeliveryRetryMaxBackoff     = 100 * time.Millisecond
@@ -102,6 +103,20 @@ type OwnerPusher interface {
 	Push(context.Context, PushCommand) (PushResult, error)
 }
 
+// CursorStore persists the last post-commit sequence fully accepted by recipient dispatch.
+type CursorStore interface {
+	// LoadPostCommitCursor returns the last completed post-commit channel sequence.
+	LoadPostCommitCursor(context.Context, ChannelID) (uint64, error)
+	// StorePostCommitCursor stores a monotonic post-commit channel sequence.
+	StorePostCommitCursor(context.Context, ChannelID, uint64) error
+}
+
+// CommittedReader reads durable committed messages for post-commit replay.
+type CommittedReader interface {
+	// ReadCommittedFrom returns committed messages starting at fromSeq in ascending order.
+	ReadCommittedFrom(context.Context, ChannelID, uint64, int) ([]CommittedMessage, error)
+}
+
 // Options configures the channel write reactor group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
@@ -152,6 +167,12 @@ type Options struct {
 	DeliveryRetryMaxBackoff time.Duration
 	// CommitRetryMaxAttempts bounds recipient dispatch retries before terminal in-memory drop. Values <= 0 use a bounded default.
 	CommitRetryMaxAttempts int
+	// CursorStore persists post-commit progress. Nil keeps post-commit replay in memory only.
+	CursorStore CursorStore
+	// CommittedReader reads durable channel messages for authority restart replay.
+	CommittedReader CommittedReader
+	// ReplayPageSize bounds each durable post-commit replay read page. Values <= 0 use a bounded default.
+	ReplayPageSize int
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -183,6 +204,9 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.RecipientBatchSize <= 0 {
 		opts.RecipientBatchSize = defaultRecipientBatchSize
+	}
+	if opts.ReplayPageSize <= 0 {
+		opts.ReplayPageSize = defaultReplayPageSize
 	}
 	if opts.DeliveryRetryMaxAttempts <= 0 {
 		opts.DeliveryRetryMaxAttempts = defaultDeliveryRetryMaxAttempts
@@ -227,9 +251,18 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		subscribers:                opts.Subscribers,
 		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
 		recipientRouter:            opts.RecipientRouter,
+		cursorStore:                opts.CursorStore,
 		subscriberPageSize:         opts.SubscriberPageSize,
 		recipientBatchSize:         opts.RecipientBatchSize,
 		retryMaxAttempts:           opts.CommitRetryMaxAttempts,
+	}
+}
+
+func cursorPortsFromOptions(opts Options) cursorPorts {
+	return cursorPorts{
+		store:          opts.CursorStore,
+		reader:         opts.CommittedReader,
+		replayPageSize: opts.ReplayPageSize,
 	}
 }
 

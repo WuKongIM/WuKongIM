@@ -11,12 +11,14 @@ type reactor struct {
 	effects           chan prepareEffect
 	appendEffects     chan appendEffect
 	commitEffects     chan commitEffect
+	cursorEffects     chan cursorEffect
 	completions       chan reactorEvent
 	effectSlots       chan struct{}
 	limits            channelStateLimits
 	ports             preparePorts
 	appendPorts       appendPorts
 	commitPorts       commitPorts
+	cursorPorts       cursorPorts
 	effectWorkerCount int
 
 	mu     sync.Mutex
@@ -28,6 +30,7 @@ type reactor struct {
 	pendingPrepare   []pendingPrepareEffect
 	pendingAppend    []appendEffect
 	pendingCommit    []commitEffect
+	pendingCursor    []cursorEffect
 
 	startOnce  sync.Once
 	closeOnce  sync.Once
@@ -53,7 +56,7 @@ type pendingPrepareEffect struct {
 	ack    chan error
 }
 
-func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts, appendPorts appendPorts, commitPorts commitPorts) *reactor {
+func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts, appendPorts appendPorts, commitPorts commitPorts, cursorPorts cursorPorts) *reactor {
 	stopCtx, stopCancel := context.WithCancel(context.Background())
 	return &reactor{
 		id:                id,
@@ -61,12 +64,14 @@ func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorker
 		effects:           make(chan prepareEffect, mailboxSize),
 		appendEffects:     make(chan appendEffect, mailboxSize),
 		commitEffects:     make(chan commitEffect, mailboxSize),
+		cursorEffects:     make(chan cursorEffect, mailboxSize),
 		completions:       make(chan reactorEvent, mailboxSize),
 		effectSlots:       make(chan struct{}, mailboxSize),
 		limits:            limits,
 		ports:             ports,
 		appendPorts:       appendPorts,
 		commitPorts:       commitPorts,
+		cursorPorts:       cursorPorts,
 		effectWorkerCount: effectWorkerCount,
 		states:            make(map[string]*channelState),
 		nextPrepareSeq:    make(map[string]uint64),
@@ -92,10 +97,15 @@ func (r *reactor) run() {
 	effects := r.effects
 	appendEffects := r.appendEffects
 	commitEffects := r.commitEffects
-	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 {
+	cursorEffects := r.cursorEffects
+	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 || len(r.pendingCursor) > 0 {
 		if r.stopCtx.Err() != nil && len(r.pendingCommit) > 0 {
 			r.releasePendingCommitEffects(r.pendingCommit)
 			r.pendingCommit = nil
+		}
+		if r.stopCtx.Err() != nil && len(r.pendingCursor) > 0 {
+			r.releasePendingCursorEffects(r.pendingCursor)
+			r.pendingCursor = nil
 		}
 		if mailbox == nil && len(r.pendingPrepare) == 0 && effects != nil {
 			close(effects)
@@ -108,6 +118,10 @@ func (r *reactor) run() {
 		if mailbox == nil && len(r.pendingCommit) == 0 && !r.hasCommitInflight() && commitEffects != nil {
 			close(commitEffects)
 			commitEffects = nil
+		}
+		if mailbox == nil && len(r.pendingCursor) == 0 && !r.hasCursorInflight() && cursorEffects != nil {
+			close(cursorEffects)
+			cursorEffects = nil
 		}
 		var effectOut chan prepareEffect
 		var nextEffect pendingPrepareEffect
@@ -127,6 +141,12 @@ func (r *reactor) run() {
 			commitOut = commitEffects
 			nextCommit = r.pendingCommit[0]
 		}
+		var cursorOut chan cursorEffect
+		var nextCursor cursorEffect
+		if len(r.pendingCursor) > 0 && cursorEffects != nil {
+			cursorOut = cursorEffects
+			nextCursor = r.pendingCursor[0]
+		}
 		select {
 		case effectOut <- nextEffect.effect:
 			select {
@@ -138,6 +158,8 @@ func (r *reactor) run() {
 			r.pendingAppend = r.pendingAppend[1:]
 		case commitOut <- nextCommit:
 			r.pendingCommit = r.pendingCommit[1:]
+		case cursorOut <- nextCursor:
+			r.pendingCursor = r.pendingCursor[1:]
 		case event, ok := <-mailbox:
 			if !ok {
 				mailbox = nil
@@ -179,12 +201,27 @@ func (r *reactor) releasePendingCommitEffects(effects []commitEffect) {
 	}
 }
 
+func (r *reactor) releasePendingCursorEffects(effects []cursorEffect) {
+	if len(effects) == 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, effect := range effects {
+		state := r.states[effect.key]
+		if state == nil {
+			continue
+		}
+		state.cancelCursorReplayDispatch()
+	}
+}
+
 func (r *reactor) startEffectWorkers() {
 	workerCount := r.effectWorkerCount
 	if workerCount <= 0 {
 		workerCount = 1
 	}
-	r.effectWG.Add(workerCount * 3)
+	r.effectWG.Add(workerCount * 4)
 	for i := 0; i < workerCount; i++ {
 		go func() {
 			defer r.effectWG.Done()
@@ -202,6 +239,12 @@ func (r *reactor) startEffectWorkers() {
 			defer r.effectWG.Done()
 			for effect := range r.commitEffects {
 				r.completions <- effect.run(r.stopCtx, r.commitPorts)
+			}
+		}()
+		go func() {
+			defer r.effectWG.Done()
+			for effect := range r.cursorEffects {
+				r.completions <- effect.run(r.stopCtx, r.cursorPorts)
 			}
 		}()
 	}
@@ -289,6 +332,17 @@ func (r *reactor) hasCommitInflight() bool {
 	defer r.mu.Unlock()
 	for _, state := range r.states {
 		if state.commitInflight {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *reactor) hasCursorInflight() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, state := range r.states {
+		if state.replayInflight {
 			return true
 		}
 	}

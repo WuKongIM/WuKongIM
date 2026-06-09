@@ -165,6 +165,28 @@ Route errors are translated at this adapter boundary:
 Task 5; concrete node RPC remains a later access/node task and remote item
 results are returned item-aligned without interpreting successful payloads.
 
+## Channel Write Cursor Flow
+
+`ChannelWriteCursorStore` persists post-commit progress through app-local
+channel metadata, not the channel message log. The adapter owns only a narrow
+key/value channel metadata surface so the channelwrite runtime can load the
+last completed sequence and store monotonic cursor advances after recipient
+dispatch is accepted.
+
+```text
+channelwrite commit effect
+  -> ChannelWriteCursorStore.StorePostCommitCursor(channel, message_seq)
+       -> LoadChannelAppMetadata(channel, internalv2.channelwrite.post_commit_cursor)
+       -> skip stale/non-advancing writes
+       -> StoreChannelAppMetadata(channel, internalv2.channelwrite.post_commit_cursor)
+```
+
+`ChannelWriteCommittedReader` adapts `ReadChannelCommitted` to the
+channelwrite replay port by reading forward from `lastCompletedSeq + 1` with a
+bounded limit and returning `CommittedMessage` DTOs. This keeps replay ordering
+and pagination in the runtime while preserving clusterv2/channelv2 as an
+infrastructure detail.
+
 ## Sender Authority Flow
 
 `SenderAuthorityClient` adapts the message usecase sender-authority resolver and

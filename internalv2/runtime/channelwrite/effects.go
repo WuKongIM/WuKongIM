@@ -91,8 +91,9 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 		key := targetKey(e.target)
 		state := r.states[key]
 		if state == nil {
-			state = newChannelState(e.target, r.limits)
+			state = newChannelState(e.target, r.limits, r.cursorPorts.enabled())
 			r.states[key] = state
+			r.scheduleCursorLocked(key, state)
 		}
 		if state.canAdmit(len(matching)) {
 			state.enqueuePrepared(matching)
@@ -191,11 +192,48 @@ func (r *reactor) scheduleCommitLocked(key string, state *channelState) {
 	if r.stopCtx.Err() != nil {
 		return
 	}
+	if !state.replayDone {
+		r.scheduleCursorLocked(key, state)
+		return
+	}
 	effect, ok := state.nextCommitEffect(key)
 	if !ok {
 		return
 	}
 	r.pendingCommit = append(r.pendingCommit, effect)
+}
+
+func (r *reactor) scheduleCursorLocked(key string, state *channelState) {
+	if r.stopCtx.Err() != nil {
+		return
+	}
+	effect, ok := state.nextCursorEffect(key, r.cursorPorts.replayPageSize)
+	if !ok {
+		return
+	}
+	r.pendingCursor = append(r.pendingCursor, effect)
+}
+
+func (r *reactor) recordCursorCompletion(event cursorCompletedEvent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.states[event.key]
+	if state == nil {
+		return
+	}
+	if event.err != nil {
+		state.finishCursorReplayFailure()
+		if r.stopCtx.Err() == nil && state.replayAttempts < boundedPositive(r.commitPorts.retryMaxAttempts, defaultCommitRetryMaxAttempts) {
+			r.scheduleCursorLocked(event.key, state)
+		}
+		return
+	}
+	state.finishCursorReplaySuccess(event.loadedCursor, event.messages, event.nextSeq, event.done)
+	if event.done {
+		r.scheduleCommitLocked(event.key, state)
+		return
+	}
+	r.scheduleCursorLocked(event.key, state)
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {
