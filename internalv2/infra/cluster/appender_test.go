@@ -51,12 +51,14 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	appender := NewChannelAppender(node)
 
 	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:         message.ChannelID{ID: "room", Type: 1},
-		TraceID:           "trace-request",
-		ChannelKey:        "channel/key-request",
-		Attempt:           4,
-		CommitMode:        message.CommitModeQuorum,
-		OmitResultPayload: true,
+		ChannelID:           message.ChannelID{ID: "room", Type: 1},
+		ExpectedEpoch:       12,
+		ExpectedLeaderEpoch: 34,
+		TraceID:             "trace-request",
+		ChannelKey:          "channel/key-request",
+		Attempt:             4,
+		CommitMode:          message.CommitModeQuorum,
+		OmitResultPayload:   true,
 		Messages: []message.Message{
 			{
 				MessageID:         10,
@@ -93,6 +95,12 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	req := node.last
 	if req.ChannelID.ID != "room" || req.ChannelID.Type != 1 {
 		t.Fatalf("ChannelID = %#v, want room/1", req.ChannelID)
+	}
+	if req.ExpectedChannelEpoch != 12 {
+		t.Fatalf("ExpectedChannelEpoch = %d, want 12", req.ExpectedChannelEpoch)
+	}
+	if req.ExpectedLeaderEpoch != 34 {
+		t.Fatalf("ExpectedLeaderEpoch = %d, want 34", req.ExpectedLeaderEpoch)
 	}
 	if req.CommitMode != channelv2.CommitModeQuorum {
 		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelv2.CommitModeQuorum)
