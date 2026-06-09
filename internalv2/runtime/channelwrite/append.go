@@ -3,6 +3,7 @@ package channelwrite
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -77,26 +78,38 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	backoff := appendRetryInitialBackoff
 	attempt := appendInitialAttempt
 	for {
+		attemptItems := active
 		req := appendRequest(e.target, active, attempt)
-		ctx, cancel := appendItemsContext(runtimeCtx, active)
+		ctx, cancel := appendBatchContext(runtimeCtx)
 		startedAt := time.Now()
 		res, err := ports.appender.AppendBatch(ctx, req)
 		appendDur := sendtrace.Elapsed(startedAt, time.Now())
 		cancel()
 		completion.duration = appendDur
 		if err != nil {
+			var expired []appendItemCompletion
+			active, expired = activeAppendItems(active)
+			completion.items = append(completion.items, expired...)
+			if len(active) == 0 {
+				return completion
+			}
 			if retryableAppendBatchError(err) {
-				nextBackoff, ok := waitBeforeAppendRetry(runtimeCtx, active, backoff)
+				nextActive, expired, nextBackoff, ok := waitBeforeAppendRetry(runtimeCtx, active, backoff)
+				completion.items = append(completion.items, expired...)
 				if ok {
+					active = nextActive
 					backoff = nextBackoff
 					attempt++
 					continue
 				}
+				active = nextActive
 			}
-			completion.items = append(completion.items, appendBatchErrorCompletions(active, err)...)
+			if len(active) > 0 {
+				completion.items = append(completion.items, appendBatchErrorCompletions(active, err)...)
+			}
 			return completion
 		}
-		completion.items = append(completion.items, appendResultCompletions(active, res)...)
+		completion.items = append(completion.items, appendResultCompletions(attemptItems, res)...)
 		return completion
 	}
 }
@@ -145,19 +158,21 @@ func activeAppendItems(items []preparedSend) ([]preparedSend, []appendItemComple
 	active := make([]preparedSend, 0, len(items))
 	inactive := make([]appendItemCompletion, 0)
 	for _, item := range items {
-		if item.Context != nil {
-			if err := item.Context.Err(); err != nil {
-				inactive = append(inactive, appendItemCompletion{
-					item:     item,
-					result:   SendBatchItemResult{Err: err},
-					traceErr: err,
-				})
-				continue
-			}
+		if err := appendItemError(item); err != nil {
+			inactive = append(inactive, appendItemErrorCompletion(item, err))
+			continue
 		}
 		active = append(active, item)
 	}
 	return active, inactive
+}
+
+func appendItemErrorCompletion(item preparedSend, err error) appendItemCompletion {
+	return appendItemCompletion{
+		item:     item,
+		result:   SendBatchItemResult{Err: err},
+		traceErr: err,
+	}
 }
 
 func appendBatchErrorCompletions(items []preparedSend, err error) []appendItemCompletion {
@@ -175,6 +190,10 @@ func appendBatchErrorCompletions(items []preparedSend, err error) []appendItemCo
 func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appendItemCompletion {
 	out := make([]appendItemCompletion, 0, len(items))
 	for i, item := range items {
+		if err := appendItemError(item); err != nil {
+			out = append(out, appendItemErrorCompletion(item, err))
+			continue
+		}
 		if i >= len(res.Items) {
 			out = append(out, appendItemCompletion{
 				item:     item,
@@ -206,52 +225,42 @@ func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appe
 	return out
 }
 
-func appendItemsContext(runtimeCtx context.Context, items []preparedSend) (context.Context, context.CancelFunc) {
+func appendBatchContext(runtimeCtx context.Context) (context.Context, context.CancelFunc) {
 	base := context.Background()
 	if runtimeCtx != nil {
 		base = runtimeCtx
 	}
-	var earliest time.Time
-	hasDeadline := false
-	recordDeadline := func(deadline time.Time, ok bool) {
-		if !ok || deadline.IsZero() {
-			return
-		}
-		if !hasDeadline || deadline.Before(earliest) {
-			earliest = deadline
-			hasDeadline = true
-		}
-	}
-	for _, item := range items {
-		recordDeadline(item.Deadline, !item.Deadline.IsZero())
-		if item.Context != nil {
-			deadline, ok := item.Context.Deadline()
-			recordDeadline(deadline, ok)
-		}
-	}
-	if hasDeadline {
-		return context.WithDeadline(base, earliest)
-	}
 	return context.WithCancel(base)
 }
 
-func waitBeforeAppendRetry(runtimeCtx context.Context, items []preparedSend, backoff time.Duration) (time.Duration, bool) {
-	if !appendItemsHaveDeadline(items) {
-		return backoff, false
+func waitBeforeAppendRetry(runtimeCtx context.Context, items []preparedSend, backoff time.Duration) ([]preparedSend, []appendItemCompletion, time.Duration, bool) {
+	active, expired := activeAppendItems(items)
+	if len(active) == 0 {
+		return active, expired, backoff, false
 	}
-	ctx, cancel := appendItemsContext(runtimeCtx, items)
+	if !appendItemsHaveDeadline(active) {
+		return active, expired, backoff, false
+	}
+	ctx, cancel := appendBatchContext(runtimeCtx)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
-		return backoff, false
+		return active, expired, backoff, false
 	}
 	timer := time.NewTimer(backoff)
 	defer timer.Stop()
+	wake, cleanup := appendItemsWakeSignal(active)
+	defer cleanup()
 	select {
 	case <-timer.C:
-		return nextAppendRetryBackoff(backoff), true
+	case <-wake:
 	case <-ctx.Done():
-		return backoff, false
+		active, moreExpired := activeAppendItems(active)
+		expired = append(expired, moreExpired...)
+		return active, expired, backoff, false
 	}
+	active, moreExpired := activeAppendItems(active)
+	expired = append(expired, moreExpired...)
+	return active, expired, nextAppendRetryBackoff(backoff), len(active) > 0
 }
 
 func nextAppendRetryBackoff(backoff time.Duration) time.Duration {
@@ -277,6 +286,82 @@ func appendItemsHaveDeadline(items []preparedSend) bool {
 		}
 	}
 	return false
+}
+
+func appendItemsWakeSignal(items []preparedSend) (<-chan struct{}, func()) {
+	wake := make(chan struct{})
+	stop := make(chan struct{})
+	var wakeOnce sync.Once
+	signal := func() {
+		wakeOnce.Do(func() { close(wake) })
+	}
+	var stopOnce sync.Once
+	cleanup := func() {
+		stopOnce.Do(func() { close(stop) })
+	}
+	for _, item := range items {
+		if err := appendItemError(item); err != nil {
+			signal()
+			break
+		}
+		go func(item preparedSend) {
+			waitAppendItemTerminal(item, stop)
+			signal()
+		}(item)
+	}
+	return wake, cleanup
+}
+
+func waitAppendItemTerminal(item preparedSend, stop <-chan struct{}) {
+	deadline, hasDeadline := appendItemDeadline(item)
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	if hasDeadline {
+		delay := time.Until(deadline)
+		if delay <= 0 {
+			return
+		}
+		timer = time.NewTimer(delay)
+		timerC = timer.C
+		defer timer.Stop()
+	}
+	var ctxDone <-chan struct{}
+	if item.Context != nil {
+		ctxDone = item.Context.Done()
+	}
+	if ctxDone == nil && timerC == nil {
+		<-stop
+		return
+	}
+	select {
+	case <-ctxDone:
+	case <-timerC:
+	case <-stop:
+	}
+}
+
+func appendItemError(item preparedSend) error {
+	if item.Context != nil {
+		if err := item.Context.Err(); err != nil {
+			return err
+		}
+	}
+	if !item.Deadline.IsZero() && !item.Deadline.After(time.Now()) {
+		return context.DeadlineExceeded
+	}
+	return nil
+}
+
+func appendItemDeadline(item preparedSend) (time.Time, bool) {
+	deadline := item.Deadline
+	ok := !deadline.IsZero()
+	if item.Context != nil {
+		if ctxDeadline, ctxOK := item.Context.Deadline(); ctxOK && (!ok || ctxDeadline.Before(deadline)) {
+			deadline = ctxDeadline
+			ok = true
+		}
+	}
+	return deadline, ok
 }
 
 func retryableAppendBatchError(err error) bool {

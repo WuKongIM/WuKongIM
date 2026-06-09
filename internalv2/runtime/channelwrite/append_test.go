@@ -181,6 +181,33 @@ func TestShortAppendResultReturnsMissingForMissingItem(t *testing.T) {
 	}
 }
 
+func TestAppendItemDeadlineDoesNotPoisonSameBatch(t *testing.T) {
+	appender := newBlockingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(250),
+		Appender:    appender,
+	})
+	target := localTargetForAppendTest("room")
+	first := appendSendItemForTest("u1", "room", "early")
+	first.Deadline = time.Now().Add(10 * time.Millisecond)
+	second := appendSendItemForTest("u2", "room", "later")
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first, second})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	started := appender.waitStarted(t)
+	time.Sleep(30 * time.Millisecond)
+	started.Release()
+
+	results := waitFutureForTest(t, future)
+	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("first result error = %v, want DeadlineExceeded", results[0].Err)
+	}
+	requireAppendSuccess(t, results, 1, 251, 2)
+}
+
 func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {
 	for _, retryErr := range []error{ErrRouteNotReady, ErrNotLeader, ErrStaleRoute} {
 		t.Run(retryErr.Error(), func(t *testing.T) {
@@ -203,13 +230,46 @@ func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {
 			}
 
 			results := waitFutureForTest(t, future)
-			if !errors.Is(results[0].Err, retryErr) {
-				t.Fatalf("result error = %v, want %v", results[0].Err, retryErr)
+			if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+				t.Fatalf("result error = %v, want DeadlineExceeded after retry window", results[0].Err)
 			}
 			if got := appender.Calls(); got < 2 {
 				t.Fatalf("append calls = %d, want retry before deadline", got)
 			}
 		})
+	}
+}
+
+func TestAppendRetryDropsExpiredItemsAndContinuesEligibleItems(t *testing.T) {
+	appender := newRecordingAppenderForAppendTest()
+	appender.errs = []error{ErrRouteNotReady, ErrRouteNotReady, nil}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(350),
+		Appender:    appender,
+	})
+	target := localTargetForAppendTest("room")
+	first := appendSendItemForTest("u1", "room", "early")
+	first.Deadline = time.Now().Add(8 * time.Millisecond)
+	second := appendSendItemForTest("u2", "room", "later")
+	second.Deadline = time.Now().Add(200 * time.Millisecond)
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{first, second})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+
+	results := waitFutureForTest(t, future)
+	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Fatalf("first result error = %v, want DeadlineExceeded", results[0].Err)
+	}
+	requireAppendSuccess(t, results, 1, 351, 1)
+	requests := appender.Requests()
+	if len(requests) < 3 {
+		t.Fatalf("append requests = %d, want retries", len(requests))
+	}
+	if len(requests[len(requests)-1].Messages) != 1 || requests[len(requests)-1].Messages[0].ClientMsgNo != "u2-later" {
+		t.Fatalf("last retry request messages = %#v, want only later item", requests[len(requests)-1].Messages)
 	}
 }
 
