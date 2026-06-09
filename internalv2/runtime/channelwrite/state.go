@@ -49,11 +49,9 @@ func (s *channelState) nextAppendBatch() (uint64, []preparedSend, bool) {
 	if len(s.pendingItems) == 0 {
 		return 0, nil, false
 	}
-	limit := s.appendInflightLimit
-	if limit <= 0 {
-		limit = 1
-	}
-	if s.appendInflight >= limit {
+	// Keep same-channel append strictly single-flight until a future task
+	// proves the appender can preserve durable order across concurrent batches.
+	if s.appendInflight >= 1 {
 		return 0, nil, false
 	}
 	items := append([]preparedSend(nil), s.pendingItems...)

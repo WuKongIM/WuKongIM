@@ -75,9 +75,9 @@ type Options struct {
 	MailboxSize int
 	// PendingItemHighWatermark is reserved for per-channel admission pressure. Values <= 0 use a bounded default.
 	PendingItemHighWatermark int
-	// AppendInflightLimit bounds future append effects per channel. Values <= 0 use one append inflight.
+	// AppendInflightLimit is reserved for future per-channel append concurrency; same-channel append is currently hard-capped at one in flight.
 	AppendInflightLimit int
-	// EffectWorkerCount is the number of bounded pre-append prepare workers. Values <= 0 use one worker.
+	// EffectWorkerCount is the number of bounded prepare and append workers. Values <= 0 use one worker of each kind.
 	EffectWorkerCount int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver

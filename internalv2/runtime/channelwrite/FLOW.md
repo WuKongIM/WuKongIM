@@ -65,12 +65,12 @@ in-flight item count is below `PendingItemHighWatermark`; saturated channels
 complete those items with `ErrChannelBusy` before they reach the append port.
 
 The owning reactor builds channel-aligned append batches from prepared pending
-items and keeps one append in flight per channel by default. Raising
-`AppendInflightLimit` allows additional same-channel append effects, but append
-completion events are still drained by the reactor in scheduling order before
-future slots are completed. Blocking `Appender.AppendBatch` calls run in worker
+items and keeps one append in flight per channel. `AppendInflightLimit` is
+reserved for future ordered appender work and is not honored yet for
+same-channel concurrency. Blocking `Appender.AppendBatch` calls run in worker
 goroutines and return completion events to the same authority reactor. Append
-requests clone payloads at the appender boundary.
+requests clone payloads at the appender boundary and carry the resolved
+authority epoch and leader epoch as append fences.
 
 Batch-level `ErrRouteNotReady`, `ErrNotLeader`, and `ErrStaleRoute` are retried
 with bounded backoff while at least one active item deadline remains. Short

@@ -28,5 +28,7 @@ resolve routes, append messages, dispatch recipients, or push gateway frames.
   slices.
 - `AuthorityTarget` identifies the fenced channel authority route used for
   write admission.
+- `AppendBatchRequest` carries the expected authority epoch and leader epoch so
+  append adapters can reject stale writes without re-resolving caller intent.
 - Reason constants and append/routing error sentinels remain stable so entry
   adapters can map SENDACK outcomes without depending on runtime packages.

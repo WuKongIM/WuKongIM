@@ -77,7 +77,7 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	backoff := appendRetryInitialBackoff
 	attempt := appendInitialAttempt
 	for {
-		req := appendRequest(e.target.ChannelID, active, attempt)
+		req := appendRequest(e.target, active, attempt)
 		ctx, cancel := appendItemsContext(runtimeCtx, active)
 		startedAt := time.Now()
 		res, err := ports.appender.AppendBatch(ctx, req)
@@ -101,16 +101,18 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	}
 }
 
-func appendRequest(channel ChannelID, active []preparedSend, attempt int) AppendBatchRequest {
+func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) AppendBatchRequest {
 	if attempt <= 0 {
 		attempt = appendInitialAttempt
 	}
 	req := AppendBatchRequest{
-		ChannelID:         channel,
-		Messages:          make([]Message, 0, len(active)),
-		Attempt:           attempt,
-		CommitMode:        CommitModeQuorum,
-		OmitResultPayload: false,
+		ChannelID:           target.ChannelID,
+		ExpectedEpoch:       target.Epoch,
+		ExpectedLeaderEpoch: target.LeaderEpoch,
+		Messages:            make([]Message, 0, len(active)),
+		Attempt:             attempt,
+		CommitMode:          CommitModeQuorum,
+		OmitResultPayload:   false,
 	}
 	for _, item := range active {
 		cmd := item.Command

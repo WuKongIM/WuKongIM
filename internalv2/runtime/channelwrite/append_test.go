@@ -45,6 +45,36 @@ func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 11, 2)
 }
 
+func TestAppendInflightLimitAboveOneStillKeepsOneSameChannelAppend(t *testing.T) {
+	appender := newBlockingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:         1,
+		MessageID:           newSequenceIDsForPrepare(30),
+		Appender:            appender,
+		AppendInflightLimit: 2,
+		EffectWorkerCount:   2,
+	})
+	target := localTargetForAppendTest("room")
+
+	firstC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "first"))
+	firstStart := appender.waitStarted(t)
+
+	secondC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "second"))
+	time.Sleep(20 * time.Millisecond)
+	if got := appender.Calls(); got != 1 {
+		t.Fatalf("append calls while first same-channel append in-flight = %d, want 1", got)
+	}
+
+	firstStart.Release()
+	first := receiveSubmitResult(t, firstC)
+	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 30, 1)
+
+	secondStart := appender.waitStarted(t)
+	secondStart.Release()
+	second := receiveSubmitResult(t, secondC)
+	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 31, 2)
+}
+
 func TestDifferentChannelsAppendIndependentlyOnDifferentReactors(t *testing.T) {
 	appender := newBlockingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{
@@ -71,6 +101,37 @@ func TestDifferentChannelsAppendIndependentlyOnDifferentReactors(t *testing.T) {
 	secondStart.Release()
 	second := receiveSubmitResult(t, secondC)
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 21, 2)
+}
+
+func TestAppendRequestCarriesAuthorityFence(t *testing.T) {
+	appender := newRecordingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(90),
+		Appender:    appender,
+	})
+	target := localTargetForAppendTest("room")
+	target.Epoch = 123
+	target.LeaderEpoch = 456
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "payload"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 90, 1)
+
+	requests := appender.Requests()
+	if len(requests) != 1 {
+		t.Fatalf("append requests = %d, want 1", len(requests))
+	}
+	if requests[0].ExpectedEpoch != target.Epoch {
+		t.Fatalf("ExpectedEpoch = %d, want %d", requests[0].ExpectedEpoch, target.Epoch)
+	}
+	if requests[0].ExpectedLeaderEpoch != target.LeaderEpoch {
+		t.Fatalf("ExpectedLeaderEpoch = %d, want %d", requests[0].ExpectedLeaderEpoch, target.LeaderEpoch)
+	}
 }
 
 func TestAppendSuccessCompletesItemAlignedFutures(t *testing.T) {
@@ -264,6 +325,39 @@ func TestAppendRecordsObserverAndSendtraceFromCompletion(t *testing.T) {
 	}
 }
 
+func TestStopCancelsBlockedAppendWorkerAndFuture(t *testing.T) {
+	appender := newContextBlockingAppenderForAppendTest()
+	group := New(Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(800),
+		Appender:    appender,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	target := localTargetForAppendTest("room")
+
+	submitC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "payload"))
+	appender.waitStarted(t)
+	submit := receiveSubmitResult(t, submitC)
+	if submit.err != nil {
+		t.Fatalf("SubmitLocal() error = %v", submit.err)
+	}
+
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	if err := group.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if !appender.wasCanceled() {
+		t.Fatalf("appender did not observe context cancellation")
+	}
+	results := waitFutureForTest(t, submit.future)
+	if !errors.Is(results[0].Err, context.Canceled) {
+		t.Fatalf("future error = %v, want context.Canceled", results[0].Err)
+	}
+}
+
 type recordingAppenderForAppendTest struct {
 	mu          sync.Mutex
 	calls       int
@@ -406,6 +500,46 @@ func (mutatingAppenderForAppendTest) AppendBatch(_ context.Context, req AppendBa
 		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 	}
 	return AppendBatchResult{Items: items}, nil
+}
+
+type contextBlockingAppenderForAppendTest struct {
+	started  chan struct{}
+	canceled chan struct{}
+	once     sync.Once
+}
+
+func newContextBlockingAppenderForAppendTest() *contextBlockingAppenderForAppendTest {
+	return &contextBlockingAppenderForAppendTest{
+		started:  make(chan struct{}),
+		canceled: make(chan struct{}),
+	}
+}
+
+func (a *contextBlockingAppenderForAppendTest) AppendBatch(ctx context.Context, _ AppendBatchRequest) (AppendBatchResult, error) {
+	a.once.Do(func() {
+		close(a.started)
+	})
+	<-ctx.Done()
+	close(a.canceled)
+	return AppendBatchResult{}, ctx.Err()
+}
+
+func (a *contextBlockingAppenderForAppendTest) waitStarted(t *testing.T) {
+	t.Helper()
+	select {
+	case <-a.started:
+	case <-time.After(time.Second):
+		t.Fatalf("append did not start")
+	}
+}
+
+func (a *contextBlockingAppenderForAppendTest) wasCanceled() bool {
+	select {
+	case <-a.canceled:
+		return true
+	default:
+		return false
+	}
 }
 
 type appendObservationForTest struct {

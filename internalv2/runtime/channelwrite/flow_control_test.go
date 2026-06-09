@@ -20,21 +20,27 @@ func TestHighWatermarkRejectsBeforeAppend(t *testing.T) {
 	firstC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "first"))
 	firstStart := appender.waitStarted(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	second, err := group.SubmitLocal(ctx, target, []SendBatchItem{appendSendItemForTest("u2", "room", "second")})
+	second, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{appendSendItemForTest("u2", "room", "second")})
 	if err == nil && second != nil {
-		results, waitErr := second.Wait(ctx)
+		waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+		results, waitErr := second.Wait(waitCtx)
+		cancelWait()
+		if errors.Is(waitErr, context.DeadlineExceeded) {
+			firstStart.Release()
+			first := receiveSubmitResult(t, firstC)
+			_ = waitFutureForTest(t, first.future)
+			t.Fatalf("overflow future did not complete with ErrChannelBusy")
+		}
 		err = waitErr
 		if err == nil && len(results) == 1 {
 			err = results[0].Err
 		}
 	}
-	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, ErrChannelBusy) {
+	if !errors.Is(err, ErrChannelBusy) {
 		firstStart.Release()
 		first := receiveSubmitResult(t, firstC)
 		_ = waitFutureForTest(t, first.future)
-		t.Fatalf("overflow error = %v, want ErrChannelBusy or context deadline", err)
+		t.Fatalf("overflow error = %v, want ErrChannelBusy", err)
 	}
 	if got := appender.Calls(); got > 1 {
 		firstStart.Release()

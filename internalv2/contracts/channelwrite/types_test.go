@@ -21,3 +21,28 @@ func TestSendCommandCloneClonesSlices(t *testing.T) {
 		t.Fatalf("scoped uid clone mutated: %q", got)
 	}
 }
+
+func TestAppendBatchRequestClonePreservesAuthorityFence(t *testing.T) {
+	req := channelwrite.AppendBatchRequest{
+		ChannelID:           channelwrite.ChannelID{ID: "room", Type: 2},
+		ExpectedEpoch:       11,
+		ExpectedLeaderEpoch: 22,
+		Messages: []channelwrite.Message{{
+			MessageID: 1,
+			Payload:   []byte("hello"),
+		}},
+	}
+
+	cloned := req.Clone()
+	req.Messages[0].Payload[0] = 'x'
+
+	if cloned.ExpectedEpoch != 11 {
+		t.Fatalf("ExpectedEpoch = %d, want 11", cloned.ExpectedEpoch)
+	}
+	if cloned.ExpectedLeaderEpoch != 22 {
+		t.Fatalf("ExpectedLeaderEpoch = %d, want 22", cloned.ExpectedLeaderEpoch)
+	}
+	if string(cloned.Messages[0].Payload) != "hello" {
+		t.Fatalf("payload clone mutated: %q", cloned.Messages[0].Payload)
+	}
+}

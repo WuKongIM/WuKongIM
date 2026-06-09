@@ -202,6 +202,10 @@ func (m Message) Clone() Message {
 type AppendBatchRequest struct {
 	// ChannelID is the canonical append target.
 	ChannelID ChannelID
+	// ExpectedEpoch fences append against stale channel metadata.
+	ExpectedEpoch uint64
+	// ExpectedLeaderEpoch fences append against stale authority leadership.
+	ExpectedLeaderEpoch uint64
 	// Messages are the durable messages for the target channel.
 	Messages []Message
 	// TraceID is the first non-empty diagnostics trace identifier among request messages.
