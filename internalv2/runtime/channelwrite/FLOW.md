@@ -37,9 +37,12 @@ bounded per `LeaderNodeID`, not per channel, so different channels to the same
 remote authority share the same pressure limit.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
-and deadlines are checked before route lookup, before submission, and after
-local/remote completion. This prevents one item context or deadline from
-canceling other items that happen to share the same authority batch.
+and deadlines are checked before route lookup, before submission, and while
+waiting for retry wakeups. Once local or remote authority returns item-aligned
+results, those results are preserved so a late deadline cannot erase a durable
+append success or its committed handoff. This prevents one item context or
+deadline from canceling other items that happen to share the same authority
+batch.
 
 ## Authority-Only State
 
