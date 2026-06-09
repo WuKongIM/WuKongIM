@@ -190,10 +190,6 @@ func appendBatchErrorCompletions(items []preparedSend, err error) []appendItemCo
 func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appendItemCompletion {
 	out := make([]appendItemCompletion, 0, len(items))
 	for i, item := range items {
-		if err := appendItemError(item); err != nil {
-			out = append(out, appendItemErrorCompletion(item, err))
-			continue
-		}
 		if i >= len(res.Items) {
 			out = append(out, appendItemCompletion{
 				item:     item,

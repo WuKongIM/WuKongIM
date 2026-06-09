@@ -202,10 +202,15 @@ func TestAppendItemDeadlineDoesNotPoisonSameBatch(t *testing.T) {
 	started.Release()
 
 	results := waitFutureForTest(t, future)
-	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
-		t.Fatalf("first result error = %v, want DeadlineExceeded", results[0].Err)
-	}
+	requireAppendSuccess(t, results, 0, 250, 1)
 	requireAppendSuccess(t, results, 1, 251, 2)
+	committed := committedForAppendTest(t, group, target.ChannelID)
+	if len(committed) != 2 {
+		t.Fatalf("committed events = %d, want both accepted items", len(committed))
+	}
+	if committed[0].MessageID != 250 || committed[1].MessageID != 251 {
+		t.Fatalf("committed ids = %d/%d, want 250/251", committed[0].MessageID, committed[1].MessageID)
+	}
 }
 
 func TestAppendRetriesBatchRouteErrorsUntilItemDeadline(t *testing.T) {

@@ -198,34 +198,34 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	if group.target.LeaderNodeID == localNodeID {
 		if r == nil || r.local == nil {
 			activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
-			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+			return mergeActiveRouterResults(activePositions, activeResults, results)
 		}
 		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
 			activeResults = routerErrorResults(len(activeItems), err)
-			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+			return mergeActiveRouterResults(activePositions, activeResults, results)
 		}
 		if future == nil {
 			activeResults = routerErrorResults(len(activeItems), ErrAppendResultMissing)
-			return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+			return mergeActiveRouterResults(activePositions, activeResults, results)
 		}
 		activeResults, err = future.Wait(ctx)
 		if err != nil {
 			activeResults = routerErrorResults(len(activeItems), err)
 		}
-		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+		return mergeActiveRouterResults(activePositions, activeResults, results)
 	}
 	if r == nil || r.remote == nil {
 		activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
-		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+		return mergeActiveRouterResults(activePositions, activeResults, results)
 	}
 	if !r.acquireOutbound(group.target.LeaderNodeID) {
 		activeResults = routerErrorResults(len(activeItems), ErrBackpressured)
-		return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+		return mergeActiveRouterResults(activePositions, activeResults, results)
 	}
 	defer r.releaseOutbound(group.target.LeaderNodeID)
 	activeResults = r.remote.ForwardSendBatch(ctx, group.target, activeItems)
-	return mergeActiveRouterResults(group.items, activePositions, activeResults, results)
+	return mergeActiveRouterResults(activePositions, activeResults, results)
 }
 
 func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
@@ -407,14 +407,10 @@ func activeRouterGroupItems(items []SendBatchItem, results []SendBatchItemResult
 	return activeItems, activePositions
 }
 
-func mergeActiveRouterResults(items []SendBatchItem, activePositions []int, activeResults []SendBatchItemResult, results []SendBatchItemResult) []SendBatchItemResult {
+func mergeActiveRouterResults(activePositions []int, activeResults []SendBatchItemResult, results []SendBatchItemResult) []SendBatchItemResult {
 	activeResults = normalizeRouterGroupResults(len(activePositions), activeResults)
 	for i, result := range activeResults {
 		position := activePositions[i]
-		if err := routerItemError(items[position], time.Now()); err != nil {
-			results[position] = SendBatchItemResult{Err: err}
-			continue
-		}
 		results[position] = result
 	}
 	return results

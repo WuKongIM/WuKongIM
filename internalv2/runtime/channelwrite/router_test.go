@@ -175,8 +175,8 @@ func TestRouterItemCancellationDoesNotPoisonSameAuthorityBatch(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("results len = %d, want 2", len(results))
 	}
-	if !errors.Is(results[0].Err, context.Canceled) {
-		t.Fatalf("first result = %#v, want context canceled", results[0])
+	if results[0].Err != nil || results[0].Result.MessageID != 1 {
+		t.Fatalf("first result = %#v, want accepted success preserved", results[0])
 	}
 	if results[1].Err != nil || results[1].Result.MessageID != 2 {
 		t.Fatalf("second result = %#v, want unaffected success", results[1])
@@ -206,8 +206,8 @@ func TestRouterItemDeadlineDoesNotPoisonSameAuthorityBatch(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("results len = %d, want 2", len(results))
 	}
-	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
-		t.Fatalf("first result = %#v, want deadline exceeded", results[0])
+	if results[0].Err != nil || results[0].Result.MessageID != 1 {
+		t.Fatalf("first result = %#v, want accepted success preserved", results[0])
 	}
 	if results[1].Err != nil || results[1].Result.MessageID != 2 {
 		t.Fatalf("second result = %#v, want unaffected success", results[1])
