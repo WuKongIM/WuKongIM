@@ -2,7 +2,19 @@ package channelwrite
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	// ErrInvalidSubscriberCursor reports a non-terminal subscriber page without a usable next cursor.
+	ErrInvalidSubscriberCursor = errors.New("internalv2/channelwrite: invalid subscriber cursor")
+	// ErrCommitEffectFailed reports a post-commit effect failure that will be retried or terminally dropped.
+	ErrCommitEffectFailed = errors.New("internalv2/channelwrite: commit effect failed")
+	// ErrDeliveryRetryExhausted reports retryable owner push routes after the final delivery attempt.
+	ErrDeliveryRetryExhausted = errors.New("internalv2/channelwrite: delivery retry exhausted")
+	// ErrConversationProjectorRequired reports delivery configuration without conversation projection.
+	ErrConversationProjectorRequired = errors.New("internalv2/channelwrite: conversation projector required")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.
@@ -70,6 +82,9 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 	if ports.presence == nil || ports.pusher == nil {
 		return nil
 	}
+	if ports.conversations == nil {
+		return ErrConversationProjectorRequired
+	}
 	routes, err := ports.presence.EndpointsByUIDs(ctx, recipientUIDs(batch.Recipients))
 	if err != nil {
 		return err
@@ -93,12 +108,16 @@ func conversationPatchesForRecipients(batch RecipientBatch) []ConversationPatch 
 	event := batch.Event
 	patches := make([]ConversationPatch, 0, len(batch.Recipients))
 	for _, recipient := range batch.Recipients {
+		var visibleFloor uint64
+		if recipient.JoinSeq > 0 {
+			visibleFloor = recipient.JoinSeq - 1
+		}
 		patches = append(patches, ConversationPatch{
 			UID:          recipient.UID,
 			ChannelID:    event.ChannelID,
 			ChannelType:  int64(event.ChannelType),
-			ReadSeq:      recipient.JoinSeq,
-			DeletedToSeq: recipient.JoinSeq,
+			ReadSeq:      visibleFloor,
+			DeletedToSeq: visibleFloor,
 			ActiveAt:     event.ServerTimestampMS,
 			UpdatedAt:    event.ServerTimestampMS,
 			MessageSeq:   event.MessageSeq,
@@ -174,7 +193,7 @@ func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd Pus
 			}
 			cmd.Routes = append([]Route(nil), result.Retryable...)
 			if attempt == attempts {
-				return nil
+				return ErrDeliveryRetryExhausted
 			}
 		}
 		if err := sleepDeliveryRetry(ctx, backoff); err != nil {

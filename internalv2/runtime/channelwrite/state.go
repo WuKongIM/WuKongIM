@@ -14,8 +14,9 @@ type channelState struct {
 	completedAppends         map[uint64]appendCompletedEvent
 	committed                []CommittedEnvelope
 	nextCommitSeq            uint64
-	nextCommitIndex          int
-	commitInflight           int
+	commitCursor             int
+	commitInflight           bool
+	commitAttempts           int
 }
 
 type channelStateLimits struct {
@@ -45,7 +46,7 @@ func (s *channelState) canAdmit(count int) bool {
 	if s.pendingItemHighWatermark <= 0 {
 		return true
 	}
-	return len(s.pendingItems)+s.appendInflightItems+count <= s.pendingItemHighWatermark
+	return len(s.pendingItems)+s.appendInflightItems+s.commitBacklog()+count <= s.pendingItemHighWatermark
 }
 
 func (s *channelState) nextAppendBatch() (uint64, []preparedSend, bool) {
@@ -104,26 +105,64 @@ func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
 }
 
 func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
-	if s.commitInflight > 0 {
+	if s.commitInflight {
 		return commitEffect{}, false
 	}
-	if s.nextCommitIndex >= len(s.committed) {
+	if s.commitCursor >= len(s.committed) {
 		return commitEffect{}, false
 	}
-	event := s.committed[s.nextCommitIndex].Clone()
+	event := s.committed[s.commitCursor].Clone()
+	s.commitAttempts++
 	effect := commitEffect{
-		key:   key,
-		seq:   s.nextCommitSeq,
-		event: event,
+		key:     key,
+		seq:     s.nextCommitSeq,
+		attempt: s.commitAttempts,
+		event:   event,
 	}
 	s.nextCommitSeq++
-	s.nextCommitIndex++
-	s.commitInflight++
+	s.commitInflight = true
 	return effect, true
 }
 
-func (s *channelState) finishCommit() {
-	if s.commitInflight > 0 {
-		s.commitInflight--
+func (s *channelState) finishCommitSuccess() {
+	s.commitInflight = false
+	s.dropCurrentCommit()
+}
+
+func (s *channelState) finishCommitFailure() {
+	s.commitInflight = false
+}
+
+func (s *channelState) dropCurrentCommit() {
+	if s.commitCursor >= len(s.committed) {
+		s.commitAttempts = 0
+		return
 	}
+	s.committed[s.commitCursor] = CommittedEnvelope{}
+	s.commitCursor++
+	s.commitAttempts = 0
+	s.pruneCommittedPrefix()
+}
+
+func (s *channelState) commitBacklog() int {
+	backlog := len(s.committed) - s.commitCursor
+	if backlog < 0 {
+		return 0
+	}
+	return backlog
+}
+
+func (s *channelState) pruneCommittedPrefix() {
+	if s.commitCursor == 0 {
+		return
+	}
+	if s.commitCursor >= len(s.committed) {
+		s.committed = nil
+		s.commitCursor = 0
+		return
+	}
+	copy(s.committed, s.committed[s.commitCursor:])
+	clear(s.committed[len(s.committed)-s.commitCursor:])
+	s.committed = s.committed[:len(s.committed)-s.commitCursor]
+	s.commitCursor = 0
 }

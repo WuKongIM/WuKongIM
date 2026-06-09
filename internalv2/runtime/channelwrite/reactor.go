@@ -93,6 +93,9 @@ func (r *reactor) run() {
 	appendEffects := r.appendEffects
 	commitEffects := r.commitEffects
 	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 {
+		if r.stopCtx.Err() != nil && len(r.pendingCommit) > 0 {
+			r.pendingCommit = nil
+		}
 		if mailbox == nil && len(r.pendingPrepare) == 0 && effects != nil {
 			close(effects)
 			effects = nil
@@ -269,7 +272,7 @@ func (r *reactor) hasCommitInflight() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, state := range r.states {
-		if state.commitInflight > 0 {
+		if state.commitInflight {
 			return true
 		}
 	}

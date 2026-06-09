@@ -204,12 +204,11 @@ func TestAppendItemDeadlineDoesNotPoisonSameBatch(t *testing.T) {
 	results := waitFutureForTest(t, future)
 	requireAppendSuccess(t, results, 0, 250, 1)
 	requireAppendSuccess(t, results, 1, 251, 2)
-	committed := committedForAppendTest(t, group, target.ChannelID)
-	if len(committed) != 2 {
-		t.Fatalf("committed events = %d, want both accepted items", len(committed))
+	if len(started.Request.Messages) != 2 {
+		t.Fatalf("append request messages = %d, want both accepted items", len(started.Request.Messages))
 	}
-	if committed[0].MessageID != 250 || committed[1].MessageID != 251 {
-		t.Fatalf("committed ids = %d/%d, want 250/251", committed[0].MessageID, committed[1].MessageID)
+	if started.Request.Messages[0].MessageID != 250 || started.Request.Messages[1].MessageID != 251 {
+		t.Fatalf("append request ids = %d/%d, want 250/251", started.Request.Messages[0].MessageID, started.Request.Messages[1].MessageID)
 	}
 }
 
@@ -278,7 +277,7 @@ func TestAppendRetryDropsExpiredItemsAndContinuesEligibleItems(t *testing.T) {
 	}
 }
 
-func TestAppendSuccessEnqueuesCommittedWithoutRecipientEffects(t *testing.T) {
+func TestAppendSuccessPrunesNoopCommitWithoutRecipientEffects(t *testing.T) {
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID: 1,
 		MessageID:   newSequenceIDsForPrepare(400),
@@ -294,16 +293,7 @@ func TestAppendSuccessEnqueuesCommittedWithoutRecipientEffects(t *testing.T) {
 	}
 
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 400, 1)
-	committed := committedForAppendTest(t, group, target.ChannelID)
-	if len(committed) != 1 {
-		t.Fatalf("committed events = %d, want 1", len(committed))
-	}
-	if committed[0].MessageID != 400 || committed[0].MessageSeq != 1 {
-		t.Fatalf("committed id/seq = %d/%d, want 400/1", committed[0].MessageID, committed[0].MessageSeq)
-	}
-	if got := string(committed[0].Payload); got != "payload" {
-		t.Fatalf("committed payload = %q, want payload", got)
-	}
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
 func TestAppendClonesPayloadAtAppenderBoundary(t *testing.T) {

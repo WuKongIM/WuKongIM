@@ -80,11 +80,20 @@ func TestPrepareRequestScopedSendRequiresSyncOnce(t *testing.T) {
 func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 	ids := newSequenceIDsForPrepare(100)
 	clock := fixedClockForPrepare{now: time.Unix(123, 456_000_000)}
-	group := newPreparedGroup(t, preparePortsForTest{ids: ids, clock: clock})
+	router := newBlockingRecipientRouterForCommitTest()
 	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u2", "u3"})
 	if err != nil {
 		t.Fatalf("RequestSubscriberChannelFor() error = %v", err)
 	}
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  ids,
+		EffectWorkerCount:          1,
+		Clock:                      clock,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientRouter:            router,
+	})
+	t.Cleanup(router.release)
 
 	got := group.submitAndDrainPrepareToTarget(t, AuthorityTarget{
 		ChannelID:    ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType},

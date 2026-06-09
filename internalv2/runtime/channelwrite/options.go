@@ -3,6 +3,8 @@ package channelwrite
 import (
 	"context"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 )
 
 const (
@@ -16,6 +18,7 @@ const (
 	defaultDeliveryRetryMaxAttempts    = 3
 	defaultDeliveryRetryInitialBackoff = 5 * time.Millisecond
 	defaultDeliveryRetryMaxBackoff     = 100 * time.Millisecond
+	defaultCommitRetryMaxAttempts      = 3
 )
 
 // Clock provides the time source used by channel write runtime state.
@@ -66,11 +69,8 @@ type SubscriberSource interface {
 	NextSubscriberPage(context.Context, SubscriberPageRequest) (SubscriberPage, error)
 }
 
-// RecipientAuthorityTarget identifies the node authoritative for recipient-scoped effects.
-type RecipientAuthorityTarget struct {
-	// LeaderNodeID is the node that should process the recipient batch.
-	LeaderNodeID uint64
-}
+// RecipientAuthorityTarget identifies the fenced authority target for recipient-scoped effects.
+type RecipientAuthorityTarget = authority.Target
 
 // RecipientAuthorityResolver resolves the authority target for a recipient UID.
 type RecipientAuthorityResolver interface {
@@ -150,6 +150,8 @@ type Options struct {
 	DeliveryRetryInitialBackoff time.Duration
 	// DeliveryRetryMaxBackoff caps retry sleeps for retryable owner pushes. Values <= 0 use a bounded default.
 	DeliveryRetryMaxBackoff time.Duration
+	// CommitRetryMaxAttempts bounds recipient dispatch retries before terminal in-memory drop. Values <= 0 use a bounded default.
+	CommitRetryMaxAttempts int
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -191,6 +193,9 @@ func applyDefaults(opts Options) Options {
 	if opts.DeliveryRetryMaxBackoff <= 0 {
 		opts.DeliveryRetryMaxBackoff = defaultDeliveryRetryMaxBackoff
 	}
+	if opts.CommitRetryMaxAttempts <= 0 {
+		opts.CommitRetryMaxAttempts = defaultCommitRetryMaxAttempts
+	}
 	if opts.Authorizer == nil {
 		opts.Authorizer = allowAllAuthorizer{}
 	}
@@ -224,17 +229,7 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		recipientRouter:            opts.RecipientRouter,
 		subscriberPageSize:         opts.SubscriberPageSize,
 		recipientBatchSize:         opts.RecipientBatchSize,
-	}
-}
-
-func recipientPortsFromOptions(opts Options) recipientPorts {
-	return recipientPorts{
-		conversations:               opts.ConversationProjector,
-		presence:                    opts.PresenceResolver,
-		pusher:                      opts.OwnerPusher,
-		deliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
-		deliveryRetryInitialBackoff: opts.DeliveryRetryInitialBackoff,
-		deliveryRetryMaxBackoff:     opts.DeliveryRetryMaxBackoff,
+		retryMaxAttempts:           opts.CommitRetryMaxAttempts,
 	}
 }
 

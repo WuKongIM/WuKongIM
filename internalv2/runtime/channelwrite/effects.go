@@ -188,6 +188,9 @@ func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
 }
 
 func (r *reactor) scheduleCommitLocked(key string, state *channelState) {
+	if r.stopCtx.Err() != nil {
+		return
+	}
 	effect, ok := state.nextCommitEffect(key)
 	if !ok {
 		return

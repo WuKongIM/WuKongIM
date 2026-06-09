@@ -2,6 +2,7 @@ package channelwrite
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -43,8 +44,31 @@ func TestRecipientProcessorUpdatesConversationBeforeResolvingAndPushingDelivery(
 		t.Fatalf("conversation patches = %d, want 1", len(projector.patches))
 	}
 	patch := projector.patches[0]
-	if patch.UID != "u2" || patch.ChannelID != "g1" || patch.ChannelType != 2 || patch.ReadSeq != 2 || patch.MessageSeq != 4 {
+	if patch.UID != "u2" || patch.ChannelID != "g1" || patch.ChannelType != 2 || patch.ReadSeq != 1 || patch.MessageSeq != 4 {
 		t.Fatalf("conversation patch = %#v, want recipient visibility patch", patch)
+	}
+}
+
+func TestRecipientConversationPatchesUseVisibleFloor(t *testing.T) {
+	patches := conversationPatchesForRecipients(RecipientBatch{
+		Event: CommittedEnvelope{MessageSeq: 9, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{
+			{UID: "join-zero", JoinSeq: 0},
+			{UID: "join-one", JoinSeq: 1},
+			{UID: "join-two", JoinSeq: 2},
+		},
+	})
+
+	got := map[string]uint64{}
+	for _, patch := range patches {
+		if patch.ReadSeq != patch.DeletedToSeq {
+			t.Fatalf("patch %s read/deleted = %d/%d, want equal visible floor", patch.UID, patch.ReadSeq, patch.DeletedToSeq)
+		}
+		got[patch.UID] = patch.ReadSeq
+	}
+	want := map[string]uint64{"join-zero": 0, "join-one": 0, "join-two": 1}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("visible floors = %#v, want %#v", got, want)
 	}
 }
 
@@ -112,6 +136,50 @@ func TestRetryableOwnerPushRoutesAreRetriedWithBoundedBackoff(t *testing.T) {
 	}
 	if got := pusher.callCount(); got != 2 {
 		t.Fatalf("push calls = %d, want retry then success", got)
+	}
+}
+
+func TestRetryableOwnerPushRoutesReturnErrorAfterMaxAttempts(t *testing.T) {
+	pusher := &recordingOwnerPusherForDeliveryTest{
+		results: []PushResult{
+			{Retryable: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+			{Retryable: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+		},
+	}
+
+	err := processRecipientBatch(context.Background(), RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u2"}},
+	}, recipientPorts{
+		conversations:               noopConversationProjectorForDeliveryTest{},
+		presence:                    &recordingPresenceResolverForDeliveryTest{routes: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+		pusher:                      pusher,
+		deliveryRetryMaxAttempts:    2,
+		deliveryRetryInitialBackoff: time.Millisecond,
+		deliveryRetryMaxBackoff:     time.Millisecond,
+	})
+	if !errors.Is(err, ErrDeliveryRetryExhausted) {
+		t.Fatalf("processRecipientBatch() error = %v, want ErrDeliveryRetryExhausted", err)
+	}
+	if got := pusher.callCount(); got != 2 {
+		t.Fatalf("push calls = %d, want max attempts", got)
+	}
+}
+
+func TestDeliveryRequiresConversationProjectorWhenPushConfigured(t *testing.T) {
+	pusher := &recordingOwnerPusherForDeliveryTest{}
+	err := processRecipientBatch(context.Background(), RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u2"}},
+	}, recipientPorts{
+		presence: &recordingPresenceResolverForDeliveryTest{routes: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+		pusher:   pusher,
+	})
+	if !errors.Is(err, ErrConversationProjectorRequired) {
+		t.Fatalf("processRecipientBatch() error = %v, want ErrConversationProjectorRequired", err)
+	}
+	if got := pusher.callCount(); got != 0 {
+		t.Fatalf("push calls = %d, want 0 without conversation projector", got)
 	}
 }
 

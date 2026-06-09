@@ -119,21 +119,36 @@ sequence. Successful append items also enqueue `CommittedEnvelope` values in the
 same `channelState` as the handoff point for post-commit recipient work.
 
 Post-commit work is scheduled from the authority `channelState` after durable
-append succeeds and is independent from `SENDACK` completion. Scoped
-`MessageScopedUIDs` dispatch directly without scanning subscribers. Person
-channels derive exactly the two canonical participants from the committed
-channel id. Other channels page subscribers with the configured page size and
-dispatch each page before requesting the next one, so the runtime does not load
-all subscribers before recipient dispatch. Recipient batches are grouped by
-recipient UID authority target before they leave the channel authority reactor.
+append succeeds and is independent from `SENDACK` completion. A committed
+envelope remains pending until its recipient dispatch succeeds or reaches the
+bounded in-memory retry cap. Success prunes the payload-bearing envelope from
+the backlog; terminal max-attempt failure explicitly drops it for now so the
+reactor can advance. Task 8 durable cursor/replay will make this handoff
+reliable across process loss. Unprocessed and in-flight commit backlog
+participates in the channel high-watermark so a lagging post-commit path can
+return `ErrChannelBusy` instead of retaining unbounded payloads.
+
+Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
+Person channels derive exactly the two canonical participants from the
+committed channel id. Other channels page subscribers with the configured page
+size and dispatch each page before requesting the next one, so the runtime does
+not load all subscribers before recipient dispatch. A non-terminal subscriber
+page must return a non-empty cursor different from the previous cursor;
+otherwise dispatch fails with an invalid-cursor error instead of truncating or
+spinning. Recipient batches are grouped by the full fenced recipient authority
+target, and invalid targets map to route-not-ready before dispatch.
 
 Recipient-authority processing applies conversation patches before resolving
 online delivery routes. Delivery pushes are grouped by owner node. The sender's
 own echo is skipped only for the exact owner node and session that accepted the
-original SEND; other sender sessions remain eligible. Retryable owner push
-routes are retried with bounded backoff and an attempt cap. Owner-local concrete
-session writes remain outside `channelState`.
+original SEND; other sender sessions remain eligible. Delivery cannot be
+configured without the conversation projector. Retryable owner push routes are
+retried with bounded backoff and an attempt cap; routes still retryable after
+the final attempt return an explicit retry-exhausted error. Owner-local
+concrete session writes remain outside `channelState`.
 
 `Stop` cancels the runtime context passed to prepare, append, and post-commit
-effects before waiting for reactors to drain. Ports must respect their context
+effects before waiting for reactors to drain. Once cancellation is observed,
+the reactor does not schedule more post-commit backlog, avoiding a one-by-one
+walk of canceled work during shutdown. Ports must respect their context
 promptly for Stop to complete without waiting for the caller's timeout.

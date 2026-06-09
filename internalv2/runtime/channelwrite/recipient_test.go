@@ -2,11 +2,13 @@ package channelwrite
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 )
 
 func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
@@ -106,7 +108,11 @@ func TestGroupChannelPagesSubscribersBeforeDispatchingNextPage(t *testing.T) {
 func TestRecipientBatchesAreGroupedByRecipientAuthorityTarget(t *testing.T) {
 	router := &recordingRecipientRouterForRecipientTest{}
 	resolver := mapRecipientAuthorityResolverForRecipientTest{
-		nodes: map[string]uint64{"u1": 10, "u2": 20, "u3": 10},
+		targets: map[string]RecipientAuthorityTarget{
+			"u1": recipientAuthorityTargetForTest(1, 10, 100),
+			"u2": recipientAuthorityTargetForTest(2, 20, 200),
+			"u3": recipientAuthorityTargetForTest(1, 10, 100),
+		},
 	}
 
 	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{
@@ -123,28 +129,116 @@ func TestRecipientBatchesAreGroupedByRecipientAuthorityTarget(t *testing.T) {
 	}
 
 	got := router.byTarget()
-	if !reflect.DeepEqual(got[10], []string{"u1", "u3"}) {
-		t.Fatalf("target 10 recipients = %#v, want u1,u3", got[10])
+	target10 := recipientAuthorityTargetForTest(1, 10, 100)
+	target20 := recipientAuthorityTargetForTest(2, 20, 200)
+	if !reflect.DeepEqual(got[target10], []string{"u1", "u3"}) {
+		t.Fatalf("target 10 recipients = %#v, want u1,u3", got[target10])
 	}
-	if !reflect.DeepEqual(got[20], []string{"u2"}) {
-		t.Fatalf("target 20 recipients = %#v, want u2", got[20])
+	if !reflect.DeepEqual(got[target20], []string{"u2"}) {
+		t.Fatalf("target 20 recipients = %#v, want u2", got[target20])
+	}
+}
+
+func TestRecipientBatchesKeepSameLeaderDifferentFenceTargetsSeparate(t *testing.T) {
+	router := &recordingRecipientRouterForRecipientTest{}
+	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}
+	second := authority.Target{HashSlot: 2, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}
+	resolver := mapRecipientAuthorityResolverForRecipientTest{
+		targets: map[string]RecipientAuthorityTarget{"u1": first, "u2": second},
+	}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{
+		{UID: "u1"},
+		{UID: "u2"},
+	}, commitPorts{
+		recipientAuthorityResolver: resolver,
+		recipientRouter:            router,
+		recipientBatchSize:         16,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+
+	got := router.byTarget()
+	if len(got) != 2 {
+		t.Fatalf("target groups = %d, want 2 exact fenced targets", len(got))
+	}
+	if !reflect.DeepEqual(got[first], []string{"u1"}) || !reflect.DeepEqual(got[second], []string{"u2"}) {
+		t.Fatalf("target groups = %#v, want separate same-leader targets", got)
+	}
+}
+
+func TestInvalidRecipientAuthorityTargetMapsRouteNotReady(t *testing.T) {
+	router := &recordingRecipientRouterForRecipientTest{}
+	resolver := mapRecipientAuthorityResolverForRecipientTest{
+		targets: map[string]RecipientAuthorityTarget{"u1": {}},
+	}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{{UID: "u1"}}, commitPorts{
+		recipientAuthorityResolver: resolver,
+		recipientRouter:            router,
+		recipientBatchSize:         16,
+	})
+	if !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("dispatchRecipientSet() error = %v, want ErrRouteNotReady", err)
+	}
+	if router.callCount() != 0 {
+		t.Fatalf("router calls = %d, want 0 for invalid target", router.callCount())
+	}
+}
+
+func TestSubscriberPageInvalidCursorReturnsError(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		page SubscriberPage
+	}{
+		{name: "empty", page: SubscriberPage{Recipients: []Recipient{{UID: "u1"}}}},
+		{name: "repeated", page: SubscriberPage{Recipients: []Recipient{{UID: "u1"}}, Cursor: "same"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			router := &recordingRecipientRouterForRecipientTest{}
+			source := &recordingSubscriberSourceForRecipientTest{
+				pages: []SubscriberPage{
+					{Recipients: []Recipient{{UID: "first"}}, Cursor: "same"},
+					tt.page,
+				},
+			}
+			err := dispatchCommittedRecipients(context.Background(), CommittedEnvelope{
+				MessageID:   1,
+				ChannelID:   "g1",
+				ChannelType: 2,
+			}, commitPorts{
+				subscribers:                source,
+				recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{target: recipientAuthorityTargetForTest(1, 7, 1)},
+				recipientRouter:            router,
+				recipientBatchSize:         16,
+				subscriberPageSize:         2,
+			})
+			if !errors.Is(err, ErrInvalidSubscriberCursor) {
+				t.Fatalf("dispatchCommittedRecipients() error = %v, want ErrInvalidSubscriberCursor", err)
+			}
+		})
 	}
 }
 
 type staticRecipientAuthorityResolverForRecipientTest struct {
 	nodeID uint64
+	target RecipientAuthorityTarget
 }
 
 func (r staticRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(_ context.Context, _ string) (RecipientAuthorityTarget, error) {
-	return RecipientAuthorityTarget{LeaderNodeID: r.nodeID}, nil
+	if r.target != (RecipientAuthorityTarget{}) {
+		return r.target, nil
+	}
+	return recipientAuthorityTargetForTest(1, r.nodeID, 1), nil
 }
 
 type mapRecipientAuthorityResolverForRecipientTest struct {
-	nodes map[string]uint64
+	targets map[string]RecipientAuthorityTarget
 }
 
 func (r mapRecipientAuthorityResolverForRecipientTest) ResolveRecipientAuthority(_ context.Context, uid string) (RecipientAuthorityTarget, error) {
-	return RecipientAuthorityTarget{LeaderNodeID: r.nodes[uid]}, nil
+	return r.targets[uid], nil
 }
 
 type recordingSubscriberSourceForRecipientTest struct {
@@ -205,15 +299,25 @@ func (r *recordingRecipientRouterForRecipientTest) allUIDs() []string {
 	return out
 }
 
-func (r *recordingRecipientRouterForRecipientTest) byTarget() map[uint64][]string {
+func (r *recordingRecipientRouterForRecipientTest) byTarget() map[RecipientAuthorityTarget][]string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make(map[uint64][]string)
+	out := make(map[RecipientAuthorityTarget][]string)
 	for i, batch := range r.batches {
 		target := r.targets[i]
 		for _, recipient := range batch.Recipients {
-			out[target.LeaderNodeID] = append(out[target.LeaderNodeID], recipient.UID)
+			out[target] = append(out[target], recipient.UID)
 		}
 	}
 	return out
+}
+
+func recipientAuthorityTargetForTest(hashSlot uint16, leader uint64, epoch uint64) RecipientAuthorityTarget {
+	return authority.Target{
+		HashSlot:       hashSlot,
+		SlotID:         uint32(hashSlot + 100),
+		LeaderNodeID:   leader,
+		RouteRevision:  uint64(hashSlot + 1000),
+		AuthorityEpoch: epoch,
+	}
 }

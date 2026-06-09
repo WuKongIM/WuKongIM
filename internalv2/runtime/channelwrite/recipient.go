@@ -35,6 +35,7 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 	pageSize := boundedPositive(ports.subscriberPageSize, defaultSubscriberPageSize)
 	cursor := ""
 	for {
+		previousCursor := cursor
 		if err := contextErr(ctx); err != nil {
 			return err
 		}
@@ -52,8 +53,8 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 		if page.Done {
 			return nil
 		}
-		if page.Cursor == "" {
-			return nil
+		if page.Cursor == "" || page.Cursor == previousCursor {
+			return ErrInvalidSubscriberCursor
 		}
 		cursor = page.Cursor
 	}
@@ -78,6 +79,9 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		target, err := ports.recipientAuthorityResolver.ResolveRecipientAuthority(ctx, uid)
 		if err != nil {
 			return err
+		}
+		if err := target.Validate(); err != nil {
+			return ErrRouteNotReady
 		}
 		if _, ok := grouped[target]; !ok {
 			order = append(order, target)
