@@ -156,78 +156,6 @@ func TestConversationStoreBoundsLastVisibleMessageConcurrency(t *testing.T) {
 	}
 }
 
-func TestConversationProjectionStoreClassifiesSubscribers(t *testing.T) {
-	node := &conversationNodeFake{
-		subscribers:    []string{"u1", "u2"},
-		subscriberDone: true,
-	}
-	store := NewConversationProjectionStore(node)
-
-	got, err := store.ClassifyMembers(context.Background(), "g-small", 2, 3)
-	if err != nil {
-		t.Fatalf("ClassifyMembers() error = %v", err)
-	}
-	if !got.IsSmall || len(got.Members) != 2 || got.Members[0].UID != "u1" || got.Members[1].UID != "u2" {
-		t.Fatalf("member class = %#v, want complete small member snapshot", got)
-	}
-	if got, want := node.subscriberCalls, []subscriberPageCallFake{{channelID: "g-small", channelType: 2, afterUID: "", limit: 3}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("subscriber calls = %#v, want %#v", got, want)
-	}
-
-	node = &conversationNodeFake{
-		subscribers:    []string{"u1", "u2", "u3"},
-		subscriberDone: false,
-	}
-	store = NewConversationProjectionStore(node)
-	got, err = store.ClassifyMembers(context.Background(), "g-large", 2, 2)
-	if err != nil {
-		t.Fatalf("ClassifyMembers(large) error = %v", err)
-	}
-	if got.IsSmall || len(got.Members) != 2 {
-		t.Fatalf("large member class = %#v, want bounded non-small page", got)
-	}
-
-	node = &conversationNodeFake{subscriberDone: true}
-	store = NewConversationProjectionStore(node)
-	got, err = store.ClassifyMembers(context.Background(), "g-empty", 2, 2)
-	if err != nil {
-		t.Fatalf("ClassifyMembers(empty) error = %v", err)
-	}
-	if got.IsSmall || len(got.Members) != 0 {
-		t.Fatalf("empty member class = %#v, want sparse fallback", got)
-	}
-}
-
-func TestConversationProjectionStoreClonesStateBatch(t *testing.T) {
-	node := &conversationNodeFake{}
-	store := NewConversationProjectionStore(node)
-	states := []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10}}
-
-	if err := store.UpsertUserConversationStatesBatch(context.Background(), states); err != nil {
-		t.Fatalf("UpsertUserConversationStatesBatch() error = %v", err)
-	}
-	states[0].ChannelID = "mutated"
-
-	if got := node.stateBatches; len(got) != 1 || len(got[0]) != 1 || got[0][0].ChannelID != "g1" {
-		t.Fatalf("state batches = %#v, want cloned original row", got)
-	}
-}
-
-func TestConversationProjectionStoreTouchesActiveAtBatch(t *testing.T) {
-	node := &conversationNodeFake{}
-	store := NewConversationProjectionStore(node)
-	patches := []metadb.UserConversationActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10}}
-
-	if err := store.TouchUserConversationActiveAtBatch(context.Background(), patches); err != nil {
-		t.Fatalf("TouchUserConversationActiveAtBatch() error = %v", err)
-	}
-	patches[0].ChannelID = "mutated"
-
-	if got := node.activePatchBatches; len(got) != 1 || len(got[0]) != 1 || got[0][0].ChannelID != "g1" {
-		t.Fatalf("active patch batches = %#v, want cloned original patch", got)
-	}
-}
-
 type activePageCallFake struct {
 	uid   string
 	after metadb.UserConversationActiveCursor
@@ -237,13 +165,6 @@ type activePageCallFake struct {
 type readCallFake struct {
 	channelID       channelv2.ChannelID
 	visibleAfterSeq uint64
-}
-
-type subscriberPageCallFake struct {
-	channelID   string
-	channelType int64
-	afterUID    string
-	limit       int
 }
 
 type lastVisibleResultFake struct {
@@ -266,13 +187,6 @@ type conversationNodeFake struct {
 	readStarted    chan struct{}
 	activeReads    int
 	maxActiveReads int
-
-	subscribers     []string
-	subscriberDone  bool
-	subscriberCalls []subscriberPageCallFake
-	stateBatches    [][]metadb.UserConversationState
-
-	activePatchBatches [][]metadb.UserConversationActivePatch
 }
 
 func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -313,33 +227,6 @@ func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id chan
 		return channelv2.Message{}, false, channelv2.ErrChannelNotFound
 	}
 	return result.msg, result.ok, nil
-}
-
-func (n *conversationNodeFake) ListChannelSubscribersPage(_ context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
-	n.subscriberCalls = append(n.subscriberCalls, subscriberPageCallFake{channelID: channelID, channelType: channelType, afterUID: afterUID, limit: limit})
-	if limit <= 0 || len(n.subscribers) == 0 {
-		return nil, "", true, nil
-	}
-	end := limit
-	if end > len(n.subscribers) {
-		end = len(n.subscribers)
-	}
-	page := append([]string(nil), n.subscribers[:end]...)
-	cursor := ""
-	if !n.subscriberDone && len(page) > 0 {
-		cursor = page[len(page)-1]
-	}
-	return page, cursor, n.subscriberDone, nil
-}
-
-func (n *conversationNodeFake) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
-	n.stateBatches = append(n.stateBatches, append([]metadb.UserConversationState(nil), states...))
-	return nil
-}
-
-func (n *conversationNodeFake) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
-	n.activePatchBatches = append(n.activePatchBatches, append([]metadb.UserConversationActivePatch(nil), patches...))
-	return nil
 }
 
 func TestConversationStorePropagatesLastMessageRouteErrors(t *testing.T) {

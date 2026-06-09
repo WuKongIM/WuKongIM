@@ -140,20 +140,13 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL=2s",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
 		"WK_PRESENCE_ROUTE_TTL=2m",
-		"WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=888",
 		"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=48",
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=8192",
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=200000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1500",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=4s",
-		"WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL=250ms",
-		"WK_CONVERSATION_PROJECTION_SHARD_COUNT=32",
-		"WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS=50000",
-		"WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES=60000",
-		"WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE=45s",
-		"WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS=256",
-		"WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY=8",
-		"WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT=300ms",
+		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
+		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
 		"WK_DELIVERY_ENABLE=true",
 		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
 		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
@@ -247,9 +240,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Presence.RouteTTL != 2*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 2m", cfg.Presence.RouteTTL)
 	}
-	if cfg.Conversation.SmallGroupFanoutLimit != 888 {
-		t.Fatalf("Conversation.SmallGroupFanoutLimit = %d, want 888", cfg.Conversation.SmallGroupFanoutLimit)
-	}
 	if cfg.Conversation.MaxLastMessageConcurrency != 48 {
 		t.Fatalf("Conversation.MaxLastMessageConcurrency = %d, want 48", cfg.Conversation.MaxLastMessageConcurrency)
 	}
@@ -258,14 +248,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		AuthorityCacheMaxRows:       200000,
 		AuthorityListDBWindowMax:    1500,
 		AuthorityHandoffTimeout:     4 * time.Second,
-		ProjectionFlushInterval:     250 * time.Millisecond,
-		ProjectionShardCount:        32,
-		ProjectionMaxDirtyEvents:    50000,
-		ProjectionMaxRetryPatches:   60000,
-		ProjectionRetryMaxAge:       45 * time.Second,
-		ProjectionAdmitBatchRows:    256,
-		ProjectionAdmitConcurrency:  8,
-		ProjectionAdmitTimeout:      300 * time.Millisecond,
+		AuthorityAdmitBatchRows:     256,
+		AuthorityAdmitConcurrency:   8,
 	})
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true")
@@ -350,28 +334,16 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s",
-		"WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL=100ms",
-		"WK_CONVERSATION_PROJECTION_SHARD_COUNT=64",
-		"WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS=100000",
-		"WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES=100000",
-		"WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE=30s",
-		"WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS=512",
-		"WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY=16",
-		"WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT=500ms",
+		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512",
+		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16",
 	)
 	writeConf(t, path, lines...)
 	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID", "2048")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", "50000")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", "750")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", "2s")
-	t.Setenv("WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL", "50ms")
-	t.Setenv("WK_CONVERSATION_PROJECTION_SHARD_COUNT", "16")
-	t.Setenv("WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS", "25000")
-	t.Setenv("WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES", "30000")
-	t.Setenv("WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE", "20s")
-	t.Setenv("WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS", "128")
-	t.Setenv("WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY", "4")
-	t.Setenv("WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT", "200ms")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", "128")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY", "4")
 
 	cfg, err := loadConfig([]string{"-config", path})
 	if err != nil {
@@ -383,14 +355,8 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		AuthorityCacheMaxRows:       50000,
 		AuthorityListDBWindowMax:    750,
 		AuthorityHandoffTimeout:     2 * time.Second,
-		ProjectionFlushInterval:     50 * time.Millisecond,
-		ProjectionShardCount:        16,
-		ProjectionMaxDirtyEvents:    25000,
-		ProjectionMaxRetryPatches:   30000,
-		ProjectionRetryMaxAge:       20 * time.Second,
-		ProjectionAdmitBatchRows:    128,
-		ProjectionAdmitConcurrency:  4,
-		ProjectionAdmitTimeout:      200 * time.Millisecond,
+		AuthorityAdmitBatchRows:     128,
+		AuthorityAdmitConcurrency:   4,
 	})
 }
 
@@ -558,7 +524,6 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
-	t.Setenv("WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT", "256")
 	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
@@ -635,8 +600,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Presence.RouteTTL != 3*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 3m", cfg.Presence.RouteTTL)
 	}
-	if cfg.Conversation.SmallGroupFanoutLimit != 256 ||
-		cfg.Conversation.MaxLastMessageConcurrency != 16 {
+	if cfg.Conversation.MaxLastMessageConcurrency != 16 {
 		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
@@ -910,8 +874,6 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "presence touch batch size negative", line: "WK_PRESENCE_TOUCH_BATCH_SIZE=-1", wantKey: "WK_PRESENCE_TOUCH_BATCH_SIZE"},
 		{name: "presence route ttl", line: "WK_PRESENCE_ROUTE_TTL=soon", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "presence route ttl negative", line: "WK_PRESENCE_ROUTE_TTL=-1s", wantKey: "WK_PRESENCE_ROUTE_TTL"},
-		{name: "conversation small group fanout limit", line: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=many", wantKey: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT"},
-		{name: "conversation small group fanout limit negative", line: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=-1", wantKey: "WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT"},
 		{name: "conversation max last message concurrency", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=many", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
 		{name: "conversation max last message concurrency negative", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=-1", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
 		{name: "conversation authority cache max rows per uid", line: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=many", wantKey: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID"},
@@ -922,22 +884,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority list db window max zero", line: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=0", wantKey: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"},
 		{name: "conversation authority handoff timeout", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
 		{name: "conversation authority handoff timeout zero", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
-		{name: "conversation projection flush interval", line: "WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL=soon", wantKey: "WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL"},
-		{name: "conversation projection flush interval negative", line: "WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL=-1s", wantKey: "WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL"},
-		{name: "conversation projection shard count", line: "WK_CONVERSATION_PROJECTION_SHARD_COUNT=many", wantKey: "WK_CONVERSATION_PROJECTION_SHARD_COUNT"},
-		{name: "conversation projection shard count zero", line: "WK_CONVERSATION_PROJECTION_SHARD_COUNT=0", wantKey: "WK_CONVERSATION_PROJECTION_SHARD_COUNT"},
-		{name: "conversation projection max dirty events", line: "WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS=many", wantKey: "WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS"},
-		{name: "conversation projection max dirty events zero", line: "WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS=0", wantKey: "WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS"},
-		{name: "conversation projection max retry patches", line: "WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES=many", wantKey: "WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES"},
-		{name: "conversation projection max retry patches zero", line: "WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES=0", wantKey: "WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES"},
-		{name: "conversation projection retry max age", line: "WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE=soon", wantKey: "WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE"},
-		{name: "conversation projection retry max age zero", line: "WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE=0s", wantKey: "WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE"},
-		{name: "conversation projection admit batch rows", line: "WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS"},
-		{name: "conversation projection admit batch rows zero", line: "WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS"},
-		{name: "conversation projection admit concurrency", line: "WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY"},
-		{name: "conversation projection admit concurrency zero", line: "WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY"},
-		{name: "conversation projection admit timeout", line: "WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT=soon", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT"},
-		{name: "conversation projection admit timeout zero", line: "WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT=0s", wantKey: "WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT"},
+		{name: "conversation authority admit batch rows", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
+		{name: "conversation authority admit batch rows zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
+		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
+		{name: "conversation authority admit concurrency zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
 		{name: "delivery fanout page size", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=many", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
 		{name: "delivery fanout page size negative", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=-1", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},
@@ -1133,14 +1083,8 @@ func assertConversationAuthorityConfig(t *testing.T, got, want app.ConversationC
 		got.AuthorityCacheMaxRows != want.AuthorityCacheMaxRows ||
 		got.AuthorityListDBWindowMax != want.AuthorityListDBWindowMax ||
 		got.AuthorityHandoffTimeout != want.AuthorityHandoffTimeout ||
-		got.ProjectionFlushInterval != want.ProjectionFlushInterval ||
-		got.ProjectionShardCount != want.ProjectionShardCount ||
-		got.ProjectionMaxDirtyEvents != want.ProjectionMaxDirtyEvents ||
-		got.ProjectionMaxRetryPatches != want.ProjectionMaxRetryPatches ||
-		got.ProjectionRetryMaxAge != want.ProjectionRetryMaxAge ||
-		got.ProjectionAdmitBatchRows != want.ProjectionAdmitBatchRows ||
-		got.ProjectionAdmitConcurrency != want.ProjectionAdmitConcurrency ||
-		got.ProjectionAdmitTimeout != want.ProjectionAdmitTimeout {
+		got.AuthorityAdmitBatchRows != want.AuthorityAdmitBatchRows ||
+		got.AuthorityAdmitConcurrency != want.AuthorityAdmitConcurrency {
 		t.Fatalf("conversation authority config = %#v, want %#v", got, want)
 	}
 }

@@ -297,8 +297,6 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_PRESENCE_TOUCH_BATCH_SIZE=512
 # WK_PRESENCE_ROUTE_TTL=90s
 # Optional internalv2 conversation authority and list-read tuning.
-# WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT controls the maximum group member count that is densely updated for every message; larger groups update only sparse sender rows.
-# WK_CONVERSATION_SMALL_GROUP_FANOUT_LIMIT=1000
 # WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY bounds concurrent channel tail reads used to hydrate one /conversation/list page.
 # WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=32
 # WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID bounds unflushed authority cache rows for one UID.
@@ -309,22 +307,10 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT bounds how long a new authority waits for old-authority drain before explicit abandon.
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
-# WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL controls how often committed conversation events are projected in the background.
-# WK_CONVERSATION_PROJECTION_FLUSH_INTERVAL=100ms
-# WK_CONVERSATION_PROJECTION_SHARD_COUNT bounds foreground lock contention while coalescing committed conversation events.
-# WK_CONVERSATION_PROJECTION_SHARD_COUNT=64
-# WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS bounds unprojected committed event keys retained in memory.
-# WK_CONVERSATION_PROJECTION_MAX_DIRTY_EVENTS=100000
-# WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES bounds active patches retained for background admission retry.
-# WK_CONVERSATION_PROJECTION_MAX_RETRY_PATCHES=100000
-# WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE bounds how long retryable active patches remain in memory.
-# WK_CONVERSATION_PROJECTION_RETRY_MAX_AGE=30s
-# WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS limits active patches in one background authority admission batch.
-# WK_CONVERSATION_PROJECTION_ADMIT_BATCH_ROWS=512
-# WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY limits concurrent background authority admission batches.
-# WK_CONVERSATION_PROJECTION_ADMIT_CONCURRENCY=16
-# WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT bounds one background authority admission call.
-# WK_CONVERSATION_PROJECTION_ADMIT_TIMEOUT=500ms
+# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active patches in one authority admission batch.
+# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
+# WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY limits concurrent authority admission batches.
+# WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
 # Optional internalv2 online delivery fanout and owner-local recvack tracking.
 # WK_DELIVERY_ENABLE=false
 # WK_DELIVERY_FANOUT_PAGE_SIZE=512

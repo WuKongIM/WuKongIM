@@ -953,64 +953,24 @@
           "refId": "D"
         },
         {
-          "expr": "sum(wukongim_conversation_projection_dirty_keys{node_name=~\"$node_name\"})",
-          "legendFormat": "projection dirty keys",
+          "expr": "sum(rate(wukongim_authority_sender_route_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "sender route {{result}}",
           "refId": "E"
         },
         {
-          "expr": "sum(wukongim_conversation_projection_dirty_capacity{node_name=~\"$node_name\"})",
-          "legendFormat": "projection dirty capacity",
+          "expr": "sum(rate(wukongim_authority_recipient_queue_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "recipient queue {{result}}",
           "refId": "F"
         },
         {
-          "expr": "sum(rate(wukongim_conversation_projection_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
-          "legendFormat": "projection submit {{result}}",
+          "expr": "sum(rate(wukongim_authority_recipient_dispatch_total{node_name=~\"$node_name\"}[$__rate_interval])) by (phase, result)",
+          "legendFormat": "recipient dispatch {{phase}} {{result}}",
           "refId": "G"
         },
         {
-          "expr": "sum(rate(wukongim_conversation_projection_flush_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
-          "legendFormat": "projection flush {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_authority_recipient_dispatch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, phase, result))",
+          "legendFormat": "recipient dispatch p95 {{phase}} {{result}}",
           "refId": "H"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_projection_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "projection flush p95 {{result}}",
-          "refId": "I"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_projection_flush_events_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, kind))",
-          "legendFormat": "projection events p95 {{kind}}",
-          "refId": "J"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_projection_flush_patches_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, kind))",
-          "legendFormat": "projection patches p95 {{kind}}",
-          "refId": "K"
-        },
-        {
-          "expr": "sum(rate(wukongim_conversation_projection_member_classify_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result, cache_hit)",
-          "legendFormat": "projection members {{result}} cache={{cache_hit}}",
-          "refId": "L"
-        },
-        {
-          "expr": "sum(rate(wukongim_conversation_projection_authority_admit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
-          "legendFormat": "projection authority admit {{result}}",
-          "refId": "M"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_projection_authority_batches_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, side))",
-          "legendFormat": "projection authority batches p95 {{side}}",
-          "refId": "N"
-        },
-        {
-          "expr": "sum(wukongim_conversation_projection_retry_patches{node_name=~\"$node_name\"})",
-          "legendFormat": "projection retry patches",
-          "refId": "O"
-        },
-        {
-          "expr": "sum(rate(wukongim_conversation_projection_retry_drop_total{node_name=~\"$node_name\"}[$__rate_interval])) by (reason)",
-          "legendFormat": "projection retry drop {{reason}}",
-          "refId": "P"
         }
       ],
       "title": "Conversation authority",

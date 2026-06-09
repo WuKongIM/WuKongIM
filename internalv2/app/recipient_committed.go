@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	recipientusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/recipient"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -26,6 +28,7 @@ type recipientCommittedWorker struct {
 	queueSize       int
 	requiresPayload bool
 	logger          wklog.Logger
+	observer        authorityObserver
 
 	mu      sync.Mutex
 	started bool
@@ -35,7 +38,7 @@ type recipientCommittedWorker struct {
 	cancel  context.CancelFunc
 }
 
-func newRecipientCommittedWorker(dispatcher recipientCommittedDispatcher, queueSize int, requiresPayload bool, logger wklog.Logger) *recipientCommittedWorker {
+func newRecipientCommittedWorker(dispatcher recipientCommittedDispatcher, queueSize int, requiresPayload bool, logger wklog.Logger, observer authorityObserver) *recipientCommittedWorker {
 	if queueSize <= 0 {
 		queueSize = 1
 	}
@@ -47,6 +50,7 @@ func newRecipientCommittedWorker(dispatcher recipientCommittedDispatcher, queueS
 		queueSize:       queueSize,
 		requiresPayload: requiresPayload,
 		logger:          logger,
+		observer:        observer,
 	}
 }
 
@@ -71,18 +75,29 @@ func (w *recipientCommittedWorker) Submit(ctx context.Context, event messageeven
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
+		w.observeQueue(authorityResultClosed)
 		return errRecipientCommittedWorkerClosed
 	}
 	if !w.started {
 		w.mu.Unlock()
-		return w.dispatcher.SubmitCommitted(ctx, event)
+		start := time.Now()
+		err := w.dispatcher.SubmitCommitted(ctx, event)
+		if err != nil {
+			w.observeQueue(authorityResultSyncError)
+		} else {
+			w.observeQueue(authorityResultSyncOK)
+		}
+		w.observeDispatch(authorityRecipientPhaseWorker, err, time.Since(start))
+		return err
 	}
 	select {
 	case w.queue <- event:
 		w.mu.Unlock()
+		w.observeQueue(authorityResultAccepted)
 		return nil
 	default:
 		w.mu.Unlock()
+		w.observeQueue(authorityResultFull)
 		return errRecipientCommittedWorkerFull
 	}
 }
@@ -140,13 +155,34 @@ func (w *recipientCommittedWorker) Stop(ctx context.Context) error {
 func (w *recipientCommittedWorker) run(ctx context.Context, queue <-chan messageevents.MessageCommitted, done chan<- struct{}) {
 	defer close(done)
 	for event := range queue {
-		if err := w.dispatcher.SubmitCommitted(ctx, event); err != nil {
+		start := time.Now()
+		err := w.dispatcher.SubmitCommitted(ctx, event)
+		w.observeDispatch(authorityRecipientPhaseWorker, err, time.Since(start))
+		if err != nil {
 			w.logger.Warn("recipient committed dispatch failed",
 				wklog.Event("internalv2.app.recipient.committed_dispatch_failed"),
 				wklog.Error(err),
 			)
 		}
 	}
+}
+
+func (w *recipientCommittedWorker) observeQueue(result string) {
+	if w == nil || w.observer == nil {
+		return
+	}
+	w.observer.ObserveAuthorityRecipientQueue(authorityRecipientQueueEvent{Result: result})
+}
+
+func (w *recipientCommittedWorker) observeDispatch(phase string, err error, dur time.Duration) {
+	if w == nil || w.observer == nil {
+		return
+	}
+	w.observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{
+		Phase:    phase,
+		Result:   authorityResultFromError(err),
+		Duration: dur,
+	})
 }
 
 func waitRecipientWorkerDone(ctx context.Context, done <-chan struct{}, cancel context.CancelFunc) error {
@@ -168,13 +204,43 @@ type recipientDeliverySubmitter struct {
 	delivery interface {
 		SubmitCommitted(context.Context, messageevents.MessageCommitted) error
 	}
+	observer authorityObserver
 }
 
 func (s recipientDeliverySubmitter) SubmitDelivery(ctx context.Context, event messageevents.MessageCommitted) error {
 	if s.delivery == nil {
 		return nil
 	}
-	return s.delivery.SubmitCommitted(ctx, event)
+	start := time.Now()
+	err := s.delivery.SubmitCommitted(ctx, event)
+	observeAuthorityRecipientDispatch(s.observer, authorityRecipientPhaseDelivery, err, time.Since(start))
+	return err
+}
+
+type observedRecipientConversationUpdater struct {
+	next     recipientusecase.ConversationUpdater
+	observer authorityObserver
+}
+
+func (u observedRecipientConversationUpdater) AdmitPatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
+	if u.next == nil {
+		return nil
+	}
+	start := time.Now()
+	err := u.next.AdmitPatches(ctx, patches)
+	observeAuthorityRecipientDispatch(u.observer, authorityRecipientPhaseConversation, err, time.Since(start))
+	return err
+}
+
+func observeAuthorityRecipientDispatch(observer authorityObserver, phase string, err error, dur time.Duration) {
+	if observer == nil {
+		return
+	}
+	observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{
+		Phase:    phase,
+		Result:   authorityResultFromError(err),
+		Duration: dur,
+	})
 }
 
 type deliverySubscriberRecipientSource struct {

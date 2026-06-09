@@ -1,7 +1,6 @@
 package conversation
 
 import (
-	"context"
 	"errors"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -68,7 +67,7 @@ type Conversation struct {
 	DeletedToSeq uint64
 	// SparseActive reports that ActiveAt is a low-frequency ordering anchor.
 	SparseActive bool
-	// UpdatedAt records when the projection row was last advanced.
+	// UpdatedAt records when the UID-owned row was last advanced.
 	UpdatedAt int64
 	// LastMessage is the newest visible message for display, when one exists.
 	LastMessage *LastMessage
@@ -114,9 +113,9 @@ type ActivePatch struct {
 	DeletedToSeq uint64
 	// ActiveAt is the candidate active-list ordering timestamp.
 	ActiveAt int64
-	// UpdatedAt records when the projection advanced this row in memory.
+	// UpdatedAt records when this active candidate was produced.
 	UpdatedAt int64
-	// SparseActive is the projected sparse-active mode.
+	// SparseActive is the requested sparse-active mode.
 	SparseActive bool
 	// MessageSeq fences stale activity after user delete barriers.
 	MessageSeq uint64
@@ -146,30 +145,4 @@ type ActiveViewPage struct {
 	Cursor metadb.UserConversationActiveCursor
 	// Done reports that no further rows are available in the authoritative view.
 	Done bool
-}
-
-// MemberSource classifies channel membership for conversation projection.
-type MemberSource interface {
-	ClassifyMembers(ctx context.Context, channelID string, channelType int64, limit int) (MemberClass, error)
-}
-
-// MemberClass describes whether a channel can be safely fanned out synchronously by the projector.
-type MemberClass struct {
-	// IsSmall reports that Members contains the complete fanout target set.
-	IsSmall bool
-	// Members contains the bounded member snapshot used for small-channel fanout.
-	Members []Member
-}
-
-// Member describes one channel member and its first visible sequence.
-type Member struct {
-	// UID identifies the member user.
-	UID string
-	// JoinSeq is the first channel sequence visible to this member.
-	JoinSeq uint64
-}
-
-// ConversationBatchStore persists UID-owned conversation state rows.
-type ConversationBatchStore interface {
-	UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error
 }

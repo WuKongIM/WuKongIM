@@ -101,19 +101,6 @@ conversation usecase so access adapters can share the same list semantics.
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.
 
-`ConversationProjectionStore` adapts the conversation projector ports to
-clusterv2 Slot metadata facades. Projection writes go to
-`UpsertUserConversationStatesBatch` for full rows and
-`TouchUserConversationActiveAtBatch` for active-at patches; clusterv2 routes
-each UID-owned row or patch by UID hash slot. Member classification reads only
-one bounded subscriber page with
-`ListChannelSubscribersPage`; a complete page is treated as small-channel dense
-fanout input only when it contains at least one member, while an empty or
-truncated page tells the usecase to write sparse sender state instead.
-Authority-cache flushes also use `TouchUserConversationActiveAtBatch`; those
-patches carry read/delete visibility floors so active timestamp advancement and
-floor merge happen in one UID-owned Slot metadata mutation.
-
 `ConversationAuthorityClient` routes UID-owned active cache calls to the
 current authority leader and leaves cache/list business rules inside the local
 authority implementation. Admission resolves each patch UID with
@@ -172,8 +159,8 @@ interpretation by this adapter.
 and remote-forwarding ports to clusterv2 UID routing and
 `internalv2/access/node` RPC. This adapter only resolves recipient UID
 authority, validates exact fenced targets, and forwards remote recipient
-batches; it does not decide subscriber paging, conversation projection, or
-delivery fanout.
+batches; it does not decide subscriber paging, recipient conversation updates,
+or delivery fanout.
 
 ```text
 RecipientAuthorityClient

@@ -211,3 +211,38 @@ func registerNodeRPC(registrar nodeRPCRegistrar, serviceID uint8, handler nodeRP
 }
 
 var _ accessnode.SenderAuthority = senderAuthorityLocal{}
+
+// observedSenderAuthorityResolver records sender-authority route decisions without exposing UID labels.
+type observedSenderAuthorityResolver struct {
+	localNodeID uint64
+	next        message.UIDAuthorityResolver
+	observer    authorityObserver
+}
+
+func (r observedSenderAuthorityResolver) ResolveUIDAuthority(ctx context.Context, uid string) (authority.Target, error) {
+	if r.next == nil {
+		err := message.ErrRouteNotReady
+		r.observe(authority.Target{}, err)
+		return authority.Target{}, err
+	}
+	target, err := r.next.ResolveUIDAuthority(ctx, uid)
+	r.observe(target, err)
+	return target, err
+}
+
+func (r observedSenderAuthorityResolver) observe(target authority.Target, err error) {
+	if r.observer == nil {
+		return
+	}
+	result := authorityResultFromError(err)
+	if err == nil {
+		if validateErr := target.Validate(); validateErr != nil {
+			result = authorityResultRouteNotReady
+		} else if target.IsLocal(r.localNodeID) {
+			result = authorityResultLocal
+		} else {
+			result = authorityResultRemote
+		}
+	}
+	r.observer.ObserveAuthoritySenderRoute(authoritySenderRouteEvent{Result: result})
+}

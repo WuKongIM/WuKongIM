@@ -215,19 +215,14 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 func TestDefaultConversationConfigUsesRuntimeDefaults(t *testing.T) {
 	cfg := defaultConversationConfig(ConversationConfig{})
 
-	if cfg.SmallGroupFanoutLimit != 1000 {
-		t.Fatalf("SmallGroupFanoutLimit = %d, want 1000", cfg.SmallGroupFanoutLimit)
-	}
 	if cfg.MaxLastMessageConcurrency != 32 {
 		t.Fatalf("MaxLastMessageConcurrency = %d, want 32", cfg.MaxLastMessageConcurrency)
 	}
 
 	negative := defaultConversationConfig(ConversationConfig{
-		SmallGroupFanoutLimit:     -1,
 		MaxLastMessageConcurrency: -2,
 	})
-	if negative.SmallGroupFanoutLimit != -1 ||
-		negative.MaxLastMessageConcurrency != -2 {
+	if negative.MaxLastMessageConcurrency != -2 {
 		t.Fatalf("negative conversation values were overwritten: %#v", negative)
 	}
 }
@@ -238,14 +233,8 @@ func TestDefaultConversationAuthorityConfig(t *testing.T) {
 		cfg.AuthorityCacheMaxRows != 100000 ||
 		cfg.AuthorityListDBWindowMax != 1000 ||
 		cfg.AuthorityHandoffTimeout != 3*time.Second ||
-		cfg.ProjectionFlushInterval != 100*time.Millisecond ||
-		cfg.ProjectionShardCount != 64 ||
-		cfg.ProjectionMaxDirtyEvents != 100000 ||
-		cfg.ProjectionMaxRetryPatches != 100000 ||
-		cfg.ProjectionRetryMaxAge != 30*time.Second ||
-		cfg.ProjectionAdmitBatchRows != 512 ||
-		cfg.ProjectionAdmitConcurrency != 16 ||
-		cfg.ProjectionAdmitTimeout != 500*time.Millisecond {
+		cfg.AuthorityAdmitBatchRows != 512 ||
+		cfg.AuthorityAdmitConcurrency != 16 {
 		t.Fatalf("conversation authority defaults = %#v", cfg)
 	}
 }
@@ -255,7 +244,6 @@ func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 		name   string
 		mutate func(*ConversationConfig)
 	}{
-		{name: "small group fanout limit", mutate: func(cfg *ConversationConfig) { cfg.SmallGroupFanoutLimit = -1 }},
 		{name: "last message concurrency", mutate: func(cfg *ConversationConfig) { cfg.MaxLastMessageConcurrency = -1 }},
 		{name: "authority cache max rows per uid negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRowsPerUID = -1 }},
 		{name: "authority cache max rows per uid zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityCacheMaxRowsPerUID = 0 }},
@@ -265,21 +253,10 @@ func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 		{name: "authority list db window max zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityListDBWindowMax = 0 }},
 		{name: "authority handoff timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = -time.Nanosecond }},
 		{name: "authority handoff timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = 0 }},
-		{name: "projection flush interval negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionFlushInterval = -time.Nanosecond }},
-		{name: "projection shard count negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionShardCount = -1 }},
-		{name: "projection shard count zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionShardCount = 0 }},
-		{name: "projection max dirty events negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionMaxDirtyEvents = -1 }},
-		{name: "projection max dirty events zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionMaxDirtyEvents = 0 }},
-		{name: "projection max retry patches negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionMaxRetryPatches = -1 }},
-		{name: "projection max retry patches zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionMaxRetryPatches = 0 }},
-		{name: "projection retry max age negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionRetryMaxAge = -time.Nanosecond }},
-		{name: "projection retry max age zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionRetryMaxAge = 0 }},
-		{name: "projection admit batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitBatchRows = -1 }},
-		{name: "projection admit batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitBatchRows = 0 }},
-		{name: "projection admit concurrency negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitConcurrency = -1 }},
-		{name: "projection admit concurrency zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitConcurrency = 0 }},
-		{name: "projection admit timeout negative", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitTimeout = -time.Nanosecond }},
-		{name: "projection admit timeout zero", mutate: func(cfg *ConversationConfig) { cfg.ProjectionAdmitTimeout = 0 }},
+		{name: "authority admit batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitBatchRows = -1 }},
+		{name: "authority admit batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitBatchRows = 0 }},
+		{name: "authority admit concurrency negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitConcurrency = -1 }},
+		{name: "authority admit concurrency zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitConcurrency = 0 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -549,7 +526,7 @@ func TestNewWiresRecipientAuthorityWhenDeliveryDisabled(t *testing.T) {
 	}
 }
 
-func TestNewDoesNotWireLegacyConversationProjectorWhenAuthorityUnavailable(t *testing.T) {
+func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T) {
 	cluster := &fakeConversationFallbackCluster{}
 	app, err := newTestApp(t,
 		Config{
@@ -655,8 +632,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	cluster.subscribers = map[string][]string{"g-small": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:      clusterv2.Config{NodeID: 3},
-			Conversation: ConversationConfig{SmallGroupFanoutLimit: 2},
+			Cluster: clusterv2.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -693,8 +669,7 @@ func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testin
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:      clusterv2.Config{NodeID: 3},
-			Conversation: ConversationConfig{SmallGroupFanoutLimit: 2},
+			Cluster: clusterv2.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -730,14 +705,13 @@ func TestRecipientAuthorityUsesDurableSubscribersWithoutImplicitSender(t *testin
 	}
 }
 
-func TestRecipientAuthorityPagesAllGroupSubscribersRegardlessSmallGroupLimit(t *testing.T) {
+func TestRecipientAuthorityPagesAllGroupSubscribers(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:      clusterv2.Config{NodeID: 3},
-			Conversation: ConversationConfig{SmallGroupFanoutLimit: 1},
+			Cluster: clusterv2.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -768,54 +742,9 @@ func TestRecipientAuthorityPagesAllGroupSubscribersRegardlessSmallGroupLimit(t *
 	}
 }
 
-func TestConversationAsyncProjectorAdmitsProjectedPatchesInBatchesOnFlush(t *testing.T) {
-	authority := &recordingConversationPatchAuthority{}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:        conversationusecase.NewProjector(conversationusecase.ProjectorOptions{}),
-		Authority:        authority,
-		AdmitTimeout:     time.Second,
-		AdmitBatchRows:   1,
-		AdmitConcurrency: 1,
-	})
-
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-	if err := projector.Submit(context.Background(), messageevents.MessageCommitted{
-		MessageID:         11,
-		MessageSeq:        7,
-		ChannelID:         channelID,
-		ChannelType:       frame.ChannelTypePerson,
-		FromUID:           "u1",
-		ServerTimestampMS: 123,
-	}); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	if len(authority.batches) != 0 {
-		t.Fatalf("authority batches after Submit = %#v, want foreground submit to only coalesce metadata", authority.batches)
-	}
-	if err := projector.Flush(context.Background()); err != nil {
-		t.Fatalf("Flush() error = %v", err)
-	}
-
-	if len(authority.batches) != 2 || len(authority.batches[0]) != 1 || len(authority.batches[1]) != 1 {
-		t.Fatalf("authority batches = %#v, want two one-row batches", authority.batches)
-	}
-	gotUIDs := map[string]bool{}
-	for _, batch := range authority.batches {
-		patch := batch[0]
-		gotUIDs[patch.UID] = true
-		if patch.ChannelID != channelID || patch.ChannelType != int64(frame.ChannelTypePerson) ||
-			patch.ActiveAt != 123 || patch.UpdatedAt != 123 || patch.MessageSeq != 7 || patch.SparseActive {
-			t.Fatalf("patch = %#v, want dense person active patch", patch)
-		}
-	}
-	if !gotUIDs["u1"] || !gotUIDs["u2"] {
-		t.Fatalf("patch UIDs = %#v, want u1 and u2", gotUIDs)
-	}
-}
-
 func TestRecipientCommittedWorkerRequiresPayloadAndScopesPersonEvent(t *testing.T) {
 	dispatcher := &recordingRecipientCommittedDispatcher{}
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, nil)
 	if !worker.RequiresCommittedPayload() {
 		t.Fatal("RequiresCommittedPayload() = false, want true")
 	}
@@ -846,128 +775,50 @@ func TestRecipientCommittedWorkerRequiresPayloadAndScopesPersonEvent(t *testing.
 }
 
 func TestRecipientCommittedWorkerCanRunMetadataOnlyWhenDeliveryDisabled(t *testing.T) {
-	worker := newRecipientCommittedWorker(&recordingRecipientCommittedDispatcher{}, 1, false, nil)
+	worker := newRecipientCommittedWorker(&recordingRecipientCommittedDispatcher{}, 1, false, nil, nil)
 	if worker.RequiresCommittedPayload() {
 		t.Fatal("RequiresCommittedPayload() = true, want false for conversation-only worker")
 	}
 }
 
-func TestConversationAsyncProjectorObservesProjectionAdmitResults(t *testing.T) {
-	observer := &recordingConversationProjectionObserver{}
-	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}
-	patchProjector := staticConversationPatchProjector{patches: []conversationusecase.ActivePatch{patch}}
-
-	okProjector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    patchProjector,
-		Authority:    &recordingConversationPatchAuthority{},
-		AdmitTimeout: time.Second,
-		Observer:     observer,
-	})
-	if err := okProjector.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
+func TestRecipientCommittedWorkerObservesQueueAndDispatch(t *testing.T) {
+	observer := &recordingAuthorityObserver{}
+	dispatcher := &recordingRecipientCommittedDispatcher{}
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
 		t.Fatalf("Submit(ok) error = %v", err)
 	}
-	if err := okProjector.Flush(context.Background()); err != nil {
-		t.Fatalf("Flush(ok) error = %v", err)
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := worker.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop(ok) error = %v", err)
+	}
+	if got := observer.recipientQueueResults(); len(got) != 1 || got[0] != "accepted" {
+		t.Fatalf("recipient queue observations = %#v, want accepted", got)
+	}
+	if got := observer.recipientDispatchResults(); len(got) != 1 || got[0] != "worker:ok" {
+		t.Fatalf("recipient dispatch observations = %#v, want worker:ok", got)
 	}
 
-	pressureProjector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    patchProjector,
-		Authority:    &recordingConversationPatchAuthority{err: conversationusecase.ErrCachePressure},
-		AdmitTimeout: time.Second,
-		Observer:     observer,
-	})
-	if err := pressureProjector.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(cache pressure) error = %v", err)
+	observer = &recordingAuthorityObserver{}
+	dispatcher = &recordingRecipientCommittedDispatcher{err: errors.New("dispatch failed")}
+	worker = newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start(error) error = %v", err)
 	}
-	if err := pressureProjector.Flush(context.Background()); !errors.Is(err, conversationusecase.ErrCachePressure) {
-		t.Fatalf("Flush(cache pressure) error = %v, want ErrCachePressure", err)
+	if err := worker.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g2", ChannelType: frame.ChannelTypeGroup}); err != nil {
+		t.Fatalf("Submit(error) error = %v", err)
 	}
-
-	if got := observer.authorityAdmitResults(); len(got) != 2 || got[0] != "ok" || got[1] != "cache_pressure" {
-		t.Fatalf("projection admit observations = %#v, want ok then cache_pressure", got)
+	stopCtx, cancel = context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := worker.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop(error) error = %v", err)
 	}
-}
-
-func TestConversationAsyncProjectorRetriesPendingPatchesOnFlush(t *testing.T) {
-	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}
-	authority := &recordingConversationPatchAuthority{errs: []error{conversationusecase.ErrRouteNotReady, nil}}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    staticConversationPatchProjector{patches: []conversationusecase.ActivePatch{patch}},
-		Authority:    authority,
-		AdmitTimeout: time.Second,
-	})
-
-	err := projector.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
-	if err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	err = projector.Flush(context.Background())
-	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
-		t.Fatalf("Flush() error = %v, want ErrRouteNotReady", err)
-	}
-	if len(authority.batches) != 1 {
-		t.Fatalf("authority batches after first Flush = %#v, want one failed batch", authority.batches)
-	}
-
-	if err := projector.Flush(context.Background()); err != nil {
-		t.Fatalf("second Flush() error = %v", err)
-	}
-	if len(authority.batches) != 2 || len(authority.batches[1]) != 1 || authority.batches[1][0] != patch {
-		t.Fatalf("authority batches after second Flush = %#v, want pending patch retried", authority.batches)
-	}
-}
-
-func TestConversationAsyncProjectorCoalescesRetryWithNewerPatch(t *testing.T) {
-	patchProjector := &mutableConversationPatchProjector{
-		patches: []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}},
-	}
-	authority := &recordingConversationPatchAuthority{errs: []error{conversationusecase.ErrRouteNotReady, nil}}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    patchProjector,
-		Authority:    authority,
-		AdmitTimeout: time.Second,
-	})
-	if err := projector.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(first) error = %v", err)
-	}
-	if err := projector.Flush(context.Background()); !errors.Is(err, conversationusecase.ErrRouteNotReady) {
-		t.Fatalf("Flush(first) error = %v, want ErrRouteNotReady", err)
-	}
-
-	patchProjector.patches = []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 10, SparseActive: true}}
-	if err := projector.Submit(context.Background(), messageevents.MessageCommitted{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}); err != nil {
-		t.Fatalf("Submit(second) error = %v", err)
-	}
-	if err := projector.Flush(context.Background()); err != nil {
-		t.Fatalf("Flush(second) error = %v", err)
-	}
-	if len(authority.batches) != 2 || len(authority.batches[1]) != 1 || authority.batches[1][0].ActiveAt != 200 {
-		t.Fatalf("authority batches after second Flush = %#v, want merged newer patch", authority.batches)
-	}
-}
-
-func TestConversationAsyncProjectorSubmitDoesNotBlockOnProjector(t *testing.T) {
-	authority := &recordingConversationPatchAuthority{}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{
-		Projector:    blockingConversationPatchProjector{},
-		Authority:    authority,
-		AdmitTimeout: time.Second,
-	})
-	event := messageevents.MessageCommitted{
-		ChannelID:         "g-timeout",
-		ChannelType:       frame.ChannelTypeGroup,
-		Payload:           []byte("payload stays"),
-		MessageScopedUIDs: []string{"u1"},
-	}
-
-	if err := projector.Submit(context.Background(), event); err != nil {
-		t.Fatalf("Submit() error = %v", err)
-	}
-	if string(event.Payload) != "payload stays" || len(event.MessageScopedUIDs) != 1 || event.MessageScopedUIDs[0] != "u1" {
-		t.Fatalf("event after Submit() = %#v, want payload and scoped UIDs unchanged", event)
-	}
-	if len(authority.batches) != 0 {
-		t.Fatalf("authority batches = %#v, want no admission after projector deadline", authority.batches)
+	if got := observer.recipientDispatchResults(); len(got) != 1 || got[0] != "worker:error" {
+		t.Fatalf("recipient dispatch observations = %#v, want worker:error", got)
 	}
 }
 
@@ -1125,35 +976,9 @@ func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T
 	}
 }
 
-func TestConversationAsyncProjectorStopFlushesLocalAuthority(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
-	store := &appRecordingConversationAuthorityStore{}
-	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	local.markActive(target)
-	if err := local.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID:         "u1",
-		ChannelID:   "g-stop",
-		ChannelType: 2,
-		ActiveAt:    100,
-		UpdatedAt:   101,
-		MessageSeq:  7,
-	}}); err != nil {
-		t.Fatalf("seed AdmitPatches() error = %v", err)
-	}
-	projector := newConversationAsyncProjector(conversationAsyncProjectorOptions{Flusher: local})
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := projector.Stop(stopCtx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if got := store.totalTouchPatches(); got != 1 {
-		t.Fatalf("touch patches after Stop() = %d, want local cache flushed", got)
-	}
-}
-
 func TestRecipientCommittedWorkerDrainsAcceptedEventsOnStop(t *testing.T) {
 	dispatcher := &recordingRecipientCommittedDispatcher{}
-	worker := newRecipientCommittedWorker(dispatcher, 2, true, nil)
+	worker := newRecipientCommittedWorker(dispatcher, 2, true, nil, nil)
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -1172,7 +997,8 @@ func TestRecipientCommittedWorkerDrainsAcceptedEventsOnStop(t *testing.T) {
 
 func TestRecipientCommittedWorkerFullQueueReturnsWithoutBlocking(t *testing.T) {
 	dispatcher := newBlockingRecipientCommittedDispatcher()
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	observer := &recordingAuthorityObserver{}
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, observer)
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -1192,6 +1018,9 @@ func TestRecipientCommittedWorkerFullQueueReturnsWithoutBlocking(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
 		t.Fatalf("Submit(third) elapsed = %v, want non-blocking full queue result", elapsed)
 	}
+	if got := observer.recipientQueueResults(); len(got) != 3 || got[0] != "accepted" || got[1] != "accepted" || got[2] != "full" {
+		t.Fatalf("recipient queue observations = %#v, want accepted, accepted, full", got)
+	}
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -1203,7 +1032,7 @@ func TestRecipientCommittedWorkerFullQueueReturnsWithoutBlocking(t *testing.T) {
 
 func TestRecipientCommittedWorkerStopCancelsBlockedDispatchAfterDeadline(t *testing.T) {
 	dispatcher := newBlockingRecipientCommittedDispatcher()
-	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil)
+	worker := newRecipientCommittedWorker(dispatcher, 1, true, nil, nil)
 	if err := worker.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -3068,95 +2897,47 @@ func conversationPatchesByUID(patches []metadb.UserConversationActivePatch) map[
 	return out
 }
 
-type recordingConversationPatchAuthority struct {
-	mu      sync.Mutex
-	batches [][]conversationusecase.ActivePatch
-	err     error
-	errs    []error
+type recordingAuthorityObserver struct {
+	mu                sync.Mutex
+	senderRoutes      []string
+	recipientQueues   []string
+	recipientDispatch []string
 }
 
-func (a *recordingConversationPatchAuthority) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.batches = append(a.batches, append([]conversationusecase.ActivePatch(nil), patches...))
-	if len(a.errs) > 0 {
-		err := a.errs[0]
-		a.errs = a.errs[1:]
-		return err
-	}
-	return a.err
-}
-
-type recordingConversationProjectionObserver struct {
-	mu              sync.Mutex
-	authorityAdmits []string
-}
-
-func (o *recordingConversationProjectionObserver) SetConversationProjectionDirty(conversationProjectionDirtyEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) ObserveConversationProjectionSubmit(conversationProjectionSubmitEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) ObserveConversationProjectionFlush(conversationProjectionFlushEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) ObserveConversationProjectionMemberClassify(conversationProjectionMemberClassifyEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) ObserveConversationProjectionAuthorityAdmit(event conversationProjectionAuthorityAdmitEvent) {
+func (o *recordingAuthorityObserver) ObserveAuthoritySenderRoute(event authoritySenderRouteEvent) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.authorityAdmits = append(o.authorityAdmits, event.Result)
+	o.senderRoutes = append(o.senderRoutes, event.Result)
 }
 
-func (o *recordingConversationProjectionObserver) SetConversationProjectionRetry(conversationProjectionRetryEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) ObserveConversationProjectionRetryDrop(conversationProjectionRetryDropEvent) {
-}
-
-func (o *recordingConversationProjectionObserver) authorityAdmitResults() []string {
+func (o *recordingAuthorityObserver) ObserveAuthorityRecipientQueue(event authorityRecipientQueueEvent) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return append([]string(nil), o.authorityAdmits...)
+	o.recipientQueues = append(o.recipientQueues, event.Result)
 }
 
-type staticConversationPatchProjector struct {
-	patches []conversationusecase.ActivePatch
-	err     error
+func (o *recordingAuthorityObserver) ObserveAuthorityRecipientDispatch(event authorityRecipientDispatchEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recipientDispatch = append(o.recipientDispatch, event.Phase+":"+event.Result)
 }
 
-func (p staticConversationPatchProjector) ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
-	if p.err != nil {
-		return nil, p.err
-	}
-	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
+func (o *recordingAuthorityObserver) senderRouteResults() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]string(nil), o.senderRoutes...)
 }
 
-type recordingConversationPatchProjector struct {
-	patches []conversationusecase.ActivePatch
-	event   messageevents.MessageCommitted
+func (o *recordingAuthorityObserver) recipientQueueResults() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]string(nil), o.recipientQueues...)
 }
 
-func (p *recordingConversationPatchProjector) ProjectActivePatches(_ context.Context, event messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
-	p.event = event
-	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
-}
-
-type mutableConversationPatchProjector struct {
-	patches []conversationusecase.ActivePatch
-}
-
-func (p *mutableConversationPatchProjector) ProjectActivePatches(context.Context, messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
-	return append([]conversationusecase.ActivePatch(nil), p.patches...), nil
-}
-
-type blockingConversationPatchProjector struct{}
-
-func (blockingConversationPatchProjector) ProjectActivePatches(ctx context.Context, _ messageevents.MessageCommitted) ([]conversationusecase.ActivePatch, error) {
-	<-ctx.Done()
-	return nil, ctx.Err()
+func (o *recordingAuthorityObserver) recipientDispatchResults() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]string(nil), o.recipientDispatch...)
 }
 
 type appRecordingConversationAuthorityStore struct {

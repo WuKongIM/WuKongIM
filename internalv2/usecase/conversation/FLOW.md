@@ -3,11 +3,10 @@
 ## Responsibility
 
 `internalv2/usecase/conversation` owns entry-agnostic conversation list reads
-and committed-message conversation projection policy. It does not depend on
+and the lightweight UID-authority active patch contract. It does not depend on
 gateway frames, HTTP DTOs, clusterv2, or channel log runtimes. Storage is
-supplied through small ports for UID-owned conversation active pages,
-channel-owned current-page last-message reads, member classification, and
-UID-owned conversation state batch writes.
+supplied through small ports for UID-owned conversation active pages and
+channel-owned current-page last-message reads.
 
 ## List Flow
 
@@ -32,33 +31,22 @@ contains a newer message.
 Rows without a visible last message are returned with `LastMessage=nil` and
 `Unread=0`. List reads do not delete, hide, or repair conversation rows.
 
-## Projector Flow
+## Authority Active Patch Contract
 
 ```text
-HandleCommitted(event)
-  -> if person channel:
-       decode canonical person channel id
-       upsert sender and peer dense conversation rows
-  -> else:
-       ask MemberSource to classify the channel with limit small_group_fanout_limit + 1
-       if small:
-         upsert one dense row per returned member, plus the sender when absent
-       else:
-         upsert only the sender sparse row
+recipient authority processor
+  -> build one ActivePatch per effective recipient
+  -> group patches by UID hash-slot authority
+  -> target authority admits patches into its bounded active cache
+  -> cache flushes UserConversationActivePatch rows through clusterv2 Slot ownership
 ```
 
-Dense rows use `SparseActive=false`; sparse sender rows use
-`SparseActive=true`. `ActiveAt` is always the committed event's
-`ServerTimestampMS`, so projector retries do not reorder conversations based on
-retry time. When a member has `JoinSeq`, the projector initializes both
-`ReadSeq` and `DeletedToSeq` to `JoinSeq - 1` so later list reads do not expose
-messages from before the user joined. Group projection requires a member
-classifier and a positive small-group fanout limit; missing wiring returns a
-configuration error instead of silently degrading small groups to sparse rows.
-Even if a classifier marks a channel small, the projector only dense-fans out
-when the returned member count is within the configured limit. The sender is
-always included in small-channel dense projection, even when a compatible
-subscriber snapshot does not return the sender in the first page.
+`ActivePatch` carries the UID-owned row key, membership visibility floors,
+message sequence fence, active timestamp, and explicit `SparseActive` mode.
+The conversation package does not classify channel membership or decide sender
+vs. recipient fanout. Those decisions belong to the recipient-authority
+processor and dispatcher, so list reads observe only authoritative UID-owned
+rows.
 
 ## Cursor Contract
 

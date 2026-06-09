@@ -229,8 +229,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				MaxRowsPerUID:        app.cfg.Conversation.AuthorityCacheMaxRowsPerUID,
 				MaxRows:              app.cfg.Conversation.AuthorityCacheMaxRows,
 				ListDBWindowMax:      app.cfg.Conversation.AuthorityListDBWindowMax,
-				AdmissionBatchRows:   app.cfg.Conversation.ProjectionAdmitBatchRows,
-				AdmissionConcurrency: app.cfg.Conversation.ProjectionAdmitConcurrency,
+				AdmissionBatchRows:   app.cfg.Conversation.AuthorityAdmitBatchRows,
+				AdmissionConcurrency: app.cfg.Conversation.AuthorityAdmitConcurrency,
 				HandoffTimeout:       app.cfg.Conversation.AuthorityHandoffTimeout,
 				Observer:             app.conversationAuthorityObserver(),
 			})
@@ -403,14 +403,19 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		if authorityNode, ok := app.cluster.(clusterinfra.RecipientAuthorityNode); ok && app.conversationAuthorityClient != nil {
 			recipientAuthority := clusterinfra.NewRecipientAuthorityClient(authorityNode, nil)
 			app.recipientAuthorityClient = recipientAuthority
+			authorityObserver := app.authorityObserver()
 			var deliverySubmitter recipientusecase.DeliverySubmitter
 			if app.delivery != nil {
-				deliverySubmitter = recipientDeliverySubmitter{delivery: app.delivery}
+				deliverySubmitter = recipientDeliverySubmitter{delivery: app.delivery, observer: authorityObserver}
+			}
+			var conversationUpdater recipientusecase.ConversationUpdater = app.conversationAuthorityClient
+			if authorityObserver != nil {
+				conversationUpdater = observedRecipientConversationUpdater{next: conversationUpdater, observer: authorityObserver}
 			}
 			processor := recipientusecase.NewProcessor(recipientusecase.ProcessorOptions{
 				LocalNodeID:  authorityNode.NodeID(),
 				Authority:    recipientAuthority,
-				Conversation: app.conversationAuthorityClient,
+				Conversation: conversationUpdater,
 				Delivery:     deliverySubmitter,
 			})
 			var recipientSource recipientusecase.RecipientSource
@@ -430,7 +435,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 				PageSize:        app.cfg.Delivery.FanoutPageSize,
 				TargetBatchSize: app.cfg.Delivery.PushBatchSize,
 			})
-			app.recipientWorker = newRecipientCommittedWorker(dispatcher, app.cfg.Delivery.EventQueueSize, app.delivery != nil, app.logger.Named("recipient"))
+			app.recipientWorker = newRecipientCommittedWorker(dispatcher, app.cfg.Delivery.EventQueueSize, app.delivery != nil, app.logger.Named("recipient"), authorityObserver)
 			if registrar, ok := app.cluster.(nodeRPCRegistrar); ok {
 				adapter := accessnode.New(accessnode.Options{RecipientAuthority: processor, Logger: app.logger.Named("node")})
 				registerNodeRPC(registrar, accessnode.RecipientAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleRecipientAuthorityRPC))
@@ -454,9 +459,17 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	if app.senderMessages == nil {
 		if senderNode, ok := app.cluster.(clusterinfra.SenderAuthorityNode); ok && app.messages != nil {
 			senderAuthority := clusterinfra.NewSenderAuthorityClient(senderNode, nil)
+			var senderResolver message.UIDAuthorityResolver = senderAuthority
+			if authorityObserver := app.authorityObserver(); authorityObserver != nil {
+				senderResolver = observedSenderAuthorityResolver{
+					localNodeID: senderNode.NodeID(),
+					next:        senderAuthority,
+					observer:    authorityObserver,
+				}
+			}
 			app.senderMessages = message.NewSenderAuthorityRouter(message.SenderAuthorityRouterOptions{
 				LocalNodeID: senderNode.NodeID(),
-				Resolver:    senderAuthority,
+				Resolver:    senderResolver,
 				Local:       app.messages,
 				Remote:      senderAuthority,
 			})
@@ -646,13 +659,6 @@ func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 		return nil
 	}
 	return conversationAuthorityMetricsObserver{metrics: a.metrics}
-}
-
-func (a *App) conversationProjectionObserver() conversationProjectionObserver {
-	if a == nil || a.metrics == nil {
-		return nil
-	}
-	return conversationProjectionMetricsObserver{metrics: a.metrics}
 }
 
 func (a *App) gatewayObserver() gateway.Observer {

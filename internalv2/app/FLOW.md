@@ -27,7 +27,8 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus conversation list request latency/page-shape metrics and conversation
-     authority admit, list, cache-pressure, and handoff counters
+     authority admit, list, cache-pressure, and handoff counters, plus
+     sender-authority route and recipient-authority queue/dispatch counters
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -116,6 +117,11 @@ writer uses bounded concurrency for independent channel/subscriber mutations
 while preserving subscriber mutation order within the same channel. Scoped UID
 delivery bypasses subscriber scan and flows through recipient authority,
 presence resolution, and the local or RPC owner pusher.
+When metrics are enabled, sender authority route decisions are counted as
+`local`, `remote`, or normalized route/error results, and recipient authority
+work is counted by committed-worker queue result plus dispatch phase
+(`worker`, `conversation`, or `delivery`) and normalized result. These metrics
+do not include UID, channel, slot, or node labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task

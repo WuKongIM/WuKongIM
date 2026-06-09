@@ -65,6 +65,36 @@ func TestConversationAuthorityCachePressureFallsBackToDurableAdmit(t *testing.T)
 	}
 }
 
+func TestConversationAuthorityObservesAdmitResults(t *testing.T) {
+	observer := &recordingConversationAuthorityObserver{}
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID:     1,
+		Store:           &recordingConversationAuthorityStore{},
+		MaxRowsPerUID:   10,
+		MaxRows:         10,
+		ListDBWindowMax: 20,
+		Observer:        observer,
+	})
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	authority.markActive(target)
+	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
+		UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3,
+	}}); err != nil {
+		t.Fatalf("AdmitPatches() error = %v", err)
+	}
+	staleTarget := target
+	staleTarget.AuthorityEpoch--
+	err := authority.AdmitPatches(context.Background(), staleTarget, []conversationusecase.ActivePatch{{
+		UID: "u2", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2,
+	}})
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitPatches(stale) error = %v, want ErrStaleRoute", err)
+	}
+	if got := observer.admitResults(); len(got) != 2 || got[0] != "ok" || got[1] != "stale_route" {
+		t.Fatalf("admit observations = %#v, want ok then stale_route", got)
+	}
+}
+
 func TestConversationAuthorityObservesCachePressureInAdmitAndList(t *testing.T) {
 	admitObserver := &recordingConversationAuthorityObserver{}
 	admitAuthority := newConversationAuthority(conversationAuthorityOptions{

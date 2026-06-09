@@ -210,10 +210,13 @@ func (a *conversationAuthority) markWarming(target conversationusecase.RouteTarg
 }
 
 // AdmitPatches coalesces activity hints into the local authority cache.
-func (a *conversationAuthority) AdmitPatches(ctx context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
+func (a *conversationAuthority) AdmitPatches(ctx context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) (err error) {
 	if a == nil {
 		return nil
 	}
+	defer func() {
+		a.observeAdmit(err)
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -783,6 +786,14 @@ func (a *conversationAuthority) observeCachePressure(phase string, err error) {
 	}
 	result := conversationAuthorityResultFromError(err, conversationAuthorityResultCachePressure)
 	a.observer.ObserveConversationAuthorityCachePressure(conversationAuthorityCachePressureEvent{Phase: phase, Result: result})
+}
+
+func (a *conversationAuthority) observeAdmit(err error) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	result := conversationAuthorityResultFromError(err, conversationAuthorityResultOK)
+	a.observer.ObserveConversationAuthorityAdmit(conversationAuthorityAdmitEvent{Result: result})
 }
 
 func (a *conversationAuthority) observeList(err error) {

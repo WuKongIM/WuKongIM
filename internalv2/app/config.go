@@ -39,7 +39,7 @@ type Config struct {
 	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
-	// Conversation configures active conversation projection and list reads.
+	// Conversation configures conversation authority and list reads.
 	Conversation ConversationConfig
 	// Presence configures connection-route activation and authority touch behavior.
 	Presence PresenceConfig
@@ -180,8 +180,6 @@ type MessageConfig struct{}
 
 // ConversationConfig contains conversation authority and read-model settings.
 type ConversationConfig struct {
-	// SmallGroupFanoutLimit is the maximum member count eligible for dense conversation fanout.
-	SmallGroupFanoutLimit int
 	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one conversation list request.
 	MaxLastMessageConcurrency int
 	// AuthorityCacheMaxRowsPerUID bounds unflushed authority cache rows for one UID.
@@ -192,22 +190,10 @@ type ConversationConfig struct {
 	AuthorityListDBWindowMax int
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
-	// ProjectionFlushInterval controls how often committed conversation events are projected in the background.
-	ProjectionFlushInterval time.Duration
-	// ProjectionShardCount bounds foreground lock contention while coalescing committed conversation events.
-	ProjectionShardCount int
-	// ProjectionMaxDirtyEvents bounds unprojected committed event keys retained in memory.
-	ProjectionMaxDirtyEvents int
-	// ProjectionMaxRetryPatches bounds active patches retained for background admission retry.
-	ProjectionMaxRetryPatches int
-	// ProjectionRetryMaxAge bounds how long retryable active patches remain in memory.
-	ProjectionRetryMaxAge time.Duration
-	// ProjectionAdmitBatchRows limits active patches in one background authority admission batch.
-	ProjectionAdmitBatchRows int
-	// ProjectionAdmitConcurrency limits concurrent background authority admission batches.
-	ProjectionAdmitConcurrency int
-	// ProjectionAdmitTimeout bounds one background authority admission call.
-	ProjectionAdmitTimeout time.Duration
+	// AuthorityAdmitBatchRows limits active patches in one authority admission batch.
+	AuthorityAdmitBatchRows int
+	// AuthorityAdmitConcurrency limits concurrent authority admission batches.
+	AuthorityAdmitConcurrency int
 }
 
 // PresenceConfig contains connection presence and route-authority touch settings.
@@ -274,9 +260,6 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
-	if cfg.SmallGroupFanoutLimit == 0 {
-		cfg.SmallGroupFanoutLimit = 1000
-	}
 	if cfg.MaxLastMessageConcurrency == 0 {
 		cfg.MaxLastMessageConcurrency = 32
 	}
@@ -292,29 +275,11 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 	if cfg.AuthorityHandoffTimeout == 0 {
 		cfg.AuthorityHandoffTimeout = 3 * time.Second
 	}
-	if cfg.ProjectionFlushInterval == 0 {
-		cfg.ProjectionFlushInterval = 100 * time.Millisecond
+	if cfg.AuthorityAdmitBatchRows == 0 {
+		cfg.AuthorityAdmitBatchRows = 512
 	}
-	if cfg.ProjectionShardCount == 0 {
-		cfg.ProjectionShardCount = 64
-	}
-	if cfg.ProjectionMaxDirtyEvents == 0 {
-		cfg.ProjectionMaxDirtyEvents = 100000
-	}
-	if cfg.ProjectionMaxRetryPatches == 0 {
-		cfg.ProjectionMaxRetryPatches = 100000
-	}
-	if cfg.ProjectionRetryMaxAge == 0 {
-		cfg.ProjectionRetryMaxAge = 30 * time.Second
-	}
-	if cfg.ProjectionAdmitBatchRows == 0 {
-		cfg.ProjectionAdmitBatchRows = 512
-	}
-	if cfg.ProjectionAdmitConcurrency == 0 {
-		cfg.ProjectionAdmitConcurrency = 16
-	}
-	if cfg.ProjectionAdmitTimeout == 0 {
-		cfg.ProjectionAdmitTimeout = 500 * time.Millisecond
+	if cfg.AuthorityAdmitConcurrency == 0 {
+		cfg.AuthorityAdmitConcurrency = 16
 	}
 	return cfg
 }
@@ -408,9 +373,6 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 }
 
 func validateConversationConfig(cfg ConversationConfig) error {
-	if cfg.SmallGroupFanoutLimit < 0 {
-		return fmt.Errorf("%w: conversation small group fanout limit must be non-negative", ErrInvalidConfig)
-	}
 	if cfg.MaxLastMessageConcurrency < 0 {
 		return fmt.Errorf("%w: conversation last message concurrency must be non-negative", ErrInvalidConfig)
 	}
@@ -426,29 +388,11 @@ func validateConversationConfig(cfg ConversationConfig) error {
 	if cfg.AuthorityHandoffTimeout <= 0 {
 		return fmt.Errorf("%w: conversation authority handoff timeout must be positive", ErrInvalidConfig)
 	}
-	if cfg.ProjectionFlushInterval < 0 {
-		return fmt.Errorf("%w: conversation projection flush interval must be non-negative", ErrInvalidConfig)
+	if cfg.AuthorityAdmitBatchRows <= 0 {
+		return fmt.Errorf("%w: conversation authority admit batch rows must be positive", ErrInvalidConfig)
 	}
-	if cfg.ProjectionShardCount <= 0 {
-		return fmt.Errorf("%w: conversation projection shard count must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionMaxDirtyEvents <= 0 {
-		return fmt.Errorf("%w: conversation projection max dirty events must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionMaxRetryPatches <= 0 {
-		return fmt.Errorf("%w: conversation projection max retry patches must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionRetryMaxAge <= 0 {
-		return fmt.Errorf("%w: conversation projection retry max age must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionAdmitBatchRows <= 0 {
-		return fmt.Errorf("%w: conversation projection admit batch rows must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionAdmitConcurrency <= 0 {
-		return fmt.Errorf("%w: conversation projection admit concurrency must be positive", ErrInvalidConfig)
-	}
-	if cfg.ProjectionAdmitTimeout <= 0 {
-		return fmt.Errorf("%w: conversation projection admit timeout must be positive", ErrInvalidConfig)
+	if cfg.AuthorityAdmitConcurrency <= 0 {
+		return fmt.Errorf("%w: conversation authority admit concurrency must be positive", ErrInvalidConfig)
 	}
 	return nil
 }

@@ -42,8 +42,9 @@ SendBatch(items)
 ```
 
 Committed sinks may process events asynchronously and must not alter successful
-send results. The conversation projection sink is metadata-only and does not
-require committed payload bytes.
+send results. Metadata-only sinks do not require committed payload bytes; sinks
+that perform online delivery keep payload bytes only when their contracts ask
+for them.
 
 `Send(ctx, cmd)` delegates to `SendBatch` with one item.
 

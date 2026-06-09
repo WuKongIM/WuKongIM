@@ -493,51 +493,45 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	}
 }
 
-func TestObservabilityConversationProjectionMetricsObserverMapsCounters(t *testing.T) {
+func TestObservabilityAuthorityMetricsObserverMapsCounters(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := conversationProjectionMetricsObserver{metrics: reg}
+	observer := authorityMetricsObserver{metrics: reg}
 
-	observer.SetConversationProjectionDirty(conversationProjectionDirtyEvent{DirtyKeys: 2, MaxDirtyEvents: 10})
-	observer.ObserveConversationProjectionSubmit(conversationProjectionSubmitEvent{Result: "accepted"})
-	observer.ObserveConversationProjectionFlush(conversationProjectionFlushEvent{
-		Result:           "ok",
-		Duration:         time.Millisecond,
-		DrainedEvents:    2,
-		ProjectedPatches: 3,
-		DenseEvents:      1,
-		SparseEvents:     1,
-	})
-	observer.ObserveConversationProjectionAuthorityAdmit(conversationProjectionAuthorityAdmitEvent{Result: "timeout", TargetGroups: 2, LocalBatches: 1, RemoteBatches: 1})
-	observer.SetConversationProjectionRetry(conversationProjectionRetryEvent{Patches: 4})
-	observer.ObserveConversationProjectionRetryDrop(conversationProjectionRetryDropEvent{Reason: "age"})
+	observer.ObserveAuthoritySenderRoute(authoritySenderRouteEvent{Result: "local"})
+	observer.ObserveAuthoritySenderRoute(authoritySenderRouteEvent{Result: "route_not_ready"})
+	observer.ObserveAuthorityRecipientQueue(authorityRecipientQueueEvent{Result: "accepted"})
+	observer.ObserveAuthorityRecipientQueue(authorityRecipientQueueEvent{Result: "full"})
+	observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{Phase: "worker", Result: "ok", Duration: time.Millisecond})
+	observer.ObserveAuthorityRecipientDispatch(authorityRecipientDispatchEvent{Phase: "conversation", Result: "error", Duration: 2 * time.Millisecond})
 
 	families, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("Gather() error = %v", err)
 	}
-	dirty := requireAppMetricFamily(t, families, "wukongim_conversation_projection_dirty_keys")
-	if got := findAppMetricByLabels(t, dirty, map[string]string{}).GetGauge().GetValue(); got != 2 {
-		t.Fatalf("projection dirty metric = %v, want 2", got)
+	sender := requireAppMetricFamily(t, families, "wukongim_authority_sender_route_total")
+	if got := findAppMetricByLabels(t, sender, map[string]string{"result": "local"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("sender route metric = %v, want 1", got)
 	}
-	submit := requireAppMetricFamily(t, families, "wukongim_conversation_projection_submit_total")
-	if got := findAppMetricByLabels(t, submit, map[string]string{"result": "accepted"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("projection submit metric = %v, want 1", got)
+	if got := findAppMetricByLabels(t, sender, map[string]string{"result": "route_not_ready"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("sender route route_not_ready metric = %v, want 1", got)
 	}
-	flush := requireAppMetricFamily(t, families, "wukongim_conversation_projection_flush_total")
-	if got := findAppMetricByLabels(t, flush, map[string]string{"result": "ok"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("projection flush metric = %v, want 1", got)
+	queue := requireAppMetricFamily(t, families, "wukongim_authority_recipient_queue_total")
+	if got := findAppMetricByLabels(t, queue, map[string]string{"result": "accepted"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("recipient queue metric = %v, want 1", got)
 	}
-	admit := requireAppMetricFamily(t, families, "wukongim_conversation_projection_authority_admit_total")
-	if got := findAppMetricByLabels(t, admit, map[string]string{"result": "timeout"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("projection authority admit metric = %v, want 1", got)
+	if got := findAppMetricByLabels(t, queue, map[string]string{"result": "full"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("recipient queue full metric = %v, want 1", got)
 	}
-	retry := requireAppMetricFamily(t, families, "wukongim_conversation_projection_retry_patches")
-	if got := findAppMetricByLabels(t, retry, map[string]string{}).GetGauge().GetValue(); got != 4 {
-		t.Fatalf("projection retry metric = %v, want 4", got)
+	dispatch := requireAppMetricFamily(t, families, "wukongim_authority_recipient_dispatch_total")
+	if got := findAppMetricByLabels(t, dispatch, map[string]string{"phase": "worker", "result": "ok"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("recipient dispatch metric = %v, want 1", got)
 	}
-	retryDrop := requireAppMetricFamily(t, families, "wukongim_conversation_projection_retry_drop_total")
-	if got := findAppMetricByLabels(t, retryDrop, map[string]string{"reason": "age"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("projection retry drop metric = %v, want 1", got)
+	if got := findAppMetricByLabels(t, dispatch, map[string]string{"phase": "conversation", "result": "error"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("recipient dispatch error metric = %v, want 1", got)
+	}
+	duration := requireAppMetricFamily(t, families, "wukongim_authority_recipient_dispatch_duration_seconds")
+	if got := findAppMetricByLabels(t, duration, map[string]string{"phase": "worker", "result": "ok"}).GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("recipient dispatch duration count = %v, want 1", got)
 	}
 }
 
