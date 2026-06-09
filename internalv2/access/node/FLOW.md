@@ -142,6 +142,25 @@ not decide recipient authority routing, subscriber paging, conversation
 projection policy, delivery fanout policy, retries, or route-table resolution;
 those decisions stay in usecase and infra/cluster layers.
 
+## Channel Write RPC
+
+```text
+remote channel write forwarder
+  -> encode W K V W 1 request
+  -> clusterv2 RPCChannelWrite
+  -> ChannelWriteAdapter.HandleChannelWriteRPC
+  -> ChannelWrite.SubmitForAuthority
+  -> encode W K V w 1 response
+```
+
+Channel write RPC transports one exact `channelwrite.AuthorityTarget` plus
+item-aligned `channelwrite.SendCommand` values to the target channel authority
+node. The server only submits to the local channel authority port; it does not
+resolve routes, create proxy channel state, append directly outside the
+authority reactor, or run post-commit side effects. The client skips canceled or
+expired items before transport and preserves active item order in returned
+item-aligned results.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -174,6 +193,11 @@ Recipient authority RPC uses fixed magic headers:
 - Request: `W K V A 1`
 - Response: `W K V a 1`
 
+Channel write RPC uses fixed magic headers:
+
+- Request: `W K V W 1`
+- Response: `W K V w 1`
+
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, oversized collections, truncated
@@ -190,6 +214,7 @@ Stable response statuses are:
 - `route_not_ready`
 - `context_canceled`
 - `context_deadline_exceeded`
+- `channel_busy`
 - `cache_pressure`
 - `rejected`
 
@@ -211,7 +236,11 @@ Delivery push and fanout responses currently use:
   lookup, or recipient pipeline behavior.
 - This package must not decide recipient authority routing, subscriber paging,
   conversation projection policy, or delivery fanout policy.
+- This package must not decide channel authority routing, create proxy channel
+  state, perform non-authority appends, or run channel-write post-commit
+  effects.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
-  `SenderAuthority` / `RecipientAuthority` interfaces.
+  `SenderAuthority` / `RecipientAuthority` interfaces, or through the
+  standalone channel-write `ChannelWrite` adapter interface.

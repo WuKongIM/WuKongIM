@@ -50,4 +50,6 @@ const (
 	RPCSenderAuthority
 	// RPCRecipientAuthority serves internalv2 recipient UID authority post-commit requests.
 	RPCRecipientAuthority
+	// RPCChannelWrite serves internalv2 channel authority write forwarding requests.
+	RPCChannelWrite
 )

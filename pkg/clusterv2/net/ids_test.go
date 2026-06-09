@@ -25,6 +25,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"conversation_authority":  RPCConversationAuthority,
 		"sender_authority":        RPCSenderAuthority,
 		"recipient_authority":     RPCRecipientAuthority,
+		"channel_write":           RPCChannelWrite,
 	}
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {
