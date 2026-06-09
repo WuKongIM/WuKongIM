@@ -64,7 +64,7 @@ func (g *Group) Start(ctx context.Context) error {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.stopped {
+	if g.stopping || g.stopped {
 		return ErrBackpressured
 	}
 	if g.started && !g.stopped {
@@ -89,10 +89,12 @@ func (g *Group) Stop(ctx context.Context) error {
 		g.mu.Unlock()
 		return nil
 	}
-	g.stopping = true
 	reactors := append([]*reactor(nil), g.reactors...)
-	for _, reactor := range reactors {
-		reactor.close()
+	if !g.stopping {
+		g.stopping = true
+		for _, reactor := range reactors {
+			reactor.close()
+		}
 	}
 	g.mu.Unlock()
 

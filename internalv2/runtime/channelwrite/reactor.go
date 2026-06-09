@@ -87,12 +87,7 @@ func (r *reactor) submit(ctx context.Context, target AuthorityTarget, items []Se
 		return ctx.Err()
 	}
 
-	select {
-	case err := <-ack:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return <-ack
 }
 
 func (e submitLocalEvent) apply(r *reactor) {
@@ -103,5 +98,9 @@ func (e submitLocalEvent) apply(r *reactor) {
 	}
 	r.mu.Unlock()
 
-	e.ack <- nil
+	e.future.complete(notAppendedResults(len(e.items)))
+	select {
+	case e.ack <- nil:
+	default:
+	}
 }
