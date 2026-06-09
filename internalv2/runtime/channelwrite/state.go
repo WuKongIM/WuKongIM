@@ -13,6 +13,9 @@ type channelState struct {
 	nextAppendDrainSeq       uint64
 	completedAppends         map[uint64]appendCompletedEvent
 	committed                []CommittedEnvelope
+	nextCommitSeq            uint64
+	nextCommitIndex          int
+	commitInflight           int
 }
 
 type channelStateLimits struct {
@@ -98,4 +101,29 @@ func (s *channelState) popNextAppendCompletion() (appendCompletedEvent, bool) {
 
 func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
 	s.committed = append(s.committed, event.Clone())
+}
+
+func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
+	if s.commitInflight > 0 {
+		return commitEffect{}, false
+	}
+	if s.nextCommitIndex >= len(s.committed) {
+		return commitEffect{}, false
+	}
+	event := s.committed[s.nextCommitIndex].Clone()
+	effect := commitEffect{
+		key:   key,
+		seq:   s.nextCommitSeq,
+		event: event,
+	}
+	s.nextCommitSeq++
+	s.nextCommitIndex++
+	s.commitInflight++
+	return effect, true
+}
+
+func (s *channelState) finishCommit() {
+	if s.commitInflight > 0 {
+		s.commitInflight--
+	}
 }

@@ -78,7 +78,7 @@ selection, and mailbox enqueue, then released while waiting for reactor
 admission ack so `Stop` can close admission promptly.
 
 Accepted submit events dispatch preparation to bounded effect workers. The
-reactor bounds accepted prepare/append work with the same capacity as its
+reactor bounds accepted prepare/append admission with the same capacity as its
 mailbox, so new submissions return `ErrBackpressured` instead of growing
 unbounded in memory when workers or appenders are saturated. The reserved slot
 is released only when the item-aligned future completes. Each accepted prepare
@@ -116,10 +116,24 @@ append results complete missing items with `ErrAppendResultMissing`; per-item
 append errors map to SENDACK reasons; successful append results complete
 `SENDACK` futures immediately with `ReasonSuccess`, message id, and channel
 sequence. Successful append items also enqueue `CommittedEnvelope` values in the
-same `channelState` as the handoff point for later post-commit recipient work.
-Recipient selection, delivery, concrete node RPC forwarding, and committed
-cursor processing are later tasks.
+same `channelState` as the handoff point for post-commit recipient work.
 
-`Stop` cancels the runtime context passed to prepare effects before waiting for
-reactors to drain. Prepare and append ports must respect their context promptly
-for Stop to complete without waiting for the caller's timeout.
+Post-commit work is scheduled from the authority `channelState` after durable
+append succeeds and is independent from `SENDACK` completion. Scoped
+`MessageScopedUIDs` dispatch directly without scanning subscribers. Person
+channels derive exactly the two canonical participants from the committed
+channel id. Other channels page subscribers with the configured page size and
+dispatch each page before requesting the next one, so the runtime does not load
+all subscribers before recipient dispatch. Recipient batches are grouped by
+recipient UID authority target before they leave the channel authority reactor.
+
+Recipient-authority processing applies conversation patches before resolving
+online delivery routes. Delivery pushes are grouped by owner node. The sender's
+own echo is skipped only for the exact owner node and session that accepted the
+original SEND; other sender sessions remain eligible. Retryable owner push
+routes are retried with bounded backoff and an attempt cap. Owner-local concrete
+session writes remain outside `channelState`.
+
+`Stop` cancels the runtime context passed to prepare, append, and post-commit
+effects before waiting for reactors to drain. Ports must respect their context
+promptly for Stop to complete without waiting for the caller's timeout.

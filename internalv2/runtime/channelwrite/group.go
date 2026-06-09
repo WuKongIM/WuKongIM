@@ -78,6 +78,30 @@ type AppendBatchItemResult = contract.AppendBatchItemResult
 // CommittedEnvelope carries one committed message into post-commit effects.
 type CommittedEnvelope = contract.CommittedEnvelope
 
+// Recipient identifies one UID selected for committed-message effects.
+type Recipient = contract.Recipient
+
+// RecipientBatch carries one committed envelope and the recipients to process together.
+type RecipientBatch = contract.RecipientBatch
+
+// SubscriberPageRequest describes one channel subscriber page scan.
+type SubscriberPageRequest = contract.SubscriberPageRequest
+
+// SubscriberPage is one bounded subscriber scan page.
+type SubscriberPage = contract.SubscriberPage
+
+// ConversationPatch is a recipient-scoped conversation activity update.
+type ConversationPatch = contract.ConversationPatch
+
+// Route describes one online recipient endpoint resolved by presence.
+type Route = contract.Route
+
+// PushCommand groups recipient routes owned by the same node for one envelope.
+type PushCommand = contract.PushCommand
+
+// PushResult reports how an owner node classified pushed recipient routes.
+type PushResult = contract.PushResult
+
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
@@ -127,8 +151,9 @@ func New(opts Options) *Group {
 	limits := stateLimitsFromOptions(opts)
 	ports := preparePortsFromOptions(opts)
 	appendPorts := appendPortsFromOptions(opts)
+	commitPorts := commitPortsFromOptions(opts)
 	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts))
+		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts, commitPorts))
 	}
 	return group
 }

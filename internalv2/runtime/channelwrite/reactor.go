@@ -10,11 +10,13 @@ type reactor struct {
 	mailbox           chan any
 	effects           chan prepareEffect
 	appendEffects     chan appendEffect
+	commitEffects     chan commitEffect
 	completions       chan reactorEvent
 	effectSlots       chan struct{}
 	limits            channelStateLimits
 	ports             preparePorts
 	appendPorts       appendPorts
+	commitPorts       commitPorts
 	effectWorkerCount int
 
 	mu     sync.Mutex
@@ -25,6 +27,7 @@ type reactor struct {
 	completedPrepare map[string]map[uint64]prepareCompletedEvent
 	pendingPrepare   []pendingPrepareEffect
 	pendingAppend    []appendEffect
+	pendingCommit    []commitEffect
 
 	startOnce  sync.Once
 	closeOnce  sync.Once
@@ -50,18 +53,20 @@ type pendingPrepareEffect struct {
 	ack    chan error
 }
 
-func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts, appendPorts appendPorts) *reactor {
+func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts, appendPorts appendPorts, commitPorts commitPorts) *reactor {
 	stopCtx, stopCancel := context.WithCancel(context.Background())
 	return &reactor{
 		id:                id,
 		mailbox:           make(chan any, mailboxSize),
 		effects:           make(chan prepareEffect, mailboxSize),
 		appendEffects:     make(chan appendEffect, mailboxSize),
+		commitEffects:     make(chan commitEffect, mailboxSize),
 		completions:       make(chan reactorEvent, mailboxSize),
 		effectSlots:       make(chan struct{}, mailboxSize),
 		limits:            limits,
 		ports:             ports,
 		appendPorts:       appendPorts,
+		commitPorts:       commitPorts,
 		effectWorkerCount: effectWorkerCount,
 		states:            make(map[string]*channelState),
 		nextPrepareSeq:    make(map[string]uint64),
@@ -86,7 +91,8 @@ func (r *reactor) run() {
 	completions := r.completions
 	effects := r.effects
 	appendEffects := r.appendEffects
-	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 {
+	commitEffects := r.commitEffects
+	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 {
 		if mailbox == nil && len(r.pendingPrepare) == 0 && effects != nil {
 			close(effects)
 			effects = nil
@@ -94,6 +100,10 @@ func (r *reactor) run() {
 		if mailbox == nil && len(r.pendingAppend) == 0 && !r.hasAppendInflight() && appendEffects != nil {
 			close(appendEffects)
 			appendEffects = nil
+		}
+		if mailbox == nil && len(r.pendingCommit) == 0 && !r.hasCommitInflight() && commitEffects != nil {
+			close(commitEffects)
+			commitEffects = nil
 		}
 		var effectOut chan prepareEffect
 		var nextEffect pendingPrepareEffect
@@ -107,6 +117,12 @@ func (r *reactor) run() {
 			appendOut = appendEffects
 			nextAppend = r.pendingAppend[0]
 		}
+		var commitOut chan commitEffect
+		var nextCommit commitEffect
+		if len(r.pendingCommit) > 0 && commitEffects != nil {
+			commitOut = commitEffects
+			nextCommit = r.pendingCommit[0]
+		}
 		select {
 		case effectOut <- nextEffect.effect:
 			select {
@@ -116,6 +132,8 @@ func (r *reactor) run() {
 			r.pendingPrepare = r.pendingPrepare[1:]
 		case appendOut <- nextAppend:
 			r.pendingAppend = r.pendingAppend[1:]
+		case commitOut <- nextCommit:
+			r.pendingCommit = r.pendingCommit[1:]
 		case event, ok := <-mailbox:
 			if !ok {
 				mailbox = nil
@@ -147,7 +165,7 @@ func (r *reactor) startEffectWorkers() {
 	if workerCount <= 0 {
 		workerCount = 1
 	}
-	r.effectWG.Add(workerCount * 2)
+	r.effectWG.Add(workerCount * 3)
 	for i := 0; i < workerCount; i++ {
 		go func() {
 			defer r.effectWG.Done()
@@ -159,6 +177,12 @@ func (r *reactor) startEffectWorkers() {
 			defer r.effectWG.Done()
 			for effect := range r.appendEffects {
 				r.completions <- effect.run(r.stopCtx, r.appendPorts)
+			}
+		}()
+		go func() {
+			defer r.effectWG.Done()
+			for effect := range r.commitEffects {
+				r.completions <- effect.run(r.stopCtx, r.commitPorts)
 			}
 		}()
 	}
@@ -235,6 +259,17 @@ func (r *reactor) hasAppendInflight() bool {
 	defer r.mu.Unlock()
 	for _, state := range r.states {
 		if state.appendInflight > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *reactor) hasCommitInflight() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, state := range r.states {
+		if state.commitInflight > 0 {
 			return true
 		}
 	}

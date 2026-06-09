@@ -6,11 +6,16 @@ import (
 )
 
 const (
-	defaultReactorCount             = 1
-	defaultMailboxSize              = 1024
-	defaultPendingItemHighWatermark = 1024
-	defaultAppendInflightLimit      = 1
-	defaultEffectWorkerCount        = 1
+	defaultReactorCount                = 1
+	defaultMailboxSize                 = 1024
+	defaultPendingItemHighWatermark    = 1024
+	defaultAppendInflightLimit         = 1
+	defaultEffectWorkerCount           = 1
+	defaultSubscriberPageSize          = 256
+	defaultRecipientBatchSize          = 256
+	defaultDeliveryRetryMaxAttempts    = 3
+	defaultDeliveryRetryInitialBackoff = 5 * time.Millisecond
+	defaultDeliveryRetryMaxBackoff     = 100 * time.Millisecond
 )
 
 // Clock provides the time source used by channel write runtime state.
@@ -55,6 +60,48 @@ type AppendObserver interface {
 	AppendFinished(path string, err error, dur time.Duration)
 }
 
+// SubscriberSource pages channel subscribers for post-commit recipient selection.
+type SubscriberSource interface {
+	// NextSubscriberPage returns one bounded subscriber page for the requested channel.
+	NextSubscriberPage(context.Context, SubscriberPageRequest) (SubscriberPage, error)
+}
+
+// RecipientAuthorityTarget identifies the node authoritative for recipient-scoped effects.
+type RecipientAuthorityTarget struct {
+	// LeaderNodeID is the node that should process the recipient batch.
+	LeaderNodeID uint64
+}
+
+// RecipientAuthorityResolver resolves the authority target for a recipient UID.
+type RecipientAuthorityResolver interface {
+	// ResolveRecipientAuthority returns the recipient authority target for uid.
+	ResolveRecipientAuthority(context.Context, string) (RecipientAuthorityTarget, error)
+}
+
+// RecipientAuthorityRouter dispatches recipient batches to their authority target.
+type RecipientAuthorityRouter interface {
+	// DispatchRecipientBatch sends a batch to the recipient authority target.
+	DispatchRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
+}
+
+// ConversationProjector admits recipient-scoped conversation activity patches.
+type ConversationProjector interface {
+	// AdmitRecipientPatches applies conversation updates before delivery is resolved.
+	AdmitRecipientPatches(context.Context, []ConversationPatch) error
+}
+
+// PresenceResolver resolves online endpoints for recipient UIDs.
+type PresenceResolver interface {
+	// EndpointsByUIDs returns currently known online endpoints for uids.
+	EndpointsByUIDs(context.Context, []string) ([]Route, error)
+}
+
+// OwnerPusher pushes committed messages to owner-node gateway sessions.
+type OwnerPusher interface {
+	// Push sends one owner-node grouped push command.
+	Push(context.Context, PushCommand) (PushResult, error)
+}
+
 // Options configures the channel write reactor group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
@@ -81,6 +128,28 @@ type Options struct {
 	EffectWorkerCount int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
+	// Subscribers pages channel subscribers for group-channel post-commit effects.
+	Subscribers SubscriberSource
+	// RecipientAuthorityResolver resolves each recipient UID to its recipient authority node.
+	RecipientAuthorityResolver RecipientAuthorityResolver
+	// RecipientRouter dispatches selected recipients to their recipient authority node.
+	RecipientRouter RecipientAuthorityRouter
+	// ConversationProjector updates recipient conversations before delivery is resolved.
+	ConversationProjector ConversationProjector
+	// PresenceResolver resolves online recipient endpoints for delivery pushes.
+	PresenceResolver PresenceResolver
+	// OwnerPusher pushes online delivery commands to owner nodes.
+	OwnerPusher OwnerPusher
+	// SubscriberPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
+	SubscriberPageSize int
+	// RecipientBatchSize bounds one dispatched recipient batch. Values <= 0 use a bounded default.
+	RecipientBatchSize int
+	// DeliveryRetryMaxAttempts bounds retryable owner push attempts. Values <= 0 use a bounded default.
+	DeliveryRetryMaxAttempts int
+	// DeliveryRetryInitialBackoff is the first retry sleep for retryable owner pushes. Values <= 0 use a bounded default.
+	DeliveryRetryInitialBackoff time.Duration
+	// DeliveryRetryMaxBackoff caps retry sleeps for retryable owner pushes. Values <= 0 use a bounded default.
+	DeliveryRetryMaxBackoff time.Duration
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -107,6 +176,21 @@ func applyDefaults(opts Options) Options {
 	if opts.EffectWorkerCount <= 0 {
 		opts.EffectWorkerCount = defaultEffectWorkerCount
 	}
+	if opts.SubscriberPageSize <= 0 {
+		opts.SubscriberPageSize = defaultSubscriberPageSize
+	}
+	if opts.RecipientBatchSize <= 0 {
+		opts.RecipientBatchSize = defaultRecipientBatchSize
+	}
+	if opts.DeliveryRetryMaxAttempts <= 0 {
+		opts.DeliveryRetryMaxAttempts = defaultDeliveryRetryMaxAttempts
+	}
+	if opts.DeliveryRetryInitialBackoff <= 0 {
+		opts.DeliveryRetryInitialBackoff = defaultDeliveryRetryInitialBackoff
+	}
+	if opts.DeliveryRetryMaxBackoff <= 0 {
+		opts.DeliveryRetryMaxBackoff = defaultDeliveryRetryMaxBackoff
+	}
 	if opts.Authorizer == nil {
 		opts.Authorizer = allowAllAuthorizer{}
 	}
@@ -130,6 +214,27 @@ func appendPortsFromOptions(opts Options) appendPorts {
 	return appendPorts{
 		appender: opts.Appender,
 		observer: opts.Observer,
+	}
+}
+
+func commitPortsFromOptions(opts Options) commitPorts {
+	return commitPorts{
+		subscribers:                opts.Subscribers,
+		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
+		recipientRouter:            opts.RecipientRouter,
+		subscriberPageSize:         opts.SubscriberPageSize,
+		recipientBatchSize:         opts.RecipientBatchSize,
+	}
+}
+
+func recipientPortsFromOptions(opts Options) recipientPorts {
+	return recipientPorts{
+		conversations:               opts.ConversationProjector,
+		presence:                    opts.PresenceResolver,
+		pusher:                      opts.OwnerPusher,
+		deliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
+		deliveryRetryInitialBackoff: opts.DeliveryRetryInitialBackoff,
+		deliveryRetryMaxBackoff:     opts.DeliveryRetryMaxBackoff,
 	}
 }
 

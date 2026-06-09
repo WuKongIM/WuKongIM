@@ -142,6 +142,7 @@ func (r *reactor) recordAppendCompletion(event appendCompletedEvent) {
 		for _, completion := range next.items {
 			if completion.traceErr == nil && completion.result.Err == nil && completion.result.Result.Reason == ReasonSuccess {
 				state.enqueueCommitted(committedEnvelopeForAppend(completion.item, completion.appended))
+				r.scheduleCommitLocked(event.key, state)
 			}
 			dispatch = append(dispatch, appendCompletionDispatch{completion: completion, duration: next.duration})
 		}
@@ -184,6 +185,14 @@ func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
 			items:  items,
 		})
 	}
+}
+
+func (r *reactor) scheduleCommitLocked(key string, state *channelState) {
+	effect, ok := state.nextCommitEffect(key)
+	if !ok {
+		return
+	}
+	r.pendingCommit = append(r.pendingCommit, effect)
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {
