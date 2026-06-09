@@ -20,6 +20,10 @@ business branch that bypasses cluster semantics.
 
 ## Goals
 
+- Make the internalv2 send path easier to read by exposing the send pipeline as
+  named batch stages instead of a chain of implicit helper calls.
+- Improve multi-channel throughput by allowing bounded parallel append across
+  independent channel groups while preserving order within each channel.
 - Route gateway-origin sends to the sender UID hash-slot leader before channel
   commit.
 - Return `SENDACK` after the channel authority durably commits the message.
@@ -96,6 +100,42 @@ SENDACK = channel authority durable commit success
 `message.App` remains entry-agnostic and cluster-agnostic. It owns validation,
 authorization, person-channel normalization, message ID allocation, per-channel
 batching, append retries, and committed event submission.
+
+Refactor `message.App.SendBatch` into an explicit batch-oriented pipeline
+without adding a generic middleware framework:
+
+```text
+SendBatchPipeline.Execute(items)
+  -> normalize contexts and deadlines
+  -> precheck authenticated sender, channel shape, payload, and supported flags
+  -> canonicalize request-scoped and person-channel commands
+  -> authorize and recover idempotent sends
+  -> allocate durable message IDs
+  -> group active sends by canonical channel
+  -> append channel groups
+  -> publish committed events for successful append results
+```
+
+The pipeline should use concrete batch structs and named stage methods instead
+of per-item handler objects. This keeps the code readable in Go, avoids
+interface churn in the hot path, and makes each stage independently testable.
+
+Channel grouping remains stable and first-seen ordered. Within one channel
+group, append order is preserved exactly. Across different channel groups, the
+append stage may use a bounded executor:
+
+```text
+ChannelAppendExecutor
+  -> concurrency = 1 by default during the behavior-preserving refactor
+  -> later configurable bounded concurrency for independent channels
+  -> per-channel items stay sequential inside one append request
+  -> item-aligned results are merged back into the original batch indexes
+```
+
+This is the primary throughput lever in this refactor. It should not create one
+goroutine per message. It should schedule channel groups, not individual sends,
+so large batches with many channels can use available CPU and IO while preserving
+single-channel ordering.
 
 ### Recipient Authority Pipeline
 
@@ -414,6 +454,10 @@ Asynchronous errors do not affect `SENDACK`:
 
 The implementation should be bold but bounded:
 
+- First make the `message.App.SendBatch` path explicit without changing
+  behavior; the first executor implementation may keep concurrency at one.
+- Introduce bounded cross-channel append concurrency only after the
+  behavior-preserving pipeline tests pass.
 - Prefer one clear pipeline over compatibility layers.
 - Delete internalv2 code paths made redundant by the new sender or recipient
   authority pipeline.
@@ -428,6 +472,17 @@ The implementation should be bold but bounded:
 
 Unit tests first:
 
+- `SendBatchPipeline` runs validation, normalization, idempotency, allocation,
+  grouping, append, and committed publication in the expected order.
+- `SendBatchPipeline` keeps item-aligned results for mixed immediate rejects,
+  context cancellations, append failures, and successes.
+- channel grouping preserves first-seen channel order and per-channel item
+  order.
+- `ChannelAppendExecutor` with concurrency one matches the existing sequential
+  append behavior.
+- `ChannelAppendExecutor` with bounded concurrency runs independent channels in
+  parallel and merges results back to original batch indexes.
+- `ChannelAppendExecutor` does not reorder messages inside the same channel.
 - `SenderAuthorityRouter` routes local UID leaders to local submitter.
 - `SenderAuthorityRouter` routes remote UID leaders through RPC.
 - sender router preserves item-aligned batch results.
