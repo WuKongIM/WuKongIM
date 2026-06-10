@@ -2,6 +2,7 @@ package conversationactive
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -272,6 +273,81 @@ func TestListActiveViewMergesCacheOverDB(t *testing.T) {
 	}
 }
 
+func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{
+		rows: []metadb.UserConversationState{
+			{UID: "u1", ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
+		},
+		primary: map[metadb.ConversationKey]metadb.UserConversationState{
+			{ChannelID: "shared", ChannelType: 2}: {
+				UID:          "u1",
+				ChannelID:    "shared",
+				ChannelType:  2,
+				ReadSeq:      50,
+				DeletedToSeq: 7,
+				ActiveAt:     100,
+				UpdatedAt:    111,
+				SparseActive: true,
+			},
+		},
+	}
+	m := NewManager(Options{Store: store})
+	err := m.MarkActive([]ActivePatch{
+		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+	})
+	if err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	page, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+
+	wantRows := []metadb.UserConversationState{
+		{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 50, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 111, SparseActive: true},
+		{UID: "u1", ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
+	}
+	if !reflect.DeepEqual(page.Rows, wantRows) {
+		t.Fatalf("rows = %+v, want hydrated rows %+v", page.Rows, wantRows)
+	}
+	if len(store.lookups) != 1 || store.lookups[0] != (metadb.ConversationKey{ChannelID: "shared", ChannelType: 2}) {
+		t.Fatalf("lookups = %+v, want shared primary lookup", store.lookups)
+	}
+}
+
+func TestListActiveViewPropagatesCacheOnlyHydrationError(t *testing.T) {
+	ctx := context.Background()
+	lookupErr := errors.New("primary lookup failed")
+	store := &recordingActiveStore{lookupErr: lookupErr}
+	m := NewManager(Options{Store: store})
+	err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}})
+	if err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	_, err = m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("ListActiveView() error = %v, want %v", err, lookupErr)
+	}
+}
+
+func TestListActiveViewRequiresStore(t *testing.T) {
+	m := NewManager(Options{})
+	if err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	page, err := m.ListActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	if !errors.Is(err, ErrStoreRequired) {
+		t.Fatalf("ListActiveView() error = %v, want %v", err, ErrStoreRequired)
+	}
+	if len(page.Rows) != 0 || page.Done {
+		t.Fatalf("page=%+v, want no authoritative rows and done=false on missing store", page)
+	}
+}
+
 func TestListActiveViewPaginatesCacheRowsWithCursorAndLimit(t *testing.T) {
 	ctx := context.Background()
 	m := NewManager(Options{Store: &recordingActiveStore{}})
@@ -324,9 +400,12 @@ func TestListActiveViewNonPositiveLimitReturnsEmptyDonePage(t *testing.T) {
 
 type recordingActiveStore struct {
 	rows      []metadb.UserConversationState
+	primary   map[metadb.ConversationKey]metadb.UserConversationState
 	calls     int
 	lastAfter metadb.UserConversationActiveCursor
 	lastLimit int
+	lookupErr error
+	lookups   []metadb.ConversationKey
 }
 
 func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -365,6 +444,16 @@ func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context,
 		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
 	return candidates, cursor, done, nil
+}
+
+func (s *recordingActiveStore) GetUserConversationState(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	key := metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}
+	s.lookups = append(s.lookups, key)
+	if s.lookupErr != nil {
+		return metadb.UserConversationState{}, false, s.lookupErr
+	}
+	row, ok := s.primary[key]
+	return row, ok, nil
 }
 
 func testActiveRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {

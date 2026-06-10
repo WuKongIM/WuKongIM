@@ -2,9 +2,13 @@ package conversationactive
 
 import (
 	"context"
+	"errors"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+// ErrStoreRequired reports that active view reads need a durable store.
+var ErrStoreRequired = errors.New("conversationactive: store required")
 
 // Options configures the conversation active admission manager.
 type Options struct {
@@ -18,6 +22,8 @@ type Options struct {
 type ActiveStore interface {
 	// ListUserConversationActivePage returns active rows after the active-index cursor.
 	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
+	// GetUserConversationState returns one durable primary row for cache-only hydration.
+	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
 }
 
 // ActiveViewPage is a merged cache plus durable active-row page.

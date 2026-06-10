@@ -14,25 +14,25 @@ type activeViewKey struct {
 
 // ListActiveView returns active conversations from cache and durable store.
 func (m *Manager) ListActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
+	if m.store == nil {
+		return ActiveViewPage{}, ErrStoreRequired
+	}
 	if limit <= 0 {
 		return ActiveViewPage{Cursor: after, Done: true}, nil
 	}
 
 	cacheRows, cacheAfter, cacheAll := m.cacheRowsForActiveView(uid, after)
 
-	var dbRows []metadb.UserConversationState
-	dbDone := true
-	if m.store != nil {
-		dbLimit := limit + len(cacheAll)
-		rows, _, done, err := m.store.ListUserConversationActivePage(ctx, uid, after, dbLimit)
-		if err != nil {
-			return ActiveViewPage{}, err
-		}
-		dbRows = rows
-		dbDone = done
+	dbLimit := limit + len(cacheAll)
+	dbRows, _, dbDone, err := m.store.ListUserConversationActivePage(ctx, uid, after, dbLimit)
+	if err != nil {
+		return ActiveViewPage{}, err
 	}
 
-	merged := mergeActiveViewRows(dbRows, cacheRows, cacheAfter, cacheAll)
+	merged, err := m.mergeActiveViewRows(ctx, uid, dbRows, cacheRows, cacheAfter, cacheAll)
+	if err != nil {
+		return ActiveViewPage{}, err
+	}
 	sortActiveViewRows(merged)
 
 	done := dbDone
@@ -77,7 +77,7 @@ func (m *Manager) cacheRowsForActiveView(uid string, after metadb.UserConversati
 	return rows, afterRows, allRows
 }
 
-func mergeActiveViewRows(dbRows []metadb.UserConversationState, cacheRows []metadb.UserConversationState, cacheAfter map[activeViewKey]metadb.UserConversationState, cacheAll map[activeViewKey]metadb.UserConversationState) []metadb.UserConversationState {
+func (m *Manager) mergeActiveViewRows(ctx context.Context, uid string, dbRows []metadb.UserConversationState, cacheRows []metadb.UserConversationState, cacheAfter map[activeViewKey]metadb.UserConversationState, cacheAll map[activeViewKey]metadb.UserConversationState) ([]metadb.UserConversationState, error) {
 	merged := make([]metadb.UserConversationState, 0, len(dbRows)+len(cacheRows))
 	mergedKeys := make(map[activeViewKey]struct{}, len(dbRows)+len(cacheRows))
 	for _, dbRow := range dbRows {
@@ -98,10 +98,17 @@ func mergeActiveViewRows(dbRows []metadb.UserConversationState, cacheRows []meta
 		if _, ok := mergedKeys[key]; ok {
 			continue
 		}
+		durable, ok, err := m.store.GetUserConversationState(ctx, uid, cacheRow.ChannelID, cacheRow.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			cacheRow = mergeActiveViewState(durable, cacheRow)
+		}
 		merged = append(merged, cacheRow)
 		mergedKeys[key] = struct{}{}
 	}
-	return merged
+	return merged, nil
 }
 
 func activePatchState(patch ActivePatch) metadb.UserConversationState {
@@ -118,7 +125,6 @@ func mergeActiveViewState(dbRow metadb.UserConversationState, cacheRow metadb.Us
 	merged := dbRow
 	if cacheRow.ActiveAt > merged.ActiveAt {
 		merged.ActiveAt = cacheRow.ActiveAt
-		merged.SparseActive = cacheRow.SparseActive
 	}
 	if cacheRow.ReadSeq > merged.ReadSeq {
 		merged.ReadSeq = cacheRow.ReadSeq
