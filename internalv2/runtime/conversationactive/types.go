@@ -1,11 +1,9 @@
 package conversationactive
 
-import "time"
-
 // Options configures the conversation active admission manager.
 type Options struct {
-	// Now returns the current time when a batch does not carry ActiveAt.
-	Now func() time.Time
+	// NowMS returns the current Unix millisecond when a batch does not carry ActiveAtMS.
+	NowMS func() int64
 }
 
 // ActiveBatch is the channelwrite output consumed by the active cache.
@@ -18,8 +16,8 @@ type ActiveBatch struct {
 	ChannelType uint8
 	// MessageSeq is the latest committed message sequence for the batch.
 	MessageSeq uint64
-	// ActiveAt is the activity timestamp shared by all recipients in the batch.
-	ActiveAt time.Time
+	// ActiveAtMS is the Unix millisecond activity timestamp shared by all recipients.
+	ActiveAtMS int64
 	// Recipients contains the users whose active conversation cache should be touched.
 	Recipients []ActiveEntry
 }
@@ -40,8 +38,8 @@ type ActivePatch struct {
 	ChannelID string
 	// ChannelType identifies the active conversation channel type.
 	ChannelType uint8
-	// ActiveAt is the maximum observed activity timestamp.
-	ActiveAt time.Time
+	// ActiveAtMS is the maximum observed Unix millisecond activity timestamp.
+	ActiveAtMS int64
 	// ReadSeq is advanced only for the sender's own conversation row.
 	ReadSeq uint64
 }

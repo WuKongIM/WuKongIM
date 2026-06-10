@@ -14,29 +14,31 @@ type conversationKey struct {
 type Manager struct {
 	// mu protects cache and all per-UID conversation rows.
 	mu sync.RWMutex
-	// now supplies ActiveAt when an admitted batch does not provide one.
-	now func() time.Time
+	// nowMS supplies ActiveAtMS when an admitted batch does not provide one.
+	nowMS func() int64
 	// cache stores UID -> conversation key -> active projection.
 	cache map[string]map[conversationKey]ActivePatch
 }
 
 // NewManager creates a conversation active admission manager.
 func NewManager(opts Options) *Manager {
-	now := opts.Now
-	if now == nil {
-		now = time.Now
+	nowMS := opts.NowMS
+	if nowMS == nil {
+		nowMS = func() int64 {
+			return time.Now().UnixMilli()
+		}
 	}
 	return &Manager{
-		now:   now,
+		nowMS: nowMS,
 		cache: make(map[string]map[conversationKey]ActivePatch),
 	}
 }
 
 // AdmitActiveBatch admits a channelwrite recipient batch into the active cache.
 func (m *Manager) AdmitActiveBatch(batch ActiveBatch) error {
-	activeAt := batch.ActiveAt
-	if activeAt.IsZero() {
-		activeAt = m.now()
+	activeAtMS := batch.ActiveAtMS
+	if activeAtMS == 0 {
+		activeAtMS = m.nowMS()
 	}
 
 	patches := make([]ActivePatch, 0, len(batch.Recipients)+1)
@@ -45,7 +47,7 @@ func (m *Manager) AdmitActiveBatch(batch ActiveBatch) error {
 			UID:         batch.SenderUID,
 			ChannelID:   batch.ChannelID,
 			ChannelType: batch.ChannelType,
-			ActiveAt:    activeAt,
+			ActiveAtMS:  activeAtMS,
 			ReadSeq:     batch.MessageSeq,
 		})
 	}
@@ -67,7 +69,7 @@ func (m *Manager) AdmitActiveBatch(batch ActiveBatch) error {
 			UID:         recipient.UID,
 			ChannelID:   batch.ChannelID,
 			ChannelType: batch.ChannelType,
-			ActiveAt:    activeAt,
+			ActiveAtMS:  activeAtMS,
 			ReadSeq:     readSeq,
 		})
 	}
@@ -107,8 +109,8 @@ func (m *Manager) markActiveLocked(patch ActivePatch) {
 		return
 	}
 
-	if patch.ActiveAt.After(current.ActiveAt) {
-		current.ActiveAt = patch.ActiveAt
+	if patch.ActiveAtMS > current.ActiveAtMS {
+		current.ActiveAtMS = patch.ActiveAtMS
 	}
 	if patch.ReadSeq > current.ReadSeq {
 		current.ReadSeq = patch.ReadSeq

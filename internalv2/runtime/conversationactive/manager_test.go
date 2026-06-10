@@ -1,12 +1,9 @@
 package conversationactive
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
-	activeAt := time.Date(2026, 6, 10, 15, 30, 0, 0, time.UTC)
+	const activeAtMS int64 = 1781094600000
 	m := NewManager(Options{})
 
 	err := m.AdmitActiveBatch(ActiveBatch{
@@ -14,7 +11,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 		ChannelID:   "room-1",
 		ChannelType: 2,
 		MessageSeq:  42,
-		ActiveAt:    activeAt,
+		ActiveAtMS:  activeAtMS,
 		Recipients: []ActiveEntry{
 			{UID: "alice", IsSender: true},
 			{UID: "bob"},
@@ -28,8 +25,8 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
-	if !sender.ActiveAt.Equal(activeAt) {
-		t.Fatalf("sender ActiveAt = %v, want %v", sender.ActiveAt, activeAt)
+	if sender.ActiveAtMS != activeAtMS {
+		t.Fatalf("sender ActiveAtMS = %d, want %d", sender.ActiveAtMS, activeAtMS)
 	}
 	if sender.ReadSeq != 42 {
 		t.Fatalf("sender ReadSeq = %d, want 42", sender.ReadSeq)
@@ -39,8 +36,8 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
-	if !receiver.ActiveAt.Equal(activeAt) {
-		t.Fatalf("receiver ActiveAt = %v, want %v", receiver.ActiveAt, activeAt)
+	if receiver.ActiveAtMS != activeAtMS {
+		t.Fatalf("receiver ActiveAtMS = %d, want %d", receiver.ActiveAtMS, activeAtMS)
 	}
 	if receiver.ReadSeq != 0 {
 		t.Fatalf("receiver ReadSeq = %d, want 0", receiver.ReadSeq)
@@ -48,7 +45,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 }
 
 func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
-	activeAt := time.Date(2026, 6, 10, 15, 30, 0, 0, time.UTC)
+	const activeAtMS int64 = 1781094600000
 	m := NewManager(Options{})
 
 	err := m.AdmitActiveBatch(ActiveBatch{
@@ -56,7 +53,7 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 		ChannelID:   "room-1",
 		ChannelType: 2,
 		MessageSeq:  42,
-		ActiveAt:    activeAt,
+		ActiveAtMS:  activeAtMS,
 		Recipients: []ActiveEntry{
 			{UID: "bob"},
 		},
@@ -69,8 +66,8 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
-	if !sender.ActiveAt.Equal(activeAt) {
-		t.Fatalf("sender ActiveAt = %v, want %v", sender.ActiveAt, activeAt)
+	if sender.ActiveAtMS != activeAtMS {
+		t.Fatalf("sender ActiveAtMS = %d, want %d", sender.ActiveAtMS, activeAtMS)
 	}
 	if sender.ReadSeq != 42 {
 		t.Fatalf("sender ReadSeq = %d, want 42", sender.ReadSeq)
@@ -86,9 +83,9 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 }
 
 func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
-	firstActiveAt := time.Date(2026, 6, 10, 15, 30, 0, 0, time.UTC)
-	secondActiveAt := firstActiveAt.Add(5 * time.Second)
-	olderActiveAt := firstActiveAt.Add(-5 * time.Second)
+	const firstActiveAtMS int64 = 1781094600000
+	const secondActiveAtMS int64 = firstActiveAtMS + 5000
+	const olderActiveAtMS int64 = firstActiveAtMS - 5000
 	m := NewManager(Options{})
 
 	for _, batch := range []ActiveBatch{
@@ -97,7 +94,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			ChannelID:   "room-1",
 			ChannelType: 2,
 			MessageSeq:  7,
-			ActiveAt:    firstActiveAt,
+			ActiveAtMS:  firstActiveAtMS,
 			Recipients: []ActiveEntry{
 				{UID: "alice", IsSender: true},
 				{UID: "bob"},
@@ -108,7 +105,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			ChannelID:   "room-1",
 			ChannelType: 2,
 			MessageSeq:  11,
-			ActiveAt:    secondActiveAt,
+			ActiveAtMS:  secondActiveAtMS,
 			Recipients: []ActiveEntry{
 				{UID: "alice", IsSender: true},
 				{UID: "bob"},
@@ -119,7 +116,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			ChannelID:   "room-1",
 			ChannelType: 2,
 			MessageSeq:  9,
-			ActiveAt:    olderActiveAt,
+			ActiveAtMS:  olderActiveAtMS,
 			Recipients: []ActiveEntry{
 				{UID: "alice", IsSender: true},
 				{UID: "bob"},
@@ -135,8 +132,8 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
-	if !sender.ActiveAt.Equal(secondActiveAt) {
-		t.Fatalf("sender ActiveAt = %v, want %v", sender.ActiveAt, secondActiveAt)
+	if sender.ActiveAtMS != secondActiveAtMS {
+		t.Fatalf("sender ActiveAtMS = %d, want %d", sender.ActiveAtMS, secondActiveAtMS)
 	}
 	if sender.ReadSeq != 11 {
 		t.Fatalf("sender ReadSeq = %d, want 11", sender.ReadSeq)
@@ -146,10 +143,48 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
-	if !receiver.ActiveAt.Equal(secondActiveAt) {
-		t.Fatalf("receiver ActiveAt = %v, want %v", receiver.ActiveAt, secondActiveAt)
+	if receiver.ActiveAtMS != secondActiveAtMS {
+		t.Fatalf("receiver ActiveAtMS = %d, want %d", receiver.ActiveAtMS, secondActiveAtMS)
 	}
 	if receiver.ReadSeq != 0 {
 		t.Fatalf("receiver ReadSeq = %d, want 0", receiver.ReadSeq)
+	}
+}
+
+func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
+	const nowMS int64 = 1781094600123
+	m := NewManager(Options{
+		NowMS: func() int64 {
+			return nowMS
+		},
+	})
+
+	err := m.AdmitActiveBatch(ActiveBatch{
+		SenderUID:   "alice",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		MessageSeq:  42,
+		Recipients: []ActiveEntry{
+			{UID: "bob"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+
+	sender, ok := m.EntryForTest("alice", "room-1", 2)
+	if !ok {
+		t.Fatalf("sender conversation was not cached")
+	}
+	if sender.ActiveAtMS != nowMS {
+		t.Fatalf("sender ActiveAtMS = %d, want %d", sender.ActiveAtMS, nowMS)
+	}
+
+	receiver, ok := m.EntryForTest("bob", "room-1", 2)
+	if !ok {
+		t.Fatalf("receiver conversation was not cached")
+	}
+	if receiver.ActiveAtMS != nowMS {
+		t.Fatalf("receiver ActiveAtMS = %d, want %d", receiver.ActiveAtMS, nowMS)
 	}
 }
