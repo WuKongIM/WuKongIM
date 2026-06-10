@@ -209,7 +209,8 @@ Delivery push and fanout responses currently use:
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
   sentinel errors, `internalv2/contracts/channelwrite` DTOs and sentinel errors,
-  runtime delivery DTOs, and the clusterv2 RPC service IDs.
+  runtime delivery DTOs, `internalv2/runtime/conversationactive.ActiveBatch`
+  as the active worker RPC DTO, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not implement conversation projection, cache merge,
   projection-flush, or handoff business logic.

@@ -163,19 +163,28 @@ func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecas
 func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
 	groupIndex := make(map[conversationusecase.RouteTarget]int)
 	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batch.Recipients)+1)
+	routeCache := make(map[string]conversationusecase.RouteTarget, len(batch.Recipients)+1)
+	resolveUID := func(uid string) (conversationusecase.RouteTarget, error) {
+		if target, ok := routeCache[uid]; ok {
+			return target, nil
+		}
+		target, err := c.resolve(uid)
+		if err != nil {
+			return conversationusecase.RouteTarget{}, err
+		}
+		routeCache[uid] = target
+		return target, nil
+	}
 	if batch.SenderUID != "" {
-		target, err := c.resolve(batch.SenderUID)
+		target, err := resolveUID(batch.SenderUID)
 		if err != nil {
 			return nil, err
 		}
 		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
 		groups[idx].batch.SenderUID = batch.SenderUID
 	}
-	for _, recipient := range batch.Recipients {
-		if recipient.UID == "" {
-			continue
-		}
-		target, err := c.resolve(recipient.UID)
+	for _, recipient := range coalesceConversationActiveRecipients(batch.Recipients) {
+		target, err := resolveUID(recipient.UID)
 		if err != nil {
 			return nil, err
 		}
@@ -183,6 +192,23 @@ func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversatio
 		groups[idx].batch.Recipients = append(groups[idx].batch.Recipients, recipient)
 	}
 	return groups, nil
+}
+
+func coalesceConversationActiveRecipients(recipients []conversationactive.ActiveEntry) []conversationactive.ActiveEntry {
+	recipientIndex := make(map[string]int, len(recipients))
+	coalesced := make([]conversationactive.ActiveEntry, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.UID == "" {
+			continue
+		}
+		if idx, ok := recipientIndex[recipient.UID]; ok {
+			coalesced[idx].IsSender = coalesced[idx].IsSender || recipient.IsSender
+			continue
+		}
+		recipientIndex[recipient.UID] = len(coalesced)
+		coalesced = append(coalesced, recipient)
+	}
+	return coalesced
 }
 
 func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBatchGroup, groupIndex map[conversationusecase.RouteTarget]int, target conversationusecase.RouteTarget, source conversationactive.ActiveBatch) int {
