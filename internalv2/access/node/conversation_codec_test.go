@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -16,6 +17,35 @@ func TestConversationAuthorityCodecRoundTripAdmit(t *testing.T) {
 		Patches: []conversationusecase.ActivePatch{{
 			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true, MessageSeq: 9,
 		}},
+	}
+	body, err := encodeConversationAuthorityRequest(req)
+	if err != nil {
+		t.Fatalf("encodeConversationAuthorityRequest() error = %v", err)
+	}
+	got, err := decodeConversationAuthorityRequest(body)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("decoded = %#v, want %#v", got, req)
+	}
+}
+
+func TestConversationAuthorityCodecRoundTripActiveBatch(t *testing.T) {
+	req := conversationAuthorityRequest{
+		Op:     conversationOpAdmitActiveBatch,
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5},
+		ActiveBatch: conversationactive.ActiveBatch{
+			SenderUID:   "sender",
+			ChannelID:   "g1",
+			ChannelType: 2,
+			MessageSeq:  9,
+			ActiveAtMS:  100,
+			Recipients: []conversationactive.ActiveEntry{
+				{UID: "sender", IsSender: true},
+				{UID: "receiver"},
+			},
+		},
 	}
 	body, err := encodeConversationAuthorityRequest(req)
 	if err != nil {

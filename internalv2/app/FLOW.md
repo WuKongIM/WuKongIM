@@ -220,6 +220,24 @@ Conversation list with authority enabled:
   -> access/api shapes the legacy-compatible response
 ```
 
+Conversation active-batch admission with authority enabled:
+
+```text
+channelwrite/future active producer
+  -> ConversationAuthorityClient.AdmitActiveBatch
+       -> cluster groups SenderUID and recipient UIDs by exact UID authority
+  -> local authority:
+       validate the exact RouteTarget
+       delegate ActiveBatch to runtime/conversationactive.Manager.AdmitActiveBatch
+  -> remote authority:
+       access/node Conversation Authority ActiveBatch RPC
+       remote local authority applies the same target validation and runtime admission
+```
+
+The app authority does not regroup or reinterpret active batches. It trusts the
+cluster-routed client to send `SenderUID` only to the sender-owned authority
+target; non-sender recipient targets arrive with an empty sender field.
+
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`
 `UserMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.

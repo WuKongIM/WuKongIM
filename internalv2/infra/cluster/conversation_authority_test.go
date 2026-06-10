@@ -8,6 +8,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -23,6 +24,84 @@ func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	}
 	if len(local.patches) != 1 || !reflect.DeepEqual(local.patches[0], patch) {
 		t.Fatalf("local patches = %#v, want %#v", local.patches, patch)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchSplitsSenderAndReceiverTargets(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	senderTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	receiverTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]clusterv2.Route{
+			"sender":   senderTarget,
+			"receiver": receiverTarget,
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+
+	batches := activeBatchesByHashSlot(local.activeBatches)
+	senderBatch, ok := batches[1]
+	if !ok {
+		t.Fatalf("active batches = %#v, want sender target batch", local.activeBatches)
+	}
+	if senderBatch.SenderUID != "sender" || len(senderBatch.Recipients) != 0 {
+		t.Fatalf("sender target batch = %#v, want SenderUID only", senderBatch)
+	}
+	receiverBatch, ok := batches[2]
+	if !ok {
+		t.Fatalf("active batches = %#v, want receiver target batch", local.activeBatches)
+	}
+	if receiverBatch.SenderUID != "" || !reflect.DeepEqual(receiverBatch.Recipients, []conversationactive.ActiveEntry{{UID: "receiver"}}) {
+		t.Fatalf("receiver target batch = %#v, want receiver subset without SenderUID", receiverBatch)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRecipients(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]clusterv2.Route{
+			"sender":   target,
+			"receiver": target,
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	recipients := []conversationactive.ActiveEntry{
+		{UID: "sender", IsSender: true},
+		{UID: "receiver"},
+	}
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  recipients,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if len(local.activeBatches) != 1 {
+		t.Fatalf("active batches = %#v, want one same-target batch", local.activeBatches)
+	}
+	got := local.activeBatches[0]
+	if got.target.HashSlot != 1 || got.batch.SenderUID != "sender" || !reflect.DeepEqual(got.batch.Recipients, recipients) {
+		t.Fatalf("active batch = %#v, want sender plus same-target recipients", got)
 	}
 }
 
@@ -507,6 +586,7 @@ type fakeConversationAuthorityLocal struct {
 	patches          []conversationusecase.ActivePatch
 	deliveredPatches []conversationusecase.ActivePatch
 	targets          []conversationusecase.RouteTarget
+	activeBatches    []activeBatchDelivery
 	page             conversationusecase.ActiveViewPage
 	admitErrs        []error
 	admitAlwaysErr   error
@@ -529,6 +609,14 @@ func (f *fakeConversationAuthorityLocal) AdmitPatches(_ context.Context, target 
 		}
 	}
 	f.deliveredPatches = append(f.deliveredPatches, patches...)
+	return nil
+}
+
+func (f *fakeConversationAuthorityLocal) AdmitActiveBatch(_ context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
+	f.activeBatches = append(f.activeBatches, activeBatchDelivery{
+		target: target,
+		batch:  cloneConversationActiveBatch(batch),
+	})
 	return nil
 }
 
@@ -555,4 +643,22 @@ func deliveredConversationPatchUIDCounts(patches []conversationusecase.ActivePat
 		out[patch.UID]++
 	}
 	return out
+}
+
+type activeBatchDelivery struct {
+	target conversationusecase.RouteTarget
+	batch  conversationactive.ActiveBatch
+}
+
+func activeBatchesByHashSlot(deliveries []activeBatchDelivery) map[uint16]conversationactive.ActiveBatch {
+	out := make(map[uint16]conversationactive.ActiveBatch, len(deliveries))
+	for _, delivery := range deliveries {
+		out[delivery.target.HashSlot] = delivery.batch
+	}
+	return out
+}
+
+func cloneConversationActiveBatch(batch conversationactive.ActiveBatch) conversationactive.ActiveBatch {
+	batch.Recipients = append([]conversationactive.ActiveEntry(nil), batch.Recipients...)
+	return batch
 }

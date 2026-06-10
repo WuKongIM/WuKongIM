@@ -20,6 +20,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
@@ -809,6 +810,60 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g-watch" || page.Rows[0].ActiveAt != 100 {
 		t.Fatalf("authority page rows = %#v, want watched local cache row", page.Rows)
+	}
+}
+
+func TestConversationActiveAdmitBatchRPCUpdatesRemoteAndLocalCache(t *testing.T) {
+	localTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 2, SlotID: 2, LeaderNodeID: 2, RouteRevision: 11, AuthorityEpoch: 21}
+	localStore := &appRecordingConversationAuthorityStore{}
+	remoteStore := &appRecordingConversationAuthorityStore{}
+	localAuthority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: localStore})
+	remoteAuthority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 2, Store: remoteStore})
+	localAuthority.markActive(localTarget)
+	remoteAuthority.markActive(remoteTarget)
+	remoteAdapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
+	node := &recordingConversationAuthorityRouteNode{
+		nodeID: 1,
+		routes: map[string]clusterv2.Route{
+			"sender":   routeFromConversationTarget(remoteTarget),
+			"receiver": routeFromConversationTarget(localTarget),
+		},
+		handler: appNodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+			return remoteAdapter.HandleConversationAuthorityRPC(ctx, payload)
+		}),
+	}
+	client := clusterinfra.NewConversationAuthorityClient(node, localAuthority)
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g-active",
+		ChannelType: 2,
+		MessageSeq:  42,
+		ActiveAtMS:  1234,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+
+	senderPage, err := client.ListUserConversationActiveView(context.Background(), "sender", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveView(sender) error = %v", err)
+	}
+	if len(senderPage.Rows) != 1 || senderPage.Rows[0].ChannelID != "g-active" || senderPage.Rows[0].ReadSeq != 42 || senderPage.Rows[0].ActiveAt != 1234 {
+		t.Fatalf("sender active rows = %#v, want cached sender row with read seq", senderPage.Rows)
+	}
+
+	receiverPage, err := client.ListUserConversationActiveView(context.Background(), "receiver", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveView(receiver) error = %v", err)
+	}
+	if len(receiverPage.Rows) != 1 || receiverPage.Rows[0].ChannelID != "g-active" || receiverPage.Rows[0].ReadSeq != 0 || receiverPage.Rows[0].ActiveAt != 1234 {
+		t.Fatalf("receiver active rows = %#v, want cached receiver row without sender read seq", receiverPage.Rows)
+	}
+	if localStore.totalTouchPatches() != 0 || remoteStore.totalTouchPatches() != 0 {
+		t.Fatalf("touch patches local/remote = %d/%d, want cache-visible rows before flush", localStore.totalTouchPatches(), remoteStore.totalTouchPatches())
 	}
 }
 
@@ -2859,9 +2914,10 @@ func (s *appRecordingConversationAuthorityStore) lastTouchDeadlineWithin(timeout
 }
 
 type recordingConversationAuthorityRouteNode struct {
-	nodeID uint64
-	routes map[string]clusterv2.Route
-	watch  <-chan clusterv2.RouteAuthorityEvent
+	nodeID  uint64
+	routes  map[string]clusterv2.Route
+	watch   <-chan clusterv2.RouteAuthorityEvent
+	handler clusterv2.NodeRPCHandler
 }
 
 func (n *recordingConversationAuthorityRouteNode) NodeID() uint64 {
@@ -2876,7 +2932,10 @@ func (n *recordingConversationAuthorityRouteNode) RouteKey(uid string) (clusterv
 	return route, nil
 }
 
-func (n *recordingConversationAuthorityRouteNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+func (n *recordingConversationAuthorityRouteNode) CallRPC(ctx context.Context, _ uint64, _ uint8, payload []byte) ([]byte, error) {
+	if n.handler != nil {
+		return n.handler.HandleRPC(ctx, payload)
+	}
 	return nil, errors.New("unexpected conversation authority rpc")
 }
 
@@ -2884,6 +2943,12 @@ func (n *recordingConversationAuthorityRouteNode) RegisterRPC(uint8, clusterv2.N
 
 func (n *recordingConversationAuthorityRouteNode) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
 	return n.watch
+}
+
+type appNodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)
+
+func (f appNodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	return f(ctx, payload)
 }
 
 func routeFromConversationTarget(target conversationusecase.RouteTarget) clusterv2.Route {

@@ -117,11 +117,18 @@ the local authority when the target leader is this node or through
 access/node Conversation Authority RPC when the leader is remote. Admission is
 best-effort and does not retry route-not-ready, stale-route, or not-leader
 errors; callers are expected to log and drop failed post-commit projection.
-The remote RPC client chunks large patch groups at the codec collection limit
-before sending them. List resolves the requested UID once per retry attempt and
-reads the active view from that authority target; the active-view response is
-not satisfied by a local DB-only fallback when the UID authority is remote.
-Drain uses the caller-supplied exact target for authority handoff.
+Active-batch admission resolves the affected UID set as `SenderUID` plus each
+recipient UID, groups by exact `RouteTarget`, and sends one target-scoped batch
+per group. Only the sender-owned target receives `SenderUID`; other target
+batches carry an empty `SenderUID` and only their recipient subset, so a
+receiver authority cannot cache the sender row by mistake. If the sender is not
+in the recipient set, the sender target still receives a sender-only batch.
+The remote RPC client chunks large patch groups and active-batch recipient
+groups at the codec collection limit before sending them. List resolves the
+requested UID once per retry attempt and reads the active view from that
+authority target; the active-view response is not satisfied by a local DB-only
+fallback when the UID authority is remote. Drain uses the caller-supplied exact
+target for authority handoff.
 
 ```text
 ConversationAuthorityClient
@@ -130,6 +137,12 @@ ConversationAuthorityClient
        -> group by RouteTarget
        -> local conversation authority for local groups
        -> access/node Conversation Authority Admit RPC for remote groups
+  -> AdmitActiveBatch(ActiveBatch)
+       -> RouteKey(SenderUID) plus RouteKey(recipient.UID) for each recipient
+       -> group by exact RouteTarget
+       -> set SenderUID only on the sender target's batch
+       -> local conversation authority for local groups
+       -> access/node Conversation Authority ActiveBatch RPC for remote groups
   -> ListUserConversationActiveView(uid)
        -> RouteKey(uid)
        -> local conversation authority active view when local

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -31,6 +32,9 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 	switch req.Op {
 	case conversationOpAdmitPatches:
 		err = a.conversation.AdmitPatches(ctx, req.Target, req.Patches)
+		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err)})
+	case conversationOpAdmitActiveBatch:
+		err = a.conversation.AdmitActiveBatch(ctx, req.Target, req.ActiveBatch)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err)})
 	case conversationOpList:
 		page, err := a.conversation.ListUserConversationActiveViewForTarget(ctx, req.Target, req.UID, req.After, req.Limit)
@@ -61,6 +65,37 @@ func (c *Client) AdmitConversationPatches(ctx context.Context, nodeID uint64, ta
 			Op:      conversationOpAdmitPatches,
 			Target:  target,
 			Patches: patches[start:end],
+		})
+		if err != nil {
+			return err
+		}
+		if err := conversationRPCErrorForStatus(resp.Status); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AdmitConversationActiveBatch forwards one routed active conversation batch to nodeID.
+func (c *Client) AdmitConversationActiveBatch(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
+	if len(batch.Recipients) == 0 {
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, ActiveBatch: batch})
+		if err != nil {
+			return err
+		}
+		return conversationRPCErrorForStatus(resp.Status)
+	}
+	for start := 0; start < len(batch.Recipients); start += maxConversationAuthorityCollectionLen {
+		end := start + maxConversationAuthorityCollectionLen
+		if end > len(batch.Recipients) {
+			end = len(batch.Recipients)
+		}
+		chunk := batch
+		chunk.Recipients = batch.Recipients[start:end]
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{
+			Op:          conversationOpAdmitActiveBatch,
+			Target:      target,
+			ActiveBatch: chunk,
 		})
 		if err != nil {
 			return err

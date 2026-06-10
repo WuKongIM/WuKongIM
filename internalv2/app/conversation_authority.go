@@ -226,6 +226,30 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	return err
 }
 
+// AdmitActiveBatch validates the route target and delegates channelwrite active admission to the runtime cache.
+func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) (err error) {
+	if a == nil {
+		return nil
+	}
+	defer func() {
+		a.observeAdmit(err)
+	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.mu.Lock()
+	err = a.ensureTargetLocked(target)
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	err = mapConversationActiveError(a.active.AdmitActiveBatch(ctx, batch))
+	if errors.Is(err, conversationusecase.ErrCachePressure) {
+		a.observeCachePressure(conversationAuthorityPhaseAdmit, err)
+	}
+	return err
+}
+
 func (a *conversationAuthority) ensureTargetLocked(target conversationusecase.RouteTarget) error {
 	return a.ensureTargetKeyLocked(targetKey(target))
 }

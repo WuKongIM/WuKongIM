@@ -3,6 +3,7 @@ package node
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -17,9 +18,10 @@ const maxConversationAuthorityCollectionLen = 4096
 var maxConversationAuthorityDecodeLimit = int64(int(^uint(0) >> 1))
 
 const (
-	conversationOpAdmitPatches = "admit_conversation_active_patches"
-	conversationOpList         = "list_conversations"
-	conversationOpDrain        = "drain_conversation_authority"
+	conversationOpAdmitPatches     = "admit_conversation_active_patches"
+	conversationOpAdmitActiveBatch = "admit_conversation_active_batch"
+	conversationOpList             = "list_conversations"
+	conversationOpDrain            = "drain_conversation_authority"
 
 	conversationRPCStatusOK            = rpcStatusOK
 	conversationRPCStatusNotLeader     = rpcStatusNotLeader
@@ -48,6 +50,8 @@ type conversationAuthorityRequest struct {
 	Limit int
 	// Patches carries unflushed active-row candidates for admit requests.
 	Patches []conversationusecase.ActivePatch
+	// ActiveBatch carries channelwrite active admission input for active-batch requests.
+	ActiveBatch conversationactive.ActiveBatch
 }
 
 // conversationAuthorityResponse is the deterministic binary DTO returned by authority calls.
@@ -69,6 +73,9 @@ func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byt
 	dst = appendConversationActiveCursor(dst, req.After)
 	dst = appendVarint(dst, int64(req.Limit))
 	dst = appendConversationActivePatches(dst, req.Patches)
+	if req.Op == conversationOpAdmitActiveBatch {
+		dst = appendConversationActiveBatch(dst, req.ActiveBatch)
+	}
 	return dst, nil
 }
 
@@ -107,6 +114,11 @@ func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityReque
 	req.Limit = int(limit)
 	if req.Patches, offset, err = readConversationActivePatches(body, offset); err != nil {
 		return conversationAuthorityRequest{}, err
+	}
+	if req.Op == conversationOpAdmitActiveBatch {
+		if req.ActiveBatch, offset, err = readConversationActiveBatch(body, offset); err != nil {
+			return conversationAuthorityRequest{}, err
+		}
 	}
 	if offset != len(body) {
 		return conversationAuthorityRequest{}, fmt.Errorf("internalv2/access/node: trailing conversation authority request bytes")
@@ -147,7 +159,7 @@ func decodeConversationAuthorityResponse(body []byte) (conversationAuthorityResp
 
 func validateConversationAuthorityOp(op string) error {
 	switch op {
-	case conversationOpAdmitPatches, conversationOpList, conversationOpDrain:
+	case conversationOpAdmitPatches, conversationOpAdmitActiveBatch, conversationOpList, conversationOpDrain:
 		return nil
 	default:
 		return fmt.Errorf("internalv2/access/node: unknown conversation authority op %q", op)
@@ -287,6 +299,92 @@ func readConversationActivePatches(body []byte, offset int) ([]conversationuseca
 		patches = append(patches, patch)
 	}
 	return patches, offset, nil
+}
+
+func appendConversationActiveBatch(dst []byte, batch conversationactive.ActiveBatch) []byte {
+	dst = appendString(dst, batch.SenderUID)
+	dst = appendString(dst, batch.ChannelID)
+	dst = appendUvarint(dst, uint64(batch.ChannelType))
+	dst = appendUvarint(dst, batch.MessageSeq)
+	dst = appendVarint(dst, batch.ActiveAtMS)
+	return appendConversationActiveEntries(dst, batch.Recipients)
+}
+
+func readConversationActiveBatch(body []byte, offset int) (conversationactive.ActiveBatch, int, error) {
+	var batch conversationactive.ActiveBatch
+	var channelType uint64
+	var err error
+	if batch.SenderUID, offset, err = readString(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	if batch.ChannelID, offset, err = readString(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	if channelType, offset, err = readUvarint(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	if channelType > uint64(^uint8(0)) {
+		return conversationactive.ActiveBatch{}, offset, fmt.Errorf("internalv2/access/node: conversation active batch channel type overflows uint8")
+	}
+	batch.ChannelType = uint8(channelType)
+	if batch.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	if batch.ActiveAtMS, offset, err = readVarint(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	if batch.Recipients, offset, err = readConversationActiveEntries(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
+	return batch, offset, nil
+}
+
+func appendConversationActiveEntry(dst []byte, entry conversationactive.ActiveEntry) []byte {
+	dst = appendString(dst, entry.UID)
+	return appendConversationBool(dst, entry.IsSender)
+}
+
+func readConversationActiveEntry(body []byte, offset int) (conversationactive.ActiveEntry, int, error) {
+	var entry conversationactive.ActiveEntry
+	var err error
+	if entry.UID, offset, err = readString(body, offset); err != nil {
+		return conversationactive.ActiveEntry{}, offset, err
+	}
+	if entry.IsSender, offset, err = readConversationBool(body, offset, "conversation active entry sender"); err != nil {
+		return conversationactive.ActiveEntry{}, offset, err
+	}
+	return entry, offset, nil
+}
+
+func appendConversationActiveEntries(dst []byte, entries []conversationactive.ActiveEntry) []byte {
+	dst = appendUvarint(dst, uint64(len(entries)))
+	for _, entry := range entries {
+		dst = appendConversationActiveEntry(dst, entry)
+	}
+	return dst
+}
+
+func readConversationActiveEntries(body []byte, offset int) ([]conversationactive.ActiveEntry, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	offset = next
+	if count == 0 {
+		return nil, offset, nil
+	}
+	if err := validateConversationCollectionLen(count, len(body)-offset, "conversation active entries"); err != nil {
+		return nil, offset, err
+	}
+	entries := make([]conversationactive.ActiveEntry, 0, int(count))
+	for i := uint64(0); i < count; i++ {
+		var entry conversationactive.ActiveEntry
+		if entry, offset, err = readConversationActiveEntry(body, offset); err != nil {
+			return nil, offset, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, offset, nil
 }
 
 func appendConversationState(dst []byte, state metadb.UserConversationState) []byte {

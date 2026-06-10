@@ -91,6 +91,7 @@ remote conversation authority client
 Supported conversation authority calls:
 
 - `AdmitPatches(RouteTarget, []ActivePatch)`
+- `AdmitActiveBatch(RouteTarget, conversationactive.ActiveBatch)`
 - `ListUserConversationActiveViewForTarget(RouteTarget, uid, activeCursor, limit)`
 - `DrainAuthority(RouteTarget)`
 
@@ -99,6 +100,10 @@ The RPC boundary is deliberately narrow:
 - Admit carries already-projected UID active patches to the current authority
   target; projection policy stays in `internalv2/usecase/conversation` and the
   app committed sink.
+- Active-batch admit carries the channelwrite output directly to one routed UID
+  authority target. Sender/recipient route grouping is performed by
+  `internalv2/infra/cluster`; this package only transports the exact batch
+  subset it receives.
 - List reads the target-owned active view from the authority node. The local
   authority implementation decides how to merge unflushed cache rows with DB
   rows; this package only transports the request and response.
@@ -108,6 +113,9 @@ The RPC boundary is deliberately narrow:
 - The client chunks Admit patch collections at the codec collection limit before
   calling clusterv2 RPC. Raw transport errors are returned to the infra/cluster
   route adapter; this package does not decide whether they should retry.
+- The client also chunks active-batch recipient collections at the same codec
+  collection limit. It preserves the batch sender field exactly as supplied by
+  the routed caller.
 
 ## Channel Write RPC
 
@@ -150,6 +158,12 @@ Conversation authority RPC uses fixed magic headers:
 
 - Request: `W K V C 1`
 - Response: `W K V c 1`
+
+Conversation active-batch requests append the batch payload only for the
+`admit_conversation_active_batch` op, after the shared request fields and legacy
+patch collection. The stable batch field order is `SenderUID`, `ChannelID`,
+`ChannelType`, `MessageSeq`, `ActiveAtMS`, then recipient entries in `UID`,
+`IsSender` order.
 
 Channel write RPC uses fixed magic headers:
 

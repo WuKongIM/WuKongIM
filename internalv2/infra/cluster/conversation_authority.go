@@ -7,6 +7,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -75,6 +76,33 @@ func (c *ConversationAuthorityClient) AdmitPatches(ctx context.Context, patches 
 	return nil
 }
 
+// AdmitActiveBatch routes a channelwrite active batch to each affected UID authority.
+func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batch conversationactive.ActiveBatch) error {
+	if batch.SenderUID == "" && len(batch.Recipients) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	groups, err := c.groupActiveBatchByTarget(batch)
+	if err != nil {
+		return err
+	}
+	for _, group := range groups {
+		authority, err := c.authorityForTarget(group.target)
+		if err != nil {
+			return err
+		}
+		if err := authority.AdmitActiveBatch(ctx, group.target, group.batch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ListUserConversationActiveView reads one UID's active view from the current authority leader.
 func (c *ConversationAuthorityClient) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	var page conversationusecase.ActiveViewPage
@@ -106,6 +134,11 @@ type conversationAuthorityPatchGroup struct {
 	patches []conversationusecase.ActivePatch
 }
 
+type conversationAuthorityActiveBatchGroup struct {
+	target conversationusecase.RouteTarget
+	batch  conversationactive.ActiveBatch
+}
+
 func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecase.ActivePatch) ([]conversationAuthorityPatchGroup, error) {
 	groupIndex := make(map[conversationusecase.RouteTarget]int)
 	groups := make([]conversationAuthorityPatchGroup, 0, len(patches))
@@ -125,6 +158,48 @@ func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecas
 		})
 	}
 	return groups, nil
+}
+
+func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
+	groupIndex := make(map[conversationusecase.RouteTarget]int)
+	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batch.Recipients)+1)
+	if batch.SenderUID != "" {
+		target, err := c.resolve(batch.SenderUID)
+		if err != nil {
+			return nil, err
+		}
+		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
+		groups[idx].batch.SenderUID = batch.SenderUID
+	}
+	for _, recipient := range batch.Recipients {
+		if recipient.UID == "" {
+			continue
+		}
+		target, err := c.resolve(recipient.UID)
+		if err != nil {
+			return nil, err
+		}
+		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
+		groups[idx].batch.Recipients = append(groups[idx].batch.Recipients, recipient)
+	}
+	return groups, nil
+}
+
+func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBatchGroup, groupIndex map[conversationusecase.RouteTarget]int, target conversationusecase.RouteTarget, source conversationactive.ActiveBatch) int {
+	if idx, ok := groupIndex[target]; ok {
+		return idx
+	}
+	groupIndex[target] = len(*groups)
+	*groups = append(*groups, conversationAuthorityActiveBatchGroup{
+		target: target,
+		batch: conversationactive.ActiveBatch{
+			ChannelID:   source.ChannelID,
+			ChannelType: source.ChannelType,
+			MessageSeq:  source.MessageSeq,
+			ActiveAtMS:  source.ActiveAtMS,
+		},
+	})
+	return len(*groups) - 1
 }
 
 func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {
@@ -255,6 +330,13 @@ func (a remoteConversationAuthority) AdmitPatches(ctx context.Context, target co
 		return conversationusecase.ErrRouteNotReady
 	}
 	return mapConversationRouteError(a.client.AdmitConversationPatches(ctx, a.nodeID, target, patches))
+}
+
+func (a remoteConversationAuthority) AdmitActiveBatch(ctx context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
+	if a.client == nil || a.nodeID == 0 {
+		return conversationusecase.ErrRouteNotReady
+	}
+	return mapConversationRouteError(a.client.AdmitConversationActiveBatch(ctx, a.nodeID, target, batch))
 }
 
 func (a remoteConversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {

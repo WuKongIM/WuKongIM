@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -83,6 +84,42 @@ func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
 	}
 }
 
+func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	batch := conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients: []conversationactive.ActiveEntry{
+			{UID: "sender", IsSender: true},
+			{UID: "receiver"},
+		},
+	}
+	local := &fakeConversationAuthority{}
+	adapter := New(Options{ConversationAuthority: local})
+
+	body, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, ActiveBatch: batch})
+	if err != nil {
+		t.Fatalf("encode active batch request: %v", err)
+	}
+	respBody, err := adapter.HandleConversationAuthorityRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandleConversationAuthorityRPC(active batch) error = %v", err)
+	}
+	resp, err := decodeConversationAuthorityResponse(respBody)
+	if err != nil {
+		t.Fatalf("decode active batch response: %v", err)
+	}
+	if resp.Status != conversationRPCStatusOK {
+		t.Fatalf("active batch status = %q, want %q", resp.Status, conversationRPCStatusOK)
+	}
+	if local.activeTarget != target || !reflect.DeepEqual(local.activeBatch, batch) {
+		t.Fatalf("active target/batch = %#v/%#v, want %#v/%#v", local.activeTarget, local.activeBatch, target, batch)
+	}
+}
+
 func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
 	after := metadb.UserConversationActiveCursor{ActiveAt: 99, ChannelID: "g0", ChannelType: 2}
@@ -111,6 +148,41 @@ func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing
 	}
 	if !reflect.DeepEqual(req.After, after) {
 		t.Fatalf("after = %#v, want %#v", req.After, after)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	batch := conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	}
+	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusCachePressure}}
+	client := NewClient(node)
+
+	err := client.AdmitConversationActiveBatch(context.Background(), 13, target, batch)
+	if !errors.Is(err, conversationusecase.ErrCachePressure) {
+		t.Fatalf("AdmitConversationActiveBatch() error = %v, want ErrCachePressure", err)
+	}
+	if node.nodeID != 13 {
+		t.Fatalf("nodeID = %d, want 13", node.nodeID)
+	}
+	if node.serviceID != ConversationAuthorityRPCServiceID {
+		t.Fatalf("serviceID = %d, want %d", node.serviceID, ConversationAuthorityRPCServiceID)
+	}
+	req, err := decodeConversationAuthorityRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest(client payload) error = %v", err)
+	}
+	if req.Op != conversationOpAdmitActiveBatch || !reflect.DeepEqual(req.ActiveBatch, batch) {
+		t.Fatalf("client active batch request = %#v, want op %q batch %#v", req, conversationOpAdmitActiveBatch, batch)
+	}
+	if !reflect.DeepEqual(req.Target, target) {
+		t.Fatalf("target = %#v, want %#v", req.Target, target)
 	}
 }
 
@@ -154,6 +226,12 @@ func TestConversationAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T)
 			name: "admit",
 			call: func(client *Client) error {
 				return client.AdmitConversationPatches(context.Background(), 13, target, nil)
+			},
+		},
+		{
+			name: "active batch",
+			call: func(client *Client) error {
+				return client.AdmitConversationActiveBatch(context.Background(), 13, target, conversationactive.ActiveBatch{SenderUID: "sender"})
 			},
 		},
 		{
@@ -224,17 +302,25 @@ func TestConversationAuthorityRPCStatusMapping(t *testing.T) {
 }
 
 type fakeConversationAuthority struct {
-	target      conversationusecase.RouteTarget
-	admitTarget conversationusecase.RouteTarget
-	drainTarget conversationusecase.RouteTarget
-	patches     []conversationusecase.ActivePatch
-	page        conversationusecase.ActiveViewPage
-	drainResult string
+	target       conversationusecase.RouteTarget
+	admitTarget  conversationusecase.RouteTarget
+	activeTarget conversationusecase.RouteTarget
+	drainTarget  conversationusecase.RouteTarget
+	patches      []conversationusecase.ActivePatch
+	activeBatch  conversationactive.ActiveBatch
+	page         conversationusecase.ActiveViewPage
+	drainResult  string
 }
 
 func (f *fakeConversationAuthority) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
 	f.admitTarget = target
 	f.patches = append([]conversationusecase.ActivePatch(nil), patches...)
+	return nil
+}
+
+func (f *fakeConversationAuthority) AdmitActiveBatch(_ context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
+	f.activeTarget = target
+	f.activeBatch = batch
 	return nil
 }
 
