@@ -39,14 +39,27 @@ func (m *Manager) AdmitActiveBatch(batch ActiveBatch) error {
 		activeAt = m.now()
 	}
 
-	patches := make([]ActivePatch, 0, len(batch.Recipients))
+	patches := make([]ActivePatch, 0, len(batch.Recipients)+1)
+	if batch.SenderUID != "" {
+		patches = append(patches, ActivePatch{
+			UID:         batch.SenderUID,
+			ChannelID:   batch.ChannelID,
+			ChannelType: batch.ChannelType,
+			ActiveAt:    activeAt,
+			ReadSeq:     batch.MessageSeq,
+		})
+	}
+
 	for _, recipient := range batch.Recipients {
 		if recipient.UID == "" {
 			continue
 		}
+		if batch.SenderUID != "" && recipient.UID == batch.SenderUID {
+			continue
+		}
 
 		var readSeq uint64
-		if recipient.IsSender || (batch.SenderUID != "" && recipient.UID == batch.SenderUID) {
+		if recipient.IsSender {
 			readSeq = batch.MessageSeq
 		}
 
