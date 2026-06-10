@@ -439,6 +439,35 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	}
 }
 
+func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{
+		{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000},
+		{UID: "u2", ChannelID: "room-2", ChannelType: 1, ActiveAtMS: 2000, ReadSeq: 5},
+	}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 2 {
+		t.Fatalf("DirtyCountForTest() = %d, want 2", got)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Selected != 2 || result.Flushed != 2 {
+		t.Fatalf("Flush() result = %+v, want selected=2 flushed=2", result)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 2 {
+		t.Fatalf("touches = %+v, want one batch with two patches", store.touches)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
+	}
+}
+
 func TestFlushFailureKeepsDirty(t *testing.T) {
 	ctx := context.Background()
 	touchErr := errors.New("touch failed")
