@@ -183,11 +183,11 @@ type MessageConfig struct{}
 type ConversationConfig struct {
 	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one conversation list request.
 	MaxLastMessageConcurrency int
-	// AuthorityCacheMaxRowsPerUID bounds unflushed authority cache rows for one UID.
+	// AuthorityCacheMaxRowsPerUID is retained for config compatibility; the runtime-backed authority currently does not enforce a per-UID cache bound.
 	AuthorityCacheMaxRowsPerUID int
 	// AuthorityCacheMaxRows bounds all unflushed authority cache rows on this node.
 	AuthorityCacheMaxRows int
-	// AuthorityListDBWindowMax bounds DB active rows read while merging cache rows for one List request.
+	// AuthorityListDBWindowMax is retained for config compatibility; the runtime-backed authority currently owns its active-view DB window internally.
 	AuthorityListDBWindowMax int
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
