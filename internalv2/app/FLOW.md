@@ -43,7 +43,8 @@ New(Config)
        create an infra/cluster read adapter for channel-owned last visible
        message reads and DB-only UID-owned active conversation pages
        when the cluster also exposes conversation authority routing and metadata
-       writes, create one local authority cache plus one routed
+       writes, create one local authority route facade backed by
+       runtime/conversationactive.Manager plus one routed
        ConversationAuthorityClient, register the conversation authority RPC
        adapter, create the route-authority lifecycle, and use that client as
        the conversation list Store while keeping the read adapter as Messages
@@ -212,7 +213,7 @@ Conversation list with authority enabled:
   -> ConversationAuthorityClient resolves the UID hash-slot authority
   -> local authority:
        validate the exact RouteTarget
-       merge unflushed authority-cache rows with UID-owned DB active rows
+       delegate cache and UID-owned DB active-view merge to runtime/conversationactive.Manager
   -> remote authority:
        call access/node Conversation Authority List RPC for the target-owned view
   -> usecase hydrates only the returned page with channel-owned last-visible messages
@@ -240,10 +241,11 @@ response IDs in the HTTP adapter.
 
 Conversation active rows remain working-set hints: delayed or dropped
 post-commit work does not change message durability or SENDACK success. The
-local conversation authority cache still coalesces active rows, serves list
-reads by merging cache rows with DB active rows, and writes durable active
-patches with read/delete floors on explicit Stop, handoff drain, or cache
-pressure.
+runtime/conversationactive.Manager coalesces active rows, serves list reads by
+merging cached rows with UID-owned DB active rows, and flushes durable active
+touch patches on explicit Stop, handoff drain, or cache pressure. The app
+conversation authority keeps route target fencing, lifecycle handoff, observer
+mapping, and usecase/RPC type adaptation.
 
 SEND with channel authority routing enabled:
 
@@ -345,5 +347,5 @@ clusterv2.RouteAuthorityEvent
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve, and `Stop`
-retries pending admission patches before flushing remaining local cache rows
+retries pending admission patches before flushing remaining runtime dirty rows
 with the caller's stop context.

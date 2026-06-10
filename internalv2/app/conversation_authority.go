@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -14,9 +15,9 @@ import (
 type conversationAuthorityStore interface {
 	// ListUserConversationActivePage returns durable active rows in active-index order.
 	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
-	// GetUserConversationState returns the durable primary row used for delete-barrier checks.
+	// GetUserConversationState returns the durable primary row used for active-view hydration.
 	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
-	// TouchUserConversationActiveAtBatch atomically flushes activity hints and visibility floors.
+	// TouchUserConversationActiveAtBatch atomically flushes activity hints.
 	TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error
 }
 
@@ -25,15 +26,15 @@ type conversationAuthorityOptions struct {
 	LocalNodeID uint64
 	// Store persists and reads UID-owned conversation active rows.
 	Store conversationAuthorityStore
-	// MaxRowsPerUID bounds cached active rows for one UID.
+	// MaxRowsPerUID is retained for config compatibility; runtime cache pressure is bounded globally.
 	MaxRowsPerUID int
 	// MaxRows bounds cached active rows across all UIDs.
 	MaxRows int
-	// ListDBWindowMax bounds DB overfetch needed to merge cache rows without dropping them.
+	// ListDBWindowMax is retained for config compatibility; active-view windowing is owned by the runtime.
 	ListDBWindowMax int
-	// AdmissionBatchRows mirrors routed-client admission config; local cache admission is currently atomic under one lock.
+	// AdmissionBatchRows mirrors routed-client admission config and is retained for config compatibility.
 	AdmissionBatchRows int
-	// AdmissionConcurrency mirrors routed-client admission config; local cache admission is currently atomic under one lock.
+	// AdmissionConcurrency mirrors routed-client admission config and is retained for config compatibility.
 	AdmissionConcurrency int
 	// HandoffTimeout is enforced by the committed sink before calling DrainAuthority.
 	HandoffTimeout time.Duration
@@ -42,58 +43,55 @@ type conversationAuthorityOptions struct {
 }
 
 type conversationAuthority struct {
-	// mu protects cached rows, target state, and totalRows.
+	// mu protects target state.
 	mu sync.Mutex
 	// localNodeID fences admissions to targets owned by this node.
 	localNodeID uint64
 	// store backs durable active-page reads and flushes.
 	store conversationAuthorityStore
-	// maxRowsByUID limits per-UID cache growth.
-	maxRowsByUID int
-	// maxRows limits total cache growth across UIDs.
-	maxRows int
-	// listWindow limits DB overfetch during active-view merge.
-	listWindow int
-	// totalRows tracks cached rows across all UID maps.
-	totalRows int
-	// byUID stores unflushed active patches keyed by UID and conversation key.
-	byUID map[string]map[conversationAuthorityKey]conversationAuthorityEntry
+	// active owns active-row cache, list merge, pressure, and dirty flush state.
+	active *conversationactive.Manager
 	// targets stores fenced authority state by full route target.
 	targets map[conversationAuthorityTargetKey]conversationAuthorityState
 	// observer receives authority-specific cache/list/handoff observations.
 	observer conversationAuthorityObserver
 }
 
-type conversationAuthorityKey struct {
-	// channelID identifies the conversation channel.
-	channelID string
-	// channelType identifies the channel namespace.
-	channelType int64
+// conversationActiveStoreAdapter adapts the app store surface to the runtime active cache store.
+type conversationActiveStoreAdapter struct {
+	// authority supplies the current app store, including tests that install it after construction.
+	authority *conversationAuthority
 }
 
-type conversationAuthorityEntry struct {
-	// patch is the coalesced unflushed activity candidate for one conversation.
-	patch conversationusecase.ActivePatch
-	// target is the exact route target that admitted this cache entry.
-	target conversationAuthorityTargetKey
+func (s conversationActiveStoreAdapter) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	store := s.store()
+	if store == nil {
+		return nil, after, false, conversationactive.ErrStoreRequired
+	}
+	return store.ListUserConversationActivePage(ctx, uid, after, limit)
 }
 
-type conversationAuthorityCachedRow struct {
-	// row is the active-view representation of a cached patch.
-	row metadb.UserConversationState
-	// messageSeq fences the cached activation against durable delete barriers.
-	messageSeq uint64
+func (s conversationActiveStoreAdapter) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	store := s.store()
+	if store == nil {
+		return metadb.UserConversationState{}, false, conversationactive.ErrStoreRequired
+	}
+	return store.GetUserConversationState(ctx, uid, channelID, channelType)
 }
 
-type conversationAuthorityFlushEntry struct {
-	// uid owns the cached conversation row.
-	uid string
-	// key identifies the cached conversation row within the UID map.
-	key conversationAuthorityKey
-	// patch is the exact snapshot sent to durable flush.
-	patch conversationusecase.ActivePatch
-	// target is the exact route target that admitted this cache entry.
-	target conversationAuthorityTargetKey
+func (s conversationActiveStoreAdapter) TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	store := s.store()
+	if store == nil {
+		return conversationactive.ErrStoreRequired
+	}
+	return store.TouchUserConversationActiveAtBatch(ctx, patches)
+}
+
+func (s conversationActiveStoreAdapter) store() conversationAuthorityStore {
+	if s.authority == nil {
+		return nil
+	}
+	return s.authority.store
 }
 
 type conversationAuthorityTargetKey struct {
@@ -172,27 +170,22 @@ type conversationAuthorityHandoffEvent struct {
 	Result string
 }
 
-// newConversationAuthority constructs an unwired local authority cache runtime.
+// newConversationAuthority constructs an unwired local authority route facade.
 func newConversationAuthority(opts conversationAuthorityOptions) *conversationAuthority {
-	if opts.MaxRowsPerUID <= 0 {
-		opts.MaxRowsPerUID = 4096
-	}
 	if opts.MaxRows <= 0 {
 		opts.MaxRows = 100000
 	}
-	if opts.ListDBWindowMax <= 0 {
-		opts.ListDBWindowMax = 1000
+	authority := &conversationAuthority{
+		localNodeID: opts.LocalNodeID,
+		store:       opts.Store,
+		targets:     make(map[conversationAuthorityTargetKey]conversationAuthorityState),
+		observer:    opts.Observer,
 	}
-	return &conversationAuthority{
-		localNodeID:  opts.LocalNodeID,
-		store:        opts.Store,
-		maxRowsByUID: opts.MaxRowsPerUID,
-		maxRows:      opts.MaxRows,
-		listWindow:   opts.ListDBWindowMax,
-		byUID:        make(map[string]map[conversationAuthorityKey]conversationAuthorityEntry),
-		targets:      make(map[conversationAuthorityTargetKey]conversationAuthorityState),
-		observer:     opts.Observer,
-	}
+	authority.active = conversationactive.NewManager(conversationactive.Options{
+		Store:         conversationActiveStoreAdapter{authority: authority},
+		MaxCachedRows: opts.MaxRows,
+	})
+	return authority
 }
 
 // markActive marks a fenced target ready for local cache admission and list reads.
@@ -209,7 +202,7 @@ func (a *conversationAuthority) markWarming(target conversationusecase.RouteTarg
 	a.setTargetStateLocked(targetKey(target), conversationAuthorityWarming)
 }
 
-// AdmitPatches coalesces activity hints into the local authority cache.
+// AdmitPatches validates the route target and delegates active admission to the runtime cache.
 func (a *conversationAuthority) AdmitPatches(ctx context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) (err error) {
 	if a == nil {
 		return nil
@@ -221,45 +214,20 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 		ctx = context.Background()
 	}
 	a.mu.Lock()
-	if err := a.ensureTargetLocked(target); err != nil {
-		a.mu.Unlock()
+	err = a.ensureTargetLocked(target)
+	a.mu.Unlock()
+	if err != nil {
 		return err
 	}
-	routeTarget := targetKey(target)
-	stagedByUID := make(map[string]map[conversationAuthorityKey]conversationAuthorityEntry)
-	stagedTotalRows := a.totalRows
-	for _, patch := range patches {
-		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 || patch.ActiveAt <= 0 {
-			continue
-		}
-		rows := stagedByUID[patch.UID]
-		if rows == nil {
-			rows = cloneConversationAuthorityRows(a.byUID[patch.UID])
-			stagedByUID[patch.UID] = rows
-		}
-		key := conversationAuthorityKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
-		existing, exists := rows[key]
-		if !exists && (len(rows) >= a.maxRowsByUID || stagedTotalRows >= a.maxRows) {
-			a.mu.Unlock()
-			a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
-			return a.persistActivePatches(ctx, patches)
-		}
-		if !exists {
-			stagedTotalRows++
-			if stagedTotalRows > a.maxRows {
-				a.mu.Unlock()
-				a.observeCachePressure(conversationAuthorityPhaseAdmit, conversationusecase.ErrCachePressure)
-				return a.persistActivePatches(ctx, patches)
-			}
-		}
-		rows[key] = conversationAuthorityEntry{patch: mergeConversationActivePatch(existing.patch, patch), target: routeTarget}
+	activePatches := conversationActivePatches(patches)
+	if len(activePatches) == 0 {
+		return nil
 	}
-	for uid, rows := range stagedByUID {
-		a.byUID[uid] = rows
+	err = mapConversationActiveError(a.active.MarkActive(ctx, activePatches))
+	if errors.Is(err, conversationusecase.ErrCachePressure) {
+		a.observeCachePressure(conversationAuthorityPhaseAdmit, err)
 	}
-	a.totalRows = stagedTotalRows
-	a.mu.Unlock()
-	return nil
+	return err
 }
 
 func (a *conversationAuthority) ensureTargetLocked(target conversationusecase.RouteTarget) error {
@@ -283,7 +251,6 @@ func (a *conversationAuthority) ensureTargetKeyLocked(target conversationAuthori
 func (a *conversationAuthority) setTargetStateLocked(target conversationAuthorityTargetKey, state conversationAuthorityState) {
 	for existing := range a.targets {
 		if existing != target && a.sameLocalAuthorityTarget(existing, target) {
-			a.retagEntriesLocked(existing, target)
 			delete(a.targets, existing)
 		}
 	}
@@ -300,70 +267,19 @@ func (a *conversationAuthority) localAuthorityTarget(target conversationAuthorit
 	return target.leaderNodeID == 0 || target.leaderNodeID == a.localNodeID
 }
 
-// retagEntriesLocked moves dirty rows forward when a local authority target is superseded.
-func (a *conversationAuthority) retagEntriesLocked(from, to conversationAuthorityTargetKey) {
-	for uid, rows := range a.byUID {
-		for key, entry := range rows {
-			if entry.target != from {
-				continue
-			}
-			entry.target = to
-			rows[key] = entry
-		}
-		a.byUID[uid] = rows
-	}
-}
-
-// Flush persists the current cache snapshot using active-touch patch semantics.
+// Flush persists dirty active rows through the runtime cache.
 func (a *conversationAuthority) Flush(ctx context.Context) error {
 	if a == nil {
 		return nil
 	}
-	if a.store == nil {
-		return conversationusecase.ErrRouteNotReady
-	}
-	entries := a.flushEntries()
-	if len(entries) == 0 {
-		return nil
-	}
-	return a.flushEntriesToStore(ctx, entries)
-}
-
-func (a *conversationAuthority) flushEntriesToStore(ctx context.Context, entries []conversationAuthorityFlushEntry) error {
-	patches := make([]conversationusecase.ActivePatch, 0, len(entries))
-	for _, entry := range entries {
-		patches = append(patches, entry.patch)
-	}
-	if err := a.persistActivePatches(ctx, patches); err != nil {
-		return err
-	}
-	a.clearFlushed(entries)
-	return nil
-}
-
-func (a *conversationAuthority) persistActivePatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
-	if a == nil || a.store == nil {
-		return conversationusecase.ErrRouteNotReady
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	activePatches := make([]metadb.UserConversationActivePatch, 0, len(patches))
-	for _, patch := range patches {
-		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 || patch.ActiveAt <= 0 {
-			continue
-		}
-		activePatches = append(activePatches, patch.ToMetaPatch())
-	}
-	if len(activePatches) > 0 {
-		if err := a.store.TouchUserConversationActiveAtBatch(ctx, activePatches); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := a.active.Flush(ctx, 0)
+	return mapConversationActiveError(err)
 }
 
-// DrainAuthority marks the target draining and flushes dirty rows for handoff.
+// DrainAuthority marks the target draining and flushes runtime dirty rows for handoff.
 func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (result conversationDrainResult, err error) {
 	if a == nil {
 		return conversationDrainResultNoDirty, nil
@@ -372,10 +288,8 @@ func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conve
 	defer func() {
 		a.observeHandoff(result, err)
 	}()
-	if a.store == nil {
-		result = conversationDrainResultBusy
-		err = conversationusecase.ErrRouteNotReady
-		return result, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	routeTarget := targetKey(target)
 	a.mu.Lock()
@@ -392,13 +306,15 @@ func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conve
 	}
 	a.setTargetStateLocked(routeTarget, conversationAuthorityDraining)
 	a.mu.Unlock()
-	entries := a.flushEntriesForTarget(routeTarget)
-	if len(entries) == 0 {
-		return result, nil
-	}
-	if err = a.flushEntriesToStore(ctx, entries); err != nil {
+
+	flush, flushErr := a.active.Flush(ctx, 0)
+	if flushErr != nil {
 		result = conversationDrainResultBusy
+		err = mapConversationActiveError(flushErr)
 		return result, err
+	}
+	if flush.Selected == 0 {
+		return result, nil
 	}
 	result = conversationDrainResultDrained
 	return result, nil
@@ -413,9 +329,6 @@ func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Conte
 	defer func() {
 		a.observeList(err)
 	}()
-	if a.store == nil {
-		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
-	}
 	target, err := a.unscopedListTarget()
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
@@ -431,9 +344,6 @@ func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx cont
 	defer func() {
 		a.observeList(err)
 	}()
-	if a.store == nil {
-		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
-	}
 	targetKey := targetKey(target)
 	a.mu.Lock()
 	err = a.ensureTargetLocked(target)
@@ -445,27 +355,12 @@ func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx cont
 }
 
 func (a *conversationAuthority) listUserConversationActiveView(ctx context.Context, target *conversationAuthorityTargetKey, requireSingleActive bool, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	cacheRows, overflow := a.cacheRowsAfter(uid, after, target, a.listWindow)
-	if overflow {
-		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrCachePressure
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	// The DB read needs one extra row to prove whether the returned page has more.
-	dbLimit := limit + serviceCacheRowCount(len(cacheRows), limit) + 1
-	if dbLimit > a.listWindow {
-		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrCachePressure
-	}
-	dbRows, _, done, err := a.store.ListUserConversationActivePage(ctx, uid, after, dbLimit)
+	page, err := a.active.ListActiveView(ctx, uid, after, limit)
 	if err != nil {
-		return conversationusecase.ActiveViewPage{}, err
-	}
-	merged, err := a.mergeRows(ctx, uid, dbRows, cacheRows)
-	if err != nil {
-		return conversationusecase.ActiveViewPage{}, err
-	}
-	sortConversationRows(merged)
-	if len(merged) > limit {
-		merged = merged[:limit]
-		done = false
+		return conversationusecase.ActiveViewPage{}, mapConversationActiveError(err)
 	}
 	if target != nil {
 		if requireSingleActive {
@@ -485,7 +380,7 @@ func (a *conversationAuthority) listUserConversationActiveView(ctx context.Conte
 			}
 		}
 	}
-	return conversationusecase.ActiveViewPage{Rows: merged, Cursor: conversationRowsCursor(merged, after), Done: done}, nil
+	return conversationusecase.ActiveViewPage{Rows: page.Rows, Cursor: page.Cursor, Done: page.Done}, nil
 }
 
 func (a *conversationAuthority) ensureListReady() error {
@@ -526,202 +421,34 @@ func (a *conversationAuthority) unscopedListTarget() (conversationAuthorityTarge
 	return conversationAuthorityTargetKey{}, conversationusecase.ErrStaleRoute
 }
 
-func (a *conversationAuthority) flushEntries() []conversationAuthorityFlushEntry {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.totalRows == 0 {
+func conversationActivePatches(patches []conversationusecase.ActivePatch) []conversationactive.ActivePatch {
+	activePatches := make([]conversationactive.ActivePatch, 0, len(patches))
+	for _, patch := range patches {
+		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType <= 0 || patch.ChannelType > 255 || patch.ActiveAt <= 0 {
+			continue
+		}
+		activePatches = append(activePatches, conversationactive.ActivePatch{
+			UID:         patch.UID,
+			ChannelID:   patch.ChannelID,
+			ChannelType: uint8(patch.ChannelType),
+			ActiveAtMS:  patch.ActiveAt,
+			ReadSeq:     patch.ReadSeq,
+		})
+	}
+	return activePatches
+}
+
+func mapConversationActiveError(err error) error {
+	if err == nil {
 		return nil
 	}
-	entries := make([]conversationAuthorityFlushEntry, 0, a.totalRows)
-	for uid, rows := range a.byUID {
-		for key, entry := range rows {
-			entries = append(entries, conversationAuthorityFlushEntry{
-				uid:    uid,
-				key:    key,
-				patch:  entry.patch,
-				target: entry.target,
-			})
-		}
-	}
-	return entries
-}
-
-func (a *conversationAuthority) flushEntriesForTarget(target conversationAuthorityTargetKey) []conversationAuthorityFlushEntry {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.totalRows == 0 {
-		return nil
-	}
-	var entries []conversationAuthorityFlushEntry
-	for uid, rows := range a.byUID {
-		for key, entry := range rows {
-			if entry.target != target {
-				continue
-			}
-			entries = append(entries, conversationAuthorityFlushEntry{
-				uid:    uid,
-				key:    key,
-				patch:  entry.patch,
-				target: entry.target,
-			})
-		}
-	}
-	return entries
-}
-
-func (a *conversationAuthority) clearFlushed(entries []conversationAuthorityFlushEntry) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, entry := range entries {
-		rows := a.byUID[entry.uid]
-		current, ok := rows[entry.key]
-		if !ok || current.patch != entry.patch || current.target != entry.target {
-			continue
-		}
-		delete(rows, entry.key)
-		a.totalRows--
-		if len(rows) == 0 {
-			delete(a.byUID, entry.uid)
-		}
-	}
-}
-
-func cloneConversationAuthorityRows(rows map[conversationAuthorityKey]conversationAuthorityEntry) map[conversationAuthorityKey]conversationAuthorityEntry {
-	cloned := make(map[conversationAuthorityKey]conversationAuthorityEntry, len(rows))
-	for key, entry := range rows {
-		cloned[key] = entry
-	}
-	return cloned
-}
-
-func (a *conversationAuthority) cacheRowsAfter(uid string, after metadb.UserConversationActiveCursor, target *conversationAuthorityTargetKey, maxRows int) ([]conversationAuthorityCachedRow, bool) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	entries := a.byUID[uid]
-	if len(entries) == 0 {
-		return nil, false
-	}
-	rows := make([]conversationAuthorityCachedRow, 0, len(entries))
-	for _, entry := range entries {
-		if target != nil && entry.target != *target {
-			continue
-		}
-		row := conversationPatchState(entry.patch)
-		if conversationRowAfter(row, after) {
-			rows = append(rows, conversationAuthorityCachedRow{row: row, messageSeq: entry.patch.MessageSeq})
-			if len(rows) > maxRows {
-				return nil, true
-			}
-		}
-	}
-	sortCachedConversationRows(rows)
-	return rows, false
-}
-
-func serviceCacheRowCount(cacheRows, limit int) int {
-	serviceRows := limit + 1
-	if serviceRows < 0 {
-		serviceRows = 0
-	}
-	if cacheRows < serviceRows {
-		return cacheRows
-	}
-	return serviceRows
-}
-
-func (a *conversationAuthority) mergeRows(ctx context.Context, uid string, dbRows []metadb.UserConversationState, cacheRows []conversationAuthorityCachedRow) ([]metadb.UserConversationState, error) {
-	merged := make([]metadb.UserConversationState, 0, len(dbRows)+len(cacheRows))
-	index := make(map[conversationAuthorityKey]int, len(dbRows))
-	for _, row := range dbRows {
-		key := conversationAuthorityKey{channelID: row.ChannelID, channelType: row.ChannelType}
-		index[key] = len(merged)
-		merged = append(merged, row)
-	}
-	for _, cached := range cacheRows {
-		cacheRow := cached.row
-		key := conversationAuthorityKey{channelID: cacheRow.ChannelID, channelType: cacheRow.ChannelType}
-		if cacheRow.DeletedToSeq >= cached.messageSeq {
-			continue
-		}
-		if offset, ok := index[key]; ok {
-			if merged[offset].DeletedToSeq >= cached.messageSeq {
-				continue
-			}
-			merged[offset] = mergeConversationState(merged[offset], cacheRow)
-			continue
-		}
-		primary, ok, err := a.store.GetUserConversationState(ctx, uid, cacheRow.ChannelID, cacheRow.ChannelType)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			if primary.DeletedToSeq >= cached.messageSeq {
-				continue
-			}
-			cacheRow = mergeConversationState(primary, cacheRow)
-		}
-		cacheRow.UID = uid
-		index[key] = len(merged)
-		merged = append(merged, cacheRow)
-	}
-	return merged, nil
-}
-
-func mergeConversationActivePatch(existing, next conversationusecase.ActivePatch) conversationusecase.ActivePatch {
-	if existing.UID == "" {
-		return next
-	}
-	merged := existing
-	if next.ActiveAt > merged.ActiveAt {
-		merged.ActiveAt = next.ActiveAt
-		merged.MessageSeq = next.MessageSeq
-		merged.SparseActive = next.SparseActive
-	} else if next.ActiveAt == merged.ActiveAt && next.MessageSeq > merged.MessageSeq {
-		merged.MessageSeq = next.MessageSeq
-		merged.SparseActive = next.SparseActive
-	}
-	if next.UpdatedAt > merged.UpdatedAt {
-		merged.UpdatedAt = next.UpdatedAt
-	}
-	if next.ReadSeq > merged.ReadSeq {
-		merged.ReadSeq = next.ReadSeq
-	}
-	if next.DeletedToSeq > merged.DeletedToSeq {
-		merged.DeletedToSeq = next.DeletedToSeq
-	}
-	return merged
-}
-
-func mergeConversationState(existing, next metadb.UserConversationState) metadb.UserConversationState {
-	merged := existing
-	if next.ActiveAt > merged.ActiveAt {
-		merged.ActiveAt = next.ActiveAt
-		merged.SparseActive = next.SparseActive
-	} else if next.ActiveAt == merged.ActiveAt && next.UpdatedAt > merged.UpdatedAt {
-		merged.SparseActive = next.SparseActive
-	}
-	if next.UpdatedAt > merged.UpdatedAt {
-		merged.UpdatedAt = next.UpdatedAt
-	}
-	if next.ReadSeq > merged.ReadSeq {
-		merged.ReadSeq = next.ReadSeq
-	}
-	if next.DeletedToSeq > merged.DeletedToSeq {
-		merged.DeletedToSeq = next.DeletedToSeq
-	}
-	return merged
-}
-
-func conversationPatchState(patch conversationusecase.ActivePatch) metadb.UserConversationState {
-	return metadb.UserConversationState{
-		UID:          patch.UID,
-		ChannelID:    patch.ChannelID,
-		ChannelType:  patch.ChannelType,
-		ReadSeq:      patch.ReadSeq,
-		DeletedToSeq: patch.DeletedToSeq,
-		ActiveAt:     patch.ActiveAt,
-		UpdatedAt:    patch.UpdatedAt,
-		SparseActive: patch.SparseActive,
+	switch {
+	case errors.Is(err, conversationactive.ErrCachePressure):
+		return conversationusecase.ErrCachePressure
+	case errors.Is(err, conversationactive.ErrStoreRequired):
+		return conversationusecase.ErrRouteNotReady
+	default:
+		return err
 	}
 }
 
@@ -758,16 +485,24 @@ func sortConversationRows(rows []metadb.UserConversationState) {
 	})
 }
 
-func sortCachedConversationRows(rows []conversationAuthorityCachedRow) {
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].row.ActiveAt != rows[j].row.ActiveAt {
-			return rows[i].row.ActiveAt > rows[j].row.ActiveAt
-		}
-		if rows[i].row.ChannelID != rows[j].row.ChannelID {
-			return rows[i].row.ChannelID < rows[j].row.ChannelID
-		}
-		return rows[i].row.ChannelType < rows[j].row.ChannelType
-	})
+func mergeConversationState(existing, next metadb.UserConversationState) metadb.UserConversationState {
+	merged := existing
+	if next.ActiveAt > merged.ActiveAt {
+		merged.ActiveAt = next.ActiveAt
+		merged.SparseActive = next.SparseActive
+	} else if next.ActiveAt == merged.ActiveAt && next.UpdatedAt > merged.UpdatedAt {
+		merged.SparseActive = next.SparseActive
+	}
+	if next.UpdatedAt > merged.UpdatedAt {
+		merged.UpdatedAt = next.UpdatedAt
+	}
+	if next.ReadSeq > merged.ReadSeq {
+		merged.ReadSeq = next.ReadSeq
+	}
+	if next.DeletedToSeq > merged.DeletedToSeq {
+		merged.DeletedToSeq = next.DeletedToSeq
+	}
+	return merged
 }
 
 func targetKey(target conversationusecase.RouteTarget) conversationAuthorityTargetKey {
