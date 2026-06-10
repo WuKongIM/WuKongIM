@@ -299,11 +299,11 @@ WK_HEALTH_DEBUG_ENABLE=false
 # Optional internalv2 conversation authority and list-read tuning.
 # WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY bounds concurrent channel tail reads used to hydrate one /conversation/list page.
 # WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=32
-# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID bounds unflushed authority cache rows for one UID.
+# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID is retained for config compatibility; the runtime-backed authority currently does not enforce a per-UID cache bound.
 # WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=4096
 # WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS bounds all unflushed authority cache rows on this node.
 # WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000
-# WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX bounds DB active rows read while merging cache rows for one List request.
+# WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX is retained for config compatibility; the runtime-backed authority currently owns its active-view DB window internally.
 # WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT bounds how long a new authority waits for old-authority drain before explicit abandon.
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
