@@ -16,6 +16,8 @@ type Manager struct {
 	mu sync.RWMutex
 	// nowMS supplies ActiveAtMS when an admitted batch does not provide one.
 	nowMS func() int64
+	// store reads durable active rows that are merged with the admission cache.
+	store ActiveStore
 	// cache stores UID -> conversation key -> active projection.
 	cache map[string]map[conversationKey]ActivePatch
 }
@@ -30,6 +32,7 @@ func NewManager(opts Options) *Manager {
 	}
 	return &Manager{
 		nowMS: nowMS,
+		store: opts.Store,
 		cache: make(map[string]map[conversationKey]ActivePatch),
 	}
 }

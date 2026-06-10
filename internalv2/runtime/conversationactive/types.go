@@ -1,9 +1,33 @@
 package conversationactive
 
+import (
+	"context"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
 // Options configures the conversation active admission manager.
 type Options struct {
 	// NowMS returns the current Unix millisecond when a batch does not carry ActiveAtMS.
 	NowMS func() int64
+	// Store reads durable active conversation rows that have already flushed to DB.
+	Store ActiveStore
+}
+
+// ActiveStore reads durable active conversation pages for cache/DB view merging.
+type ActiveStore interface {
+	// ListUserConversationActivePage returns active rows after the active-index cursor.
+	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
+}
+
+// ActiveViewPage is a merged cache plus durable active-row page.
+type ActiveViewPage struct {
+	// Rows contains active conversations ordered by active-index order.
+	Rows []metadb.UserConversationState
+	// Cursor identifies the last returned row for the next page request.
+	Cursor metadb.UserConversationActiveCursor
+	// Done reports that there are no more active rows after Cursor.
+	Done bool
 }
 
 // ActiveBatch is the channelwrite output consumed by the active cache.

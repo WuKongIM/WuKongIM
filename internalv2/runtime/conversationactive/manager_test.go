@@ -1,6 +1,13 @@
 package conversationactive
 
-import "testing"
+import (
+	"context"
+	"reflect"
+	"sort"
+	"testing"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
 
 func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	const activeAtMS int64 = 1781094600000
@@ -187,4 +194,199 @@ func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
 	if receiver.ActiveAtMS != nowMS {
 		t.Fatalf("receiver ActiveAtMS = %d, want %d", receiver.ActiveAtMS, nowMS)
 	}
+}
+
+func TestListActiveViewReadsCacheBeforeFlush(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+
+	err := m.AdmitActiveBatch(ActiveBatch{
+		SenderUID:   "alice",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		MessageSeq:  42,
+		ActiveAtMS:  1781094600000,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+
+	page, err := m.ListActiveView(ctx, "alice", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+
+	wantRows := []metadb.UserConversationState{{
+		UID:         "alice",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ReadSeq:     42,
+		ActiveAt:    1781094600000,
+	}}
+	wantCursor := metadb.UserConversationActiveCursor{ActiveAt: 1781094600000, ChannelID: "room-1", ChannelType: 2}
+	if !reflect.DeepEqual(page.Rows, wantRows) || page.Cursor != wantCursor || !page.Done {
+		t.Fatalf("page = %+v, want rows=%+v cursor=%+v done=true", page, wantRows, wantCursor)
+	}
+	if store.calls != 1 {
+		t.Fatalf("store calls=%d, want one DB page request", store.calls)
+	}
+}
+
+func TestListActiveViewMergesCacheOverDB(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{
+		rows: []metadb.UserConversationState{
+			{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 7, ActiveAt: 100, UpdatedAt: 101},
+			{UID: "u1", ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
+			{UID: "u1", ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
+			{UID: "u2", ChannelID: "other-user", ChannelType: 2, ActiveAt: 2000},
+		},
+	}
+	m := NewManager(Options{Store: store})
+
+	err := m.MarkActive([]ActivePatch{
+		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+		{UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAtMS: 800},
+	})
+	if err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	page, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+
+	wantRows := []metadb.UserConversationState{
+		{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 10, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 101},
+		{UID: "u1", ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
+		{UID: "u1", ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
+		{UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAt: 800},
+	}
+	if !reflect.DeepEqual(page.Rows, wantRows) {
+		t.Fatalf("rows = %+v, want merged rows %+v", page.Rows, wantRows)
+	}
+	if page.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 800, ChannelID: "b-cache-tie", ChannelType: 2}) || !page.Done {
+		t.Fatalf("cursor=%+v done=%v, want final cursor and done=true", page.Cursor, page.Done)
+	}
+}
+
+func TestListActiveViewPaginatesCacheRowsWithCursorAndLimit(t *testing.T) {
+	ctx := context.Background()
+	m := NewManager(Options{Store: &recordingActiveStore{}})
+	err := m.MarkActive([]ActivePatch{
+		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAtMS: 300},
+		{UID: "u1", ChannelID: "b", ChannelType: 1, ActiveAtMS: 200},
+		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAtMS: 200},
+		{UID: "u1", ChannelID: "c", ChannelType: 2, ActiveAtMS: 100},
+	})
+	if err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	first, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 2)
+	if err != nil {
+		t.Fatalf("ListActiveView(first) error = %v", err)
+	}
+	if activeChannelIDs(first.Rows) != "a,b" || first.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 200, ChannelID: "b", ChannelType: 1}) || first.Done {
+		t.Fatalf("first page=%+v, want first two cache rows with done=false", first)
+	}
+
+	second, err := m.ListActiveView(ctx, "u1", first.Cursor, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView(second) error = %v", err)
+	}
+	if activeChannelIDs(second.Rows) != "b,c" || second.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 100, ChannelID: "c", ChannelType: 2}) || !second.Done {
+		t.Fatalf("second page=%+v, want remaining cache rows with done=true", second)
+	}
+}
+
+func TestListActiveViewNonPositiveLimitReturnsEmptyDonePage(t *testing.T) {
+	store := &recordingActiveStore{rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}}}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAtMS: 200}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	after := metadb.UserConversationActiveCursor{ActiveAt: 300, ChannelID: "before", ChannelType: 2}
+
+	page, err := m.ListActiveView(context.Background(), "u1", after, 0)
+	if err != nil {
+		t.Fatalf("ListActiveView() error = %v", err)
+	}
+	if len(page.Rows) != 0 || page.Cursor != after || !page.Done {
+		t.Fatalf("page=%+v, want empty done page retaining cursor", page)
+	}
+	if store.calls != 0 {
+		t.Fatalf("store calls = %d, want no DB call for non-positive limit", store.calls)
+	}
+}
+
+type recordingActiveStore struct {
+	rows      []metadb.UserConversationState
+	calls     int
+	lastAfter metadb.UserConversationActiveCursor
+	lastLimit int
+}
+
+func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	s.calls++
+	s.lastAfter = after
+	s.lastLimit = limit
+
+	rows := append([]metadb.UserConversationState(nil), s.rows...)
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ActiveAt != rows[j].ActiveAt {
+			return rows[i].ActiveAt > rows[j].ActiveAt
+		}
+		if rows[i].ChannelID != rows[j].ChannelID {
+			return rows[i].ChannelID < rows[j].ChannelID
+		}
+		return rows[i].ChannelType < rows[j].ChannelType
+	})
+
+	candidates := make([]metadb.UserConversationState, 0, len(rows))
+	for _, row := range rows {
+		if row.UID != uid || !testActiveRowAfter(row, after) {
+			continue
+		}
+		candidates = append(candidates, row)
+	}
+	done := len(candidates) <= limit
+	if limit <= 0 {
+		candidates = nil
+		done = true
+	} else if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	cursor := after
+	if len(candidates) > 0 {
+		last := candidates[len(candidates)-1]
+		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	}
+	return candidates, cursor, done, nil
+}
+
+func testActiveRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {
+	if after == (metadb.UserConversationActiveCursor{}) {
+		return true
+	}
+	if row.ActiveAt != after.ActiveAt {
+		return row.ActiveAt < after.ActiveAt
+	}
+	if row.ChannelID != after.ChannelID {
+		return row.ChannelID > after.ChannelID
+	}
+	return row.ChannelType > after.ChannelType
+}
+
+func activeChannelIDs(rows []metadb.UserConversationState) string {
+	var out string
+	for _, row := range rows {
+		if out != "" {
+			out += ","
+		}
+		out += row.ChannelID
+	}
+	return out
 }
