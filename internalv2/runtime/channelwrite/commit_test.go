@@ -262,11 +262,10 @@ func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
 		0,
 		1,
 		channelStateLimits{},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{},
 		commitPorts{recipientRouter: &recordingRecipientRouterForRecipientTest{}},
-		cursorPorts{},
 	)
 	state := newChannelState(target, channelStateLimits{})
 	state.enqueueCommitted(CommittedEnvelope{MessageID: 1400, ChannelID: "room", ChannelType: 2, MessageScopedUIDs: []string{"u2"}})
@@ -279,7 +278,7 @@ func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
 	}
 	reactor.states[key] = state
 	reactor.pendingCommit = []commitEffect{effect}
-	reactor.startEffectWorkers()
+	reactor.addEffectQueueDepth(effectStagePostCommit, 1)
 	reactor.close()
 	go reactor.run()
 

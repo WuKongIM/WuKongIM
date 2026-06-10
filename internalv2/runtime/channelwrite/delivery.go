@@ -15,6 +15,8 @@ var (
 	ErrDeliveryRetryExhausted = errors.New("internalv2/channelwrite: delivery retry exhausted")
 	// ErrConversationProjectorRequired reports delivery configuration without conversation projection.
 	ErrConversationProjectorRequired = errors.New("internalv2/channelwrite: conversation projector required")
+	// ErrEffectPanic reports a recovered panic from an asynchronous channel write effect.
+	ErrEffectPanic = errors.New("internalv2/channelwrite: effect panic")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.

@@ -35,7 +35,7 @@ function label_value(labels, key, marker, start, rest, last) {
 function add_counter(key, phase, value) {
   if (phase == "before") {
     before[key] += value
-  } else {
+  } else if (phase == "after") {
     after[key] += value
   }
 }
@@ -53,6 +53,13 @@ function max_value(current, value) {
     return value
   }
   return current
+}
+
+function default_label(value) {
+  if (value == "") {
+    return "none"
+  }
+  return value
 }
 
 function avg_delta_ms(sum_key, count_key, count) {
@@ -79,9 +86,11 @@ BEGIN {
 {
   series = $1
   value = $2 + 0
-  phase = "after"
+  phase = "sample"
   if (FILENAME == ARGV[1]) {
     phase = "before"
+  } else if (FILENAME == ARGV[2]) {
+    phase = "after"
   }
   name = metric_name(series)
   labels = metric_labels(series)
@@ -90,7 +99,7 @@ BEGIN {
   path = label_value(labels, "path")
   kind = label_value(labels, "kind")
 
-  if (phase == "after") {
+  if (phase != "before") {
     if (name == "wukongim_channelwrite_reactor_mailbox_depth") {
       mailbox_depth_max = max_value(mailbox_depth_max, value)
     } else if (name == "wukongim_channelwrite_reactor_mailbox_capacity") {
@@ -111,10 +120,25 @@ BEGIN {
       effect_worker_inflight_max = max_value(effect_worker_inflight_max, value)
     } else if (name == "wukongim_channelwrite_effect_worker_capacity") {
       effect_worker_capacity_max = max_value(effect_worker_capacity_max, value)
-    } else if (name == "wukongim_channelwrite_effect_queue_depth") {
+  } else if (name == "wukongim_channelwrite_effect_queue_depth") {
       effect_queue_depth_max = max_value(effect_queue_depth_max, value)
     } else if (name == "wukongim_channelwrite_effect_queue_capacity") {
       effect_queue_capacity_max = max_value(effect_queue_capacity_max, value)
+    } else if (name == "wukongim_channelwrite_effect_pool_inflight") {
+      stage = default_label(stage)
+      effect_pool_seen[stage] = 1
+      effect_pool_inflight_by_stage[stage] = max_value(effect_pool_inflight_by_stage[stage], value)
+      effect_pool_inflight_max = max_value(effect_pool_inflight_max, value)
+    } else if (name == "wukongim_channelwrite_effect_pool_capacity") {
+      stage = default_label(stage)
+      effect_pool_seen[stage] = 1
+      effect_pool_capacity_by_stage[stage] = max_value(effect_pool_capacity_by_stage[stage], value)
+      effect_pool_capacity_max = max_value(effect_pool_capacity_max, value)
+    } else if (name == "wukongim_channelwrite_effect_pool_saturated") {
+      stage = default_label(stage)
+      effect_pool_seen[stage] = 1
+      effect_pool_saturated_by_stage[stage] = max_value(effect_pool_saturated_by_stage[stage], value)
+      effect_pool_saturated_max = max_value(effect_pool_saturated_max, value)
     }
   }
 
@@ -146,6 +170,9 @@ BEGIN {
     add_counter("effect_duration_count", phase, value)
   } else if (name == "wukongim_channelwrite_effect_duration_seconds_sum") {
     add_counter("effect_duration_sum", phase, value)
+  } else if (name == "wukongim_channelwrite_effect_pool_submit_total") {
+    add_counter("effect_pool_submit", phase, value)
+    add_counter("effect_pool_result:" result, phase, value)
   }
 }
 
@@ -166,8 +193,25 @@ END {
   if (effect_queue_capacity_max > 0) {
     effect_queue_fill_max = effect_queue_depth_max / effect_queue_capacity_max
   }
+  effect_pool_util_max = 0
+  if (effect_pool_capacity_max > 0) {
+    effect_pool_util_max = effect_pool_inflight_max / effect_pool_capacity_max
+  }
+  effect_pool_over90_count = 0
+  for (stage in effect_pool_seen) {
+    stage_capacity = effect_pool_capacity_by_stage[stage] + 0
+    stage_inflight = effect_pool_inflight_by_stage[stage] + 0
+    stage_saturated = effect_pool_saturated_by_stage[stage] + 0
+    stage_util = 0
+    if (stage_capacity > 0) {
+      stage_util = stage_inflight / stage_capacity
+    }
+    if (stage_util >= 0.9 || stage_saturated > 0) {
+      effect_pool_over90_count++
+    }
+  }
 
-  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\n",
+  printf "%s\t%s\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.3f\t%.0f\t%.0f\n",
     tag,
     node,
     counter_delta("router_total"),
@@ -199,5 +243,13 @@ END {
     effect_worker_util_max,
     effect_queue_depth_max,
     effect_queue_capacity_max,
-    effect_queue_fill_max
+    effect_queue_fill_max,
+    counter_delta("effect_pool_submit"),
+    counter_delta("effect_pool_result:full"),
+    counter_delta("effect_pool_result:error"),
+    effect_pool_inflight_max,
+    effect_pool_capacity_max,
+    effect_pool_util_max,
+    effect_pool_saturated_max,
+    effect_pool_over90_count
 }

@@ -141,6 +141,58 @@ func TestConnDispatchesInboundFrame(t *testing.T) {
 	}
 }
 
+func TestConnObservesTransportBytes(t *testing.T) {
+	raw, peer := net.Pipe()
+	defer peer.Close()
+
+	observer := &recordingObserver{}
+	inboundCh := make(chan Inbound, 1)
+	c := New(raw, Config{Limits: testLimits(), Observer: observer, NodeID: 12, SourceID: 77}, DispatchFunc(func(ctx context.Context, in Inbound) {
+		inboundCh <- in
+	}))
+	c.Start()
+	defer c.Close(nil)
+
+	sendErrCh := make(chan error, 1)
+	go func() {
+		sendErrCh <- c.Send(context.Background(), Outbound{
+			Priority:  core.PriorityRPC,
+			ServiceID: 7,
+			Payload:   core.CopyOwnedBuffer([]byte("hello")),
+		})
+	}()
+	frame := readPeerFrame(t, peer)
+	frame.Body.Release()
+	if err := waitErr(t, sendErrCh); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	waitConnEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "sent_bytes" &&
+			event.NodeID == 12 &&
+			event.SourceID == 77 &&
+			event.Kind == core.FrameKindData &&
+			event.Bytes == len("hello")
+	})
+
+	writePeerFrame(t, peer, wire.Frame{
+		Header: wire.Header{
+			Kind:      core.FrameKindNotify,
+			Priority:  core.PriorityControl,
+			ServiceID: 9,
+		},
+		Body: core.CopyOwnedBuffer([]byte("notify")),
+	})
+	in := waitInbound(t, inboundCh)
+	in.Payload.Release()
+	waitConnEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "received_bytes" &&
+			event.NodeID == 12 &&
+			event.SourceID == 77 &&
+			event.Kind == core.FrameKindNotify &&
+			event.Bytes == len("notify")
+	})
+}
+
 func TestConnCloseFailsPendingRPC(t *testing.T) {
 	raw, peer := net.Pipe()
 	defer peer.Close()

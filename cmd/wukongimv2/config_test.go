@@ -149,7 +149,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
 		"WK_DELIVERY_ENABLE=true",
 		"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=10",
-		"WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=20",
+		"WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=20",
+		"WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=21",
+		"WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=22",
 		"WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=6",
 		"WK_DELIVERY_FANOUT_PAGE_SIZE=256",
 		"WK_DELIVERY_PUSH_BATCH_SIZE=128",
@@ -260,8 +262,14 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Delivery.ChannelWriteReactorCount != 10 {
 		t.Fatalf("Delivery.ChannelWriteReactorCount = %d, want 10", cfg.Delivery.ChannelWriteReactorCount)
 	}
-	if cfg.Delivery.ChannelWriteEffectWorkers != 20 {
-		t.Fatalf("Delivery.ChannelWriteEffectWorkers = %d, want 20", cfg.Delivery.ChannelWriteEffectWorkers)
+	if cfg.Delivery.ChannelWritePrepareWorkers != 20 {
+		t.Fatalf("Delivery.ChannelWritePrepareWorkers = %d, want 20", cfg.Delivery.ChannelWritePrepareWorkers)
+	}
+	if cfg.Delivery.ChannelWriteAppendWorkers != 21 {
+		t.Fatalf("Delivery.ChannelWriteAppendWorkers = %d, want 21", cfg.Delivery.ChannelWriteAppendWorkers)
+	}
+	if cfg.Delivery.ChannelWritePostCommitWorkers != 22 {
+		t.Fatalf("Delivery.ChannelWritePostCommitWorkers = %d, want 22", cfg.Delivery.ChannelWritePostCommitWorkers)
 	}
 	if cfg.Delivery.ChannelWriteRecipientDispatchConcurrency != 6 {
 		t.Fatalf("Delivery.ChannelWriteRecipientDispatchConcurrency = %d, want 6", cfg.Delivery.ChannelWriteRecipientDispatchConcurrency)
@@ -539,7 +547,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", "7")
-	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS", "14")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS", "14")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS", "15")
+	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS", "16")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY", "5")
 	t.Setenv("WK_DELIVERY_FANOUT_PAGE_SIZE", "64")
 	t.Setenv("WK_DELIVERY_PUSH_BATCH_SIZE", "32")
@@ -619,7 +629,10 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
-		cfg.Delivery.ChannelWriteReactorCount != 7 || cfg.Delivery.ChannelWriteEffectWorkers != 14 ||
+		cfg.Delivery.ChannelWriteReactorCount != 7 ||
+		cfg.Delivery.ChannelWritePrepareWorkers != 14 ||
+		cfg.Delivery.ChannelWriteAppendWorkers != 15 ||
+		cfg.Delivery.ChannelWritePostCommitWorkers != 16 ||
 		cfg.Delivery.ChannelWriteRecipientDispatchConcurrency != 5 ||
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
@@ -906,6 +919,12 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "conversation authority admit concurrency zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
+		{name: "delivery channel write prepare workers", line: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS"},
+		{name: "delivery channel write prepare workers negative", line: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS"},
+		{name: "delivery channel write append workers", line: "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS"},
+		{name: "delivery channel write append workers negative", line: "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS"},
+		{name: "delivery channel write post-commit workers", line: "WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS"},
+		{name: "delivery channel write post-commit workers negative", line: "WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS"},
 		{name: "delivery channel write recipient dispatch concurrency", line: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"},
 		{name: "delivery channel write recipient dispatch concurrency negative", line: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"},
 		{name: "delivery fanout page size", line: "WK_DELIVERY_FANOUT_PAGE_SIZE=many", wantKey: "WK_DELIVERY_FANOUT_PAGE_SIZE"},

@@ -50,6 +50,26 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 	return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, checkpointSeq: e.event.MessageSeq}
 }
 
+func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEvent {
+	return commitErrorCompletion(effect, effectPanicError(effectStagePostCommit, recovered), PostCommitFailureDetail{Phase: "panic"})
+}
+
+func commitScheduleErrorCompletion(effect commitEffect, scheduleErr error) commitCompletedEvent {
+	return commitErrorCompletion(effect, effectScheduleError(effectStagePostCommit, scheduleErr), PostCommitFailureDetail{Phase: "scheduler"})
+}
+
+func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFailureDetail) commitCompletedEvent {
+	return commitCompletedEvent{
+		key:     effect.key,
+		seq:     effect.seq,
+		attempt: effect.attempt,
+		err:     fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),
+		result:  errorClass(err),
+		event:   effect.event.Clone(),
+		detail:  detail,
+	}
+}
+
 func (e commitCompletedEvent) apply(r *reactor) {
 	r.recordCommitCompletion(e)
 }

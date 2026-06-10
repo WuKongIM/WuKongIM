@@ -25,7 +25,7 @@ storage, or routing branches that bypass cluster semantics.
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
-| `runtime/channelwrite` | Channel-authority write reactors that own SEND validation, message ID allocation, append admission, channel post-commit cursors, recipient grouping, conversation projection, and optional delivery effects. |
+| `runtime/channelwrite` | Channel-authority write reactors that own SEND validation, message ID allocation, append admission, recipient grouping, conversation projection, and optional delivery effects. |
 | `infra/cluster` | Adapter from channel write, channel metadata, delivery, presence, and conversation ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
@@ -61,8 +61,8 @@ Only the channel authority node creates and owns real channel write state. A
 non-authority node forwards the batch to the authority node through Channel
 Write RPC and does not create proxy channel state or enter a local channel
 reactor for that channel. Conversation projection, recipient authority grouping,
-owner push, delivery fanout, and post-commit cursor persistence run after the
-successful append in the authority reactor's post-commit pipeline.
+owner push, and delivery fanout run after the successful append in the
+authority reactor's best-effort post-commit pipeline.
 
 ## Phase-1 Presence Flow
 

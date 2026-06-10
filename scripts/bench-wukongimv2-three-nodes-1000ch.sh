@@ -24,11 +24,12 @@ DURATION="${WK_BENCH_DURATION:-15s}"
 WARMUP="${WK_BENCH_WARMUP:-5s}"
 COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
+ACTUAL_QPS_MIN_RATIO="${WK_BENCH_ACTUAL_QPS_MIN_RATIO:-0.90}"
 ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
 RECV_ACK="${WK_BENCH_RECV_ACK:-true}"
 HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
-SENDER_PICK="${WK_BENCH_SENDER_PICK:-first_online}"
+SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 
@@ -62,13 +63,14 @@ Options:
   --warmup DURATION      Warmup duration. Default: 5s.
   --cooldown DURATION    Cooldown duration. Default: 2s.
   --stable-p99 DURATION  Soft p99 gate written into scenarios. Default: 400ms.
+                         Summary PASS also requires actual/offered >= WK_BENCH_ACTUAL_QPS_MIN_RATIO, default 0.90.
   --ack-timeout DURATION Per-SEND sendack wait timeout in generated traffic. Default: 15s.
   --phase-poll-timeout DURATION
                          Base wkbench worker phase poll timeout. Default: 30s.
   --profile-seconds N    Capture final CPU pprof for each node when N > 0. Default: 0.
   --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
   --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
-  --sender-pick MODE     Group sender selection: first_online or round_robin. Default: first_online.
+  --sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
@@ -743,12 +745,17 @@ channelwrite_metrics_summary() {
   local out="$OUT_DIR/channelwrite_metrics_summary.tsv"
   local summarizer="$ROOT_DIR/scripts/channelwrite-metrics-summary.awk"
   local addr id before after
+  local samples=()
   for addr in "${METRICS_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
     before="$metrics_dir/${id}-before.prom"
     after="$metrics_dir/${id}-after.prom"
     [[ -f "$before" && -f "$after" ]] || continue
-    awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" >>"$out" || true
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      samples=()
+    fi
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" "${samples[@]}" >>"$out" || true
   done
 }
 
@@ -770,6 +777,19 @@ runtime_pool_pressure_summary() {
     fi
     awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" "${samples[@]}" >>"$out" || true
   done
+}
+
+cluster_transport_peak_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/cluster_transport_peak_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/cluster-transport-peak-summary.awk"
+  local samples=("$metrics_dir"/*-sample-*.prom)
+  if [[ ! -e "${samples[0]}" ]]; then
+    printf '%s\t0\t0\t0.000\t0.000\t0.000\t0.000\t0\t0\n' "$tag" >>"$out"
+    return
+  fi
+  awk -v tag="$tag" -v interval="$RUNTIME_POOL_SAMPLE_INTERVAL" -f "$summarizer" "${samples[@]}" >>"$out" || true
 }
 
 run_attempt() {
@@ -800,6 +820,7 @@ run_attempt() {
   channelv2_metrics_summary "$tag" "$duration"
   channelwrite_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
+  cluster_transport_peak_summary "$tag"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
     printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
@@ -845,6 +866,7 @@ DURATION=$DURATION
 WARMUP=$WARMUP
 COOLDOWN=$COOLDOWN
 STABLE_P99=$STABLE_P99
+ACTUAL_QPS_MIN_RATIO=$ACTUAL_QPS_MIN_RATIO
 ACK_TIMEOUT=$ACK_TIMEOUT
 RECV_ACK=$RECV_ACK
 HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
@@ -856,7 +878,9 @@ METRICS_ADDRS=$METRICS_ADDRS
 WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
-DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS:-0}
+DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS:-0}
+DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS:-0}
+DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS:-0}
 DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=${WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
@@ -890,7 +914,7 @@ EOF
 write_display_summary() {
   local p99_limit
   p99_limit="$(duration_seconds "$STABLE_P99")"
-  awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" '
+  awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" '
     BEGIN {
       FS = "\t"
       while ((getline line < rpc_file) > 0) {
@@ -904,6 +928,7 @@ write_display_summary() {
 
       print "# bench result"
       printf "p99 gate: <= %.0f ms, send_errors: 0\n\n", p99_limit * 1000
+      printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
       printf "%-9s %10s %10s %8s %8s %9s %9s %12s %s\n", "offered", "actual", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
     }
     NR == 1 {
@@ -915,6 +940,10 @@ write_display_summary() {
       status = $3
       exit_status = $4 + 0
       actual = $5 + 0
+      actual_ratio = 0
+      if (offered > 0) {
+        actual_ratio = actual / offered
+      }
       errors = $7 + 0
       p95 = $11 + 0
       p99 = $12 + 0
@@ -937,6 +966,10 @@ write_display_summary() {
         result = "FAIL"
         note = "p99"
       }
+      if (actual_ratio < actual_min_ratio) {
+        result = "FAIL"
+        note = sprintf("actual_ratio=%.3f", actual_ratio)
+      }
       if (result == "PASS" && actual > best_actual) {
         best_actual = actual
         best_offered = offered
@@ -955,6 +988,8 @@ write_display_summary() {
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
   append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
+  append_channelwrite_pool_pressure_display "$OUT_DIR/channelwrite_metrics_summary.tsv" >>"$OUT_DIR/summary.txt"
+  append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
 append_runtime_pool_pressure_display() {
@@ -970,6 +1005,11 @@ append_runtime_pool_pressure_display() {
       entries++
       fill = $9 + 0
       inflight_util = $15 + 0
+      pool_key = $2 "\034" $3 "\034" $4
+      if ((fill >= 0.9 || inflight_util >= 0.9) && !(pool_key in over90_seen)) {
+        over90_seen[pool_key] = 1
+        over90_pools++
+      }
       full += $16 + 0
       busy += $17 + 0
       dirty += $18 + 0
@@ -997,8 +1037,98 @@ append_runtime_pool_pressure_display() {
         print "none"
         exit
       }
-      printf "entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
-        entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+      printf "entries=%.0f over90_pools=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
+        entries, over90_pools, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+    }
+  ' "$file"
+}
+
+append_channelwrite_pool_pressure_display() {
+  local file="$1"
+  printf '\n# channelwrite pool pressure\n'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    function metric_value(name, col) {
+      col = idx[name]
+      if (col <= 0) {
+        return 0
+      }
+      return $col + 0
+    }
+    NR == 1 {
+      for (i = 1; i <= NF; i++) {
+        idx[$i] = i
+      }
+      next
+    }
+    {
+      entries++
+      submit += metric_value("effect_pool_submit_delta")
+      full += metric_value("effect_pool_full_delta")
+      errors += metric_value("effect_pool_error_delta")
+      over90_pools += metric_value("effect_pool_over90_count")
+      util = metric_value("effect_pool_util_max")
+      saturated = metric_value("effect_pool_saturated_max")
+      if (util > max_util) {
+        max_util = util
+      }
+      if (saturated > max_saturated) {
+        max_saturated = saturated
+      }
+      score = util + saturated
+      if (metric_value("effect_pool_full_delta") > 0) {
+        score += 1
+      }
+      if (metric_value("effect_pool_error_delta") > 0) {
+        score += 1
+      }
+      if (score > worst_score) {
+        worst_score = score
+        worst = sprintf("tag=%s node=%s", $1, $2)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "none"
+        exit
+      }
+      printf "entries=%.0f over90_pools=%.0f submit=%.0f full=%.0f errors=%.0f max_util=%.3f saturated=%.0f worst=%s details=channelwrite_metrics_summary.tsv\n",
+        entries, over90_pools, submit, full, errors, max_util, max_saturated, worst
+    }
+  ' "$file"
+}
+
+append_cluster_transport_peak_display() {
+  local file="$1"
+  printf '\n# cluster internal transport peak\n'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    NR == 1 { next }
+    {
+      entries++
+      sample_pairs += $3 + 0
+      peak = $4 + 0
+      if (entries == 1 || peak > peak_internal) {
+        peak_internal = peak
+        peak_out = $5 + 0
+        peak_in = $6 + 0
+        peak_duplex = $7 + 0
+        worst = sprintf("tag=%s interval=%s-%s", $1, $8, $9)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "none"
+        exit
+      }
+      printf "entries=%.0f sample_pairs=%.0f peak_internal_mib_s=%.3f peak_out_mib_s=%.3f peak_in_mib_s=%.3f peak_duplex_mib_s=%.3f worst=%s details=cluster_transport_peak_summary.tsv\n",
+        entries, sample_pairs, peak_internal, peak_out, peak_in, peak_duplex, worst
     }
   ' "$file"
 }
@@ -1015,6 +1145,11 @@ runtime_pool_pressure_markdown() {
       entries++
       fill = $9 + 0
       inflight_util = $15 + 0
+      pool_key = $2 "\034" $3 "\034" $4
+      if ((fill >= 0.9 || inflight_util >= 0.9) && !(pool_key in over90_seen)) {
+        over90_seen[pool_key] = 1
+        over90_pools++
+      }
       full += $16 + 0
       busy += $17 + 0
       dirty += $18 + 0
@@ -1042,8 +1177,96 @@ runtime_pool_pressure_markdown() {
         print "- none"
         exit
       }
-      printf "- entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
-        entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+      printf "- entries=%.0f over90_pools=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
+        entries, over90_pools, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+    }
+  ' "$file"
+}
+
+channelwrite_pool_pressure_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    function metric_value(name, col) {
+      col = idx[name]
+      if (col <= 0) {
+        return 0
+      }
+      return $col + 0
+    }
+    NR == 1 {
+      for (i = 1; i <= NF; i++) {
+        idx[$i] = i
+      }
+      next
+    }
+    {
+      entries++
+      submit += metric_value("effect_pool_submit_delta")
+      full += metric_value("effect_pool_full_delta")
+      errors += metric_value("effect_pool_error_delta")
+      over90_pools += metric_value("effect_pool_over90_count")
+      util = metric_value("effect_pool_util_max")
+      saturated = metric_value("effect_pool_saturated_max")
+      if (util > max_util) {
+        max_util = util
+      }
+      if (saturated > max_saturated) {
+        max_saturated = saturated
+      }
+      score = util + saturated
+      if (metric_value("effect_pool_full_delta") > 0) {
+        score += 1
+      }
+      if (metric_value("effect_pool_error_delta") > 0) {
+        score += 1
+      }
+      if (score > worst_score) {
+        worst_score = score
+        worst = sprintf("tag=%s node=%s", $1, $2)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      printf "- entries=%.0f over90_pools=%.0f submit=%.0f full=%.0f errors=%.0f max_util=%.3f saturated=%.0f worst=%s details=channelwrite_metrics_summary.tsv\n",
+        entries, over90_pools, submit, full, errors, max_util, max_saturated, worst
+    }
+  ' "$file"
+}
+
+cluster_transport_peak_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    NR == 1 { next }
+    {
+      entries++
+      sample_pairs += $3 + 0
+      peak = $4 + 0
+      if (entries == 1 || peak > peak_internal) {
+        peak_internal = peak
+        peak_out = $5 + 0
+        peak_in = $6 + 0
+        peak_duplex = $7 + 0
+        worst = sprintf("tag=%s interval=%s-%s", $1, $8, $9)
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      printf "- entries=%.0f sample_pairs=%.0f peak_internal_mib_s=%.3f peak_out_mib_s=%.3f peak_in_mib_s=%.3f peak_duplex_mib_s=%.3f worst=%s details=cluster_transport_peak_summary.tsv\n",
+        entries, sample_pairs, peak_internal, peak_out, peak_in, peak_duplex, worst
     }
   ' "$file"
 }
@@ -1059,6 +1282,7 @@ print_summary() {
   printf '  channelwrite: %s\n' "$OUT_DIR/channelwrite_metrics_summary.tsv"
   printf '  runtime_pool: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
   printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
+  printf '  cluster_transport_peak: %s\n' "$OUT_DIR/cluster_transport_peak_summary.tsv"
   printf '  reports: %s\n' "$OUT_DIR/reports"
   printf '  metrics: %s\n' "$OUT_DIR/metrics"
 }
@@ -1066,8 +1290,12 @@ print_summary() {
 write_evidence_summary() {
   local best_line
   local runtime_pool_pressure
+  local channelwrite_pool_pressure
+  local cluster_transport_peak
   best_line="$(grep '^best pass:' "$OUT_DIR/summary.txt" 2>/dev/null || true)"
   runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
+  channelwrite_pool_pressure="$(channelwrite_pool_pressure_markdown "$OUT_DIR/channelwrite_metrics_summary.tsv")"
+  cluster_transport_peak="$(cluster_transport_peak_markdown "$OUT_DIR/cluster_transport_peak_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Bench Evidence
 
@@ -1094,6 +1322,7 @@ write_evidence_summary() {
 - channelwrite_metrics: channelwrite_metrics_summary.tsv
 - runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
 - runtime_pool_pressure: runtime_pool_pressure_summary.tsv
+- cluster_transport_peak: cluster_transport_peak_summary.tsv
 - summary_tsv: summary.tsv
 
 ## Result
@@ -1101,6 +1330,12 @@ ${best_line:-best pass: none}
 
 ## Runtime Pool Pressure
 ${runtime_pool_pressure}
+
+## ChannelWrite Pool Pressure
+${channelwrite_pool_pressure}
+
+## Cluster Internal Transport Peak
+${cluster_transport_peak}
 EOF
 }
 
@@ -1125,10 +1360,13 @@ EOF
 tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms	rpc_pull_batch_calls_delta	rpc_pull_batch_items_delta	rpc_pull_batch_avg_items	rpc_pull_hint_batch_calls_delta	rpc_pull_hint_batch_items_delta	rpc_pull_hint_batch_avg_items	store_append_batch_calls_delta	store_append_batch_items_delta	store_append_batch_avg_items	store_apply_batch_calls_delta	store_apply_batch_items_delta	store_apply_batch_avg_items
 EOF
   cat >"$OUT_DIR/channelwrite_metrics_summary.tsv" <<'EOF'
-tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max
+tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max	effect_pool_submit_delta	effect_pool_full_delta	effect_pool_error_delta	effect_pool_inflight_max	effect_pool_capacity_max	effect_pool_util_max	effect_pool_saturated_max	effect_pool_over90_count
 EOF
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
+EOF
+  cat >"$OUT_DIR/cluster_transport_peak_summary.tsv" <<'EOF'
+tag	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq
 EOF
 
   local qps

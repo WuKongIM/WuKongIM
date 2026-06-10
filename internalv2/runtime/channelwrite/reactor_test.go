@@ -15,7 +15,9 @@ func TestReactorRunsPrepareAsWorkerEffect(t *testing.T) {
 		MessageID:         newSequenceIDsForPrepare(500),
 		Authorizer:        authorizer,
 		Appender:          newRecordingAppenderForAppendTest(),
-		EffectWorkerCount: 1,
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
 
@@ -60,7 +62,9 @@ func TestEffectWorkerPressureTracksBusyPrepareWorkers(t *testing.T) {
 		MessageID:         newSequenceIDsForPrepare(550),
 		Authorizer:        authorizer,
 		Appender:          newRecordingAppenderForAppendTest(),
-		EffectWorkerCount: 1,
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
 		Observer:          observer,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
@@ -85,6 +89,50 @@ func TestEffectWorkerPressureTracksBusyPrepareWorkers(t *testing.T) {
 	observer.waitEffectWorkerPressure(t, 0, "prepare", 0, 1)
 }
 
+func TestEffectPoolPressureTracksFullPreparePool(t *testing.T) {
+	authorizer := newBlockingAuthorizerForTest()
+	observer := newRecordingEffectWorkerPressureObserverForTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:       1,
+		MailboxSize:       4,
+		MessageID:         newSequenceIDsForPrepare(560),
+		Authorizer:        authorizer,
+		Appender:          newRecordingAppenderForAppendTest(),
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
+		Observer:          observer,
+	})
+	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
+
+	firstC := make(chan submitResult, 1)
+	go func() {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+			sendItemForPrepare(validPrepareCommand("u1", "room", "first")),
+		})
+		firstC <- submitResult{future: future, err: err}
+	}()
+	authorizer.waitStarted(t)
+	first := receiveSubmitResult(t, firstC)
+	if first.err != nil {
+		t.Fatalf("first SubmitLocal() error = %v", first.err)
+	}
+
+	secondFuture, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		sendItemForPrepare(validPrepareCommand("u2", "room", "second")),
+	})
+	if err != nil {
+		t.Fatalf("second SubmitLocal() error = %v", err)
+	}
+	observer.waitEffectPoolPressure(t, "prepare", "full", 1, 1, true)
+
+	authorizer.release()
+	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 560, 1)
+	requireAppendSuccess(t, waitFutureForTest(t, secondFuture), 0, 561, 2)
+	observer.waitEffectPoolPressure(t, "prepare", "submitted", 1, 1, true)
+	observer.waitEffectPoolPressure(t, "prepare", "released", 0, 1, false)
+}
+
 func TestReactorPreservesSameChannelOrderAcrossConcurrentPrepareWorkers(t *testing.T) {
 	authorizer := newPayloadBlockingAuthorizerForTest("first")
 	appender := newRecordingAppenderForAppendTest()
@@ -94,7 +142,9 @@ func TestReactorPreservesSameChannelOrderAcrossConcurrentPrepareWorkers(t *testi
 		MessageID:         newSequenceIDsForPrepare(700),
 		Authorizer:        authorizer,
 		Appender:          appender,
-		EffectWorkerCount: 2,
+		PrepareWorkers:    2,
+		AppendWorkers:     2,
+		PostCommitWorkers: 2,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
 
@@ -164,7 +214,9 @@ func TestSubmitLocalReturnsBackpressureWhenPrepareEffectsAreFull(t *testing.T) {
 		MessageID:         newSequenceIDsForPrepare(900),
 		Authorizer:        authorizer,
 		Appender:          newRecordingAppenderForAppendTest(),
-		EffectWorkerCount: 1,
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
 	})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
 
@@ -208,11 +260,10 @@ func TestObservePressureWithoutPressureObserverDoesNotTakeStateLock(t *testing.T
 		0,
 		1,
 		channelStateLimits{},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{observer: observer},
 		commitPorts{},
-		cursorPorts{},
 	)
 	r.mu.Lock()
 	done := make(chan struct{})
@@ -237,11 +288,10 @@ func TestObservePressureWithPressureObserverDoesNotTakeStateLock(t *testing.T) {
 		0,
 		1,
 		channelStateLimits{},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{observer: observer},
 		commitPorts{},
-		cursorPorts{},
 	)
 	r.mu.Lock()
 	done := make(chan struct{})
@@ -266,11 +316,10 @@ func TestPressureObservationTracksQueueCounters(t *testing.T) {
 		0,
 		16,
 		channelStateLimits{pendingItemHighWatermark: 8, appendInflightLimit: 1},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{observer: observer},
 		commitPorts{},
-		cursorPorts{},
 	)
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, ChannelKey: "2:room", LeaderNodeID: 1}
 	key := targetKey(target)
@@ -333,7 +382,9 @@ func TestStopCancelsOutstandingPreparePortContexts(t *testing.T) {
 		LocalNodeID:       1,
 		MessageID:         newSequenceIDsForPrepare(1000),
 		SenderFence:       fence,
-		EffectWorkerCount: 1,
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
 	})
 	if err := group.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -383,15 +434,22 @@ type effectWorkerPressureKeyForTest struct {
 	stage     string
 }
 
+type effectPoolPressureKeyForTest struct {
+	stage  string
+	result string
+}
+
 type recordingEffectWorkerPressureObserverForTest struct {
 	mu       sync.Mutex
 	events   map[effectWorkerPressureKeyForTest]EffectWorkerPressureObservation
+	pools    map[effectPoolPressureKeyForTest]EffectPoolObservation
 	changedC chan struct{}
 }
 
 func newRecordingEffectWorkerPressureObserverForTest() *recordingEffectWorkerPressureObserverForTest {
 	return &recordingEffectWorkerPressureObserverForTest{
 		events:   make(map[effectWorkerPressureKeyForTest]EffectWorkerPressureObservation),
+		pools:    make(map[effectPoolPressureKeyForTest]EffectPoolObservation),
 		changedC: make(chan struct{}),
 	}
 }
@@ -402,6 +460,14 @@ func (o *recordingEffectWorkerPressureObserverForTest) SetChannelWriteEffectWork
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.events[effectWorkerPressureKeyForTest{reactorID: event.ReactorID, stage: event.Stage}] = event
+	close(o.changedC)
+	o.changedC = make(chan struct{})
+}
+
+func (o *recordingEffectWorkerPressureObserverForTest) ObserveChannelWriteEffectPool(event EffectPoolObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.pools[effectPoolPressureKeyForTest{stage: event.Stage, result: event.Result}] = event
 	close(o.changedC)
 	o.changedC = make(chan struct{})
 }
@@ -422,6 +488,26 @@ func (o *recordingEffectWorkerPressureObserverForTest) waitEffectWorkerPressure(
 		case <-changedC:
 		case <-deadline:
 			t.Fatalf("effect worker pressure for reactor=%d stage=%s did not reach inflight=%d capacity=%d; last=%+v ok=%v", reactorID, stage, inflight, capacity, event, ok)
+		}
+	}
+}
+
+func (o *recordingEffectWorkerPressureObserverForTest) waitEffectPoolPressure(t *testing.T, stage string, result string, inflight int, capacity int, saturated bool) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	key := effectPoolPressureKeyForTest{stage: stage, result: result}
+	for {
+		o.mu.Lock()
+		event, ok := o.pools[key]
+		changedC := o.changedC
+		o.mu.Unlock()
+		if ok && event.Inflight == inflight && event.Capacity == capacity && event.Saturated == saturated {
+			return
+		}
+		select {
+		case <-changedC:
+		case <-deadline:
+			t.Fatalf("effect pool pressure for stage=%s result=%s did not reach inflight=%d capacity=%d saturated=%v; last=%+v ok=%v", stage, result, inflight, capacity, saturated, event, ok)
 		}
 	}
 }

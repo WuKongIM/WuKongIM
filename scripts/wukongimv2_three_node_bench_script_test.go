@@ -267,7 +267,11 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`RECV_ACK="${WK_BENCH_RECV_ACK:-true}"`,
 		`HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"`,
 		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
+		`SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"`,
+		`ACTUAL_QPS_MIN_RATIO="${WK_BENCH_ACTUAL_QPS_MIN_RATIO:-0.90}"`,
+		"actual/offered gate: >= %.2f",
 		"--concurrency N        wkbench send concurrency. Default: 2800.",
+		"--sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.",
 		"ack_timeout: $ACK_TIMEOUT",
 		"recv_ack: $RECV_ACK",
 		"enabled: $HEARTBEAT_ENABLED",
@@ -380,7 +384,8 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		"runtime_pool_queue_depth_max",
 		"runtime_pool_queue_fill_max",
 		"runtime_pool_admission_full_delta",
-		"\t7\t0.700\t300\t0.500\t12\t0.750\t5\t3\t1\t6\tPASS\tok\t",
+		"\t7\t0.700\t300\t0.500\t12\t0.750\t5\t3\t1\t6\t",
+		"\tPASS\tok\t",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("real-qps summary missing %q:\n%s", want, summary)
@@ -389,8 +394,6 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
-		"poolfill",
-		"poolinflight",
 		"0.700",
 		"# runtime pool pressure",
 		"entries=1",
@@ -478,10 +481,39 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		}
 	}
 
+	channelwrite := readFile(t, filepath.Join(outDir, "channelwrite_metrics_summary.tsv"))
+	for _, want := range []string{
+		"effect_pool_submit_delta",
+		"effect_pool_full_delta",
+		"effect_pool_error_delta",
+		"effect_pool_inflight_max",
+		"effect_pool_capacity_max",
+		"effect_pool_util_max",
+		"effect_pool_saturated_max",
+		"effect_pool_over90_count",
+		"000100\t127_0_0_1_5011",
+		"\t10\t10\t1.000\t1\t1",
+	} {
+		if !strings.Contains(channelwrite, want) {
+			t.Fatalf("channelwrite metrics summary missing %q:\n%s", want, channelwrite)
+		}
+	}
+
+	clusterTransport := readFile(t, filepath.Join(outDir, "cluster_transport_peak_summary.tsv"))
+	for _, want := range []string{
+		"tag\tsample_points\tsample_pairs\tpeak_internal_mib_s",
+		"000100",
+	} {
+		if !strings.Contains(clusterTransport, want) {
+			t.Fatalf("cluster transport peak summary missing %q:\n%s", want, clusterTransport)
+		}
+	}
+
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
 		"# runtime pool pressure",
 		"entries=",
+		"over90_pools=3",
 		"max_fill=0.700",
 		"full=",
 		"worst=tag=000100",
@@ -489,6 +521,17 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"async_send",
 		"queue_backlog",
 		"admission_full",
+		"# channelwrite pool pressure",
+		"details=channelwrite_metrics_summary.tsv",
+		"over90_pools=3",
+		"max_util=1.000",
+		"saturated=1",
+		"# cluster internal transport peak",
+		"peak_internal_mib_s=",
+		"peak_out_mib_s=",
+		"peak_in_mib_s=",
+		"peak_duplex_mib_s=",
+		"details=cluster_transport_peak_summary.tsv",
 	} {
 		if !strings.Contains(display, want) {
 			t.Fatalf("display summary missing runtime pool pressure %q:\n%s", want, display)
@@ -501,12 +544,21 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"- cluster_transport_peak: cluster_transport_peak_summary.tsv",
 		"entries=",
+		"over90_pools=3",
 		"max_fill=0.700",
 		"worst=tag=000100",
 		"gateway",
 		"async_send",
 		"admission_full",
+		"## ChannelWrite Pool Pressure",
+		"details=channelwrite_metrics_summary.tsv",
+		"max_util=1.000",
+		"saturated=1",
+		"## Cluster Internal Transport Peak",
+		"peak_internal_mib_s=",
+		"details=cluster_transport_peak_summary.tsv",
 	} {
 		if !strings.Contains(topSummary, want) {
 			t.Fatalf("markdown summary missing runtime pool pressure %q:\n%s", want, topSummary)
@@ -514,6 +566,53 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 	}
 	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
 		t.Fatalf("markdown summary should not print every pressure row:\n%s", topSummary)
+	}
+}
+
+func TestWukongIMV2ThreeNodeBenchScriptFailsWhenActualBelowNinetyPercentOffered(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--qps", "10000",
+		"--channels", "10",
+		"--users", "20",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--gateway", gatewayAddr,
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	display := readFile(t, filepath.Join(outDir, "summary.txt"))
+	for _, want := range []string{
+		"actual/offered gate: >= 0.90",
+		"FAIL",
+		"actual_ratio",
+		"best pass: none",
+	} {
+		if !strings.Contains(display, want) {
+			t.Fatalf("display summary missing %q:\n%s", want, display)
+		}
 	}
 }
 
@@ -1693,6 +1792,14 @@ wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",compon
 wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
 wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} $count
+wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="submitted"} $((count * 2))
+wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="full"} $count
+wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="error"} 0
+wukongim_channelwrite_effect_pool_inflight{node_id="1",node_name="node-1",stage="prepare"} 10
+wukongim_channelwrite_effect_pool_capacity{node_id="1",node_name="node-1",stage="prepare"} 10
+wukongim_channelwrite_effect_pool_saturated{node_id="1",node_name="node-1",stage="prepare"} 1
+wukongim_transport_sent_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_request"} $((count * 1048576))
+wukongim_transport_received_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_response"} $((count * 524288))
 OUT
 	      exit 0
 	    fi

@@ -367,6 +367,27 @@ histogram_quantile(0.99, sum by (le, kind, result) (rate(wukongim_channelv2_work
 histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]))
 ```
 
+ChannelWrite authority and ants pool pressure:
+
+```promql
+sum by (reactor_id) (wukongim_channelwrite_reactor_mailbox_depth)
+sum by (stage, result) (rate(wukongim_channelwrite_effect_pool_submit_total[1m]))
+sum by (stage) (wukongim_channelwrite_effect_pool_inflight)
+sum by (stage) (wukongim_channelwrite_effect_pool_saturated)
+sum by (stage) (wukongim_channelwrite_effect_queue_depth)
+histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelwrite_effect_duration_seconds_bucket[1m])))
+```
+
+`scripts/bench-wukongimv2-three-nodes-1000ch.sh` writes final pool pressure
+headlines into `summary.txt` and `summary.md`. `over90_pools` counts node-local
+pool instances whose observed queue or worker/pool utilization reached at
+least 90% capacity during sampling. `peak_internal_mib_s` in
+`cluster_transport_peak_summary.tsv` is the higher side of the highest sampled
+cluster-wide inter-node outbound/inbound byte rate, derived from adjacent deltas
+of `wukongim_transport_sent_bytes_total` and
+`wukongim_transport_received_bytes_total`; use `peak_duplex_mib_s` in the same
+file when full-duplex NIC load is more useful.
+
 Storage commit pressure:
 
 ```promql
@@ -386,6 +407,8 @@ Interpretation matrix:
 | Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
 | Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
 | ChannelV2 worker queue is low but `channelv2_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
+| `channelwrite_effect_pool_submit_total{result="full"}` rises or `channelwrite_effect_pool_saturated` stays high | channelwrite ants stage pool saturation | compare stage-specific worker count, `channelwrite_effect_duration_seconds`, appender pprof, recipient post-commit fanout |
+| ChannelWrite effect queue grows while pool saturation is low | reactor scheduling or downstream channel-state drain issue | inspect reactor mailbox, append in-flight limit, channel busy counts, goroutine pprof |
 | `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
 | `channelv2_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
 | `channelv2_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |

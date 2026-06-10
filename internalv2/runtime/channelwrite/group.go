@@ -78,9 +78,6 @@ type AppendBatchItemResult = contract.AppendBatchItemResult
 // CommittedEnvelope carries one committed message into post-commit effects.
 type CommittedEnvelope = contract.CommittedEnvelope
 
-// CommittedMessage is a durable committed message read for post-commit replay.
-type CommittedMessage = contract.CommittedMessage
-
 // Recipient identifies one UID selected for committed-message effects.
 type Recipient = contract.Recipient
 
@@ -138,8 +135,9 @@ var (
 
 // Group owns a set of channel-hashed local authority write reactors.
 type Group struct {
-	opts     Options
-	reactors []*reactor
+	opts      Options
+	reactors  []*reactor
+	scheduler *effectScheduler
 
 	mu       sync.RWMutex
 	started  bool
@@ -150,14 +148,19 @@ type Group struct {
 // New creates a channel write reactor group with conservative defaults.
 func New(opts Options) *Group {
 	opts = applyDefaults(opts)
-	group := &Group{opts: opts}
+	scheduler := newEffectScheduler(effectSchedulerOptions{
+		ReactorCount:      opts.ReactorCount,
+		PrepareWorkers:    opts.PrepareWorkers,
+		AppendWorkers:     opts.AppendWorkers,
+		PostCommitWorkers: opts.PostCommitWorkers,
+	})
+	group := &Group{opts: opts, scheduler: scheduler}
 	limits := stateLimitsFromOptions(opts)
 	ports := preparePortsFromOptions(opts)
 	appendPorts := appendPortsFromOptions(opts)
 	commitPorts := commitPortsFromOptions(opts)
-	cursorPorts := cursorPortsFromOptions(opts)
 	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, opts.EffectWorkerCount, ports, appendPorts, commitPorts, cursorPorts))
+		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, scheduler, ports, appendPorts, commitPorts))
 	}
 	return group
 }
@@ -208,6 +211,9 @@ func (g *Group) Stop(ctx context.Context) error {
 		if err := reactor.wait(ctx); err != nil {
 			return err
 		}
+	}
+	if err := g.scheduler.stop(ctx); err != nil {
+		return err
 	}
 
 	g.mu.Lock()

@@ -593,6 +593,10 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		return
 	}
 	switch event.Name {
+	case "sent_bytes":
+		o.metrics.Transport.ObserveSentBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
+	case "received_bytes":
+		o.metrics.Transport.ObserveReceivedBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
 	case "pending_rpc":
 		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", o.transportV2PendingRPCInflight(event))
 	case "peer_pool":
@@ -977,6 +981,23 @@ func transportV2PriorityLabel(priority transportv2.Priority) string {
 		return "bulk"
 	default:
 		return "none"
+	}
+}
+
+func transportV2FrameKindLabel(kind transportv2.FrameKind) string {
+	switch kind {
+	case transportv2.FrameKindData:
+		return "data"
+	case transportv2.FrameKindNotify:
+		return "notify"
+	case transportv2.FrameKindRPCRequest:
+		return "rpc_request"
+	case transportv2.FrameKindRPCResponse:
+		return "rpc_response"
+	case transportv2.FrameKindControl:
+		return "control"
+	default:
+		return "unknown"
 	}
 }
 

@@ -85,3 +85,26 @@
 - Verification evidence: `docs/development/perf-runs/20260610-010649-three-node-real-qps/`.
 - Verification result: actual QPS 7078.6, p99 874.9ms, no send errors, `router_route_not_ready_delta=0`, `post_commit_backlog_max=0`, and post-commit effect errors dropped to 5. Logs contained no `no slot leader`; all 5 post-commit failures were `conversation_projector: stale route`.
 - Remaining bottleneck: the 400ms p99 gate still fails because pressure is outside channelwrite: Slot scheduler inflight reached 1/1 and ChannelV2 store-apply reached 64/64, with slot scheduler dirty/requeued admission pressure.
+
+## 2026-06-10 channelwrite append ants default tuning
+
+- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 5000`, 1000 group channels, three-node local cluster, default channelwrite reactors.
+- Baseline default used 8 append workers per reactor and failed quickly: 24.9 actual QPS, p99 67.0ms, 1 send error, 890 channelwrite pool-full submissions, and 5.078 MiB/s peak one-way internal transport.
+- `WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=64` passed with 4793.6 actual QPS, p99 149.7ms, no send errors, and 18.417 MiB/s peak one-way internal transport.
+- `WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=96` produced the best foreground result: 4829.0 actual QPS, p99 80.2ms, no send errors, 110 channelwrite pool-full submissions, and 17.298 MiB/s peak one-way internal transport.
+- `WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=128` passed but regressed: 4718.9 actual QPS, p99 97.8ms, 41534 channelwrite pool-full submissions, and 17.223 MiB/s peak one-way internal transport.
+- Raising post-commit workers with append fixed was counterproductive for foreground latency: append=96/post_commit=32 cleared channelwrite pool-full submissions but dropped to 4652.1 actual QPS and p99 148.5ms; append=96/post_commit=16 dropped further to 4507.8 actual QPS and p99 198.3ms.
+- Fix applied: keep prepare and post-commit defaults at 8 workers per reactor, and raise the append-stage default to 96 workers per reactor. This makes the default append ants capacity roughly 960 on the 10-reactor benchmark host, matching the manually observed capacity increase without overdriving best-effort post-commit work.
+- Default verification evidence: `docs/development/perf-runs/20260610-114217-three-node-1000ch/` passed with 4557.3 actual QPS, p99 126.0ms, no send errors, append pool capacity 960, and 17.157 MiB/s peak one-way internal transport. The remaining pool-full submissions were all `stage=post_commit`, confirming foreground append admission was not saturated by the new default.
+
+## 2026-06-10 three-node 1000ch 10000 QPS sender-key limit
+
+- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`, default `sender_pick=first_online`, 1000 group channels, 4096 users, 10 members, 15s measured duration.
+- Evidence: `docs/development/perf-runs/20260610-123619-three-node-1000ch/`.
+- Result: 6550.6 actual QPS, 0.655 actual/offered ratio, p99 124.2ms, no send errors, no channelwrite router errors, no backpressure, no channel-busy rejections, no local admission rejections, and no channelwrite pool full/errors/saturation.
+- Direct cause of low actual QPS: wkbench planned 150000 run messages but dispatched only 98259; 51741 were dropped as `pending_window_expired`. The group scheduler keys by sender UID, and `first_online` limits each selected sender to one in-flight sendack wait, so max active senders was only 448.
+- One-variable experiment: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000 --sender-pick round_robin`.
+- Experiment evidence: `docs/development/perf-runs/20260610-123939-three-node-1000ch/`.
+- Experiment result: 9828.8 actual QPS, 0.983 actual/offered ratio, p99 321.7ms, no send errors, max active senders rose to 2103, and pending-window drops fell to 2493.
+- Channelwrite finding: channelwrite admission was not the limiter. Foreground append effects waited on `Appender.AppendBatch`: append effect avg was about 54-56ms in the first run and 92-93ms in the round-robin run, while post-commit avg stayed near zero. Metrics attribution classified the remaining tail as ChannelV2/storage commit and replication wait.
+- Follow-up: `bench-wukongimv2-three-nodes-1000ch.sh` now defaults to `sender_pick=round_robin`; use `--sender-pick first_online` only when intentionally reproducing the sender-key-limit baseline.

@@ -150,6 +150,19 @@ func (o deliveryMessageObserver) SetChannelWriteEffectWorkerPressure(event chann
 	)
 }
 
+func (o deliveryMessageObserver) ObserveChannelWriteEffectPool(event channelwrite.EffectPoolObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelWrite.ObserveEffectPool(
+		event.Stage,
+		event.Result,
+		event.Inflight,
+		event.Capacity,
+		event.Saturated,
+	)
+}
+
 func (o deliveryMessageObserver) ObserveChannelWriteEffect(event channelwrite.EffectObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return

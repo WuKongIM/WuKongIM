@@ -189,8 +189,14 @@ END {
     if (backlog_min_depth > 0 && depth >= backlog_min_depth) {
       reason = add_reason(reason, "queue_backlog")
     }
+    if (capacity > 0 && fill >= 0.9) {
+      reason = add_reason(reason, "queue_over90")
+    }
     if (capacity > 0 && depth >= capacity) {
       reason = add_reason(reason, "queue_full")
+    }
+    if (worker_count > 0 && inflight_util >= 0.9) {
+      reason = add_reason(reason, "worker_over90")
     }
     if (worker_count > 0 && inflight >= worker_count) {
       reason = add_reason(reason, "worker_saturated")

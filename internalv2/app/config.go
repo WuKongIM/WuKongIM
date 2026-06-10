@@ -215,8 +215,12 @@ type DeliveryConfig struct {
 	Enabled bool
 	// ChannelWriteReactorCount is the number of channel-hashed authority reactors. Zero derives a CPU-aware default.
 	ChannelWriteReactorCount int
-	// ChannelWriteEffectWorkers is the per-reactor worker count for prepare, append, replay, and post-commit effects. Zero uses a bounded default.
-	ChannelWriteEffectWorkers int
+	// ChannelWritePrepareWorkers is the per-reactor worker budget for send preparation. Zero uses the prepare-stage default.
+	ChannelWritePrepareWorkers int
+	// ChannelWriteAppendWorkers is the per-reactor worker budget for blocking durable append calls. Zero uses the append-stage default.
+	ChannelWriteAppendWorkers int
+	// ChannelWritePostCommitWorkers is the per-reactor worker budget for best-effort post-commit effects. Zero uses the post-commit-stage default.
+	ChannelWritePostCommitWorkers int
 	// ChannelWriteRecipientDispatchConcurrency bounds per-message recipient authority dispatch fanout inside one post-commit effect. Zero uses a bounded default.
 	ChannelWriteRecipientDispatchConcurrency int
 	// FanoutPageSize limits subscriber UIDs read by one fanout page.
@@ -251,8 +255,14 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	if cfg.ChannelWriteReactorCount == 0 {
 		cfg.ChannelWriteReactorCount = defaultChannelWriteReactorCount()
 	}
-	if cfg.ChannelWriteEffectWorkers == 0 {
-		cfg.ChannelWriteEffectWorkers = defaultChannelWriteEffectWorkers()
+	if cfg.ChannelWritePrepareWorkers == 0 {
+		cfg.ChannelWritePrepareWorkers = defaultChannelWritePrepareWorkers()
+	}
+	if cfg.ChannelWriteAppendWorkers == 0 {
+		cfg.ChannelWriteAppendWorkers = defaultChannelWriteAppendWorkers()
+	}
+	if cfg.ChannelWritePostCommitWorkers == 0 {
+		cfg.ChannelWritePostCommitWorkers = defaultChannelWritePostCommitWorkers()
 	}
 	if cfg.ChannelWriteRecipientDispatchConcurrency == 0 {
 		cfg.ChannelWriteRecipientDispatchConcurrency = defaultChannelWriteRecipientDispatchConcurrency()
@@ -279,7 +289,15 @@ func defaultChannelWriteReactorCount() int {
 	return appMaxInt(4, runtime.GOMAXPROCS(0))
 }
 
-func defaultChannelWriteEffectWorkers() int {
+func defaultChannelWritePrepareWorkers() int {
+	return 8
+}
+
+func defaultChannelWriteAppendWorkers() int {
+	return 96
+}
+
+func defaultChannelWritePostCommitWorkers() int {
 	return 8
 }
 
@@ -385,8 +403,14 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	if cfg.ChannelWriteReactorCount < 0 {
 		return fmt.Errorf("%w: delivery channel write reactor count must be non-negative", ErrInvalidConfig)
 	}
-	if cfg.ChannelWriteEffectWorkers < 0 {
-		return fmt.Errorf("%w: delivery channel write effect workers must be non-negative", ErrInvalidConfig)
+	if cfg.ChannelWritePrepareWorkers < 0 {
+		return fmt.Errorf("%w: delivery channel write prepare workers must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.ChannelWriteAppendWorkers < 0 {
+		return fmt.Errorf("%w: delivery channel write append workers must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.ChannelWritePostCommitWorkers < 0 {
+		return fmt.Errorf("%w: delivery channel write post-commit workers must be non-negative", ErrInvalidConfig)
 	}
 	if cfg.ChannelWriteRecipientDispatchConcurrency < 0 {
 		return fmt.Errorf("%w: delivery channel write recipient dispatch concurrency must be non-negative", ErrInvalidConfig)

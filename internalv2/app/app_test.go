@@ -182,8 +182,14 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	if cfg.ChannelWriteReactorCount != 6 {
 		t.Fatalf("ChannelWriteReactorCount = %d, want 6", cfg.ChannelWriteReactorCount)
 	}
-	if cfg.ChannelWriteEffectWorkers != 8 {
-		t.Fatalf("ChannelWriteEffectWorkers = %d, want 8", cfg.ChannelWriteEffectWorkers)
+	if cfg.ChannelWritePrepareWorkers != 8 {
+		t.Fatalf("ChannelWritePrepareWorkers = %d, want 8", cfg.ChannelWritePrepareWorkers)
+	}
+	if cfg.ChannelWriteAppendWorkers != 96 {
+		t.Fatalf("ChannelWriteAppendWorkers = %d, want 96", cfg.ChannelWriteAppendWorkers)
+	}
+	if cfg.ChannelWritePostCommitWorkers != 8 {
+		t.Fatalf("ChannelWritePostCommitWorkers = %d, want 8", cfg.ChannelWritePostCommitWorkers)
 	}
 	if cfg.ChannelWriteRecipientDispatchConcurrency != 4 {
 		t.Fatalf("ChannelWriteRecipientDispatchConcurrency = %d, want 4", cfg.ChannelWriteRecipientDispatchConcurrency)
@@ -207,7 +213,9 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	negative := defaultDeliveryConfig(DeliveryConfig{
 		Enabled:                                  true,
 		ChannelWriteReactorCount:                 -5,
-		ChannelWriteEffectWorkers:                -6,
+		ChannelWritePrepareWorkers:               -6,
+		ChannelWriteAppendWorkers:                -7,
+		ChannelWritePostCommitWorkers:            -8,
 		ChannelWriteRecipientDispatchConcurrency: -7,
 		FanoutPageSize:                           -1,
 		PushBatchSize:                            -2,
@@ -215,7 +223,10 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 		PendingAckMaxPerSession:                  -3,
 		EventQueueSize:                           -4,
 	})
-	if !negative.Enabled || negative.ChannelWriteReactorCount != -5 || negative.ChannelWriteEffectWorkers != -6 ||
+	if !negative.Enabled || negative.ChannelWriteReactorCount != -5 ||
+		negative.ChannelWritePrepareWorkers != -6 ||
+		negative.ChannelWriteAppendWorkers != -7 ||
+		negative.ChannelWritePostCommitWorkers != -8 ||
 		negative.ChannelWriteRecipientDispatchConcurrency != -7 ||
 		negative.FanoutPageSize != -1 || negative.PushBatchSize != -2 ||
 		negative.PendingAckTTL != -time.Second || negative.PendingAckMaxPerSession != -3 ||
@@ -230,7 +241,9 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 		cfg  DeliveryConfig
 	}{
 		{name: "channelwrite reactor count", cfg: DeliveryConfig{ChannelWriteReactorCount: -1}},
-		{name: "channelwrite effect workers", cfg: DeliveryConfig{ChannelWriteEffectWorkers: -1}},
+		{name: "channelwrite prepare workers", cfg: DeliveryConfig{ChannelWritePrepareWorkers: -1}},
+		{name: "channelwrite append workers", cfg: DeliveryConfig{ChannelWriteAppendWorkers: -1}},
+		{name: "channelwrite post-commit workers", cfg: DeliveryConfig{ChannelWritePostCommitWorkers: -1}},
 		{name: "channelwrite recipient dispatch concurrency", cfg: DeliveryConfig{ChannelWriteRecipientDispatchConcurrency: -1}},
 		{name: "fanout page size", cfg: DeliveryConfig{FanoutPageSize: -1}},
 		{name: "push batch size", cfg: DeliveryConfig{PushBatchSize: -1}},

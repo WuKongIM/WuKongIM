@@ -294,9 +294,6 @@ func (e CommittedEnvelope) Clone() CommittedEnvelope {
 	return e
 }
 
-// CommittedMessage is a durable committed message read for post-commit replay.
-type CommittedMessage = CommittedEnvelope
-
 // Recipient identifies one UID selected for committed-message effects.
 type Recipient struct {
 	// UID identifies the receiving user.

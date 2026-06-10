@@ -4,8 +4,7 @@
 
 `internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
 `pkg/clusterv2` and `pkg/channelv2`. It maps channelwrite append DTOs to
-`pkg/channelv2` DTOs, resolves channel append authority through clusterv2,
-persists channelwrite post-commit cursors in app-local channel metadata, adapts
+`pkg/channelv2` DTOs, resolves channel append authority through clusterv2, adapts
 legacy-compatible channel metadata usecase calls to clusterv2 Slot metadata
 facades, adapts legacy-compatible user metadata calls to UID Slot metadata
 facades, adapts conversation list reads to UID-owned active rows plus
@@ -174,28 +173,6 @@ Route errors are translated at this adapter boundary:
 `channelwrite.ErrRouteNotReady`. Remote forwarding is supplied by the
 `internalv2/access/node` Channel Write RPC client; remote item results are
 returned item-aligned without interpreting successful payloads.
-
-## Channel Write Cursor Flow
-
-`ChannelWriteCursorStore` persists post-commit progress through app-local
-channel metadata, not the channel message log. The adapter owns only a narrow
-key/value channel metadata surface so the channelwrite runtime can load the
-last completed sequence and store monotonic cursor advances after recipient
-dispatch is accepted.
-
-```text
-channelwrite commit effect
-  -> ChannelWriteCursorStore.StorePostCommitCursor(channel, message_seq)
-       -> LoadChannelAppMetadata(channel, internalv2.channelwrite.post_commit_cursor)
-       -> skip stale/non-advancing writes
-       -> StoreChannelAppMetadata(channel, internalv2.channelwrite.post_commit_cursor)
-```
-
-`ChannelWriteCommittedReader` adapts `ReadChannelCommitted` to the
-channelwrite replay port by reading forward from `lastCompletedSeq + 1` with a
-bounded limit and returning `CommittedMessage` DTOs. This keeps replay ordering
-and pagination in the runtime while preserving clusterv2/channelv2 as an
-infrastructure detail.
 
 ## User Metadata Flow
 

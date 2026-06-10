@@ -80,22 +80,28 @@ submit. The group lock is held only through closed-state validation, reactor
 selection, and mailbox enqueue, then released while waiting for reactor
 admission ack so `Stop` can close admission promptly.
 
-Accepted submit events dispatch preparation to bounded effect workers. The
-reactor bounds accepted prepare/append admission with the same capacity as its
-mailbox, so new submissions return `ErrBackpressured` instead of growing
-unbounded in memory when workers or appenders are saturated. The reserved slot
-is released only when the item-aligned future completes. Each accepted prepare
-effect receives a monotonic sequence for the submitted authority target;
-completion events may arrive out of order, but the reactor drains them only in
-sequence so same-channel pending order matches submission order even with
-multiple workers.
+Accepted submit events dispatch preparation through the shared ants-backed
+effect scheduler. The reactor remains the only writer of `channelState`; ants
+workers only execute blocking prepare, append, and post-commit effects, then
+return completion events to the owning reactor. The reactor bounds accepted
+prepare/append admission with the same capacity as its mailbox, so new
+submissions return `ErrBackpressured` instead of growing unbounded in memory
+when workers or appenders are saturated. The reserved slot is released only
+when the item-aligned future completes. Each accepted prepare effect receives a
+monotonic sequence for the submitted authority target; completion events may
+arrive out of order, but the reactor drains them only in sequence so
+same-channel pending order matches submission order even with multiple workers.
 Effect worker pressure metrics report busy worker count, configured worker
 capacity, effect queue depth, and effect queue capacity per reactor and stage
-(`prepare`, `append`, `post_commit`, and `replay`) so saturation can be
-distinguished from downstream append or post-commit latency. Recipient
-authority dispatch fanout inside one `post_commit` effect is configured
-separately from the effect worker count so increasing effect workers does not
-also multiply downstream recipient-authority concurrency.
+(`prepare`, `append`, and `post_commit`) so saturation can be distinguished
+from downstream append or post-commit latency. Shared ants pool observations
+also report pool submit results (`submitted`, `full`, and `error`) plus
+in-flight/capacity/saturation gauges per stage, so benchmark evidence can show
+when dispatch is delayed because a stage pool is full. Prepare, append, and
+post-commit worker budgets are configured independently. Recipient authority
+dispatch fanout inside one `post_commit` effect is configured separately from
+the post-commit worker count so increasing post-commit workers does not also
+multiply downstream recipient-authority concurrency.
 
 The reactor loop applies prepare completion events, and only those completion
 events mutate `channelState`. Rejected and idempotent items complete their
@@ -129,11 +135,8 @@ append attempt without retry. Short append results complete missing items with
 successful append results complete `SENDACK` futures immediately with
 `ReasonSuccess`, message id, and channel sequence. Successful append items also
 enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
-point for best-effort post-commit recipient work. Durable post-commit cursor
-checkpoint and restart replay are intentionally disabled: `CursorStore`,
-`CommittedReader`, and `ReplayPageSize` options are ignored so old committed
-messages are not replayed for conversation or push side effects after authority
-restart.
+point for best-effort post-commit recipient work. Post-commit side effects are
+not checkpointed and not replayed after authority restart.
 
 Post-commit work is scheduled from the authority `channelState` after durable
 append succeeds and is independent from `SENDACK` completion. A committed
@@ -176,9 +179,8 @@ retried with bounded backoff and an attempt cap; routes still retryable after
 the final attempt return an explicit retry-exhausted error. Owner-local
 concrete session writes remain outside `channelState`.
 
-`Stop` cancels the runtime context passed to prepare, append, replay, and
-post-commit effects before waiting for reactors to drain. Once cancellation is
-observed, the reactor does not schedule more replay or post-commit backlog,
-avoiding a one-by-one walk of canceled work during shutdown. Ports must
-respect their context promptly for Stop to complete without waiting for the
-caller's timeout.
+`Stop` cancels the runtime context passed to prepare, append, and post-commit
+effects before waiting for reactors to drain. Once cancellation is observed,
+the reactor does not schedule more queued post-commit backlog, avoiding a
+one-by-one walk of canceled work during shutdown. Ports must respect their
+context promptly for Stop to complete without waiting for the caller's timeout.

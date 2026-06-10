@@ -219,6 +219,7 @@ func (c *Conn) readLoop() {
 			c.shutdown(err)
 			return
 		}
+		c.observeBytes("received_bytes", frame.Header.Kind, frame.Body.Len())
 		if frame.Header.Kind == core.FrameKindRPCResponse {
 			c.handleRPCResponse(frame)
 			continue
@@ -273,7 +274,11 @@ func (c *Conn) writeOutbound(outbound Outbound) error {
 			return err
 		}
 	}
-	return wire.WriteFrame(c.raw, outbound.toFrame(), c.cfg.Limits.MaxFrameBodyBytes)
+	if err := wire.WriteFrame(c.raw, outbound.toFrame(), c.cfg.Limits.MaxFrameBodyBytes); err != nil {
+		return err
+	}
+	c.observeBytes("sent_bytes", outbound.Kind, outbound.Payload.Len())
+	return nil
 }
 
 func (c *Conn) shutdown(err error) {
@@ -326,6 +331,19 @@ func (c *Conn) observePendingRPC(result string) {
 		SourceID: c.cfg.SourceID,
 		Result:   result,
 		Inflight: c.pending.Len(),
+	})
+}
+
+func (c *Conn) observeBytes(name string, kind core.FrameKind, bytes int) {
+	if c.cfg.Observer == nil || bytes <= 0 {
+		return
+	}
+	c.cfg.Observer.ObserveTransport(core.Event{
+		Name:     name,
+		NodeID:   c.cfg.NodeID,
+		SourceID: c.cfg.SourceID,
+		Kind:     kind,
+		Bytes:    bytes,
 	})
 }
 

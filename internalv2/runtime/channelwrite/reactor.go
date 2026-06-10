@@ -7,20 +7,18 @@ import (
 )
 
 type reactor struct {
-	id                int
-	mailbox           chan any
-	effects           chan prepareEffect
-	appendEffects     chan appendEffect
-	commitEffects     chan commitEffect
-	cursorEffects     chan cursorEffect
-	completions       chan reactorEvent
-	effectSlots       chan struct{}
-	limits            channelStateLimits
-	ports             preparePorts
-	appendPorts       appendPorts
-	commitPorts       commitPorts
-	cursorPorts       cursorPorts
-	effectWorkerCount int
+	id                 int
+	mailbox            chan any
+	completions        chan reactorEvent
+	effectSlots        chan struct{}
+	limits             channelStateLimits
+	scheduler          *effectScheduler
+	ports              preparePorts
+	appendPorts        appendPorts
+	commitPorts        commitPorts
+	prepareCapacity    int
+	appendCapacity     int
+	postCommitCapacity int
 
 	mu     sync.Mutex
 	states map[string]*channelState
@@ -31,20 +29,24 @@ type reactor struct {
 	pendingPrepare   []pendingPrepareEffect
 	pendingAppend    []appendEffect
 	pendingCommit    []commitEffect
-	pendingCursor    []cursorEffect
+	effectInflight   int
 
+	// prepareEffectQueue mirrors len(pendingPrepare) for cross-goroutine observations.
+	prepareEffectQueue atomic.Int64
+	// appendEffectQueue mirrors len(pendingAppend) for cross-goroutine observations.
+	appendEffectQueue atomic.Int64
+	// commitEffectQueue mirrors len(pendingCommit) for cross-goroutine observations.
+	commitEffectQueue   atomic.Int64
 	pendingAppendItems  atomic.Int64
 	appendInflightItems atomic.Int64
 	postCommitBacklog   atomic.Int64
 	prepareWorkerBusy   atomic.Int64
 	appendWorkerBusy    atomic.Int64
 	commitWorkerBusy    atomic.Int64
-	cursorWorkerBusy    atomic.Int64
 
 	startOnce  sync.Once
 	closeOnce  sync.Once
 	done       chan struct{}
-	effectWG   sync.WaitGroup
 	stopCtx    context.Context
 	stopCancel context.CancelFunc
 }
@@ -65,36 +67,34 @@ type pendingPrepareEffect struct {
 	ack    chan error
 }
 
-func newReactor(id int, mailboxSize int, limits channelStateLimits, effectWorkerCount int, ports preparePorts, appendPorts appendPorts, commitPorts commitPorts, cursorPorts cursorPorts) *reactor {
+func newReactor(id int, mailboxSize int, limits channelStateLimits, scheduler *effectScheduler, ports preparePorts, appendPorts appendPorts, commitPorts commitPorts) *reactor {
 	stopCtx, stopCancel := context.WithCancel(context.Background())
 	return &reactor{
-		id:                id,
-		mailbox:           make(chan any, mailboxSize),
-		effects:           make(chan prepareEffect, mailboxSize),
-		appendEffects:     make(chan appendEffect, mailboxSize),
-		commitEffects:     make(chan commitEffect, mailboxSize),
-		cursorEffects:     make(chan cursorEffect, mailboxSize),
-		completions:       make(chan reactorEvent, mailboxSize),
-		effectSlots:       make(chan struct{}, mailboxSize),
-		limits:            limits,
-		ports:             ports,
-		appendPorts:       appendPorts,
-		commitPorts:       commitPorts,
-		cursorPorts:       cursorPorts,
-		effectWorkerCount: effectWorkerCount,
-		states:            make(map[string]*channelState),
-		nextPrepareSeq:    make(map[string]uint64),
-		nextDrainSeq:      make(map[string]uint64),
-		completedPrepare:  make(map[string]map[uint64]prepareCompletedEvent),
-		done:              make(chan struct{}),
-		stopCtx:           stopCtx,
-		stopCancel:        stopCancel,
+		id:                 id,
+		mailbox:            make(chan any, mailboxSize),
+		completions:        make(chan reactorEvent, mailboxSize),
+		effectSlots:        make(chan struct{}, mailboxSize),
+		limits:             limits,
+		scheduler:          scheduler,
+		ports:              ports,
+		appendPorts:        appendPorts,
+		commitPorts:        commitPorts,
+		prepareCapacity:    scheduler.prepareWorkerCapacity(),
+		appendCapacity:     scheduler.appendWorkerCapacity(),
+		postCommitCapacity: scheduler.postCommitWorkerCapacity(),
+		states:             make(map[string]*channelState),
+		nextPrepareSeq:     make(map[string]uint64),
+		nextDrainSeq:       make(map[string]uint64),
+		completedPrepare:   make(map[string]map[uint64]prepareCompletedEvent),
+		done:               make(chan struct{}),
+		stopCtx:            stopCtx,
+		stopCancel:         stopCancel,
 	}
 }
 
 func (r *reactor) start() {
 	r.startOnce.Do(func() {
-		r.startEffectWorkers()
+		r.observeAllEffectWorkerPressure()
 		go r.run()
 	})
 }
@@ -102,77 +102,22 @@ func (r *reactor) start() {
 func (r *reactor) run() {
 	defer close(r.done)
 	mailbox := r.mailbox
-	completions := r.completions
-	effects := r.effects
-	appendEffects := r.appendEffects
-	commitEffects := r.commitEffects
-	cursorEffects := r.cursorEffects
-	for mailbox != nil || completions != nil || len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0 || len(r.pendingCursor) > 0 {
-		if r.stopCtx.Err() != nil && len(r.pendingCommit) > 0 {
+	for mailbox != nil || r.hasPendingEffects() || r.effectInflight > 0 {
+		if r.stopCtx.Err() != nil {
 			r.releasePendingCommitEffects(r.pendingCommit)
+			r.addEffectQueueDepth(effectStagePostCommit, -len(r.pendingCommit))
 			r.pendingCommit = nil
 		}
-		if r.stopCtx.Err() != nil && len(r.pendingCursor) > 0 {
-			r.releasePendingCursorEffects(r.pendingCursor)
-			r.pendingCursor = nil
+		r.dispatchPendingEffects()
+		completions := (<-chan reactorEvent)(nil)
+		if r.effectInflight > 0 {
+			completions = r.completions
 		}
-		if mailbox == nil && len(r.pendingPrepare) == 0 && effects != nil {
-			close(effects)
-			effects = nil
-		}
-		if mailbox == nil && len(r.pendingAppend) == 0 && !r.hasAppendInflight() && appendEffects != nil {
-			close(appendEffects)
-			appendEffects = nil
-		}
-		if mailbox == nil && len(r.pendingCommit) == 0 && !r.hasCommitInflight() && commitEffects != nil {
-			close(commitEffects)
-			commitEffects = nil
-		}
-		if mailbox == nil && len(r.pendingCursor) == 0 && !r.hasCursorInflight() && cursorEffects != nil {
-			close(cursorEffects)
-			cursorEffects = nil
-		}
-		var effectOut chan prepareEffect
-		var nextEffect pendingPrepareEffect
-		if len(r.pendingPrepare) > 0 && effects != nil {
-			effectOut = effects
-			nextEffect = r.pendingPrepare[0]
-		}
-		var appendOut chan appendEffect
-		var nextAppend appendEffect
-		if len(r.pendingAppend) > 0 && appendEffects != nil {
-			appendOut = appendEffects
-			nextAppend = r.pendingAppend[0]
-		}
-		var commitOut chan commitEffect
-		var nextCommit commitEffect
-		if len(r.pendingCommit) > 0 && commitEffects != nil {
-			commitOut = commitEffects
-			nextCommit = r.pendingCommit[0]
-		}
-		var cursorOut chan cursorEffect
-		var nextCursor cursorEffect
-		if len(r.pendingCursor) > 0 && cursorEffects != nil {
-			cursorOut = cursorEffects
-			nextCursor = r.pendingCursor[0]
+		wakeC := (<-chan struct{})(nil)
+		if r.hasPendingEffects() {
+			wakeC = r.scheduler.wakeC()
 		}
 		select {
-		case effectOut <- nextEffect.effect:
-			select {
-			case nextEffect.ack <- nil:
-			default:
-			}
-			r.pendingPrepare = r.pendingPrepare[1:]
-			r.observeEffectWorkerPressure("prepare")
-		case appendOut <- nextAppend:
-			r.pendingAppend = r.pendingAppend[1:]
-			r.observeEffectWorkerPressure("append")
-		case commitOut <- nextCommit:
-			r.pendingCommit = r.pendingCommit[1:]
-			r.observeEffectWorkerPressure("post_commit")
-		case cursorOut <- nextCursor:
-			r.pendingCursor = r.pendingCursor[1:]
-			r.observeEffectWorkerPressure("replay")
 		case event, ok := <-mailbox:
 			if !ok {
 				mailbox = nil
@@ -180,6 +125,7 @@ func (r *reactor) run() {
 			}
 			if submit, ok := event.(submitLocalEvent); ok {
 				r.pendingPrepare = append(r.pendingPrepare, submit.pendingPrepareEffect(r.nextPrepareSequence(targetKey(submit.target))))
+				r.addEffectQueueDepth(effectStagePrepare, 1)
 				select {
 				case submit.ack <- nil:
 				default:
@@ -191,12 +137,89 @@ func (r *reactor) run() {
 			}
 		case event, ok := <-completions:
 			if !ok {
-				completions = nil
 				continue
 			}
+			if r.effectInflight > 0 {
+				r.effectInflight--
+			}
 			event.apply(r)
+		case <-wakeC:
 		}
 	}
+}
+
+func (r *reactor) hasPendingEffects() bool {
+	return len(r.pendingPrepare) > 0 || len(r.pendingAppend) > 0 || len(r.pendingCommit) > 0
+}
+
+func (r *reactor) dispatchPendingEffects() {
+	for {
+		dispatched := false
+		if len(r.pendingPrepare) > 0 {
+			next := r.pendingPrepare[0]
+			ok, err := r.scheduler.trySubmitPrepare(r, next.effect)
+			if err != nil {
+				r.pendingPrepare = r.pendingPrepare[1:]
+				r.addEffectQueueDepth(effectStagePrepare, -1)
+				r.ackPrepareDispatch(next, nil)
+				prepareScheduleErrorCompletion(next.effect, err).apply(r)
+				dispatched = true
+			} else if ok {
+				r.pendingPrepare = r.pendingPrepare[1:]
+				r.addEffectQueueDepth(effectStagePrepare, -1)
+				r.effectInflight++
+				r.ackPrepareDispatch(next, nil)
+				r.observeEffectWorkerPressure(effectStagePrepare)
+				dispatched = true
+			}
+		}
+		if len(r.pendingAppend) > 0 {
+			next := r.pendingAppend[0]
+			ok, err := r.scheduler.trySubmitAppend(r, next)
+			if err != nil {
+				r.pendingAppend = r.pendingAppend[1:]
+				r.addEffectQueueDepth(effectStageAppend, -1)
+				appendScheduleErrorCompletion(next, err).apply(r)
+				dispatched = true
+			} else if ok {
+				r.pendingAppend = r.pendingAppend[1:]
+				r.addEffectQueueDepth(effectStageAppend, -1)
+				r.effectInflight++
+				r.observeEffectWorkerPressure(effectStageAppend)
+				dispatched = true
+			}
+		}
+		if len(r.pendingCommit) > 0 && r.stopCtx.Err() == nil {
+			next := r.pendingCommit[0]
+			ok, err := r.scheduler.trySubmitPostCommit(r, next)
+			if err != nil {
+				r.pendingCommit = r.pendingCommit[1:]
+				r.addEffectQueueDepth(effectStagePostCommit, -1)
+				commitScheduleErrorCompletion(next, err).apply(r)
+				dispatched = true
+			} else if ok {
+				r.pendingCommit = r.pendingCommit[1:]
+				r.addEffectQueueDepth(effectStagePostCommit, -1)
+				r.effectInflight++
+				r.observeEffectWorkerPressure(effectStagePostCommit)
+				dispatched = true
+			}
+		}
+		if !dispatched {
+			return
+		}
+	}
+}
+
+func (r *reactor) ackPrepareDispatch(effect pendingPrepareEffect, err error) {
+	select {
+	case effect.ack <- err:
+	default:
+	}
+}
+
+func (r *reactor) complete(event reactorEvent) {
+	r.completions <- event
 }
 
 func (r *reactor) releasePendingCommitEffects(effects []commitEffect) {
@@ -212,68 +235,6 @@ func (r *reactor) releasePendingCommitEffects(effects []commitEffect) {
 		}
 		state.cancelCommitDispatch()
 	}
-}
-
-func (r *reactor) releasePendingCursorEffects(effects []cursorEffect) {
-	if len(effects) == 0 {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, effect := range effects {
-		state := r.states[effect.key]
-		if state == nil {
-			continue
-		}
-		state.cancelCursorReplayDispatch()
-	}
-}
-
-func (r *reactor) startEffectWorkers() {
-	workerCount := r.effectWorkerCount
-	if workerCount <= 0 {
-		workerCount = 1
-	}
-	r.observeAllEffectWorkerPressure()
-	r.effectWG.Add(workerCount * 4)
-	for i := 0; i < workerCount; i++ {
-		go func() {
-			defer r.effectWG.Done()
-			for effect := range r.effects {
-				r.addEffectWorkerBusy("prepare", 1)
-				r.completions <- effect.run(r.stopCtx, r.ports)
-				r.addEffectWorkerBusy("prepare", -1)
-			}
-		}()
-		go func() {
-			defer r.effectWG.Done()
-			for effect := range r.appendEffects {
-				r.addEffectWorkerBusy("append", 1)
-				r.completions <- effect.run(r.stopCtx, r.appendPorts)
-				r.addEffectWorkerBusy("append", -1)
-			}
-		}()
-		go func() {
-			defer r.effectWG.Done()
-			for effect := range r.commitEffects {
-				r.addEffectWorkerBusy("post_commit", 1)
-				r.completions <- effect.run(r.stopCtx, r.commitPorts)
-				r.addEffectWorkerBusy("post_commit", -1)
-			}
-		}()
-		go func() {
-			defer r.effectWG.Done()
-			for effect := range r.cursorEffects {
-				r.addEffectWorkerBusy("replay", 1)
-				r.completions <- effect.run(r.stopCtx, r.cursorPorts)
-				r.addEffectWorkerBusy("replay", -1)
-			}
-		}()
-	}
-	go func() {
-		r.effectWG.Wait()
-		close(r.completions)
-	}()
 }
 
 func (r *reactor) close() {
@@ -368,17 +329,6 @@ func (r *reactor) hasCommitInflight() bool {
 	return false
 }
 
-func (r *reactor) hasCursorInflight() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, state := range r.states {
-		if state.replayInflight {
-			return true
-		}
-	}
-	return false
-}
-
 func (e submitLocalEvent) pendingPrepareEffect(seq uint64) pendingPrepareEffect {
 	key := targetKey(e.target)
 	return pendingPrepareEffect{
@@ -429,10 +379,9 @@ func (r *reactor) pressureObservation() ReactorPressureObservation {
 }
 
 func (r *reactor) observeAllEffectWorkerPressure() {
-	r.observeEffectWorkerPressure("prepare")
-	r.observeEffectWorkerPressure("append")
-	r.observeEffectWorkerPressure("post_commit")
-	r.observeEffectWorkerPressure("replay")
+	r.observeEffectWorkerPressure(effectStagePrepare)
+	r.observeEffectWorkerPressure(effectStageAppend)
+	r.observeEffectWorkerPressure(effectStagePostCommit)
 }
 
 func (r *reactor) observeEffectWorkerPressure(stage string) {
@@ -448,27 +397,29 @@ func (r *reactor) effectWorkerPressureObservation(stage string) EffectWorkerPres
 		ReactorID:      r.id,
 		Stage:          stage,
 		WorkerInflight: int(r.effectWorkerBusy(stage).Load()),
-		WorkerCapacity: r.effectWorkerCapacity(),
+		WorkerCapacity: r.effectWorkerCapacity(stage),
 		QueueDepth:     queueDepth,
 		QueueCapacity:  queueCapacity,
 	}
 }
 
-func (r *reactor) effectWorkerCapacity() int {
-	if r.effectWorkerCount > 0 {
-		return r.effectWorkerCount
+func (r *reactor) effectWorkerCapacity(stage string) int {
+	switch stage {
+	case effectStageAppend:
+		return r.appendCapacity
+	case effectStagePostCommit:
+		return r.postCommitCapacity
+	default:
+		return r.prepareCapacity
 	}
-	return 1
 }
 
 func (r *reactor) effectWorkerBusy(stage string) *atomic.Int64 {
 	switch stage {
-	case "append":
+	case effectStageAppend:
 		return &r.appendWorkerBusy
-	case "post_commit":
+	case effectStagePostCommit:
 		return &r.commitWorkerBusy
-	case "replay":
-		return &r.cursorWorkerBusy
 	default:
 		return &r.prepareWorkerBusy
 	}
@@ -476,14 +427,26 @@ func (r *reactor) effectWorkerBusy(stage string) *atomic.Int64 {
 
 func (r *reactor) effectQueuePressure(stage string) (int, int) {
 	switch stage {
-	case "append":
-		return len(r.appendEffects), cap(r.appendEffects)
-	case "post_commit":
-		return len(r.commitEffects), cap(r.commitEffects)
-	case "replay":
-		return len(r.cursorEffects), cap(r.cursorEffects)
+	case effectStageAppend:
+		return int(r.appendEffectQueue.Load()), cap(r.effectSlots)
+	case effectStagePostCommit:
+		return int(r.commitEffectQueue.Load()), cap(r.effectSlots)
 	default:
-		return len(r.effects), cap(r.effects)
+		return int(r.prepareEffectQueue.Load()), cap(r.effectSlots)
+	}
+}
+
+func (r *reactor) addEffectQueueDepth(stage string, delta int) {
+	if r == nil || delta == 0 {
+		return
+	}
+	switch stage {
+	case effectStageAppend:
+		r.appendEffectQueue.Add(int64(delta))
+	case effectStagePostCommit:
+		r.commitEffectQueue.Add(int64(delta))
+	default:
+		r.prepareEffectQueue.Add(int64(delta))
 	}
 }
 

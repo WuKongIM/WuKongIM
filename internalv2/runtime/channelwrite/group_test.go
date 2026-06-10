@@ -32,15 +32,17 @@ func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
 func TestRecipientDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T) {
 	group := New(Options{
 		LocalNodeID:                  1,
-		EffectWorkerCount:            16,
+		PrepareWorkers:               16,
+		AppendWorkers:                16,
+		PostCommitWorkers:            16,
 		RecipientDispatchConcurrency: 4,
 		RecipientAuthorityResolver:   staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
 		RecipientRouter:              &recordingRecipientRouterForRecipientTest{},
 		RecipientBatchSize:           16,
 	})
 
-	if group.opts.EffectWorkerCount != 16 {
-		t.Fatalf("EffectWorkerCount = %d, want 16", group.opts.EffectWorkerCount)
+	if group.opts.PostCommitWorkers != 16 {
+		t.Fatalf("PostCommitWorkers = %d, want 16", group.opts.PostCommitWorkers)
 	}
 	if got := group.reactors[0].commitPorts.recipientDispatchConcurrency; got != 4 {
 		t.Fatalf("recipient dispatch concurrency = %d, want 4 independent from effect workers", got)

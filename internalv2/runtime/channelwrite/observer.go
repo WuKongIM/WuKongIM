@@ -81,6 +81,20 @@ func observeEffectWorkerPressure(observer AppendObserver, event EffectWorkerPres
 	pressureObserver.SetChannelWriteEffectWorkerPressure(event)
 }
 
+func observeEffectPool(observer AppendObserver, event EffectPoolObservation) {
+	poolObserver, ok := observer.(EffectPoolObserver)
+	if !ok || poolObserver == nil {
+		return
+	}
+	if event.Stage == "" {
+		event.Stage = "unknown"
+	}
+	if event.Result == "" {
+		event.Result = "unknown"
+	}
+	poolObserver.ObserveChannelWriteEffectPool(event)
+}
+
 func observeEffect(observer AppendObserver, event EffectObservation) {
 	effectObserver, ok := observer.(EffectObserver)
 	if !ok || effectObserver == nil {

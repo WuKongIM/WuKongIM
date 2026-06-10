@@ -93,6 +93,22 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	return completion
 }
 
+func appendPanicCompletion(effect appendEffect, recovered any) appendCompletedEvent {
+	return appendErrorCompletion(effect, effectPanicError(effectStageAppend, recovered))
+}
+
+func appendScheduleErrorCompletion(effect appendEffect, scheduleErr error) appendCompletedEvent {
+	return appendErrorCompletion(effect, effectScheduleError(effectStageAppend, scheduleErr))
+}
+
+func appendErrorCompletion(effect appendEffect, err error) appendCompletedEvent {
+	return appendCompletedEvent{
+		key:   effect.key,
+		seq:   effect.seq,
+		items: appendBatchErrorCompletions(effect.items, err),
+	}
+}
+
 func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) AppendBatchRequest {
 	if attempt <= 0 {
 		attempt = appendInitialAttempt

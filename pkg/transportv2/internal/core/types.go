@@ -75,6 +75,8 @@ type Event struct {
 	Priority Priority
 	// ServiceID is the service associated with the event, when applicable.
 	ServiceID uint16
+	// Kind is the wire frame kind associated with byte traffic events.
+	Kind FrameKind
 	// Result classifies the event outcome.
 	Result string
 	// Items is the queued item count or current count associated with the event.

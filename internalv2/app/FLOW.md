@@ -73,8 +73,8 @@ New(Config)
        create channelwrite.Group with multiple channel-hashed authority reactors,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation projector, optional delivery
-       presence/owner pusher, committed cursor store/replay reader, and append
-       metrics observer
+       presence/owner pusher, append metrics observer, and ants-backed
+       prepare/append/post-commit worker pools
        create channelwrite.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Write RPC so remote nodes can submit to the local
@@ -94,19 +94,26 @@ state is updated, but no online delivery is submitted. With delivery enabled,
 gateway RECVACK and session close feedback flows to the delivery usecase, while
 channelwrite post-commit effects resolve online routes and push to owner nodes.
 `Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
-count with a minimum of four, `ChannelWriteEffectWorkers` defaults to eight
-workers per reactor, and `ChannelWriteRecipientDispatchConcurrency` defaults
-to four recipient-authority targets per post-commit envelope. Reactor count
-controls channel-state sharding; effect workers run prepare, append, replay,
-and post-commit work for that reactor. Per-channel append ordering remains
-capped by channel state even when different channels run through different
-reactors or workers.
+count with a minimum of four. `ChannelWritePrepareWorkers`,
+`ChannelWriteAppendWorkers`, and `ChannelWritePostCommitWorkers` feed shared
+ants stage pools sized by reactor count. Prepare and post-commit default to
+eight workers per reactor; append defaults to 96 workers per reactor because it
+is the foreground durable-append path that determines SEND/SENDACK throughput.
+`ChannelWriteRecipientDispatchConcurrency` defaults to four recipient-authority
+targets per post-commit envelope. Reactor count controls channel-state
+sharding; stage workers run only blocking effects and never write channel
+state. The delivery observer maps both reactor-level worker/queue
+pressure and shared ants pool submit/full/saturation observations into
+Prometheus, which the three-node bench script summarizes in
+`channelwrite_metrics_summary.tsv`. Per-channel append ordering remains capped
+by channel state even when different channels run through different reactors or
+workers.
 The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, recipient authority grouping, conversation mutation, and owner push
 execution all run after SENDACK from the authority reactor's best-effort
-post-commit pipeline. Durable post-commit cursor persistence and replay on
-restart are disabled. Post-commit failures are logged with the failing phase
-and route/dispatch context, counted through effect metrics, and dropped without
+post-commit pipeline. Post-commit persistence and restart replay are not part
+of channelwrite. Post-commit failures are logged with the failing phase and
+route/dispatch context, counted through effect metrics, and dropped without
 retry; they do not change channel durability or the already-successful SENDACK
 decision. Conversation projection admission itself also performs no route
 retry; projection failures are logged directly at the app adapter before the
@@ -257,7 +264,7 @@ gateway/API send
        group recipients by UID authority target
        ConversationAuthorityClient.AdmitPatches
        optional presence resolve and owner-node push
-       persist the post-commit cursor after successful recipient dispatch
+       drop the in-memory post-commit envelope after one dispatch attempt
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`

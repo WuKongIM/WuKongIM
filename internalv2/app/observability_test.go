@@ -105,6 +105,16 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Inflight:  2,
 		Capacity:  4,
 	})
+	transportObserver.ObserveTransport(transportv2.Event{
+		Name:  "sent_bytes",
+		Kind:  transportv2.FrameKindRPCRequest,
+		Bytes: 64,
+	})
+	transportObserver.ObserveTransport(transportv2.Event{
+		Name:  "received_bytes",
+		Kind:  transportv2.FrameKindRPCResponse,
+		Bytes: 72,
+	})
 
 	storageObserver := storageCommitMetricsObserver{metrics: reg}
 	storageObserver.SetCommitCoordinatorQueue(7, 1024)
@@ -190,6 +200,20 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	})
 	if got := transportScheduler.GetGauge().GetValue(); got != 3 {
 		t.Fatalf("transport scheduler depth = %v, want 3", got)
+	}
+	sentBytes := requireAppMetricFamily(t, families, "wukongim_transport_sent_bytes_total")
+	sentRPCRequest := findAppMetricByLabels(t, sentBytes, map[string]string{
+		"msg_type": "rpc_request",
+	})
+	if got := sentRPCRequest.GetCounter().GetValue(); got != 64 {
+		t.Fatalf("transport sent bytes = %v, want 64", got)
+	}
+	receivedBytes := requireAppMetricFamily(t, families, "wukongim_transport_received_bytes_total")
+	receivedRPCResponse := findAppMetricByLabels(t, receivedBytes, map[string]string{
+		"msg_type": "rpc_response",
+	})
+	if got := receivedRPCResponse.GetCounter().GetValue(); got != 72 {
+		t.Fatalf("transport received bytes = %v, want 72", got)
 	}
 	dbCommitQueue := findAppMetricByLabels(t, queueDepth, map[string]string{
 		"component": "db",

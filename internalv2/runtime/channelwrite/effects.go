@@ -36,6 +36,29 @@ func (e prepareEffect) run(runtimeCtx context.Context, ports preparePorts) prepa
 	}
 }
 
+func preparePanicCompletion(effect prepareEffect, recovered any) prepareCompletedEvent {
+	err := effectPanicError(effectStagePrepare, recovered)
+	return prepareErrorCompletion(effect, err)
+}
+
+func prepareScheduleErrorCompletion(effect prepareEffect, scheduleErr error) prepareCompletedEvent {
+	return prepareErrorCompletion(effect, effectScheduleError(effectStagePrepare, scheduleErr))
+}
+
+func prepareErrorCompletion(effect prepareEffect, err error) prepareCompletedEvent {
+	results := make([]SendBatchItemResult, len(effect.items))
+	for i := range results {
+		results[i] = SendBatchItemResult{Err: err}
+	}
+	return prepareCompletedEvent{
+		target:  effect.target,
+		results: results,
+		future:  effect.future,
+		key:     effect.key,
+		seq:     effect.seq,
+	}
+}
+
 func (e prepareCompletedEvent) apply(r *reactor) {
 	r.recordPrepareCompletion(e)
 }
@@ -91,9 +114,8 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 		key := targetKey(e.target)
 		state := r.states[key]
 		if state == nil {
-			state = newChannelState(e.target, r.limits, r.cursorPorts.enabled())
+			state = newChannelState(e.target, r.limits)
 			r.states[key] = state
-			r.scheduleCursorLocked(key, state)
 		}
 		if state.canAdmit(len(matching)) {
 			state.enqueuePrepared(matching)
@@ -218,6 +240,7 @@ func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
 			seq:    seq,
 			items:  items,
 		})
+		r.addEffectQueueDepth(effectStageAppend, 1)
 		r.addPendingAppendItems(-len(items))
 		r.addAppendInflightItems(len(items))
 	}
@@ -227,50 +250,12 @@ func (r *reactor) scheduleCommitLocked(key string, state *channelState) {
 	if r.stopCtx.Err() != nil {
 		return
 	}
-	if !state.replayDone {
-		r.scheduleCursorLocked(key, state)
-		return
-	}
 	effect, ok := state.nextCommitEffect(key)
 	if !ok {
 		return
 	}
 	r.pendingCommit = append(r.pendingCommit, effect)
-}
-
-func (r *reactor) scheduleCursorLocked(key string, state *channelState) {
-	if r.stopCtx.Err() != nil {
-		return
-	}
-	effect, ok := state.nextCursorEffect(key, r.cursorPorts.replayPageSize)
-	if !ok {
-		return
-	}
-	r.pendingCursor = append(r.pendingCursor, effect)
-}
-
-func (r *reactor) recordCursorCompletion(event cursorCompletedEvent) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	state := r.states[event.key]
-	if state == nil {
-		return
-	}
-	if event.err != nil {
-		state.finishCursorReplayFailure()
-		r.observePressureLocked()
-		return
-	}
-	backlogBefore := state.commitBacklog()
-	state.finishCursorReplaySuccess(event.loadedCursor, event.messages, event.nextSeq, event.done)
-	r.addPostCommitBacklog(state.commitBacklog() - backlogBefore)
-	if event.done {
-		r.scheduleCommitLocked(event.key, state)
-		r.observePressureLocked()
-		return
-	}
-	r.scheduleCursorLocked(event.key, state)
-	r.observePressureLocked()
+	r.addEffectQueueDepth(effectStagePostCommit, 1)
 }
 
 func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {

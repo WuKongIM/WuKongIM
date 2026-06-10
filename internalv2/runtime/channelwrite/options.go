@@ -12,11 +12,12 @@ const (
 	defaultMailboxSize                  = 1024
 	defaultPendingItemHighWatermark     = 1024
 	defaultAppendInflightLimit          = 1
-	defaultEffectWorkerCount            = 1
+	defaultPrepareWorkerCount           = 1
+	defaultAppendWorkerCount            = 1
+	defaultPostCommitWorkerCount        = 1
 	defaultSubscriberPageSize           = 256
 	defaultRecipientBatchSize           = 256
 	defaultRecipientDispatchConcurrency = 4
-	defaultReplayPageSize               = 256
 	defaultDeliveryRetryMaxAttempts     = 3
 	defaultDeliveryRetryInitialBackoff  = 5 * time.Millisecond
 	defaultDeliveryRetryMaxBackoff      = 100 * time.Millisecond
@@ -124,15 +125,15 @@ type ReactorPressureObserver interface {
 	SetChannelWriteReactorPressure(ReactorPressureObservation)
 }
 
-// EffectWorkerPressureObservation describes effect worker utilization and queue pressure.
+// EffectWorkerPressureObservation describes stage worker utilization and queue pressure.
 type EffectWorkerPressureObservation struct {
 	// ReactorID is the local channel-hashed reactor id.
 	ReactorID int
-	// Stage is prepare, append, post_commit, or replay.
+	// Stage is prepare, append, or post_commit.
 	Stage string
 	// WorkerInflight is the current number of busy workers for this stage.
 	WorkerInflight int
-	// WorkerCapacity is the configured worker count for this stage.
+	// WorkerCapacity is the shared stage pool worker capacity.
 	WorkerCapacity int
 	// QueueDepth is the current number of queued effects for this stage.
 	QueueDepth int
@@ -144,6 +145,26 @@ type EffectWorkerPressureObservation struct {
 type EffectWorkerPressureObserver interface {
 	// SetChannelWriteEffectWorkerPressure records current effect worker and queue pressure.
 	SetChannelWriteEffectWorkerPressure(EffectWorkerPressureObservation)
+}
+
+// EffectPoolObservation describes shared ants pool admission and pressure.
+type EffectPoolObservation struct {
+	// Stage is prepare, append, or post_commit.
+	Stage string
+	// Result is submitted, full, error, or released.
+	Result string
+	// Inflight is the current number of pool tokens in use.
+	Inflight int
+	// Capacity is the shared stage pool worker capacity.
+	Capacity int
+	// Saturated is true when Inflight is at or above Capacity.
+	Saturated bool
+}
+
+// EffectPoolObserver receives shared ants pool admission and pressure gauges.
+type EffectPoolObserver interface {
+	// ObserveChannelWriteEffectPool records one shared effect pool observation.
+	ObserveChannelWriteEffectPool(EffectPoolObservation)
 }
 
 // PostCommitFailureObservation describes one best-effort post-commit side-effect failure.
@@ -200,7 +221,7 @@ type PostCommitFailureObserver interface {
 
 // EffectObservation describes one asynchronous channel write effect.
 type EffectObservation struct {
-	// Stage is append, post_commit, or replay.
+	// Stage is prepare, append, or post_commit.
 	Stage string
 	// Result is ok or a low-cardinality error class.
 	Result string
@@ -210,7 +231,7 @@ type EffectObservation struct {
 	Duration time.Duration
 }
 
-// EffectObserver receives asynchronous append/post-commit/replay observations.
+// EffectObserver receives asynchronous prepare/append/post-commit observations.
 type EffectObserver interface {
 	// ObserveChannelWriteEffect records one channel write effect.
 	ObserveChannelWriteEffect(EffectObservation)
@@ -261,20 +282,6 @@ type OwnerPusher interface {
 	Push(context.Context, PushCommand) (PushResult, error)
 }
 
-// CursorStore persists the last post-commit sequence fully accepted by recipient dispatch.
-type CursorStore interface {
-	// LoadPostCommitCursor returns the last completed post-commit channel sequence.
-	LoadPostCommitCursor(context.Context, ChannelID) (uint64, error)
-	// StorePostCommitCursor stores a monotonic post-commit channel sequence.
-	StorePostCommitCursor(context.Context, ChannelID, uint64) error
-}
-
-// CommittedReader reads durable committed messages for post-commit replay.
-type CommittedReader interface {
-	// ReadCommittedFrom returns committed messages starting at fromSeq in ascending order.
-	ReadCommittedFrom(context.Context, ChannelID, uint64, int) ([]CommittedMessage, error)
-}
-
 // Options configures the channel write reactor group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
@@ -297,8 +304,12 @@ type Options struct {
 	PendingItemHighWatermark int
 	// AppendInflightLimit bounds same-channel append batches in flight. Values <= 0 use one in-flight batch.
 	AppendInflightLimit int
-	// EffectWorkerCount is the bounded worker count for prepare, append, replay, and post-commit effects. Values <= 0 use one worker of each kind.
-	EffectWorkerCount int
+	// PrepareWorkers is the bounded per-reactor worker budget for send preparation. Values <= 0 use a conservative default.
+	PrepareWorkers int
+	// AppendWorkers is the bounded per-reactor worker budget for durable append calls. Values <= 0 use a conservative default.
+	AppendWorkers int
+	// PostCommitWorkers is the bounded per-reactor worker budget for best-effort post-commit effects. Values <= 0 use a conservative default.
+	PostCommitWorkers int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
 	// Subscribers pages channel subscribers for group-channel post-commit effects.
@@ -325,12 +336,6 @@ type Options struct {
 	DeliveryRetryInitialBackoff time.Duration
 	// DeliveryRetryMaxBackoff caps retry sleeps for retryable owner pushes. Values <= 0 use a bounded default.
 	DeliveryRetryMaxBackoff time.Duration
-	// CursorStore is ignored because post-commit side effects are best-effort and no longer checkpointed.
-	CursorStore CursorStore
-	// CommittedReader is ignored because authority restart replay for post-commit side effects is disabled.
-	CommittedReader CommittedReader
-	// ReplayPageSize is kept for compatibility with older option wiring and is ignored.
-	ReplayPageSize int
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -354,8 +359,14 @@ func applyDefaults(opts Options) Options {
 	if opts.AppendInflightLimit <= 0 {
 		opts.AppendInflightLimit = defaultAppendInflightLimit
 	}
-	if opts.EffectWorkerCount <= 0 {
-		opts.EffectWorkerCount = defaultEffectWorkerCount
+	if opts.PrepareWorkers <= 0 {
+		opts.PrepareWorkers = defaultPrepareWorkerCount
+	}
+	if opts.AppendWorkers <= 0 {
+		opts.AppendWorkers = defaultAppendWorkerCount
+	}
+	if opts.PostCommitWorkers <= 0 {
+		opts.PostCommitWorkers = defaultPostCommitWorkerCount
 	}
 	if opts.SubscriberPageSize <= 0 {
 		opts.SubscriberPageSize = defaultSubscriberPageSize
@@ -365,9 +376,6 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.RecipientDispatchConcurrency <= 0 {
 		opts.RecipientDispatchConcurrency = defaultRecipientDispatchConcurrency
-	}
-	if opts.ReplayPageSize <= 0 {
-		opts.ReplayPageSize = defaultReplayPageSize
 	}
 	if opts.DeliveryRetryMaxAttempts <= 0 {
 		opts.DeliveryRetryMaxAttempts = defaultDeliveryRetryMaxAttempts
@@ -413,13 +421,6 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		recipientBatchSize:           opts.RecipientBatchSize,
 		recipientDispatchConcurrency: opts.RecipientDispatchConcurrency,
 		observer:                     opts.Observer,
-	}
-}
-
-func cursorPortsFromOptions(opts Options) cursorPorts {
-	return cursorPorts{
-		replayPageSize: opts.ReplayPageSize,
-		observer:       opts.Observer,
 	}
 }
 

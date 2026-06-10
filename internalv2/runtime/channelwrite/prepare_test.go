@@ -88,7 +88,9 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 	group := newPreparedGroupWithOptions(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  ids,
-		EffectWorkerCount:          1,
+		PrepareWorkers:             1,
+		AppendWorkers:              1,
+		PostCommitWorkers:          1,
 		Clock:                      clock,
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
 		RecipientRouter:            router,
@@ -557,7 +559,9 @@ func newPreparedGroup(t *testing.T, ports preparePortsForTest) *preparedGroupFor
 		Authorizer:        ports.authorizer,
 		Idempotency:       ports.idempotency,
 		SenderFence:       ports.fence,
-		EffectWorkerCount: 1,
+		PrepareWorkers:    1,
+		AppendWorkers:     1,
+		PostCommitWorkers: 1,
 		Clock:             ports.clock,
 	}
 	return newPreparedGroupWithOptions(t, opts)

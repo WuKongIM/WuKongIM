@@ -15,7 +15,9 @@ func BenchmarkSubmitLocalHotChannel(b *testing.B) {
 	group := newBenchmarkChannelWriteGroup(b, Options{
 		LocalNodeID:       1,
 		ReactorCount:      1,
-		EffectWorkerCount: 2,
+		PrepareWorkers:    2,
+		AppendWorkers:     2,
+		PostCommitWorkers: 2,
 		MailboxSize:       4096,
 	})
 	target := benchmarkAuthorityTarget("bench-hot")
@@ -46,7 +48,9 @@ func BenchmarkSubmitLocalManyChannelsParallel(b *testing.B) {
 	group := newBenchmarkChannelWriteGroup(b, Options{
 		LocalNodeID:       1,
 		ReactorCount:      maxBenchmarkInt(4, runtime.GOMAXPROCS(0)),
-		EffectWorkerCount: 2,
+		PrepareWorkers:    2,
+		AppendWorkers:     2,
+		PostCommitWorkers: 2,
 		MailboxSize:       4096,
 	})
 	targets := make([]AuthorityTarget, channelCount)
@@ -223,11 +227,10 @@ func newBenchmarkPressureReactor(stateCount int, observer AppendObserver) *react
 		0,
 		1024,
 		channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 1},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{observer: observer},
 		commitPorts{},
-		cursorPorts{},
 	)
 	for i := 0; i < stateCount; i++ {
 		target := benchmarkAuthorityTarget("pressure-" + strconv.Itoa(i))

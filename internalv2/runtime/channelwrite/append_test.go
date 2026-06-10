@@ -16,7 +16,9 @@ func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 		LocalNodeID:       1,
 		MessageID:         newSequenceIDsForPrepare(10),
 		Appender:          appender,
-		EffectWorkerCount: 2,
+		PrepareWorkers:    2,
+		AppendWorkers:     2,
+		PostCommitWorkers: 2,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -52,7 +54,9 @@ func TestAppendInflightLimitAboveOneAllowsSecondSameChannelAppend(t *testing.T) 
 		MessageID:           newSequenceIDsForPrepare(30),
 		Appender:            appender,
 		AppendInflightLimit: 2,
-		EffectWorkerCount:   2,
+		PrepareWorkers:      2,
+		AppendWorkers:       2,
+		PostCommitWorkers:   2,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -81,7 +85,9 @@ func TestDifferentChannelsAppendIndependentlyOnDifferentReactors(t *testing.T) {
 		ReactorCount:      2,
 		MessageID:         newSequenceIDsForPrepare(20),
 		Appender:          appender,
-		EffectWorkerCount: 2,
+		PrepareWorkers:    2,
+		AppendWorkers:     2,
+		PostCommitWorkers: 2,
 	})
 	firstTarget, secondTarget := differentReactorTargetsForAppendTest(t, group)
 
@@ -298,11 +304,10 @@ func TestRecordAppendCompletionDoesNotAllocateSingleDispatch(t *testing.T) {
 		0,
 		1,
 		channelStateLimits{},
-		1,
+		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{},
 		commitPorts{},
-		cursorPorts{},
 	)
 	state := newChannelState(target, r.limits)
 	r.states[key] = state

@@ -876,6 +876,8 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 	reg.ChannelWrite.ObserveLocalAdmission(2, "backpressured", 4)
 	reg.ChannelWrite.SetReactorPressure(2, 3, 1024, 9, 1024, 7, 2, 5)
 	reg.ChannelWrite.SetEffectWorkerPressure(2, "append", 3, 16, 5, 1024)
+	reg.ChannelWrite.ObserveEffectPool("append", "submitted", 8, 16, false)
+	reg.ChannelWrite.ObserveEffectPool("append", "full", 16, 16, true)
 	reg.ChannelWrite.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
 	reg.ChannelWrite.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
 
@@ -946,7 +948,36 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"stage":      "append",
 	}).GetGauge().GetValue())
 
-	for _, family := range []*dto.MetricFamily{router, admission, state, effect, workerInflight, workerCapacity, queueDepth, queueCapacity} {
+	poolSubmit := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_submit_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, poolSubmit, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "append",
+		"result":    "full",
+	}).GetCounter().GetValue())
+
+	poolInflight := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_inflight")
+	require.Equal(t, float64(16), findMetricByLabels(t, poolInflight, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "append",
+	}).GetGauge().GetValue())
+
+	poolCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_capacity")
+	require.Equal(t, float64(16), findMetricByLabels(t, poolCapacity, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "append",
+	}).GetGauge().GetValue())
+
+	poolSaturated := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_saturated")
+	require.Equal(t, float64(1), findMetricByLabels(t, poolSaturated, map[string]string{
+		"node_id":   "12",
+		"node_name": "node-12",
+		"stage":     "append",
+	}).GetGauge().GetValue())
+
+	for _, family := range []*dto.MetricFamily{router, admission, state, effect, workerInflight, workerCapacity, queueDepth, queueCapacity, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
 		for _, metric := range family.GetMetric() {
 			requireNoMetricLabel(t, metric, "uid")
 			requireNoMetricLabel(t, metric, "channel_id")

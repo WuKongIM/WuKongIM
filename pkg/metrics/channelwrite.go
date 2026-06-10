@@ -25,6 +25,10 @@ type ChannelWriteMetrics struct {
 	effectWorkerCap      *prometheus.GaugeVec
 	effectQueueDepth     *prometheus.GaugeVec
 	effectQueueCap       *prometheus.GaugeVec
+	effectPoolSubmit     *prometheus.CounterVec
+	effectPoolInflight   *prometheus.GaugeVec
+	effectPoolCap        *prometheus.GaugeVec
+	effectPoolSaturated  *prometheus.GaugeVec
 	effectTotal          *prometheus.CounterVec
 	effectDuration       *prometheus.HistogramVec
 	effectItems          *prometheus.HistogramVec
@@ -105,6 +109,26 @@ func newChannelWriteMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Configured internalv2 channel write effect queue capacity by reactor and stage.",
 			ConstLabels: labels,
 		}, []string{"reactor_id", "stage"}),
+		effectPoolSubmit: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelwrite_effect_pool_submit_total",
+			Help:        "Total internalv2 channel write shared effect pool submit attempts by stage and result.",
+			ConstLabels: labels,
+		}, []string{"stage", "result"}),
+		effectPoolInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_pool_inflight",
+			Help:        "Current internalv2 channel write shared effect pool inflight workers by stage.",
+			ConstLabels: labels,
+		}, []string{"stage"}),
+		effectPoolCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_pool_capacity",
+			Help:        "Configured internalv2 channel write shared effect pool capacity by stage.",
+			ConstLabels: labels,
+		}, []string{"stage"}),
+		effectPoolSaturated: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelwrite_effect_pool_saturated",
+			Help:        "Whether the internalv2 channel write shared effect pool is saturated by stage.",
+			ConstLabels: labels,
+		}, []string{"stage"}),
 		effectTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelwrite_effect_total",
 			Help:        "Total internalv2 channel write asynchronous effects by stage and result.",
@@ -139,6 +163,10 @@ func newChannelWriteMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.effectWorkerCap,
 		m.effectQueueDepth,
 		m.effectQueueCap,
+		m.effectPoolSubmit,
+		m.effectPoolInflight,
+		m.effectPoolCap,
+		m.effectPoolSaturated,
 		m.effectTotal,
 		m.effectDuration,
 		m.effectItems,
@@ -201,6 +229,35 @@ func (m *ChannelWriteMetrics) SetEffectWorkerPressure(reactorID int, stage strin
 	m.effectWorkerCap.WithLabelValues(id, stage).Set(float64(workerCapacity))
 	m.effectQueueDepth.WithLabelValues(id, stage).Set(float64(queueDepth))
 	m.effectQueueCap.WithLabelValues(id, stage).Set(float64(queueCapacity))
+}
+
+// ObserveEffectPool records shared effect pool admission and pressure.
+func (m *ChannelWriteMetrics) ObserveEffectPool(stage, result string, inflight int, capacity int, saturated bool) {
+	if m == nil {
+		return
+	}
+	if stage == "" {
+		stage = "unknown"
+	}
+	if result == "" {
+		result = "unknown"
+	}
+	if inflight < 0 {
+		inflight = 0
+	}
+	if capacity < 0 {
+		capacity = 0
+	}
+	if result != "released" {
+		m.effectPoolSubmit.WithLabelValues(stage, result).Inc()
+	}
+	m.effectPoolInflight.WithLabelValues(stage).Set(float64(inflight))
+	m.effectPoolCap.WithLabelValues(stage).Set(float64(capacity))
+	if saturated {
+		m.effectPoolSaturated.WithLabelValues(stage).Set(1)
+		return
+	}
+	m.effectPoolSaturated.WithLabelValues(stage).Set(0)
 }
 
 // ObserveEffect records one asynchronous channel write effect.
