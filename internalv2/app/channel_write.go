@@ -7,10 +7,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // channelWriteAuthorityLocal admits RPC-forwarded sends to the local authority reactor.
@@ -202,60 +200,6 @@ func (s channelWriteDeliverySubscriberSource) NextSubscriberPage(ctx context.Con
 		}
 	}
 	return channelwrite.SubscriberPage{Recipients: recipients, Cursor: page.NextCursor, Done: page.Done}, nil
-}
-
-// channelWriteConversationProjector forwards recipient conversation patches to conversation authority routing.
-type channelWriteConversationProjector struct {
-	client channelWriteConversationAdmissionClient
-	logger wklog.Logger
-}
-
-type channelWriteConversationAdmissionClient interface {
-	AdmitPatches(context.Context, []conversationusecase.ActivePatch) error
-}
-
-func (p channelWriteConversationProjector) AdmitRecipientPatches(ctx context.Context, patches []channelwrite.ConversationPatch) error {
-	if p.client == nil || len(patches) == 0 {
-		return nil
-	}
-	out := make([]conversationusecase.ActivePatch, 0, len(patches))
-	for _, patch := range patches {
-		out = append(out, conversationusecase.ActivePatch{
-			UID:          patch.UID,
-			ChannelID:    patch.ChannelID,
-			ChannelType:  patch.ChannelType,
-			ReadSeq:      patch.ReadSeq,
-			DeletedToSeq: patch.DeletedToSeq,
-			ActiveAt:     patch.ActiveAt,
-			UpdatedAt:    patch.UpdatedAt,
-			SparseActive: patch.SparseActive,
-			MessageSeq:   patch.MessageSeq,
-		})
-	}
-	err := p.client.AdmitPatches(ctx, out)
-	if err != nil {
-		p.logProjectionFailure(err, out)
-	}
-	return err
-}
-
-func (p channelWriteConversationProjector) logProjectionFailure(err error, patches []conversationusecase.ActivePatch) {
-	if p.logger == nil {
-		return
-	}
-	var first conversationusecase.ActivePatch
-	if len(patches) > 0 {
-		first = patches[0]
-	}
-	p.logger.Error("channelwrite conversation projection failed",
-		wklog.Event("internalv2.app.channelwrite.conversation_projection_failed"),
-		wklog.String("uid", first.UID),
-		wklog.Int("patchCount", len(patches)),
-		wklog.String("channelID", first.ChannelID),
-		wklog.Int64("channelType", first.ChannelType),
-		wklog.Uint64("messageSeq", first.MessageSeq),
-		wklog.Error(err),
-	)
 }
 
 // channelWritePresenceResolver adapts presence lookups to channelwrite flat routes.

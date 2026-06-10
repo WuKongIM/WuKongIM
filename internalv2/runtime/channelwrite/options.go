@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 )
 
 const (
@@ -264,10 +265,10 @@ type RecipientAuthorityRouter interface {
 	DispatchRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
 }
 
-// ConversationProjector admits recipient-scoped conversation activity patches.
-type ConversationProjector interface {
-	// AdmitRecipientPatches applies conversation updates before delivery is resolved.
-	AdmitRecipientPatches(context.Context, []ConversationPatch) error
+// ConversationActiveAdmitter admits committed recipient activity into the conversation active worker.
+type ConversationActiveAdmitter interface {
+	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
+	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
 }
 
 // PresenceResolver resolves online endpoints for recipient UIDs.
@@ -318,8 +319,8 @@ type Options struct {
 	RecipientAuthorityResolver RecipientAuthorityResolver
 	// RecipientRouter dispatches selected recipients to their recipient authority node.
 	RecipientRouter RecipientAuthorityRouter
-	// ConversationProjector updates recipient conversations before delivery is resolved.
-	ConversationProjector ConversationProjector
+	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
+	ConversationActiveAdmitter ConversationActiveAdmitter
 	// PresenceResolver resolves online recipient endpoints for delivery pushes.
 	PresenceResolver PresenceResolver
 	// OwnerPusher pushes online delivery commands to owner nodes.
@@ -415,6 +416,7 @@ func appendPortsFromOptions(opts Options) appendPorts {
 func commitPortsFromOptions(opts Options) commitPorts {
 	return commitPorts{
 		subscribers:                  opts.Subscribers,
+		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
 		recipientRouter:              opts.RecipientRouter,
 		subscriberPageSize:           opts.SubscriberPageSize,

@@ -13,16 +13,12 @@ var (
 	ErrCommitEffectFailed = errors.New("internalv2/channelwrite: commit effect failed")
 	// ErrDeliveryRetryExhausted reports retryable owner push routes after the final delivery attempt.
 	ErrDeliveryRetryExhausted = errors.New("internalv2/channelwrite: delivery retry exhausted")
-	// ErrConversationProjectorRequired reports delivery configuration without conversation projection.
-	ErrConversationProjectorRequired = errors.New("internalv2/channelwrite: conversation projector required")
 	// ErrEffectPanic reports a recovered panic from an asynchronous channel write effect.
 	ErrEffectPanic = errors.New("internalv2/channelwrite: effect panic")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.
 type RecipientProcessorOptions struct {
-	// ConversationProjector updates recipient conversations before delivery is resolved.
-	ConversationProjector ConversationProjector
 	// PresenceResolver resolves online recipient endpoints for delivery pushes.
 	PresenceResolver PresenceResolver
 	// OwnerPusher pushes online delivery commands to owner nodes.
@@ -35,13 +31,12 @@ type RecipientProcessorOptions struct {
 	DeliveryRetryMaxBackoff time.Duration
 }
 
-// RecipientProcessor applies recipient-authority conversation and delivery effects.
+// RecipientProcessor applies recipient-authority delivery effects.
 type RecipientProcessor struct {
 	ports recipientPorts
 }
 
 type recipientPorts struct {
-	conversations               ConversationProjector
 	presence                    PresenceResolver
 	pusher                      OwnerPusher
 	deliveryRetryMaxAttempts    int
@@ -52,7 +47,6 @@ type recipientPorts struct {
 // NewRecipientProcessor creates a recipient-authority post-commit processor.
 func NewRecipientProcessor(opts RecipientProcessorOptions) *RecipientProcessor {
 	return &RecipientProcessor{ports: recipientPorts{
-		conversations:               opts.ConversationProjector,
 		presence:                    opts.PresenceResolver,
 		pusher:                      opts.OwnerPusher,
 		deliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
@@ -61,7 +55,7 @@ func NewRecipientProcessor(opts RecipientProcessorOptions) *RecipientProcessor {
 	}}
 }
 
-// ProcessRecipientBatch applies conversation patches and pushes online delivery routes.
+// ProcessRecipientBatch pushes online delivery routes for a recipient-authority batch.
 func (p *RecipientProcessor) ProcessRecipientBatch(ctx context.Context, batch RecipientBatch) error {
 	if p == nil {
 		return nil
@@ -76,16 +70,8 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 	if err := contextErr(ctx); err != nil {
 		return withPostCommitFailureDetail(err, postCommitBatchDetail("context", batch))
 	}
-	if ports.conversations != nil {
-		if err := ports.conversations.AdmitRecipientPatches(ctx, conversationPatchesForRecipients(batch)); err != nil {
-			return withPostCommitFailureDetail(err, postCommitBatchDetail("conversation_projector", batch))
-		}
-	}
 	if ports.presence == nil || ports.pusher == nil {
 		return nil
-	}
-	if ports.conversations == nil {
-		return withPostCommitFailureDetail(ErrConversationProjectorRequired, postCommitBatchDetail("delivery_config", batch))
 	}
 	uids := recipientUIDs(batch.Recipients)
 	routes, err := ports.presence.EndpointsByUIDs(ctx, uids)
@@ -122,28 +108,6 @@ func postCommitBatchDetail(phase string, batch RecipientBatch) PostCommitFailure
 		UIDCount:       len(uids),
 		RecipientCount: len(batch.Recipients),
 	}
-}
-
-func conversationPatchesForRecipients(batch RecipientBatch) []ConversationPatch {
-	event := batch.Event
-	patches := make([]ConversationPatch, 0, len(batch.Recipients))
-	for _, recipient := range batch.Recipients {
-		var visibleFloor uint64
-		if recipient.JoinSeq > 0 {
-			visibleFloor = recipient.JoinSeq - 1
-		}
-		patches = append(patches, ConversationPatch{
-			UID:          recipient.UID,
-			ChannelID:    event.ChannelID,
-			ChannelType:  int64(event.ChannelType),
-			ReadSeq:      visibleFloor,
-			DeletedToSeq: visibleFloor,
-			ActiveAt:     event.ServerTimestampMS,
-			UpdatedAt:    event.ServerTimestampMS,
-			MessageSeq:   event.MessageSeq,
-		})
-	}
-	return patches
 }
 
 func recipientUIDs(recipients []Recipient) []string {

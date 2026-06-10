@@ -73,8 +73,8 @@ New(Config)
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelwrite.Group with multiple channel-hashed authority reactors,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
-       recipient authority resolver, conversation projector, optional delivery
-       presence/owner pusher, append metrics observer, and ants-backed
+       recipient authority resolver, conversation active-batch admitter,
+       optional delivery presence/owner pusher, append metrics observer, and ants-backed
        prepare/append/post-commit worker pools
        create channelwrite.Router for local authority admission and remote
        channel-authority forwarding
@@ -110,16 +110,17 @@ Prometheus, which the three-node bench script summarizes in
 by channel state even when different channels run through different reactors or
 workers.
 The foreground SEND path waits only for channel-authority durable append;
-subscriber scan, recipient authority grouping, conversation mutation, and owner push
-execution all run after SENDACK from the authority reactor's best-effort
-post-commit pipeline. Post-commit persistence and restart replay are not part
-of channelwrite. Post-commit failures are logged with the failing phase and
-route/dispatch context, counted through effect metrics, and dropped without
-retry; they do not change channel durability or the already-successful SENDACK
-decision. Conversation projection admission itself also performs no route
-retry; projection failures are logged directly at the app adapter before the
-outer post-commit failure observation is emitted. Runtime fanout failures are
-counted with normalized delivery error classes. Retryable fanout failures enter
+subscriber scan, conversation active-batch admission, recipient authority
+grouping, and owner push execution all run after SENDACK from the authority
+reactor's best-effort post-commit pipeline. Post-commit persistence and restart
+replay are not part of channelwrite. Post-commit failures are logged with the
+failing phase and route/dispatch context, counted through effect metrics, and
+dropped without retry; they do not change channel durability or the
+already-successful SENDACK decision. Conversation active-batch admission itself
+also performs no app-layer route retry; failures surface as the
+`conversation_active` post-commit phase before online delivery is attempted.
+Runtime fanout failures are counted with normalized delivery error classes.
+Retryable fanout failures enter
 a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
 overflow is surfaced as `queue_full`. Owner-local pushes write `RecvPacket` values through
 `online.SessionHandle.WriteDelivery`. Each owner push snapshots the immutable
@@ -133,14 +134,15 @@ errors and short append results.
 The channel write commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
-subscriber source, or the clusterv2 Slot metadata source. Recipients are grouped
-by exact UID hash-slot authority target; when clusterv2 exposes batch key
-routing, the app recipient resolver resolves each subscriber page's unique UIDs
-through one batch route lookup before grouping. The local channelwrite recipient
-processor then admits active conversation patches through the shared
-`ConversationAuthorityClient` without route retry, logs projection admission
-failures, and submits delivery scoped to that recipient group when delivery is
-enabled. `/bench/v1/channels` and
+subscriber source, or the clusterv2 Slot metadata source. After each recipient
+set is formed, channelwrite admits a `conversationactive.ActiveBatch` through
+the shared `ConversationAuthorityClient`; this still runs when online delivery
+is disabled. Recipients are then grouped by exact UID hash-slot authority target
+for delivery; when clusterv2 exposes batch key routing, the app recipient
+resolver resolves each subscriber page's unique UIDs through one batch route
+lookup before grouping. The local channelwrite recipient processor is
+delivery-only and submits delivery scoped to that recipient group when delivery
+is enabled. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation

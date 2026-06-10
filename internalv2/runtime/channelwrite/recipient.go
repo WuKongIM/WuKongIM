@@ -7,10 +7,11 @@ import (
 	"sync"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 )
 
 func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
-	if ports.recipientRouter == nil {
+	if ports.activeAdmitter == nil && ports.recipientRouter == nil {
 		return nil
 	}
 	if err := contextErr(ctx); err != nil {
@@ -65,16 +66,22 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 }
 
 func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipients []Recipient, ports commitPorts) error {
-	if ports.recipientRouter == nil || len(recipients) == 0 {
+	if len(recipients) == 0 || (ports.activeAdmitter == nil && ports.recipientRouter == nil) {
 		return nil
-	}
-	if ports.recipientAuthorityResolver == nil {
-		return withPostCommitFailureDetail(errors.New("channelwrite: recipient authority resolver required"), PostCommitFailureDetail{Phase: "recipient_route_resolve"})
 	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
 	recipients, uids := normalizeRecipientsForAuthorityResolution(recipients)
 	if len(recipients) == 0 {
 		return nil
+	}
+	if err := admitConversationActiveBatch(ctx, event, recipients, uids, ports.activeAdmitter); err != nil {
+		return err
+	}
+	if ports.recipientRouter == nil {
+		return nil
+	}
+	if ports.recipientAuthorityResolver == nil {
+		return withPostCommitFailureDetail(errors.New("channelwrite: recipient authority resolver required"), PostCommitFailureDetail{Phase: "recipient_route_resolve"})
 	}
 	targets, err := resolveRecipientAuthorityTargets(ctx, ports.recipientAuthorityResolver, uids)
 	if err != nil {
@@ -112,6 +119,39 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 		return nil
 	}
 	return dispatchRecipientTargetsConcurrent(ctx, event, order, grouped, batchSize, concurrency, ports.recipientRouter)
+}
+
+func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uids []string, admitter ConversationActiveAdmitter) error {
+	if admitter == nil {
+		return nil
+	}
+	entries := make([]conversationactive.ActiveEntry, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.UID == "" {
+			continue
+		}
+		entries = append(entries, conversationactive.ActiveEntry{UID: recipient.UID})
+	}
+	if len(entries) == 0 && event.FromUID == "" {
+		return nil
+	}
+	batch := conversationactive.ActiveBatch{
+		SenderUID:   event.FromUID,
+		ChannelID:   event.ChannelID,
+		ChannelType: event.ChannelType,
+		MessageSeq:  event.MessageSeq,
+		ActiveAtMS:  event.ServerTimestampMS,
+		Recipients:  entries,
+	}
+	if err := admitter.AdmitActiveBatch(ctx, batch); err != nil {
+		return withPostCommitFailureDetail(err, PostCommitFailureDetail{
+			Phase:          "conversation_active",
+			UID:            firstString(uids),
+			UIDCount:       len(uids),
+			RecipientCount: len(recipients),
+		})
+	}
+	return nil
 }
 
 func normalizeRecipientsForAuthorityResolution(recipients []Recipient) ([]Recipient, []string) {

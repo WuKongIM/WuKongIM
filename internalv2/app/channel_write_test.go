@@ -2,12 +2,10 @@ package app
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
-	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
 
@@ -43,36 +41,6 @@ func TestChannelWriteRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	}
 }
 
-func TestChannelWriteConversationProjectorAdmitsPatchesAndLogsFailure(t *testing.T) {
-	logger := &recordingAppLogger{}
-	client := &recordingConversationProjectionClient{admitErr: conversationusecase.ErrStaleRoute}
-	projector := channelWriteConversationProjector{client: client, logger: logger}
-
-	err := projector.AdmitRecipientPatches(context.Background(), []channelwrite.ConversationPatch{{
-		UID:         "u1",
-		ChannelID:   "g1",
-		ChannelType: 2,
-		ActiveAt:    100,
-		UpdatedAt:   101,
-		MessageSeq:  7,
-	}})
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("AdmitRecipientPatches() error = %v, want ErrStaleRoute", err)
-	}
-	if client.admitCalls != 1 {
-		t.Fatalf("AdmitPatches calls = %d, want 1", client.admitCalls)
-	}
-	if len(client.patches) != 1 || client.patches[0].UID != "u1" || client.patches[0].MessageSeq != 7 {
-		t.Fatalf("admitted patches = %#v, want one converted patch", client.patches)
-	}
-	entry := requireAppLogEvent(t, logger, "ERROR", "internalv2.app.channelwrite.conversation_projection_failed")
-	requireAppLogField(t, entry, "uid", "u1")
-	requireAppLogField(t, entry, "patchCount", 1)
-	requireAppLogField(t, entry, "channelID", "g1")
-	requireAppLogField(t, entry, "channelType", int64(2))
-	requireAppLogField(t, entry, "messageSeq", uint64(7))
-}
-
 type batchRecipientRouteNodeForChannelWriteTest struct {
 	routes      map[string]clusterv2.Route
 	singleCalls int
@@ -93,16 +61,4 @@ func (n *batchRecipientRouteNodeForChannelWriteTest) RouteKeys(keys []string) ([
 		routes[i] = n.routes[key]
 	}
 	return routes, nil
-}
-
-type recordingConversationProjectionClient struct {
-	admitCalls int
-	admitErr   error
-	patches    []conversationusecase.ActivePatch
-}
-
-func (c *recordingConversationProjectionClient) AdmitPatches(_ context.Context, patches []conversationusecase.ActivePatch) error {
-	c.admitCalls++
-	c.patches = append(c.patches, patches...)
-	return c.admitErr
 }

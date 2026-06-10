@@ -10,6 +10,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 )
 
 func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
@@ -39,6 +40,110 @@ func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
 	got := router.allUIDs()
 	if !reflect.DeepEqual(got, []string{"u2", "u3"}) {
 		t.Fatalf("recipient uids = %#v, want scoped u2,u3", got)
+	}
+}
+
+func TestActiveBatchAdmittedBeforeRecipientRouter(t *testing.T) {
+	steps := &orderedStepsForDeliveryTest{}
+	active := &recordingActiveAdmitterForRecipientTest{steps: steps}
+	router := &recordingRecipientRouterForRecipientTest{steps: steps}
+	event := CommittedEnvelope{
+		MessageID:         1,
+		MessageSeq:        42,
+		ChannelID:         "scoped",
+		ChannelType:       2,
+		FromUID:           "sender",
+		ServerTimestampMS: 1234,
+		MessageScopedUIDs: []string{"u2", "u3"},
+	}
+
+	err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
+		activeAdmitter:             active,
+		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
+		recipientRouter:            router,
+		recipientBatchSize:         16,
+		subscriberPageSize:         2,
+	})
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipients() error = %v", err)
+	}
+
+	if got := steps.snapshot(); !reflect.DeepEqual(got, []string{"active", "delivery"}) {
+		t.Fatalf("steps = %#v, want active before delivery", got)
+	}
+	if len(active.batches) != 1 {
+		t.Fatalf("active batches = %d, want 1", len(active.batches))
+	}
+	batch := active.batches[0]
+	if batch.SenderUID != "sender" || batch.ChannelID != "scoped" || batch.ChannelType != 2 ||
+		batch.MessageSeq != 42 || batch.ActiveAtMS != 1234 {
+		t.Fatalf("active batch metadata = %#v, want committed event metadata", batch)
+	}
+	if got := active.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3"}) {
+		t.Fatalf("active recipient uids = %#v, want expanded recipient set", got)
+	}
+	for _, recipient := range batch.Recipients {
+		if recipient.IsSender {
+			t.Fatalf("active recipient %#v sets IsSender, want sender handled by SenderUID", recipient)
+		}
+	}
+}
+
+func TestActiveBatchAdmittedWithoutRecipientRouter(t *testing.T) {
+	active := &recordingActiveAdmitterForRecipientTest{}
+	event := CommittedEnvelope{
+		MessageID:         1,
+		MessageSeq:        7,
+		ChannelID:         "g1",
+		ChannelType:       2,
+		FromUID:           "sender",
+		ServerTimestampMS: 99,
+	}
+
+	err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
+		activeAdmitter: active,
+		subscribers: &recordingSubscriberSourceForRecipientTest{
+			pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}, {UID: "u3"}}, Done: true}},
+		},
+		subscriberPageSize: 2,
+	})
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipients() error = %v", err)
+	}
+
+	if got := active.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3"}) {
+		t.Fatalf("active recipient uids = %#v, want subscriber page recipients", got)
+	}
+}
+
+func TestActiveBatchFailureStopsRecipientRouter(t *testing.T) {
+	activeErr := errors.New("active unavailable")
+	active := &recordingActiveAdmitterForRecipientTest{err: activeErr}
+	router := &recordingRecipientRouterForRecipientTest{}
+
+	err := dispatchCommittedRecipients(context.Background(), CommittedEnvelope{
+		MessageID:         1,
+		MessageSeq:        7,
+		ChannelID:         "g1",
+		ChannelType:       2,
+		FromUID:           "sender",
+		ServerTimestampMS: 99,
+		MessageScopedUIDs: []string{"u2"},
+	}, commitPorts{
+		activeAdmitter:             active,
+		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
+		recipientRouter:            router,
+		recipientBatchSize:         16,
+	})
+	if !errors.Is(err, activeErr) {
+		t.Fatalf("dispatchCommittedRecipients() error = %v, want active error", err)
+	}
+	detail := postCommitFailureDetailFromError(err)
+	if detail.Phase != "conversation_active" || detail.UID != "u2" || detail.RecipientCount != 1 {
+		t.Fatalf("post-commit failure detail = %#v, want conversation_active detail", detail)
+	}
+	if got := router.callCount(); got != 0 {
+		t.Fatalf("router calls = %d, want 0 after active failure", got)
 	}
 }
 
@@ -489,11 +594,13 @@ func (s *recordingSubscriberSourceForRecipientTest) NextSubscriberPage(_ context
 
 type recordingRecipientRouterForRecipientTest struct {
 	mu      sync.Mutex
+	steps   *orderedStepsForDeliveryTest
 	targets []RecipientAuthorityTarget
 	batches []RecipientBatch
 }
 
 func (r *recordingRecipientRouterForRecipientTest) DispatchRecipientBatch(_ context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	r.steps.add("delivery")
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.targets = append(r.targets, target)
@@ -609,4 +716,26 @@ func recipientAuthorityTargetForTest(hashSlot uint16, leader uint64, epoch uint6
 		RouteRevision:  uint64(hashSlot + 1000),
 		AuthorityEpoch: epoch,
 	}
+}
+
+type recordingActiveAdmitterForRecipientTest struct {
+	steps   *orderedStepsForDeliveryTest
+	err     error
+	batches []conversationactive.ActiveBatch
+}
+
+func (a *recordingActiveAdmitterForRecipientTest) AdmitActiveBatch(_ context.Context, batch conversationactive.ActiveBatch) error {
+	a.steps.add("active")
+	a.batches = append(a.batches, batch)
+	return a.err
+}
+
+func (a *recordingActiveAdmitterForRecipientTest) recipientUIDs() []string {
+	var out []string
+	for _, batch := range a.batches {
+		for _, recipient := range batch.Recipients {
+			out = append(out, recipient.UID)
+		}
+	}
+	return out
 }

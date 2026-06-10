@@ -8,6 +8,7 @@ import (
 
 type commitPorts struct {
 	subscribers                  SubscriberSource
+	activeAdmitter               ConversationActiveAdmitter
 	recipientAuthorityResolver   RecipientAuthorityResolver
 	recipientRouter              RecipientAuthorityRouter
 	subscriberPageSize           int

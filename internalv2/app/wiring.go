@@ -379,7 +379,7 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				opts.RecipientAuthorityResolver = channelWriteRecipientResolver{node: recipientNode}
 			}
 			if a.conversationAuthorityClient != nil {
-				opts.ConversationProjector = channelWriteConversationProjector{client: a.conversationAuthorityClient, logger: a.logger.Named("delivery")}
+				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
 			}
 			if a.cfg.Delivery.Enabled {
 				opts.PresenceResolver = channelWritePresenceResolver{presence: a.presence}
@@ -391,7 +391,6 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				opts.Observer = observer
 			}
 			processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
-				ConversationProjector:       opts.ConversationProjector,
 				PresenceResolver:            opts.PresenceResolver,
 				OwnerPusher:                 opts.OwnerPusher,
 				DeliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
