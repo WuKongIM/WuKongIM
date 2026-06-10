@@ -14,7 +14,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	const activeAtMS int64 = 1781094600000
 	m := NewManager(Options{})
 
-	err := m.AdmitActiveBatch(ActiveBatch{
+	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -56,7 +56,7 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 	const activeAtMS int64 = 1781094600000
 	m := NewManager(Options{})
 
-	err := m.AdmitActiveBatch(ActiveBatch{
+	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -131,7 +131,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			},
 		},
 	} {
-		if err := m.AdmitActiveBatch(batch); err != nil {
+		if err := m.AdmitActiveBatch(context.Background(), batch); err != nil {
 			t.Fatalf("AdmitActiveBatch() error = %v", err)
 		}
 	}
@@ -167,7 +167,7 @@ func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
 		},
 	})
 
-	err := m.AdmitActiveBatch(ActiveBatch{
+	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -202,7 +202,7 @@ func TestListActiveViewReadsCacheBeforeFlush(t *testing.T) {
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store})
 
-	err := m.AdmitActiveBatch(ActiveBatch{
+	err := m.AdmitActiveBatch(ctx, ActiveBatch{
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -246,7 +246,7 @@ func TestListActiveViewMergesCacheOverDB(t *testing.T) {
 	}
 	m := NewManager(Options{Store: store})
 
-	err := m.MarkActive([]ActivePatch{
+	err := m.MarkActive(ctx, []ActivePatch{
 		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
 		{UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAtMS: 800},
 	})
@@ -293,7 +293,7 @@ func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
 		},
 	}
 	m := NewManager(Options{Store: store})
-	err := m.MarkActive([]ActivePatch{
+	err := m.MarkActive(ctx, []ActivePatch{
 		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
 	})
 	if err != nil {
@@ -322,7 +322,7 @@ func TestListActiveViewPropagatesCacheOnlyHydrationError(t *testing.T) {
 	lookupErr := errors.New("primary lookup failed")
 	store := &recordingActiveStore{lookupErr: lookupErr}
 	m := NewManager(Options{Store: store})
-	err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}})
+	err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
@@ -335,7 +335,7 @@ func TestListActiveViewPropagatesCacheOnlyHydrationError(t *testing.T) {
 
 func TestListActiveViewRequiresStore(t *testing.T) {
 	m := NewManager(Options{})
-	if err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(context.Background(), []ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -351,7 +351,7 @@ func TestListActiveViewRequiresStore(t *testing.T) {
 func TestListActiveViewPaginatesCacheRowsWithCursorAndLimit(t *testing.T) {
 	ctx := context.Background()
 	m := NewManager(Options{Store: &recordingActiveStore{}})
-	err := m.MarkActive([]ActivePatch{
+	err := m.MarkActive(ctx, []ActivePatch{
 		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAtMS: 300},
 		{UID: "u1", ChannelID: "b", ChannelType: 1, ActiveAtMS: 200},
 		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAtMS: 200},
@@ -381,7 +381,7 @@ func TestListActiveViewPaginatesCacheRowsWithCursorAndLimit(t *testing.T) {
 func TestListActiveViewNonPositiveLimitReturnsEmptyDonePage(t *testing.T) {
 	store := &recordingActiveStore{rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}}}
 	m := NewManager(Options{Store: store})
-	if err := m.MarkActive([]ActivePatch{{UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAtMS: 200}}); err != nil {
+	if err := m.MarkActive(context.Background(), []ActivePatch{{UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAtMS: 200}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 	after := metadb.UserConversationActiveCursor{ActiveAt: 300, ChannelID: "before", ChannelType: 2}
@@ -398,6 +398,143 @@ func TestListActiveViewNonPositiveLimitReturnsEmptyDonePage(t *testing.T) {
 	}
 }
 
+func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want 1", got)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Flushed != 1 {
+		t.Fatalf("Flush() flushed = %d, want 1", result.Flushed)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
+	}
+
+	want := metadb.UserConversationActivePatch{
+		UID:         "u1",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ReadSeq:     7,
+		ActiveAt:    1000,
+		UpdatedAt:   1000,
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 {
+		t.Fatalf("touches = %+v, want one patch", store.touches)
+	}
+	if got := store.touches[0][0]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("touch patch = %+v, want %+v", got, want)
+	}
+	if patch := store.touches[0][0]; patch.DeletedToSeq != 0 || patch.MessageSeq != 0 || patch.SparseActive || patch.SparseActiveSet {
+		t.Fatalf("touch patch set unmanaged fields: %+v", patch)
+	}
+}
+
+func TestFlushFailureKeepsDirty(t *testing.T) {
+	ctx := context.Background()
+	touchErr := errors.New("touch failed")
+	store := &recordingActiveStore{touchErr: touchErr}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if !errors.Is(err, touchErr) {
+		t.Fatalf("Flush() error = %v, want %v", err, touchErr)
+	}
+	if result.Flushed != 0 {
+		t.Fatalf("Flush() flushed = %d, want 0 on failure", result.Flushed)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want 1", got)
+	}
+}
+
+func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	store.touchHook = func() {
+		if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 2000, ReadSeq: 9}}); err != nil {
+			t.Fatalf("MarkActive(concurrent) error = %v", err)
+		}
+	}
+
+	result, err := m.Flush(ctx, 1)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Flushed != 1 {
+		t.Fatalf("Flush() flushed = %d, want 1", result.Flushed)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want 1 after concurrent update", got)
+	}
+	entry, ok := m.EntryForTest("u1", "room-1", 2)
+	if !ok {
+		t.Fatalf("entry was removed")
+	}
+	if entry.ActiveAtMS != 2000 || entry.ReadSeq != 9 {
+		t.Fatalf("entry = %+v, want newer active/read values", entry)
+	}
+	if got := store.touches[0][0].ActiveAt; got != 1000 {
+		t.Fatalf("flushed ActiveAt = %d, want original snapshot 1000", got)
+	}
+}
+
+func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store, MaxCachedRows: 1})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive(old) error = %v", err)
+	}
+
+	err := m.AdmitActiveBatch(ctx, ActiveBatch{
+		SenderUID:   "u1",
+		ChannelID:   "new",
+		ChannelType: 2,
+		MessageSeq:  10,
+		ActiveAtMS:  2000,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+
+	if _, ok := m.EntryForTest("u1", "old", 2); ok {
+		t.Fatalf("old flushed row is still cached under pressure")
+	}
+	newEntry, ok := m.EntryForTest("u1", "new", 2)
+	if !ok {
+		t.Fatalf("new row was not cached")
+	}
+	if newEntry.ActiveAtMS != 2000 || newEntry.ReadSeq != 10 {
+		t.Fatalf("new entry = %+v, want active 2000 read 10", newEntry)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want only new dirty row", got)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 {
+		t.Fatalf("touches = %+v, want old row flushed once", store.touches)
+	}
+	if got := store.touches[0][0]; got.ChannelID != "old" || got.ActiveAt != 1000 {
+		t.Fatalf("flushed patch = %+v, want old active row", got)
+	}
+}
+
 type recordingActiveStore struct {
 	rows      []metadb.UserConversationState
 	primary   map[metadb.ConversationKey]metadb.UserConversationState
@@ -406,6 +543,9 @@ type recordingActiveStore struct {
 	lastLimit int
 	lookupErr error
 	lookups   []metadb.ConversationKey
+	touchErr  error
+	touchHook func()
+	touches   [][]metadb.UserConversationActivePatch
 }
 
 func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -454,6 +594,18 @@ func (s *recordingActiveStore) GetUserConversationState(_ context.Context, _ str
 	}
 	row, ok := s.primary[key]
 	return row, ok, nil
+}
+
+func (s *recordingActiveStore) TouchUserConversationActiveAt(_ context.Context, patches []metadb.UserConversationActivePatch) error {
+	batch := append([]metadb.UserConversationActivePatch(nil), patches...)
+	s.touches = append(s.touches, batch)
+	if s.touchHook != nil {
+		s.touchHook()
+	}
+	if s.touchErr != nil {
+		return s.touchErr
+	}
+	return nil
 }
 
 func testActiveRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {

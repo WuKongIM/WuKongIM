@@ -7,23 +7,38 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ErrStoreRequired reports that active view reads need a durable store.
+// ErrStoreRequired reports that durable active-row operations need a store.
 var ErrStoreRequired = errors.New("conversationactive: store required")
+
+// ErrCachePressure reports that admitting new active rows would exceed the cache bound.
+var ErrCachePressure = errors.New("conversationactive: cache pressure")
 
 // Options configures the conversation active admission manager.
 type Options struct {
 	// NowMS returns the current Unix millisecond when a batch does not carry ActiveAtMS.
 	NowMS func() int64
-	// Store reads durable active conversation rows that have already flushed to DB.
+	// Store reads and persists durable active conversation rows that have already flushed to DB.
 	Store ActiveStore
+	// MaxCachedRows bounds in-memory active rows across all users; zero disables the bound.
+	MaxCachedRows int
 }
 
-// ActiveStore reads durable active conversation pages for cache/DB view merging.
+// ActiveStore reads and persists durable active conversation rows for cache/DB view merging.
 type ActiveStore interface {
 	// ListUserConversationActivePage returns active rows after the active-index cursor.
 	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
 	// GetUserConversationState returns one durable primary row for cache-only hydration.
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
+	// TouchUserConversationActiveAt persists active-row patches produced by the runtime cache.
+	TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error
+}
+
+// FlushResult reports the outcome of one dirty active-row flush attempt.
+type FlushResult struct {
+	// Selected is the number of dirty rows selected from cache for this flush.
+	Selected int
+	// Flushed is the number of selected rows durably written by the store.
+	Flushed int
 }
 
 // ActiveViewPage is a merged cache plus durable active-row page.

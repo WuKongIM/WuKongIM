@@ -60,8 +60,8 @@ func (m *Manager) cacheRowsForActiveView(uid string, after metadb.UserConversati
 	rows := make([]metadb.UserConversationState, 0, len(byChannel))
 	afterRows := make(map[activeViewKey]metadb.UserConversationState, len(byChannel))
 	allRows := make(map[activeViewKey]metadb.UserConversationState, len(byChannel))
-	for key, patch := range byChannel {
-		row := activePatchState(patch)
+	for key, entry := range byChannel {
+		row := activePatchState(entry.patch)
 		if row.ActiveAt <= 0 {
 			continue
 		}
