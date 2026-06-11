@@ -292,6 +292,55 @@ func TestServerHandlesNotify(t *testing.T) {
 	}
 }
 
+func TestServerSharedExecutorHandlesMultipleServices(t *testing.T) {
+	server, err := NewServer(ServerConfig{NodeID: 2, Limits: DefaultLimits()})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	defer server.Stop()
+
+	if err := server.Handle(7, func(context.Context, []byte) ([]byte, error) {
+		return []byte("seven"), nil
+	}, ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024}); err != nil {
+		t.Fatalf("Handle(7) error = %v", err)
+	}
+	if err := server.Handle(8, func(context.Context, []byte) ([]byte, error) {
+		return []byte("eight"), nil
+	}, ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024}); err != nil {
+		t.Fatalf("Handle(8) error = %v", err)
+	}
+	if err := server.ListenAndServe("127.0.0.1:0"); err != nil {
+		t.Fatalf("ListenAndServe() error = %v", err)
+	}
+
+	client, err := NewClient(ClientConfig{
+		NodeID:    1,
+		Discovery: testDiscovery{2: server.Addr()},
+		PoolSize:  1,
+		Limits:    DefaultLimits(),
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Stop()
+
+	resp7, err := client.Call(context.Background(), 2, 0, PriorityRPC, 7, []byte("x"))
+	if err != nil {
+		t.Fatalf("Call(service 7) error = %v", err)
+	}
+	if string(resp7) != "seven" {
+		t.Fatalf("service 7 response = %q, want seven", resp7)
+	}
+
+	resp8, err := client.Call(context.Background(), 2, 0, PriorityRPC, 8, []byte("x"))
+	if err != nil {
+		t.Fatalf("Call(service 8) error = %v", err)
+	}
+	if string(resp8) != "eight" {
+		t.Fatalf("service 8 response = %q, want eight", resp8)
+	}
+}
+
 func TestServerStopClearsConnectionStats(t *testing.T) {
 	server, err := NewServer(ServerConfig{
 		NodeID: 2,

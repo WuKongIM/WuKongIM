@@ -24,12 +24,16 @@ type Server struct {
 	// cancel stops server-owned dispatch response goroutines.
 	cancel context.CancelFunc
 
-	// mu protects listener, services, conns, and stopped.
+	// mu protects listener, services, executor, conns, and stopped.
 	mu sync.RWMutex
 	// listener accepts inbound transport connections after ListenAndServe.
 	listener net.Listener
-	// services maps service ids to bounded worker pools.
+	// services maps service ids to registered RPC services.
 	services map[uint16]*rpc.Service
+	// executor runs registered service handlers on a shared bounded ants pool.
+	executor *rpc.Executor
+	// serviceConcurrency is the total registered service handler concurrency.
+	serviceConcurrency int
 	// conns tracks active inbound connection actors.
 	conns map[*conn.Conn]struct{}
 	// stopped rejects new listeners, handlers, and tracked connections.
@@ -58,7 +62,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}, nil
 }
 
-// Handle registers handler as the bounded worker pool for serviceID.
+// Handle registers handler as the service implementation for serviceID.
 func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) error {
 	if handler == nil {
 		return fmt.Errorf("%w: service handler is required", ErrInvalidConfig)
@@ -78,8 +82,30 @@ func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) 
 	if _, ok := s.services[serviceID]; ok {
 		return fmt.Errorf("%w: duplicate service id %d", ErrInvalidConfig, serviceID)
 	}
-	s.services[serviceID] = rpc.NewService(serviceID, handler, opts, s.cfg.Observer)
+	executor, err := s.serviceExecutorLocked(opts.Concurrency)
+	if err != nil {
+		return err
+	}
+	s.services[serviceID] = rpc.NewServiceWithExecutor(serviceID, handler, opts, s.cfg.Observer, executor)
 	return nil
+}
+
+func (s *Server) serviceExecutorLocked(concurrency int) (*rpc.Executor, error) {
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if s.executor == nil {
+		executor, err := rpc.NewExecutor(concurrency, s.cfg.Observer)
+		if err != nil {
+			return nil, err
+		}
+		s.executor = executor
+		s.serviceConcurrency = concurrency
+		return executor, nil
+	}
+	s.serviceConcurrency += concurrency
+	s.executor.Tune(s.serviceConcurrency)
+	return s.executor, nil
 }
 
 // ListenAndServe starts accepting inbound transport connections on addr.
@@ -129,6 +155,7 @@ func (s *Server) Stop() {
 		for _, service := range s.services {
 			services = append(services, service)
 		}
+		executor := s.executor
 		conns := make([]*conn.Conn, 0, len(s.conns))
 		for c := range s.conns {
 			conns = append(conns, c)
@@ -144,6 +171,9 @@ func (s *Server) Stop() {
 		}
 		for _, service := range services {
 			service.Stop()
+		}
+		if executor != nil {
+			_ = executor.Stop()
 		}
 		s.observer.Stop()
 	})

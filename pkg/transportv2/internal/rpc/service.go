@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,7 +11,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
 
-const serviceStopGrace = 100 * time.Millisecond
+const (
+	serviceStopGrace        = 100 * time.Millisecond
+	serviceSubmitRetryDelay = 10 * time.Microsecond
+)
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
@@ -20,26 +24,30 @@ type Request struct {
 	Reply chan Response
 }
 
-// Service owns a bounded worker pool for a registered transport service.
+// Service owns a bounded queue and executor-backed pump for a registered transport service.
 type Service struct {
 	// ID is the registered service identifier.
 	ID uint16
 
 	// handler processes each dequeued request payload.
 	handler core.Handler
-	// opts stores normalized service limits used by enqueue and workers.
+	// opts stores normalized service limits used by enqueue and executor tasks.
 	opts core.ServiceOptions
 	// observer receives bounded service pressure events.
 	observer core.Observer
+	// executor runs dequeued handler work for this service.
+	executor *Executor
+	// ownExecutor reports whether Stop should release executor.
+	ownExecutor bool
 
 	// ctx is canceled by Stop to interrupt workers and cooperative handlers.
 	ctx context.Context
 	// cancel stops the service root context.
 	cancel context.CancelFunc
 
-	// mu protects stopped, queuedItems, and queuedBytes while Stop races with Enqueue and workers.
+	// mu protects stopped, queuedItems, and queuedBytes while Stop races with Enqueue and pump.
 	mu sync.Mutex
-	// stopped rejects new requests and causes workers to release late dequeues.
+	// stopped rejects new requests and causes the pump to release late dequeues.
 	stopped bool
 	// queuedItems is the item count currently waiting in queue.
 	queuedItems int
@@ -49,17 +57,35 @@ type Service struct {
 	queue chan Request
 	// inflight is the current number of handlers running for this service.
 	inflight atomic.Int32
+	// tokens bounds this service's handler concurrency on the shared executor.
+	tokens chan struct{}
 
 	// stopOnce makes Stop idempotent.
 	stopOnce sync.Once
-	// wg waits for worker goroutines to exit.
-	wg sync.WaitGroup
-	// done closes after all workers exit.
+	// pumpWG waits for the queue pump goroutine to exit.
+	pumpWG sync.WaitGroup
+	// taskWG waits for executor tasks submitted by the pump to finish.
+	taskWG sync.WaitGroup
+	// done closes after the pump exits and submitted tasks finish.
 	done chan struct{}
 }
 
-// NewService starts a bounded worker pool for handler.
+// NewService starts a service with a private executor sized to service concurrency.
 func NewService(id uint16, handler core.Handler, opts core.ServiceOptions, observer core.Observer) *Service {
+	opts = normalizeServiceOptions(opts)
+	executor, err := NewExecutor(opts.Concurrency, observer)
+	if err != nil {
+		panic(fmt.Sprintf("transportv2: create private service executor: %v", err))
+	}
+	return newService(id, handler, opts, observer, executor, true)
+}
+
+// NewServiceWithExecutor starts a service that submits handler work to executor.
+func NewServiceWithExecutor(id uint16, handler core.Handler, opts core.ServiceOptions, observer core.Observer, executor *Executor) *Service {
+	return newService(id, handler, normalizeServiceOptions(opts), observer, executor, false)
+}
+
+func normalizeServiceOptions(opts core.ServiceOptions) core.ServiceOptions {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 1
 	}
@@ -69,24 +95,30 @@ func NewService(id uint16, handler core.Handler, opts core.ServiceOptions, obser
 	if opts.MaxQueueBytes <= 0 {
 		opts.MaxQueueBytes = 1
 	}
+	return opts
+}
 
+func newService(id uint16, handler core.Handler, opts core.ServiceOptions, observer core.Observer, executor *Executor, ownExecutor bool) *Service {
+	opts = normalizeServiceOptions(opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		ID:       id,
-		handler:  handler,
-		opts:     opts,
-		observer: observer,
-		ctx:      ctx,
-		cancel:   cancel,
-		queue:    make(chan Request, opts.QueueSize),
-		done:     make(chan struct{}),
+		ID:          id,
+		handler:     handler,
+		opts:        opts,
+		observer:    observer,
+		executor:    executor,
+		ownExecutor: ownExecutor,
+		ctx:         ctx,
+		cancel:      cancel,
+		queue:       make(chan Request, opts.QueueSize),
+		tokens:      make(chan struct{}, opts.Concurrency),
+		done:        make(chan struct{}),
 	}
-	for i := 0; i < opts.Concurrency; i++ {
-		s.wg.Add(1)
-		go s.worker()
-	}
+	s.pumpWG.Add(1)
+	go s.pump()
 	go func() {
-		s.wg.Wait()
+		s.pumpWG.Wait()
+		s.taskWG.Wait()
 		close(s.done)
 	}()
 	return s
@@ -137,7 +169,7 @@ func (s *Service) Enqueue(req Request) error {
 	}
 }
 
-// Stop requests worker shutdown, drains queued payloads, and waits only briefly for cooperative handlers.
+// Stop requests pump shutdown, drains queued payloads, and waits only briefly for cooperative handlers.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
 		s.mu.Lock()
@@ -150,6 +182,9 @@ func (s *Service) Stop() {
 					s.queuedItems--
 				}
 				s.queuedBytes -= int64(req.Payload.Len())
+				if s.queuedBytes < 0 {
+					s.queuedBytes = 0
+				}
 				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 			default:
@@ -158,33 +193,83 @@ func (s *Service) Stop() {
 				case <-s.done:
 				case <-time.After(serviceStopGrace):
 				}
+				if s.ownExecutor {
+					_ = s.executor.Stop()
+				}
 				return
 			}
 		}
 	})
 }
 
-func (s *Service) worker() {
-	defer s.wg.Done()
+func (s *Service) pump() {
+	defer s.pumpWG.Done()
 	for {
+		if !s.acquireToken() {
+			return
+		}
 		select {
 		case <-s.ctx.Done():
+			s.releaseToken()
 			return
 		case req := <-s.queue:
 			active, event := s.markDequeued(req)
 			s.observe(event)
 			if !active {
+				s.releaseToken()
 				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 				continue
 			}
-			s.observeInflight(int(s.inflight.Add(1)))
 			payloadLen := req.Payload.Len()
-			started := time.Now()
-			err := s.handle(req)
-			s.observeTask(taskResult(err), payloadLen, nonNegativeSince(started))
-			s.observeInflight(int(s.inflight.Add(-1)))
+			s.taskWG.Add(1)
+			task := &serviceTask{service: s, req: req}
+			for {
+				err := s.executor.Submit(task)
+				if err == nil {
+					break
+				}
+				if errors.Is(err, core.ErrBusy) && s.waitSubmitRetry() {
+					continue
+				}
+				if errors.Is(err, core.ErrBusy) {
+					err = core.ErrStopped
+				}
+				s.taskWG.Done()
+				s.releaseToken()
+				trySendResponse(req.Reply, Response{Err: err})
+				req.Payload.Release()
+				s.observeTask(taskResult(err), payloadLen, 0)
+				break
+			}
 		}
+	}
+}
+
+func (s *Service) acquireToken() bool {
+	select {
+	case s.tokens <- struct{}{}:
+		return true
+	case <-s.ctx.Done():
+		return false
+	}
+}
+
+func (s *Service) releaseToken() {
+	select {
+	case <-s.tokens:
+	default:
+	}
+}
+
+func (s *Service) waitSubmitRetry() bool {
+	timer := time.NewTimer(serviceSubmitRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-s.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
@@ -340,4 +425,48 @@ func trySendResponse(ch chan Response, resp Response) {
 	case ch <- resp:
 	default:
 	}
+}
+
+// serviceTask is one executor unit for a service handler invocation.
+type serviceTask struct {
+	// service owns the task lifecycle and observation state.
+	service *Service
+	// req is the request payload transferred from the service queue.
+	req Request
+	// runFunc keeps executor-only tests independent from a full service.
+	runFunc func()
+}
+
+func (t *serviceTask) run() {
+	if t == nil {
+		return
+	}
+	if t.runFunc != nil {
+		t.runFunc()
+		return
+	}
+	s := t.service
+	if s == nil {
+		return
+	}
+
+	s.observeInflight(int(s.inflight.Add(1)))
+	payloadLen := t.req.Payload.Len()
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = "panic"
+			trySendResponse(t.req.Reply, Response{
+				Err: fmt.Errorf("transportv2: service handler panic: %v", recovered),
+			})
+		}
+		s.observeTask(result, payloadLen, nonNegativeSince(started))
+		s.observeInflight(int(s.inflight.Add(-1)))
+		s.releaseToken()
+		s.taskWG.Done()
+	}()
+
+	err := s.handle(t.req)
+	result = taskResult(err)
 }
