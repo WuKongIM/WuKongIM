@@ -83,10 +83,40 @@ func TestConversationActiveFlushWorkerStopDrainsDirtyRows(t *testing.T) {
 	}
 }
 
+func TestConversationActiveFlushWorkerStopHonorsContextWhileTickFlushBlocks(t *testing.T) {
+	flusher := &recordingConversationActiveFlusher{
+		firstFlush: make(chan struct{}),
+		blockFlush: make(chan struct{}),
+	}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:     flusher,
+		FlushInterval: time.Millisecond,
+		BatchRows:     2,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	select {
+	case <-flusher.firstFlush:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocking periodic flush")
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := worker.Stop(stopCtx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop() error = %v, want deadline exceeded", err)
+	}
+	close(flusher.blockFlush)
+}
+
 type recordingConversationActiveFlusher struct {
 	mu         sync.Mutex
 	firstOnce  sync.Once
 	firstFlush chan struct{}
+	blockFlush chan struct{}
 	err        error
 	results    []conversationactive.FlushResult
 	batches    []int
@@ -105,6 +135,9 @@ func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, 
 			close(f.firstFlush)
 		}
 	})
+	if f.blockFlush != nil {
+		<-f.blockFlush
+	}
 	return result, f.err
 }
 

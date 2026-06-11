@@ -85,7 +85,16 @@ func (w *conversationActiveFlushWorker) Stop(ctx context.Context) error {
 	if cancel != nil {
 		cancel()
 	}
-	w.wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		w.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	return w.flushFinal(ctx)
 }
 
