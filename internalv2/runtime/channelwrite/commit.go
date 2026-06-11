@@ -11,7 +11,6 @@ type commitPorts struct {
 	activeAdmitter               ConversationActiveAdmitter
 	recipientAuthorityResolver   RecipientAuthorityResolver
 	deliveryEnqueuer             RecipientDeliveryEnqueuer
-	recipientRouter              RecipientAuthorityRouter
 	subscriberPageSize           int
 	recipientBatchSize           int
 	recipientDispatchConcurrency int

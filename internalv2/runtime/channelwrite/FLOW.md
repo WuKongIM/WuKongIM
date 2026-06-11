@@ -182,12 +182,10 @@ once per unique trimmed UID and uses the optional batch resolver when available;
 invalid or missing targets map to route-not-ready before enqueueing. Different
 recipient authority targets may enqueue concurrently up to
 `RecipientDispatchConcurrency`; batches for the same target are enqueued
-sequentially. During migration, the deprecated `RecipientRouter` compatibility
-bridge may execute this enqueue contract inline until app wiring supplies the
-dedicated delivery worker. Once wired, that worker drains the batches, resolves
-presence, groups routes by owner node, skips only the sender's exact accepted
-session for echo suppression, retries retryable owner pushes, and performs
-owner-local concrete session writes outside `channelState`.
+sequentially. The dedicated delivery worker drains the accepted batches,
+resolves presence, groups routes by owner node, skips only the sender's exact
+accepted session for echo suppression, retries retryable owner pushes, and
+performs owner-local concrete session writes outside `channelState`.
 
 `RecipientDeliveryWorker` owns the bounded async queue for those delivery
 batches. Admission is open only between `Start` and `Stop`; closed admission

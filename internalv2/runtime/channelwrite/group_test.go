@@ -37,7 +37,7 @@ func TestRecipientDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T
 		PostCommitWorkers:            16,
 		RecipientDispatchConcurrency: 4,
 		RecipientAuthorityResolver:   staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
-		RecipientRouter:              &recordingRecipientRouterForRecipientTest{},
+		RecipientDeliveryEnqueuer:    &recordingRecipientEnqueuerForRecipientTest{},
 		RecipientBatchSize:           16,
 	})
 
@@ -45,34 +45,7 @@ func TestRecipientDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T
 		t.Fatalf("PostCommitWorkers = %d, want 16", group.opts.PostCommitWorkers)
 	}
 	if got := group.reactors[0].commitPorts.recipientDispatchConcurrency; got != 4 {
-		t.Fatalf("recipient dispatch concurrency = %d, want 4 independent from effect workers", got)
-	}
-}
-
-func TestRecipientDeliveryEnqueuerTakesPriorityOverDeprecatedRouter(t *testing.T) {
-	enqueuer := &recordingRecipientRouterForRecipientTest{}
-	router := &recordingRecipientRouterForRecipientTest{}
-	group := New(Options{
-		LocalNodeID:                1,
-		RecipientDeliveryEnqueuer:  enqueuer,
-		RecipientRouter:            router,
-		RecipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
-		RecipientBatchSize:         16,
-	})
-
-	target := recipientAuthorityTargetForTest(1, 1, 1)
-	if err := group.reactors[0].commitPorts.deliveryEnqueuer.EnqueueRecipientBatch(context.Background(), target, RecipientBatch{
-		Event:      CommittedEnvelope{MessageID: 1},
-		Recipients: []Recipient{{UID: "u1"}},
-	}); err != nil {
-		t.Fatalf("EnqueueRecipientBatch() error = %v", err)
-	}
-
-	if got := enqueuer.callCount(); got != 1 {
-		t.Fatalf("enqueuer calls = %d, want 1", got)
-	}
-	if got := router.callCount(); got != 0 {
-		t.Fatalf("deprecated router calls = %d, want 0 when enqueuer is configured", got)
+		t.Fatalf("recipient delivery enqueue concurrency = %d, want 4 independent from effect workers", got)
 	}
 }
 

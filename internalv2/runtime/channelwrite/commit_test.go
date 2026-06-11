@@ -11,14 +11,14 @@ import (
 )
 
 func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientEffects(t *testing.T) {
-	router := newBlockingRecipientRouterForCommitTest()
-	t.Cleanup(router.release)
+	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(enqueuer.release)
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(900),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 	})
 	target := localTargetForAppendTest("room")
@@ -30,12 +30,12 @@ func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientE
 		t.Fatalf("SubmitLocal() error = %v", err)
 	}
 
-	router.waitStarted(t)
+	enqueuer.waitStarted(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	results, err := future.Wait(ctx)
 	if err != nil {
-		t.Fatalf("Future.Wait() while recipient dispatch is blocked error = %v", err)
+		t.Fatalf("Future.Wait() while recipient delivery enqueue is blocked error = %v", err)
 	}
 	requireAppendSuccess(t, results, 0, 900, 1)
 
@@ -50,13 +50,13 @@ func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientE
 
 func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
-	router := &scriptedRecipientRouterForCommitTest{}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(950),
 		Appender:                   appender,
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 	})
 	target := localTargetForAppendTest("room")
@@ -68,7 +68,7 @@ func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 		t.Fatalf("SubmitLocal() error = %v", err)
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 950, 1)
-	router.waitCalls(t, 1)
+	enqueuer.waitCalls(t, 1)
 
 	requests := appender.Requests()
 	if len(requests) != 1 {
@@ -77,21 +77,21 @@ func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 	if !requests[0].OmitResultPayload {
 		t.Fatalf("OmitResultPayload = false, want true to avoid payload copy in append result")
 	}
-	payloads := router.payloads()
+	payloads := enqueuer.payloads()
 	if len(payloads) != 1 || string(payloads[0]) != "original-payload" {
 		t.Fatalf("recipient payloads = %q, want original payload dispatched after omitted append result", payloads)
 	}
 }
 
 func TestCommitEffectFailureDropsAndAdvancesWithoutRetry(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure"), nil}}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{errs: []error{errors.New("temporary dispatch failure"), nil}}
 	observer := &recordingPostCommitFailureObserverForTest{}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1000),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 		Observer:                   observer,
 	})
@@ -108,9 +108,9 @@ func TestCommitEffectFailureDropsAndAdvancesWithoutRetry(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1000, 1)
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1001, 2)
 
-	router.waitCalls(t, 2)
-	if got := router.messageIDs(); len(got) != 2 || got[0] != 1000 || got[1] != 1001 {
-		t.Fatalf("recipient dispatch message ids = %#v, want failed first dropped then second", got)
+	enqueuer.waitCalls(t, 2)
+	if got := enqueuer.messageIDs(); len(got) != 2 || got[0] != 1000 || got[1] != 1001 {
+		t.Fatalf("recipient delivery enqueue message ids = %#v, want failed first dropped then second", got)
 	}
 	observer.waitFailures(t, 1)
 	if got := observer.failures[0]; got.MessageID != 1000 || got.MessageSeq != 1 || got.Result != channelWriteResultOther {
@@ -120,13 +120,13 @@ func TestCommitEffectFailureDropsAndAdvancesWithoutRetry(t *testing.T) {
 }
 
 func TestCommitEffectFailureDoesNotRetryLater(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("temporary dispatch failure")}}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{errs: []error{errors.New("temporary dispatch failure")}}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1050),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 	})
 	target := localTargetForAppendTest("room")
@@ -139,22 +139,22 @@ func TestCommitEffectFailureDoesNotRetryLater(t *testing.T) {
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1050, 1)
 
-	router.waitCalls(t, 1)
+	enqueuer.waitCalls(t, 1)
 	time.Sleep(30 * time.Millisecond)
-	if got := router.callCount(); got != 1 {
-		t.Fatalf("recipient dispatch calls after failure = %d, want no retry", got)
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("recipient delivery enqueue calls after failure = %d, want no retry", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
 func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
-	router := &scriptedRecipientRouterForCommitTest{errs: []error{errors.New("first failure"), errors.New("second failure"), nil}}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{errs: []error{errors.New("first failure"), errors.New("second failure"), nil}}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1100),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 	})
 	target := localTargetForAppendTest("room")
@@ -173,22 +173,22 @@ func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1101, 2)
 	requireAppendSuccess(t, waitFutureForTest(t, future), 2, 1102, 3)
 
-	router.waitCalls(t, 3)
-	if got := router.messageIDs(); len(got) != 3 || got[0] != 1100 || got[1] != 1101 || got[2] != 1102 {
-		t.Fatalf("recipient dispatch message ids = %#v, want failures dropped then next events", got)
+	enqueuer.waitCalls(t, 3)
+	if got := enqueuer.messageIDs(); len(got) != 3 || got[0] != 1100 || got[1] != 1101 || got[2] != 1102 {
+		t.Fatalf("recipient delivery enqueue message ids = %#v, want failures dropped then next events", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
 func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
-	router := newBlockingRecipientRouterForCommitTest()
-	t.Cleanup(router.release)
+	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(enqueuer.release)
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1200),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 		PendingItemHighWatermark:   1,
 	})
@@ -201,7 +201,7 @@ func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
 		t.Fatalf("first SubmitLocal() error = %v", err)
 	}
 	requireAppendSuccess(t, waitFutureForTest(t, firstFuture), 0, 1200, 1)
-	router.waitStarted(t)
+	enqueuer.waitStarted(t)
 
 	second := appendSendItemForTest("u1", "room", "two")
 	second.Command.MessageScopedUIDs = []string{"u3"}
@@ -216,14 +216,14 @@ func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
 }
 
 func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
-	router := newBlockingRecipientRouterForCommitTest()
-	t.Cleanup(router.release)
+	enqueuer := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	t.Cleanup(enqueuer.release)
 	group := New(Options{
 		LocalNodeID:                1,
 		MessageID:                  newSequenceIDsForPrepare(1300),
 		Appender:                   newRecordingAppenderForAppendTest(),
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientRouter:            router,
+		RecipientDeliveryEnqueuer:  enqueuer,
 		RecipientBatchSize:         16,
 	})
 	if err := group.Start(context.Background()); err != nil {
@@ -243,15 +243,15 @@ func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
 		t.Fatalf("SubmitLocal() error = %v", err)
 	}
 	_ = waitFutureForTest(t, future)
-	router.waitStarted(t)
+	enqueuer.waitStarted(t)
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := group.Stop(stopCtx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if got := router.callCount(); got != 1 {
-		t.Fatalf("recipient dispatch calls after stop = %d, want only in-flight commit", got)
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("recipient delivery enqueue calls after stop = %d, want only in-flight commit", got)
 	}
 }
 
@@ -265,7 +265,7 @@ func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
 		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
 		preparePorts{},
 		appendPorts{},
-		commitPorts{recipientRouter: &recordingRecipientRouterForRecipientTest{}},
+		commitPorts{deliveryEnqueuer: &recordingRecipientEnqueuerForRecipientTest{}},
 	)
 	state := newChannelState(target, channelStateLimits{})
 	state.enqueueCommitted(CommittedEnvelope{MessageID: 1400, ChannelID: "room", ChannelType: 2, MessageScopedUIDs: []string{"u2"}})
@@ -300,7 +300,7 @@ func (r staticRecipientAuthorityResolverForCommitTest) ResolveRecipientAuthority
 	return authority.Target{HashSlot: 1, SlotID: 101, LeaderNodeID: r.nodeID, RouteRevision: 1001, AuthorityEpoch: 1}, nil
 }
 
-type blockingRecipientRouterForCommitTest struct {
+type blockingRecipientDeliveryEnqueuerForCommitTest struct {
 	started  chan struct{}
 	releaseC chan struct{}
 	once     sync.Once
@@ -309,14 +309,14 @@ type blockingRecipientRouterForCommitTest struct {
 	calls    int
 }
 
-func newBlockingRecipientRouterForCommitTest() *blockingRecipientRouterForCommitTest {
-	return &blockingRecipientRouterForCommitTest{
+func newBlockingRecipientDeliveryEnqueuerForCommitTest() *blockingRecipientDeliveryEnqueuerForCommitTest {
+	return &blockingRecipientDeliveryEnqueuerForCommitTest{
 		started:  make(chan struct{}),
 		releaseC: make(chan struct{}),
 	}
 }
 
-func (r *blockingRecipientRouterForCommitTest) DispatchRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, _ RecipientBatch) error {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, _ RecipientBatch) error {
 	r.once.Do(func() {
 		close(r.started)
 	})
@@ -331,28 +331,28 @@ func (r *blockingRecipientRouterForCommitTest) DispatchRecipientBatch(ctx contex
 	}
 }
 
-func (r *blockingRecipientRouterForCommitTest) waitStarted(t *testing.T) {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) waitStarted(t *testing.T) {
 	t.Helper()
 	select {
 	case <-r.started:
 	case <-time.After(time.Second):
-		t.Fatalf("recipient dispatch did not start")
+		t.Fatalf("recipient delivery enqueue did not start")
 	}
 }
 
-func (r *blockingRecipientRouterForCommitTest) release() {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) release() {
 	r.releaseO.Do(func() {
 		close(r.releaseC)
 	})
 }
 
-func (r *blockingRecipientRouterForCommitTest) callCount() int {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.calls
 }
 
-type scriptedRecipientRouterForCommitTest struct {
+type scriptedRecipientDeliveryEnqueuerForCommitTest struct {
 	mu      sync.Mutex
 	cond    *sync.Cond
 	errs    []error
@@ -389,7 +389,7 @@ func (o *recordingPostCommitFailureObserverForTest) waitFailures(t *testing.T, w
 	}
 }
 
-func (r *scriptedRecipientRouterForCommitTest) DispatchRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.cond == nil {
@@ -404,7 +404,7 @@ func (r *scriptedRecipientRouterForCommitTest) DispatchRecipientBatch(_ context.
 	return nil
 }
 
-func (r *scriptedRecipientRouterForCommitTest) waitCalls(t *testing.T, want int) {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T, want int) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -418,19 +418,19 @@ func (r *scriptedRecipientRouterForCommitTest) waitCalls(t *testing.T, want int)
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("recipient dispatch calls = %d, want %d", got, want)
+			t.Fatalf("recipient delivery enqueue calls = %d, want %d", got, want)
 		}
 		time.Sleep(time.Millisecond)
 	}
 }
 
-func (r *scriptedRecipientRouterForCommitTest) callCount() int {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.batches)
 }
 
-func (r *scriptedRecipientRouterForCommitTest) messageIDs() []uint64 {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) messageIDs() []uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]uint64, 0, len(r.batches))
@@ -440,7 +440,7 @@ func (r *scriptedRecipientRouterForCommitTest) messageIDs() []uint64 {
 	return out
 }
 
-func (r *scriptedRecipientRouterForCommitTest) payloads() [][]byte {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) payloads() [][]byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([][]byte, 0, len(r.batches))

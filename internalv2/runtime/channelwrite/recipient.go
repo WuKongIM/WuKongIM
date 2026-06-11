@@ -124,13 +124,7 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 }
 
 func effectiveRecipientDeliveryEnqueuer(ports commitPorts) RecipientDeliveryEnqueuer {
-	if ports.deliveryEnqueuer != nil {
-		return ports.deliveryEnqueuer
-	}
-	if ports.recipientRouter != nil {
-		return recipientRouterDeliveryEnqueuer{router: ports.recipientRouter}
-	}
-	return nil
+	return ports.deliveryEnqueuer
 }
 
 func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, recipients []Recipient, uids []string, admitter ConversationActiveAdmitter) error {
