@@ -25,7 +25,7 @@ storage, or routing branches that bypass cluster semantics.
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
-| `runtime/channelwrite` | Channel-authority write reactors that own SEND validation, message ID allocation, append admission, recipient grouping, conversation projection, and optional delivery effects. |
+| `runtime/channelwrite` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
 | `infra/cluster` | Adapter from channel write, channel metadata, delivery, presence, and conversation ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
@@ -50,8 +50,8 @@ pkg/gateway SendPacket
   -> internalv2/access/gateway.Handler
   -> internalv2/usecase/message.App thin facade
   -> internalv2/runtime/channelwrite.Router resolves channel append authority
-  -> local channelwrite.Group authority reactor or access/node Channel Write RPC
-  -> authority reactor validates, assigns message IDs, and appends through infra/cluster.ChannelAppender
+  -> local channelwrite.Group authority writer or access/node Channel Write RPC
+  -> authority writer validates, assigns message IDs, and appends through infra/cluster.ChannelAppender
   -> pkg/clusterv2.Node.AppendChannelBatch -> pkg/channelv2 append
   -> internalv2/usecase/message.SendResult
   -> internalv2/access/gateway writes SendackPacket
@@ -59,10 +59,10 @@ pkg/gateway SendPacket
 
 Only the channel authority node creates and owns real channel write state. A
 non-authority node forwards the batch to the authority node through Channel
-Write RPC and does not create proxy channel state or enter a local channel
-reactor for that channel. Conversation projection, recipient authority grouping,
-owner push, and delivery fanout run after the successful append in the
-authority reactor's best-effort post-commit pipeline.
+Write RPC and does not create proxy channel state or enter a local writer for
+that channel. Conversation projection, recipient authority grouping, owner
+push, and delivery fanout run after the successful append in the authority
+writer's best-effort post-commit pipeline.
 
 ## Phase-1 Presence Flow
 
@@ -100,7 +100,7 @@ wkbench traffic
 ```
 
 `Send` is only a batch-of-one wrapper. `SendBatch` is the canonical correctness
-path so gateway micro-batching and future send reactors do not grow separate
+path so gateway micro-batching and future send runtimes do not grow separate
 behavior.
 
 ## Legacy Channel Management Flow

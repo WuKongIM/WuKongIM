@@ -141,13 +141,11 @@ WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=500
 
 # Online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.
 WK_DELIVERY_ENABLE=true
-# Channel write reactors own channel-authority state by channel hash; zero derives a CPU-aware default.
-WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=0
-# Channel write prepare workers are per reactor; zero uses the bounded default of 8 workers per reactor.
-WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=0
-# Channel write append workers are per reactor and run blocking durable append calls; zero uses the benchmark-tuned default of 96 workers per reactor.
+# Channel write shard count controls channel-key writer lookup shards; zero derives a CPU-aware default.
+WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT=0
+# Channel write append workers run blocking durable append calls in the shared worker pool; zero uses the benchmark-tuned default.
 WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=0
-# Channel write post-commit workers are per reactor and run best-effort recipient effects; zero uses the bounded default of 8 workers per reactor.
+# Channel write post-commit workers run best-effort recipient effects in the shared worker pool; zero uses the bounded default.
 WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=0
 # Channel write recipient dispatch concurrency bounds per-message recipient-authority fanout inside one post-commit effect; zero uses the bounded default of 4 and stays independent from effect worker count.
 WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=0

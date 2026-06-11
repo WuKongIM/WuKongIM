@@ -84,6 +84,10 @@ type canonicalTerminalResult struct {
 	command SendCommand
 }
 
+func preparedCommandMatchesTarget(target AuthorityTarget, cmd SendCommand) bool {
+	return target.ChannelID.ID == cmd.ChannelID && target.ChannelID.Type == cmd.ChannelType
+}
+
 func prepareItemContext(runtimeCtx context.Context, itemCtx context.Context) (context.Context, context.CancelFunc) {
 	if itemCtx == nil {
 		itemCtx = context.Background()

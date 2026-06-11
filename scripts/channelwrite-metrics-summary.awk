@@ -100,15 +100,15 @@ BEGIN {
   kind = label_value(labels, "kind")
 
   if (phase != "before") {
-    if (name == "wukongim_channelwrite_reactor_mailbox_depth") {
+    if (name == "wukongim_channelwrite_writer_admission_depth") {
       mailbox_depth_max = max_value(mailbox_depth_max, value)
-    } else if (name == "wukongim_channelwrite_reactor_mailbox_capacity") {
+    } else if (name == "wukongim_channelwrite_writer_admission_capacity") {
       mailbox_capacity_max = max_value(mailbox_capacity_max, value)
-    } else if (name == "wukongim_channelwrite_reactor_effect_slots") {
+    } else if (name == "wukongim_channelwrite_writer_pool_running") {
       effect_slots_max = max_value(effect_slots_max, value)
-    } else if (name == "wukongim_channelwrite_reactor_effect_slots_capacity") {
+    } else if (name == "wukongim_channelwrite_writer_pool_capacity") {
       effect_slots_capacity_max = max_value(effect_slots_capacity_max, value)
-    } else if (name == "wukongim_channelwrite_reactor_state_items") {
+    } else if (name == "wukongim_channelwrite_writer_state_items") {
       if (kind == "pending_append") {
         pending_append_max = max_value(pending_append_max, value)
       } else if (kind == "append_inflight") {
@@ -116,14 +116,6 @@ BEGIN {
       } else if (kind == "post_commit_backlog") {
         post_commit_backlog_max = max_value(post_commit_backlog_max, value)
       }
-    } else if (name == "wukongim_channelwrite_effect_worker_inflight") {
-      effect_worker_inflight_max = max_value(effect_worker_inflight_max, value)
-    } else if (name == "wukongim_channelwrite_effect_worker_capacity") {
-      effect_worker_capacity_max = max_value(effect_worker_capacity_max, value)
-  } else if (name == "wukongim_channelwrite_effect_queue_depth") {
-      effect_queue_depth_max = max_value(effect_queue_depth_max, value)
-    } else if (name == "wukongim_channelwrite_effect_queue_capacity") {
-      effect_queue_capacity_max = max_value(effect_queue_capacity_max, value)
     } else if (name == "wukongim_channelwrite_effect_pool_inflight") {
       stage = default_label(stage)
       effect_pool_seen[stage] = 1

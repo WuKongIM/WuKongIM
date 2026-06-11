@@ -9,11 +9,10 @@ import (
 )
 
 const (
-	defaultReactorCount                 = 1
+	defaultShardCount                   = 1
 	defaultMailboxSize                  = 1024
 	defaultPendingItemHighWatermark     = 1024
 	defaultAppendInflightLimit          = 1
-	defaultPrepareWorkerCount           = 1
 	defaultAppendWorkerCount            = 1
 	defaultPostCommitWorkerCount        = 1
 	defaultSubscriberPageSize           = 256
@@ -84,10 +83,8 @@ type RouterObserver interface {
 	ObserveChannelWriteRouter(RouterObservation)
 }
 
-// LocalAdmissionObservation describes local reactor admission for one group.
+// LocalAdmissionObservation describes local writer-group admission for one batch.
 type LocalAdmissionObservation struct {
-	// ReactorID is the local channel-hashed reactor id.
-	ReactorID int
 	// Result is accepted or a low-cardinality rejection class.
 	Result string
 	// Items is the number of items in the admitted group.
@@ -96,22 +93,20 @@ type LocalAdmissionObservation struct {
 
 // LocalAdmissionObserver receives local authority admission observations.
 type LocalAdmissionObserver interface {
-	// ObserveChannelWriteLocalAdmission records one local reactor admission attempt.
+	// ObserveChannelWriteLocalAdmission records one local writer-group admission attempt.
 	ObserveChannelWriteLocalAdmission(LocalAdmissionObservation)
 }
 
-// ReactorPressureObservation describes bounded local authority reactor state.
-type ReactorPressureObservation struct {
-	// ReactorID is the local channel-hashed reactor id.
-	ReactorID int
-	// MailboxDepth is the current reactor mailbox depth.
-	MailboxDepth int
-	// MailboxCapacity is the configured reactor mailbox capacity.
-	MailboxCapacity int
-	// EffectSlotsUsed is the current accepted prepare/append/commit slot count.
-	EffectSlotsUsed int
-	// EffectSlotsCapacity is the configured accepted effect slot capacity.
-	EffectSlotsCapacity int
+// WriterPressureObservation describes bounded local authority writer-group state.
+type WriterPressureObservation struct {
+	// AdmissionDepth is the current admitted-but-incomplete item count.
+	AdmissionDepth int
+	// AdmissionCapacity is the configured admitted item capacity.
+	AdmissionCapacity int
+	// WorkerRunning is the current shared worker pool running count.
+	WorkerRunning int
+	// WorkerCapacity is the shared worker pool capacity.
+	WorkerCapacity int
 	// PendingAppendItems is the total prepared-but-not-appended item count.
 	PendingAppendItems int
 	// AppendInflightItems is the total appender-owned item count.
@@ -120,32 +115,10 @@ type ReactorPressureObservation struct {
 	PostCommitBacklog int
 }
 
-// ReactorPressureObserver receives local reactor pressure gauges.
-type ReactorPressureObserver interface {
-	// SetChannelWriteReactorPressure records current bounded reactor pressure.
-	SetChannelWriteReactorPressure(ReactorPressureObservation)
-}
-
-// EffectWorkerPressureObservation describes stage worker utilization and queue pressure.
-type EffectWorkerPressureObservation struct {
-	// ReactorID is the local channel-hashed reactor id.
-	ReactorID int
-	// Stage is prepare, append, or post_commit.
-	Stage string
-	// WorkerInflight is the current number of busy workers for this stage.
-	WorkerInflight int
-	// WorkerCapacity is the shared stage pool worker capacity.
-	WorkerCapacity int
-	// QueueDepth is the current number of queued effects for this stage.
-	QueueDepth int
-	// QueueCapacity is the configured queue capacity for this stage.
-	QueueCapacity int
-}
-
-// EffectWorkerPressureObserver receives effect worker and queue pressure gauges.
-type EffectWorkerPressureObserver interface {
-	// SetChannelWriteEffectWorkerPressure records current effect worker and queue pressure.
-	SetChannelWriteEffectWorkerPressure(EffectWorkerPressureObservation)
+// WriterPressureObserver receives local writer-group pressure gauges.
+type WriterPressureObserver interface {
+	// SetChannelWriteWriterPressure records current bounded writer-group pressure.
+	SetChannelWriteWriterPressure(WriterPressureObservation)
 }
 
 // EffectPoolObservation describes shared ants pool admission and pressure.
@@ -170,8 +143,6 @@ type EffectPoolObserver interface {
 
 // PostCommitFailureObservation describes one best-effort post-commit side-effect failure.
 type PostCommitFailureObservation struct {
-	// ReactorID is the local channel-hashed reactor id.
-	ReactorID int
 	// ChannelID is the committed message channel id.
 	ChannelID string
 	// ChannelType is the committed message channel type.
@@ -331,7 +302,7 @@ type OwnerPusher interface {
 	Push(context.Context, PushCommand) (PushResult, error)
 }
 
-// Options configures the channel write reactor group.
+// Options configures the local channel write group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
 	LocalNodeID uint64
@@ -345,19 +316,17 @@ type Options struct {
 	Idempotency IdempotencyStore
 	// SenderFence validates sender-scoped fencing before authorization.
 	SenderFence SenderFenceValidator
-	// ReactorCount is the number of channel-hashed reactors. Values <= 0 use one reactor.
-	ReactorCount int
-	// MailboxSize bounds each reactor mailbox. Values <= 0 use a conservative bounded default.
+	// ShardCount is the number of channel-key lookup shards. Values <= 0 use one shard.
+	ShardCount int
+	// MailboxSize bounds admitted-but-incomplete items per shard. Values <= 0 use a conservative bounded default.
 	MailboxSize int
 	// PendingItemHighWatermark is reserved for per-channel admission pressure. Values <= 0 use a bounded default.
 	PendingItemHighWatermark int
 	// AppendInflightLimit bounds same-channel append batches in flight. Values <= 0 use one in-flight batch.
 	AppendInflightLimit int
-	// PrepareWorkers is the bounded per-reactor worker budget for send preparation. Values <= 0 use a conservative default.
-	PrepareWorkers int
-	// AppendWorkers is the bounded per-reactor worker budget for durable append calls. Values <= 0 use a conservative default.
+	// AppendWorkers contributes to the shared worker budget for durable append calls. Values <= 0 use a conservative default.
 	AppendWorkers int
-	// PostCommitWorkers is the bounded per-reactor worker budget for best-effort post-commit effects. Values <= 0 use a conservative default.
+	// PostCommitWorkers contributes to the shared worker budget for best-effort post-commit effects. Values <= 0 use a conservative default.
 	PostCommitWorkers int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver
@@ -386,8 +355,8 @@ func (systemClock) Now() time.Time {
 }
 
 func applyDefaults(opts Options) Options {
-	if opts.ReactorCount <= 0 {
-		opts.ReactorCount = defaultReactorCount
+	if opts.ShardCount <= 0 {
+		opts.ShardCount = defaultShardCount
 	}
 	if opts.MailboxSize <= 0 {
 		opts.MailboxSize = defaultMailboxSize
@@ -397,9 +366,6 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.AppendInflightLimit <= 0 {
 		opts.AppendInflightLimit = defaultAppendInflightLimit
-	}
-	if opts.PrepareWorkers <= 0 {
-		opts.PrepareWorkers = defaultPrepareWorkerCount
 	}
 	if opts.AppendWorkers <= 0 {
 		opts.AppendWorkers = defaultAppendWorkerCount

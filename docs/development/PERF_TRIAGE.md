@@ -370,11 +370,11 @@ histogram_quantile(0.50, rate(wukongim_channelv2_append_batch_records_bucket[1m]
 ChannelWrite authority and ants pool pressure:
 
 ```promql
-sum by (reactor_id) (wukongim_channelwrite_reactor_mailbox_depth)
+wukongim_channelwrite_writer_admission_depth
+wukongim_channelwrite_writer_pool_running
 sum by (stage, result) (rate(wukongim_channelwrite_effect_pool_submit_total[1m]))
 sum by (stage) (wukongim_channelwrite_effect_pool_inflight)
 sum by (stage) (wukongim_channelwrite_effect_pool_saturated)
-sum by (stage) (wukongim_channelwrite_effect_queue_depth)
 histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelwrite_effect_duration_seconds_bucket[1m])))
 ```
 

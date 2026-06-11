@@ -1,0 +1,12 @@
+BenchmarkSubmitLocalHotChannel-10              	  188719	      6234 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10              	  186866	      6280 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10              	  191286	      6261 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10              	  195175	      6266 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10              	  186607	      6399 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10              	  193203	      6288 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  219097	      5779 ns/op	         6.000 goroutine-delta	    8391 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  215510	      4931 ns/op	         6.000 goroutine-delta	    8410 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  230808	      4974 ns/op	         6.000 goroutine-delta	    8372 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  248972	      4985 ns/op	         6.000 goroutine-delta	    8351 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  206072	      4963 ns/op	         6.000 goroutine-delta	    8398 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10    	  249174	      4961 ns/op	         6.000 goroutine-delta	    8358 B/op	      61 allocs/op

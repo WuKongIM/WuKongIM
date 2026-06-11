@@ -102,11 +102,7 @@ func (s *channelState) nextAppendBatch() (uint64, []preparedSend, bool) {
 	if len(s.pendingItems) == 0 {
 		return 0, nil, false
 	}
-	limit := s.appendInflightLimit
-	if limit <= 0 {
-		limit = 1
-	}
-	if s.appendInflight >= limit {
+	if !s.canStartAppend() {
 		return 0, nil, false
 	}
 	items := s.pendingItems
@@ -116,6 +112,17 @@ func (s *channelState) nextAppendBatch() (uint64, []preparedSend, bool) {
 	s.appendInflight++
 	s.appendInflightItems += len(items)
 	return seq, items, true
+}
+
+func (s *channelState) canStartAppend() bool {
+	if len(s.pendingItems) == 0 {
+		return false
+	}
+	limit := s.appendInflightLimit
+	if limit <= 0 {
+		limit = 1
+	}
+	return s.appendInflight < limit
 }
 
 func (s *channelState) finishAppend(items int) {
@@ -223,12 +230,48 @@ func (s *channelState) dropCurrentCommit() {
 	s.pruneCommittedPrefixIfNeeded()
 }
 
+func (s *channelState) dropCommitBacklog() int {
+	backlog := s.commitBacklog()
+	if backlog == 0 {
+		s.commitInflight = false
+		s.commitAttempts = 0
+		return 0
+	}
+	for i := s.commitCursor; i < len(s.committed); i++ {
+		s.committed[i] = CommittedEnvelope{}
+	}
+	s.committed = nil
+	s.commitCursor = 0
+	s.commitInflight = false
+	s.commitAttempts = 0
+	return backlog
+}
+
 func (s *channelState) commitBacklog() int {
 	backlog := len(s.committed) - s.commitCursor
 	if backlog < 0 {
 		return 0
 	}
 	return backlog
+}
+
+// hasPendingWork reports whether the channel has prepared items, in-flight
+// appends, or committed envelopes still needing post-commit dispatch.
+func (s *channelState) hasPendingWork() bool {
+	return len(s.pendingItems) > 0 ||
+		s.appendInflight > 0 ||
+		s.commitBacklog() > 0 ||
+		s.hasReadyAppendCompletion ||
+		len(s.completedAppends) > 0
+}
+
+// hasRunnableWork reports whether advance can make progress without waiting
+// for an in-flight append or commit to complete.
+func (s *channelState) hasRunnableWork(includeCommit bool) bool {
+	if s.canStartAppend() || s.hasReadyAppendCompletion || len(s.completedAppends) > 0 {
+		return true
+	}
+	return includeCommit && !s.commitInflight && s.commitBacklog() > 0
 }
 
 func (s *channelState) pruneCommittedPrefixIfNeeded() {

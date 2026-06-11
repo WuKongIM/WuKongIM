@@ -229,13 +229,11 @@ type PresenceConfig struct {
 type DeliveryConfig struct {
 	// Enabled wires committed messages into the delivery runtime when true.
 	Enabled bool
-	// ChannelWriteReactorCount is the number of channel-hashed authority reactors. Zero derives a CPU-aware default.
-	ChannelWriteReactorCount int
-	// ChannelWritePrepareWorkers is the per-reactor worker budget for send preparation. Zero uses the prepare-stage default.
-	ChannelWritePrepareWorkers int
-	// ChannelWriteAppendWorkers is the per-reactor worker budget for blocking durable append calls. Zero uses the append-stage default.
+	// ChannelWriteShardCount is the number of channel-key writer lookup shards. Zero derives a CPU-aware default.
+	ChannelWriteShardCount int
+	// ChannelWriteAppendWorkers is the shared worker budget for blocking durable append calls. Zero uses the append-stage default.
 	ChannelWriteAppendWorkers int
-	// ChannelWritePostCommitWorkers is the per-reactor worker budget for best-effort post-commit effects. Zero uses the post-commit-stage default.
+	// ChannelWritePostCommitWorkers is the shared worker budget for best-effort post-commit effects. Zero uses the post-commit-stage default.
 	ChannelWritePostCommitWorkers int
 	// ChannelWriteRecipientDispatchConcurrency bounds per-message recipient authority dispatch fanout inside one post-commit effect. Zero uses a bounded default.
 	ChannelWriteRecipientDispatchConcurrency int
@@ -268,11 +266,8 @@ func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 }
 
 func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
-	if cfg.ChannelWriteReactorCount == 0 {
-		cfg.ChannelWriteReactorCount = defaultChannelWriteReactorCount()
-	}
-	if cfg.ChannelWritePrepareWorkers == 0 {
-		cfg.ChannelWritePrepareWorkers = defaultChannelWritePrepareWorkers()
+	if cfg.ChannelWriteShardCount == 0 {
+		cfg.ChannelWriteShardCount = defaultChannelWriteShardCount()
 	}
 	if cfg.ChannelWriteAppendWorkers == 0 {
 		cfg.ChannelWriteAppendWorkers = defaultChannelWriteAppendWorkers()
@@ -308,12 +303,8 @@ func defaultChannelConfig(cfg ChannelConfig) ChannelConfig {
 	return cfg
 }
 
-func defaultChannelWriteReactorCount() int {
+func defaultChannelWriteShardCount() int {
 	return appMaxInt(4, runtime.GOMAXPROCS(0))
-}
-
-func defaultChannelWritePrepareWorkers() int {
-	return 100
 }
 
 func defaultChannelWriteAppendWorkers() int {
@@ -436,11 +427,8 @@ func validateChannelConfig(cfg ChannelConfig) error {
 }
 
 func validateDeliveryConfig(cfg DeliveryConfig) error {
-	if cfg.ChannelWriteReactorCount < 0 {
-		return fmt.Errorf("%w: delivery channel write reactor count must be non-negative", ErrInvalidConfig)
-	}
-	if cfg.ChannelWritePrepareWorkers < 0 {
-		return fmt.Errorf("%w: delivery channel write prepare workers must be non-negative", ErrInvalidConfig)
+	if cfg.ChannelWriteShardCount < 0 {
+		return fmt.Errorf("%w: delivery channel write shard count must be non-negative", ErrInvalidConfig)
 	}
 	if cfg.ChannelWriteAppendWorkers < 0 {
 		return fmt.Errorf("%w: delivery channel write append workers must be non-negative", ErrInvalidConfig)

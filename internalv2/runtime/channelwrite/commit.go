@@ -17,6 +17,10 @@ type commitPorts struct {
 	observer                     AppendObserver
 }
 
+func (p commitPorts) hasPostCommitWork() bool {
+	return p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
+}
+
 type commitEffect struct {
 	key             string
 	seq             uint64
@@ -74,32 +78,9 @@ func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFail
 	}
 }
 
-func (e commitCompletedEvent) apply(r *reactor) {
-	r.recordCommitCompletion(e)
-}
-
-func (r *reactor) recordCommitCompletion(event commitCompletedEvent) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	state := r.states[event.key]
-	if state == nil {
-		return
-	}
-	if event.err == nil {
-		backlogBefore := state.commitBacklog()
-		state.recordSubscriberCache(event.subscriberCache)
-		state.finishCommitSuccess(event.checkpointSeq)
-		r.addPostCommitBacklog(state.commitBacklog() - backlogBefore)
-		r.scheduleCommitLocked(event.key, state)
-		r.observePressureLocked()
-		return
-	}
-	state.finishCommitFailure()
-	if r.stopCtx.Err() != nil {
-		return
-	}
-	observePostCommitFailure(r.appendPorts.observer, PostCommitFailureObservation{
-		ReactorID:             r.id,
+// postCommitFailureFromEvent maps a failed commit completion to its observation.
+func postCommitFailureFromEvent(event commitCompletedEvent) PostCommitFailureObservation {
+	return PostCommitFailureObservation{
 		ChannelID:             event.event.ChannelID,
 		ChannelType:           event.event.ChannelType,
 		MessageID:             event.event.MessageID,
@@ -120,10 +101,5 @@ func (r *reactor) recordCommitCompletion(event commitCompletedEvent) {
 		DispatchOwnerNodeID:   event.detail.DispatchOwnerNodeID,
 		DispatchOwnerRouteNum: event.detail.DispatchOwnerRouteNum,
 		Err:                   event.err,
-	})
-	backlogBefore := state.commitBacklog()
-	state.dropCurrentCommit()
-	r.addPostCommitBacklog(state.commitBacklog() - backlogBefore)
-	r.scheduleCommitLocked(event.key, state)
-	r.observePressureLocked()
+	}
 }

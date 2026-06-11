@@ -64,31 +64,20 @@ func observeLocalAdmission(observer AppendObserver, event LocalAdmissionObservat
 	admissionObserver.ObserveChannelWriteLocalAdmission(event)
 }
 
-func observeReactorPressure(observer AppendObserver, event ReactorPressureObservation) {
-	pressureObserver := reactorPressureObserver(observer)
+func observeWriterPressure(observer AppendObserver, event WriterPressureObservation) {
+	pressureObserver := writerPressureObserver(observer)
 	if pressureObserver == nil {
 		return
 	}
-	pressureObserver.SetChannelWriteReactorPressure(event)
+	pressureObserver.SetChannelWriteWriterPressure(event)
 }
 
-func reactorPressureObserver(observer AppendObserver) ReactorPressureObserver {
-	pressureObserver, ok := observer.(ReactorPressureObserver)
+func writerPressureObserver(observer AppendObserver) WriterPressureObserver {
+	pressureObserver, ok := observer.(WriterPressureObserver)
 	if !ok || pressureObserver == nil {
 		return nil
 	}
 	return pressureObserver
-}
-
-func observeEffectWorkerPressure(observer AppendObserver, event EffectWorkerPressureObservation) {
-	pressureObserver, ok := observer.(EffectWorkerPressureObserver)
-	if !ok || pressureObserver == nil {
-		return
-	}
-	if event.Stage == "" {
-		event.Stage = "unknown"
-	}
-	pressureObserver.SetChannelWriteEffectWorkerPressure(event)
 }
 
 func observeEffectPool(observer AppendObserver, event EffectPoolObservation) {

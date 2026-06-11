@@ -22,6 +22,9 @@ func newFuture(itemCount int) *Future {
 	if itemCount < 0 {
 		itemCount = 0
 	}
+	// The result buffers are owned by the Future for its full lifetime. Wait may
+	// be called more than once, so returned results are snapshots rather than
+	// aliases into these buffers.
 	future := &Future{
 		done:    make(chan struct{}),
 		results: make([]SendBatchItemResult, itemCount),

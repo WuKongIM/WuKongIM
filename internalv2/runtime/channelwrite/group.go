@@ -2,9 +2,10 @@ package channelwrite
 
 import (
 	"context"
-	"hash/fnv"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
 )
@@ -146,11 +147,20 @@ var (
 	ErrMessageIDAllocatorRequired = contract.ErrMessageIDAllocatorRequired
 )
 
-// Group owns a set of channel-hashed local authority write reactors.
+// Group owns a set of hash-sharded local authority channel writers.
 type Group struct {
-	opts      Options
-	reactors  []*reactor
-	scheduler *effectScheduler
+	opts   Options
+	shards []*shard
+	// advancePool runs non-blocking writer state-machine activation.
+	advancePool *workerPool
+	// pool runs blocking append and post-commit effects.
+	pool *workerPool
+
+	admissionCapacity int64
+	admissionUsed     atomic.Int64
+	runtimeCtx        context.Context
+	runtimeCancel     context.CancelFunc
+	metrics           groupMetrics
 
 	mu       sync.RWMutex
 	started  bool
@@ -158,28 +168,76 @@ type Group struct {
 	stopped  bool
 }
 
-// New creates a channel write reactor group with conservative defaults.
+// New creates a channel write group with conservative defaults.
 func New(opts Options) *Group {
 	opts = applyDefaults(opts)
-	scheduler := newEffectScheduler(effectSchedulerOptions{
-		ReactorCount:      opts.ReactorCount,
-		PrepareWorkers:    opts.PrepareWorkers,
-		AppendWorkers:     opts.AppendWorkers,
-		PostCommitWorkers: opts.PostCommitWorkers,
-	})
-	group := &Group{opts: opts, scheduler: scheduler}
 	limits := stateLimitsFromOptions(opts)
-	ports := preparePortsFromOptions(opts)
-	appendPorts := appendPortsFromOptions(opts)
-	commitPorts := commitPortsFromOptions(opts)
-	for i := 0; i < opts.ReactorCount; i++ {
-		group.reactors = append(group.reactors, newReactor(i, opts.MailboxSize, limits, scheduler, ports, appendPorts, commitPorts))
+	poolSize := (opts.AppendWorkers + opts.PostCommitWorkers) * opts.ShardCount
+	advancePool := newWorkerPool(opts.ShardCount)
+	pool := newWorkerPool(poolSize)
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	group := &Group{
+		opts:              opts,
+		advancePool:       advancePool,
+		pool:              pool,
+		shards:            make([]*shard, opts.ShardCount),
+		admissionCapacity: int64(opts.MailboxSize * opts.ShardCount),
+		runtimeCtx:        runtimeCtx,
+		runtimeCancel:     runtimeCancel,
+	}
+	var metrics *groupMetrics
+	if observer := writerPressureObserver(opts.Observer); observer != nil {
+		group.metrics = groupMetrics{
+			observer:          observer,
+			admissionUsed:     &group.admissionUsed,
+			admissionCapacity: group.admissionCapacity,
+			pool:              pool,
+		}
+		metrics = &group.metrics
+	}
+	ports := writerPorts{
+		prepare:    preparePortsFromOptions(opts),
+		append:     appendPortsFromOptions(opts),
+		commit:     commitPortsFromOptions(opts),
+		pool:       pool,
+		schedule:   group.schedule,
+		runtimeCtx: runtimeCtx,
+		metrics:    metrics,
+	}
+	for i := range group.shards {
+		s := newShard(limits)
+		s.ports = ports
+		group.shards[i] = s
 	}
 	return group
 }
 
-// Start starts every reactor and opens local admission.
-// A group that has already stopped is not restarted.
+func (g *Group) schedule(w *channelWriter) {
+	_ = g.advancePool.submit(func() { w.advance() })
+}
+
+func (g *Group) tryAcquireAdmission() bool {
+	for {
+		used := g.admissionUsed.Load()
+		if used >= g.admissionCapacity {
+			return false
+		}
+		if g.admissionUsed.CompareAndSwap(used, used+1) {
+			return true
+		}
+	}
+}
+
+func (g *Group) releaseAdmission() {
+	g.admissionUsed.Add(-1)
+}
+
+func (g *Group) shardForTarget(target AuthorityTarget) *shard {
+	idx := int(hashString64(targetKey(target)) % uint64(len(g.shards)))
+	return g.shards[idx]
+}
+
+// Start opens local admission. A group that has already stopped is not restarted.
 func (g *Group) Start(ctx context.Context) error {
 	if err := contextErr(ctx); err != nil {
 		return err
@@ -189,19 +247,14 @@ func (g *Group) Start(ctx context.Context) error {
 	if g.stopping || g.stopped {
 		return ErrBackpressured
 	}
-	if g.started && !g.stopped {
+	if g.started {
 		return nil
 	}
-	for _, reactor := range g.reactors {
-		reactor.start()
-	}
 	g.started = true
-	g.stopping = false
-	g.stopped = false
 	return nil
 }
 
-// Stop closes admission and waits for accepted reactor events to drain.
+// Stop closes admission, drains accepted writer work, and releases the pool.
 func (g *Group) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -211,21 +264,17 @@ func (g *Group) Stop(ctx context.Context) error {
 		g.mu.Unlock()
 		return nil
 	}
-	reactors := append([]*reactor(nil), g.reactors...)
-	if !g.stopping {
-		g.stopping = true
-		for _, reactor := range reactors {
-			reactor.close()
-		}
-	}
+	g.stopping = true
+	g.runtimeCancel()
 	g.mu.Unlock()
 
-	for _, reactor := range reactors {
-		if err := reactor.wait(ctx); err != nil {
-			return err
-		}
+	if err := g.drainWriters(ctx); err != nil {
+		return err
 	}
-	if err := g.scheduler.stop(ctx); err != nil {
+	if err := g.advancePool.stop(ctx); err != nil {
+		return err
+	}
+	if err := g.pool.stop(ctx); err != nil {
 		return err
 	}
 
@@ -233,6 +282,43 @@ func (g *Group) Stop(ctx context.Context) error {
 	g.stopped = true
 	g.mu.Unlock()
 	return nil
+}
+
+// drainWriters waits until every writer has no pending work and is not scheduled.
+func (g *Group) drainWriters(ctx context.Context) error {
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if g.writersIdle() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (g *Group) writersIdle() bool {
+	for _, s := range g.shards {
+		s.mu.RLock()
+		for _, w := range s.writers {
+			if w.scheduled.Load() {
+				s.mu.RUnlock()
+				return false
+			}
+			w.mu.Lock()
+			pending := len(w.inbox) > 0 || w.state.hasPendingWork()
+			w.mu.Unlock()
+			if pending {
+				s.mu.RUnlock()
+				return false
+			}
+		}
+		s.mu.RUnlock()
+	}
+	return true
 }
 
 // ApplySubscriberMutation updates cached non-large subscriber snapshots after external metadata mutations.
@@ -247,35 +333,28 @@ func (g *Group) ApplySubscriberMutation(ctx context.Context, update SubscriberMu
 		return nil
 	}
 	g.mu.RLock()
-	if !g.started || g.stopping || g.stopped || len(g.reactors) == 0 {
+	if !g.started || g.stopping || g.stopped || len(g.shards) == 0 {
 		g.mu.RUnlock()
 		return nil
 	}
+	g.mu.RUnlock()
 	target := AuthorityTarget{
 		ChannelID:                 update.ChannelID,
 		ChannelKey:                channelKey(update.ChannelID),
 		Large:                     update.Large,
 		SubscriberMutationVersion: update.SubscriberMutationVersion,
 	}
-	reactor := g.reactorForTarget(target)
-	ack := make(chan error, 1)
-	event := subscriberMutationEvent{update: update.clone(), ack: ack}
-	select {
-	case reactor.mailbox <- event:
-	case <-ctx.Done():
-		g.mu.RUnlock()
-		return ctx.Err()
+	writer := g.shardForTarget(target).lookup(targetKey(target))
+	if writer == nil {
+		return nil // no cached state for an unseen channel; nothing to update
 	}
-	g.mu.RUnlock()
-	select {
-	case err := <-ack:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	writer.mu.Lock()
+	writer.state.applySubscriberMutation(update.clone())
+	writer.mu.Unlock()
+	return nil
 }
 
-// SubmitLocal admits a batch to the local channel-authority reactor.
+// SubmitLocal admits a batch to the local channel-authority writer.
 func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items []SendBatchItem) (*Future, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -283,24 +362,29 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 	if target.LeaderNodeID != g.opts.LocalNodeID {
 		return nil, ErrNotChannelAuthority
 	}
-
-	copiedItems := cloneSendBatchItems(items)
-	future := newFuture(len(copiedItems))
-
+	if err := contextErr(ctx); err != nil {
+		return nil, err
+	}
 	g.mu.RLock()
 	if !g.started || g.stopping || g.stopped {
 		g.mu.RUnlock()
 		return nil, ErrBackpressured
 	}
-	reactor := g.reactorForTarget(target)
-	ack, err := reactor.enqueue(ctx, target, copiedItems, future)
+	if !g.tryAcquireAdmission() {
+		g.mu.RUnlock()
+		observeLocalAdmission(g.opts.Observer, LocalAdmissionObservation{Result: channelWriteResultBackpressured, Items: len(items)})
+		return nil, ErrBackpressured
+	}
 	g.mu.RUnlock()
-	if err != nil {
-		return nil, err
+
+	copiedItems := cloneSendBatchItems(items)
+	future := newFuture(len(copiedItems))
+	future.setOnDone(g.releaseAdmission)
+	writer := g.shardForTarget(target).getOrCreate(target)
+	if writer.enqueue(submittedBatch{target: target, items: copiedItems, future: future}) {
+		g.schedule(writer)
 	}
-	if err := <-ack; err != nil {
-		return nil, err
-	}
+	observeLocalAdmission(g.opts.Observer, LocalAdmissionObservation{Result: "accepted", Items: len(items)})
 	return future, nil
 }
 
@@ -308,12 +392,6 @@ func (u SubscriberMutationUpdate) clone() SubscriberMutationUpdate {
 	u.AddedUIDs = append([]string(nil), u.AddedUIDs...)
 	u.RemovedUIDs = append([]string(nil), u.RemovedUIDs...)
 	return u
-}
-
-func (g *Group) reactorForTarget(target AuthorityTarget) *reactor {
-	key := targetKey(target)
-	idx := int(hashString64(key) % uint64(len(g.reactors)))
-	return g.reactors[idx]
 }
 
 func targetKey(target AuthorityTarget) string {
@@ -328,9 +406,16 @@ func channelKey(channelID ChannelID) string {
 }
 
 func hashString64(value string) uint64 {
-	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(value))
-	return hash.Sum64()
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	for i := 0; i < len(value); i++ {
+		hash ^= uint64(value[i])
+		hash *= prime64
+	}
+	return hash
 }
 
 func cloneSendBatchItems(items []SendBatchItem) []SendBatchItem {

@@ -49,6 +49,28 @@ func TestAppendSuccessEnqueuesCommittedEventsAndSendackCompletesBeforeRecipientE
 	}
 }
 
+func TestNoopPostCommitPortsDoNotScheduleCommitEffect(t *testing.T) {
+	observer := &recordingEffectObserverForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(901),
+		Appender:    newRecordingAppenderForAppendTest(),
+		Observer:    observer,
+	})
+	target := localTargetForAppendTest("room")
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{appendSendItemForTest("u1", "room", "payload")})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 901, 1)
+	time.Sleep(20 * time.Millisecond)
+
+	if observer.hasStage(effectStagePostCommit) {
+		t.Fatalf("observed %q effect for no-op post-commit ports", effectStagePostCommit)
+	}
+}
+
 func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
@@ -395,45 +417,32 @@ func TestStopDoesNotWalkCanceledCommitBacklog(t *testing.T) {
 	}
 }
 
-func TestStopReleasesUnsentPendingCommitEffect(t *testing.T) {
-	target := localTargetForAppendTest("room")
-	key := targetKey(target)
-	reactor := newReactor(
-		0,
-		1,
-		channelStateLimits{},
-		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
-		preparePorts{},
-		appendPorts{},
-		commitPorts{deliveryEnqueuer: &recordingRecipientEnqueuerForRecipientTest{}},
-	)
-	state := newChannelState(target, channelStateLimits{})
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 1400, ChannelID: "room", ChannelType: 2, MessageScopedUIDs: []string{"u2"}})
-	effect, ok := state.nextCommitEffect(key)
-	if !ok {
-		t.Fatalf("nextCommitEffect() ok = false, want true")
-	}
-	if !state.commitInflight {
-		t.Fatalf("commitInflight = false, want reserved before unsent pending effect")
-	}
-	reactor.states[key] = state
-	reactor.pendingCommit = []commitEffect{effect}
-	reactor.addEffectQueueDepth(effectStagePostCommit, 1)
-	reactor.close()
-	go reactor.run()
-
-	waitCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	if err := reactor.wait(waitCtx); err != nil {
-		t.Fatalf("reactor wait error = %v, want drained after releasing unsent pending commit", err)
-	}
-	if state.commitInflight {
-		t.Fatalf("commitInflight = true after canceled unsent pending commit")
-	}
-}
-
 type staticRecipientAuthorityResolverForCommitTest struct {
 	nodeID uint64
+}
+
+type recordingEffectObserverForCommitTest struct {
+	mu     sync.Mutex
+	stages []string
+}
+
+func (o *recordingEffectObserverForCommitTest) AppendFinished(string, error, time.Duration) {}
+
+func (o *recordingEffectObserverForCommitTest) ObserveChannelWriteEffect(event EffectObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.stages = append(o.stages, event.Stage)
+}
+
+func (o *recordingEffectObserverForCommitTest) hasStage(stage string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, got := range o.stages {
+		if got == stage {
+			return true
+		}
+	}
+	return false
 }
 
 func (r staticRecipientAuthorityResolverForCommitTest) ResolveRecipientAuthority(_ context.Context, _ string) (RecipientAuthorityTarget, error) {
@@ -617,16 +626,11 @@ func waitCommitBacklogForTest(t *testing.T, group *Group, channelID ChannelID, w
 }
 
 func commitBacklogForTest(group *Group, channelID ChannelID) int {
-	key := channelKey(channelID)
-	for _, reactor := range group.reactors {
-		reactor.mu.Lock()
-		state := reactor.states[key]
-		if state != nil {
-			backlog := state.commitBacklog()
-			reactor.mu.Unlock()
-			return backlog
-		}
-		reactor.mu.Unlock()
+	writer := group.writerForTest(channelID)
+	if writer == nil {
+		return 0
 	}
-	return 0
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	return writer.state.commitBacklog()
 }

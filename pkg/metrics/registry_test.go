@@ -872,10 +872,9 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 	reg := New(12, "node-12")
 	reg.ChannelWrite.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
 	reg.ChannelWrite.ObserveRouter("remote", "backpressured", 4, 5*time.Millisecond)
-	reg.ChannelWrite.ObserveLocalAdmission(2, "accepted", 8)
-	reg.ChannelWrite.ObserveLocalAdmission(2, "backpressured", 4)
-	reg.ChannelWrite.SetReactorPressure(2, 3, 1024, 9, 1024, 7, 2, 5)
-	reg.ChannelWrite.SetEffectWorkerPressure(2, "append", 3, 16, 5, 1024)
+	reg.ChannelWrite.ObserveLocalAdmission("accepted", 8)
+	reg.ChannelWrite.ObserveLocalAdmission("backpressured", 4)
+	reg.ChannelWrite.SetWriterPressure(3, 1024, 9, 1024, 7, 2, 5)
 	reg.ChannelWrite.ObserveEffectPool("append", "submitted", 8, 16, false)
 	reg.ChannelWrite.ObserveEffectPool("append", "full", 16, 16, true)
 	reg.ChannelWrite.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
@@ -894,18 +893,16 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 
 	admission := requireMetricFamily(t, families, "wukongim_channelwrite_local_admission_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, admission, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"result":     "accepted",
+		"node_id":   "12",
+		"node_name": "node-12",
+		"result":    "accepted",
 	}).GetCounter().GetValue())
 
-	state := requireMetricFamily(t, families, "wukongim_channelwrite_reactor_state_items")
+	state := requireMetricFamily(t, families, "wukongim_channelwrite_writer_state_items")
 	require.Equal(t, float64(5), findMetricByLabels(t, state, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"kind":       "post_commit_backlog",
+		"node_id":   "12",
+		"node_name": "node-12",
+		"kind":      "post_commit_backlog",
 	}).GetGauge().GetValue())
 
 	effect := requireMetricFamily(t, families, "wukongim_channelwrite_effect_total")
@@ -915,38 +912,6 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"stage":     "post_commit",
 		"result":    "route_not_ready",
 	}).GetCounter().GetValue())
-
-	workerInflight := requireMetricFamily(t, families, "wukongim_channelwrite_effect_worker_inflight")
-	require.Equal(t, float64(3), findMetricByLabels(t, workerInflight, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"stage":      "append",
-	}).GetGauge().GetValue())
-
-	workerCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_worker_capacity")
-	require.Equal(t, float64(16), findMetricByLabels(t, workerCapacity, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"stage":      "append",
-	}).GetGauge().GetValue())
-
-	queueDepth := requireMetricFamily(t, families, "wukongim_channelwrite_effect_queue_depth")
-	require.Equal(t, float64(5), findMetricByLabels(t, queueDepth, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"stage":      "append",
-	}).GetGauge().GetValue())
-
-	queueCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_queue_capacity")
-	require.Equal(t, float64(1024), findMetricByLabels(t, queueCapacity, map[string]string{
-		"node_id":    "12",
-		"node_name":  "node-12",
-		"reactor_id": "2",
-		"stage":      "append",
-	}).GetGauge().GetValue())
 
 	poolSubmit := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_submit_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, poolSubmit, map[string]string{
@@ -977,7 +942,7 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"stage":     "append",
 	}).GetGauge().GetValue())
 
-	for _, family := range []*dto.MetricFamily{router, admission, state, effect, workerInflight, workerCapacity, queueDepth, queueCapacity, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
+	for _, family := range []*dto.MetricFamily{router, admission, state, effect, poolSubmit, poolInflight, poolCapacity, poolSaturated} {
 		for _, metric := range family.GetMetric() {
 			requireNoMetricLabel(t, metric, "uid")
 			requireNoMetricLabel(t, metric, "channel_id")
