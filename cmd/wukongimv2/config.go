@@ -86,6 +86,8 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
 	"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX",
 	"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL",
+	"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
 	"WK_DELIVERY_ENABLE",
@@ -745,6 +747,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT: value must be > 0")
 		}
 		cfg.Conversation.AuthorityHandoffTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL: value must be > 0")
+		}
+		cfg.Conversation.AuthorityFlushInterval = interval
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"); raw != "" {
+		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if rows <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityFlushBatchRows = rows
 	}
 	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"); raw != "" {
 		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", raw)

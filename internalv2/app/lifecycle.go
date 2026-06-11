@@ -64,6 +64,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.conversationRouteStarted = true
 	}
+	if a.conversationActiveWorker != nil {
+		if err := a.conversationActiveWorker.Start(ctx); err != nil {
+			a.logLifecycleError("conversation_active_worker", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.conversationActiveStarted = true
+	}
 	if a.presenceWorker != nil {
 		if err := a.presenceWorker.Start(ctx); err != nil {
 			a.logLifecycleError("presence_worker", "start", err)
@@ -153,6 +161,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.deliveryStarted = false
 		}
 	}
+	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
+		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_active_worker", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationActiveStarted = false
+		}
+	}
 	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
 		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("conversation_route_lifecycle", "stop", stopErr)
@@ -177,7 +193,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -215,6 +231,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
+		}
+	}
+	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
+		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_active_worker", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationActiveStarted = false
 		}
 	}
 	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {

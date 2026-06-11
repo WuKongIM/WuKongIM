@@ -282,6 +282,8 @@ func TestDefaultConversationAuthorityConfig(t *testing.T) {
 		cfg.AuthorityCacheMaxRows != 100000 ||
 		cfg.AuthorityListDBWindowMax != 1000 ||
 		cfg.AuthorityHandoffTimeout != 3*time.Second ||
+		cfg.AuthorityFlushInterval != time.Second ||
+		cfg.AuthorityFlushBatchRows != 512 ||
 		cfg.AuthorityAdmitBatchRows != 512 ||
 		cfg.AuthorityAdmitConcurrency != 16 {
 		t.Fatalf("conversation authority defaults = %#v", cfg)
@@ -302,6 +304,10 @@ func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 		{name: "authority list db window max zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityListDBWindowMax = 0 }},
 		{name: "authority handoff timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = -time.Nanosecond }},
 		{name: "authority handoff timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = 0 }},
+		{name: "authority flush interval negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = -time.Nanosecond }},
+		{name: "authority flush interval zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = 0 }},
+		{name: "authority flush batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushBatchRows = -1 }},
+		{name: "authority flush batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushBatchRows = 0 }},
 		{name: "authority admit batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitBatchRows = -1 }},
 		{name: "authority admit batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitBatchRows = 0 }},
 		{name: "authority admit concurrency negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitConcurrency = -1 }},
@@ -725,6 +731,70 @@ func TestChannelWriteUsesDurableSubscribersAndSenderActiveRow(t *testing.T) {
 	sender := requireConversationEventually(t, app, "sender", "g-small-missing-sender", frame.ChannelTypeGroup)
 	if sender.ReadSeq != result.MessageSeq {
 		t.Fatalf("sender ReadSeq = %d, want latest message seq %d", sender.ReadSeq, result.MessageSeq)
+	}
+}
+
+func TestAppStopFlushesConversationActiveRows(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
+	app, err := newTestApp(t,
+		Config{
+			Cluster: clusterv2.Config{NodeID: 3},
+			Conversation: ConversationConfig{
+				AuthorityFlushInterval:  time.Hour,
+				AuthorityFlushBatchRows: 8,
+			},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.conversationActiveWorker == nil {
+		t.Fatal("conversation active flush worker was not wired")
+	}
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	channelID := runtimechannelid.EncodePersonChannel("sender", "receiver")
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "sender",
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: "client-stop-flush-1",
+		Payload:     []byte("flush"),
+	})
+	if err != nil || result.Reason != message.ReasonSuccess {
+		t.Fatalf("Send() = %#v err=%v, want success", result, err)
+	}
+	requireConversationEventually(t, app, "sender", channelID, frame.ChannelTypePerson)
+
+	cluster.mu.Lock()
+	beforeStop := len(cluster.conversationPatchBatches)
+	cluster.mu.Unlock()
+	if beforeStop != 0 {
+		t.Fatalf("conversation active flush batches before stop = %d, want no periodic flush with hourly interval", beforeStop)
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := app.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.conversationPatchBatches) == 0 {
+		t.Fatal("conversation active flush batches after stop = 0, want final dirty flush")
+	}
+	patches := conversationPatchesByUID(cluster.conversationPatchBatches[len(cluster.conversationPatchBatches)-1])
+	if patches["sender"].ReadSeq != result.MessageSeq {
+		t.Fatalf("sender flushed ReadSeq = %d, want %d", patches["sender"].ReadSeq, result.MessageSeq)
+	}
+	if patches["receiver"].ReadSeq != 0 {
+		t.Fatalf("receiver flushed ReadSeq = %d, want receiver row without sender read state", patches["receiver"].ReadSeq)
 	}
 }
 

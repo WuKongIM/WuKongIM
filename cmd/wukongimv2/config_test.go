@@ -145,6 +145,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=200000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1500",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=4s",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1500ms",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=384",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
 		"WK_DELIVERY_ENABLE=true",
@@ -253,6 +255,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		AuthorityCacheMaxRows:       200000,
 		AuthorityListDBWindowMax:    1500,
 		AuthorityHandoffTimeout:     4 * time.Second,
+		AuthorityFlushInterval:      1500 * time.Millisecond,
+		AuthorityFlushBatchRows:     384,
 		AuthorityAdmitBatchRows:     256,
 		AuthorityAdmitConcurrency:   8,
 	})
@@ -354,6 +358,8 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16",
 	)
@@ -362,6 +368,8 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", "50000")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", "750")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", "2s")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", "750ms")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", "96")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", "128")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY", "4")
 
@@ -375,6 +383,8 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		AuthorityCacheMaxRows:       50000,
 		AuthorityListDBWindowMax:    750,
 		AuthorityHandoffTimeout:     2 * time.Second,
+		AuthorityFlushInterval:      750 * time.Millisecond,
+		AuthorityFlushBatchRows:     96,
 		AuthorityAdmitBatchRows:     128,
 		AuthorityAdmitConcurrency:   4,
 	})
@@ -914,6 +924,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority list db window max zero", line: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=0", wantKey: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"},
 		{name: "conversation authority handoff timeout", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
 		{name: "conversation authority handoff timeout zero", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
+		{name: "conversation authority flush interval", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
+		{name: "conversation authority flush interval zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
+		{name: "conversation authority flush batch rows", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
+		{name: "conversation authority flush batch rows zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
 		{name: "conversation authority admit batch rows", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
 		{name: "conversation authority admit batch rows zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
 		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
@@ -1121,6 +1135,8 @@ func assertConversationAuthorityConfig(t *testing.T, got, want app.ConversationC
 		got.AuthorityCacheMaxRows != want.AuthorityCacheMaxRows ||
 		got.AuthorityListDBWindowMax != want.AuthorityListDBWindowMax ||
 		got.AuthorityHandoffTimeout != want.AuthorityHandoffTimeout ||
+		got.AuthorityFlushInterval != want.AuthorityFlushInterval ||
+		got.AuthorityFlushBatchRows != want.AuthorityFlushBatchRows ||
 		got.AuthorityAdmitBatchRows != want.AuthorityAdmitBatchRows ||
 		got.AuthorityAdmitConcurrency != want.AuthorityAdmitConcurrency {
 		t.Fatalf("conversation authority config = %#v, want %#v", got, want)

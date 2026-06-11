@@ -263,9 +263,9 @@ Conversation active rows remain working-set hints: delayed or dropped
 post-commit work does not change message durability or SENDACK success. The
 runtime/conversationactive.Manager coalesces active rows, serves list reads by
 merging cached rows with UID-owned DB active rows, and flushes durable active
-touch patches on explicit Stop, handoff drain, or cache pressure. The app
-conversation authority keeps route target fencing, lifecycle handoff, observer
-mapping, and usecase/RPC type adaptation.
+touch patches through the conversation active flush worker, handoff drain, or
+cache pressure. The app conversation authority keeps route target fencing,
+lifecycle handoff, observer mapping, and usecase/RPC type adaptation.
 
 SEND with channel authority routing enabled:
 
@@ -304,6 +304,7 @@ Start(ctx)
   -> cluster.Start(ctx)
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
+  -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
   -> channel write group Start(ctx): open local channel-authority reactor admission
   -> delivery worker group Start(ctx): retry scheduler starts before async manager
@@ -316,6 +317,7 @@ Stop(ctx)
   -> api.Stop(ctx)
   -> channel write group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): async manager drains before retry scheduler
+  -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
   -> cluster.Stop(ctx)
@@ -349,6 +351,25 @@ The app worker has one authority watch loop and one periodic touch loop. It does
 not scan or replay owner-local active sessions when authority changes, and it
 does not create per-hash-slot workers.
 
+## Conversation Active Flush Worker
+
+```text
+periodic flush
+  -> conversationAuthority.FlushActiveRows(ctx, AuthorityFlushBatchRows)
+  -> runtime/conversationactive.Manager selects dirty rows with version fencing
+  -> store.TouchUserConversationActiveAtBatch persists ActiveAt/ReadSeq/UpdatedAt
+
+Stop(ctx)
+  -> channelwrite has already closed admission and drained accepted post-commit effects
+  -> cancel the periodic loop
+  -> drain remaining dirty active rows in bounded batches with the caller's stop context
+```
+
+The flush worker does not construct conversation rows and does not read message
+payloads. It only persists dirty active rows already admitted into the
+conversationactive cache, keeping cache visibility immediate while bounding
+eventual durable lag.
+
 ## Conversation Authority Handoff
 
 ```text
@@ -366,5 +387,6 @@ clusterv2.RouteAuthorityEvent
 
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
-local cache/list readiness for targets that this node can serve, and `Stop`
-flushes remaining runtime dirty active rows with the caller's stop context.
+local cache/list readiness for targets that this node can serve. Handoff drains
+the same runtime dirty rows before a target is retired; normal app shutdown is
+handled by the conversation active flush worker.

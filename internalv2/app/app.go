@@ -77,6 +77,7 @@ type App struct {
 	deliveryWorker              WorkerRuntime
 	localOwnerPusher            *localOwnerPusher
 	conversationRouteLifecycle  WorkerRuntime
+	conversationActiveWorker    WorkerRuntime
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
@@ -95,17 +96,18 @@ type App struct {
 	diagnosticsRestore func()
 	logger             wklog.Logger
 
-	lifecycleMu              sync.Mutex
-	started                  bool
-	stopped                  bool
-	clusterStarted           bool
-	presenceStarted          bool
-	conversationRouteStarted bool
-	channelWriteStarted      bool
-	deliveryStarted          bool
-	apiStarted               bool
-	gatewayStarted           bool
-	deliveryErrors           atomic.Uint64
+	lifecycleMu               sync.Mutex
+	started                   bool
+	stopped                   bool
+	clusterStarted            bool
+	presenceStarted           bool
+	conversationRouteStarted  bool
+	conversationActiveStarted bool
+	channelWriteStarted       bool
+	deliveryStarted           bool
+	apiStarted                bool
+	gatewayStarted            bool
+	deliveryErrors            atomic.Uint64
 }
 
 // New creates an internalv2 App.

@@ -289,14 +289,20 @@ func (a *conversationAuthority) localAuthorityTarget(target conversationAuthorit
 
 // Flush persists dirty active rows through the runtime cache.
 func (a *conversationAuthority) Flush(ctx context.Context) error {
+	_, err := a.FlushActiveRows(ctx, 0)
+	return err
+}
+
+// FlushActiveRows persists dirty active rows through the runtime cache.
+func (a *conversationAuthority) FlushActiveRows(ctx context.Context, limit int) (conversationactive.FlushResult, error) {
 	if a == nil {
-		return nil
+		return conversationactive.FlushResult{}, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	_, err := a.active.Flush(ctx, 0)
-	return mapConversationActiveError(err)
+	result, err := a.active.Flush(ctx, limit)
+	return result, mapConversationActiveError(err)
 }
 
 // DrainAuthority marks the target draining and flushes runtime dirty rows for handoff.

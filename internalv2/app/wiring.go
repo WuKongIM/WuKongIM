@@ -171,6 +171,14 @@ func (a *App) wireConversationAuthority() {
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
 			a.conversationAuthority = authority
 			a.conversationAuthorityClient = client
+			if a.conversationActiveWorker == nil {
+				a.conversationActiveWorker = newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+					Authority:     authority,
+					FlushInterval: a.cfg.Conversation.AuthorityFlushInterval,
+					BatchRows:     a.cfg.Conversation.AuthorityFlushBatchRows,
+					Logger:        a.logger.Named("conversation_active_flush"),
+				})
+			}
 			if a.conversationRouteLifecycle == nil {
 				routeLifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 					LocalAuthority: authority,
