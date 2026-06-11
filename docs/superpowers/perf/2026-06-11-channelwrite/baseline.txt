@@ -1,0 +1,36 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite
+cpu: Apple M4
+BenchmarkSubmitLocalHotChannel-10                           	  163216	      6241 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10                           	  190694	      6224 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10                           	  195189	      6281 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10                           	  189684	      6266 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10                           	  192517	      6268 ns/op	         6.000 goroutine-delta	    6130 B/op	      41 allocs/op
+BenchmarkSubmitLocalHotChannel-10                           	  191115	      6259 ns/op	         6.000 goroutine-delta	    6129 B/op	      41 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  243669	      5324 ns/op	         6.000 goroutine-delta	    8312 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  260142	      4548 ns/op	         6.000 goroutine-delta	    8369 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  260170	      4558 ns/op	         6.000 goroutine-delta	    8326 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  270396	      4578 ns/op	         6.000 goroutine-delta	    8307 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  253822	      4688 ns/op	         6.000 goroutine-delta	    8318 B/op	      61 allocs/op
+BenchmarkSubmitLocalManyChannelsParallel-10                 	  262869	      5057 ns/op	         6.000 goroutine-delta	    8399 B/op	      61 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  178542	      7615 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  167361	      7388 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  178218	      6939 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  174900	      6892 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  167523	      6974 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkRouterAllItemsContextPlainBatch-10                 	  174172	      7115 ns/op	   57552 B/op	       4 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	595382191	         2.003 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	599505033	         2.021 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	592715892	         2.369 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	580308560	         2.052 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	588789810	         2.009 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureNoPressureObserver10KChannels-10    	558189078	         2.065 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	188494911	         6.378 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	198329965	         6.342 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	196544943	         6.208 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	196037496	         6.092 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	199571668	         6.098 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservePressureWithObserver10KChannels-10          	199353346	         6.029 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite	43.140s
