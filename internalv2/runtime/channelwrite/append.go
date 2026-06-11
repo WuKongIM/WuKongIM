@@ -308,6 +308,13 @@ func observeAppendCompletion(observer AppendObserver, completion appendItemCompl
 	observer.AppendFinished(appendMetricPathChannelPlane, completion.traceErr, dur)
 }
 
+func appendTraceMessageSeq(completion appendItemCompletion) uint64 {
+	if completion.appended.MessageSeq != 0 {
+		return completion.appended.MessageSeq
+	}
+	return completion.result.Result.MessageSeq
+}
+
 func recordAppendDurableTrace(item preparedSend, messageSeq uint64, err error, duration time.Duration) {
 	cmd := item.Command
 	if cmd.TraceID == "" || !sendtrace.Enabled() {

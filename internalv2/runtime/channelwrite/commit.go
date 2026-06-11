@@ -78,6 +78,32 @@ func (e commitCompletedEvent) apply(r *reactor) {
 	r.recordCommitCompletion(e)
 }
 
+// postCommitFailureFromEvent maps a failed commit completion to its observation.
+func postCommitFailureFromEvent(event commitCompletedEvent) PostCommitFailureObservation {
+	return PostCommitFailureObservation{
+		ChannelID:             event.event.ChannelID,
+		ChannelType:           event.event.ChannelType,
+		MessageID:             event.event.MessageID,
+		MessageSeq:            event.event.MessageSeq,
+		Attempt:               event.attempt,
+		Result:                event.result,
+		Phase:                 event.detail.Phase,
+		UID:                   event.detail.UID,
+		UIDCount:              event.detail.UIDCount,
+		RecipientCount:        event.detail.RecipientCount,
+		TargetHashSlot:        event.detail.TargetHashSlot,
+		TargetSlotID:          event.detail.TargetSlotID,
+		TargetLeaderNodeID:    event.detail.TargetLeaderNodeID,
+		TargetRouteRevision:   event.detail.TargetRouteRevision,
+		TargetAuthorityEpoch:  event.detail.TargetAuthorityEpoch,
+		DispatchTargetCount:   event.detail.DispatchTargetCount,
+		DispatchBatchSize:     event.detail.DispatchBatchSize,
+		DispatchOwnerNodeID:   event.detail.DispatchOwnerNodeID,
+		DispatchOwnerRouteNum: event.detail.DispatchOwnerRouteNum,
+		Err:                   event.err,
+	}
+}
+
 func (r *reactor) recordCommitCompletion(event commitCompletedEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -237,13 +237,6 @@ func (r *reactor) dispatchAppendItemCompletion(completion appendItemCompletion, 
 	completion.item.future.completeItem(completion.item.Index, completion.result)
 }
 
-func appendTraceMessageSeq(completion appendItemCompletion) uint64 {
-	if completion.appended.MessageSeq != 0 {
-		return completion.appended.MessageSeq
-	}
-	return completion.result.Result.MessageSeq
-}
-
 func (r *reactor) scheduleAppendLocked(key string, state *channelState) {
 	for {
 		seq, items, ok := state.nextAppendBatch()
