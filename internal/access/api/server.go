@@ -126,14 +126,13 @@ type Options struct {
 	HealthDetailEnabled      bool
 	HealthDetails            func() any
 	Readyz                   func(context.Context) (bool, any)
-	DebugEnabled             bool
+	DebugAPIEnabled          bool
 	BenchEnabled             bool
 	BenchData                BenchDataUsecase
 	BenchMaxBatchSize        int
 	BenchMaxPayloadBytes     int64
 	DebugConfig              func() any
 	DebugCluster             func() any
-	DiagnosticsDebugEnabled  bool
 	Diagnostics              DiagnosticsReader
 	LegacyRouteExternal      LegacyRouteAddresses
 	LegacyRouteIntranet      LegacyRouteAddresses
@@ -163,14 +162,13 @@ type Server struct {
 	healthDetailEnabled      bool
 	healthDetails            func() any
 	readyz                   func(context.Context) (bool, any)
-	debugEnabled             bool
+	debugAPIEnabled          bool
 	benchEnabled             bool
 	benchData                BenchDataUsecase
 	benchMaxBatchSize        int
 	benchMaxPayloadBytes     int64
 	debugConfig              func() any
 	debugCluster             func() any
-	diagnosticsDebugEnabled  bool
 	diagnostics              DiagnosticsReader
 	legacyRouteExternal      LegacyRouteAddresses
 	legacyRouteIntranet      LegacyRouteAddresses
@@ -206,14 +204,13 @@ func New(opts Options) *Server {
 		healthDetailEnabled:      opts.HealthDetailEnabled,
 		healthDetails:            opts.HealthDetails,
 		readyz:                   opts.Readyz,
-		debugEnabled:             opts.DebugEnabled,
+		debugAPIEnabled:          opts.DebugAPIEnabled,
 		benchEnabled:             opts.BenchEnabled,
 		benchData:                opts.BenchData,
 		benchMaxBatchSize:        opts.BenchMaxBatchSize,
 		benchMaxPayloadBytes:     opts.BenchMaxPayloadBytes,
 		debugConfig:              opts.DebugConfig,
 		debugCluster:             opts.DebugCluster,
-		diagnosticsDebugEnabled:  opts.DiagnosticsDebugEnabled,
 		diagnostics:              opts.Diagnostics,
 		legacyRouteExternal:      opts.LegacyRouteExternal,
 		legacyRouteIntranet:      opts.LegacyRouteIntranet,

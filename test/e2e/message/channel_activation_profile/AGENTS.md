@@ -36,7 +36,7 @@ go test -tags=e2e ./test/e2e/message/channel_activation_profile -count=1
 
 ## Core Steps
 
-1. Start a fresh single-node cluster with `WK_HEALTH_DEBUG_ENABLE=true` so
+1. Start a fresh single-node cluster with `WK_DEBUG_API_ENABLE=true` so
    `/debug/pprof/*` is exposed on the API listener.
 2. Create `WK_E2E_CHANNEL_ACTIVATION_PROFILE_CHANNELS` group channels per
    wave through `/channel`, each with its own sender as a subscriber.

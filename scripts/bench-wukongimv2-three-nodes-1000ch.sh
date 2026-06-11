@@ -341,7 +341,7 @@ start_cluster() {
   log "starting three-node cluster with $START_SCRIPT"
   # Preserve synchronous commits; the wider window only improves durable group-commit batching.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
-  WK_PPROF_ENABLE="${WK_PPROF_ENABLE:-true}" \
+  WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \

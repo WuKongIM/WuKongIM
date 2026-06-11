@@ -260,19 +260,16 @@ WK_DIAGNOSTICS_SAMPLE_RATE=0.01
 WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
 # Sets the keep probability for diagnostics events with non-ok results.
 WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
-# Enables debug-only diagnostics HTTP endpoints when implemented.
-WK_DIAGNOSTICS_DEBUG_API_ENABLE=false
 # Configures temporary high-priority diagnostics sampling matches as a JSON array.
 # channel_key uses channel/<channel_type>/<base64url(channel_id without padding)>; for example g1 group is channel/2/ZzE.
 # Example: WK_DIAGNOSTICS_DEBUG_MATCHES=[{"channel_key":"channel/2/ZzE","ttl_seconds":3600,"sample_rate":1.0}]
 WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
-WK_HEALTH_DEBUG_ENABLE=false
+# Controls all /debug endpoints on the API listener, including pprof, config, cluster, and diagnostics query routes.
+WK_DEBUG_API_ENABLE=false
 
 # Optional: SEND worker count; non-positive uses a CPU-scaled adaptive default.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
-# Optional: expose /debug/pprof on the API listener for controlled performance runs.
-# WK_PPROF_ENABLE=false
 # Optional: SEND micro-batch collection. Negative wait disables waiting; non-positive bounds use defaults.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=512

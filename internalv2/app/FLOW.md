@@ -35,7 +35,7 @@ New(Config)
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
        and expose local diagnostics debug APIs only when
-       Observability.Diagnostics.DebugAPIEnabled=true
+       Observability.DebugAPIEnabled=true
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when the cluster exposes channel metadata APIs:
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter

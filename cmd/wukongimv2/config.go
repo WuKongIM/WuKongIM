@@ -56,8 +56,7 @@ var supportedConfigKeys = []string{
 	"WK_BENCH_API_MAX_BATCH_SIZE",
 	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 	"WK_METRICS_ENABLE",
-	"WK_PPROF_ENABLE",
-	"WK_HEALTH_DEBUG_ENABLE",
+	"WK_DEBUG_API_ENABLE",
 	"WK_DIAGNOSTICS_ENABLE",
 	"WK_DIAGNOSTICS_BUFFER_SIZE",
 	"WK_DIAGNOSTICS_SAMPLE_RATE",
@@ -66,7 +65,6 @@ var supportedConfigKeys = []string{
 	"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE",
 	"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS",
 	"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH",
-	"WK_DIAGNOSTICS_DEBUG_API_ENABLE",
 	"WK_DIAGNOSTICS_DEBUG_MATCHES",
 	"WK_EXTERNAL_TCPADDR",
 	"WK_EXTERNAL_WSADDR",
@@ -465,19 +463,12 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.MetricsEnabled = metricsEnable
 	}
-	if raw := configValue(values, "WK_PPROF_ENABLE"); raw != "" {
-		pprofEnable, err := parseBool("WK_PPROF_ENABLE", raw)
+	if raw := configValue(values, "WK_DEBUG_API_ENABLE"); raw != "" {
+		debugAPIEnable, err := parseBool("WK_DEBUG_API_ENABLE", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		cfg.Observability.PProfEnabled = pprofEnable
-	}
-	if raw := configValue(values, "WK_HEALTH_DEBUG_ENABLE"); raw != "" {
-		healthDebugEnable, err := parseBool("WK_HEALTH_DEBUG_ENABLE", raw)
-		if err != nil {
-			return app.Config{}, err
-		}
-		cfg.Observability.HealthDebugEnabled = healthDebugEnable
+		cfg.Observability.DebugAPIEnabled = debugAPIEnable
 	}
 	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
 	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""
@@ -558,13 +549,6 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH: value must be >= 0")
 		}
 		cfg.Observability.Diagnostics.DeepMaxItemsPerBatch = deepMaxItems
-	}
-	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_API_ENABLE"); raw != "" {
-		debugAPIEnable, err := parseBool("WK_DIAGNOSTICS_DEBUG_API_ENABLE", raw)
-		if err != nil {
-			return app.Config{}, err
-		}
-		cfg.Observability.Diagnostics.DebugAPIEnabled = debugAPIEnable
 	}
 	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_MATCHES"); raw != "" {
 		debugMatches, err := parseDiagnosticsDebugMatches(raw)

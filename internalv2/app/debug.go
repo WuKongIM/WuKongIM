@@ -5,16 +5,14 @@ func (a *App) debugConfigSnapshot() any {
 		return map[string]any{}
 	}
 	return map[string]any{
-		"node_id":               diagnosticsNodeID(a.cfg),
-		"node_data_dir":         a.cfg.DataDir,
-		"cluster_listen":        a.cfg.Cluster.ListenAddr,
-		"api_listen":            a.cfg.API.ListenAddr,
-		"gateway_listeners":     len(a.cfg.Gateway.Listeners),
-		"metrics_enable":        a.cfg.Observability.MetricsEnabled,
-		"pprof_enable":          a.cfg.Observability.PProfEnabled,
-		"health_debug":          a.cfg.Observability.HealthDebugEnabled,
-		"diagnostics_enable":    a.cfg.Observability.Diagnostics.Enabled,
-		"diagnostics_debug_api": a.cfg.Observability.Diagnostics.DebugAPIEnabled,
+		"node_id":            diagnosticsNodeID(a.cfg),
+		"node_data_dir":      a.cfg.DataDir,
+		"cluster_listen":     a.cfg.Cluster.ListenAddr,
+		"api_listen":         a.cfg.API.ListenAddr,
+		"gateway_listeners":  len(a.cfg.Gateway.Listeners),
+		"metrics_enable":     a.cfg.Observability.MetricsEnabled,
+		"debug_api_enable":   a.cfg.Observability.DebugAPIEnabled,
+		"diagnostics_enable": a.cfg.Observability.Diagnostics.Enabled,
 	}
 }
 

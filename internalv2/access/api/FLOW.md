@@ -23,13 +23,13 @@ writer persists real clusterv2 Slot metadata.
 GET  /healthz
 GET  /readyz
 GET  /metrics                         (optional, when MetricsHandler is configured)
-GET  /debug/config                    (optional, when DebugEnabled is configured)
-GET  /debug/cluster                   (optional, when DebugEnabled is configured)
-GET  /debug/goroutines                (optional, when PProfEnabled is configured)
-GET  /debug/pprof/*                   (optional, when PProfEnabled is configured)
-GET  /debug/diagnostics/trace/:trace_id (optional, when DiagnosticsDebugEnabled is configured)
-GET  /debug/diagnostics/message       (optional, when DiagnosticsDebugEnabled is configured)
-GET  /debug/diagnostics/events        (optional, when DiagnosticsDebugEnabled is configured)
+GET  /debug/config                    (optional, when DebugAPIEnabled is configured)
+GET  /debug/cluster                   (optional, when DebugAPIEnabled is configured)
+GET  /debug/goroutines                (optional, when DebugAPIEnabled is configured)
+GET  /debug/pprof/*                   (optional, when DebugAPIEnabled is configured)
+GET  /debug/diagnostics/trace/:trace_id (optional, when DebugAPIEnabled and Diagnostics are configured)
+GET  /debug/diagnostics/message       (optional, when DebugAPIEnabled and Diagnostics are configured)
+GET  /debug/diagnostics/events        (optional, when DebugAPIEnabled and Diagnostics are configured)
 GET  /route
 POST /route/batch
 GET  /bench/v1/capabilities
@@ -76,14 +76,11 @@ The `/bench/v1/*` routes are enabled only when the composition root passes
 `BenchEnabled=true`. They are unauthenticated and must be used only in controlled
 benchmark environments.
 
-The `/debug/config` and `/debug/cluster` routes are enabled only when the
-composition root passes snapshot callbacks and `DebugEnabled=true`. In
-`cmd/wukongimv2`, that switch is `WK_HEALTH_DEBUG_ENABLE`.
-
-The `/debug/diagnostics/*` routes are enabled only when the composition root
-passes both a diagnostics reader and `DiagnosticsDebugEnabled=true`. They query
-the node-local bounded diagnostics store and are intended for controlled
-performance and troubleshooting runs.
+All `/debug...` routes are enabled only when the composition root passes
+`DebugAPIEnabled=true`. In `cmd/wukongimv2`, that switch is
+`WK_DEBUG_API_ENABLE`. Diagnostics debug routes also require a diagnostics reader
+and query the node-local bounded diagnostics store for controlled performance and
+troubleshooting runs.
 
 The compatible `/route` and `/route/batch` routes are registered regardless of
 bench mode. They keep the legacy address response envelopes and select public

@@ -54,7 +54,7 @@ func TestHundredConcurrentChannelActivationProfile(t *testing.T) {
 
 	s := suite.New(t)
 	node := s.StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
-		"WK_HEALTH_DEBUG_ENABLE": "true",
+		"WK_DEBUG_API_ENABLE": "true",
 	}))
 	require.NoError(t, suite.WaitNodeReady(ctx, *node), node.Process.DumpDiagnostics())
 

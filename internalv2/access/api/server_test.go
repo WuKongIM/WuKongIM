@@ -333,13 +333,13 @@ func TestServerServesMetricsWhenHandlerConfigured(t *testing.T) {
 	}
 }
 
-func TestServerServesPProfOnlyWhenEnabled(t *testing.T) {
+func TestServerServesPProfOnlyWhenDebugAPIEnabled(t *testing.T) {
 	disabled := httptest.NewServer(New(Options{}).Handler())
 	t.Cleanup(disabled.Close)
 	resp, err := http.Get(disabled.URL + "/debug/pprof/")
 	requireStatus(t, resp, err, http.StatusNotFound)
 
-	enabled := httptest.NewServer(New(Options{PProfEnabled: true}).Handler())
+	enabled := httptest.NewServer(New(Options{DebugAPIEnabled: true}).Handler())
 	t.Cleanup(enabled.Close)
 	resp, err = http.Get(enabled.URL + "/debug/pprof/")
 	requireStatus(t, resp, err, http.StatusOK)

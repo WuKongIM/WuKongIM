@@ -24,13 +24,10 @@ func (s *Server) registerRoutes() {
 	}
 	s.engine.GET("/route", s.handleRoute)
 	s.engine.POST("/route/batch", s.handleRouteBatch)
-	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
-		s.registerDiagnosticsRoutes()
-	}
 	if s.benchEnabled {
 		s.registerBenchRoutes()
 	}
-	if s.debugEnabled {
+	if s.debugAPIEnabled {
 		if s.debugConfig != nil {
 			s.engine.GET("/debug/config", s.handleDebugConfig)
 		}
@@ -38,6 +35,9 @@ func (s *Server) registerRoutes() {
 			s.engine.GET("/debug/cluster", s.handleDebugCluster)
 		}
 		s.registerDebugRoutes()
+		if s.diagnostics != nil {
+			s.registerDiagnosticsRoutes()
+		}
 	}
 	if s.testMode && s.testData != nil {
 		s.registerTestDataRoutes()

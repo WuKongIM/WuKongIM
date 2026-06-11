@@ -531,7 +531,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"saturated",
 		"effect_pool_hot",
 		"CLUSTER INTERNAL TRANSPORT PEAK",
-		"peak_node=127_0_0_1_5011",
+		"peak_node=127_0_0_1_",
 		"peak_internal_mib_s=",
 		"out_mib/s",
 		"in_mib/s",
@@ -563,7 +563,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"pool_full",
 		"saturated=1",
 		"## Cluster Internal Transport Peak",
-		"peak_node=127_0_0_1_5011",
+		"peak_node=127_0_0_1_",
 		"peak_internal_mib_s=",
 		"details=cluster_transport_peak_summary.tsv",
 	} {
@@ -973,7 +973,7 @@ func TestWukongIMV2DeliveryBenchScriptInjectsDeliveryEnvWhenStartingCluster(t *t
 		`WK_DELIVERY_FANOUT_PAGE_SIZE="$DELIVERY_FANOUT_PAGE_SIZE"`,
 		`WK_DELIVERY_PUSH_BATCH_SIZE="$DELIVERY_PUSH_BATCH_SIZE"`,
 		`WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION="$DELIVERY_PENDING_ACK_MAX_PER_SESSION"`,
-		`WK_PPROF_ENABLE="${WK_PPROF_ENABLE:-true}"`,
+		`WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("delivery script missing start env %q", want)

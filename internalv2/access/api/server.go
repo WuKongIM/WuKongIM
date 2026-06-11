@@ -212,16 +212,12 @@ type Options struct {
 	LegacyRouteNodes map[uint64]LegacyRouteNodeAddresses
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
-	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
-	PProfEnabled bool
-	// DebugEnabled exposes local JSON debug snapshot endpoints when callbacks are configured.
-	DebugEnabled bool
+	// DebugAPIEnabled exposes local /debug endpoints when their handlers are configured.
+	DebugAPIEnabled bool
 	// DebugConfig returns a bounded configuration snapshot for /debug/config.
 	DebugConfig func() any
 	// DebugCluster returns a bounded cluster snapshot for /debug/cluster.
 	DebugCluster func() any
-	// DiagnosticsDebugEnabled exposes local diagnostics debug query endpoints when Diagnostics is configured.
-	DiagnosticsDebugEnabled bool
 	// Diagnostics reads the node-local diagnostics store for debug query endpoints.
 	Diagnostics DiagnosticsReader
 	// Logger records HTTP API failures that are not otherwise visible to callers.
@@ -230,38 +226,36 @@ type Options struct {
 
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
 type Server struct {
-	mu                      sync.RWMutex
-	engine                  *gin.Engine
-	httpServer              *http.Server
-	listener                net.Listener
-	listenAddr              string
-	addr                    string
-	readyz                  func(context.Context) (bool, any)
-	benchEnabled            bool
-	benchMaxBatchSize       int
-	benchMaxPayloadBytes    int64
-	gateway                 GatewayAddresses
-	benchRuntime            ChannelRuntimeBenchController
-	benchPresence           PresenceBenchController
-	benchData               BenchData
-	channels                ChannelUsecase
-	users                   UserUsecase
-	messages                MessageUsecase
-	conversations           ConversationUsecase
-	conversationObserver    ConversationListObserver
-	legacyRouteExternal     LegacyRouteAddresses
-	legacyRouteIntranet     LegacyRouteAddresses
-	legacyRouteNodes        map[uint64]LegacyRouteNodeAddresses
-	metricsHandler          http.Handler
-	pprofEnabled            bool
-	debugEnabled            bool
-	debugConfig             func() any
-	debugCluster            func() any
-	diagnosticsDebugEnabled bool
-	diagnostics             DiagnosticsReader
-	logger                  wklog.Logger
-	counts                  map[string]int
-	started                 bool
+	mu                   sync.RWMutex
+	engine               *gin.Engine
+	httpServer           *http.Server
+	listener             net.Listener
+	listenAddr           string
+	addr                 string
+	readyz               func(context.Context) (bool, any)
+	benchEnabled         bool
+	benchMaxBatchSize    int
+	benchMaxPayloadBytes int64
+	gateway              GatewayAddresses
+	benchRuntime         ChannelRuntimeBenchController
+	benchPresence        PresenceBenchController
+	benchData            BenchData
+	channels             ChannelUsecase
+	users                UserUsecase
+	messages             MessageUsecase
+	conversations        ConversationUsecase
+	conversationObserver ConversationListObserver
+	legacyRouteExternal  LegacyRouteAddresses
+	legacyRouteIntranet  LegacyRouteAddresses
+	legacyRouteNodes     map[uint64]LegacyRouteNodeAddresses
+	metricsHandler       http.Handler
+	debugAPIEnabled      bool
+	debugConfig          func() any
+	debugCluster         func() any
+	diagnostics          DiagnosticsReader
+	logger               wklog.Logger
+	counts               map[string]int
+	started              bool
 }
 
 // New creates a minimal internalv2 API server.
@@ -273,33 +267,31 @@ func New(opts Options) *Server {
 	engine.Use(openCORSMiddleware())
 	engine.HandleMethodNotAllowed = true
 	s := &Server{
-		engine:                  engine,
-		listenAddr:              strings.TrimSpace(opts.ListenAddr),
-		readyz:                  opts.Readyz,
-		benchEnabled:            opts.BenchEnabled,
-		benchMaxBatchSize:       opts.BenchMaxBatchSize,
-		benchMaxPayloadBytes:    opts.BenchMaxPayloadBytes,
-		gateway:                 opts.Gateway,
-		benchRuntime:            opts.BenchRuntime,
-		benchPresence:           opts.BenchPresence,
-		benchData:               opts.BenchData,
-		channels:                opts.Channels,
-		users:                   opts.Users,
-		messages:                opts.Messages,
-		conversations:           opts.Conversations,
-		conversationObserver:    opts.ConversationListObserver,
-		legacyRouteExternal:     opts.LegacyRouteExternal,
-		legacyRouteIntranet:     opts.LegacyRouteIntranet,
-		legacyRouteNodes:        cloneLegacyRouteNodes(opts.LegacyRouteNodes),
-		metricsHandler:          opts.MetricsHandler,
-		pprofEnabled:            opts.PProfEnabled,
-		debugEnabled:            opts.DebugEnabled,
-		debugConfig:             opts.DebugConfig,
-		debugCluster:            opts.DebugCluster,
-		diagnosticsDebugEnabled: opts.DiagnosticsDebugEnabled,
-		diagnostics:             opts.Diagnostics,
-		logger:                  opts.Logger,
-		counts:                  map[string]int{},
+		engine:               engine,
+		listenAddr:           strings.TrimSpace(opts.ListenAddr),
+		readyz:               opts.Readyz,
+		benchEnabled:         opts.BenchEnabled,
+		benchMaxBatchSize:    opts.BenchMaxBatchSize,
+		benchMaxPayloadBytes: opts.BenchMaxPayloadBytes,
+		gateway:              opts.Gateway,
+		benchRuntime:         opts.BenchRuntime,
+		benchPresence:        opts.BenchPresence,
+		benchData:            opts.BenchData,
+		channels:             opts.Channels,
+		users:                opts.Users,
+		messages:             opts.Messages,
+		conversations:        opts.Conversations,
+		conversationObserver: opts.ConversationListObserver,
+		legacyRouteExternal:  opts.LegacyRouteExternal,
+		legacyRouteIntranet:  opts.LegacyRouteIntranet,
+		legacyRouteNodes:     cloneLegacyRouteNodes(opts.LegacyRouteNodes),
+		metricsHandler:       opts.MetricsHandler,
+		debugAPIEnabled:      opts.DebugAPIEnabled,
+		debugConfig:          opts.DebugConfig,
+		debugCluster:         opts.DebugCluster,
+		diagnostics:          opts.Diagnostics,
+		logger:               opts.Logger,
+		counts:               map[string]int{},
 	}
 	if s.logger == nil {
 		s.logger = wklog.NewNop()
@@ -417,19 +409,17 @@ func (s *Server) registerRoutes() {
 	if s.metricsHandler != nil {
 		s.engine.Any("/metrics", s.handleMetrics)
 	}
-	if s.pprofEnabled {
+	if s.debugAPIEnabled {
 		s.registerPProfRoutes()
-	}
-	if s.debugEnabled {
 		if s.debugConfig != nil {
 			s.engine.GET("/debug/config", s.handleDebugConfig)
 		}
 		if s.debugCluster != nil {
 			s.engine.GET("/debug/cluster", s.handleDebugCluster)
 		}
-	}
-	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
-		s.registerDiagnosticsRoutes()
+		if s.diagnostics != nil {
+			s.registerDiagnosticsRoutes()
+		}
 	}
 	s.engine.GET("/route", s.handleRoute)
 	s.engine.POST("/route/batch", s.handleRouteBatch)

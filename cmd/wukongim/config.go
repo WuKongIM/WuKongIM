@@ -490,10 +490,6 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	diagnosticsDebugAPIEnable, err := parseBool(v, "WK_DIAGNOSTICS_DEBUG_API_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
 	diagnosticsDebugMatches, err := parseJSONValue[[]app.DiagnosticsDebugMatchConfig](v, "WK_DIAGNOSTICS_DEBUG_MATCHES")
 	if err != nil {
 		return app.Config{}, err
@@ -502,7 +498,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	healthDebugEnable, err := parseBool(v, "WK_HEALTH_DEBUG_ENABLE")
+	debugAPIEnable, err := parseBool(v, "WK_DEBUG_API_ENABLE")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -874,14 +870,13 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			MetricsEnabled:      metricsEnable,
 			NetworkEnabled:      networkObservabilityEnable,
 			HealthDetailEnabled: healthDetailEnable,
-			HealthDebugEnabled:  healthDebugEnable,
+			DebugAPIEnabled:     debugAPIEnable,
 			Diagnostics: app.DiagnosticsConfig{
 				Enabled:         diagnosticsEnable,
 				BufferSize:      diagnosticsBufferSize,
 				SampleRate:      diagnosticsSampleRate,
 				SlowThreshold:   time.Duration(diagnosticsSlowThresholdMS) * time.Millisecond,
 				ErrorSampleRate: diagnosticsErrorSampleRate,
-				DebugAPIEnabled: diagnosticsDebugAPIEnable,
 				DebugMatches:    diagnosticsDebugMatches,
 			},
 		},
@@ -947,14 +942,13 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	cfg.Observability.SetExplicitFlags(
 		stringValue(v, "WK_METRICS_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DETAIL_ENABLE") != "",
-		stringValue(v, "WK_HEALTH_DEBUG_ENABLE") != "",
+		stringValue(v, "WK_DEBUG_API_ENABLE") != "",
 	)
 	cfg.Observability.SetNetworkExplicitFlag(stringValue(v, "WK_NETWORK_OBSERVABILITY_ENABLE") != "")
 	cfg.Observability.SetDiagnosticsExplicitFlags(
 		stringValue(v, "WK_DIAGNOSTICS_ENABLE") != "",
 		stringValue(v, "WK_DIAGNOSTICS_SAMPLE_RATE") != "",
 		stringValue(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != "",
-		stringValue(v, "WK_DIAGNOSTICS_DEBUG_API_ENABLE") != "",
 	)
 	cfg.ChannelMigration.SetExplicitFlags(
 		stringValue(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL") != "",

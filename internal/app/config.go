@@ -279,7 +279,7 @@ func (c *ChannelMessageRetentionConfig) SetExplicitFlags(scanIntervalSet, channe
 	c.maxTrimMessagesSet = maxTrimMessagesSet
 }
 
-// ObservabilityConfig controls runtime metrics and health response detail.
+// ObservabilityConfig controls runtime metrics, health detail, and debug API route exposure.
 type ObservabilityConfig struct {
 	// MetricsEnabled enables the metrics endpoint and metrics collection.
 	MetricsEnabled bool
@@ -287,15 +287,15 @@ type ObservabilityConfig struct {
 	NetworkEnabled bool
 	// HealthDetailEnabled includes dependency details in health responses.
 	HealthDetailEnabled bool
-	// HealthDebugEnabled includes debug-oriented health diagnostics.
-	HealthDebugEnabled bool
+	// DebugAPIEnabled exposes local /debug endpoints on the API listener.
+	DebugAPIEnabled bool
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
 
 	metricsEnabledSet      bool
 	networkEnabledSet      bool
 	healthDetailEnabledSet bool
-	healthDebugEnabledSet  bool
+	debugAPIEnabledSet     bool
 }
 
 // SetExplicitFlags records whether observability booleans were explicitly configured.
@@ -305,7 +305,7 @@ func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet b
 	}
 	c.metricsEnabledSet = metricsSet
 	c.healthDetailEnabledSet = detailSet
-	c.healthDebugEnabledSet = debugSet
+	c.debugAPIEnabledSet = debugSet
 }
 
 // SetNetworkExplicitFlag records whether network observation was explicitly configured.
@@ -317,17 +317,16 @@ func (c *ObservabilityConfig) SetNetworkExplicitFlag(networkSet bool) {
 }
 
 // SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
-func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRateSet, errorSampleRateSet, debugAPIEnabledSet bool) {
+func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRateSet, errorSampleRateSet bool) {
 	if c == nil {
 		return
 	}
 	c.Diagnostics.enabledSet = enabledSet
 	c.Diagnostics.sampleRateSet = sampleRateSet
 	c.Diagnostics.errorSampleRateSet = errorSampleRateSet
-	c.Diagnostics.debugAPIEnabledSet = debugAPIEnabledSet
 }
 
-// DiagnosticsConfig controls local diagnostics event retention and debug query exposure.
+// DiagnosticsConfig controls local diagnostics event retention and sampling.
 type DiagnosticsConfig struct {
 	// Enabled turns local diagnostics event capture on or off.
 	Enabled bool
@@ -339,15 +338,12 @@ type DiagnosticsConfig struct {
 	SlowThreshold time.Duration
 	// ErrorSampleRate is the keep probability for diagnostics events with non-ok results.
 	ErrorSampleRate float64
-	// DebugAPIEnabled enables debug HTTP endpoints backed by the local diagnostics store.
-	DebugAPIEnabled bool
 	// DebugMatches configures temporary high-priority sampling rules.
 	DebugMatches []DiagnosticsDebugMatchConfig
 
 	enabledSet         bool
 	sampleRateSet      bool
 	errorSampleRateSet bool
-	debugAPIEnabledSet bool
 }
 
 // DiagnosticsDebugMatchConfig defines one temporary diagnostics sampling override rule.
@@ -1355,8 +1351,8 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if !c.Observability.healthDetailEnabledSet {
 		c.Observability.HealthDetailEnabled = true
 	}
-	if !c.Observability.healthDebugEnabledSet {
-		c.Observability.HealthDebugEnabled = false
+	if !c.Observability.debugAPIEnabledSet {
+		c.Observability.DebugAPIEnabled = false
 	}
 	if !c.Observability.Diagnostics.enabledSet {
 		c.Observability.Diagnostics.Enabled = true
@@ -1378,9 +1374,6 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if c.Observability.Diagnostics.ErrorSampleRate == 0 && !c.Observability.Diagnostics.errorSampleRateSet {
 		c.Observability.Diagnostics.ErrorSampleRate = 1.0
-	}
-	if !c.Observability.Diagnostics.debugAPIEnabledSet {
-		c.Observability.Diagnostics.DebugAPIEnabled = false
 	}
 	for _, match := range c.Observability.Diagnostics.DebugMatches {
 		if match.SampleRate < 0 || match.SampleRate > 1 {

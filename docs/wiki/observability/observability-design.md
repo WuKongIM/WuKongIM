@@ -491,7 +491,7 @@ metrics:
 # 健康检查配置
 health:
   detail_enable: true             # 是否暴露详细健康状态
-  debug_enable: false             # 是否暴露 pprof/debug 端点（生产环境建议关闭）
+  debug_api_enable: false         # 是否暴露 /debug 端点（生产环境建议关闭）
 ```
 
 ### 8.2 对应环境变量
@@ -499,7 +499,7 @@ health:
 ```
 WK_METRICS_ENABLE=true
 WK_HEALTH_DETAIL_ENABLE=true
-WK_HEALTH_DEBUG_ENABLE=false
+WK_DEBUG_API_ENABLE=false
 ```
 
 ## 9. 部署架构

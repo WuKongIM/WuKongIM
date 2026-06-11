@@ -137,8 +137,8 @@ func TestBuildDoesNotExposeDiagnosticsDebugWhenStoreDisabled(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
 	cfg.Observability.Diagnostics.Enabled = false
-	cfg.Observability.Diagnostics.DebugAPIEnabled = true
-	cfg.Observability.SetDiagnosticsExplicitFlags(true, false, false, true)
+	cfg.Observability.DebugAPIEnabled = true
+	cfg.Observability.SetDiagnosticsExplicitFlags(true, false, false)
 
 	app, err := New(cfg)
 	require.NoError(t, err)

@@ -267,13 +267,12 @@ func TestLoadConfigUsesBuiltInDefaultsWhenOptionalConfKeysAreMissing(t *testing.
 	require.True(t, cfg.Observability.MetricsEnabled)
 	require.True(t, cfg.Observability.NetworkEnabled)
 	require.True(t, cfg.Observability.HealthDetailEnabled)
-	require.False(t, cfg.Observability.HealthDebugEnabled)
+	require.False(t, cfg.Observability.DebugAPIEnabled)
 	require.True(t, cfg.Observability.Diagnostics.Enabled)
 	require.Equal(t, 50000, cfg.Observability.Diagnostics.BufferSize)
 	require.Equal(t, 0.01, cfg.Observability.Diagnostics.SampleRate)
 	require.Equal(t, 500*time.Millisecond, cfg.Observability.Diagnostics.SlowThreshold)
 	require.Equal(t, 1.0, cfg.Observability.Diagnostics.ErrorSampleRate)
-	require.False(t, cfg.Observability.Diagnostics.DebugAPIEnabled)
 }
 
 func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
@@ -287,7 +286,7 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 		"WK_METRICS_ENABLE=false",
 		"WK_NETWORK_OBSERVABILITY_ENABLE=false",
 		"WK_HEALTH_DETAIL_ENABLE=false",
-		"WK_HEALTH_DEBUG_ENABLE=true",
+		"WK_DEBUG_API_ENABLE=true",
 	)
 
 	cfg, err := loadConfig(configPath)
@@ -295,7 +294,7 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 	require.False(t, cfg.Observability.MetricsEnabled)
 	require.False(t, cfg.Observability.NetworkEnabled)
 	require.False(t, cfg.Observability.HealthDetailEnabled)
-	require.True(t, cfg.Observability.HealthDebugEnabled)
+	require.True(t, cfg.Observability.DebugAPIEnabled)
 }
 
 func TestLoadConfigParsesDiagnosticsConfig(t *testing.T) {
@@ -311,7 +310,6 @@ func TestLoadConfigParsesDiagnosticsConfig(t *testing.T) {
 		"WK_DIAGNOSTICS_SAMPLE_RATE=0.25",
 		"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=750",
 		"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=0.5",
-		"WK_DIAGNOSTICS_DEBUG_API_ENABLE=true",
 		`WK_DIAGNOSTICS_DEBUG_MATCHES=[{"client_msg_no":"c1","ttl_seconds":60,"sample_rate":1.0}]`,
 	)
 
@@ -322,7 +320,6 @@ func TestLoadConfigParsesDiagnosticsConfig(t *testing.T) {
 	require.Equal(t, 0.25, cfg.Observability.Diagnostics.SampleRate)
 	require.Equal(t, 750*time.Millisecond, cfg.Observability.Diagnostics.SlowThreshold)
 	require.Equal(t, 0.5, cfg.Observability.Diagnostics.ErrorSampleRate)
-	require.True(t, cfg.Observability.Diagnostics.DebugAPIEnabled)
 	require.Len(t, cfg.Observability.Diagnostics.DebugMatches, 1)
 	require.Equal(t, "c1", cfg.Observability.Diagnostics.DebugMatches[0].ClientMsgNo)
 	require.Equal(t, 60, cfg.Observability.Diagnostics.DebugMatches[0].TTLSeconds)

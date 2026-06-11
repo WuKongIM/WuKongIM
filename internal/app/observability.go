@@ -576,7 +576,7 @@ func (a *App) debugConfigSnapshot() any {
 		"gateway_listeners": len(a.cfg.Gateway.Listeners),
 		"metrics_enable":    a.cfg.Observability.MetricsEnabled,
 		"health_detail":     a.cfg.Observability.HealthDetailEnabled,
-		"health_debug":      a.cfg.Observability.HealthDebugEnabled,
+		"debug_api_enable":  a.cfg.Observability.DebugAPIEnabled,
 	}
 }
 

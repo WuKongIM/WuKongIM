@@ -514,11 +514,9 @@ func (a *App) wireAPI() {
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,
 			MetricsHandler:           a.metricsHandler(),
-			PProfEnabled:             a.cfg.Observability.PProfEnabled,
-			DebugEnabled:             a.cfg.Observability.HealthDebugEnabled,
+			DebugAPIEnabled:          a.cfg.Observability.DebugAPIEnabled,
 			DebugConfig:              a.debugConfigSnapshot,
 			DebugCluster:             a.debugClusterSnapshot,
-			DiagnosticsDebugEnabled:  a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.DebugAPIEnabled,
 			Diagnostics:              a,
 			Logger:                   a.logger.Named("access.api"),
 		})

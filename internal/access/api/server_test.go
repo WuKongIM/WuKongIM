@@ -87,7 +87,7 @@ func TestReadyzReturnsServiceUnavailableWhenNotReady(t *testing.T) {
 	require.JSONEq(t, `{"status":"not_ready"}`, rec.Body.String())
 }
 
-func TestDebugConfigRouteRequiresDebugEnable(t *testing.T) {
+func TestDebugConfigRouteRequiresDebugAPIEnable(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		srv := New(Options{
 			DebugConfig: func() any {
@@ -105,7 +105,7 @@ func TestDebugConfigRouteRequiresDebugEnable(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		srv := New(Options{
-			DebugEnabled: true,
+			DebugAPIEnabled: true,
 			DebugConfig: func() any {
 				return map[string]any{"node_id": 1}
 			},
@@ -121,15 +121,15 @@ func TestDebugConfigRouteRequiresDebugEnable(t *testing.T) {
 	})
 }
 
-func TestDebugClusterRouteRequiresDebugEnable(t *testing.T) {
+func TestDebugClusterRouteRequiresDebugAPIEnable(t *testing.T) {
 	optsType := reflect.TypeOf(Options{})
 	debugClusterField, ok := optsType.FieldByName("DebugCluster")
 	require.True(t, ok, "Options should expose DebugCluster")
 	require.Equal(t, reflect.TypeOf((func() any)(nil)), debugClusterField.Type)
 
-	newServer := func(debugEnabled bool) *Server {
+	newServer := func(debugAPIEnabled bool) *Server {
 		opts := reflect.New(optsType).Elem()
-		opts.FieldByName("DebugEnabled").SetBool(debugEnabled)
+		opts.FieldByName("DebugAPIEnabled").SetBool(debugAPIEnabled)
 		opts.FieldByName("DebugCluster").Set(reflect.ValueOf(func() any {
 			return map[string]any{"hash_slot_table_version": 7}
 		}))

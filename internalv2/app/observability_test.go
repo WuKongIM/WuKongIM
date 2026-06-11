@@ -799,9 +799,9 @@ func TestNewWiresDiagnosticsDebugAPI(t *testing.T) {
 		Cluster: clusterv2.Config{NodeID: 7},
 		API:     APIConfig{ListenAddr: "127.0.0.1:0"},
 		Observability: ObservabilityConfig{
+			DebugAPIEnabled: true,
 			Diagnostics: DiagnosticsConfig{
-				SampleRate:      1,
-				DebugAPIEnabled: true,
+				SampleRate: 1,
 			},
 		},
 	}
@@ -838,7 +838,7 @@ func TestNewWiresDebugSnapshotAPI(t *testing.T) {
 		NodeID: 7,
 		API:    APIConfig{ListenAddr: "127.0.0.1:0"},
 		Observability: ObservabilityConfig{
-			HealthDebugEnabled: true,
+			DebugAPIEnabled: true,
 		},
 	}
 	app, err := newTestApp(t, cfg, WithCluster(&fakeCluster{}))

@@ -30,19 +30,19 @@ func (f *fakeDiagnosticsReader) lastQuery() diagnostics.Query {
 	return f.query
 }
 
-func TestDebugGoroutinesRequiresPProfEnable(t *testing.T) {
+func TestDebugGoroutinesRequiresDebugAPIEnable(t *testing.T) {
 	disabled := httptest.NewServer(New(Options{}).Handler())
 	t.Cleanup(disabled.Close)
 	resp, err := http.Get(disabled.URL + "/debug/goroutines")
 	requireStatus(t, resp, err, http.StatusNotFound)
 
-	enabled := httptest.NewServer(New(Options{PProfEnabled: true}).Handler())
+	enabled := httptest.NewServer(New(Options{DebugAPIEnabled: true}).Handler())
 	t.Cleanup(enabled.Close)
 	resp, err = http.Get(enabled.URL + "/debug/goroutines")
 	requireStatus(t, resp, err, http.StatusOK)
 }
 
-func TestDebugSnapshotRoutesRequireDebugEnable(t *testing.T) {
+func TestDebugSnapshotRoutesRequireDebugAPIEnable(t *testing.T) {
 	disabled := httptest.NewServer(New(Options{
 		DebugConfig:  func() any { return map[string]any{"node_id": 1} },
 		DebugCluster: func() any { return map[string]any{"cluster_id": "wk"} },
@@ -52,7 +52,7 @@ func TestDebugSnapshotRoutesRequireDebugEnable(t *testing.T) {
 	requireStatus(t, resp, err, http.StatusNotFound)
 
 	enabled := httptest.NewServer(New(Options{
-		DebugEnabled: true,
+		DebugAPIEnabled: true,
 		DebugConfig: func() any {
 			return map[string]any{"node_id": 1}
 		},
@@ -99,7 +99,7 @@ func TestDiagnosticsTraceRouteReturnsEvents(t *testing.T) {
 			Result:   diagnostics.ResultOK,
 		}},
 	}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
 
@@ -114,7 +114,7 @@ func TestDiagnosticsTraceRouteReturnsEvents(t *testing.T) {
 
 func TestDiagnosticsMessageRouteQueriesSelectors(t *testing.T) {
 	reader := &fakeDiagnosticsReader{result: diagnostics.QueryResult{Status: diagnostics.StatusNotFound}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
 
@@ -135,7 +135,7 @@ func TestDiagnosticsMessageRouteQueriesSelectors(t *testing.T) {
 
 func TestDiagnosticsDebugRoutesValidateQuery(t *testing.T) {
 	reader := &fakeDiagnosticsReader{}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
 
@@ -148,7 +148,7 @@ func TestDiagnosticsDebugRoutesValidateQuery(t *testing.T) {
 
 func TestDiagnosticsEventsRouteMapsStageAndResult(t *testing.T) {
 	reader := &fakeDiagnosticsReader{result: diagnostics.QueryResult{Status: diagnostics.StatusNotFound}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
 

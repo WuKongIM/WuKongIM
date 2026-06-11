@@ -64,7 +64,7 @@ func TestDiagnosticsTraceRouteReturnsEvents(t *testing.T) {
 			Result:   diagnostics.ResultOK,
 		}},
 	}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/trace/trace-1", nil)
@@ -86,7 +86,7 @@ func TestDiagnosticsTraceRouteReturnsEvents(t *testing.T) {
 
 func TestDiagnosticsMessageRouteQueriesClientMsgNo(t *testing.T) {
 	reader := &fakeDiagnosticsReader{result: diagnostics.QueryResult{Status: diagnostics.StatusNotFound}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/message?client_msg_no=client-1", nil)
@@ -102,7 +102,7 @@ func TestDiagnosticsMessageRouteQueriesClientMsgNo(t *testing.T) {
 
 func TestDiagnosticsMessageRouteQueriesChannelSeq(t *testing.T) {
 	reader := &fakeDiagnosticsReader{result: diagnostics.QueryResult{Status: diagnostics.StatusNotFound}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/message?channel_key=ch-1&message_seq=42", nil)
@@ -118,7 +118,7 @@ func TestDiagnosticsMessageRouteQueriesChannelSeq(t *testing.T) {
 
 func TestDiagnosticsMessageRouteValidatesQuery(t *testing.T) {
 	reader := &fakeDiagnosticsReader{}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/message", nil)
@@ -136,7 +136,7 @@ func TestDiagnosticsNotFoundReturnsStableBody(t *testing.T) {
 		Status: diagnostics.StatusNotFound,
 		Events: []diagnostics.Event{},
 	}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/trace/missing", nil)
@@ -148,7 +148,7 @@ func TestDiagnosticsNotFoundReturnsStableBody(t *testing.T) {
 
 func TestDiagnosticsEventsLimit(t *testing.T) {
 	reader := &fakeDiagnosticsReader{result: diagnostics.QueryResult{Status: diagnostics.StatusNotFound}}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/events?stage=message.send_durable&limit=50", nil)
@@ -162,7 +162,7 @@ func TestDiagnosticsEventsLimit(t *testing.T) {
 
 func TestDiagnosticsEventsRejectsInvalidLimit(t *testing.T) {
 	reader := &fakeDiagnosticsReader{}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/events?limit=bad", nil)
@@ -174,7 +174,7 @@ func TestDiagnosticsEventsRejectsInvalidLimit(t *testing.T) {
 
 func TestDiagnosticsEventsRejectsOverMaxLimit(t *testing.T) {
 	reader := &fakeDiagnosticsReader{}
-	srv := New(Options{DiagnosticsDebugEnabled: true, Diagnostics: reader})
+	srv := New(Options{DebugAPIEnabled: true, Diagnostics: reader})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/events?limit=501", nil)

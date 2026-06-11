@@ -88,10 +88,8 @@ type BenchConfig struct {
 type ObservabilityConfig struct {
 	// MetricsEnabled exposes Prometheus metrics and wires runtime observers.
 	MetricsEnabled bool
-	// PProfEnabled exposes net/http/pprof endpoints on the API listener.
-	PProfEnabled bool
-	// HealthDebugEnabled exposes local debug snapshot endpoints on the API listener.
-	HealthDebugEnabled bool
+	// DebugAPIEnabled exposes local /debug endpoints on the API listener.
+	DebugAPIEnabled bool
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
 
@@ -128,8 +126,6 @@ type DiagnosticsConfig struct {
 	DeepSlowThreshold time.Duration
 	// DeepMaxItemsPerBatch bounds how many traced messages one deep batch may expand into events.
 	DeepMaxItemsPerBatch int
-	// DebugAPIEnabled enables local diagnostics debug HTTP endpoints on the API listener.
-	DebugAPIEnabled bool
 	// DebugMatches configures temporary high-priority sampling rules.
 	DebugMatches []DiagnosticsDebugMatchConfig
 }
