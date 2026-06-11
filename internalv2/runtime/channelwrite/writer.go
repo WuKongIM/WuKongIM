@@ -45,3 +45,28 @@ func newChannelWriter(target AuthorityTarget, limits channelStateLimits) *channe
 		state: newChannelState(target, limits),
 	}
 }
+
+// enqueue appends a batch to the inbox and reports whether the caller should
+// schedule this writer onto a worker (true only on the scheduled false->true edge).
+func (w *channelWriter) enqueue(batch submittedBatch) bool {
+	w.mu.Lock()
+	w.inbox = append(w.inbox, batch)
+	w.mu.Unlock()
+	return w.tryActivate()
+}
+
+// tryActivate marks the writer scheduled. It returns true only for the
+// goroutine that won the false->true transition, which then owns advancing it.
+func (w *channelWriter) tryActivate() bool {
+	return w.scheduled.CompareAndSwap(false, true)
+}
+
+// deactivate clears the scheduled flag and reports whether more work arrived
+// after the caller stopped advancing (caller must re-activate if true).
+func (w *channelWriter) deactivate() bool {
+	w.scheduled.Store(false)
+	w.mu.Lock()
+	more := len(w.inbox) > 0 || w.state.hasPendingWork()
+	w.mu.Unlock()
+	return more
+}

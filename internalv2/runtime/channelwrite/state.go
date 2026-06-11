@@ -231,6 +231,16 @@ func (s *channelState) commitBacklog() int {
 	return backlog
 }
 
+// hasPendingWork reports whether the channel has prepared items, in-flight
+// appends, or committed envelopes still needing post-commit dispatch.
+func (s *channelState) hasPendingWork() bool {
+	return len(s.pendingItems) > 0 ||
+		s.appendInflight > 0 ||
+		s.commitBacklog() > 0 ||
+		s.hasReadyAppendCompletion ||
+		len(s.completedAppends) > 0
+}
+
 func (s *channelState) pruneCommittedPrefixIfNeeded() {
 	if s.commitCursor == 0 {
 		return
