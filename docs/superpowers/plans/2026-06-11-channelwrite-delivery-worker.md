@@ -66,7 +66,7 @@ GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipient|TestSco
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internalv2/runtime/channelwrite docs/superpowers/plans/2026-06-11-channelwrite-delivery-worker.md
@@ -134,7 +134,7 @@ GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipientDelivery
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internalv2/runtime/channelwrite
@@ -183,7 +183,7 @@ GOWORK=off go test ./internalv2/app -run 'TestNewWiresDeliveryWhenEnabled|TestNe
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internalv2/app internalv2/runtime/channelwrite/FLOW.md internalv2/app/FLOW.md
@@ -199,15 +199,15 @@ git commit -m "app: run recipient delivery through worker"
 - Modify as needed: `cmd/wukongimv2/config.go`
 - Modify as needed: `wukongim.conf.example`
 
-- [ ] **Step 1: Decide config reuse vs new fields**
+- [x] **Step 1: Decide config reuse vs new fields**
 
-Prefer reusing `Delivery.EventQueueSize` and `ChannelWriteRecipientDispatchConcurrency` for the new worker unless tests show a need for separate worker count. Add new config only if the existing knobs cannot express the desired pressure boundary.
+Reused `Delivery.EventQueueSize` for worker queue depth and `ChannelWriteRecipientDispatchConcurrency` for worker goroutine count. No new config was needed.
 
-- [ ] **Step 2: Remove stale inline delivery wording**
+- [x] **Step 2: Remove stale inline delivery wording**
 
 Update FLOW files so they say channelwrite expands subscribers and enqueues delivery batches, while the recipient delivery worker owns presence resolution and owner push.
 
-- [ ] **Step 3: Run targeted verification**
+- [x] **Step 3: Run targeted verification**
 
 Run:
 
@@ -217,7 +217,7 @@ GOWORK=off go test ./internalv2/runtime/channelwrite ./internalv2/app ./internal
 
 Expected: PASS.
 
-- [ ] **Step 4: Run diff checks**
+- [x] **Step 4: Run diff checks**
 
 Run:
 
