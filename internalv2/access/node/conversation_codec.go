@@ -50,7 +50,7 @@ type conversationAuthorityRequest struct {
 	Limit int
 	// Patches carries unflushed active-row candidates for admit requests.
 	Patches []conversationusecase.ActivePatch
-	// ActiveBatch carries channelwrite active admission input for active-batch requests.
+	// ActiveBatch carries channelappend active admission input for active-batch requests.
 	ActiveBatch conversationactive.ActiveBatch
 }
 

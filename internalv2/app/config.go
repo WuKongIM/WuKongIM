@@ -42,6 +42,8 @@ type Config struct {
 	Message MessageConfig
 	// Channel configures channel management behavior.
 	Channel ChannelConfig
+	// ChannelAppend configures the local channel append authority runtime.
+	ChannelAppend ChannelAppendConfig
 	// Conversation configures conversation authority and list reads.
 	Conversation ConversationConfig
 	// Presence configures connection-route activation and authority touch behavior.
@@ -187,6 +189,18 @@ type ChannelConfig struct {
 	LargeGroupSubscriberThreshold int
 }
 
+// ChannelAppendConfig contains local channel append authority runtime settings.
+type ChannelAppendConfig struct {
+	// AuthorityShardCount is the number of channel-key authority-state lookup shards. Zero derives a CPU-aware default.
+	AuthorityShardCount int
+	// AdvancePoolSize is the direct ants pool size used to activate channel append writer state machines. Zero derives a CPU-aware default.
+	AdvancePoolSize int
+	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Zero derives a CPU-aware default.
+	EffectPoolSize int
+	// RecipientAuthorityDispatchConcurrency bounds per-message recipient authority fanout after append. Zero uses a bounded default.
+	RecipientAuthorityDispatchConcurrency int
+}
+
 // ConversationConfig contains conversation authority and read-model settings.
 type ConversationConfig struct {
 	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one conversation list request.
@@ -225,14 +239,6 @@ type PresenceConfig struct {
 type DeliveryConfig struct {
 	// Enabled wires committed messages into the delivery runtime when true.
 	Enabled bool
-	// ChannelWriteShardCount is the number of channel-key writer lookup shards. Zero derives a CPU-aware default.
-	ChannelWriteShardCount int
-	// ChannelWriteAppendWorkers is the shared worker budget for blocking durable append calls. Zero uses the append-stage default.
-	ChannelWriteAppendWorkers int
-	// ChannelWritePostCommitWorkers is the shared worker budget for best-effort post-commit effects. Zero uses the post-commit-stage default.
-	ChannelWritePostCommitWorkers int
-	// ChannelWriteRecipientDispatchConcurrency bounds per-message recipient authority dispatch fanout inside one post-commit effect. Zero uses a bounded default.
-	ChannelWriteRecipientDispatchConcurrency int
 	// FanoutPageSize limits subscriber UIDs read by one fanout page.
 	FanoutPageSize int
 	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
@@ -262,18 +268,6 @@ func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
 }
 
 func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
-	if cfg.ChannelWriteShardCount == 0 {
-		cfg.ChannelWriteShardCount = defaultChannelWriteShardCount()
-	}
-	if cfg.ChannelWriteAppendWorkers == 0 {
-		cfg.ChannelWriteAppendWorkers = defaultChannelWriteAppendWorkers()
-	}
-	if cfg.ChannelWritePostCommitWorkers == 0 {
-		cfg.ChannelWritePostCommitWorkers = defaultChannelWritePostCommitWorkers()
-	}
-	if cfg.ChannelWriteRecipientDispatchConcurrency == 0 {
-		cfg.ChannelWriteRecipientDispatchConcurrency = defaultChannelWriteRecipientDispatchConcurrency()
-	}
 	if cfg.FanoutPageSize == 0 {
 		cfg.FanoutPageSize = 512
 	}
@@ -299,20 +293,37 @@ func defaultChannelConfig(cfg ChannelConfig) ChannelConfig {
 	return cfg
 }
 
-func defaultChannelWriteShardCount() int {
+func defaultChannelAppendConfig(cfg ChannelAppendConfig) ChannelAppendConfig {
+	if cfg.AuthorityShardCount == 0 {
+		cfg.AuthorityShardCount = defaultChannelAppendAuthorityShardCount()
+	}
+	if cfg.AdvancePoolSize == 0 {
+		cfg.AdvancePoolSize = defaultChannelAppendAdvancePoolSize()
+	}
+	if cfg.EffectPoolSize == 0 {
+		cfg.EffectPoolSize = defaultChannelAppendEffectPoolSize()
+	}
+	if cfg.RecipientAuthorityDispatchConcurrency == 0 {
+		cfg.RecipientAuthorityDispatchConcurrency = defaultChannelAppendRecipientAuthorityDispatchConcurrency()
+	}
+	return cfg
+}
+
+func defaultChannelAppendAuthorityShardCount() int {
 	return appMaxInt(4, runtime.GOMAXPROCS(0))
 }
 
-func defaultChannelWriteAppendWorkers() int {
+func defaultChannelAppendAdvancePoolSize() int {
+	return appMaxInt(4, runtime.GOMAXPROCS(0))
+}
+
+func defaultChannelAppendEffectPoolSize() int {
+
 	return 2000
 }
 
-func defaultChannelWritePostCommitWorkers() int {
-	return 1000
-}
-
-func defaultChannelWriteRecipientDispatchConcurrency() int {
-	return 100
+func defaultChannelAppendRecipientAuthorityDispatchConcurrency() int {
+	return 500
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
@@ -422,19 +433,23 @@ func validateChannelConfig(cfg ChannelConfig) error {
 	return nil
 }
 
+func validateChannelAppendConfig(cfg ChannelAppendConfig) error {
+	if cfg.AuthorityShardCount < 0 {
+		return fmt.Errorf("%w: channel append authority shard count must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.AdvancePoolSize < 0 {
+		return fmt.Errorf("%w: channel append advance pool size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.EffectPoolSize < 0 {
+		return fmt.Errorf("%w: channel append effect pool size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.RecipientAuthorityDispatchConcurrency < 0 {
+		return fmt.Errorf("%w: channel append recipient authority dispatch concurrency must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
 func validateDeliveryConfig(cfg DeliveryConfig) error {
-	if cfg.ChannelWriteShardCount < 0 {
-		return fmt.Errorf("%w: delivery channel write shard count must be non-negative", ErrInvalidConfig)
-	}
-	if cfg.ChannelWriteAppendWorkers < 0 {
-		return fmt.Errorf("%w: delivery channel write append workers must be non-negative", ErrInvalidConfig)
-	}
-	if cfg.ChannelWritePostCommitWorkers < 0 {
-		return fmt.Errorf("%w: delivery channel write post-commit workers must be non-negative", ErrInvalidConfig)
-	}
-	if cfg.ChannelWriteRecipientDispatchConcurrency < 0 {
-		return fmt.Errorf("%w: delivery channel write recipient dispatch concurrency must be non-negative", ErrInvalidConfig)
-	}
 	if cfg.FanoutPageSize < 0 {
 		return fmt.Errorf("%w: delivery fanout page size must be non-negative", ErrInvalidConfig)
 	}

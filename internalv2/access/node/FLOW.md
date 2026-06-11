@@ -101,7 +101,7 @@ The RPC boundary is deliberately narrow:
   authority target for compatibility and handoff paths. Callers own patch
   construction; this package only transports the exact patch collection it
   receives.
-- Active-batch admit carries the channelwrite output directly to one routed UID
+- Active-batch admit carries the channelappend output directly to one routed UID
   authority target. Sender/recipient route grouping is performed by
   `internalv2/infra/cluster`; this package only transports the exact batch
   subset it receives.
@@ -118,19 +118,19 @@ The RPC boundary is deliberately narrow:
   collection limit. It preserves the batch sender field exactly as supplied by
   the routed caller.
 
-## Channel Write RPC
+## Channel Append RPC
 
 ```text
-remote channel write forwarder
-  -> encode W K V W 2 request
-  -> clusterv2 RPCChannelWrite
-  -> ChannelWriteAdapter.HandleChannelWriteRPC
-  -> ChannelWrite.SubmitForAuthority
-  -> encode W K V w 1 response
+remote channel append forwarder
+  -> encode W K V A 1 request
+  -> clusterv2 RPCChannelAuthoritySend
+  -> ChannelAppendAdapter.HandleChannelAppendRPC
+  -> ChannelAppend.SubmitForAuthority
+  -> encode W K V a 1 response
 ```
 
-Channel write RPC transports one exact `channelwrite.AuthorityTarget` plus
-item-aligned `channelwrite.SendCommand` values to the target channel authority
+Channel Append RPC transports one exact `channelappend.AuthorityTarget` plus
+item-aligned `channelappend.SendCommand` values to the target channel authority
 node. The target includes recipient fanout metadata (`Large` and
 `SubscriberMutationVersion`) so the authority reactor can choose paged
 large-channel fanout or cached non-large subscriber snapshots without resolving
@@ -169,10 +169,10 @@ patch collection. The stable batch field order is `SenderUID`, `ChannelID`,
 `ChannelType`, `MessageSeq`, `ActiveAtMS`, then recipient entries in `UID`,
 `IsSender` order.
 
-Channel write RPC uses fixed magic headers:
+Channel Append RPC uses fixed magic headers:
 
-- Request: `W K V W 2`
-- Response: `W K V w 1`
+- Request: `W K V A 1`
+- Response: `W K V a 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -196,7 +196,7 @@ Conversation authority responses may additionally use:
 
 - `cache_pressure`
 
-Channel write RPC statuses and item error codes preserve:
+Channel Append RPC statuses and item error codes preserve:
 
 - `not_channel_authority`
 - `backpressured`
@@ -212,7 +212,7 @@ Delivery push and fanout responses currently use:
 
 - This package may import `internalv2/usecase/presence` DTO aliases, runtime
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
-  sentinel errors, `internalv2/contracts/channelwrite` DTOs and sentinel errors,
+  sentinel errors, `internalv2/contracts/channelappend` DTOs and sentinel errors,
   runtime delivery DTOs, `internalv2/runtime/conversationactive.ActiveBatch`
   as the active worker RPC DTO, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
@@ -224,4 +224,4 @@ Delivery push and fanout responses currently use:
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
-  standalone channel-write `ChannelWrite` adapter interface.
+  standalone channel-write `ChannelAppend` adapter interface.

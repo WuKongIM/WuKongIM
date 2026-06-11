@@ -11,7 +11,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
-	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -34,6 +34,10 @@ func (a *App) applyConfigDefaults() error {
 	}
 	a.cfg.Channel = defaultChannelConfig(a.cfg.Channel)
 	if err := validateChannelConfig(a.cfg.Channel); err != nil {
+		return err
+	}
+	a.cfg.ChannelAppend = defaultChannelAppendConfig(a.cfg.ChannelAppend)
+	if err := validateChannelAppendConfig(a.cfg.ChannelAppend); err != nil {
 		return err
 	}
 	a.cfg.Conversation = defaultConversationConfig(a.cfg.Conversation)
@@ -140,7 +144,7 @@ func (a *App) wireChannels() {
 			channelOptions := channelusecase.Options{
 				Store:                         store,
 				LargeGroupSubscriberThreshold: a.cfg.Channel.LargeGroupSubscriberThreshold,
-				SubscriberMutationObserver:    channelWriteSubscriberMutationObserver{app: a},
+				SubscriberMutationObserver:    channelAppendSubscriberMutationObserver{app: a},
 			}
 			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
 				channelOptions.MembershipIndex = store
@@ -363,35 +367,35 @@ func (a *App) wireDelivery() {
 	}
 }
 
-func (a *App) wireChannelWrite(nodeID uint64) error {
-	if a.channelWrites == nil {
+func (a *App) wireChannelAppend(nodeID uint64) error {
+	if a.channelAppends == nil {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
-		writeNode, hasWriteNode := a.cluster.(clusterinfra.ChannelWriteNode)
-		if hasAppendNode && hasWriteNode {
+		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ChannelAppendAuthorityNode)
+		if hasAppendNode && hasAuthorityNode {
 			messageIDs, err := newNodeMessageIDs(nodeID)
 			if err != nil {
 				return fmt.Errorf("internalv2/app: create message id generator: %w", err)
 			}
-			opts := channelwrite.Options{
-				LocalNodeID:                  nodeID,
-				Appender:                     clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
-				MessageID:                    messageIDs,
-				ShardCount:                   a.cfg.Delivery.ChannelWriteShardCount,
-				AppendWorkers:                a.cfg.Delivery.ChannelWriteAppendWorkers,
-				PostCommitWorkers:            a.cfg.Delivery.ChannelWritePostCommitWorkers,
-				RecipientDispatchConcurrency: a.cfg.Delivery.ChannelWriteRecipientDispatchConcurrency,
-				RecipientBatchSize:           a.cfg.Delivery.PushBatchSize,
-				SubscriberPageSize:           a.cfg.Delivery.FanoutPageSize,
+			opts := channelappend.Options{
+				LocalNodeID:                           nodeID,
+				Appender:                              clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
+				MessageID:                             messageIDs,
+				AuthorityShardCount:                   a.cfg.ChannelAppend.AuthorityShardCount,
+				AdvancePoolSize:                       a.cfg.ChannelAppend.AdvancePoolSize,
+				EffectPoolSize:                        a.cfg.ChannelAppend.EffectPoolSize,
+				RecipientAuthorityDispatchConcurrency: a.cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency,
+				RecipientBatchSize:                    a.cfg.Delivery.PushBatchSize,
+				SubscriberScanPageSize:                a.cfg.Delivery.FanoutPageSize,
 			}
 			if a.deliveryMeta != nil {
-				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliveryMeta}
+				opts.Subscribers = channelAppendDeliverySubscriberSource{source: a.deliveryMeta}
 			} else if a.deliverySubscribers != nil {
-				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliverySubscribers}
+				opts.Subscribers = channelAppendDeliverySubscriberSource{source: a.deliverySubscribers}
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
-				opts.Subscribers = channelWriteSubscriberSource{node: subscriberNode}
+				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
 			}
 			if recipientNode, ok := a.cluster.(recipientAuthorityRouteNode); ok {
-				opts.RecipientAuthorityResolver = channelWriteRecipientResolver{node: recipientNode}
+				opts.RecipientAuthorityResolver = channelAppendRecipientResolver{node: recipientNode}
 			}
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
@@ -402,31 +406,31 @@ func (a *App) wireChannelWrite(nodeID uint64) error {
 				opts.Observer = observer
 			}
 			if a.cfg.Delivery.Enabled {
-				processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
-					PresenceResolver:            channelWritePresenceResolver{presence: a.presence},
-					OwnerPusher:                 a.channelWriteOwnerPusher(nodeID),
+				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
+					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
+					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID),
 					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
 					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
 					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
 				})
-				if a.channelWriteDeliveryWorker == nil {
-					a.channelWriteDeliveryWorker = channelwrite.NewRecipientDeliveryWorker(channelwrite.RecipientDeliveryWorkerOptions{
+				if a.channelAppendDeliveryWorker == nil {
+					a.channelAppendDeliveryWorker = channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
 						Processor: processor,
 						QueueSize: a.cfg.Delivery.EventQueueSize,
-						Workers:   a.cfg.Delivery.ChannelWriteRecipientDispatchConcurrency,
+						Workers:   a.cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency,
 						Observer:  observer,
 					})
 				}
-				opts.RecipientDeliveryEnqueuer = a.channelWriteDeliveryWorker
-				a.deliveryWorker = appendDeliveryWorker(a.deliveryWorker, a.channelWriteDeliveryWorker)
+				opts.RecipientDeliveryEnqueuer = a.channelAppendDeliveryWorker
+				a.deliveryWorker = appendDeliveryWorker(a.deliveryWorker, a.channelAppendDeliveryWorker)
 			}
-			group := channelwrite.New(opts)
-			var remote clusterinfra.ChannelWriteRemoteForwarder
+			group := channelappend.New(opts)
+			var remote clusterinfra.ChannelAppendRemoteForwarder
 			if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
 				remote = accessnode.NewClient(rpcNode)
 			}
-			client := clusterinfra.NewChannelWriteClient(writeNode, remote)
-			router := channelwrite.NewRouter(channelwrite.RouterOptions{
+			client := clusterinfra.NewChannelAppendClient(authorityNode, remote)
+			router := channelappend.NewRouter(channelappend.RouterOptions{
 				LocalNodeID:        nodeID,
 				Resolver:           client,
 				Local:              group,
@@ -435,21 +439,21 @@ func (a *App) wireChannelWrite(nodeID uint64) error {
 				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
 				Observer:           observer,
 			})
-			a.channelWrites = group
-			a.channelWriteRouter = router
+			a.channelAppends = group
+			a.channelAppendRouter = router
 			if registrar, ok := a.cluster.(nodeRPCRegistrar); ok {
-				adapter := accessnode.NewChannelWriteAdapter(accessnode.ChannelWriteOptions{
-					ChannelWrite: channelWriteAuthorityLocal{group: group},
-					Logger:       a.logger.Named("node"),
+				adapter := accessnode.NewChannelAppendAdapter(accessnode.ChannelAppendOptions{
+					ChannelAppend: channelAppendAuthorityLocal{group: group},
+					Logger:        a.logger.Named("node"),
 				})
-				registrar.RegisterRPC(accessnode.ChannelWriteRPCServiceID, nodeRPCHandlerFunc(adapter.HandleChannelWriteRPC))
+				registrar.RegisterRPC(accessnode.ChannelAppendRPCServiceID, nodeRPCHandlerFunc(adapter.HandleChannelAppendRPC))
 			}
 		}
 	}
 	return nil
 }
 
-func (a *App) channelWriteOwnerPusher(nodeID uint64) channelwrite.OwnerPusher {
+func (a *App) channelAppendOwnerPusher(nodeID uint64) channelappend.OwnerPusher {
 	if a.localOwnerPusher == nil {
 		return nil
 	}
@@ -457,12 +461,12 @@ func (a *App) channelWriteOwnerPusher(nodeID uint64) channelwrite.OwnerPusher {
 	if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
 		pusher = clusterinfra.NewDeliveryPusher(nodeID, a.localOwnerPusher, accessnode.NewClient(rpcNode))
 	}
-	return channelWriteOwnerPusher{next: pusher}
+	return channelAppendOwnerPusher{next: pusher}
 }
 
 func (a *App) wireMessages() {
 	if a.messages == nil {
-		messageOpts := message.Options{Submitter: a.channelWriteRouter}
+		messageOpts := message.Options{Submitter: a.channelAppendRouter}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
 		}

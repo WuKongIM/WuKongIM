@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
@@ -1147,15 +1147,15 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 	reg := obsmetrics.New(1, "n1")
 	observer := deliveryMessageObserver{app: &App{metrics: reg}}
 
-	observer.SetChannelWriteRecipientDeliveryQueue(channelwrite.RecipientDeliveryQueueObservation{
+	observer.SetChannelAppendRecipientDeliveryQueue(channelappend.RecipientDeliveryQueueObservation{
 		QueueDepth:    3,
 		QueueCapacity: 8,
 	})
-	observer.ObserveChannelWriteRecipientDeliveryAdmission(channelwrite.RecipientDeliveryAdmissionObservation{
+	observer.ObserveChannelAppendRecipientDeliveryAdmission(channelappend.RecipientDeliveryAdmissionObservation{
 		Result:   "timeout",
 		Duration: 2 * time.Millisecond,
 	})
-	observer.ObserveChannelWriteRecipientDeliveryProcess(channelwrite.RecipientDeliveryProcessObservation{
+	observer.ObserveChannelAppendRecipientDeliveryProcess(channelappend.RecipientDeliveryProcessObservation{
 		Result:     "ok",
 		Recipients: 4,
 		Duration:   5 * time.Millisecond,
@@ -1179,12 +1179,12 @@ func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T)
 	}
 }
 
-func TestDeliveryMessageObserverLogsChannelWritePostCommitFailure(t *testing.T) {
+func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {
 	logger := &recordingAppLogger{}
 	app := &App{logger: logger}
 	observer := deliveryMessageObserver{app: app}
 
-	observer.ObserveChannelWritePostCommitFailure(channelwrite.PostCommitFailureObservation{
+	observer.ObserveChannelAppendPostCommitFailure(channelappend.PostCommitFailureObservation{
 		ChannelID:             "room",
 		ChannelType:           2,
 		MessageID:             42,
@@ -1207,7 +1207,7 @@ func TestDeliveryMessageObserverLogsChannelWritePostCommitFailure(t *testing.T) 
 		Err:                   errors.New("route not ready"),
 	})
 
-	entry := requireAppLogEvent(t, logger, "ERROR", "internalv2.app.channelwrite.post_commit_failed")
+	entry := requireAppLogEvent(t, logger, "ERROR", "internalv2.app.channelappend.post_commit_failed")
 	requireAppLogField(t, entry, "phase", "recipient_target_validate")
 	requireAppLogField(t, entry, "uid", "u1")
 	requireAppLogField(t, entry, "uidCount", 2)

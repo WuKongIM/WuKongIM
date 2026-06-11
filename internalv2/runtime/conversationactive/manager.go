@@ -75,7 +75,7 @@ func NewManager(opts Options) *Manager {
 	}
 }
 
-// AdmitActiveBatch admits a channelwrite recipient batch into the active cache.
+// AdmitActiveBatch admits a channelappend recipient batch into the active cache.
 func (m *Manager) AdmitActiveBatch(ctx context.Context, batch ActiveBatch) error {
 	activeAtMS := batch.ActiveAtMS
 	if activeAtMS == 0 {

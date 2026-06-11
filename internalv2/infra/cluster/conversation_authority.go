@@ -76,7 +76,7 @@ func (c *ConversationAuthorityClient) AdmitPatches(ctx context.Context, patches 
 	return nil
 }
 
-// AdmitActiveBatch routes a channelwrite active batch to each affected UID authority.
+// AdmitActiveBatch routes a channelappend active batch to each affected UID authority.
 func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batch conversationactive.ActiveBatch) error {
 	if batch.SenderUID == "" && len(batch.Recipients) == 0 {
 		return nil

@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 )
 
-// Submitter accepts channel write commands and returns item-aligned results.
-type Submitter = channelwrite.Submitter
+// Submitter accepts channel append commands and returns item-aligned results.
+type Submitter = channelappend.Submitter
 
 // Appender owns durable channel append routing.
 type Appender interface {
@@ -28,7 +28,7 @@ type MessageIDAllocator interface {
 }
 
 // Decision is the result of send authorization.
-type Decision = channelwrite.Decision
+type Decision = channelappend.Decision
 
 // Authorizer decides whether a send may enter durable append.
 type Authorizer interface {

@@ -868,22 +868,22 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_message_committed_replay_pass_duration_seconds")
 }
 
-func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
+func TestRegistryExposesChannelAppendMetrics(t *testing.T) {
 	reg := New(12, "node-12")
-	reg.ChannelWrite.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
-	reg.ChannelWrite.ObserveRouter("remote", "backpressured", 4, 5*time.Millisecond)
-	reg.ChannelWrite.ObserveLocalAdmission("accepted", 8)
-	reg.ChannelWrite.ObserveLocalAdmission("backpressured", 4)
-	reg.ChannelWrite.SetWriterPressure(3, 1024, 9, 1024, 7, 2, 5)
-	reg.ChannelWrite.ObserveEffectPool("append", "submitted", 8, 16, false)
-	reg.ChannelWrite.ObserveEffectPool("append", "full", 16, 16, true)
-	reg.ChannelWrite.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
-	reg.ChannelWrite.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
+	reg.ChannelAppend.ObserveRouter("local", "ok", 8, 3*time.Millisecond)
+	reg.ChannelAppend.ObserveRouter("remote", "backpressured", 4, 5*time.Millisecond)
+	reg.ChannelAppend.ObserveLocalAdmission("accepted", 8)
+	reg.ChannelAppend.ObserveLocalAdmission("backpressured", 4)
+	reg.ChannelAppend.SetWriterPressure(3, 1024, 9, 1024, 7, 2, 5)
+	reg.ChannelAppend.ObserveEffectPool("append", "submitted", 8, 16, false)
+	reg.ChannelAppend.ObserveEffectPool("append", "full", 16, 16, true)
+	reg.ChannelAppend.ObserveEffect("append", "ok", 8, 4*time.Millisecond)
+	reg.ChannelAppend.ObserveEffect("post_commit", "route_not_ready", 1, 6*time.Millisecond)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
 
-	router := requireMetricFamily(t, families, "wukongim_channelwrite_router_total")
+	router := requireMetricFamily(t, families, "wukongim_channelappend_router_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, router, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
@@ -891,21 +891,21 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"result":    "backpressured",
 	}).GetCounter().GetValue())
 
-	admission := requireMetricFamily(t, families, "wukongim_channelwrite_local_admission_total")
+	admission := requireMetricFamily(t, families, "wukongim_channelappend_local_admission_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, admission, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
 		"result":    "accepted",
 	}).GetCounter().GetValue())
 
-	state := requireMetricFamily(t, families, "wukongim_channelwrite_writer_state_items")
+	state := requireMetricFamily(t, families, "wukongim_channelappend_writer_state_items")
 	require.Equal(t, float64(5), findMetricByLabels(t, state, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
 		"kind":      "post_commit_backlog",
 	}).GetGauge().GetValue())
 
-	effect := requireMetricFamily(t, families, "wukongim_channelwrite_effect_total")
+	effect := requireMetricFamily(t, families, "wukongim_channelappend_effect_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, effect, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
@@ -913,7 +913,7 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"result":    "route_not_ready",
 	}).GetCounter().GetValue())
 
-	poolSubmit := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_submit_total")
+	poolSubmit := requireMetricFamily(t, families, "wukongim_channelappend_effect_pool_submit_total")
 	require.Equal(t, float64(1), findMetricByLabels(t, poolSubmit, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
@@ -921,21 +921,21 @@ func TestRegistryExposesChannelWriteMetrics(t *testing.T) {
 		"result":    "full",
 	}).GetCounter().GetValue())
 
-	poolInflight := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_inflight")
+	poolInflight := requireMetricFamily(t, families, "wukongim_channelappend_effect_pool_inflight")
 	require.Equal(t, float64(16), findMetricByLabels(t, poolInflight, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
 		"stage":     "append",
 	}).GetGauge().GetValue())
 
-	poolCapacity := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_capacity")
+	poolCapacity := requireMetricFamily(t, families, "wukongim_channelappend_effect_pool_capacity")
 	require.Equal(t, float64(16), findMetricByLabels(t, poolCapacity, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",
 		"stage":     "append",
 	}).GetGauge().GetValue())
 
-	poolSaturated := requireMetricFamily(t, families, "wukongim_channelwrite_effect_pool_saturated")
+	poolSaturated := requireMetricFamily(t, families, "wukongim_channelappend_effect_pool_saturated")
 	require.Equal(t, float64(1), findMetricByLabels(t, poolSaturated, map[string]string{
 		"node_id":   "12",
 		"node_name": "node-12",

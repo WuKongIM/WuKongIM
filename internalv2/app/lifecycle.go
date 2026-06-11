@@ -88,13 +88,13 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.deliveryStarted = true
 	}
-	if a.channelWrites != nil {
-		if err := a.channelWrites.Start(ctx); err != nil {
-			a.logLifecycleError("channel_write", "start", err)
+	if a.channelAppends != nil {
+		if err := a.channelAppends.Start(ctx); err != nil {
+			a.logLifecycleError("channel_append", "start", err)
 			stopErr := a.rollbackStarted(ctx)
 			return errors.Join(err, stopErr)
 		}
-		a.channelWriteStarted = true
+		a.channelAppendStarted = true
 	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
@@ -145,12 +145,12 @@ func (a *App) Stop(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
-	if a.channelWriteStarted && a.channelWrites != nil {
-		if stopErr := a.channelWrites.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("channel_write", "stop", stopErr)
+	if a.channelAppendStarted && a.channelAppends != nil {
+		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_append", "stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
-			a.channelWriteStarted = false
+			a.channelAppendStarted = false
 		}
 	}
 	if a.deliveryStarted && a.deliveryWorker != nil {
@@ -193,7 +193,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.apiStarted && !a.channelWriteStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.apiStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -217,12 +217,12 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
-	if a.channelWriteStarted && a.channelWrites != nil {
-		if stopErr := a.channelWrites.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("channel_write", "rollback_stop", stopErr)
+	if a.channelAppendStarted && a.channelAppends != nil {
+		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_append", "rollback_stop", stopErr)
 			err = errors.Join(err, stopErr)
 		} else {
-			a.channelWriteStarted = false
+			a.channelAppendStarted = false
 		}
 	}
 	if a.deliveryStarted && a.deliveryWorker != nil {

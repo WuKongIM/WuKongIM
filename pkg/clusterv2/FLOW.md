@@ -82,7 +82,7 @@ Start(ctx)
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
-`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel write tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
+`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
@@ -163,10 +163,10 @@ Node.AppendChannel / AppendChannelBatch
 Append forwarding uses a channel-key shard on the typed node RPC transport, and
 the default transportv2 wiring gives append, follower pull, and pull-hint
 traffic separate service queues plus weighted priorities. Foreground channel
-write services also use a larger default service concurrency: ChannelV2
+mutation services also use a larger default service concurrency: ChannelV2
 append-forward handlers mostly wait on ChannelV2 append/quorum futures, and
-internalv2 `RPCChannelWrite` handlers wait on channelwrite append futures.
-ChannelV2, channelwrite reactors, and DB pools keep the real storage
+internalv2 `RPCChannelAuthoritySend` handlers wait on channelappend futures.
+ChannelV2, channelappend writers, and DB pools keep the real storage
 backpressure boundary. This keeps foreground write pressure visible separately
 from replication traffic and reduces head-of-line blocking when they share peer
 connections. If a forwarded append times out and the origin
@@ -219,7 +219,7 @@ metadata for PullHint receive; client append admission still uses
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps ChannelV2's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Storage.CommitShards` can route message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero keeps the single-coordinator default. `Config.Channel.AppendBatchMaxRecords` and `Config.Channel.AppendBatchMaxWait` pass through to the hosted ChannelV2 runtime; zero keeps the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel write semantics.
+When `Config.Channel.ReactorCount` is left at zero, clusterv2 derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps ChannelV2's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Storage.CommitShards` can route message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero keeps the single-coordinator default. `Config.Channel.AppendBatchMaxRecords` and `Config.Channel.AppendBatchMaxWait` pass through to the hosted ChannelV2 runtime; zero keeps the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
 
 ## Non-Goals For V1
 

@@ -67,7 +67,7 @@ type DeliveryFanoutRunner interface {
 // ConversationAuthority handles UID-owned conversation active cache requests.
 type ConversationAuthority interface {
 	AdmitPatches(context.Context, conversationusecase.RouteTarget, []conversationusecase.ActivePatch) error
-	// AdmitActiveBatch admits one already-routed channelwrite active batch at the target authority.
+	// AdmitActiveBatch admits one already-routed channelappend active batch at the target authority.
 	AdmitActiveBatch(context.Context, conversationusecase.RouteTarget, conversationactive.ActiveBatch) error
 	ListUserConversationActiveViewForTarget(context.Context, conversationusecase.RouteTarget, string, metadb.UserConversationActiveCursor, int) (conversationusecase.ActiveViewPage, error)
 	DrainAuthority(context.Context, conversationusecase.RouteTarget) (string, error)

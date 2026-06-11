@@ -3,7 +3,7 @@
 ## Responsibility
 
 `internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
-`pkg/clusterv2` and `pkg/channelv2`. It maps channelwrite append DTOs to
+`pkg/clusterv2` and `pkg/channelv2`. It maps channelappend append DTOs to
 `pkg/channelv2` DTOs, resolves channel append authority through clusterv2, adapts
 legacy-compatible channel metadata usecase calls to clusterv2 Slot metadata
 facades, adapts legacy-compatible user metadata calls to UID Slot metadata
@@ -14,19 +14,19 @@ clusterv2 routing and node RPC.
 ## Append Flow
 
 ```text
-channelwrite.AppendBatchRequest
+channelappend.AppendBatchRequest
   -> channelv2.AppendBatchRequest
      (expected channel/leader epochs fence stale authority writes)
      (trace id, diagnostics channel key, append attempt, and per-message trace metadata stay transient)
   -> ChannelAppendNode.AppendChannelBatch
   -> record sendtrace `channel.append.local` for traced messages after completion
   -> channelv2.AppendBatchResult
-  -> channelwrite.AppendBatchResult
+  -> channelappend.AppendBatchResult
 ```
 
-Payloads are cloned in both directions unless the channelwrite runtime marks result
+Payloads are cloned in both directions unless the channelappend runtime marks result
 payloads as unnecessary for SENDACK-only flows. Commit mode, expected authority
-epoch fences, and typed errors are mapped at this boundary so the channelwrite
+epoch fences, and typed errors are mapped at this boundary so the channelappend
 runtime stays cluster-agnostic.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
@@ -35,7 +35,7 @@ When `ChannelAppendNode.AppendChannelBatch` returns a batch-level error, the
 adapter logs `internalv2.infra.cluster.channel_append_batch_failed` at ERROR
 level with the channel identity, authority fence, attempt, record count,
 mapped error result, and raw source error before returning the mapped
-channelwrite error.
+channelappend error.
 
 ## Message Sync Read Flow
 
@@ -173,36 +173,36 @@ conversation list semantics. Admission returns those errors directly. Raw
 clusterv2 route errors returned by remote RPC calls are mapped to the same
 conversation route sentinels before the list retry decision.
 
-## Channel Write Authority Flow
+## Channel Append Authority Flow
 
-`ChannelWriteClient` adapts the channelwrite router authority ports to
+`ChannelAppendClient` adapts the channelappend router authority ports to
 clusterv2. It resolves canonical channel append authority through the narrow
 `Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
 ChannelV2 service so metadata creation policy remains in `pkg/clusterv2/channels`.
 It then reads durable channel metadata to attach the large-channel flag and
-subscriber mutation version used by channelwrite recipient fanout. The adapter
-maps `channelv2.Meta` and channel metadata to `channelwrite.AuthorityTarget`
+subscriber mutation version used by channelappend recipient fanout. The adapter
+maps `channelv2.Meta` and channel metadata to `channelappend.AuthorityTarget`
 with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
 `LeaderEpoch`, `Large`, and `SubscriberMutationVersion`.
 
 ```text
-channelwrite.Router
-  -> ChannelWriteClient.ResolveAppendAuthority(canonical channel)
+channelappend.Router
+  -> ChannelAppendClient.ResolveAppendAuthority(canonical channel)
        -> clusterv2.Node.ResolveChannelAppendAuthority
        -> channels.Service.ResolveAppendAuthority
        -> ChannelMetaEnsurer.EnsureChannelMeta when append would create metadata
        -> clusterv2.Node.GetChannelMetadata for recipient fanout metadata
-  -> local authority: channelwrite.Group.SubmitLocal
-  -> remote authority: ChannelWriteClient.ForwardSendBatch
-       -> injected ChannelWriteRemoteForwarder
+  -> local authority: channelappend.Group.SubmitLocal
+  -> remote authority: ChannelAppendClient.ForwardSendBatch
+       -> injected ChannelAppendRemoteForwarder
 ```
 
 Route errors are translated at this adapter boundary:
-`channelv2.ErrNotLeader` becomes `channelwrite.ErrNotChannelAuthority`,
-`channelv2.ErrStaleMeta` becomes `channelwrite.ErrStaleRoute`, and
+`channelv2.ErrNotLeader` becomes `channelappend.ErrNotChannelAuthority`,
+`channelv2.ErrStaleMeta` becomes `channelappend.ErrStaleRoute`, and
 `channelv2.ErrNotReady` plus clusterv2 readiness errors become
-`channelwrite.ErrRouteNotReady`. Remote forwarding is supplied by the
-`internalv2/access/node` Channel Write RPC client; remote item results are
+`channelappend.ErrRouteNotReady`. Remote forwarding is supplied by the
+`internalv2/access/node` Channel Append RPC client; remote item results are
 returned item-aligned without interpreting successful payloads.
 
 ## User Metadata Flow
@@ -224,13 +224,13 @@ the current hash-slot metadata store.
 ## Error Mapping
 
 ```text
-channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> channelwrite.ErrNotLeader
-channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> channelwrite.ErrStaleRoute
-channelv2.ErrChannelNotFound                         -> channelwrite.ErrChannelNotFound
-channelv2.ErrBackpressured                           -> channelwrite.ErrBackpressured
-clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> channelwrite.ErrRouteNotReady
+channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> channelappend.ErrNotLeader
+channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> channelappend.ErrStaleRoute
+channelv2.ErrChannelNotFound                         -> channelappend.ErrChannelNotFound
+channelv2.ErrBackpressured                           -> channelappend.ErrBackpressured
+clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> channelappend.ErrRouteNotReady
 context cancellation/deadline                        -> unchanged
-other errors                                         -> channelwrite.ErrAppendFailed wrapping source
+other errors                                         -> channelappend.ErrAppendFailed wrapping source
 ```
 
 ## Presence Authority Flow

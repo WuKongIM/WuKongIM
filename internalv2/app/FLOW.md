@@ -29,7 +29,7 @@ New(Config)
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
-     cache/flush gauges and histograms, channel write append and post-commit
+     cache/flush gauges and histograms, channel append and post-commit
      counters, and recipient delivery worker queue/admission/process metrics
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
@@ -40,7 +40,7 @@ New(Config)
   -> when the cluster exposes channel metadata APIs:
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
        and the configured large-group subscriber threshold, wire a subscriber
-       mutation observer that updates channelwrite channel-state caches, and,
+       mutation observer that updates channelappend channel-state caches, and,
        when exposed by the cluster, wire the same adapter as the UID-owned
        membership projection index
   -> when the cluster exposes conversation metadata reads:
@@ -54,7 +54,7 @@ New(Config)
        the conversation list Store while keeping the read adapter as Messages
   -> when the cluster exposes clusterv2 Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
-     channelwrite subscriber scans, and optional delivery fanout
+     channelappend subscriber scans, and optional delivery fanout
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
@@ -75,16 +75,16 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> when the cluster exposes ChannelV2 append plus channel append authority:
-       create channelwrite.Group with hash-sharded per-channel authority writers,
+       create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, append metrics observer,
        and shared append/post-commit worker pools
-       create channelwrite.Router for local authority admission and remote
+       create channelappend.Router for local authority admission and remote
        channel-authority forwarding
-       register Channel Write RPC so remote nodes can submit to the local
+       register Channel Append RPC so remote nodes can submit to the local
        authority writer group
-  -> create message.App as a thin facade over channelwrite.Router, with the
+  -> create message.App as a thin facade over channelappend.Router, with the
      clusterv2 committed message reader when exposed for channel message sync
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
@@ -100,21 +100,22 @@ New(Config)
 delivery disabled, committed message effects still run inside the channel
 authority writer so recent conversation state is updated, but no online
 delivery is submitted. With delivery enabled, gateway RECVACK and session close
-feedback flows to the delivery usecase, while channelwrite post-commit effects
+feedback flows to the delivery usecase, while channelappend post-commit effects
 enqueue recipient-authority delivery batches into the recipient delivery worker.
-`Config.Delivery.ChannelWriteShardCount` defaults to a CPU-aware lookup-shard
-count with a minimum of four. `ChannelWriteAppendWorkers` and
-`ChannelWritePostCommitWorkers` size the shared worker budget used by
-channelwrite append and post-commit work. Prepare runs inline on the writer
-advance path; append remains the foreground durable path that determines
-SEND/SENDACK throughput.
-`ChannelWriteRecipientDispatchConcurrency` defaults to four recipient-authority
-targets per post-commit envelope. The lookup-shard count controls writer map
+`Config.ChannelAppend.AuthorityShardCount` defaults to a CPU-aware lookup-shard
+count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
+pool capacity used to activate channelappend writer state machines.
+`ChannelAppend.EffectPoolSize` is the direct ants pool capacity shared by
+blocking channelappend append calls and post-append recipient effects. Prepare
+runs inline on the writer advance path; append remains the foreground durable
+path that determines SEND/SENDACK throughput.
+`ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
+recipient-authority target fanout per post-commit envelope. The lookup-shard count controls writer map
 sharding; shared workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
 observer maps aggregate writer pressure and shared pool submit/full/saturation observations into
 Prometheus, which the three-node bench script summarizes in
-`channelwrite_metrics_summary.tsv`. Per-channel append ordering remains capped
+`channelappend_metrics_summary.tsv`. Per-channel append ordering remains capped
 by the single-writer invariant even when different channels run through
 different shards or workers.
 The foreground SEND path waits only for channel-authority durable append;
@@ -123,7 +124,7 @@ grouping, and delivery enqueue all run after SENDACK from the authority
 writer's best-effort post-commit pipeline. The recipient delivery worker later
 drains accepted batches, resolves online routes, and pushes owner-node delivery
 commands. Post-commit persistence and restart replay are not part of
-channelwrite. Post-commit enqueue failures are logged with the failing phase and
+channelappend. Post-commit enqueue failures are logged with the failing phase and
 route/dispatch context, counted through effect metrics, and dropped without
 retry; they do not change channel durability or the already-successful SENDACK
 decision. Conversation active-batch admission itself also performs no app-layer
@@ -141,18 +142,18 @@ per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed ChannelV2/cluster
 errors and short append results.
 
-The channel write commit pipeline scopes unscoped person-channel events to the
+The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
 subscriber source, or the clusterv2 Slot metadata source. After each recipient
-set is formed, channelwrite admits a `conversationactive.ActiveBatch` through
+set is formed, channelappend admits a `conversationactive.ActiveBatch` through
 the shared `ConversationAuthorityClient`; this still runs when online delivery
 is disabled. Recipients are then grouped by exact UID hash-slot authority target
 for delivery; when clusterv2 exposes batch key routing, the app recipient
 resolver resolves each subscriber page's unique UIDs through one batch route
 lookup before grouping. When delivery is enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
-channelwrite recipient processor outside the authority writer. `/bench/v1/channels` and
+channelappend recipient processor outside the authority writer. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation
@@ -199,9 +200,9 @@ Mutations are proposed through Slot ownership; reads use the current routed Slot
 metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
 through the UID-owned membership facade for compatible metadata reads; the
 conversation list itself pages UID-owned active conversation rows instead. When
-the channelwrite group is available, the app-level subscriber mutation observer
+the channelappend group is available, the app-level subscriber mutation observer
 forwards the final large-group flag and subscriber mutation version to
-`channelwrite.Group.ApplySubscriberMutation` so non-large channel subscriber
+`channelappend.Group.ApplySubscriberMutation` so non-large channel subscriber
 snapshots cached in `channelState` stay aligned with API mutations.
 
 Conversation list reads flow from entry adapters through
@@ -241,7 +242,7 @@ Conversation list with authority enabled:
 Conversation active-batch admission with authority enabled:
 
 ```text
-channelwrite/future active producer
+channelappend/future active producer
   -> ConversationAuthorityClient.AdmitActiveBatch
        -> cluster groups SenderUID and recipient UIDs by exact UID authority
   -> local authority:
@@ -266,10 +267,10 @@ System UID persistence reuses the compatible channel metadata store's internal
 subscriber-list model.
 
 Legacy message send and channel message sync requests flow from internalv2 HTTP
-through the app message facade. Sends delegate to `channelwrite.Router`, which
+through the app message facade. Sends delegate to `channelappend.Router`, which
 resolves the canonical channel's append authority. Local authority sends are
-admitted to the local `channelwrite.Group`; remote authority sends are forwarded
-through access/node Channel Write RPC to the target node, where they enter only
+admitted to the local `channelappend.Group`; remote authority sends are forwarded
+through access/node Channel Append RPC to the target node, where they enter only
 that node's authority writer group. Channel message sync uses the
 `internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
 messages through the clusterv2 Node facade and keeps legacy person-channel
@@ -287,13 +288,13 @@ SEND with channel authority routing enabled:
 
 ```text
 gateway/API send
-  -> message.App delegates to channelwrite.Router
+  -> message.App delegates to channelappend.Router
   -> Router resolves channel append authority
   -> local channel authority:
-       channelwrite.Group admits the batch to the channel writer
+       channelappend.Group admits the batch to the channel appendr
   -> remote channel authority:
-       access/node Channel Write RPC forwards the batch
-       remote node admits it to its local channel writer
+       access/node Channel Append RPC forwards the batch
+       remote node admits it to its local channel appendr
   -> authority writer prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
   -> ChannelV2 persists messages and returns append result
   -> SENDACK returns to sender
@@ -323,7 +324,7 @@ Start(ctx)
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
-  -> channel write group Start(ctx): open local channel-authority writer admission
+  -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
   -> gateway.Start()
 
@@ -331,7 +332,7 @@ Stop(ctx)
   -> restore diagnostics sendtrace sink
   -> gateway.Stop()
   -> api.Stop(ctx)
-  -> channel write group Stop(ctx): close admission and drain accepted appends plus post-commit effects
+  -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
   -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
@@ -376,7 +377,7 @@ periodic flush
   -> store.TouchUserConversationActiveAtBatch persists ActiveAt/ReadSeq/UpdatedAt
 
 Stop(ctx)
-  -> channelwrite has already closed admission and drained accepted post-commit effects
+  -> channelappend has already closed admission and drained accepted post-commit effects
   -> cancel the periodic loop
   -> drain remaining dirty active rows in bounded batches with the caller's stop context
 ```

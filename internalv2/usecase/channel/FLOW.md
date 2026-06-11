@@ -50,7 +50,7 @@ and large-group flag refresh succeed. The event carries the final
 `SubscriberMutationVersion`, final `Large` flag, reset/add/remove shape, and
 cloned UID lists so the composition root can keep runtime channel-state caches
 aligned without letting the HTTP adapter or this usecase depend on
-`runtime/channelwrite`. Allowlist, denylist, and temporary member-list
+`runtime/channelappend`. Allowlist, denylist, and temporary member-list
 mutations do not emit observer events.
 
 ## Member Lists

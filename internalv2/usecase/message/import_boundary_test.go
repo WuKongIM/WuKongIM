@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 )
 
@@ -41,22 +41,22 @@ func TestMessageUsecaseImportBoundary(t *testing.T) {
 	}
 }
 
-func TestMessagePackageAliasesChannelWriteTypes(t *testing.T) {
-	var _ channelwrite.SendCommand = message.SendCommand{}
-	var _ channelwrite.Decision = message.Decision{}
+func TestMessagePackageAliasesChannelAppendTypes(t *testing.T) {
+	var _ channelappend.SendCommand = message.SendCommand{}
+	var _ channelappend.Decision = message.Decision{}
 
 	reasons := []struct {
 		name     string
 		message  message.Reason
-		contract channelwrite.Reason
+		contract channelappend.Reason
 	}{
-		{name: "success", message: message.ReasonSuccess, contract: channelwrite.ReasonSuccess},
-		{name: "invalid request", message: message.ReasonInvalidRequest, contract: channelwrite.ReasonInvalidRequest},
-		{name: "auth fail", message: message.ReasonAuthFail, contract: channelwrite.ReasonAuthFail},
-		{name: "channel not exist", message: message.ReasonChannelNotExist, contract: channelwrite.ReasonChannelNotExist},
-		{name: "node not match", message: message.ReasonNodeNotMatch, contract: channelwrite.ReasonNodeNotMatch},
-		{name: "system error", message: message.ReasonSystemError, contract: channelwrite.ReasonSystemError},
-		{name: "unsupported", message: message.ReasonUnsupported, contract: channelwrite.ReasonUnsupported},
+		{name: "success", message: message.ReasonSuccess, contract: channelappend.ReasonSuccess},
+		{name: "invalid request", message: message.ReasonInvalidRequest, contract: channelappend.ReasonInvalidRequest},
+		{name: "auth fail", message: message.ReasonAuthFail, contract: channelappend.ReasonAuthFail},
+		{name: "channel not exist", message: message.ReasonChannelNotExist, contract: channelappend.ReasonChannelNotExist},
+		{name: "node not match", message: message.ReasonNodeNotMatch, contract: channelappend.ReasonNodeNotMatch},
+		{name: "system error", message: message.ReasonSystemError, contract: channelappend.ReasonSystemError},
+		{name: "unsupported", message: message.ReasonUnsupported, contract: channelappend.ReasonUnsupported},
 	}
 	for _, reason := range reasons {
 		if reason.message != reason.contract {

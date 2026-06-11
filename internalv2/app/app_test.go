@@ -20,7 +20,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
-	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
@@ -242,26 +242,44 @@ func TestDefaultChannelConfigUsesLargeGroupThreshold(t *testing.T) {
 	}
 }
 
-func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) {
+func TestDefaultChannelAppendConfigUsesRuntimeDefaults(t *testing.T) {
 	oldProcs := runtime.GOMAXPROCS(6)
 	t.Cleanup(func() { runtime.GOMAXPROCS(oldProcs) })
 
+	cfg := defaultChannelAppendConfig(ChannelAppendConfig{})
+
+	if cfg.AuthorityShardCount != 6 {
+		t.Fatalf("AuthorityShardCount = %d, want 6", cfg.AuthorityShardCount)
+	}
+	if cfg.AdvancePoolSize != 6 {
+		t.Fatalf("AdvancePoolSize = %d, want 6", cfg.AdvancePoolSize)
+	}
+	if cfg.EffectPoolSize != 18000 {
+		t.Fatalf("EffectPoolSize = %d, want 18000", cfg.EffectPoolSize)
+	}
+	if cfg.RecipientAuthorityDispatchConcurrency != 100 {
+		t.Fatalf("RecipientAuthorityDispatchConcurrency = %d, want 100", cfg.RecipientAuthorityDispatchConcurrency)
+	}
+
+	negative := defaultChannelAppendConfig(ChannelAppendConfig{
+		AuthorityShardCount:                   -5,
+		AdvancePoolSize:                       -6,
+		EffectPoolSize:                        -7,
+		RecipientAuthorityDispatchConcurrency: -8,
+	})
+	if negative.AuthorityShardCount != -5 ||
+		negative.AdvancePoolSize != -6 ||
+		negative.EffectPoolSize != -7 ||
+		negative.RecipientAuthorityDispatchConcurrency != -8 {
+		t.Fatalf("negative channel append values were overwritten: %#v", negative)
+	}
+}
+
+func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) {
 	cfg := defaultDeliveryConfig(DeliveryConfig{})
 
 	if cfg.Enabled {
 		t.Fatalf("Enabled = true, want false by default")
-	}
-	if cfg.ChannelWriteShardCount != 6 {
-		t.Fatalf("ChannelWriteShardCount = %d, want 6", cfg.ChannelWriteShardCount)
-	}
-	if cfg.ChannelWriteAppendWorkers != 2000 {
-		t.Fatalf("ChannelWriteAppendWorkers = %d, want 2000", cfg.ChannelWriteAppendWorkers)
-	}
-	if cfg.ChannelWritePostCommitWorkers != 1000 {
-		t.Fatalf("ChannelWritePostCommitWorkers = %d, want 1000", cfg.ChannelWritePostCommitWorkers)
-	}
-	if cfg.ChannelWriteRecipientDispatchConcurrency != 100 {
-		t.Fatalf("ChannelWriteRecipientDispatchConcurrency = %d, want 100", cfg.ChannelWriteRecipientDispatchConcurrency)
 	}
 	if cfg.FanoutPageSize != 512 {
 		t.Fatalf("FanoutPageSize = %d, want 512", cfg.FanoutPageSize)
@@ -280,25 +298,37 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	}
 
 	negative := defaultDeliveryConfig(DeliveryConfig{
-		Enabled:                                  true,
-		ChannelWriteShardCount:                   -5,
-		ChannelWriteAppendWorkers:                -7,
-		ChannelWritePostCommitWorkers:            -8,
-		ChannelWriteRecipientDispatchConcurrency: -7,
-		FanoutPageSize:                           -1,
-		PushBatchSize:                            -2,
-		PendingAckTTL:                            -time.Second,
-		PendingAckMaxPerSession:                  -3,
-		EventQueueSize:                           -4,
+		Enabled:                 true,
+		FanoutPageSize:          -1,
+		PushBatchSize:           -2,
+		PendingAckTTL:           -time.Second,
+		PendingAckMaxPerSession: -3,
+		EventQueueSize:          -4,
 	})
-	if !negative.Enabled || negative.ChannelWriteShardCount != -5 ||
-		negative.ChannelWriteAppendWorkers != -7 ||
-		negative.ChannelWritePostCommitWorkers != -8 ||
-		negative.ChannelWriteRecipientDispatchConcurrency != -7 ||
+	if !negative.Enabled ||
 		negative.FanoutPageSize != -1 || negative.PushBatchSize != -2 ||
 		negative.PendingAckTTL != -time.Second || negative.PendingAckMaxPerSession != -3 ||
 		negative.EventQueueSize != -4 {
 		t.Fatalf("negative delivery values were overwritten: %#v", negative)
+	}
+}
+
+func TestValidateChannelAppendConfigRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  ChannelAppendConfig
+	}{
+		{name: "authority shard count", cfg: ChannelAppendConfig{AuthorityShardCount: -1}},
+		{name: "advance pool size", cfg: ChannelAppendConfig{AdvancePoolSize: -1}},
+		{name: "effect pool size", cfg: ChannelAppendConfig{EffectPoolSize: -1}},
+		{name: "recipient authority dispatch concurrency", cfg: ChannelAppendConfig{RecipientAuthorityDispatchConcurrency: -1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateChannelAppendConfig(tt.cfg); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validateChannelAppendConfig() error = %v, want %v", err, ErrInvalidConfig)
+			}
+		})
 	}
 }
 
@@ -307,10 +337,6 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 		name string
 		cfg  DeliveryConfig
 	}{
-		{name: "channelwrite shard count", cfg: DeliveryConfig{ChannelWriteShardCount: -1}},
-		{name: "channelwrite append workers", cfg: DeliveryConfig{ChannelWriteAppendWorkers: -1}},
-		{name: "channelwrite post-commit workers", cfg: DeliveryConfig{ChannelWritePostCommitWorkers: -1}},
-		{name: "channelwrite recipient dispatch concurrency", cfg: DeliveryConfig{ChannelWriteRecipientDispatchConcurrency: -1}},
 		{name: "fanout page size", cfg: DeliveryConfig{FanoutPageSize: -1}},
 		{name: "push batch size", cfg: DeliveryConfig{PushBatchSize: -1}},
 		{name: "pending ack ttl", cfg: DeliveryConfig{PendingAckTTL: -time.Nanosecond}},
@@ -459,8 +485,8 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliveryWorker == nil {
 		t.Fatal("delivery worker was not wired")
 	}
-	if app.channelWriteDeliveryWorker == nil {
-		t.Fatal("channelwrite recipient delivery worker was not wired")
+	if app.channelAppendDeliveryWorker == nil {
+		t.Fatal("channelappend recipient delivery worker was not wired")
 	}
 	if app.deliveryManager == nil || app.deliveryManager.PendingAckCount() != 0 {
 		t.Fatal("delivery manager was not initialized for async runtime")
@@ -478,11 +504,11 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if group[1] != app.deliveryManager {
 		t.Fatalf("delivery worker[1] = %T, want manager", group[1])
 	}
-	if _, ok := group[2].(*channelwrite.RecipientDeliveryWorker); !ok {
+	if _, ok := group[2].(*channelappend.RecipientDeliveryWorker); !ok {
 		t.Fatalf("delivery worker[2] = %T, want recipient delivery worker", group[2])
 	}
-	if group[2] != app.channelWriteDeliveryWorker {
-		t.Fatalf("delivery worker[2] = %T, want app channelwrite recipient delivery worker", group[2])
+	if group[2] != app.channelAppendDeliveryWorker {
+		t.Fatalf("delivery worker[2] = %T, want app channelappend recipient delivery worker", group[2])
 	}
 	if app.deliveryRetry == nil {
 		t.Fatal("delivery retry scheduler was not wired")
@@ -545,8 +571,8 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	if app.messages == nil {
 		t.Fatal("message usecase was not wired")
 	}
-	if app.channelWrites == nil || app.channelWriteRouter == nil {
-		t.Fatalf("channel write runtime = (%T, %T), want group and router", app.channelWrites, app.channelWriteRouter)
+	if app.channelAppends == nil || app.channelAppendRouter == nil {
+		t.Fatalf("channel append runtime = (%T, %T), want group and router", app.channelAppends, app.channelAppendRouter)
 	}
 	startTestApp(t, app)
 
@@ -584,7 +610,7 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
-func TestNewWiresChannelWriteCommitEffectsWhenDeliveryDisabled(t *testing.T) {
+func TestNewWiresChannelAppendCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -601,8 +627,8 @@ func TestNewWiresChannelWriteCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	if app.messages == nil {
 		t.Fatal("message usecase was not wired")
 	}
-	if app.channelWrites == nil || app.channelWriteRouter == nil {
-		t.Fatalf("channel write runtime = (%T, %T), want group and router", app.channelWrites, app.channelWriteRouter)
+	if app.channelAppends == nil || app.channelAppendRouter == nil {
+		t.Fatalf("channel append runtime = (%T, %T), want group and router", app.channelAppends, app.channelAppendRouter)
 	}
 	startTestApp(t, app)
 
@@ -635,8 +661,8 @@ func TestNewWiresChannelWriteCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	if _, ok := cluster.registeredHandlers[accessnode.ConversationAuthorityRPCServiceID]; !ok {
 		t.Fatalf("conversation authority rpc service was not registered")
 	}
-	if _, ok := cluster.registeredHandlers[accessnode.ChannelWriteRPCServiceID]; !ok {
-		t.Fatalf("channel write rpc service was not registered")
+	if _, ok := cluster.registeredHandlers[accessnode.ChannelAppendRPCServiceID]; !ok {
+		t.Fatalf("channel append rpc service was not registered")
 	}
 
 	for _, uid := range []string{"u1", "u2"} {
@@ -660,8 +686,8 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	if app.conversationAuthority != nil || app.conversationAuthorityClient != nil {
 		t.Fatalf("authority fields = (%T, %T), want authority unavailable", app.conversationAuthority, app.conversationAuthorityClient)
 	}
-	if app.channelWrites == nil || app.channelWriteRouter == nil {
-		t.Fatalf("channel write runtime = (%T, %T), want append-only group and router", app.channelWrites, app.channelWriteRouter)
+	if app.channelAppends == nil || app.channelAppendRouter == nil {
+		t.Fatalf("channel append runtime = (%T, %T), want append-only group and router", app.channelAppends, app.channelAppendRouter)
 	}
 	startTestApp(t, app)
 
@@ -696,7 +722,7 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	}
 }
 
-func TestChannelWriteUpdatesPersonConversationEventually(t *testing.T) {
+func TestChannelAppendUpdatesPersonConversationEventually(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
@@ -771,7 +797,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	}
 }
 
-func TestChannelWriteUsesDurableSubscribersAndSenderActiveRow(t *testing.T) {
+func TestChannelAppendUsesDurableSubscribersAndSenderActiveRow(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
@@ -872,7 +898,7 @@ func TestAppStopFlushesConversationActiveRows(t *testing.T) {
 	}
 }
 
-func TestChannelWritePagesAllGroupSubscribers(t *testing.T) {
+func TestChannelAppendPagesAllGroupSubscribers(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}

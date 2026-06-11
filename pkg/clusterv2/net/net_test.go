@@ -159,7 +159,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 
 	observer := &recordingTransportObserver{}
 	server := NewTransportServer(TransportServerConfig{Observer: observer})
-	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelAppendBatch, RPCChannelWrite} {
+	for _, serviceID := range []uint8{RPCChannelPull, RPCChannelAppendBatch, RPCChannelAuthoritySend} {
 		serviceID := serviceID
 		server.Register(serviceID, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 			return []byte{serviceID}, nil
@@ -181,8 +181,8 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 	if _, err := client.Call(context.Background(), 2, RPCChannelAppendBatch, []byte("append")); err != nil {
 		t.Fatalf("Call(append batch) error = %v", err)
 	}
-	if _, err := client.Call(context.Background(), 2, RPCChannelWrite, []byte("channel write")); err != nil {
-		t.Fatalf("Call(channel write) error = %v", err)
+	if _, err := client.Call(context.Background(), 2, RPCChannelAuthoritySend, []byte("channel authority send")); err != nil {
+		t.Fatalf("Call(channel authority send) error = %v", err)
 	}
 
 	pullEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
@@ -205,11 +205,11 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 
 	writeEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
 		return event.Name == "service_inflight" &&
-			event.ServiceID == uint16(RPCChannelWrite) &&
+			event.ServiceID == uint16(RPCChannelAuthoritySend) &&
 			event.Inflight == 1
 	})
 	if writeEvent.Capacity != wantWriteConcurrency {
-		t.Fatalf("channel write service capacity = %d, want %d", writeEvent.Capacity, wantWriteConcurrency)
+		t.Fatalf("channel authority send service capacity = %d, want %d", writeEvent.Capacity, wantWriteConcurrency)
 	}
 }
 

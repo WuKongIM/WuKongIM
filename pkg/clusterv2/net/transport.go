@@ -221,15 +221,15 @@ func servicePriority(serviceID uint8) transportv2.Priority {
 
 func (s *TransportServer) serviceOptions(serviceID uint8) transportv2.ServiceOptions {
 	cfg := s.cfg.Service
-	if isForegroundChannelWriteService(serviceID) && cfg.Concurrency <= 0 {
+	if isForegroundChannelMutationService(serviceID) && cfg.Concurrency <= 0 {
 		cfg.Concurrency = defaultTransportForegroundWriteServiceConcurrency
 	}
 	return normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
 }
 
-func isForegroundChannelWriteService(serviceID uint8) bool {
+func isForegroundChannelMutationService(serviceID uint8) bool {
 	switch serviceID {
-	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelWrite:
+	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend:
 		return true
 	default:
 		return false

@@ -91,11 +91,11 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
 	"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD",
+	"WK_CHANNEL_APPEND_SHARD_COUNT",
+	"WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE",
+	"WK_CHANNEL_APPEND_EFFECT_POOL_SIZE",
+	"WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY",
 	"WK_DELIVERY_ENABLE",
-	"WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT",
-	"WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS",
-	"WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS",
-	"WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY",
 	"WK_DELIVERY_FANOUT_PAGE_SIZE",
 	"WK_DELIVERY_PUSH_BATCH_SIZE",
 	"WK_DELIVERY_PENDING_ACK_TTL",
@@ -811,45 +811,45 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Delivery.Enabled = enabled
 	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT"); raw != "" {
-		shards, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT", raw)
+	if raw := configValue(values, "WK_CHANNEL_APPEND_SHARD_COUNT"); raw != "" {
+		shards, err := parseInt("WK_CHANNEL_APPEND_SHARD_COUNT", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
 		if shards < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT: value must be >= 0")
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_SHARD_COUNT: value must be >= 0")
 		}
-		cfg.Delivery.ChannelWriteShardCount = shards
+		cfg.ChannelAppend.AuthorityShardCount = shards
 	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS"); raw != "" {
-		workers, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS", raw)
+	if raw := configValue(values, "WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE"); raw != "" {
+		size, err := parseInt("WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		if workers < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS: value must be >= 0")
+		if size < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE: value must be >= 0")
 		}
-		cfg.Delivery.ChannelWriteAppendWorkers = workers
+		cfg.ChannelAppend.AdvancePoolSize = size
 	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS"); raw != "" {
-		workers, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS", raw)
+	if raw := configValue(values, "WK_CHANNEL_APPEND_EFFECT_POOL_SIZE"); raw != "" {
+		size, err := parseInt("WK_CHANNEL_APPEND_EFFECT_POOL_SIZE", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		if workers < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS: value must be >= 0")
+		if size < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_EFFECT_POOL_SIZE: value must be >= 0")
 		}
-		cfg.Delivery.ChannelWritePostCommitWorkers = workers
+		cfg.ChannelAppend.EffectPoolSize = size
 	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY"); raw != "" {
-		concurrency, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY", raw)
+	if raw := configValue(values, "WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
 		if concurrency < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY: value must be >= 0")
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY: value must be >= 0")
 		}
-		cfg.Delivery.ChannelWriteRecipientDispatchConcurrency = concurrency
+		cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency = concurrency
 	}
 	if raw := configValue(values, "WK_DELIVERY_FANOUT_PAGE_SIZE"); raw != "" {
 		pageSize, err := parseInt("WK_DELIVERY_FANOUT_PAGE_SIZE", raw)

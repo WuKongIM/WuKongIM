@@ -8,7 +8,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
-	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
@@ -125,25 +125,25 @@ func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time
 	}
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteRouter(event channelwrite.RouterObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendRouter(event channelappend.RouterObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.ObserveRouter(event.Path, event.Result, event.Items, event.Duration)
+	o.app.metrics.ChannelAppend.ObserveRouter(event.Path, event.Result, event.Items, event.Duration)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteLocalAdmission(event channelwrite.LocalAdmissionObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendLocalAdmission(event channelappend.LocalAdmissionObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.ObserveLocalAdmission(event.Result, event.Items)
+	o.app.metrics.ChannelAppend.ObserveLocalAdmission(event.Result, event.Items)
 }
 
-func (o deliveryMessageObserver) SetChannelWriteWriterPressure(event channelwrite.WriterPressureObservation) {
+func (o deliveryMessageObserver) SetChannelAppendWriterPressure(event channelappend.WriterPressureObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.SetWriterPressure(
+	o.app.metrics.ChannelAppend.SetWriterPressure(
 		event.AdmissionDepth,
 		event.AdmissionCapacity,
 		event.WorkerRunning,
@@ -154,11 +154,11 @@ func (o deliveryMessageObserver) SetChannelWriteWriterPressure(event channelwrit
 	)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteEffectPool(event channelwrite.EffectPoolObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendEffectPool(event channelappend.EffectPoolObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.ObserveEffectPool(
+	o.app.metrics.ChannelAppend.ObserveEffectPool(
 		event.Stage,
 		event.Result,
 		event.Inflight,
@@ -167,19 +167,19 @@ func (o deliveryMessageObserver) ObserveChannelWriteEffectPool(event channelwrit
 	)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteEffect(event channelwrite.EffectObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendEffect(event channelappend.EffectObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.ObserveEffect(event.Stage, event.Result, event.Items, event.Duration)
+	o.app.metrics.ChannelAppend.ObserveEffect(event.Stage, event.Result, event.Items, event.Duration)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWritePostCommitFailure(event channelwrite.PostCommitFailureObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event channelappend.PostCommitFailureObservation) {
 	if o.app == nil {
 		return
 	}
-	o.app.deliveryLogger().Error("channelwrite post-commit failed",
-		wklog.Event("internalv2.app.channelwrite.post_commit_failed"),
+	o.app.deliveryLogger().Error("channelappend post-commit failed",
+		wklog.Event("internalv2.app.channelappend.post_commit_failed"),
 		wklog.ChannelID(event.ChannelID),
 		wklog.ChannelType(int64(event.ChannelType)),
 		wklog.Uint64("messageID", event.MessageID),
@@ -203,21 +203,21 @@ func (o deliveryMessageObserver) ObserveChannelWritePostCommitFailure(event chan
 	)
 }
 
-func (o deliveryMessageObserver) SetChannelWriteRecipientDeliveryQueue(event channelwrite.RecipientDeliveryQueueObservation) {
+func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
 	o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteRecipientDeliveryAdmission(event channelwrite.RecipientDeliveryAdmissionObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
 	o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
 }
 
-func (o deliveryMessageObserver) ObserveChannelWriteRecipientDeliveryProcess(event channelwrite.RecipientDeliveryProcessObservation) {
+func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryProcess(event channelappend.RecipientDeliveryProcessObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}

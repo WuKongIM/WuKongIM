@@ -84,7 +84,7 @@ type ActiveViewPage struct {
 	Done bool
 }
 
-// ActiveBatch is the channelwrite output consumed by the active cache.
+// ActiveBatch is the channelappend output consumed by the active cache.
 type ActiveBatch struct {
 	// SenderUID identifies the user who sent the committed message.
 	SenderUID string

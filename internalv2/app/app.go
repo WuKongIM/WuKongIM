@@ -16,7 +16,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
-	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -69,9 +69,9 @@ type App struct {
 	handler                     *accessgateway.Handler
 	messages                    *message.App
 	apiMessages                 accessapi.MessageUsecase
-	channelWrites               *channelwrite.Group
-	channelWriteRouter          *channelwrite.Router
-	channelWriteDeliveryWorker  *channelwrite.RecipientDeliveryWorker
+	channelAppends              *channelappend.Group
+	channelAppendRouter         *channelappend.Router
+	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
 	channels                    *channelusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App
@@ -107,7 +107,7 @@ type App struct {
 	presenceStarted           bool
 	conversationRouteStarted  bool
 	conversationActiveStarted bool
-	channelWriteStarted       bool
+	channelAppendStarted      bool
 	deliveryStarted           bool
 	apiStarted                bool
 	gatewayStarted            bool
@@ -147,7 +147,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wirePresence()
 	app.wireUsers()
 	app.wireDelivery()
-	if err := app.wireChannelWrite(clusterCfg.NodeID); err != nil {
+	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
 	app.wireMessages()

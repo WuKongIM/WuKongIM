@@ -8,7 +8,7 @@ type Options struct {
 	Reader ChannelMessageReader
 }
 
-// App is a thin message facade over channel write submission and sync reads.
+// App is a thin message facade over channel append submission and sync reads.
 type App struct {
 	submitter Submitter
 	reader    ChannelMessageReader

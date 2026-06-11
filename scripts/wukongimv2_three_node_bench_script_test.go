@@ -481,7 +481,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		}
 	}
 
-	channelwrite := readFile(t, filepath.Join(outDir, "channelwrite_metrics_summary.tsv"))
+	channelappend := readFile(t, filepath.Join(outDir, "channelappend_metrics_summary.tsv"))
 	for _, want := range []string{
 		"effect_pool_submit_delta",
 		"effect_pool_full_delta",
@@ -494,8 +494,8 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"000100\t127_0_0_1_5011",
 		"\t10\t10\t1.000\t1\t1",
 	} {
-		if !strings.Contains(channelwrite, want) {
-			t.Fatalf("channelwrite metrics summary missing %q:\n%s", want, channelwrite)
+		if !strings.Contains(channelappend, want) {
+			t.Fatalf("channelappend metrics summary missing %q:\n%s", want, channelappend)
 		}
 	}
 
@@ -523,7 +523,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"queue_backlog",
 		"admission_full",
 		"CHANNELWRITE POOL PRESSURE",
-		"details=channelwrite_metrics_summary.tsv",
+		"details=channelappend_metrics_summary.tsv",
 		"route_block",
 		"effect_util",
 		"pool_full",
@@ -557,8 +557,8 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 		"gateway",
 		"async_send",
 		"admission_full",
-		"## ChannelWrite Pool Pressure",
-		"details=channelwrite_metrics_summary.tsv",
+		"## ChannelAppend Pool Pressure",
+		"details=channelappend_metrics_summary.tsv",
 		"effect_util",
 		"pool_full",
 		"saturated=1",
@@ -1900,12 +1900,12 @@ wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",compon
 wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
 wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} $count
-wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="submitted"} $((count * 2))
-wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="full"} $count
-wukongim_channelwrite_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="error"} 0
-wukongim_channelwrite_effect_pool_inflight{node_id="1",node_name="node-1",stage="prepare"} 10
-wukongim_channelwrite_effect_pool_capacity{node_id="1",node_name="node-1",stage="prepare"} 10
-wukongim_channelwrite_effect_pool_saturated{node_id="1",node_name="node-1",stage="prepare"} 1
+wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="submitted"} $((count * 2))
+wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="full"} $count
+wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="error"} 0
+wukongim_channelappend_effect_pool_inflight{node_id="1",node_name="node-1",stage="prepare"} 10
+wukongim_channelappend_effect_pool_capacity{node_id="1",node_name="node-1",stage="prepare"} 10
+wukongim_channelappend_effect_pool_saturated{node_id="1",node_name="node-1",stage="prepare"} 1
 wukongim_transport_sent_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_request"} $((count * 1048576))
 wukongim_transport_received_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_response"} $((count * 524288))
 OUT

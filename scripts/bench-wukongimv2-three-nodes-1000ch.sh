@@ -349,6 +349,10 @@ start_cluster() {
   WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}" \
+  WK_CHANNEL_APPEND_SHARD_COUNT="${WK_CHANNEL_APPEND_SHARD_COUNT:-0}" \
+  WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE="${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}" \
+  WK_CHANNEL_APPEND_EFFECT_POOL_SIZE="${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}" \
+  WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY="${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
@@ -941,11 +945,11 @@ channelv2_metrics_summary() {
   done
 }
 
-channelwrite_metrics_summary() {
+channelappend_metrics_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
-  local out="$OUT_DIR/channelwrite_metrics_summary.tsv"
-  local summarizer="$ROOT_DIR/scripts/channelwrite-metrics-summary.awk"
+  local out="$OUT_DIR/channelappend_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/channelappend-metrics-summary.awk"
   local addr id before after
   local samples=()
   for addr in "${METRICS_VALUES[@]}"; do
@@ -1030,7 +1034,7 @@ run_attempt() {
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
   channelv2_metrics_summary "$tag" "$duration"
-  channelwrite_metrics_summary "$tag"
+  channelappend_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
   cluster_transport_peak_summary "$tag"
 
@@ -1090,10 +1094,10 @@ METRICS_ADDRS=$METRICS_ADDRS
 WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
-DELIVERY_CHANNEL_WRITE_SHARD_COUNT=${WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT:-0}
-DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS:-0}
-DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS:-0}
-DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=${WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY:-0}
+CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
+CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
+CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
+CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}
@@ -1203,7 +1207,7 @@ write_display_summary() {
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
   append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv" >>"$OUT_DIR/summary.txt"
   append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
-  append_channelwrite_pool_pressure_display "$OUT_DIR/channelwrite_metrics_summary.tsv" >>"$OUT_DIR/summary.txt"
+  append_channelappend_pool_pressure_display "$OUT_DIR/channelappend_metrics_summary.tsv" >>"$OUT_DIR/summary.txt"
   append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
@@ -1338,7 +1342,7 @@ append_runtime_pool_pressure_display() {
   ' "$file"
 }
 
-append_channelwrite_pool_pressure_display() {
+append_channelappend_pool_pressure_display() {
   local file="$1"
   printf '\nCHANNELWRITE POOL PRESSURE\n'
   printf '%s\n' '--------------------------'
@@ -1420,7 +1424,7 @@ append_channelwrite_pool_pressure_display() {
         print "none"
         exit
       }
-      printf "worst_node=%s reason=%s details=channelwrite_metrics_summary.tsv\n", worst_node, worst_reason
+      printf "worst_node=%s reason=%s details=channelappend_metrics_summary.tsv\n", worst_node, worst_reason
       printf "%-16s %8s %11s %9s %9s %10s %8s %12s %9s %11s %9s %8s %9s %s\n",
         "node", "router", "route_block", "local_rej", "router_ms", "mailbox", "pending", "post_backlog", "effect_ms", "effect_util", "pool_full", "pool_err", "saturated", "reason"
       for (i = 1; i <= node_count; i++) {
@@ -1598,7 +1602,7 @@ runtime_pool_pressure_markdown() {
   ' "$file"
 }
 
-channelwrite_pool_pressure_markdown() {
+channelappend_pool_pressure_markdown() {
   local file="$1"
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf '%s\n' '- none'
@@ -1676,7 +1680,7 @@ channelwrite_pool_pressure_markdown() {
         print "- none"
         exit
       }
-      printf "- worst_node=%s reason=%s details=channelwrite_metrics_summary.tsv\n", worst_node, worst_reason
+      printf "- worst_node=%s reason=%s details=channelappend_metrics_summary.tsv\n", worst_node, worst_reason
       for (i = 1; i <= node_count; i++) {
         node = node_order[i]
         printf "- node=%s router=%.0f route_block=%.0f local_rej=%.0f mailbox=%.3f pending=%.0f post_backlog=%.0f effect_util=%.3f pool_full=%.0f pool_err=%.0f saturated=%.0f reason=%s\n",
@@ -1741,7 +1745,7 @@ print_summary() {
   printf '  %-23s %s\n' "summary_md" "summary.md"
   printf '  %-23s %s\n' "rpc_pull" "rpc_pull_qps.tsv"
   printf '  %-23s %s\n' "channelv2" "channelv2_metrics_summary.tsv"
-  printf '  %-23s %s\n' "channelwrite" "channelwrite_metrics_summary.tsv"
+  printf '  %-23s %s\n' "channelappend" "channelappend_metrics_summary.tsv"
   printf '  %-23s %s\n' "runtime_pool_metrics" "channelv2_metrics_summary.tsv (runtime_pool_* columns)"
   printf '  %-23s %s\n' "runtime_pool_pressure" "runtime_pool_pressure_summary.tsv"
   printf '  %-23s %s\n' "cluster_transport_peak" "cluster_transport_peak_summary.tsv"
@@ -1754,12 +1758,12 @@ write_evidence_summary() {
   local best_line
   local server_resource_peaks
   local runtime_pool_pressure
-  local channelwrite_pool_pressure
+  local channelappend_pool_pressure
   local cluster_transport_peak
   best_line="$(grep '^best pass:' "$OUT_DIR/summary.txt" 2>/dev/null || true)"
   server_resource_peaks="$(server_resource_peak_markdown "$OUT_DIR/resources/server-process-summary.tsv")"
   runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
-  channelwrite_pool_pressure="$(channelwrite_pool_pressure_markdown "$OUT_DIR/channelwrite_metrics_summary.tsv")"
+  channelappend_pool_pressure="$(channelappend_pool_pressure_markdown "$OUT_DIR/channelappend_metrics_summary.tsv")"
   cluster_transport_peak="$(cluster_transport_peak_markdown "$OUT_DIR/cluster_transport_peak_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Bench Evidence
@@ -1785,7 +1789,7 @@ write_evidence_summary() {
 - reports: reports/
 - rpc_pull: rpc_pull_qps.tsv
 - channelv2_metrics: channelv2_metrics_summary.tsv
-- channelwrite_metrics: channelwrite_metrics_summary.tsv
+- channelappend_metrics: channelappend_metrics_summary.tsv
 - runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
 - runtime_pool_pressure: runtime_pool_pressure_summary.tsv
 - cluster_transport_peak: cluster_transport_peak_summary.tsv
@@ -1800,8 +1804,8 @@ ${server_resource_peaks}
 ## Runtime Pool Pressure
 ${runtime_pool_pressure}
 
-## ChannelWrite Pool Pressure
-${channelwrite_pool_pressure}
+## ChannelAppend Pool Pressure
+${channelappend_pool_pressure}
 
 ## Cluster Internal Transport Peak
 ${cluster_transport_peak}
@@ -1829,7 +1833,7 @@ EOF
   cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
 tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms	rpc_pull_batch_calls_delta	rpc_pull_batch_items_delta	rpc_pull_batch_avg_items	rpc_pull_hint_batch_calls_delta	rpc_pull_hint_batch_items_delta	rpc_pull_hint_batch_avg_items	store_append_batch_calls_delta	store_append_batch_items_delta	store_append_batch_avg_items	store_apply_batch_calls_delta	store_apply_batch_items_delta	store_apply_batch_avg_items
 EOF
-  cat >"$OUT_DIR/channelwrite_metrics_summary.tsv" <<'EOF'
+  cat >"$OUT_DIR/channelappend_metrics_summary.tsv" <<'EOF'
 tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max	effect_pool_submit_delta	effect_pool_full_delta	effect_pool_error_delta	effect_pool_inflight_max	effect_pool_capacity_max	effect_pool_util_max	effect_pool_saturated_max	effect_pool_over90_count
 EOF
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'

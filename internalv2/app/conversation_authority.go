@@ -231,7 +231,7 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	return err
 }
 
-// AdmitActiveBatch validates the route target and delegates channelwrite active admission to the runtime cache.
+// AdmitActiveBatch validates the route target and delegates channelappend active admission to the runtime cache.
 func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) (err error) {
 	if a == nil {
 		return nil

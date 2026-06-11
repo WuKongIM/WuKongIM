@@ -4,7 +4,7 @@
 
 `internalv2/usecase/message` owns the entry-agnostic message facade and
 compatible channel message sync. SEND work is delegated to a configured
-`channelwrite.Submitter`; this package does not own channel authority routing,
+`channelappend.Submitter`; this package does not own channel authority routing,
 durable append, message ID allocation, or post-commit delivery effects. It knows
 about the channel message read port for sync, but not gateway frames, wire
 protocols, HTTP JSON, or concrete cluster runtimes.
@@ -19,12 +19,12 @@ SendBatch(items)
 ```
 
 `Send(ctx, cmd)` delegates directly to `Submitter.Send`. The configured
-submitter is normally the app-level channel write router, which resolves channel
-append authority and admits work into the authority node's channel write
+submitter is normally the app-level channel append router, which resolves channel
+append authority and admits work into the authority node's channel append
 reactor. Validation, person-channel normalization, request-scoped command
 channel derivation, message ID allocation, append retries, committed cursors,
 subscriber scan, conversation projection, and online delivery are all owned by
-`internalv2/runtime/channelwrite`.
+`internalv2/runtime/channelappend`.
 
 ## SyncChannelMessages Flow
 

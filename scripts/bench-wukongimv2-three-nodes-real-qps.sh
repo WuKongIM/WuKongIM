@@ -325,10 +325,10 @@ HEARTBEAT_ENABLED=$HEARTBEAT_ENABLED
 PHASE_POLL_TIMEOUT=$PHASE_POLL_TIMEOUT
 MIN_ACTUAL_RATIO=$MIN_ACTUAL_RATIO
 SENDER_PICK=$SENDER_PICK
-DELIVERY_CHANNEL_WRITE_SHARD_COUNT=${WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT:-0}
-DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS:-0}
-DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=${WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS:-0}
-DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=${WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY:-0}
+CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
+CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
+CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
+CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
 CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
 CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}
@@ -409,7 +409,7 @@ runtime_pool_attempt_summary() {
   ' "$metrics"
 }
 
-channelwrite_attempt_summary() {
+channelappend_attempt_summary() {
   local metrics="$1"
   if [[ ! -f "$metrics" ]]; then
     printf '0\t0\t0\t0\t0\t0\t0\t0.000\t0.000\t0\t0\t0.000\t0.000\n'
@@ -590,13 +590,13 @@ append_attempt_summary() {
   local summary="$attempt_dir/summary.tsv"
   local p99_limit
   local runtime_pool
-  local channelwrite
+  local channelappend
   p99_limit="$(duration_seconds "$STABLE_P99")"
   runtime_pool="$(runtime_pool_attempt_summary "$attempt_dir/channelv2_metrics_summary.tsv")"
-  channelwrite="$(channelwrite_attempt_summary "$attempt_dir/channelwrite_metrics_summary.tsv")"
+  channelappend="$(channelappend_attempt_summary "$attempt_dir/channelappend_metrics_summary.tsv")"
   if [[ ! -f "$summary" ]]; then
     printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\t%s\tFAIL\tmissing_summary\t%s\n' \
-      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$channelwrite" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
+      "$tag" "$qps" "$attempt_dir" "$child_exit" "$runtime_pool" "$channelappend" "$attempt_dir" >>"$OUT_DIR/summary.tsv"
     return
   fi
   awk -F'\t' \
@@ -605,10 +605,10 @@ append_attempt_summary() {
     -v min_ratio="$MIN_ACTUAL_RATIO" \
     -v p99_limit="$p99_limit" \
     -v runtime_pool="$runtime_pool" \
-    -v channelwrite="$channelwrite" '
+    -v channelappend="$channelappend" '
     BEGIN {
       split(runtime_pool, pool, "\t")
-      split(channelwrite, cw, "\t")
+      split(channelappend, cw, "\t")
     }
     NR == 1 { next }
     {
@@ -725,7 +725,7 @@ write_markdown_summary() {
 - attempt_dirs: one child directory per offered QPS value
 - runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns
 - runtime_pool_pressure: runtime_pool_pressure_summary.tsv
-- channelwrite_metrics: each attempt's channelwrite_metrics_summary.tsv, aggregated into summary.tsv
+- channelappend_metrics: each attempt's channelappend_metrics_summary.tsv, aggregated into summary.tsv
 
 ## Result
 $(awk '/^# runtime pool pressure/ { exit } NR > 1 { print }' "$OUT_DIR/summary.txt" 2>/dev/null || true)
@@ -780,7 +780,7 @@ main() {
   mkdir -p "$OUT_DIR"
   write_metadata
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	channelwrite_router_total_delta	channelwrite_router_error_delta	channelwrite_router_backpressured_delta	channelwrite_router_channel_busy_delta	channelwrite_router_route_not_ready_delta	channelwrite_router_timeout_delta	channelwrite_local_admission_rejected_delta	channelwrite_mailbox_fill_max	channelwrite_effect_slots_fill_max	channelwrite_post_commit_backlog_max	channelwrite_effect_error_delta	channelwrite_effect_worker_util_max	channelwrite_effect_queue_fill_max	result	note	attempt_dir
+tag	offered_qps	child_dir	child_exit	status	actual_ratio	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	channelappend_router_total_delta	channelappend_router_error_delta	channelappend_router_backpressured_delta	channelappend_router_channel_busy_delta	channelappend_router_route_not_ready_delta	channelappend_router_timeout_delta	channelappend_local_admission_rejected_delta	channelappend_mailbox_fill_max	channelappend_effect_slots_fill_max	channelappend_post_commit_backlog_max	channelappend_effect_error_delta	channelappend_effect_worker_util_max	channelappend_effect_queue_fill_max	result	note	attempt_dir
 EOF
   local qps
   for qps in "${QPS_VALUES[@]}"; do

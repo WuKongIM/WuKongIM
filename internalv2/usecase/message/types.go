@@ -1,60 +1,60 @@
 package message
 
-import "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelwrite"
+import "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 
 // Reason is the entry-agnostic result code for SEND.
-type Reason = channelwrite.Reason
+type Reason = channelappend.Reason
 
 const (
 	// ReasonSuccess means the send was durably accepted.
-	ReasonSuccess = channelwrite.ReasonSuccess
+	ReasonSuccess = channelappend.ReasonSuccess
 	// ReasonInvalidRequest means the command is malformed.
-	ReasonInvalidRequest = channelwrite.ReasonInvalidRequest
+	ReasonInvalidRequest = channelappend.ReasonInvalidRequest
 	// ReasonAuthFail means the sender is not authenticated.
-	ReasonAuthFail = channelwrite.ReasonAuthFail
+	ReasonAuthFail = channelappend.ReasonAuthFail
 	// ReasonChannelNotExist means the channel cannot accept this send.
-	ReasonChannelNotExist = channelwrite.ReasonChannelNotExist
+	ReasonChannelNotExist = channelappend.ReasonChannelNotExist
 	// ReasonNodeNotMatch means the client should retry through a fresher route.
-	ReasonNodeNotMatch = channelwrite.ReasonNodeNotMatch
+	ReasonNodeNotMatch = channelappend.ReasonNodeNotMatch
 	// ReasonSystemError means the send failed due to infrastructure pressure or error.
-	ReasonSystemError = channelwrite.ReasonSystemError
+	ReasonSystemError = channelappend.ReasonSystemError
 	// ReasonUnsupported means the phase-1 stack does not implement this send mode.
-	ReasonUnsupported = channelwrite.ReasonUnsupported
+	ReasonUnsupported = channelappend.ReasonUnsupported
 )
 
 // CommitMode controls when durable append completes.
-type CommitMode = channelwrite.CommitMode
+type CommitMode = channelappend.CommitMode
 
 const (
 	// CommitModeQuorum waits for quorum commit.
-	CommitModeQuorum = channelwrite.CommitModeQuorum
+	CommitModeQuorum = channelappend.CommitModeQuorum
 	// CommitModeLocal completes after local durable append.
-	CommitModeLocal = channelwrite.CommitModeLocal
+	CommitModeLocal = channelappend.CommitModeLocal
 )
 
 // ChannelID identifies a message channel.
-type ChannelID = channelwrite.ChannelID
+type ChannelID = channelappend.ChannelID
 
 // SendCommand is an entry-agnostic SEND request.
-type SendCommand = channelwrite.SendCommand
+type SendCommand = channelappend.SendCommand
 
 // SendResult is the client-facing SEND outcome.
-type SendResult = channelwrite.SendResult
+type SendResult = channelappend.SendResult
 
 // SendBatchItem carries one send command with its cancellation context.
-type SendBatchItem = channelwrite.SendBatchItem
+type SendBatchItem = channelappend.SendBatchItem
 
 // SendBatchItemResult aligns with one SendBatch item.
-type SendBatchItemResult = channelwrite.SendBatchItemResult
+type SendBatchItemResult = channelappend.SendBatchItemResult
 
 // Message is the durable append payload used by the message appender port.
-type Message = channelwrite.Message
+type Message = channelappend.Message
 
 // AppendBatchRequest appends messages to one canonical channel.
-type AppendBatchRequest = channelwrite.AppendBatchRequest
+type AppendBatchRequest = channelappend.AppendBatchRequest
 
 // AppendBatchResult returns item-aligned append outcomes.
-type AppendBatchResult = channelwrite.AppendBatchResult
+type AppendBatchResult = channelappend.AppendBatchResult
 
 // AppendBatchItemResult is one append result inside a batch.
-type AppendBatchItemResult = channelwrite.AppendBatchItemResult
+type AppendBatchItemResult = channelappend.AppendBatchItemResult

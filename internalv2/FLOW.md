@@ -18,15 +18,15 @@ storage, or routing branches that bypass cluster semantics.
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
 | `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel management HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
-| `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel write calls between internalv2 nodes. |
+| `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel append calls between internalv2 nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
-| `runtime/channelwrite` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
-| `infra/cluster` | Adapter from channel write, channel metadata, delivery, presence, and conversation ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
+| `infra/cluster` | Adapter from channel append, channel metadata, delivery, presence, and conversation ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 
@@ -49,17 +49,17 @@ must not import `pkg/gateway`, `pkg/protocol/frame`, `pkg/clusterv2`,
 pkg/gateway SendPacket
   -> internalv2/access/gateway.Handler
   -> internalv2/usecase/message.App thin facade
-  -> internalv2/runtime/channelwrite.Router resolves channel append authority
-  -> local channelwrite.Group authority writer or access/node Channel Write RPC
+  -> internalv2/runtime/channelappend.Router resolves channel append authority
+  -> local channelappend.Group append authority or access/node Channel Append RPC
   -> authority writer validates, assigns message IDs, and appends through infra/cluster.ChannelAppender
   -> pkg/clusterv2.Node.AppendChannelBatch -> pkg/channelv2 append
   -> internalv2/usecase/message.SendResult
   -> internalv2/access/gateway writes SendackPacket
 ```
 
-Only the channel authority node creates and owns real channel write state. A
+Only the channel authority node creates and owns real channel append state. A
 non-authority node forwards the batch to the authority node through Channel
-Write RPC and does not create proxy channel state or enter a local writer for
+Append RPC and does not create proxy channel state or enter a local writer for
 that channel. Conversation projection, recipient authority grouping, owner
 push, and delivery fanout run after the successful append in the authority
 writer's best-effort post-commit pipeline.

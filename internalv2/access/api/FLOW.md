@@ -164,7 +164,7 @@ Compatible channel and user management are adapters only. The channel adapter
 validates JSON fields, defaults `/channel/subscriber_add` with missing
 `channel_type` to group, rejects personal-channel subscriber mutations, and
 delegates durable metadata and member-list behavior to
-`internalv2/usecase/channel`. Subscriber cache refresh for channelwrite runtime
+`internalv2/usecase/channel`. Subscriber cache refresh for channelappend runtime
 state is triggered by the composition root through the channel usecase observer,
 not by the HTTP adapter directly. The user adapter maps JSON into
 `internalv2/usecase/user` commands and does not access storage or presence

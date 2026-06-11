@@ -4,7 +4,7 @@ import "context"
 
 const channelTypePerson uint8 = 1
 
-// Send delegates one send command to the configured channel write submitter.
+// Send delegates one send command to the configured channel append submitter.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if a == nil || a.submitter == nil {
 		return SendResult{}, ErrRouteNotReady
@@ -12,7 +12,7 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	return a.submitter.Send(ctx, cmd)
 }
 
-// SendBatch delegates send commands to the configured channel write submitter.
+// SendBatch delegates send commands to the configured channel append submitter.
 func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 	if a == nil || a.submitter == nil {
 		results := make([]SendBatchItemResult, len(items))
