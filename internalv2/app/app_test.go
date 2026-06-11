@@ -691,7 +691,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	}
 }
 
-func TestChannelWriteUsesDurableSubscribersWithoutImplicitSender(t *testing.T) {
+func TestChannelWriteUsesDurableSubscribersAndSenderActiveRow(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
@@ -718,13 +718,13 @@ func TestChannelWriteUsesDurableSubscribersWithoutImplicitSender(t *testing.T) {
 		t.Fatalf("Send() = %#v err=%v, want success", result, err)
 	}
 
-	requireConversationEventually(t, app, "member", "g-small-missing-sender", frame.ChannelTypeGroup)
-	senderList, err := app.Conversations().List(context.Background(), conversationusecase.ListRequest{UID: "sender", Limit: 10})
-	if err != nil {
-		t.Fatalf("Conversations().List(sender) error = %v", err)
+	member := requireConversationEventually(t, app, "member", "g-small-missing-sender", frame.ChannelTypeGroup)
+	if member.ReadSeq != 0 {
+		t.Fatalf("member ReadSeq = %d, want receiver row without sender read state", member.ReadSeq)
 	}
-	if len(senderList.Items) != 0 {
-		t.Fatalf("conversation list for sender = %#v, want no row when sender is not a subscriber", senderList.Items)
+	sender := requireConversationEventually(t, app, "sender", "g-small-missing-sender", frame.ChannelTypeGroup)
+	if sender.ReadSeq != result.MessageSeq {
+		t.Fatalf("sender ReadSeq = %d, want latest message seq %d", sender.ReadSeq, result.MessageSeq)
 	}
 }
 

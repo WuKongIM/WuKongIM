@@ -160,10 +160,10 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 		t.Fatalf("conversation = %#v, want last_message", got)
 	}
 	if got.ChannelID != "receiver" || got.ChannelType != int64(frame.ChannelTypePerson) || got.ActiveAt <= 0 ||
-		got.Unread != sendResp.MessageSeq || got.LastMessage.MessageID != uint64(sendResp.MessageID) ||
+		got.Unread != 0 || got.LastMessage.MessageID != uint64(sendResp.MessageID) ||
 		got.LastMessage.MessageSeq != sendResp.MessageSeq || got.LastMessage.FromUID != "sender" ||
 		got.LastMessage.ClientMsgNo != "client-conv-api-1" || string(got.LastMessage.Payload) != "hello" {
-		t.Fatalf("conversation = %#v send=%#v, want latest sent message", got, sendResp)
+		t.Fatalf("conversation = %#v send=%#v, want latest sent message read by sender", got, sendResp)
 	}
 	if listResp.More != 0 {
 		t.Fatalf("list metadata more = %d, want complete page", listResp.More)
@@ -172,6 +172,7 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	receiverPage := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver","limit":10}`, http.StatusOK))
 	if len(receiverPage.Conversations) != 1 || receiverPage.Conversations[0].ChannelID != "sender" ||
 		receiverPage.Conversations[0].ChannelType != int64(frame.ChannelTypePerson) ||
+		receiverPage.Conversations[0].Unread != sendResp.MessageSeq ||
 		receiverPage.Conversations[0].LastMessage == nil ||
 		receiverPage.Conversations[0].LastMessage.ClientMsgNo != "client-conv-api-1" {
 		t.Fatalf("receiver conversations = %#v, want sender person conversation", receiverPage.Conversations)
@@ -277,6 +278,7 @@ type conversationListSmokeResponse struct {
 		ChannelID    string `json:"channel_id"`
 		ChannelType  int64  `json:"channel_type"`
 		ActiveAt     int64  `json:"active_at"`
+		Unread       uint64 `json:"unread"`
 		SparseActive bool   `json:"sparse_active"`
 		LastMessage  *struct {
 			MessageID    uint64 `json:"message_id"`
