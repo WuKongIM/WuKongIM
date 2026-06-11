@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestRecipientProcessorPushesDeliveryWithoutConversationProjector(t *testing.T) {
+func TestRecipientProcessorPushesDeliveryWithPresenceAndPusher(t *testing.T) {
 	pusher := &recordingOwnerPusherForDeliveryTest{}
 	err := processRecipientBatch(context.Background(), RecipientBatch{
 		Event:      CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
@@ -23,7 +23,7 @@ func TestRecipientProcessorPushesDeliveryWithoutConversationProjector(t *testing
 		t.Fatalf("processRecipientBatch() error = %v", err)
 	}
 	if got := pusher.callCount(); got != 1 {
-		t.Fatalf("push calls = %d, want delivery push without conversation projector", got)
+		t.Fatalf("push calls = %d, want delivery push", got)
 	}
 }
 

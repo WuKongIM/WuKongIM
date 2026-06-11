@@ -343,28 +343,6 @@ func (p SubscriberPage) Clone() SubscriberPage {
 	return p
 }
 
-// ConversationPatch is a recipient-scoped conversation activity update.
-type ConversationPatch struct {
-	// UID identifies the user that owns the conversation row.
-	UID string
-	// ChannelID identifies the conversation channel.
-	ChannelID string
-	// ChannelType identifies the channel namespace.
-	ChannelType int64
-	// ReadSeq is the minimum read floor derived from membership visibility.
-	ReadSeq uint64
-	// DeletedToSeq is the minimum delete floor derived from membership visibility.
-	DeletedToSeq uint64
-	// ActiveAt is the candidate active-list ordering timestamp.
-	ActiveAt int64
-	// UpdatedAt records when this active candidate was produced.
-	UpdatedAt int64
-	// SparseActive is the requested sparse-active mode.
-	SparseActive bool
-	// MessageSeq fences stale activity after user delete barriers.
-	MessageSeq uint64
-}
-
 // Route describes one online recipient endpoint resolved by presence.
 type Route struct {
 	// UID is the recipient user ID for this endpoint.

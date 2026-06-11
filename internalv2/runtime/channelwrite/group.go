@@ -90,9 +90,6 @@ type SubscriberPageRequest = contract.SubscriberPageRequest
 // SubscriberPage is one bounded subscriber scan page.
 type SubscriberPage = contract.SubscriberPage
 
-// ConversationPatch is a recipient-scoped conversation activity update.
-type ConversationPatch = contract.ConversationPatch
-
 // Route describes one online recipient endpoint resolved by presence.
 type Route = contract.Route
 
