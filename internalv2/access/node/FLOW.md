@@ -97,9 +97,10 @@ Supported conversation authority calls:
 
 The RPC boundary is deliberately narrow:
 
-- Admit carries already-projected UID active patches to the current authority
-  target; projection policy stays in `internalv2/usecase/conversation` and the
-  app committed sink.
+- Admit carries already-materialized UID active patches to the current
+  authority target for compatibility and handoff paths. Callers own patch
+  construction; this package only transports the exact patch collection it
+  receives.
 - Active-batch admit carries the channelwrite output directly to one routed UID
   authority target. Sender/recipient route grouping is performed by
   `internalv2/infra/cluster`; this package only transports the exact batch
@@ -212,8 +213,8 @@ Delivery push and fanout responses currently use:
   runtime delivery DTOs, `internalv2/runtime/conversationactive.ActiveBatch`
   as the active worker RPC DTO, and the clusterv2 RPC service IDs.
 - This package must not decide presence route conflict behavior.
-- This package must not implement conversation projection, cache merge,
-  projection-flush, or handoff business logic.
+- This package must not implement conversation active-row construction, cache
+  merge, active-row flush, or handoff business logic.
 - This package must not decide channel authority routing, create proxy channel
   state, perform non-authority appends, or run channel-write post-commit
   effects.

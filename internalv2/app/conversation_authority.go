@@ -30,7 +30,7 @@ type conversationAuthorityOptions struct {
 	MaxRows int
 	// ListDBWindowMax is retained for config compatibility; active-view windowing is owned by the runtime.
 	ListDBWindowMax int
-	// AdmissionBatchRows mirrors routed-client admission config and is retained for config compatibility.
+	// AdmissionBatchRows mirrors routed-client active admission config and is retained for config compatibility.
 	AdmissionBatchRows int
 	// AdmissionConcurrency mirrors routed-client admission config and is retained for config compatibility.
 	AdmissionConcurrency int

@@ -111,12 +111,12 @@ failed. Routing, readiness, and other read errors still fail the request.
 
 `ConversationAuthorityClient` routes UID-owned active cache calls to the
 current authority leader and leaves cache/list business rules inside the local
-authority implementation. Admission resolves each patch UID with
-`RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each group to
-the local authority when the target leader is this node or through
+authority implementation. Legacy patch admission resolves each `ActivePatch`
+UID with `RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each
+group to the local authority when the target leader is this node or through
 access/node Conversation Authority RPC when the leader is remote. Admission is
 best-effort and does not retry route-not-ready, stale-route, or not-leader
-errors; callers are expected to log and drop failed post-commit projection.
+errors; callers are expected to log and drop failed active admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
 unique recipient UID, caches each UID's `RouteTarget` for the whole batch,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends

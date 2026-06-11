@@ -283,9 +283,9 @@ gateway/API send
   -> SENDACK returns to sender
   -> authority reactor post-commit effect:
        scope person recipients or page subscribers
-       group recipients by UID authority target
-       ConversationAuthorityClient.AdmitPatches
-       optional presence resolve and owner-node push
+       ConversationAuthorityClient.AdmitActiveBatch for the expanded recipient set
+       group recipients by UID authority target for delivery
+       optional presence resolve and owner-node push when delivery is enabled
        drop the in-memory post-commit envelope after one dispatch attempt
 ```
 
@@ -367,5 +367,4 @@ clusterv2.RouteAuthorityEvent
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve, and `Stop`
-retries pending admission patches before flushing remaining runtime dirty rows
-with the caller's stop context.
+flushes remaining runtime dirty active rows with the caller's stop context.

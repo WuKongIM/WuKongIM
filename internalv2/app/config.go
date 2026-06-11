@@ -191,7 +191,7 @@ type ConversationConfig struct {
 	AuthorityListDBWindowMax int
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
-	// AuthorityAdmitBatchRows limits active patches in one authority admission batch.
+	// AuthorityAdmitBatchRows limits active rows in one authority admission batch.
 	AuthorityAdmitBatchRows int
 	// AuthorityAdmitConcurrency limits concurrent authority admission batches.
 	AuthorityAdmitConcurrency int

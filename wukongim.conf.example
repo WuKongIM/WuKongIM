@@ -307,7 +307,7 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT bounds how long a new authority waits for old-authority drain before explicit abandon.
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
-# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active patches in one authority admission batch.
+# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active rows in one authority admission batch.
 # WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
 # WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY limits concurrent authority admission batches.
 # WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
