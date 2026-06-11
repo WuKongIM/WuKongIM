@@ -88,6 +88,64 @@ func TestRecipientDeliveryWorkerFullQueueReturnsContextError(t *testing.T) {
 	}
 }
 
+func TestRecipientDeliveryWorkerObservesQueueAdmissionAndProcessing(t *testing.T) {
+	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: blocker,
+			OwnerPusher:      &recordingOwnerPusherForDeliveryTest{},
+		}),
+		QueueSize: 1,
+		Workers:   1,
+		Observer:  observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		blocker.release()
+		_ = worker.Stop(context.Background())
+	})
+
+	batch := RecipientBatch{Event: CommittedEnvelope{MessageID: 1}, Recipients: []Recipient{{UID: "u1"}, {UID: "u2"}}}
+	target := recipientAuthorityTargetForTest(1, 1, 1)
+	if err := worker.EnqueueRecipientBatch(context.Background(), target, batch); err != nil {
+		t.Fatalf("first EnqueueRecipientBatch() error = %v", err)
+	}
+	blocker.waitStarted(t)
+	if err := worker.EnqueueRecipientBatch(context.Background(), target, batch); err != nil {
+		t.Fatalf("second EnqueueRecipientBatch() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := worker.EnqueueRecipientBatch(ctx, target, batch)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("third EnqueueRecipientBatch() error = %v, want context deadline", err)
+	}
+
+	observer.waitAdmissions(t, 3)
+	if got := observer.admissions[0]; got.Result != "accepted" || got.QueueCapacity != 1 {
+		t.Fatalf("first admission = %+v, want accepted capacity=1", got)
+	}
+	if got := observer.admissions[1]; got.Result != "accepted" || got.QueueDepth != 1 || got.QueueCapacity != 1 {
+		t.Fatalf("second admission = %+v, want accepted depth=1 capacity=1", got)
+	}
+	if got := observer.admissions[2]; got.Result != "timeout" || got.Duration <= 0 {
+		t.Fatalf("third admission = %+v, want timeout with duration", got)
+	}
+	if got := observer.lastQueue(t); got.QueueCapacity != 1 {
+		t.Fatalf("queue observation = %+v, want capacity=1", got)
+	}
+
+	blocker.release()
+	observer.waitProcesses(t, 2)
+	if got := observer.processes[0]; got.Result != "ok" || got.Recipients != 2 || got.Duration <= 0 {
+		t.Fatalf("first process observation = %+v, want ok recipients=2 duration", got)
+	}
+}
+
 func TestRecipientDeliveryWorkerStopDrainsAcceptedBatches(t *testing.T) {
 	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
 	pusher := &recordingOwnerPusherForDeliveryTest{}
@@ -167,7 +225,7 @@ func TestRecipientDeliveryWorkerObservesProcessingFailures(t *testing.T) {
 }
 
 func TestRecipientDeliveryWorkerRecoversProcessorPanic(t *testing.T) {
-	observer := &recordingPostCommitFailureObserverForTest{}
+	observer := &recordingRecipientDeliveryWorkerObserverForTest{}
 	pusher := &recordingOwnerPusherForDeliveryTest{}
 	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
 		Processor: NewRecipientProcessor(RecipientProcessorOptions{
@@ -201,6 +259,10 @@ func TestRecipientDeliveryWorkerRecoversProcessorPanic(t *testing.T) {
 	if got.UID != "u2" || got.UIDCount != 1 || got.RecipientCount != 1 {
 		t.Fatalf("post-commit panic recipient detail = %#v, want u2 batch detail", got)
 	}
+	observer.waitProcesses(t, 1)
+	if got := observer.processes[0]; got.Result != "panic" || got.Recipients != 1 {
+		t.Fatalf("panic process observation = %+v, want panic recipients=1", got)
+	}
 
 	next := RecipientBatch{
 		Event:      CommittedEnvelope{MessageID: 12, MessageSeq: 6, ChannelID: "g2", ChannelType: 2},
@@ -210,6 +272,78 @@ func TestRecipientDeliveryWorkerRecoversProcessorPanic(t *testing.T) {
 		t.Fatalf("second EnqueueRecipientBatch() error = %v", err)
 	}
 	waitDeliveryWorkerCondition(t, func() bool { return pusher.callCount() == 1 })
+}
+
+type recordingRecipientDeliveryWorkerObserverForTest struct {
+	mu         sync.Mutex
+	failures   []PostCommitFailureObservation
+	queues     []RecipientDeliveryQueueObservation
+	admissions []RecipientDeliveryAdmissionObservation
+	processes  []RecipientDeliveryProcessObservation
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) AppendFinished(string, error, time.Duration) {
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) ObserveChannelWritePostCommitFailure(obs PostCommitFailureObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.failures = append(o.failures, obs)
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) SetChannelWriteRecipientDeliveryQueue(obs RecipientDeliveryQueueObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.queues = append(o.queues, obs)
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) ObserveChannelWriteRecipientDeliveryAdmission(obs RecipientDeliveryAdmissionObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.admissions = append(o.admissions, obs)
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) ObserveChannelWriteRecipientDeliveryProcess(obs RecipientDeliveryProcessObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.processes = append(o.processes, obs)
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) waitFailures(t *testing.T, want int) {
+	t.Helper()
+	waitDeliveryWorkerCondition(t, func() bool {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		return len(o.failures) >= want
+	})
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) waitAdmissions(t *testing.T, want int) {
+	t.Helper()
+	waitDeliveryWorkerCondition(t, func() bool {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		return len(o.admissions) >= want
+	})
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) waitProcesses(t *testing.T, want int) {
+	t.Helper()
+	waitDeliveryWorkerCondition(t, func() bool {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		return len(o.processes) >= want
+	})
+}
+
+func (o *recordingRecipientDeliveryWorkerObserverForTest) lastQueue(t *testing.T) RecipientDeliveryQueueObservation {
+	t.Helper()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.queues) == 0 {
+		t.Fatalf("no queue observations")
+	}
+	return o.queues[len(o.queues)-1]
 }
 
 type errorPresenceResolverForDeliveryWorkerTest struct {
@@ -238,9 +372,9 @@ func (r *panicOncePresenceResolverForDeliveryWorkerTest) EndpointsByUIDs(ctx con
 }
 
 type blockingPresenceResolverForDeliveryWorkerTest struct {
-	started chan struct{}
+	started  chan struct{}
 	releaseC chan struct{}
-	once    sync.Once
+	once     sync.Once
 }
 
 func newBlockingPresenceResolverForDeliveryWorkerTest() *blockingPresenceResolverForDeliveryWorkerTest {

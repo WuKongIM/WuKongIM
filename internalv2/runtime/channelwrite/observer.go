@@ -30,6 +30,16 @@ const (
 	channelWriteResultOther              = "other"
 )
 
+const (
+	recipientDeliveryResultAccepted = "accepted"
+	recipientDeliveryResultClosed   = "closed"
+	recipientDeliveryResultCanceled = "canceled"
+	recipientDeliveryResultTimeout  = "timeout"
+	recipientDeliveryResultError    = "error"
+	recipientDeliveryResultOK       = "ok"
+	recipientDeliveryResultPanic    = "panic"
+)
+
 func observeRouterGroup(observer RouterObserver, event RouterObservation) {
 	if observer == nil {
 		return
@@ -118,6 +128,68 @@ func observePostCommitFailure(observer AppendObserver, event PostCommitFailureOb
 		event.Result = channelWriteResultOther
 	}
 	failureObserver.ObserveChannelWritePostCommitFailure(event)
+}
+
+func observeRecipientDeliveryQueue(observer AppendObserver, event RecipientDeliveryQueueObservation) {
+	queueObserver, ok := observer.(RecipientDeliveryQueueObserver)
+	if !ok || queueObserver == nil {
+		return
+	}
+	if event.QueueDepth < 0 {
+		event.QueueDepth = 0
+	}
+	if event.QueueCapacity < 0 {
+		event.QueueCapacity = 0
+	}
+	queueObserver.SetChannelWriteRecipientDeliveryQueue(event)
+}
+
+func observeRecipientDeliveryAdmission(observer AppendObserver, event RecipientDeliveryAdmissionObservation) {
+	admissionObserver, ok := observer.(RecipientDeliveryAdmissionObserver)
+	if !ok || admissionObserver == nil {
+		return
+	}
+	event.Result = recipientDeliveryResult(event.Result)
+	if event.QueueDepth < 0 {
+		event.QueueDepth = 0
+	}
+	if event.QueueCapacity < 0 {
+		event.QueueCapacity = 0
+	}
+	if event.Duration < 0 {
+		event.Duration = 0
+	}
+	admissionObserver.ObserveChannelWriteRecipientDeliveryAdmission(event)
+}
+
+func observeRecipientDeliveryProcess(observer AppendObserver, event RecipientDeliveryProcessObservation) {
+	processObserver, ok := observer.(RecipientDeliveryProcessObserver)
+	if !ok || processObserver == nil {
+		return
+	}
+	event.Result = recipientDeliveryResult(event.Result)
+	if event.Recipients < 0 {
+		event.Recipients = 0
+	}
+	if event.Duration < 0 {
+		event.Duration = 0
+	}
+	processObserver.ObserveChannelWriteRecipientDeliveryProcess(event)
+}
+
+func recipientDeliveryResult(result string) string {
+	switch result {
+	case recipientDeliveryResultAccepted,
+		recipientDeliveryResultClosed,
+		recipientDeliveryResultCanceled,
+		recipientDeliveryResultTimeout,
+		recipientDeliveryResultError,
+		recipientDeliveryResultOK,
+		recipientDeliveryResultPanic:
+		return result
+	default:
+		return recipientDeliveryResultError
+	}
 }
 
 func routerResultsClass(results []SendBatchItemResult) string {

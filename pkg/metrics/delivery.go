@@ -17,24 +17,31 @@ type DeliverySnapshot struct {
 
 // DeliveryMetrics exposes delivery queue, fanout, route resolution, push RPC, actor, and expiry metrics.
 type DeliveryMetrics struct {
-	resolveDuration    *prometheus.HistogramVec
-	resolvePagesTotal  *prometheus.CounterVec
-	resolveRoutesTotal *prometheus.CounterVec
-	pushRPCTotal       *prometheus.CounterVec
-	pushRPCDuration    *prometheus.HistogramVec
-	pushRPCRoutesTotal *prometheus.CounterVec
-	eventQueueTotal    *prometheus.CounterVec
-	errorsTotal        *prometheus.CounterVec
-	fanoutTaskTotal    *prometheus.CounterVec
-	fanoutTaskDuration *prometheus.HistogramVec
-	retryTotal         *prometheus.CounterVec
-	retryQueueDepth    prometheus.Gauge
-	actorInflight      prometheus.Gauge
-	ackBindings        prometheus.Gauge
-	routeExpiredTotal  *prometheus.CounterVec
-	mu                 sync.Mutex
-	actorInflightV     int64
-	ackBindingsV       int64
+	resolveDuration            *prometheus.HistogramVec
+	resolvePagesTotal          *prometheus.CounterVec
+	resolveRoutesTotal         *prometheus.CounterVec
+	pushRPCTotal               *prometheus.CounterVec
+	pushRPCDuration            *prometheus.HistogramVec
+	pushRPCRoutesTotal         *prometheus.CounterVec
+	eventQueueTotal            *prometheus.CounterVec
+	errorsTotal                *prometheus.CounterVec
+	fanoutTaskTotal            *prometheus.CounterVec
+	fanoutTaskDuration         *prometheus.HistogramVec
+	retryTotal                 *prometheus.CounterVec
+	retryQueueDepth            prometheus.Gauge
+	actorInflight              prometheus.Gauge
+	ackBindings                prometheus.Gauge
+	routeExpiredTotal          *prometheus.CounterVec
+	recipientQueueDepth        prometheus.Gauge
+	recipientQueueCapacity     prometheus.Gauge
+	recipientAdmissionTotal    *prometheus.CounterVec
+	recipientAdmissionWait     *prometheus.HistogramVec
+	recipientProcessTotal      *prometheus.CounterVec
+	recipientProcessDuration   *prometheus.HistogramVec
+	recipientProcessRecipients *prometheus.HistogramVec
+	mu                         sync.Mutex
+	actorInflightV             int64
+	ackBindingsV               int64
 }
 
 func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels) *DeliveryMetrics {
@@ -117,6 +124,44 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Help:        "Total number of delivery routes expired before completion.",
 			ConstLabels: labels,
 		}, []string{"channel_type"}),
+		recipientQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_recipient_worker_queue_depth",
+			Help:        "Current queued recipient-authority delivery batches.",
+			ConstLabels: labels,
+		}),
+		recipientQueueCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_delivery_recipient_worker_queue_capacity",
+			Help:        "Configured recipient-authority delivery worker queue capacity.",
+			ConstLabels: labels,
+		}),
+		recipientAdmissionTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_recipient_worker_admission_total",
+			Help:        "Total recipient delivery worker enqueue attempts by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		recipientAdmissionWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_recipient_worker_admission_wait_seconds",
+			Help:        "Recipient delivery worker enqueue wait time in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
+		recipientProcessTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_delivery_recipient_worker_process_total",
+			Help:        "Total recipient delivery worker processing attempts by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		recipientProcessDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_recipient_worker_process_duration_seconds",
+			Help:        "Recipient delivery worker processing latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
+		recipientProcessRecipients: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_delivery_recipient_worker_process_recipients",
+			Help:        "Recipients processed by each recipient delivery worker batch.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -135,6 +180,13 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.actorInflight,
 		m.ackBindings,
 		m.routeExpiredTotal,
+		m.recipientQueueDepth,
+		m.recipientQueueCapacity,
+		m.recipientAdmissionTotal,
+		m.recipientAdmissionWait,
+		m.recipientProcessTotal,
+		m.recipientProcessDuration,
+		m.recipientProcessRecipients,
 	)
 
 	return m
@@ -233,6 +285,42 @@ func (m *DeliveryMetrics) ObserveRouteExpired(channelType string) {
 		return
 	}
 	m.routeExpiredTotal.WithLabelValues(channelType).Inc()
+}
+
+// SetRecipientWorkerQueue sets the current recipient delivery worker queue pressure.
+func (m *DeliveryMetrics) SetRecipientWorkerQueue(depth, capacity int) {
+	if m == nil {
+		return
+	}
+	m.recipientQueueDepth.Set(float64(nonNegative(depth)))
+	m.recipientQueueCapacity.Set(float64(nonNegative(capacity)))
+}
+
+// ObserveRecipientWorkerAdmission records one recipient delivery worker enqueue attempt.
+func (m *DeliveryMetrics) ObserveRecipientWorkerAdmission(result string, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	result = normalizeDeliveryLabel(result, "unknown")
+	if dur < 0 {
+		dur = 0
+	}
+	m.recipientAdmissionTotal.WithLabelValues(result).Inc()
+	m.recipientAdmissionWait.WithLabelValues(result).Observe(dur.Seconds())
+}
+
+// ObserveRecipientWorkerProcess records one recipient delivery worker processing attempt.
+func (m *DeliveryMetrics) ObserveRecipientWorkerProcess(result string, recipients int, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	result = normalizeDeliveryLabel(result, "unknown")
+	if dur < 0 {
+		dur = 0
+	}
+	m.recipientProcessTotal.WithLabelValues(result).Inc()
+	m.recipientProcessDuration.WithLabelValues(result).Observe(dur.Seconds())
+	m.recipientProcessRecipients.WithLabelValues(result).Observe(float64(nonNegative(recipients)))
 }
 
 // Snapshot returns the latest delivery gauge values.

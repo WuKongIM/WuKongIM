@@ -86,12 +86,12 @@ Expected: PASS.
 - Modify: `internalv2/runtime/channelwrite/delivery_worker.go`
 - Test: `internalv2/runtime/channelwrite/delivery_worker_test.go`
 
-- [ ] **Step 1: Write failing worker observation tests**
+- [x] **Step 1: Write failing worker observation tests**
 
 Add tests showing queue gauges, admission results/wait time, process duration,
 batch recipient count, and panic/error result observations.
 
-- [ ] **Step 2: Run red test**
+- [x] **Step 2: Run red test**
 
 ```bash
 GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipientDeliveryWorker.*Observ' -count=1
@@ -99,13 +99,13 @@ GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipientDelivery
 
 Expected: FAIL because worker observation APIs do not exist.
 
-- [ ] **Step 3: Implement worker observation**
+- [x] **Step 3: Implement worker observation**
 
 Add observation types and observer interfaces under channelwrite. Emit queue
 pressure on start/enqueue/dequeue/stop, admission observations for every
 enqueue outcome, and process observations after every worker command.
 
-- [ ] **Step 4: Run green test**
+- [x] **Step 4: Run green test**
 
 ```bash
 GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipientDeliveryWorker' -count=1
@@ -121,13 +121,13 @@ Expected: PASS.
 - Modify: `internalv2/app/delivery.go`
 - Test: `internalv2/app/observability_test.go`
 
-- [ ] **Step 1: Write failing metrics tests**
+- [x] **Step 1: Write failing metrics tests**
 
 Add registry and app observer tests for recipient delivery queue gauges,
 admission totals/wait duration, process totals/duration, and batch recipient
 histograms.
 
-- [ ] **Step 2: Run red tests**
+- [x] **Step 2: Run red tests**
 
 ```bash
 GOWORK=off go test ./pkg/metrics ./internalv2/app -run 'Test.*RecipientDelivery' -count=1
@@ -135,12 +135,12 @@ GOWORK=off go test ./pkg/metrics ./internalv2/app -run 'Test.*RecipientDelivery'
 
 Expected: FAIL because metrics mapping does not exist.
 
-- [ ] **Step 3: Implement metrics mapping**
+- [x] **Step 3: Implement metrics mapping**
 
 Add delivery metric fields/methods and map channelwrite worker observations in
 `deliveryMessageObserver`.
 
-- [ ] **Step 4: Run green tests**
+- [x] **Step 4: Run green tests**
 
 ```bash
 GOWORK=off go test ./pkg/metrics ./internalv2/app -count=1
@@ -155,11 +155,11 @@ Expected: PASS.
 - Modify: `internalv2/app/FLOW.md`
 - Modify: `docs/superpowers/plans/2026-06-11-channelwrite-observability.md`
 
-- [ ] **Step 1: Update FLOW docs**
+- [x] **Step 1: Update FLOW docs**
 
 Document active cache/flush and recipient delivery worker pressure metrics.
 
-- [ ] **Step 2: Run final verification**
+- [x] **Step 2: Run final verification**
 
 ```bash
 GOWORK=off go test ./internalv2/runtime/conversationactive ./internalv2/runtime/channelwrite ./internalv2/app ./pkg/metrics -count=1

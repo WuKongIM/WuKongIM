@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 const (
@@ -113,6 +114,7 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 	w.acceptDone = acceptDone
 	w.done = done
 	w.state = recipientDeliveryWorkerOpen
+	w.observeQueue()
 	return nil
 }
 
@@ -148,10 +150,16 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 	if w == nil {
 		return nil
 	}
+	startedAt := time.Now()
+	admissionResult := recipientDeliveryResultAccepted
+	defer func() {
+		w.observeAdmission(admissionResult, startedAt)
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
+		admissionResult = recipientDeliveryAdmissionResultFromError(err)
 		return err
 	}
 	cmd := recipientDeliveryCommand{target: target, batch: batch.Clone()}
@@ -160,6 +168,7 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 		w.mu.Lock()
 		if w.state != recipientDeliveryWorkerOpen {
 			w.mu.Unlock()
+			admissionResult = recipientDeliveryResultClosed
 			return ErrRecipientDeliveryWorkerClosed
 		}
 		queue := w.queue
@@ -168,6 +177,7 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 		select {
 		case <-acceptDone:
 			w.mu.Unlock()
+			admissionResult = recipientDeliveryResultClosed
 			return ErrRecipientDeliveryWorkerClosed
 		default:
 		}
@@ -177,11 +187,13 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 				w.mu.Unlock()
 				w.releaseSlot()
 				if errors.Is(err, ErrRecipientDeliveryWorkerClosed) {
+					admissionResult = recipientDeliveryResultClosed
 					return err
 				}
 				continue
 			}
 			w.mu.Unlock()
+			w.observeQueue()
 			return nil
 		default:
 		}
@@ -193,21 +205,26 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 			if w.state != recipientDeliveryWorkerOpen || w.acceptDone != acceptDone {
 				w.mu.Unlock()
 				w.releaseSlot()
+				admissionResult = recipientDeliveryResultClosed
 				return ErrRecipientDeliveryWorkerClosed
 			}
 			if err := w.enqueueWithSlotLocked(w.queue, acceptDone, cmd); err != nil {
 				w.mu.Unlock()
 				w.releaseSlot()
 				if errors.Is(err, ErrRecipientDeliveryWorkerClosed) {
+					admissionResult = recipientDeliveryResultClosed
 					return err
 				}
 				continue
 			}
 			w.mu.Unlock()
+			w.observeQueue()
 			return nil
 		case <-acceptDone:
+			admissionResult = recipientDeliveryResultClosed
 			return ErrRecipientDeliveryWorkerClosed
 		case <-ctx.Done():
+			admissionResult = recipientDeliveryAdmissionResultFromError(ctx.Err())
 			return ctx.Err()
 		}
 	}
@@ -234,6 +251,7 @@ func (w *RecipientDeliveryWorker) runWorker(acceptDone <-chan struct{}) {
 		select {
 		case cmd := <-w.queue:
 			w.releaseSlot()
+			w.observeQueue()
 			w.runCommand(cmd)
 		case <-acceptDone:
 			w.drain()
@@ -247,6 +265,7 @@ func (w *RecipientDeliveryWorker) drain() {
 		select {
 		case cmd := <-w.queue:
 			w.releaseSlot()
+			w.observeQueue()
 			w.runCommand(cmd)
 		default:
 			return
@@ -255,17 +274,68 @@ func (w *RecipientDeliveryWorker) drain() {
 }
 
 func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
+	startedAt := time.Now()
+	result := recipientDeliveryResultOK
 	defer func() {
 		if recovered := recover(); recovered != nil {
+			result = recipientDeliveryResultPanic
 			w.observeProcessingFailure(cmd, withPostCommitFailureDetail(effectPanicError(effectStagePostCommit, recovered), postCommitBatchDetail("panic", cmd.batch)))
 		}
+		w.observeProcess(RecipientDeliveryProcessObservation{
+			Result:     result,
+			Recipients: len(cmd.batch.Recipients),
+			Duration:   positiveRecipientDeliveryDuration(time.Since(startedAt)),
+		})
 	}()
 	if w.processor == nil {
 		return
 	}
 	if err := w.processor.ProcessRecipientBatch(context.Background(), cmd.batch.Clone()); err != nil {
+		result = recipientDeliveryResultError
 		w.observeProcessingFailure(cmd, err)
 	}
+}
+
+func (w *RecipientDeliveryWorker) observeQueue() {
+	observeRecipientDeliveryQueue(w.observer, RecipientDeliveryQueueObservation{
+		QueueDepth:    len(w.queue),
+		QueueCapacity: cap(w.queue),
+	})
+}
+
+func (w *RecipientDeliveryWorker) observeAdmission(result string, startedAt time.Time) {
+	observeRecipientDeliveryAdmission(w.observer, RecipientDeliveryAdmissionObservation{
+		Result:        result,
+		QueueDepth:    len(w.queue),
+		QueueCapacity: cap(w.queue),
+		Duration:      positiveRecipientDeliveryDuration(time.Since(startedAt)),
+	})
+}
+
+func (w *RecipientDeliveryWorker) observeProcess(obs RecipientDeliveryProcessObservation) {
+	observeRecipientDeliveryProcess(w.observer, obs)
+}
+
+func recipientDeliveryAdmissionResultFromError(err error) string {
+	switch {
+	case err == nil:
+		return recipientDeliveryResultAccepted
+	case errors.Is(err, ErrRecipientDeliveryWorkerClosed):
+		return recipientDeliveryResultClosed
+	case errors.Is(err, context.Canceled):
+		return recipientDeliveryResultCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return recipientDeliveryResultTimeout
+	default:
+		return recipientDeliveryResultError
+	}
+}
+
+func positiveRecipientDeliveryDuration(d time.Duration) time.Duration {
+	if d <= 0 {
+		return time.Nanosecond
+	}
+	return d
 }
 
 func (w *RecipientDeliveryWorker) observeProcessingFailure(cmd recipientDeliveryCommand, err error) {

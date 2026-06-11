@@ -238,6 +238,54 @@ type EffectObserver interface {
 	ObserveChannelWriteEffect(EffectObservation)
 }
 
+// RecipientDeliveryQueueObservation describes the dedicated recipient delivery worker queue.
+type RecipientDeliveryQueueObservation struct {
+	// QueueDepth is the current queued recipient delivery batch count.
+	QueueDepth int
+	// QueueCapacity is the configured recipient delivery queue capacity.
+	QueueCapacity int
+}
+
+// RecipientDeliveryQueueObserver receives recipient delivery queue pressure gauges.
+type RecipientDeliveryQueueObserver interface {
+	// SetChannelWriteRecipientDeliveryQueue records current recipient delivery queue pressure.
+	SetChannelWriteRecipientDeliveryQueue(RecipientDeliveryQueueObservation)
+}
+
+// RecipientDeliveryAdmissionObservation describes one recipient delivery enqueue attempt.
+type RecipientDeliveryAdmissionObservation struct {
+	// Result is accepted, closed, canceled, timeout, or error.
+	Result string
+	// QueueDepth is the queue depth when the attempt completed.
+	QueueDepth int
+	// QueueCapacity is the configured recipient delivery queue capacity.
+	QueueCapacity int
+	// Duration is the time spent trying to enqueue.
+	Duration time.Duration
+}
+
+// RecipientDeliveryAdmissionObserver receives recipient delivery enqueue attempts.
+type RecipientDeliveryAdmissionObserver interface {
+	// ObserveChannelWriteRecipientDeliveryAdmission records one delivery queue admission attempt.
+	ObserveChannelWriteRecipientDeliveryAdmission(RecipientDeliveryAdmissionObservation)
+}
+
+// RecipientDeliveryProcessObservation describes one recipient delivery worker command.
+type RecipientDeliveryProcessObservation struct {
+	// Result is ok, error, or panic.
+	Result string
+	// Recipients is the number of recipients in the processed batch.
+	Recipients int
+	// Duration is the worker processing latency.
+	Duration time.Duration
+}
+
+// RecipientDeliveryProcessObserver receives recipient delivery worker process observations.
+type RecipientDeliveryProcessObserver interface {
+	// ObserveChannelWriteRecipientDeliveryProcess records one recipient delivery worker command.
+	ObserveChannelWriteRecipientDeliveryProcess(RecipientDeliveryProcessObservation)
+}
+
 // SubscriberSource pages channel subscribers for post-commit recipient selection.
 type SubscriberSource interface {
 	// NextSubscriberPage returns one bounded subscriber page for the requested channel.

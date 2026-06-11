@@ -1072,6 +1072,42 @@ func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
 	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.manager_terminal_failed")
 }
 
+func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := deliveryMessageObserver{app: &App{metrics: reg}}
+
+	observer.SetChannelWriteRecipientDeliveryQueue(channelwrite.RecipientDeliveryQueueObservation{
+		QueueDepth:    3,
+		QueueCapacity: 8,
+	})
+	observer.ObserveChannelWriteRecipientDeliveryAdmission(channelwrite.RecipientDeliveryAdmissionObservation{
+		Result:   "timeout",
+		Duration: 2 * time.Millisecond,
+	})
+	observer.ObserveChannelWriteRecipientDeliveryProcess(channelwrite.RecipientDeliveryProcessObservation{
+		Result:     "ok",
+		Recipients: 4,
+		Duration:   5 * time.Millisecond,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	queueDepth := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_queue_depth")
+	if got := findAppMetricByLabels(t, queueDepth, nil).GetGauge().GetValue(); got != 3 {
+		t.Fatalf("recipient worker queue depth = %v, want 3", got)
+	}
+	admission := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_admission_total")
+	if got := findAppMetricByLabels(t, admission, map[string]string{"result": "timeout"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("recipient worker admission total = %v, want 1", got)
+	}
+	process := requireAppMetricFamily(t, families, "wukongim_delivery_recipient_worker_process_recipients")
+	if got := findAppMetricByLabels(t, process, map[string]string{"result": "ok"}).GetHistogram().GetSampleSum(); got != 4 {
+		t.Fatalf("recipient worker process recipients = %v, want 4", got)
+	}
+}
+
 func TestDeliveryMessageObserverLogsChannelWritePostCommitFailure(t *testing.T) {
 	logger := &recordingAppLogger{}
 	app := &App{logger: logger}

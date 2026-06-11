@@ -999,6 +999,9 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	reg.Delivery.SetActorInflightRoutes(9)
 	reg.Delivery.SetAckBindings(5)
 	reg.Delivery.ObserveRouteExpired("group")
+	reg.Delivery.SetRecipientWorkerQueue(3, 8)
+	reg.Delivery.ObserveRecipientWorkerAdmission("accepted", 2*time.Millisecond)
+	reg.Delivery.ObserveRecipientWorkerProcess("ok", 4, 5*time.Millisecond)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -1017,6 +1020,28 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_delivery_actor_inflight_routes")
 	requireMetricFamily(t, families, "wukongim_delivery_ack_bindings")
 	requireMetricFamily(t, families, "wukongim_delivery_route_expired_total")
+	queueDepth := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_queue_depth")
+	require.Equal(t, float64(3), findMetricByLabels(t, queueDepth, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+	}).GetGauge().GetValue())
+	queueCapacity := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_queue_capacity")
+	require.Equal(t, float64(8), findMetricByLabels(t, queueCapacity, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+	}).GetGauge().GetValue())
+	admission := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_admission_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, admission, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"result":    "accepted",
+	}).GetCounter().GetValue())
+	process := requireMetricFamily(t, families, "wukongim_delivery_recipient_worker_process_recipients")
+	require.Equal(t, float64(4), findMetricByLabels(t, process, map[string]string{
+		"node_id":   "1",
+		"node_name": "n1",
+		"result":    "ok",
+	}).GetHistogram().GetSampleSum())
 }
 
 func TestRegistryIncludesDiagnosticsMetrics(t *testing.T) {

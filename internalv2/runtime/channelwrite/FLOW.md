@@ -194,7 +194,11 @@ until the caller context expires. `Stop` closes admission first, then drains
 already accepted batches until the caller context expires. Processing failures
 are terminal best-effort delivery failures: they are observed through the same
 post-commit failure surface with the recipient authority target attached, and
-they are not returned to channelwrite after the batch has been accepted.
+they are not returned to channelwrite after the batch has been accepted. The
+worker also emits low-cardinality queue, admission, and process observations:
+queue depth/capacity, enqueue result/wait time, processing result/duration, and
+recipient batch size. These observations do not include UID, channel, or target
+labels.
 
 `Stop` cancels the runtime context passed to prepare, append, and post-commit
 effects before waiting for reactors to drain. Once cancellation is observed,

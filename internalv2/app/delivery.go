@@ -219,6 +219,27 @@ func (o deliveryMessageObserver) ObserveChannelWritePostCommitFailure(event chan
 	)
 }
 
+func (o deliveryMessageObserver) SetChannelWriteRecipientDeliveryQueue(event channelwrite.RecipientDeliveryQueueObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
+}
+
+func (o deliveryMessageObserver) ObserveChannelWriteRecipientDeliveryAdmission(event channelwrite.RecipientDeliveryAdmissionObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
+}
+
+func (o deliveryMessageObserver) ObserveChannelWriteRecipientDeliveryProcess(event channelwrite.RecipientDeliveryProcessObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Delivery.ObserveRecipientWorkerProcess(event.Result, event.Recipients, event.Duration)
+}
+
 func appendFailureLogLine(path string, err error) string {
 	return fmt.Sprintf("internalv2/app: message append failed path=%s err=%v", path, err)
 }

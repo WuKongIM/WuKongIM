@@ -27,9 +27,10 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
-     plus conversation list request latency/page-shape metrics and conversation
-     authority admit, list, cache-pressure, and handoff counters, plus channel
-     write append and post-commit counters
+     plus conversation list request latency/page-shape metrics, conversation
+     authority admit/list/cache-pressure/handoff counters, conversation active
+     cache/flush gauges and histograms, channel write append and post-commit
+     counters, and recipient delivery worker queue/admission/process metrics
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -152,7 +153,7 @@ independent channel/subscriber mutations while preserving subscriber mutation
 order within the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
 or RPC owner pusher after the recipient delivery worker accepts the batch.
-These metrics do not include UID, channel, slot, or node labels.
+These metrics do not include UID, channel, slot, or per-target labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
@@ -207,7 +208,9 @@ DB-only compatibility path. Conversation rows do not store the last message.
 When metrics are enabled, the app maps API conversation-list observations to
 Prometheus metrics for latency, returned items, sparse items, last-message
 loads, last-message errors, active-index stale skips, and whether another active
-page exists using only low-cardinality labels.
+page exists using only low-cardinality labels. It also maps conversation active
+cache observations to Prometheus gauges for cached rows, dirty rows, oldest
+dirty age, and flush result/row/duration metrics.
 
 Conversation list with authority enabled:
 
