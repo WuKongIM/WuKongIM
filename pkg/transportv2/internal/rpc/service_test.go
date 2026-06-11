@@ -248,6 +248,54 @@ func TestServiceConcurrencyRemainsBounded(t *testing.T) {
 	waitClosed(t, secondStarted)
 }
 
+func TestServiceRetriesExecutorOverloadWithoutReplyingBusy(t *testing.T) {
+	executor, err := NewExecutor(1, nil)
+	if err != nil {
+		t.Fatalf("NewExecutor() error = %v", err)
+	}
+	defer func() {
+		if err := executor.Stop(); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var calls atomic.Int32
+	svc := NewServiceWithExecutor(1, func(context.Context, []byte) ([]byte, error) {
+		if calls.Add(1) == 1 {
+			close(firstStarted)
+			<-releaseFirst
+			return []byte("first"), nil
+		}
+		return []byte("second"), nil
+	}, core.ServiceOptions{Concurrency: 2, QueueSize: 2, MaxQueueBytes: 1024}, nil, executor)
+	defer svc.Stop()
+
+	firstReply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("first")), Reply: firstReply}); err != nil {
+		t.Fatalf("Enqueue(first) error = %v", err)
+	}
+	waitClosed(t, firstStarted)
+
+	secondReply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("second")), Reply: secondReply}); err != nil {
+		t.Fatalf("Enqueue(second) error = %v", err)
+	}
+
+	time.AfterFunc(20*time.Millisecond, func() {
+		close(releaseFirst)
+	})
+	resp := waitResponse(t, secondReply)
+	if resp.Err != nil {
+		t.Fatalf("second reply err = %v, want nil", resp.Err)
+	}
+	if got := string(resp.Payload); got != "second" {
+		t.Fatalf("second reply payload = %q, want second", got)
+	}
+	_ = waitResponse(t, firstReply)
+}
+
 func TestServiceMaxQueueBytesReturnsBusy(t *testing.T) {
 	block := make(chan struct{})
 	started := make(chan struct{})

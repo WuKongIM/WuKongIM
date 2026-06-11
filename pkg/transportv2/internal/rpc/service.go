@@ -11,7 +11,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 )
 
-const serviceStopGrace = 100 * time.Millisecond
+const (
+	serviceStopGrace        = 100 * time.Millisecond
+	serviceSubmitRetryDelay = 10 * time.Microsecond
+)
 
 // Request is one service invocation owned by the service after a successful Enqueue.
 type Request struct {
@@ -220,12 +223,24 @@ func (s *Service) pump() {
 			}
 			payloadLen := req.Payload.Len()
 			s.taskWG.Add(1)
-			if err := s.executor.Submit(&serviceTask{service: s, req: req}); err != nil {
+			task := &serviceTask{service: s, req: req}
+			for {
+				err := s.executor.Submit(task)
+				if err == nil {
+					break
+				}
+				if errors.Is(err, core.ErrBusy) && s.waitSubmitRetry() {
+					continue
+				}
+				if errors.Is(err, core.ErrBusy) {
+					err = core.ErrStopped
+				}
 				s.taskWG.Done()
 				s.releaseToken()
 				trySendResponse(req.Reply, Response{Err: err})
 				req.Payload.Release()
 				s.observeTask(taskResult(err), payloadLen, 0)
+				break
 			}
 		}
 	}
@@ -244,6 +259,17 @@ func (s *Service) releaseToken() {
 	select {
 	case <-s.tokens:
 	default:
+	}
+}
+
+func (s *Service) waitSubmitRetry() bool {
+	timer := time.NewTimer(serviceSubmitRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-s.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
