@@ -341,3 +341,13 @@ func trySendResponse(ch chan Response, resp Response) {
 	default:
 	}
 }
+
+type serviceTask struct {
+	runFunc func()
+}
+
+func (t *serviceTask) run() {
+	if t.runFunc != nil {
+		t.runFunc()
+	}
+}
