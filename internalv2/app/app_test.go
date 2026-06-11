@@ -20,6 +20,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
@@ -394,6 +395,9 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliveryWorker == nil {
 		t.Fatal("delivery worker was not wired")
 	}
+	if app.channelWriteDeliveryWorker == nil {
+		t.Fatal("channelwrite recipient delivery worker was not wired")
+	}
 	if app.deliveryManager == nil || app.deliveryManager.PendingAckCount() != 0 {
 		t.Fatal("delivery manager was not initialized for async runtime")
 	}
@@ -401,14 +405,20 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if !ok {
 		t.Fatalf("delivery worker = %T, want deliveryWorkerGroup", app.deliveryWorker)
 	}
-	if len(group) != 2 {
-		t.Fatalf("delivery worker count = %d, want retry scheduler and manager", len(group))
+	if len(group) != 3 {
+		t.Fatalf("delivery worker count = %d, want recipient worker, retry scheduler, and manager", len(group))
 	}
 	if group[0] != app.deliveryRetry {
 		t.Fatalf("delivery worker[0] = %T, want retry scheduler", group[0])
 	}
 	if group[1] != app.deliveryManager {
 		t.Fatalf("delivery worker[1] = %T, want manager", group[1])
+	}
+	if _, ok := group[2].(*channelwrite.RecipientDeliveryWorker); !ok {
+		t.Fatalf("delivery worker[2] = %T, want recipient delivery worker", group[2])
+	}
+	if group[2] != app.channelWriteDeliveryWorker {
+		t.Fatalf("delivery worker[2] = %T, want app channelwrite recipient delivery worker", group[2])
 	}
 	if app.deliveryRetry == nil {
 		t.Fatal("delivery retry scheduler was not wired")

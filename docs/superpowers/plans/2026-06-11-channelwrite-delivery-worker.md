@@ -151,11 +151,11 @@ git commit -m "channelwrite: add recipient delivery worker"
 - Modify: `internalv2/app/app_test.go`
 - Update: `internalv2/app/FLOW.md`
 
-- [ ] **Step 1: Write failing wiring tests**
+- [x] **Step 1: Write failing wiring tests**
 
 Update `TestNewWiresDeliveryWhenEnabled` to require the delivery worker group to include retry scheduler, delivery manager, and the new recipient delivery worker. Add a focused test that channelwrite uses an enqueueing router when delivery is enabled and still admits active batches when delivery is disabled.
 
-- [ ] **Step 2: Run tests to verify red**
+- [x] **Step 2: Run tests to verify red**
 
 Run:
 
@@ -165,15 +165,15 @@ GOWORK=off go test ./internalv2/app -run 'TestNewWiresDeliveryWhenEnabled|TestNe
 
 Expected: FAIL because app wiring still calls `RecipientProcessor` directly from channelwrite.
 
-- [ ] **Step 3: Wire worker in the app**
+- [x] **Step 3: Wire worker in the app**
 
 Create the `RecipientProcessor` in `wireChannelWrite`, wrap it in `channelwrite.NewRecipientDeliveryWorker`, put that worker in `a.deliveryWorker` lifecycle group when delivery is enabled, and pass the worker as the channelwrite delivery enqueuer. Remove the direct inline `channelWriteRecipientRouter` processor path.
 
-- [ ] **Step 4: Preserve disabled-delivery behavior**
+- [x] **Step 4: Preserve disabled-delivery behavior**
 
 When delivery is disabled, keep `ConversationActiveAdmitter` and subscriber expansion wired, but do not enqueue online delivery. The channelwrite post-commit path should return after active admission.
 
-- [ ] **Step 5: Run app tests to verify green**
+- [x] **Step 5: Run app tests to verify green**
 
 Run:
 

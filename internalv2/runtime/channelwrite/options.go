@@ -330,22 +330,12 @@ type Options struct {
 	RecipientRouter RecipientAuthorityRouter
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
 	ConversationActiveAdmitter ConversationActiveAdmitter
-	// PresenceResolver resolves online recipient endpoints for delivery pushes.
-	PresenceResolver PresenceResolver
-	// OwnerPusher pushes online delivery commands to owner nodes.
-	OwnerPusher OwnerPusher
 	// SubscriberPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
 	SubscriberPageSize int
 	// RecipientBatchSize bounds one dispatched recipient batch. Values <= 0 use a bounded default.
 	RecipientBatchSize int
 	// RecipientDispatchConcurrency bounds per-message recipient-authority dispatch fanout. Values <= 0 use a bounded default.
 	RecipientDispatchConcurrency int
-	// DeliveryRetryMaxAttempts bounds retryable owner push attempts. Values <= 0 use a bounded default.
-	DeliveryRetryMaxAttempts int
-	// DeliveryRetryInitialBackoff is the first retry sleep for retryable owner pushes. Values <= 0 use a bounded default.
-	DeliveryRetryInitialBackoff time.Duration
-	// DeliveryRetryMaxBackoff caps retry sleeps for retryable owner pushes. Values <= 0 use a bounded default.
-	DeliveryRetryMaxBackoff time.Duration
 	// Clock supplies runtime timestamps. Nil uses the system clock.
 	Clock Clock
 }
@@ -386,15 +376,6 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.RecipientDispatchConcurrency <= 0 {
 		opts.RecipientDispatchConcurrency = defaultRecipientDispatchConcurrency
-	}
-	if opts.DeliveryRetryMaxAttempts <= 0 {
-		opts.DeliveryRetryMaxAttempts = defaultDeliveryRetryMaxAttempts
-	}
-	if opts.DeliveryRetryInitialBackoff <= 0 {
-		opts.DeliveryRetryInitialBackoff = defaultDeliveryRetryInitialBackoff
-	}
-	if opts.DeliveryRetryMaxBackoff <= 0 {
-		opts.DeliveryRetryMaxBackoff = defaultDeliveryRetryMaxBackoff
 	}
 	if opts.Authorizer == nil {
 		opts.Authorizer = allowAllAuthorizer{}

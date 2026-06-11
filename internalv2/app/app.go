@@ -68,6 +68,7 @@ type App struct {
 	apiMessages                 accessapi.MessageUsecase
 	channelWrites               *channelwrite.Group
 	channelWriteRouter          *channelwrite.Router
+	channelWriteDeliveryWorker  *channelwrite.RecipientDeliveryWorker
 	channels                    *channelusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App

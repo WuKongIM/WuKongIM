@@ -372,9 +372,6 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 				RecipientDispatchConcurrency: a.cfg.Delivery.ChannelWriteRecipientDispatchConcurrency,
 				RecipientBatchSize:           a.cfg.Delivery.PushBatchSize,
 				SubscriberPageSize:           a.cfg.Delivery.FanoutPageSize,
-				DeliveryRetryMaxAttempts:     defaultDeliveryRetryMaxAttempts,
-				DeliveryRetryInitialBackoff:  defaultDeliveryRetryBackoff,
-				DeliveryRetryMaxBackoff:      defaultDeliveryRetryBackoff,
 			}
 			if a.deliveryMeta != nil {
 				opts.Subscribers = channelWriteDeliverySubscriberSource{source: a.deliveryMeta}
@@ -389,23 +386,30 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
 			}
-			if a.cfg.Delivery.Enabled {
-				opts.PresenceResolver = channelWritePresenceResolver{presence: a.presence}
-				opts.OwnerPusher = a.channelWriteOwnerPusher(nodeID)
-			}
 			var observer deliveryMessageObserver
 			if a.cfg.Delivery.Enabled || a.metrics != nil {
 				observer = deliveryMessageObserver{app: a}
 				opts.Observer = observer
 			}
-			processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
-				PresenceResolver:            opts.PresenceResolver,
-				OwnerPusher:                 opts.OwnerPusher,
-				DeliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
-				DeliveryRetryInitialBackoff: opts.DeliveryRetryInitialBackoff,
-				DeliveryRetryMaxBackoff:     opts.DeliveryRetryMaxBackoff,
-			})
-			opts.RecipientRouter = channelWriteRecipientRouter{processor: processor}
+			if a.cfg.Delivery.Enabled {
+				processor := channelwrite.NewRecipientProcessor(channelwrite.RecipientProcessorOptions{
+					PresenceResolver:            channelWritePresenceResolver{presence: a.presence},
+					OwnerPusher:                 a.channelWriteOwnerPusher(nodeID),
+					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
+					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
+					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
+				})
+				if a.channelWriteDeliveryWorker == nil {
+					a.channelWriteDeliveryWorker = channelwrite.NewRecipientDeliveryWorker(channelwrite.RecipientDeliveryWorkerOptions{
+						Processor: processor,
+						QueueSize: a.cfg.Delivery.EventQueueSize,
+						Workers:   a.cfg.Delivery.ChannelWriteRecipientDispatchConcurrency,
+						Observer:  observer,
+					})
+				}
+				opts.RecipientDeliveryEnqueuer = a.channelWriteDeliveryWorker
+				a.deliveryWorker = appendDeliveryWorker(a.deliveryWorker, a.channelWriteDeliveryWorker)
+			}
 			group := channelwrite.New(opts)
 			var remote clusterinfra.ChannelWriteRemoteForwarder
 			if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {

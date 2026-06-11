@@ -34,18 +34,6 @@ func (l channelWriteAuthorityLocal) SubmitForAuthority(ctx context.Context, targ
 	return results
 }
 
-// channelWriteRecipientRouter applies recipient batches with the channelwrite recipient processor.
-type channelWriteRecipientRouter struct {
-	processor *channelwrite.RecipientProcessor
-}
-
-func (r channelWriteRecipientRouter) DispatchRecipientBatch(ctx context.Context, _ channelwrite.RecipientAuthorityTarget, batch channelwrite.RecipientBatch) error {
-	if r.processor == nil {
-		return nil
-	}
-	return r.processor.ProcessRecipientBatch(ctx, batch)
-}
-
 // channelWriteRecipientResolver resolves UID authority targets from clusterv2 hash-slot routes.
 type channelWriteRecipientResolver struct {
 	node recipientAuthorityRouteNode

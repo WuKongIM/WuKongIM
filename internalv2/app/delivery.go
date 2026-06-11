@@ -32,6 +32,25 @@ type deliveryRuntimeAdapter struct {
 
 type deliveryWorkerGroup []WorkerRuntime
 
+func appendDeliveryWorker(current WorkerRuntime, worker WorkerRuntime) WorkerRuntime {
+	if worker == nil {
+		return current
+	}
+	group, ok := current.(deliveryWorkerGroup)
+	if !ok {
+		if current == nil {
+			return deliveryWorkerGroup{worker}
+		}
+		group = deliveryWorkerGroup{current}
+	}
+	for _, existing := range group {
+		if existing == worker {
+			return group
+		}
+	}
+	return append(group, worker)
+}
+
 func (g deliveryWorkerGroup) Start(ctx context.Context) error {
 	for idx, worker := range g {
 		if worker == nil {

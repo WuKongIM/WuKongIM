@@ -80,14 +80,6 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.presenceStarted = true
 	}
-	if a.channelWrites != nil {
-		if err := a.channelWrites.Start(ctx); err != nil {
-			a.logLifecycleError("channel_write", "start", err)
-			stopErr := a.rollbackStarted(ctx)
-			return errors.Join(err, stopErr)
-		}
-		a.channelWriteStarted = true
-	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -95,6 +87,14 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 		a.deliveryStarted = true
+	}
+	if a.channelWrites != nil {
+		if err := a.channelWrites.Start(ctx); err != nil {
+			a.logLifecycleError("channel_write", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.channelWriteStarted = true
 	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {

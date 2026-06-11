@@ -74,8 +74,8 @@ New(Config)
        create channelwrite.Group with multiple channel-hashed authority reactors,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
-       optional delivery presence/owner pusher, append metrics observer, and ants-backed
-       prepare/append/post-commit worker pools
+       optional recipient delivery worker enqueuer, append metrics observer,
+       and ants-backed prepare/append/post-commit worker pools
        create channelwrite.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Write RPC so remote nodes can submit to the local
@@ -93,7 +93,8 @@ New(Config)
 effects still run inside the channel authority reactor so recent conversation
 state is updated, but no online delivery is submitted. With delivery enabled,
 gateway RECVACK and session close feedback flows to the delivery usecase, while
-channelwrite post-commit effects resolve online routes and push to owner nodes.
+channelwrite post-commit effects enqueue recipient-authority delivery batches
+into the recipient delivery worker.
 `Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
 count with a minimum of four. `ChannelWritePrepareWorkers`,
 `ChannelWriteAppendWorkers`, and `ChannelWritePostCommitWorkers` feed shared
@@ -111,14 +112,16 @@ by channel state even when different channels run through different reactors or
 workers.
 The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, conversation active-batch admission, recipient authority
-grouping, and owner push execution all run after SENDACK from the authority
-reactor's best-effort post-commit pipeline. Post-commit persistence and restart
-replay are not part of channelwrite. Post-commit failures are logged with the
-failing phase and route/dispatch context, counted through effect metrics, and
-dropped without retry; they do not change channel durability or the
-already-successful SENDACK decision. Conversation active-batch admission itself
-also performs no app-layer route retry; failures surface as the
-`conversation_active` post-commit phase before online delivery is attempted.
+grouping, and delivery enqueue all run after SENDACK from the authority
+reactor's best-effort post-commit pipeline. The recipient delivery worker later
+drains accepted batches, resolves online routes, and pushes owner-node delivery
+commands. Post-commit persistence and restart replay are not part of
+channelwrite. Post-commit enqueue failures are logged with the failing phase and
+route/dispatch context, counted through effect metrics, and dropped without
+retry; they do not change channel durability or the already-successful SENDACK
+decision. Conversation active-batch admission itself also performs no app-layer
+route retry; failures surface as the `conversation_active` post-commit phase
+before online delivery is enqueued.
 Runtime fanout failures are counted with normalized delivery error classes.
 Retryable fanout failures enter
 a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue
@@ -140,16 +143,16 @@ the shared `ConversationAuthorityClient`; this still runs when online delivery
 is disabled. Recipients are then grouped by exact UID hash-slot authority target
 for delivery; when clusterv2 exposes batch key routing, the app recipient
 resolver resolves each subscriber page's unique UIDs through one batch route
-lookup before grouping. The local channelwrite recipient processor is
-delivery-only and submits delivery scoped to that recipient group when delivery
-is enabled. `/bench/v1/channels` and
+lookup before grouping. When delivery is enabled, the app wires a bounded
+recipient delivery worker that drains those batches and runs the delivery-only
+channelwrite recipient processor outside the authority reactor. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation
 order within the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
-or RPC owner pusher. These metrics do not include UID, channel, slot, or node
-labels.
+or RPC owner pusher after the recipient delivery worker accepts the batch.
+These metrics do not include UID, channel, slot, or node labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
 clusterv2 UID hash-slot table to create authority partitions. A fanout task
@@ -285,8 +288,8 @@ gateway/API send
        scope person recipients or page subscribers
        ConversationAuthorityClient.AdmitActiveBatch for the expanded recipient set
        group recipients by UID authority target for delivery
-       optional presence resolve and owner-node push when delivery is enabled
-       drop the in-memory post-commit envelope after one dispatch attempt
+       enqueue recipient delivery batch when delivery is enabled
+       drop the in-memory post-commit envelope after one enqueue attempt
 ```
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
@@ -306,8 +309,8 @@ Start(ctx)
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
+  -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
   -> channel write group Start(ctx): open local channel-authority reactor admission
-  -> delivery worker group Start(ctx): retry scheduler starts before async manager
   -> api.Start()
   -> gateway.Start()
 
@@ -316,7 +319,7 @@ Stop(ctx)
   -> gateway.Stop()
   -> api.Stop(ctx)
   -> channel write group Stop(ctx): close admission and drain accepted appends plus post-commit effects
-  -> delivery worker group Stop(ctx): async manager drains before retry scheduler
+  -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
   -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
