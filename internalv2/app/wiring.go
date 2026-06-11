@@ -32,6 +32,10 @@ func (a *App) applyConfigDefaults() error {
 	if err := validatePresenceConfig(a.cfg.Presence); err != nil {
 		return err
 	}
+	a.cfg.Channel = defaultChannelConfig(a.cfg.Channel)
+	if err := validateChannelConfig(a.cfg.Channel); err != nil {
+		return err
+	}
 	a.cfg.Conversation = defaultConversationConfig(a.cfg.Conversation)
 	if err := validateConversationConfig(a.cfg.Conversation); err != nil {
 		return err
@@ -134,7 +138,9 @@ func (a *App) wireChannels() {
 		if node, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
 			store := clusterinfra.NewChannelMetadataStore(node)
 			channelOptions := channelusecase.Options{
-				Store: store,
+				Store:                         store,
+				LargeGroupSubscriberThreshold: a.cfg.Channel.LargeGroupSubscriberThreshold,
+				SubscriberMutationObserver:    channelWriteSubscriberMutationObserver{app: a},
 			}
 			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
 				channelOptions.MembershipIndex = store
@@ -204,8 +210,9 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 				store = a.conversationAuthorityClient
 			}
 			a.conversations = conversationusecase.New(conversationusecase.Options{
-				Store:    store,
-				Messages: conversationReadStore,
+				Store:      store,
+				StateStore: conversationReadStore,
+				Messages:   conversationReadStore,
 			})
 		}
 	}
@@ -499,6 +506,11 @@ func (a *App) wireAPI() {
 			ConversationListObserver: a.conversationListObserver(),
 			MetricsHandler:           a.metricsHandler(),
 			PProfEnabled:             a.cfg.Observability.PProfEnabled,
+			DebugEnabled:             a.cfg.Observability.HealthDebugEnabled,
+			DebugConfig:              a.debugConfigSnapshot,
+			DebugCluster:             a.debugClusterSnapshot,
+			DiagnosticsDebugEnabled:  a.cfg.Observability.Diagnostics.Enabled && a.cfg.Observability.Diagnostics.DebugAPIEnabled,
+			Diagnostics:              a,
 			Logger:                   a.logger.Named("access.api"),
 		})
 	}

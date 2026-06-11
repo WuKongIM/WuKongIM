@@ -150,6 +150,7 @@ func TestInspectScanChannelByFilter(t *testing.T) {
 		Disband:                   0,
 		SendBan:                   1,
 		AllowStranger:             1,
+		Large:                     1,
 		SubscriberMutationVersion: 42,
 	}
 	if err := store.db.HashSlot(7).UpsertChannel(ctx, channel); err != nil {
@@ -170,7 +171,7 @@ func TestInspectScanChannelByFilter(t *testing.T) {
 		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
 	}
 	row := got.Rows[0]
-	if row["channel_id"] != "g1" || row["channel_type"] != int64(2) || row["subscriber_mutation_version"] != uint64(42) {
+	if row["channel_id"] != "g1" || row["channel_type"] != int64(2) || row["large"] != int64(1) || row["subscriber_mutation_version"] != uint64(42) {
 		t.Fatalf("row = %+v, want channel fields", row)
 	}
 }

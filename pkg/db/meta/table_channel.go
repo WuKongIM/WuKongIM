@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
@@ -22,8 +23,12 @@ type Channel struct {
 	SendBan int64
 	// AllowStranger records whether non-subscribers may access the channel.
 	AllowStranger int64
+	// Large marks the channel as a large-group channel.
+	Large int64
 	// SubscriberMutationVersion tracks subscriber list mutation ordering.
 	SubscriberMutationVersion uint64
+	// SubscriberCount stores the durable number of ordinary subscriber rows.
+	SubscriberCount uint64
 }
 
 var channelTable = registerMetaTable(TableSpec[Channel]{
@@ -82,28 +87,31 @@ var ChannelTable = channelTable.Schema()
 
 // CreateChannel inserts a channel and rejects duplicates.
 func (s *Shard) CreateChannel(ctx context.Context, channel Channel) error {
-	if err := channelTable.Create(ctx, s, channel); err != nil {
+	primaryKey, err := s.writeChannel(ctx, channel, tableWriteCreate)
+	if err != nil {
 		return err
 	}
-	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	s.db.forgetChannel(primaryKey)
 	return nil
 }
 
 // UpsertChannel stores a channel regardless of prior existence.
 func (s *Shard) UpsertChannel(ctx context.Context, channel Channel) error {
-	if err := channelTable.Upsert(ctx, s, channel); err != nil {
+	primaryKey, err := s.writeChannel(ctx, channel, tableWriteUpsert)
+	if err != nil {
 		return err
 	}
-	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	s.db.forgetChannel(primaryKey)
 	return nil
 }
 
 // UpdateChannel updates an existing channel.
 func (s *Shard) UpdateChannel(ctx context.Context, channel Channel) error {
-	if err := channelTable.Update(ctx, s, channel); err != nil {
+	primaryKey, err := s.writeChannel(ctx, channel, tableWriteUpdate)
+	if err != nil {
 		return err
 	}
-	s.db.forgetChannel(encodeChannelRowKey(s.hashSlot, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID))
+	s.db.forgetChannel(primaryKey)
 	return nil
 }
 
@@ -172,6 +180,59 @@ func (s *Shard) stageChannel(batch *engine.Batch, primaryKey []byte, channel Cha
 	return nil
 }
 
+func (s *Shard) writeChannel(ctx context.Context, channel Channel, mode tableWriteMode) ([]byte, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	if err := validateChannel(channel); err != nil {
+		return nil, err
+	}
+	pk, err := channelTable.primaryKey(channel)
+	if err != nil {
+		return nil, err
+	}
+	unlock := s.lock()
+	defer unlock()
+
+	primaryKey, err := channelTable.primaryRowKey(s.hashSlot, pk)
+	if err != nil {
+		return nil, err
+	}
+	existingValue, exists, err := s.db.get(primaryKey)
+	if err != nil {
+		return nil, err
+	}
+	switch mode {
+	case tableWriteCreate:
+		if exists {
+			return nil, dberrors.ErrAlreadyExists
+		}
+	case tableWriteUpdate:
+		if !exists {
+			return nil, dberrors.ErrNotFound
+		}
+	}
+	if exists && mode != tableWriteCreate {
+		existing, err := decodeChannelValue(channel.ChannelID, channel.ChannelType, existingValue)
+		if err != nil && !errors.Is(err, dberrors.ErrCorruptValue) {
+			return nil, err
+		}
+		if err == nil {
+			channel.SubscriberCount = existing.SubscriberCount
+		}
+	}
+
+	batch := s.db.engine.NewBatch()
+	defer batch.Close()
+	if err := s.stageChannel(batch, primaryKey, channel); err != nil {
+		return nil, err
+	}
+	if err := batch.Commit(true); err != nil {
+		return nil, err
+	}
+	return primaryKey, nil
+}
+
 func validateChannel(channel Channel) error {
 	return validateKeyString(channel.ChannelID)
 }
@@ -182,6 +243,8 @@ func encodeChannelValue(channel Channel) []byte {
 	value = appendValueInt64(value, channel.SendBan)
 	value = appendValueInt64(value, channel.AllowStranger)
 	value = appendValueUint64(value, channel.SubscriberMutationVersion)
+	value = appendValueUint64(value, channel.SubscriberCount)
+	value = appendValueInt64(value, channel.Large)
 	return value
 }
 
@@ -206,6 +269,14 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 	if err != nil {
 		return Channel{}, err
 	}
+	subscriberCount, rest, err := readValueUint64(rest)
+	if err != nil {
+		return Channel{}, err
+	}
+	large, rest, err := readValueInt64(rest)
+	if err != nil {
+		return Channel{}, err
+	}
 	if len(rest) != 0 {
 		return Channel{}, dberrors.ErrCorruptValue
 	}
@@ -216,6 +287,8 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 		Disband:                   disband,
 		SendBan:                   sendBan,
 		AllowStranger:             allowStranger,
+		Large:                     large,
 		SubscriberMutationVersion: version,
+		SubscriberCount:           subscriberCount,
 	}, nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	channelWriteRequestMagic  = [...]byte{'W', 'K', 'V', 'W', 1}
+	channelWriteRequestMagic  = [...]byte{'W', 'K', 'V', 'W', 2}
 	channelWriteResponseMagic = [...]byte{'W', 'K', 'V', 'w', 1}
 )
 
@@ -114,7 +114,9 @@ func appendChannelWriteTarget(dst []byte, target channelwrite.AuthorityTarget) [
 	dst = appendUvarint(dst, target.LeaderNodeID)
 	dst = appendUvarint(dst, target.Epoch)
 	dst = appendUvarint(dst, target.LeaderEpoch)
-	return appendUvarint(dst, target.RouteRevision)
+	dst = appendUvarint(dst, target.RouteRevision)
+	dst = appendChannelWriteBool(dst, target.Large)
+	return appendUvarint(dst, target.SubscriberMutationVersion)
 }
 
 func readChannelWriteTarget(body []byte, offset int) (channelwrite.AuthorityTarget, int, error) {
@@ -139,6 +141,12 @@ func readChannelWriteTarget(body []byte, offset int) (channelwrite.AuthorityTarg
 		return channelwrite.AuthorityTarget{}, offset, err
 	}
 	if target.RouteRevision, offset, err = readUvarint(body, offset); err != nil {
+		return channelwrite.AuthorityTarget{}, offset, err
+	}
+	if target.Large, offset, err = readChannelWriteBool(body, offset, "channel write target large"); err != nil {
+		return channelwrite.AuthorityTarget{}, offset, err
+	}
+	if target.SubscriberMutationVersion, offset, err = readUvarint(body, offset); err != nil {
 		return channelwrite.AuthorityTarget{}, offset, err
 	}
 	return target, offset, nil

@@ -108,3 +108,16 @@
 - Experiment result: 9828.8 actual QPS, 0.983 actual/offered ratio, p99 321.7ms, no send errors, max active senders rose to 2103, and pending-window drops fell to 2493.
 - Channelwrite finding: channelwrite admission was not the limiter. Foreground append effects waited on `Appender.AppendBatch`: append effect avg was about 54-56ms in the first run and 92-93ms in the round-robin run, while post-commit avg stayed near zero. Metrics attribution classified the remaining tail as ChannelV2/storage commit and replication wait.
 - Follow-up: `bench-wukongimv2-three-nodes-1000ch.sh` now defaults to `sender_pick=round_robin`; use `--sender-pick first_online` only when intentionally reproducing the sender-key-limit baseline.
+
+## 2026-06-11 three-node 1000ch 10000 QPS channelwrite backpressure
+
+- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`, default round-robin senders, 1000 group channels, 4096 users, 10 members, 15s measured duration.
+- Baseline evidence: `docs/development/perf-runs/20260611-115501-three-node-1000ch/`.
+- Baseline result: 1821.1 actual QPS, p99 436.6ms, 1 send error, and `fail_fast` stopped the worker after `ReasonSystemError`.
+- Failure mapping: node1 logged `internalv2.access.gateway.send_failed` for channel 582 with `internalv2/message: backpressured`; metrics showed exactly one `channelwrite` local router backpressure and no local admission rejection.
+- Channelwrite pressure: append pool had no full submissions, but post-commit pool saturated on all nodes (`post_commit full`: node1=107089, node2=132151, node3=126018). Post-commit effects averaged 476-595ms, while append effects averaged 118-126ms.
+- Downstream pressure was concurrent: ChannelV2 store-append/store-apply reached worker saturation, Slot scheduler had dirty/requeued admissions, and storage commit/request p99 stayed high.
+- One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=32 scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`.
+- Experiment evidence: `docs/development/perf-runs/20260611-120017-three-node-1000ch/`.
+- Experiment result: 1088.1 actual QPS, p99 403.5ms, still 1 send error, and post-commit pool full remained high at 92539 total. Raising only post-commit workers reduced but did not remove channelwrite post-commit saturation or foreground backpressure.
+- Finding: the current 10000 offered-QPS run fails because the workload overdrives bounded channelwrite/ChannelV2 runtime capacity. The foreground abort is a single channelwrite local `ErrBackpressured` surfaced as `ReasonSystemError`; the dominant sustained pressure is post-commit effect pool saturation plus downstream ChannelV2 storage/replication and Slot scheduler pressure.

@@ -37,6 +37,36 @@ func TestUpsertResetsSubscribersBeforeAddingReplacement(t *testing.T) {
 	}
 }
 
+func TestUpdateInfoPreservesSubscriberMetadata(t *testing.T) {
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:                 "g1",
+				ChannelType:               2,
+				Large:                     1,
+				SubscriberMutationVersion: 9,
+				SubscriberCount:           12,
+			},
+		},
+	}
+	app := New(Options{Store: store})
+
+	if err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true}); err != nil {
+		t.Fatalf("UpdateInfo() error = %v", err)
+	}
+
+	want := []metadb.Channel{{
+		ChannelID:                 "g1",
+		ChannelType:               2,
+		Ban:                       1,
+		SubscriberMutationVersion: 9,
+		SubscriberCount:           12,
+	}}
+	if got := store.upsertChannels; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
+}
+
 func TestSubscriberMutationsShareLogicalVersionsAcrossChunks(t *testing.T) {
 	store := &recordingStore{
 		channels: map[string]metadb.Channel{
@@ -127,6 +157,99 @@ func TestRemoveSubscribersDeletesOrdinaryMemberships(t *testing.T) {
 		if call.updatedAt <= 0 {
 			t.Fatalf("membership delete updatedAt = %d, want positive", call.updatedAt)
 		}
+	}
+}
+
+func TestSubscriberMutationsRefreshLargeGroupFlag(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:       "g1",
+				ChannelType:     2,
+				SubscriberCount: 2,
+			},
+			recordingChannelKey("g2", 2): {
+				ChannelID:       "g2",
+				ChannelType:     2,
+				Large:           1,
+				SubscriberCount: 4,
+			},
+		},
+	}
+	app := New(Options{Store: store, LargeGroupSubscriberThreshold: 3})
+
+	if err := app.AddSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1", "u2"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if err := app.RemoveSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g2",
+		ChannelType: 2,
+		Subscribers: []string{"u4"},
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+
+	want := []metadb.Channel{
+		{ChannelID: "g1", ChannelType: 2, Large: 1, SubscriberMutationVersion: 1, SubscriberCount: 4},
+		{ChannelID: "g2", ChannelType: 2, SubscriberMutationVersion: 1, SubscriberCount: 3},
+	}
+	if got := store.upsertChannels; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
+}
+
+func TestSubscriberMutationsNotifyObserverWithFinalMetadata(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:       "g1",
+				ChannelType:     2,
+				SubscriberCount: 2,
+			},
+		},
+	}
+	observer := &recordingSubscriberMutationObserver{}
+	app := New(Options{
+		Store:                         store,
+		LargeGroupSubscriberThreshold: 3,
+		SubscriberMutationObserver:    observer,
+	})
+
+	if err := app.AddSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1", "u2"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if err := app.RemoveSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1"},
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+
+	if len(observer.events) != 2 {
+		t.Fatalf("observer events = %#v, want add and remove events", observer.events)
+	}
+	add := observer.events[0]
+	if add.ChannelID != "g1" || add.ChannelType != 2 || !add.Large ||
+		add.SubscriberMutationVersion != 1 || add.Reset ||
+		!equalStrings(add.AddedUIDs, []string{"u1", "u2"}) || len(add.RemovedUIDs) != 0 {
+		t.Fatalf("add event = %#v, want final large metadata and added subscribers", add)
+	}
+	remove := observer.events[1]
+	if remove.ChannelID != "g1" || remove.ChannelType != 2 || remove.Large ||
+		remove.SubscriberMutationVersion != 2 || remove.Reset ||
+		!equalStrings(remove.RemovedUIDs, []string{"u1"}) || len(remove.AddedUIDs) != 0 {
+		t.Fatalf("remove event = %#v, want final non-large metadata and removed subscribers", remove)
 	}
 }
 
@@ -292,6 +415,16 @@ type recordingMembershipIndex struct {
 	deletes []membershipDeleteCall
 }
 
+type recordingSubscriberMutationObserver struct {
+	events []SubscriberMutationEvent
+}
+
+func (o *recordingSubscriberMutationObserver) ObserveSubscriberMutation(_ context.Context, event SubscriberMutationEvent) {
+	event.AddedUIDs = append([]string(nil), event.AddedUIDs...)
+	event.RemovedUIDs = append([]string(nil), event.RemovedUIDs...)
+	o.events = append(o.events, event)
+}
+
 type membershipUpsertCall struct {
 	channelID   string
 	channelType int64
@@ -334,6 +467,9 @@ func (r *recordingStore) UpsertChannel(_ context.Context, ch metadb.Channel) err
 		r.channels = make(map[string]metadb.Channel)
 	}
 	r.channels[recordingChannelKey(ch.ChannelID, ch.ChannelType)] = ch
+	if errors.Is(r.getChannelErr, metadb.ErrNotFound) {
+		r.getChannelErr = nil
+	}
 	return nil
 }
 
@@ -346,6 +482,7 @@ func (r *recordingStore) AddChannelSubscribers(_ context.Context, channelID stri
 	version := firstMutationVersion(subscriberMutationVersion)
 	r.addSubscribers = append(r.addSubscribers, subscriberCall{channelID: channelID, channelType: channelType, uids: append([]string(nil), uids...), version: version})
 	r.recordSubscriberMutationVersion(channelID, channelType, version)
+	r.recordSubscriberCountDelta(channelID, channelType, int64(len(uids)))
 	return nil
 }
 
@@ -353,6 +490,7 @@ func (r *recordingStore) RemoveChannelSubscribers(_ context.Context, channelID s
 	version := firstMutationVersion(subscriberMutationVersion)
 	r.removeSubscribers = append(r.removeSubscribers, subscriberCall{channelID: channelID, channelType: channelType, uids: append([]string(nil), uids...), version: version})
 	r.recordSubscriberMutationVersion(channelID, channelType, version)
+	r.recordSubscriberCountDelta(channelID, channelType, -int64(len(uids)))
 	return nil
 }
 
@@ -390,6 +528,27 @@ func (r *recordingStore) recordSubscriberMutationVersion(channelID string, chann
 	ch.ChannelID = channelID
 	ch.ChannelType = channelType
 	ch.SubscriberMutationVersion = version
+	r.channels[key] = ch
+}
+
+func (r *recordingStore) recordSubscriberCountDelta(channelID string, channelType int64, delta int64) {
+	if delta == 0 {
+		return
+	}
+	if r.channels == nil {
+		r.channels = make(map[string]metadb.Channel)
+	}
+	key := recordingChannelKey(channelID, channelType)
+	ch := r.channels[key]
+	ch.ChannelID = channelID
+	ch.ChannelType = channelType
+	if delta > 0 {
+		ch.SubscriberCount += uint64(delta)
+	} else if decrement := uint64(-delta); decrement >= ch.SubscriberCount {
+		ch.SubscriberCount = 0
+	} else {
+		ch.SubscriberCount -= decrement
+	}
 	r.channels[key] = ch
 }
 

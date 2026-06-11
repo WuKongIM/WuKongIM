@@ -459,7 +459,9 @@ func inspectChannelRow(channel Channel) InspectRow {
 		"disband":                     channel.Disband,
 		"send_ban":                    channel.SendBan,
 		"allow_stranger":              channel.AllowStranger,
+		"large":                       channel.Large,
 		"subscriber_mutation_version": channel.SubscriberMutationVersion,
+		"subscriber_count":            channel.SubscriberCount,
 	}
 }
 

@@ -33,6 +33,25 @@ and temporary member-list mutations keep using their internal channel IDs and do
 not create user-channel membership rows. Reset operations first remove the
 current ordinary subscriber snapshot from the membership index, then project the
 replacement subscribers using the same logical subscriber mutation version.
+After ordinary subscriber mutations complete, the usecase reads the stored
+subscriber count and refreshes the channel large-group flag when the count is
+greater than the configured threshold.
+
+## Subscriber Mutation Observer Port
+
+```text
+ordinary Upsert/AddSubscribers/RemoveSubscribers/RemoveAllSubscribers
+  -> Store subscriber mutation and large-group refresh
+  -> SubscriberMutationObserver.ObserveSubscriberMutation(final channel metadata)
+```
+
+The observer is notified only after the durable mutation, membership projection,
+and large-group flag refresh succeed. The event carries the final
+`SubscriberMutationVersion`, final `Large` flag, reset/add/remove shape, and
+cloned UID lists so the composition root can keep runtime channel-state caches
+aligned without letting the HTTP adapter or this usecase depend on
+`runtime/channelwrite`. Allowlist, denylist, and temporary member-list
+mutations do not emit observer events.
 
 ## Member Lists
 

@@ -11,7 +11,10 @@ import (
 // ErrStoreRequired indicates that the channel usecase has no storage backend.
 var ErrStoreRequired = errors.New("internalv2/usecase/channel: store required")
 
-const defaultSubscriberPageLimit = 1000
+const (
+	defaultSubscriberPageLimit           = 1000
+	defaultLargeGroupSubscriberThreshold = 500
+)
 
 // Store persists channel metadata and member-like channel lists through the
 // cluster-authoritative slot store.
@@ -39,6 +42,10 @@ type Options struct {
 	MembershipIndex MembershipIndex
 	// SubscriberPageLimit bounds internal subscriber pages and mutation chunks.
 	SubscriberPageLimit int
+	// LargeGroupSubscriberThreshold marks ordinary channels large when subscriber count exceeds it.
+	LargeGroupSubscriberThreshold int
+	// SubscriberMutationObserver receives successful ordinary subscriber-list mutations.
+	SubscriberMutationObserver SubscriberMutationObserver
 	// Now supplies wall-clock time for deterministic membership projection tests.
 	Now func() time.Time
 }
@@ -46,10 +53,12 @@ type Options struct {
 // App coordinates legacy channel management actions without depending on an
 // entry protocol.
 type App struct {
-	store               Store
-	membershipIndex     MembershipIndex
-	subscriberPageLimit int
-	now                 func() time.Time
+	store                         Store
+	membershipIndex               MembershipIndex
+	subscriberMutationObserver    SubscriberMutationObserver
+	subscriberPageLimit           int
+	largeGroupSubscriberThreshold int
+	now                           func() time.Time
 }
 
 // New creates a channel management usecase.
@@ -58,15 +67,21 @@ func New(opts Options) *App {
 	if limit <= 0 {
 		limit = defaultSubscriberPageLimit
 	}
+	largeGroupThreshold := opts.LargeGroupSubscriberThreshold
+	if largeGroupThreshold <= 0 {
+		largeGroupThreshold = defaultLargeGroupSubscriberThreshold
+	}
 	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &App{
-		store:               opts.Store,
-		membershipIndex:     opts.MembershipIndex,
-		subscriberPageLimit: limit,
-		now:                 now,
+		store:                         opts.Store,
+		membershipIndex:               opts.MembershipIndex,
+		subscriberMutationObserver:    opts.SubscriberMutationObserver,
+		subscriberPageLimit:           limit,
+		largeGroupSubscriberThreshold: largeGroupThreshold,
+		now:                           now,
 	}
 }
 
@@ -87,10 +102,19 @@ func (a *App) Upsert(ctx context.Context, cmd UpsertCommand) error {
 			return err
 		}
 	}
-	if len(cmd.Subscribers) == 0 {
-		return nil
+	if len(cmd.Subscribers) > 0 {
+		if err := a.addOrdinarySubscribersChunked(ctx, cmd.Info.ChannelID, int64(cmd.Info.ChannelType), cmd.Subscribers, mutationVersion); err != nil {
+			return err
+		}
 	}
-	return a.addOrdinarySubscribersChunked(ctx, cmd.Info.ChannelID, int64(cmd.Info.ChannelType), cmd.Subscribers, mutationVersion)
+	if cmd.Reset || len(cmd.Subscribers) > 0 {
+		channel, err := a.refreshLargeGroupFlag(ctx, cmd.Info.ChannelID, int64(cmd.Info.ChannelType))
+		if err != nil {
+			return err
+		}
+		a.notifySubscriberMutation(ctx, channel, cmd.Reset, cmd.Subscribers, nil)
+	}
+	return nil
 }
 
 // UpdateInfo upserts the persisted channel flags supported by the slot store.
@@ -98,14 +122,24 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 	if err := a.requireStore(); err != nil {
 		return err
 	}
-	return a.store.UpsertChannel(ctx, metadb.Channel{
+	channel := metadb.Channel{
 		ChannelID:     info.ChannelID,
 		ChannelType:   int64(info.ChannelType),
 		Ban:           boolToInt64(info.Ban),
 		Disband:       boolToInt64(info.Disband),
 		SendBan:       boolToInt64(info.SendBan),
 		AllowStranger: boolToInt64(info.AllowStranger),
-	})
+		Large:         boolToInt64(info.Large),
+	}
+	existing, err := a.store.GetChannel(ctx, info.ChannelID, int64(info.ChannelType))
+	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+		return err
+	}
+	if err == nil {
+		channel.SubscriberMutationVersion = existing.SubscriberMutationVersion
+		channel.SubscriberCount = existing.SubscriberCount
+	}
+	return a.store.UpsertChannel(ctx, channel)
 }
 
 // Delete removes channel metadata.
@@ -135,9 +169,24 @@ func (a *App) AddSubscribers(ctx context.Context, cmd SubscriberCommand) error {
 		}
 	}
 	if len(cmd.Subscribers) == 0 {
+		if cmd.Reset {
+			channel, err := a.refreshLargeGroupFlag(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+			if err != nil {
+				return err
+			}
+			a.notifySubscriberMutation(ctx, channel, true, nil, nil)
+		}
 		return nil
 	}
-	return a.addOrdinarySubscribersChunked(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, mutationVersion)
+	if err := a.addOrdinarySubscribersChunked(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, mutationVersion); err != nil {
+		return err
+	}
+	channel, err := a.refreshLargeGroupFlag(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	if err != nil {
+		return err
+	}
+	a.notifySubscriberMutation(ctx, channel, cmd.Reset, cmd.Subscribers, nil)
+	return nil
 }
 
 // RemoveSubscribers removes selected channel subscribers.
@@ -152,7 +201,15 @@ func (a *App) RemoveSubscribers(ctx context.Context, cmd SubscriberCommand) erro
 	if err != nil {
 		return err
 	}
-	return a.removeOrdinarySubscribersChunked(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, mutationVersion)
+	if err := a.removeOrdinarySubscribersChunked(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, mutationVersion); err != nil {
+		return err
+	}
+	channel, err := a.refreshLargeGroupFlag(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	if err != nil {
+		return err
+	}
+	a.notifySubscriberMutation(ctx, channel, false, nil, cmd.Subscribers)
+	return nil
 }
 
 // RemoveAllSubscribers removes every ordinary subscriber for the channel.
@@ -164,7 +221,15 @@ func (a *App) RemoveAllSubscribers(ctx context.Context, key ChannelKey) error {
 	if err != nil {
 		return err
 	}
-	return a.removeAllOrdinarySubscribersFor(ctx, key.ChannelID, int64(key.ChannelType), mutationVersion)
+	if err := a.removeAllOrdinarySubscribersFor(ctx, key.ChannelID, int64(key.ChannelType), mutationVersion); err != nil {
+		return err
+	}
+	channel, err := a.refreshLargeGroupFlag(ctx, key.ChannelID, int64(key.ChannelType))
+	if err != nil {
+		return err
+	}
+	a.notifySubscriberMutation(ctx, channel, true, nil, nil)
+	return nil
 }
 
 // SetTempSubscribers replaces the internal temporary subscriber list.
@@ -458,6 +523,42 @@ func (a *App) subscriberMutationVersionFor(ctx context.Context, channelID string
 		return 1, nil
 	}
 	return channel.SubscriberMutationVersion + 1, nil
+}
+
+func (a *App) refreshLargeGroupFlag(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	channel, err := a.store.GetChannel(ctx, channelID, channelType)
+	if err != nil {
+		return metadb.Channel{}, err
+	}
+	large := int64(0)
+	if channel.SubscriberCount > uint64(a.largeGroupSubscriberThreshold) {
+		large = 1
+	}
+	if channel.Large == large {
+		return channel, nil
+	}
+	channel.Large = large
+	if err := a.store.UpsertChannel(ctx, channel); err != nil {
+		return metadb.Channel{}, err
+	}
+	return channel, nil
+}
+
+func (a *App) notifySubscriberMutation(ctx context.Context, channel metadb.Channel, reset bool, added []string, removed []string) {
+	if a == nil || a.subscriberMutationObserver == nil {
+		return
+	}
+	a.subscriberMutationObserver.ObserveSubscriberMutation(ctx, SubscriberMutationEvent{
+		ChannelKey: ChannelKey{
+			ChannelID:   channel.ChannelID,
+			ChannelType: uint8(channel.ChannelType),
+		},
+		Large:                     channel.Large != 0,
+		SubscriberMutationVersion: channel.SubscriberMutationVersion,
+		Reset:                     reset,
+		AddedUIDs:                 append([]string(nil), added...),
+		RemovedUIDs:               append([]string(nil), removed...),
+	})
 }
 
 func boolToInt64(value bool) int64 {

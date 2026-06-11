@@ -62,6 +62,11 @@ type submitLocalEvent struct {
 	ack    chan error
 }
 
+type subscriberMutationEvent struct {
+	update SubscriberMutationUpdate
+	ack    chan error
+}
+
 type pendingPrepareEffect struct {
 	effect prepareEffect
 	ack    chan error
@@ -130,6 +135,10 @@ func (r *reactor) run() {
 				case submit.ack <- nil:
 				default:
 				}
+				continue
+			}
+			if mutation, ok := event.(subscriberMutationEvent); ok {
+				r.applySubscriberMutation(mutation)
 				continue
 			}
 			if reactorEvent, ok := event.(reactorEvent); ok {

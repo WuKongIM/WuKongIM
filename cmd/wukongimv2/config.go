@@ -57,6 +57,7 @@ var supportedConfigKeys = []string{
 	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 	"WK_METRICS_ENABLE",
 	"WK_PPROF_ENABLE",
+	"WK_HEALTH_DEBUG_ENABLE",
 	"WK_DIAGNOSTICS_ENABLE",
 	"WK_DIAGNOSTICS_BUFFER_SIZE",
 	"WK_DIAGNOSTICS_SAMPLE_RATE",
@@ -65,6 +66,7 @@ var supportedConfigKeys = []string{
 	"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE",
 	"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS",
 	"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH",
+	"WK_DIAGNOSTICS_DEBUG_API_ENABLE",
 	"WK_DIAGNOSTICS_DEBUG_MATCHES",
 	"WK_EXTERNAL_TCPADDR",
 	"WK_EXTERNAL_WSADDR",
@@ -90,6 +92,7 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS",
 	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
+	"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD",
 	"WK_DELIVERY_ENABLE",
 	"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT",
 	"WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS",
@@ -226,6 +229,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Bench: app.BenchConfig{
 			APIMaxBatchSize:    defaultBenchAPIMaxBatchSize,
 			APIMaxPayloadBytes: defaultBenchAPIMaxPayloadBytes,
+		},
+		Channel: app.ChannelConfig{
+			LargeGroupSubscriberThreshold: 500,
 		},
 	}
 	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
@@ -464,6 +470,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Observability.PProfEnabled = pprofEnable
 	}
+	if raw := configValue(values, "WK_HEALTH_DEBUG_ENABLE"); raw != "" {
+		healthDebugEnable, err := parseBool("WK_HEALTH_DEBUG_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.HealthDebugEnabled = healthDebugEnable
+	}
 	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
 	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""
 	diagnosticsErrorSampleRateSet := configValue(values, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != ""
@@ -543,6 +556,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH: value must be >= 0")
 		}
 		cfg.Observability.Diagnostics.DeepMaxItemsPerBatch = deepMaxItems
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_API_ENABLE"); raw != "" {
+		debugAPIEnable, err := parseBool("WK_DIAGNOSTICS_DEBUG_API_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.DebugAPIEnabled = debugAPIEnable
 	}
 	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_MATCHES"); raw != "" {
 		debugMatches, err := parseDiagnosticsDebugMatches(raw)
@@ -787,6 +807,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY: value must be > 0")
 		}
 		cfg.Conversation.AuthorityAdmitConcurrency = concurrency
+	}
+	if raw := configValue(values, "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"); raw != "" {
+		threshold, err := parseInt("WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if threshold <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD: value must be > 0")
+		}
+		cfg.Channel.LargeGroupSubscriberThreshold = threshold
 	}
 	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)

@@ -2,11 +2,12 @@
 
 ## Responsibility
 
-`internalv2/usecase/conversation` owns entry-agnostic conversation list reads
-and the lightweight UID-authority active patch contract. It does not depend on
-gateway frames, HTTP DTOs, clusterv2, or channel log runtimes. Storage is
-supplied through small ports for UID-owned conversation active pages and
-channel-owned current-page last-message reads.
+`internalv2/usecase/conversation` owns entry-agnostic conversation list reads,
+legacy-compatible conversation sync selection, and the lightweight
+UID-authority active patch contract. It does not depend on gateway frames, HTTP
+DTOs, clusterv2, or channel log runtimes. Storage is supplied through small
+ports for UID-owned conversation active pages, durable UID-owned state rows,
+and channel-owned message reads.
 
 ## List Flow
 
@@ -30,6 +31,31 @@ contains a newer message.
 
 Rows without a visible last message are returned with `LastMessage=nil` and
 `Unread=0`. List reads do not delete, hide, or repair conversation rows.
+
+## Sync Flow
+
+```text
+Sync(uid, last_msg_seqs, msg_count, only_unread, excluded_types, limit)
+  -> scan the bounded UID-owned active view from the beginning
+  -> merge client-known last_msg_seqs as overlay candidates
+  -> read durable UID-owned rows for overlay candidates when present
+  -> skip command channels and excluded channel types
+  -> batch-read newest channel messages for all candidate keys
+  -> hide rows whose newest message is at or below deleted_to_seq
+  -> calculate unread from max(read_seq, deleted_to_seq)
+  -> suppress self-sent unread and apply only_unread
+  -> sort by newest message time, channel type, then channel id
+  -> trim to the final limit
+  -> load recent messages only for the final returned window when msg_count > 0
+```
+
+Sync returns canonical channel IDs; access adapters convert person-channel IDs
+back to peer IDs for legacy HTTP clients. `version` is accepted for compatibility
+but does not trigger a historical directory scan. `last_msg_seqs` discovers
+client-known conversations that are outside the active scan window; overlay
+candidates without durable user state are returned only when the channel latest
+message is newer than the client-supplied sequence. Recent messages are filtered
+by the row delete floor and cloned before returning.
 
 ## Authority Active Patch Contract
 

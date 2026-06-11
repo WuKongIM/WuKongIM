@@ -10,6 +10,10 @@ import (
 const (
 	defaultListLimit = 50
 	maxListLimit     = 200
+
+	defaultSyncLimit           = 200
+	maxSyncLimit               = 500
+	defaultSyncActiveScanLimit = 2000
 )
 
 var (
@@ -22,6 +26,11 @@ var (
 // Store pages authoritative UID-owned conversation active rows.
 type Store interface {
 	ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error)
+}
+
+// StateStore reads durable UID-owned conversation rows outside the active view window.
+type StateStore interface {
+	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
 }
 
 // LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
@@ -39,23 +48,47 @@ type MessageStore interface {
 	GetLastVisibleMessages(ctx context.Context, requests []LastVisibleMessageRequest) (map[metadb.ConversationKey]LastMessage, error)
 }
 
+// RecentMessageStore reads newest channel messages for legacy-compatible sync responses.
+type RecentMessageStore interface {
+	GetRecentMessages(ctx context.Context, keys []ConversationKey, limit int) (map[ConversationKey][]SyncMessage, error)
+}
+
 // Options contains dependencies and read bounds for the conversation usecase.
 type Options struct {
 	// Store reads UID-owned active conversation rows.
 	Store Store
+	// StateStore reads durable UID-owned rows for client-known overlay conversations.
+	StateStore StateStore
 	// Messages reads the newest visible message for returned rows.
 	Messages MessageStore
+	// ActiveScanLimit bounds the active rows scanned by legacy-compatible sync.
+	ActiveScanLimit int
 }
 
 // App coordinates entry-agnostic conversation list reads.
 type App struct {
-	store    Store
-	messages MessageStore
+	store           Store
+	stateStore      StateStore
+	messages        MessageStore
+	activeScanLimit int
 }
 
 // New creates a conversation usecase.
 func New(opts Options) *App {
-	return &App{store: opts.Store, messages: opts.Messages}
+	if opts.ActiveScanLimit <= 0 {
+		opts.ActiveScanLimit = defaultSyncActiveScanLimit
+	}
+	if opts.StateStore == nil {
+		if stateStore, ok := opts.Store.(StateStore); ok {
+			opts.StateStore = stateStore
+		}
+	}
+	return &App{
+		store:           opts.Store,
+		stateStore:      opts.StateStore,
+		messages:        opts.Messages,
+		activeScanLimit: opts.ActiveScanLimit,
+	}
 }
 
 // List returns one active-index conversation page for uid.

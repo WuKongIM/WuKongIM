@@ -64,6 +64,95 @@ func TestSubscriberAddListContainsAndRemove(t *testing.T) {
 	}
 }
 
+func TestSubscriberMutationsMaintainChannelSubscriberCount(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(4)
+	ctx := context.Background()
+	channel := Channel{ChannelID: "group-count-sub", ChannelType: 1}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"u2", "u1", "u1"}, 1); err != nil {
+		t.Fatalf("AddSubscribers(first): %v", err)
+	}
+	got, ok, err := shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannel(after add) ok=%v err=%v", ok, err)
+	}
+	if got.SubscriberCount != 2 {
+		t.Fatalf("SubscriberCount after first add = %d, want 2", got.SubscriberCount)
+	}
+
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"u2", "u3"}, 2); err != nil {
+		t.Fatalf("AddSubscribers(second): %v", err)
+	}
+	got, ok, err = shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannel(after second add) ok=%v err=%v", ok, err)
+	}
+	if got.SubscriberCount != 3 {
+		t.Fatalf("SubscriberCount after second add = %d, want 3", got.SubscriberCount)
+	}
+
+	if err := shard.RemoveSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"missing", "u1"}, 3); err != nil {
+		t.Fatalf("RemoveSubscribers(): %v", err)
+	}
+	got, ok, err = shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannel(after remove) ok=%v err=%v", ok, err)
+	}
+	if got.SubscriberCount != 2 {
+		t.Fatalf("SubscriberCount after remove = %d, want 2", got.SubscriberCount)
+	}
+}
+
+func TestWriteBatchSubscriberMutationsMaintainChannelSubscriberCount(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	shard := db.ForHashSlot(5)
+	channel := Channel{ChannelID: "group-batch-count-sub", ChannelType: 1}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	batch := db.NewWriteBatch()
+	defer batch.Close()
+	if err := batch.AddSubscribers(5, channel.ChannelID, channel.ChannelType, []string{"u1", "u2"}, 1); err != nil {
+		t.Fatalf("AddSubscribers(stage): %v", err)
+	}
+	if err := batch.RemoveSubscribers(5, channel.ChannelID, channel.ChannelType, []string{"u1", "missing"}, 2); err != nil {
+		t.Fatalf("RemoveSubscribers(stage): %v", err)
+	}
+	if err := batch.Commit(); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+
+	got, err := shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel(after batch): %v", err)
+	}
+	if got.SubscriberCount != 1 {
+		t.Fatalf("SubscriberCount after batch = %d, want 1", got.SubscriberCount)
+	}
+	snapshot, err := shard.ListSubscribersSnapshot(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil {
+		t.Fatalf("ListSubscribersSnapshot(after batch): %v", err)
+	}
+	if len(snapshot) != 1 || snapshot[0] != "u2" {
+		t.Fatalf("snapshot after batch = %+v, want [u2]", snapshot)
+	}
+}
+
 func TestSubscriberTableKeepsLegacyRowLayout(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

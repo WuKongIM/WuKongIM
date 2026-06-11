@@ -501,8 +501,9 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 
 	clusterTransport := readFile(t, filepath.Join(outDir, "cluster_transport_peak_summary.tsv"))
 	for _, want := range []string{
-		"tag\tsample_points\tsample_pairs\tpeak_internal_mib_s",
+		"tag\tnode\tsample_points\tsample_pairs\tpeak_internal_mib_s",
 		"000100",
+		"127_0_0_1_5011",
 	} {
 		if !strings.Contains(clusterTransport, want) {
 			t.Fatalf("cluster transport peak summary missing %q:\n%s", want, clusterTransport)
@@ -511,26 +512,30 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
-		"# runtime pool pressure",
-		"entries=",
-		"over90_pools=3",
-		"max_fill=0.700",
-		"full=",
-		"worst=tag=000100",
+		"RUNTIME POOL PRESSURE",
+		"worst_node=127_0_0_1_5011",
+		"pressure_pools",
+		"hot_pools",
+		"max_qfill",
+		"127_0_0_1_5011",
 		"gateway",
 		"async_send",
 		"queue_backlog",
 		"admission_full",
-		"# channelwrite pool pressure",
+		"CHANNELWRITE POOL PRESSURE",
 		"details=channelwrite_metrics_summary.tsv",
-		"over90_pools=3",
-		"max_util=1.000",
-		"saturated=1",
-		"# cluster internal transport peak",
+		"route_block",
+		"effect_util",
+		"pool_full",
+		"127_0_0_1_5011",
+		"saturated",
+		"effect_pool_hot",
+		"CLUSTER INTERNAL TRANSPORT PEAK",
+		"peak_node=127_0_0_1_5011",
 		"peak_internal_mib_s=",
-		"peak_out_mib_s=",
-		"peak_in_mib_s=",
-		"peak_duplex_mib_s=",
+		"out_mib/s",
+		"in_mib/s",
+		"duplex_mib/s",
 		"details=cluster_transport_peak_summary.tsv",
 	} {
 		if !strings.Contains(display, want) {
@@ -545,18 +550,20 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 	for _, want := range []string{
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
 		"- cluster_transport_peak: cluster_transport_peak_summary.tsv",
-		"entries=",
-		"over90_pools=3",
-		"max_fill=0.700",
-		"worst=tag=000100",
+		"worst_node=127_0_0_1_5011",
+		"pressure_pools",
+		"hot_pools",
+		"max_qfill",
 		"gateway",
 		"async_send",
 		"admission_full",
 		"## ChannelWrite Pool Pressure",
 		"details=channelwrite_metrics_summary.tsv",
-		"max_util=1.000",
+		"effect_util",
+		"pool_full",
 		"saturated=1",
 		"## Cluster Internal Transport Peak",
+		"peak_node=127_0_0_1_5011",
 		"peak_internal_mib_s=",
 		"details=cluster_transport_peak_summary.tsv",
 	} {
@@ -566,6 +573,107 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 	}
 	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
 		t.Fatalf("markdown summary should not print every pressure row:\n%s", topSummary)
+	}
+}
+
+func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+	writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+	gatewayAddr := listenLocalTCP(t)
+
+	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+		"--no-start",
+		"--no-worker",
+		"--out-dir", outDir,
+		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+		"--qps", "100",
+		"--channels", "10",
+		"--users", "20",
+		"--members", "2",
+		"--duration", "1s",
+		"--warmup", "0s",
+		"--cooldown", "0s",
+		"--resource-interval", "0",
+		"--gateway", gatewayAddr,
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+
+	samples := readFile(t, filepath.Join(outDir, "resources", "server-process.jsonl"))
+	for _, want := range []string{
+		`"node":"node1"`,
+		`"pid":111`,
+		`"cpu_percent":12.500`,
+		`"rss_kb":123456`,
+		`"phase":"before"`,
+		`"phase":"after"`,
+	} {
+		if !strings.Contains(samples, want) {
+			t.Fatalf("resource samples missing %q:\n%s", want, samples)
+		}
+	}
+
+	resourceSummary := readFile(t, filepath.Join(outDir, "resources", "server-process-summary.tsv"))
+	for _, want := range []string{
+		"node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb",
+		"node1\t111\t2\t12.500\t12.500\t1.200\t1.200\t123456\t789000",
+		"node2\t222\t2\t25.000\t25.000\t2.300\t2.300\t234567\t890000",
+		"node3\t333\t2\t3.500\t3.500\t0.700\t0.700\t345678\t901000",
+	} {
+		if !strings.Contains(resourceSummary, want) {
+			t.Fatalf("resource summary missing %q:\n%s", want, resourceSummary)
+		}
+	}
+
+	display := readFile(t, filepath.Join(outDir, "summary.txt"))
+	for _, want := range []string{
+		"BENCH RESULT",
+		"actual/offered gate: >= 0.90",
+		"ratio",
+		"SERVER PROCESS PEAKS",
+		"peak_cpu=node2 25.000%",
+		"peak_rss=node3 337.576MiB",
+		"details=resources/server-process-summary.tsv",
+	} {
+		if !strings.Contains(display, want) {
+			t.Fatalf("display summary missing server resource peak %q:\n%s", want, display)
+		}
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("console output missing server resource peak %q:\n%s", want, output)
+		}
+	}
+	for _, want := range []string{
+		"evidence: " + outDir,
+		"summary                 summary.tsv",
+		"resources               resources/",
+	} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("console output missing compact evidence line %q:\n%s", want, output)
+		}
+	}
+
+	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- resources: resources/",
+		"## Server Process Peaks",
+		"- peak_cpu: node2 25.000%",
+		"- peak_rss: node3 337.576MiB",
+	} {
+		if !strings.Contains(topSummary, want) {
+			t.Fatalf("markdown summary missing server resource peak %q:\n%s", want, topSummary)
+		}
 	}
 }
 

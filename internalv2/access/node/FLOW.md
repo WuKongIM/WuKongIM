@@ -122,7 +122,7 @@ The RPC boundary is deliberately narrow:
 
 ```text
 remote channel write forwarder
-  -> encode W K V W 1 request
+  -> encode W K V W 2 request
   -> clusterv2 RPCChannelWrite
   -> ChannelWriteAdapter.HandleChannelWriteRPC
   -> ChannelWrite.SubmitForAuthority
@@ -131,12 +131,15 @@ remote channel write forwarder
 
 Channel write RPC transports one exact `channelwrite.AuthorityTarget` plus
 item-aligned `channelwrite.SendCommand` values to the target channel authority
-node. The server only submits to the local channel authority port; it does not
-resolve routes, create proxy channel state, append directly outside the
-authority reactor, or run post-commit side effects outside that reactor. The
-client skips canceled or expired items before transport, normalizes transport
-canceled/timeout errors to standard context errors, and preserves active item
-order in returned item-aligned results.
+node. The target includes recipient fanout metadata (`Large` and
+`SubscriberMutationVersion`) so the authority reactor can choose paged
+large-channel fanout or cached non-large subscriber snapshots without resolving
+metadata again. The server only submits to the local channel authority port; it
+does not resolve routes, create proxy channel state, append directly outside
+the authority reactor, or run post-commit side effects outside that reactor.
+The client skips canceled or expired items before transport, normalizes
+transport canceled/timeout errors to standard context errors, and preserves
+active item order in returned item-aligned results.
 
 ## Codec Rules
 
@@ -168,7 +171,7 @@ patch collection. The stable batch field order is `SenderUID`, `ChannelID`,
 
 Channel write RPC uses fixed magic headers:
 
-- Request: `W K V W 1`
+- Request: `W K V W 2`
 - Response: `W K V w 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric

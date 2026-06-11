@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
@@ -47,6 +48,11 @@ type PresenceBenchController interface {
 	Snapshot(context.Context) (model.PresenceSnapshot, error)
 }
 
+// DiagnosticsReader queries node-local diagnostics events for debug API routes.
+type DiagnosticsReader interface {
+	QueryDiagnostics(ctx context.Context, query obsdiagnostics.Query) obsdiagnostics.QueryResult
+}
+
 // BenchData accepts benchmark setup mutations backed by the composition root.
 type BenchData interface {
 	UpsertChannels(context.Context, []BenchChannelMutation) (int, error)
@@ -59,9 +65,10 @@ type MessageUsecase interface {
 	SyncChannelMessages(context.Context, messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error)
 }
 
-// ConversationUsecase coordinates compatible conversation list routes.
+// ConversationUsecase coordinates compatible conversation list and sync routes.
 type ConversationUsecase interface {
 	List(context.Context, conversationusecase.ListRequest) (conversationusecase.ListResult, error)
+	Sync(context.Context, conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
 }
 
 // ConversationListObservation captures one /conversation/list request result.
@@ -183,36 +190,51 @@ type Options struct {
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
 	PProfEnabled bool
+	// DebugEnabled exposes local JSON debug snapshot endpoints when callbacks are configured.
+	DebugEnabled bool
+	// DebugConfig returns a bounded configuration snapshot for /debug/config.
+	DebugConfig func() any
+	// DebugCluster returns a bounded cluster snapshot for /debug/cluster.
+	DebugCluster func() any
+	// DiagnosticsDebugEnabled exposes local diagnostics debug query endpoints when Diagnostics is configured.
+	DiagnosticsDebugEnabled bool
+	// Diagnostics reads the node-local diagnostics store for debug query endpoints.
+	Diagnostics DiagnosticsReader
 	// Logger records HTTP API failures that are not otherwise visible to callers.
 	Logger wklog.Logger
 }
 
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
 type Server struct {
-	mu                   sync.RWMutex
-	engine               *gin.Engine
-	httpServer           *http.Server
-	listener             net.Listener
-	listenAddr           string
-	addr                 string
-	readyz               func(context.Context) (bool, any)
-	benchEnabled         bool
-	benchMaxBatchSize    int
-	benchMaxPayloadBytes int64
-	gateway              GatewayAddresses
-	benchRuntime         ChannelRuntimeBenchController
-	benchPresence        PresenceBenchController
-	benchData            BenchData
-	channels             ChannelUsecase
-	users                UserUsecase
-	messages             MessageUsecase
-	conversations        ConversationUsecase
-	conversationObserver ConversationListObserver
-	metricsHandler       http.Handler
-	pprofEnabled         bool
-	logger               wklog.Logger
-	counts               map[string]int
-	started              bool
+	mu                      sync.RWMutex
+	engine                  *gin.Engine
+	httpServer              *http.Server
+	listener                net.Listener
+	listenAddr              string
+	addr                    string
+	readyz                  func(context.Context) (bool, any)
+	benchEnabled            bool
+	benchMaxBatchSize       int
+	benchMaxPayloadBytes    int64
+	gateway                 GatewayAddresses
+	benchRuntime            ChannelRuntimeBenchController
+	benchPresence           PresenceBenchController
+	benchData               BenchData
+	channels                ChannelUsecase
+	users                   UserUsecase
+	messages                MessageUsecase
+	conversations           ConversationUsecase
+	conversationObserver    ConversationListObserver
+	metricsHandler          http.Handler
+	pprofEnabled            bool
+	debugEnabled            bool
+	debugConfig             func() any
+	debugCluster            func() any
+	diagnosticsDebugEnabled bool
+	diagnostics             DiagnosticsReader
+	logger                  wklog.Logger
+	counts                  map[string]int
+	started                 bool
 }
 
 // New creates a minimal internalv2 API server.
@@ -223,25 +245,30 @@ func New(opts Options) *Server {
 	engine := gin.New()
 	engine.HandleMethodNotAllowed = true
 	s := &Server{
-		engine:               engine,
-		listenAddr:           strings.TrimSpace(opts.ListenAddr),
-		readyz:               opts.Readyz,
-		benchEnabled:         opts.BenchEnabled,
-		benchMaxBatchSize:    opts.BenchMaxBatchSize,
-		benchMaxPayloadBytes: opts.BenchMaxPayloadBytes,
-		gateway:              opts.Gateway,
-		benchRuntime:         opts.BenchRuntime,
-		benchPresence:        opts.BenchPresence,
-		benchData:            opts.BenchData,
-		channels:             opts.Channels,
-		users:                opts.Users,
-		messages:             opts.Messages,
-		conversations:        opts.Conversations,
-		conversationObserver: opts.ConversationListObserver,
-		metricsHandler:       opts.MetricsHandler,
-		pprofEnabled:         opts.PProfEnabled,
-		logger:               opts.Logger,
-		counts:               map[string]int{},
+		engine:                  engine,
+		listenAddr:              strings.TrimSpace(opts.ListenAddr),
+		readyz:                  opts.Readyz,
+		benchEnabled:            opts.BenchEnabled,
+		benchMaxBatchSize:       opts.BenchMaxBatchSize,
+		benchMaxPayloadBytes:    opts.BenchMaxPayloadBytes,
+		gateway:                 opts.Gateway,
+		benchRuntime:            opts.BenchRuntime,
+		benchPresence:           opts.BenchPresence,
+		benchData:               opts.BenchData,
+		channels:                opts.Channels,
+		users:                   opts.Users,
+		messages:                opts.Messages,
+		conversations:           opts.Conversations,
+		conversationObserver:    opts.ConversationListObserver,
+		metricsHandler:          opts.MetricsHandler,
+		pprofEnabled:            opts.PProfEnabled,
+		debugEnabled:            opts.DebugEnabled,
+		debugConfig:             opts.DebugConfig,
+		debugCluster:            opts.DebugCluster,
+		diagnosticsDebugEnabled: opts.DiagnosticsDebugEnabled,
+		diagnostics:             opts.Diagnostics,
+		logger:                  opts.Logger,
+		counts:                  map[string]int{},
 	}
 	if s.logger == nil {
 		s.logger = wklog.NewNop()
@@ -351,6 +378,17 @@ func (s *Server) registerRoutes() {
 	if s.pprofEnabled {
 		s.registerPProfRoutes()
 	}
+	if s.debugEnabled {
+		if s.debugConfig != nil {
+			s.engine.GET("/debug/config", s.handleDebugConfig)
+		}
+		if s.debugCluster != nil {
+			s.engine.GET("/debug/cluster", s.handleDebugCluster)
+		}
+	}
+	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
+		s.registerDiagnosticsRoutes()
+	}
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
 	s.registerMessageRoutes()
@@ -371,6 +409,7 @@ func (s *Server) registerRoutes() {
 }
 
 func (s *Server) registerPProfRoutes() {
+	s.engine.GET("/debug/goroutines", s.handleDebugGoroutines)
 	s.engine.Any("/debug/pprof", handlePProf)
 	s.engine.Any("/debug/pprof/*name", handlePProf)
 }

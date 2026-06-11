@@ -169,6 +169,7 @@ func channelInspection(commandType string, channel metadb.Channel) CommandInspec
 		"disband":        channel.Disband,
 		"send_ban":       channel.SendBan,
 		"allow_stranger": channel.AllowStranger,
+		"large":          channel.Large,
 	})
 }
 

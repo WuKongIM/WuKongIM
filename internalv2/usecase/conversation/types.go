@@ -37,6 +37,32 @@ type ListRequest struct {
 	Limit int
 }
 
+// ConversationKey identifies one channel conversation in usecase APIs.
+type ConversationKey struct {
+	// ChannelID identifies the normalized conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+}
+
+// SyncQuery describes a legacy-compatible conversation sync request after adapter mapping.
+type SyncQuery struct {
+	// UID identifies the user whose conversations should be synchronized.
+	UID string
+	// Version is accepted for legacy clients; sync uses active rows plus client-known overlays.
+	Version int64
+	// LastMsgSeqs contains client-known channel sequence floors keyed by normalized conversation.
+	LastMsgSeqs map[ConversationKey]uint64
+	// MsgCount bounds recent messages loaded for each returned conversation.
+	MsgCount int
+	// OnlyUnread keeps only conversations with unread messages when true.
+	OnlyUnread bool
+	// ExcludeChannelTypes skips conversations whose channel type appears in this list.
+	ExcludeChannelTypes []uint8
+	// Limit bounds returned conversations. Zero uses the legacy-compatible default.
+	Limit int
+}
+
 // LastMessage is the newest visible durable message for a conversation row.
 type LastMessage struct {
 	// MessageID is the durable message id.
@@ -51,6 +77,54 @@ type LastMessage struct {
 	ServerTimestampMS int64
 	// Payload stores the durable message payload.
 	Payload []byte
+}
+
+// SyncMessage is one recent message returned by legacy-compatible conversation sync.
+type SyncMessage struct {
+	// MessageID is the durable message id.
+	MessageID uint64
+	// MessageSeq is the channel-local message sequence.
+	MessageSeq uint64
+	// FromUID identifies the sender.
+	FromUID string
+	// ChannelID identifies the normalized channel.
+	ChannelID string
+	// ChannelType identifies the protocol channel category.
+	ChannelType uint8
+	// ClientMsgNo stores the client idempotency key.
+	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
+	// Payload stores the durable message payload.
+	Payload []byte
+}
+
+// SyncConversation is one conversation returned by legacy-compatible sync.
+type SyncConversation struct {
+	// ChannelID identifies the normalized conversation channel.
+	ChannelID string
+	// ChannelType identifies the protocol channel category.
+	ChannelType uint8
+	// Unread is the unread message count derived from read/delete floors.
+	Unread int
+	// Timestamp is the latest message timestamp in Unix seconds.
+	Timestamp int64
+	// LastMsgSeq is the newest visible channel sequence.
+	LastMsgSeq uint32
+	// LastClientMsgNo is the client idempotency key of the newest visible message.
+	LastClientMsgNo string
+	// ReadToMsgSeq is the read floor returned to legacy clients.
+	ReadToMsgSeq uint32
+	// Version is a compatibility timestamp for this conversation row.
+	Version int64
+	// Recents contains recent messages for this conversation when requested.
+	Recents []SyncMessage
+}
+
+// SyncResult contains the conversations selected for one sync response.
+type SyncResult struct {
+	// Conversations contains legacy-compatible synchronized conversations.
+	Conversations []SyncConversation
 }
 
 // Conversation is one channel row in a user's conversation list.

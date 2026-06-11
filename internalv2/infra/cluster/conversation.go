@@ -8,13 +8,16 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ConversationNode exposes clusterv2 reads needed by conversation lists.
 type ConversationNode interface {
 	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
+	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
 	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
+	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
 // ConversationStore adapts clusterv2 reads to the conversation usecase ports.
@@ -24,7 +27,9 @@ type ConversationStore struct {
 }
 
 var _ conversationusecase.Store = (*ConversationStore)(nil)
+var _ conversationusecase.StateStore = (*ConversationStore)(nil)
 var _ conversationusecase.MessageStore = (*ConversationStore)(nil)
+var _ conversationusecase.RecentMessageStore = (*ConversationStore)(nil)
 
 // ConversationStoreOptions configures clusterv2-backed conversation reads.
 type ConversationStoreOptions struct {
@@ -60,6 +65,14 @@ func (s *ConversationStore) ListUserConversationActiveView(ctx context.Context, 
 		return conversationusecase.ActiveViewPage{}, err
 	}
 	return conversationusecase.ActiveViewPage{Rows: rows, Cursor: cursor, Done: done}, nil
+}
+
+// GetUserConversationState reads one durable UID-owned conversation row.
+func (s *ConversationStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	if s == nil || s.node == nil {
+		return metadb.UserConversationState{}, false, metadb.ErrNotFound
+	}
+	return s.node.GetUserConversationState(ctx, uid, channelID, channelType)
 }
 
 // GetLastVisibleMessages reads each returned row's newest visible channel message.
@@ -164,6 +177,38 @@ func (s *ConversationStore) readLastVisibleMessage(ctx context.Context, req conv
 	return key, lastMessageFromChannel(msg), true, nil
 }
 
+// GetRecentMessages reads newest committed channel messages for legacy-compatible conversation sync.
+func (s *ConversationStore) GetRecentMessages(ctx context.Context, keys []conversationusecase.ConversationKey, limit int) (map[conversationusecase.ConversationKey][]conversationusecase.SyncMessage, error) {
+	out := make(map[conversationusecase.ConversationKey][]conversationusecase.SyncMessage, len(keys))
+	if len(keys) == 0 || limit <= 0 {
+		return out, nil
+	}
+	if s == nil || s.node == nil {
+		return nil, metadb.ErrNotFound
+	}
+	for _, key := range keys {
+		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
+			return nil, fmt.Errorf("internalv2/infra/cluster: invalid conversation recent request")
+		}
+		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)}, channelstore.ReadCommittedRequest{
+			FromSeq:  maxUint64(),
+			MaxSeq:   maxUint64(),
+			Limit:    limit,
+			MaxBytes: maxInt(),
+			Reverse:  true,
+		})
+		if err != nil {
+			if isMissingLastMessage(err) {
+				out[key] = nil
+				continue
+			}
+			return nil, err
+		}
+		out[key] = syncMessagesFromChannel(read.Messages)
+	}
+	return out, nil
+}
+
 func lastMessageFromChannel(msg channelv2.Message) conversationusecase.LastMessage {
 	return conversationusecase.LastMessage{
 		MessageID:         msg.MessageID,
@@ -173,6 +218,23 @@ func lastMessageFromChannel(msg channelv2.Message) conversationusecase.LastMessa
 		ServerTimestampMS: msg.ServerTimestampMS,
 		Payload:           append([]byte(nil), msg.Payload...),
 	}
+}
+
+func syncMessagesFromChannel(messages []channelv2.Message) []conversationusecase.SyncMessage {
+	out := make([]conversationusecase.SyncMessage, 0, len(messages))
+	for _, msg := range messages {
+		out = append(out, conversationusecase.SyncMessage{
+			MessageID:         msg.MessageID,
+			MessageSeq:        msg.MessageSeq,
+			FromUID:           msg.FromUID,
+			ChannelID:         msg.ChannelID,
+			ChannelType:       msg.ChannelType,
+			ClientMsgNo:       msg.ClientMsgNo,
+			ServerTimestampMS: msg.ServerTimestampMS,
+			Payload:           append([]byte(nil), msg.Payload...),
+		})
+	}
+	return out
 }
 
 func isMissingLastMessage(err error) bool {

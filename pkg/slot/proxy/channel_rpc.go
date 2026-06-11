@@ -502,6 +502,8 @@ func appendChannels(dst []byte, channels []metadb.Channel) []byte {
 func appendChannel(dst []byte, ch metadb.Channel) []byte {
 	dst = appendChannelV2(dst, ch)
 	dst = runtimeMetaAppendVarint(dst, ch.AllowStranger)
+	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberCount)
+	dst = runtimeMetaAppendVarint(dst, ch.Large)
 	return dst
 }
 
@@ -555,6 +557,12 @@ func readChannel(body []byte, offset int) (metadb.Channel, int, error) {
 		return metadb.Channel{}, offset, err
 	}
 	if ch.AllowStranger, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.SubscriberCount, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.Large, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return metadb.Channel{}, offset, err
 	}
 	return ch, offset, nil

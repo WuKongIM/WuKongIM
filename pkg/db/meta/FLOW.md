@@ -21,10 +21,13 @@ Current flow:
    channel batch/cache orchestration remains custom so post-commit cache
    publishing is unchanged.
 8. Channel reads populate an opportunistic in-memory cache, and channel
-   mutations invalidate the affected cache entry after commit.
+   mutations invalidate the affected cache entry after commit. Channel rows
+   store status flags, the large-group marker, subscriber mutation version, and
+   the ordinary subscriber count.
 9. Subscriber mutations sort and de-duplicate UIDs, keep channel-owned
    subscriber rows through the table runtime, update the channel subscriber
-   mutation version in the same commit, and invalidate the channel cache.
+   count and mutation version in the same commit, and invalidate the channel
+   cache.
 10. User channel membership rows are UID-owned reverse membership records keyed
     by `(uid, channel_id, channel_type)`, providing stable per-user channel
     paging without touching rows on ordinary group message commits.

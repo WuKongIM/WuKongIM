@@ -10,6 +10,7 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -118,6 +119,54 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	}
 }
 
+func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
+	node := &conversationNodeFake{
+		states: map[metadb.ConversationKey]metadb.UserConversationState{
+			{ChannelID: "g-a", ChannelType: 2}: {UID: "u1", ChannelID: "g-a", ChannelType: 2, ReadSeq: 7},
+		},
+		committed: map[metadb.ConversationKey][]channelv2.Message{
+			{ChannelID: "g-a", ChannelType: 2}: {{
+				MessageID:         12,
+				MessageSeq:        12,
+				ChannelID:         "g-a",
+				ChannelType:       2,
+				FromUID:           "u2",
+				ClientMsgNo:       "client-12",
+				ServerTimestampMS: 900,
+				Payload:           []byte("recent"),
+			}},
+		},
+	}
+	store := NewConversationStore(node)
+
+	state, ok, err := store.GetUserConversationState(context.Background(), "u1", "g-a", 2)
+	if err != nil || !ok || state.ReadSeq != 7 {
+		t.Fatalf("GetUserConversationState() state=%#v ok=%v err=%v, want read seq 7", state, ok, err)
+	}
+	recent, err := store.GetRecentMessages(context.Background(), []conversationusecase.ConversationKey{{ChannelID: "g-a", ChannelType: 2}}, 2)
+	if err != nil {
+		t.Fatalf("GetRecentMessages() error = %v", err)
+	}
+	key := conversationusecase.ConversationKey{ChannelID: "g-a", ChannelType: 2}
+	if len(recent[key]) != 1 || recent[key][0].MessageID != 12 || string(recent[key][0].Payload) != "recent" {
+		t.Fatalf("recent messages = %#v, want durable fields", recent[key])
+	}
+	recent[key][0].Payload[0] = 'X'
+	again, err := store.GetRecentMessages(context.Background(), []conversationusecase.ConversationKey{key}, 2)
+	if err != nil {
+		t.Fatalf("GetRecentMessages(again) error = %v", err)
+	}
+	if string(again[key][0].Payload) != "recent" {
+		t.Fatalf("recent message payload aliases node storage: %q", again[key][0].Payload)
+	}
+	if got, want := node.committedCalls, []committedCallFake{
+		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: 2, MaxBytes: maxInt(), Reverse: true}},
+		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: 2, MaxBytes: maxInt(), Reverse: true}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("committed calls = %#v, want %#v", got, want)
+	}
+}
+
 func TestConversationStoreBoundsLastVisibleMessageConcurrency(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
@@ -167,6 +216,11 @@ type readCallFake struct {
 	visibleAfterSeq uint64
 }
 
+type committedCallFake struct {
+	channelID channelv2.ChannelID
+	req       channelstore.ReadCommittedRequest
+}
+
 type lastVisibleResultFake struct {
 	msg channelv2.Message
 	ok  bool
@@ -179,6 +233,8 @@ type conversationNodeFake struct {
 	done        bool
 	err         error
 	activeCalls []activePageCallFake
+	states      map[metadb.ConversationKey]metadb.UserConversationState
+	stateCalls  []metadb.ConversationKey
 
 	read           map[metadb.ConversationKey]lastVisibleResultFake
 	readErr        map[metadb.ConversationKey]error
@@ -187,6 +243,10 @@ type conversationNodeFake struct {
 	readStarted    chan struct{}
 	activeReads    int
 	maxActiveReads int
+
+	committed      map[metadb.ConversationKey][]channelv2.Message
+	committedErr   map[metadb.ConversationKey]error
+	committedCalls []committedCallFake
 }
 
 func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -195,6 +255,13 @@ func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context,
 		return nil, metadb.UserConversationActiveCursor{}, false, n.err
 	}
 	return n.rows, n.cursor, n.done, nil
+}
+
+func (n *conversationNodeFake) GetUserConversationState(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	key := metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}
+	n.stateCalls = append(n.stateCalls, key)
+	state, ok := n.states[key]
+	return state, ok, nil
 }
 
 func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
@@ -227,6 +294,23 @@ func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id chan
 		return channelv2.Message{}, false, channelv2.ErrChannelNotFound
 	}
 	return result.msg, result.ok, nil
+}
+
+func (n *conversationNodeFake) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
+	n.committedCalls = append(n.committedCalls, committedCallFake{channelID: id, req: req})
+	if err := n.committedErr[key]; err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	messages, ok := n.committed[key]
+	if !ok {
+		return channelstore.ReadCommittedResult{}, channelv2.ErrChannelNotFound
+	}
+	out := append([]channelv2.Message(nil), messages...)
+	for i := range out {
+		out[i].Payload = append([]byte(nil), out[i].Payload...)
+	}
+	return channelstore.ReadCommittedResult{Messages: out}, nil
 }
 
 func TestConversationStorePropagatesLastMessageRouteErrors(t *testing.T) {

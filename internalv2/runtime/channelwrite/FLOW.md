@@ -50,15 +50,20 @@ caller/session cancellation.
 ## Authority-Only State
 
 `SubmitLocal` accepts an `AuthorityTarget` that carries the channel authority
-identity. The group rejects targets whose `LeaderNodeID` does not match
-`Options.LocalNodeID` before choosing a reactor. Remote channels are handled by
-`Router` through the `RemoteForwarder` port and never create proxy
+identity plus recipient fanout metadata (`Large` and
+`SubscriberMutationVersion`). The group rejects targets whose `LeaderNodeID`
+does not match `Options.LocalNodeID` before choosing a reactor. Remote channels
+are handled by `Router` through the `RemoteForwarder` port and never create proxy
 `channelState` inside this package.
 
 `channelState` is created lazily by the owning reactor after local authority
 validation. State is keyed by the channel routing key derived from
 `AuthorityTarget.ChannelKey` or from `ChannelID` when the target omits an
 explicit key. Reactor selection uses the same channel key, not the sender UID.
+When later submissions carry a newer subscriber mutation version or a changed
+large-channel flag, the reactor invalidates only the recipient snapshot cache
+inside the existing state; append authority fences remain owned by the state
+created for that channel key.
 
 ## Lifecycle
 
@@ -98,7 +103,8 @@ from downstream append or post-commit latency. Shared ants pool observations
 also report pool submit results (`submitted`, `full`, and `error`) plus
 in-flight/capacity/saturation gauges per stage, so benchmark evidence can show
 when dispatch is delayed because a stage pool is full. Prepare, append, and
-post-commit worker budgets are configured independently. Recipient authority
+post-commit worker budgets are configured independently as group-level shared
+worker counts and are not multiplied by reactor count. Recipient authority
 dispatch fanout inside one `post_commit` effect is configured separately from
 the post-commit worker count so increasing post-commit workers does not also
 multiply downstream recipient-authority concurrency.
@@ -156,11 +162,19 @@ to avoid retaining unbounded payloads.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
-committed channel id. Other channels page subscribers with the configured page
-size and dispatch each page before requesting the next one, so the runtime does
-not load all subscribers before recipient dispatch. A non-terminal subscriber
-page must return a non-empty cursor different from the previous cursor;
-otherwise dispatch fails before that page's recipients are admitted or
+committed channel id. Large channels page subscribers with the configured page
+size and dispatch each page before requesting the next one, so a large-channel
+effect never loads the full subscriber set into memory. Non-large channels load
+the full subscriber snapshot once for the current `SubscriberMutationVersion`
+and cache it in `channelState`; later committed messages reuse that cache until
+a new target version invalidates it. External subscriber metadata mutations may
+also call `Group.ApplySubscriberMutation`; the owning reactor applies that
+event through its mailbox so `channelState` remains single-writer. Large
+updates clear the cached snapshot, reset updates replace the cached non-large
+snapshot, and add/remove updates patch an already-ready non-large snapshot while
+advancing the cached mutation version. A non-terminal subscriber page in the
+large-channel path must return a non-empty cursor different from the previous
+cursor; otherwise dispatch fails before that page's recipients are admitted or
 dispatched, avoiding partial side effects for the invalid page before the
 envelope is dropped.
 

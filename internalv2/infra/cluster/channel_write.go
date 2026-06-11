@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ChannelWriteNode is the narrow clusterv2 surface needed for channel authority writes.
@@ -16,6 +17,8 @@ type ChannelWriteNode interface {
 	NodeID() uint64
 	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
 	ResolveChannelAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
+	// GetChannelMetadata reads durable channel metadata used by channelwrite recipient fanout.
+	GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error)
 }
 
 // ChannelWriteRemoteForwarder forwards sends to a remote channel authority.
@@ -56,6 +59,14 @@ func (c *ChannelWriteClient) ResolveAppendAuthority(ctx context.Context, id chan
 	}
 	if target.ChannelID != id {
 		return channelwrite.AuthorityTarget{}, channelwrite.ErrStaleRoute
+	}
+	channel, err := c.node.GetChannelMetadata(ctx, id.ID, int64(id.Type))
+	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+		return channelwrite.AuthorityTarget{}, mapChannelWriteRouteError(err)
+	}
+	if err == nil {
+		target.Large = channel.Large != 0
+		target.SubscriberMutationVersion = channel.SubscriberMutationVersion
 	}
 	return target, nil
 }

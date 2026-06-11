@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -789,6 +791,75 @@ func TestNewWiresDiagnosticsStoreAndSendTraceSink(t *testing.T) {
 	}
 	if len(result.Events) != 1 || result.Events[0].TraceID != "trace-internalv2-new" {
 		t.Fatalf("diagnostics events = %#v, want trace-internalv2-new", result.Events)
+	}
+}
+
+func TestNewWiresDiagnosticsDebugAPI(t *testing.T) {
+	cfg := Config{
+		Cluster: clusterv2.Config{NodeID: 7},
+		API:     APIConfig{ListenAddr: "127.0.0.1:0"},
+		Observability: ObservabilityConfig{
+			Diagnostics: DiagnosticsConfig{
+				SampleRate:      1,
+				DebugAPIEnabled: true,
+			},
+		},
+	}
+	cfg.Observability.SetDiagnosticsExplicitFlags(false, true, false)
+
+	app, err := newTestApp(t, cfg, WithCluster(&fakeCluster{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	api, ok := app.api.(interface{ Handler() http.Handler })
+	if !ok {
+		t.Fatalf("app api = %T, want Handler", app.api)
+	}
+
+	sendtrace.Record(sendtrace.Event{
+		TraceID: "trace-debug-api",
+		Stage:   sendtrace.StageMessageSendDurable,
+		Result:  sendtrace.ResultOK,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/trace/trace-debug-api", nil)
+	api.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "trace-debug-api") {
+		t.Fatalf("body = %s, want trace-debug-api", rec.Body.String())
+	}
+}
+
+func TestNewWiresDebugSnapshotAPI(t *testing.T) {
+	cfg := Config{
+		NodeID: 7,
+		API:    APIConfig{ListenAddr: "127.0.0.1:0"},
+		Observability: ObservabilityConfig{
+			HealthDebugEnabled: true,
+		},
+	}
+	app, err := newTestApp(t, cfg, WithCluster(&fakeCluster{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	api, ok := app.api.(interface{ Handler() http.Handler })
+	if !ok {
+		t.Fatalf("app api = %T, want Handler", app.api)
+	}
+
+	for _, path := range []string{"/debug/config", "/debug/cluster"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		api.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want %d body=%s", path, rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), `"node_id":7`) {
+			t.Fatalf("%s body = %s, want node_id 7", path, rec.Body.String())
+		}
 	}
 }
 

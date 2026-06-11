@@ -64,9 +64,9 @@ func newEffectScheduler(opts effectSchedulerOptions) *effectScheduler {
 		postCommitWorkers: boundedPositive(opts.PostCommitWorkers, defaultPostCommitWorkerCount),
 		wake:              wake,
 	}
-	scheduler.prepareCapacity = stageWorkerCapacity(opts.ReactorCount, scheduler.prepareWorkers)
-	scheduler.appendCapacity = stageWorkerCapacity(opts.ReactorCount, scheduler.appendWorkers)
-	scheduler.postCommitCapacity = stageWorkerCapacity(opts.ReactorCount, scheduler.postCommitWorkers)
+	scheduler.prepareCapacity = stageWorkerCapacity(scheduler.prepareWorkers)
+	scheduler.appendCapacity = stageWorkerCapacity(scheduler.appendWorkers)
+	scheduler.postCommitCapacity = stageWorkerCapacity(scheduler.postCommitWorkers)
 	scheduler.prepare = mustNewEffectStagePool(
 		effectStagePrepare,
 		scheduler.prepareCapacity,
@@ -239,14 +239,11 @@ func (s *effectScheduler) stop(ctx context.Context) error {
 	return nil
 }
 
-func stageWorkerCapacity(reactors int, workersPerReactor int) int {
-	if reactors <= 0 {
-		reactors = 1
+func stageWorkerCapacity(workers int) int {
+	if workers <= 0 {
+		return 1
 	}
-	if workersPerReactor <= 0 {
-		workersPerReactor = 1
-	}
-	return reactors * workersPerReactor
+	return workers
 }
 
 func runPrepareEffectTask(r *reactor, effect prepareEffect) (event reactorEvent) {

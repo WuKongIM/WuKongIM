@@ -170,12 +170,14 @@ func TestChannelWriteCodecResultErrorsPreserveStableStatuses(t *testing.T) {
 
 func channelWriteTestTarget() channelwrite.AuthorityTarget {
 	return channelwrite.AuthorityTarget{
-		ChannelID:     channelwrite.ChannelID{ID: "g1", Type: 2},
-		ChannelKey:    "channel-key",
-		LeaderNodeID:  3,
-		Epoch:         4,
-		LeaderEpoch:   5,
-		RouteRevision: 6,
+		ChannelID:                 channelwrite.ChannelID{ID: "g1", Type: 2},
+		ChannelKey:                "channel-key",
+		LeaderNodeID:              3,
+		Epoch:                     4,
+		LeaderEpoch:               5,
+		RouteRevision:             6,
+		Large:                     true,
+		SubscriberMutationVersion: 7,
 	}
 }
 

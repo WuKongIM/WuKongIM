@@ -57,6 +57,10 @@ type AuthorityTarget struct {
 	LeaderEpoch uint64
 	// RouteRevision is the routing-table revision used to resolve this target.
 	RouteRevision uint64
+	// Large reports whether the channel should use paged subscriber fanout.
+	Large bool
+	// SubscriberMutationVersion identifies the subscriber-list version used for recipient cache invalidation.
+	SubscriberMutationVersion uint64
 }
 
 // SendCommand is an entry-agnostic SEND request.

@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
@@ -50,6 +51,7 @@ type batchCommitState struct {
 	tableCreates     map[string]struct{}
 	runtimeMeta      map[string]runtimeMetaOverlay
 	migrationTasks   map[string]migrationTaskOverlay
+	subscriberRows   map[string]bool
 	channelPublishes map[string]Channel
 	channelDeletes   map[string]struct{}
 }
@@ -112,11 +114,19 @@ func (b *Batch) UpsertChannel(hashSlot HashSlot, channel Channel) error {
 	}
 	b.channelOverlay[string(primaryKey)] = channel
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		shard := &Shard{db: state.db, hashSlot: hashSlot}
-		if err := shard.stageChannel(batch, primaryKey, channel); err != nil {
+		next := channel
+		existing, exists, err := state.loadChannel(ctx, primaryKey, channel.ChannelID, channel.ChannelType)
+		if err != nil && !errors.Is(err, dberrors.ErrCorruptValue) {
 			return err
 		}
-		state.channelPublishes[string(primaryKey)] = channel
+		if err == nil && exists {
+			next.SubscriberCount = existing.SubscriberCount
+		}
+		shard := &Shard{db: state.db, hashSlot: hashSlot}
+		if err := shard.stageChannel(batch, primaryKey, next); err != nil {
+			return err
+		}
+		state.channelPublishes[string(primaryKey)] = next
 		delete(state.channelDeletes, string(primaryKey))
 		return nil
 	})
@@ -284,6 +294,7 @@ func (b *Batch) Commit(ctx context.Context) error {
 		tableCreates:     make(map[string]struct{}),
 		runtimeMeta:      make(map[string]runtimeMetaOverlay),
 		migrationTasks:   make(map[string]migrationTaskOverlay),
+		subscriberRows:   make(map[string]bool),
 		channelPublishes: make(map[string]Channel),
 		channelDeletes:   make(map[string]struct{}),
 	}
@@ -341,6 +352,32 @@ func (state *batchCommitState) loadRuntimeMeta(ctx context.Context, hashSlot Has
 	}
 	state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: meta, exists: exists}
 	return meta, exists, nil
+}
+
+func (state *batchCommitState) loadChannel(ctx context.Context, key []byte, channelID string, channelType int64) (Channel, bool, error) {
+	if err := contextErr(ctx); err != nil {
+		return Channel{}, false, err
+	}
+	if _, deleted := state.channelDeletes[string(key)]; deleted {
+		return Channel{}, false, nil
+	}
+	if channel, ok := state.channelPublishes[string(key)]; ok {
+		return channel, true, nil
+	}
+	value, exists, err := state.db.get(key)
+	if err != nil || !exists {
+		return Channel{}, exists, err
+	}
+	channel, err := decodeChannelValue(channelID, channelType, value)
+	return channel, true, err
+}
+
+func (state *batchCommitState) loadSubscriberExists(key []byte) (bool, error) {
+	if exists, ok := state.subscriberRows[string(key)]; ok {
+		return exists, nil
+	}
+	_, exists, err := state.db.get(key)
+	return exists, err
 }
 
 func (state *batchCommitState) loadChannelMigrationTask(ctx context.Context, hashSlot HashSlot, key []byte, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {

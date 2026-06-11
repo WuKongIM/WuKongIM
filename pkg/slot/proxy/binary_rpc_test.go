@@ -248,7 +248,7 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	resp := channelRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 2,
-		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, SubscriberMutationVersion: 7},
+		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 7, SubscriberCount: 11},
 	}
 	body := encodeChannelRPCResponseBinary(resp)
 	got, err := decodeChannelRPCResponseBinary(body)
@@ -361,7 +361,7 @@ func TestChannelRPCBinaryCodecRoundTripsChannelScanPage(t *testing.T) {
 		Status: rpcStatusOK,
 		Channels: []metadb.Channel{
 			{ChannelID: "a", ChannelType: 1, AllowStranger: 1},
-			{ChannelID: "b", ChannelType: 2, Ban: 1, SendBan: 1, AllowStranger: 1, SubscriberMutationVersion: 9},
+			{ChannelID: "b", ChannelType: 2, Ban: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 9, SubscriberCount: 12},
 		},
 		Cursor: metadb.ChannelCursor{ChannelID: "b", ChannelType: 2},
 		Done:   true,

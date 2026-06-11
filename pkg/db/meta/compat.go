@@ -1073,19 +1073,15 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
 		primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
-		value, ok, err := state.db.get(primaryKey)
+		channel, channelExists, err := state.loadChannel(ctx, primaryKey, channelID, channelType)
 		if err != nil {
 			return err
 		}
-		channel := Channel{ChannelID: channelID, ChannelType: channelType}
-		if ok {
-			channel, err = decodeChannelValue(channelID, channelType, value)
-			if err != nil {
-				return err
-			}
+		if !channelExists {
+			channel = Channel{ChannelID: channelID, ChannelType: channelType}
 		}
 		if mutationVersion > 0 {
-			if ok && channel.SubscriberMutationVersion > mutationVersion {
+			if channelExists && channel.SubscriberMutationVersion > mutationVersion {
 				return dberrors.ErrConflict
 			}
 			channel.SubscriberMutationVersion = mutationVersion
@@ -1095,15 +1091,29 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 			if err != nil {
 				return err
 			}
+			exists, err := state.loadSubscriberExists(key)
+			if err != nil {
+				return err
+			}
 			if add {
+				if !exists {
+					channel.SubscriberCount++
+				}
 				if err := batch.Set(key, nil); err != nil {
 					return err
 				}
-			} else if err := batch.Delete(key); err != nil {
-				return err
+				state.subscriberRows[string(key)] = true
+			} else {
+				if exists && channel.SubscriberCount > 0 {
+					channel.SubscriberCount--
+				}
+				if err := batch.Delete(key); err != nil {
+					return err
+				}
+				state.subscriberRows[string(key)] = false
 			}
 		}
-		if mutationVersion > 0 {
+		if channelExists || mutationVersion > 0 {
 			if err := (&Shard{db: state.db, hashSlot: hs}).stageChannel(batch, primaryKey, channel); err != nil {
 				return err
 			}

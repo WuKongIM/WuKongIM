@@ -84,12 +84,12 @@ claiming support for the reverse membership index.
 
 ## Conversation Read Flow
 
-`ConversationStore` adapts `internalv2/usecase/conversation` active-row and
-last-message read ports to clusterv2 facades. Conversation rows are UID-owned
-metadata records, while last-message display data is read from each
-channel-owned message log for the current page only. When configured,
-last-message reads run with a bounded worker count; missing tails are skipped
-per row while routing/readiness errors fail the request.
+`ConversationStore` adapts `internalv2/usecase/conversation` active-row,
+durable state, last-message, and recent-message read ports to clusterv2
+facades. Conversation rows are UID-owned metadata records, while last-message
+display data and sync recents are read from channel-owned message logs. When
+configured, list last-message reads run with a bounded worker count; missing
+tails are skipped per row while routing/readiness errors fail the request.
 
 ```text
 conversation list usecase
@@ -100,11 +100,23 @@ conversation list usecase
        -> ReadChannelLastVisible(channel, visible_after_seq)
        -> channel-owned route resolves the ChannelV2 leader
        -> missing channel or no visible message returns no last message for that row
+
+conversation sync usecase
+  -> ListUserConversationActiveView(uid, zero cursor)
+       -> bounded active working-set scan
+  -> GetUserConversationState(uid, channel)
+       -> durable UID-owned row for client-known overlay candidates
+  -> GetLastVisibleMessages(candidate keys)
+       -> newest channel-owned message for sync selection
+  -> GetRecentMessages(final returned keys)
+       -> ReadChannelCommitted(reverse, latest, limit)
+       -> channel-owned committed rows used for legacy recents
 ```
 
 The adapter clones row slices and message payloads across the boundary. It does
-not own ordering, cursor, unread, or sparse-active rules; those stay in the
-conversation usecase so access adapters can share the same list semantics.
+not own ordering, cursor, sync filtering, unread, or sparse-active rules; those
+stay in the conversation usecase so access adapters can share the same list and
+sync semantics.
 `metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.
@@ -167,9 +179,11 @@ conversation route sentinels before the list retry decision.
 clusterv2. It resolves canonical channel append authority through the narrow
 `Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
 ChannelV2 service so metadata creation policy remains in `pkg/clusterv2/channels`.
-The adapter maps `channelv2.Meta` to `channelwrite.AuthorityTarget` with the
-canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`, and
-`LeaderEpoch`.
+It then reads durable channel metadata to attach the large-channel flag and
+subscriber mutation version used by channelwrite recipient fanout. The adapter
+maps `channelv2.Meta` and channel metadata to `channelwrite.AuthorityTarget`
+with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
+`LeaderEpoch`, `Large`, and `SubscriberMutationVersion`.
 
 ```text
 channelwrite.Router
@@ -177,6 +191,7 @@ channelwrite.Router
        -> clusterv2.Node.ResolveChannelAppendAuthority
        -> channels.Service.ResolveAppendAuthority
        -> ChannelMetaEnsurer.EnsureChannelMeta when append would create metadata
+       -> clusterv2.Node.GetChannelMetadata for recipient fanout metadata
   -> local authority: channelwrite.Group.SubmitLocal
   -> remote authority: ChannelWriteClient.ForwardSendBatch
        -> injected ChannelWriteRemoteForwarder

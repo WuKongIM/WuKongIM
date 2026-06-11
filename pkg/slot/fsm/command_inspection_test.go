@@ -31,7 +31,7 @@ func TestDecodeCommandInspectionRedactsUserToken(t *testing.T) {
 
 func TestDecodeCommandInspectionIncludesChannelStatusFlags(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeUpsertChannelCommand(metadb.Channel{
-		ChannelID: "room-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1,
+		ChannelID: "room-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1,
 	}))
 	require.NoError(t, err)
 
@@ -39,6 +39,7 @@ func TestDecodeCommandInspectionIncludesChannelStatusFlags(t *testing.T) {
 	require.Equal(t, int64(1), got.Payload["disband"])
 	require.Equal(t, int64(1), got.Payload["send_ban"])
 	require.Equal(t, int64(1), got.Payload["allow_stranger"])
+	require.Equal(t, int64(1), got.Payload["large"])
 }
 
 func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
@@ -364,6 +365,7 @@ func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 				"disband":        int64(0),
 				"send_ban":       int64(0),
 				"allow_stranger": int64(0),
+				"large":          int64(0),
 			},
 		},
 	}, got)

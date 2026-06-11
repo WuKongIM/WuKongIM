@@ -29,6 +29,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -172,6 +173,19 @@ func TestValidatePresenceConfigRejectsInvalidTouchValues(t *testing.T) {
 	}
 }
 
+func TestDefaultChannelConfigUsesLargeGroupThreshold(t *testing.T) {
+	cfg := defaultChannelConfig(ChannelConfig{})
+	if cfg.LargeGroupSubscriberThreshold != 500 {
+		t.Fatalf("LargeGroupSubscriberThreshold = %d, want 500", cfg.LargeGroupSubscriberThreshold)
+	}
+	if err := validateChannelConfig(cfg); err != nil {
+		t.Fatalf("validateChannelConfig(default) error = %v", err)
+	}
+	if err := validateChannelConfig(ChannelConfig{LargeGroupSubscriberThreshold: -1}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validateChannelConfig(negative) error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
 func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) {
 	oldProcs := runtime.GOMAXPROCS(6)
 	t.Cleanup(func() { runtime.GOMAXPROCS(oldProcs) })
@@ -184,17 +198,17 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	if cfg.ChannelWriteReactorCount != 6 {
 		t.Fatalf("ChannelWriteReactorCount = %d, want 6", cfg.ChannelWriteReactorCount)
 	}
-	if cfg.ChannelWritePrepareWorkers != 8 {
-		t.Fatalf("ChannelWritePrepareWorkers = %d, want 8", cfg.ChannelWritePrepareWorkers)
+	if cfg.ChannelWritePrepareWorkers != 100 {
+		t.Fatalf("ChannelWritePrepareWorkers = %d, want 100", cfg.ChannelWritePrepareWorkers)
 	}
-	if cfg.ChannelWriteAppendWorkers != 96 {
-		t.Fatalf("ChannelWriteAppendWorkers = %d, want 96", cfg.ChannelWriteAppendWorkers)
+	if cfg.ChannelWriteAppendWorkers != 2000 {
+		t.Fatalf("ChannelWriteAppendWorkers = %d, want 2000", cfg.ChannelWriteAppendWorkers)
 	}
-	if cfg.ChannelWritePostCommitWorkers != 8 {
-		t.Fatalf("ChannelWritePostCommitWorkers = %d, want 8", cfg.ChannelWritePostCommitWorkers)
+	if cfg.ChannelWritePostCommitWorkers != 1000 {
+		t.Fatalf("ChannelWritePostCommitWorkers = %d, want 1000", cfg.ChannelWritePostCommitWorkers)
 	}
-	if cfg.ChannelWriteRecipientDispatchConcurrency != 4 {
-		t.Fatalf("ChannelWriteRecipientDispatchConcurrency = %d, want 4", cfg.ChannelWriteRecipientDispatchConcurrency)
+	if cfg.ChannelWriteRecipientDispatchConcurrency != 100 {
+		t.Fatalf("ChannelWriteRecipientDispatchConcurrency = %d, want 100", cfg.ChannelWriteRecipientDispatchConcurrency)
 	}
 	if cfg.FanoutPageSize != 512 {
 		t.Fatalf("FanoutPageSize = %d, want 512", cfg.FanoutPageSize)
@@ -1241,6 +1255,14 @@ func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T
 func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
+	cluster.channels = map[metadb.ConversationKey]metadb.Channel{
+		{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup)}: {
+			ChannelID:                 "g1",
+			ChannelType:               int64(frame.ChannelTypeGroup),
+			Large:                     1,
+			SubscriberMutationVersion: 1,
+		},
+	}
 	subscribers := &fakeDeliverySubscriberSource{
 		pages: []runtimedelivery.UIDPage{
 			{UIDs: []string{"u2"}, Done: true},
@@ -2821,6 +2843,7 @@ type fakePresenceCluster struct {
 	conversationStateBatches [][]metadb.UserConversationState
 	conversationPatchBatches [][]metadb.UserConversationActivePatch
 	subscribers              map[string][]string
+	channels                 map[metadb.ConversationKey]metadb.Channel
 }
 
 type fakeConversationFallbackCluster struct {
@@ -2830,6 +2853,7 @@ type fakeConversationFallbackCluster struct {
 	messages                 map[metadb.ConversationKey][]channelv2.Message
 	conversationStateBatches [][]metadb.UserConversationState
 	subscribers              map[string][]string
+	channels                 map[metadb.ConversationKey]metadb.Channel
 }
 
 type recordingDeliveryMetaNode struct {
@@ -3214,6 +3238,16 @@ func (f *fakePresenceCluster) ResolveChannelAppendAuthority(_ context.Context, i
 	return fakeChannelAuthorityMeta(f.nodeID, id), nil
 }
 
+func (f *fakePresenceCluster) GetChannelMetadata(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	channel, ok := f.channels[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return channel, nil
+}
+
 func (f *fakePresenceCluster) RouteKey(uid string) (clusterv2.Route, error) {
 	return clusterv2.Route{HashSlot: 9, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
 }
@@ -3321,6 +3355,10 @@ func (f *fakePresenceCluster) ReadChannelLastVisible(context.Context, channelv2.
 	return channelv2.Message{}, false, nil
 }
 
+func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	return channelstore.ReadCommittedResult{}, nil
+}
+
 func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "presence.start")
@@ -3360,6 +3398,16 @@ func (f *fakeConversationFallbackCluster) NodeID() uint64 {
 
 func (f *fakeConversationFallbackCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
 	return fakeChannelAuthorityMeta(3, id), nil
+}
+
+func (f *fakeConversationFallbackCluster) GetChannelMetadata(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	channel, ok := f.channels[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return channel, nil
 }
 
 func (f *fakeConversationFallbackCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
@@ -3434,6 +3482,27 @@ func (f *fakeConversationFallbackCluster) ListUserConversationActivePage(_ conte
 	return page, conversationRowsCursor(page, after), false, nil
 }
 
+func (f *fakeConversationFallbackCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out metadb.UserConversationState
+	found := false
+	for _, batch := range f.conversationStateBatches {
+		for _, state := range batch {
+			if state.UID != uid || state.ChannelID != channelID || state.ChannelType != channelType {
+				continue
+			}
+			if found {
+				out = mergeConversationState(out, state)
+			} else {
+				out = state
+				found = true
+			}
+		}
+	}
+	return out, found, nil
+}
+
 func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -3448,6 +3517,55 @@ func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Conte
 		return msg, true, nil
 	}
 	return channelv2.Message{}, false, nil
+}
+
+func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
+	messages := f.messages[key]
+	out := make([]channelv2.Message, 0, req.Limit)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = len(messages)
+	}
+	maxSeq := req.MaxSeq
+	if maxSeq == 0 {
+		maxSeq = ^uint64(0)
+	}
+	if req.Reverse {
+		fromSeq := req.FromSeq
+		if fromSeq == 0 || fromSeq > uint64(len(messages)) {
+			fromSeq = uint64(len(messages))
+		}
+		for seq := fromSeq; seq >= 1 && seq <= uint64(len(messages)); seq-- {
+			msg := messages[seq-1]
+			if msg.MessageSeq > maxSeq {
+				continue
+			}
+			out = append(out, cloneChannelV2Message(msg))
+			if len(out) >= limit || seq == 1 {
+				break
+			}
+		}
+		return channelstore.ReadCommittedResult{Messages: out}, nil
+	}
+	fromSeq := req.FromSeq
+	if fromSeq == 0 {
+		fromSeq = 1
+	}
+	for seq := fromSeq; seq <= maxSeq && seq <= uint64(len(messages)); seq++ {
+		out = append(out, cloneChannelV2Message(messages[seq-1]))
+		if len(out) >= limit {
+			break
+		}
+	}
+	return channelstore.ReadCommittedResult{Messages: out}, nil
+}
+
+func cloneChannelV2Message(msg channelv2.Message) channelv2.Message {
+	msg.Payload = append([]byte(nil), msg.Payload...)
+	return msg
 }
 
 type touchBatch struct {

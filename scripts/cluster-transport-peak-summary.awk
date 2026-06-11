@@ -25,6 +25,9 @@ BEGIN {
   if (tag == "") {
     tag = "unknown"
   }
+  if (node == "") {
+    node = "unknown"
+  }
   interval_seconds = interval + 0
   if (interval_seconds <= 0) {
     interval_seconds = 1
@@ -95,8 +98,9 @@ END {
     have_prev = 1
   }
 
-  printf "%s\t%.0f\t%.0f\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+  printf "%s\t%s\t%.0f\t%.0f\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\n",
     tag,
+    node,
     sample_points,
     sample_pairs,
     peak_cluster_bps / mib,

@@ -116,6 +116,8 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 		if state == nil {
 			state = newChannelState(e.target, r.limits)
 			r.states[key] = state
+		} else {
+			state.refreshRecipientMetadata(e.target)
 		}
 		if state.canAdmit(len(matching)) {
 			state.enqueuePrepared(matching)
@@ -135,6 +137,20 @@ func (r *reactor) applyPreparedCompletion(e prepareCompletedEvent) {
 		_, isPendingAppend := matchingIndex[index]
 		return !isPendingAppend
 	})
+}
+
+func (r *reactor) applySubscriberMutation(event subscriberMutationEvent) {
+	key := channelKey(event.update.ChannelID)
+	r.mu.Lock()
+	state := r.states[key]
+	if state != nil {
+		state.applySubscriberMutation(event.update)
+	}
+	r.mu.Unlock()
+	select {
+	case event.ack <- nil:
+	default:
+	}
 }
 
 func (e appendCompletedEvent) apply(r *reactor) {

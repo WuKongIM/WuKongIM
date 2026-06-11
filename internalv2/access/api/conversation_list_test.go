@@ -275,14 +275,22 @@ func assertJSONFieldAbsent(t *testing.T, body []byte, field string) {
 }
 
 type recordingConversationUsecase struct {
-	requests []conversationusecase.ListRequest
-	result   conversationusecase.ListResult
-	err      error
+	requests    []conversationusecase.ListRequest
+	result      conversationusecase.ListResult
+	err         error
+	syncQueries []conversationusecase.SyncQuery
+	syncResult  conversationusecase.SyncResult
+	syncErr     error
 }
 
 func (r *recordingConversationUsecase) List(_ context.Context, req conversationusecase.ListRequest) (conversationusecase.ListResult, error) {
 	r.requests = append(r.requests, req)
 	return r.result, r.err
+}
+
+func (r *recordingConversationUsecase) Sync(_ context.Context, req conversationusecase.SyncQuery) (conversationusecase.SyncResult, error) {
+	r.syncQueries = append(r.syncQueries, req)
+	return r.syncResult, r.syncErr
 }
 
 type recordingConversationListObserver struct {

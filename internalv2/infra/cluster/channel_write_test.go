@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelwrite"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestChannelWriteClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
@@ -21,6 +22,12 @@ func TestChannelWriteClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 			Epoch:       11,
 			LeaderEpoch: 7,
 		},
+		channel: metadb.Channel{
+			ChannelID:                 channelID.ID,
+			ChannelType:               int64(channelID.Type),
+			Large:                     1,
+			SubscriberMutationVersion: 19,
+		},
 	}
 	client := NewChannelWriteClient(node, nil)
 
@@ -31,8 +38,30 @@ func TestChannelWriteClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 	if node.calls != 1 || node.lastID.ID != "room" || node.lastID.Type != 2 {
 		t.Fatalf("node calls/id = %d/%#v, want one canonical resolve", node.calls, node.lastID)
 	}
-	if target.ChannelID != channelID || target.ChannelKey != "2:room" || target.LeaderNodeID != 3 || target.Epoch != 11 || target.LeaderEpoch != 7 {
+	if target.ChannelID != channelID || target.ChannelKey != "2:room" || target.LeaderNodeID != 3 || target.Epoch != 11 || target.LeaderEpoch != 7 ||
+		!target.Large || target.SubscriberMutationVersion != 19 {
 		t.Fatalf("target = %#v, want mapped authority fields", target)
+	}
+}
+
+func TestChannelWriteClientAllowsMissingChannelMetadata(t *testing.T) {
+	channelID := channelwrite.ChannelID{ID: "room", Type: 2}
+	client := NewChannelWriteClient(&channelWriteNodeForTest{
+		meta: channelv2.Meta{
+			ID:          channelv2.ChannelID{ID: channelID.ID, Type: channelID.Type},
+			Key:         "2:room",
+			Leader:      3,
+			Epoch:       11,
+			LeaderEpoch: 7,
+		},
+	}, nil)
+
+	target, err := client.ResolveAppendAuthority(context.Background(), channelID)
+	if err != nil {
+		t.Fatalf("ResolveAppendAuthority() error = %v, want missing metadata tolerated", err)
+	}
+	if target.Large || target.SubscriberMutationVersion != 0 {
+		t.Fatalf("target metadata = large:%v version:%d, want zero metadata defaults", target.Large, target.SubscriberMutationVersion)
 	}
 }
 
@@ -89,11 +118,12 @@ func TestChannelWriteClientForwardsRemoteResultsWithoutInterpretation(t *testing
 }
 
 type channelWriteNodeForTest struct {
-	nodeID uint64
-	meta   channelv2.Meta
-	err    error
-	lastID channelv2.ChannelID
-	calls  int
+	nodeID  uint64
+	meta    channelv2.Meta
+	channel metadb.Channel
+	err     error
+	lastID  channelv2.ChannelID
+	calls   int
 }
 
 func (n *channelWriteNodeForTest) NodeID() uint64 {
@@ -107,6 +137,16 @@ func (n *channelWriteNodeForTest) ResolveChannelAppendAuthority(_ context.Contex
 		return channelv2.Meta{}, n.err
 	}
 	return n.meta, nil
+}
+
+func (n *channelWriteNodeForTest) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
+	if n.err != nil {
+		return metadb.Channel{}, n.err
+	}
+	if n.channel.ChannelID == "" {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return n.channel, nil
 }
 
 type channelWriteRemoteForTest struct {

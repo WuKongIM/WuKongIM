@@ -18,21 +18,24 @@ type commitPorts struct {
 }
 
 type commitEffect struct {
-	key     string
-	seq     uint64
-	attempt int
-	event   CommittedEnvelope
+	key             string
+	seq             uint64
+	attempt         int
+	event           CommittedEnvelope
+	target          AuthorityTarget
+	subscriberCache subscriberCache
 }
 
 type commitCompletedEvent struct {
-	key           string
-	seq           uint64
-	attempt       int
-	err           error
-	result        string
-	event         CommittedEnvelope
-	detail        PostCommitFailureDetail
-	checkpointSeq uint64
+	key             string
+	seq             uint64
+	attempt         int
+	err             error
+	result          string
+	event           CommittedEnvelope
+	detail          PostCommitFailureDetail
+	checkpointSeq   uint64
+	subscriberCache subscriberCache
 }
 
 func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitCompletedEvent {
@@ -41,14 +44,14 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 	defer func() {
 		observeEffect(ports.observer, EffectObservation{Stage: "post_commit", Result: result, Items: 1, Duration: elapsedSince(startedAt)})
 	}()
-	err := dispatchCommittedRecipients(runtimeCtx, e.event, ports)
+	dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, e.event, e.subscriberCache, ports)
 	if err != nil {
 		result = errorClass(err)
 		detail := postCommitFailureDetailFromError(err)
 		err = fmt.Errorf("%w: %w", ErrCommitEffectFailed, err)
 		return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, err: err, result: result, event: e.event.Clone(), detail: detail}
 	}
-	return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, checkpointSeq: e.event.MessageSeq}
+	return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, checkpointSeq: e.event.MessageSeq, subscriberCache: dispatch.subscriberCache}
 }
 
 func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEvent {
@@ -84,6 +87,7 @@ func (r *reactor) recordCommitCompletion(event commitCompletedEvent) {
 	}
 	if event.err == nil {
 		backlogBefore := state.commitBacklog()
+		state.recordSubscriberCache(event.subscriberCache)
 		state.finishCommitSuccess(event.checkpointSeq)
 		r.addPostCommitBacklog(state.commitBacklog() - backlogBefore)
 		r.scheduleCommitLocked(event.key, state)

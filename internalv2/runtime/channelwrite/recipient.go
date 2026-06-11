@@ -10,25 +10,43 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 )
 
+const subscriberSnapshotLoadLimit = 1 << 30
+
+type recipientDispatchResult struct {
+	subscriberCache subscriberCache
+}
+
 func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
+	target := AuthorityTarget{
+		ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+		Large:     true,
+	}
+	_, err := dispatchCommittedRecipientsForTarget(ctx, target, event, subscriberCache{}, ports)
+	return err
+}
+
+func dispatchCommittedRecipientsForTarget(ctx context.Context, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
 	enqueuer := effectiveRecipientDeliveryEnqueuer(ports)
 	if ports.activeAdmitter == nil && enqueuer == nil {
-		return nil
+		return recipientDispatchResult{}, nil
 	}
 	if err := contextErr(ctx); err != nil {
-		return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
+		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
 	if len(event.MessageScopedUIDs) > 0 {
-		return dispatchRecipientSet(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
+		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
 	}
 	if event.ChannelType == channelTypePerson {
 		left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
 		if err != nil {
-			return withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
+			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
 		}
-		return dispatchRecipientSet(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
+		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
 	}
-	return dispatchSubscriberPages(ctx, event, ports)
+	if target.Large {
+		return recipientDispatchResult{}, dispatchSubscriberPages(ctx, event, ports)
+	}
+	return dispatchSubscriberSnapshot(ctx, target, event, cache, ports)
 }
 
 func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports commitPorts) error {
@@ -64,6 +82,40 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 		}
 		cursor = page.Cursor
 	}
+}
+
+func dispatchSubscriberSnapshot(ctx context.Context, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
+	if ports.subscribers == nil {
+		return recipientDispatchResult{}, nil
+	}
+	if cache.matches(target) {
+		return recipientDispatchResult{}, dispatchRecipientSet(ctx, event, cache.recipients, ports)
+	}
+	if err := contextErr(ctx); err != nil {
+		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
+	}
+	page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
+		ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+		Limit:     subscriberSnapshotLoadLimit,
+	})
+	if err != nil {
+		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "subscriber_snapshot"})
+	}
+	if !page.Done {
+		return recipientDispatchResult{}, withPostCommitFailureDetail(ErrInvalidSubscriberCursor, PostCommitFailureDetail{
+			Phase:          "subscriber_snapshot",
+			RecipientCount: len(page.Recipients),
+		})
+	}
+	nextCache := subscriberCache{
+		ready:           true,
+		mutationVersion: target.SubscriberMutationVersion,
+		recipients:      append([]Recipient(nil), page.Recipients...),
+	}
+	if err := dispatchRecipientSet(ctx, event, page.Recipients, ports); err != nil {
+		return recipientDispatchResult{}, err
+	}
+	return recipientDispatchResult{subscriberCache: nextCache}, nil
 }
 
 func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipients []Recipient, ports commitPorts) error {

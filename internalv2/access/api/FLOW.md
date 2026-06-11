@@ -9,9 +9,10 @@ request/response DTOs, and entry validation, but it does not mutate message,
 conversation, channel, user, or management business state directly. Channel
 management requests forward to the channel usecase supplied by the composition
 root, `/user*` requests forward to the user usecase, and compatible message
-send/sync requests forward to the message usecase. `/conversation/list`
-requests forward to the conversation usecase and keep ordering/cursor rules out
-of the HTTP layer. When the composition root provides a benchmark data writer,
+send/sync requests forward to the message usecase. `/conversation/list` and
+`/conversation/sync` requests forward to the conversation usecase and keep
+ordering, cursor rules, sync candidate selection, and message reads out of the
+HTTP layer. When the composition root provides a benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
 writer persists real clusterv2 Slot metadata.
@@ -22,7 +23,13 @@ writer persists real clusterv2 Slot metadata.
 GET  /healthz
 GET  /readyz
 GET  /metrics                         (optional, when MetricsHandler is configured)
+GET  /debug/config                    (optional, when DebugEnabled is configured)
+GET  /debug/cluster                   (optional, when DebugEnabled is configured)
+GET  /debug/goroutines                (optional, when PProfEnabled is configured)
 GET  /debug/pprof/*                   (optional, when PProfEnabled is configured)
+GET  /debug/diagnostics/trace/:trace_id (optional, when DiagnosticsDebugEnabled is configured)
+GET  /debug/diagnostics/message       (optional, when DiagnosticsDebugEnabled is configured)
+GET  /debug/diagnostics/events        (optional, when DiagnosticsDebugEnabled is configured)
 GET  /bench/v1/capabilities
 GET  /bench/v1/capacity-target
 GET  /bench/v1/snapshot
@@ -35,6 +42,7 @@ POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
 POST /message/send
 POST /conversation/list
+POST /conversation/sync
 POST /channel
 POST /channel/messagesync
 POST /channel/info
@@ -66,6 +74,15 @@ The `/bench/v1/*` routes are enabled only when the composition root passes
 `BenchEnabled=true`. They are unauthenticated and must be used only in controlled
 benchmark environments.
 
+The `/debug/config` and `/debug/cluster` routes are enabled only when the
+composition root passes snapshot callbacks and `DebugEnabled=true`. In
+`cmd/wukongimv2`, that switch is `WK_HEALTH_DEBUG_ENABLE`.
+
+The `/debug/diagnostics/*` routes are enabled only when the composition root
+passes both a diagnostics reader and `DiagnosticsDebugEnabled=true`. They query
+the node-local bounded diagnostics store and are intended for controlled
+performance and troubleshooting runs.
+
 The compatible `/channel*` routes are registered regardless of bench mode. They
 keep the existing request and response envelopes, including `{"status":200}`
 mutation success responses and `{"status":400,"msg":"..."}` validation errors.
@@ -89,7 +106,7 @@ and converts canonical person-channel IDs back to the peer UID for the logged-in
 user. If the composition root does not provide a message usecase, these routes
 fail closed using their legacy envelopes.
 
-The conversation list route is registered regardless of bench mode.
+The conversation list and sync routes are registered regardless of bench mode.
 `/conversation/list` accepts `uid`, `limit`, and an optional sorted conversation
 cursor based on `active_at`, `channel_id`, and `channel_type`. It delegates
 ordering, cursor application, active-page reads, and current-page last-message
@@ -104,6 +121,14 @@ low-cardinality conversation-list observation containing result, latency,
 returned item count, sparse item count, last-message load count, last-message
 error count, active-index stale skip count, and whether another active page is
 available.
+`/conversation/sync` accepts the legacy request fields `uid`, `version`,
+`last_msg_seqs`, `msg_count`, `only_unread`, `exclude_channel_types`, and
+`limit`. The adapter parses `last_msg_seqs`, normalizes person-channel peer IDs
+to canonical channel IDs before calling the usecase, and returns the legacy
+array response with `recents` when requested. Canonical person-channel IDs in
+conversation rows and recent messages are converted back to the peer UID for
+the requesting user. If the composition root does not provide a conversation
+usecase, the route fails closed with the compatible JSON error envelope.
 
 ## Phase-1 Semantics
 
@@ -126,13 +151,16 @@ Compatible channel and user management are adapters only. The channel adapter
 validates JSON fields, defaults `/channel/subscriber_add` with missing
 `channel_type` to group, rejects personal-channel subscriber mutations, and
 delegates durable metadata and member-list behavior to
-`internalv2/usecase/channel`. The user adapter maps JSON into
+`internalv2/usecase/channel`. Subscriber cache refresh for channelwrite runtime
+state is triggered by the composition root through the channel usecase observer,
+not by the HTTP adapter directly. The user adapter maps JSON into
 `internalv2/usecase/user` commands and does not access storage or presence
 directly. The message adapter decodes legacy HTTP payloads and trace headers
 but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
 The conversation adapter validates only request shape and UID presence; active
-index ordering, active cursor application, and current-page last-message reads
-stay in `internalv2/usecase/conversation`. The adapter observes successful and
-failed list requests without adding UID or channel labels, so performance
-triage can inspect list cost without increasing metrics cardinality.
+index ordering, active cursor application, sync candidate filtering, and
+message reads stay in `internalv2/usecase/conversation`. The adapter observes
+successful and failed list requests without adding UID or channel labels, so
+performance triage can inspect list cost without increasing metrics
+cardinality.

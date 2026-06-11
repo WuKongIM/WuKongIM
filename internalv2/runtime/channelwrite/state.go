@@ -23,11 +23,23 @@ type channelState struct {
 	commitCursor             int
 	commitInflight           bool
 	commitAttempts           int
+	// subscriberCache stores the full non-large subscriber snapshot for post-commit fanout.
+	subscriberCache subscriberCache
 }
 
 type channelStateLimits struct {
 	pendingItemHighWatermark int
 	appendInflightLimit      int
+}
+
+// subscriberCache is a versioned non-large channel subscriber snapshot.
+type subscriberCache struct {
+	// ready reports whether recipients contains a complete subscriber snapshot.
+	ready bool
+	// mutationVersion is the channel subscriber version used to invalidate recipients.
+	mutationVersion uint64
+	// recipients are cloned durable channel subscribers for non-large fanout.
+	recipients []Recipient
 }
 
 func newChannelState(target AuthorityTarget, limits channelStateLimits) *channelState {
@@ -43,6 +55,37 @@ func (s *channelState) enqueuePrepared(items []preparedSend) {
 		return
 	}
 	s.pendingItems = append(s.pendingItems, items...)
+}
+
+func (s *channelState) refreshRecipientMetadata(target AuthorityTarget) {
+	if s.target.Large != target.Large || s.target.SubscriberMutationVersion != target.SubscriberMutationVersion {
+		s.subscriberCache = subscriberCache{}
+	}
+	s.target.Large = target.Large
+	s.target.SubscriberMutationVersion = target.SubscriberMutationVersion
+}
+
+func (s *channelState) applySubscriberMutation(update SubscriberMutationUpdate) {
+	s.target.Large = update.Large
+	s.target.SubscriberMutationVersion = update.SubscriberMutationVersion
+	if update.Large {
+		s.subscriberCache = subscriberCache{}
+		return
+	}
+	if update.Reset {
+		s.subscriberCache = subscriberCache{
+			ready:           true,
+			mutationVersion: update.SubscriberMutationVersion,
+			recipients:      recipientsFromUIDs(update.AddedUIDs),
+		}
+		return
+	}
+	if !s.subscriberCache.ready {
+		return
+	}
+	s.subscriberCache.remove(update.RemovedUIDs)
+	s.subscriberCache.add(update.AddedUIDs)
+	s.subscriberCache.mutationVersion = update.SubscriberMutationVersion
 }
 
 func (s *channelState) canAdmit(count int) bool {
@@ -134,14 +177,23 @@ func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
 	event := s.committed[s.commitCursor].Clone()
 	s.commitAttempts++
 	effect := commitEffect{
-		key:     key,
-		seq:     s.nextCommitSeq,
-		attempt: s.commitAttempts,
-		event:   event,
+		key:             key,
+		seq:             s.nextCommitSeq,
+		attempt:         s.commitAttempts,
+		event:           event,
+		target:          s.target,
+		subscriberCache: s.subscriberCache.clone(),
 	}
 	s.nextCommitSeq++
 	s.commitInflight = true
 	return effect, true
+}
+
+func (s *channelState) recordSubscriberCache(cache subscriberCache) {
+	if s.target.Large || !cache.ready || cache.mutationVersion != s.target.SubscriberMutationVersion {
+		return
+	}
+	s.subscriberCache = cache.clone()
 }
 
 func (s *channelState) finishCommitSuccess(checkpointSeq uint64) {
@@ -195,4 +247,59 @@ func (s *channelState) pruneCommittedPrefixIfNeeded() {
 	clear(s.committed[len(s.committed)-s.commitCursor:])
 	s.committed = s.committed[:len(s.committed)-s.commitCursor]
 	s.commitCursor = 0
+}
+
+func (c subscriberCache) clone() subscriberCache {
+	c.recipients = append([]Recipient(nil), c.recipients...)
+	return c
+}
+
+func (c subscriberCache) matches(target AuthorityTarget) bool {
+	return !target.Large && c.ready && c.mutationVersion == target.SubscriberMutationVersion
+}
+
+func (c *subscriberCache) remove(uids []string) {
+	if c == nil || len(uids) == 0 || len(c.recipients) == 0 {
+		return
+	}
+	removed := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		if uid != "" {
+			removed[uid] = struct{}{}
+		}
+	}
+	if len(removed) == 0 {
+		return
+	}
+	out := c.recipients[:0]
+	for _, recipient := range c.recipients {
+		if _, ok := removed[recipient.UID]; ok {
+			continue
+		}
+		out = append(out, recipient)
+	}
+	clear(c.recipients[len(out):])
+	c.recipients = out
+}
+
+func (c *subscriberCache) add(uids []string) {
+	if c == nil || len(uids) == 0 {
+		return
+	}
+	seen := make(map[string]struct{}, len(c.recipients)+len(uids))
+	for _, recipient := range c.recipients {
+		if recipient.UID != "" {
+			seen[recipient.UID] = struct{}{}
+		}
+	}
+	for _, uid := range uids {
+		if uid == "" {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		c.recipients = append(c.recipients, Recipient{UID: uid})
+	}
 }

@@ -49,6 +49,9 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 512 {
 		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 512", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
 	}
+	if cfg.Channel.LargeGroupSubscriberThreshold != 500 {
+		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 500", cfg.Channel.LargeGroupSubscriberThreshold)
+	}
 }
 
 func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {
@@ -126,6 +129,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"WK_METRICS_ENABLE=true",
 		"WK_PPROF_ENABLE=true",
+		"WK_HEALTH_DEBUG_ENABLE=true",
 		"WK_EXTERNAL_TCPADDR=127.0.0.1:5142",
 		"WK_EXTERNAL_WSADDR=ws://127.0.0.1:5242",
 		"WK_EXTERNAL_WSSADDR=wss://127.0.0.1:5342",
@@ -149,6 +153,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=384",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
+		"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=600",
 		"WK_DELIVERY_ENABLE=true",
 		"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=10",
 		"WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=20",
@@ -260,6 +265,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		AuthorityAdmitBatchRows:     256,
 		AuthorityAdmitConcurrency:   8,
 	})
+	if cfg.Channel.LargeGroupSubscriberThreshold != 600 {
+		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 600", cfg.Channel.LargeGroupSubscriberThreshold)
+	}
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true")
 	}
@@ -325,6 +333,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if !cfg.Observability.PProfEnabled {
 		t.Fatalf("Observability.PProfEnabled = false, want true")
+	}
+	if !cfg.Observability.HealthDebugEnabled {
+		t.Fatalf("Observability.HealthDebugEnabled = false, want true")
 	}
 	if cfg.API.ExternalTCPAddr != "127.0.0.1:5142" || cfg.API.ExternalWSAddr != "ws://127.0.0.1:5242" || cfg.API.ExternalWSSAddr != "wss://127.0.0.1:5342" {
 		t.Fatalf("external gateway addrs = %#v", cfg.API)
@@ -403,6 +414,7 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 		"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0.02",
 		"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=125",
 		"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=7",
+		"WK_DIAGNOSTICS_DEBUG_API_ENABLE=true",
 		`WK_DIAGNOSTICS_DEBUG_MATCHES=[{"uid":"u1","channel_key":"person:u1:u2","client_msg_no":"c1","trace_id":"trace-1","ttl_seconds":60,"sample_rate":1},{"uid":"u2","sample_rate":0.5}]`,
 	)
 	writeConf(t, path, lines...)
@@ -436,6 +448,9 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 	}
 	if diagnostics.DeepMaxItemsPerBatch != 7 {
 		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 7", diagnostics.DeepMaxItemsPerBatch)
+	}
+	if !diagnostics.DebugAPIEnabled {
+		t.Fatalf("Diagnostics.DebugAPIEnabled = false, want true")
 	}
 	if len(diagnostics.DebugMatches) != 2 {
 		t.Fatalf("Diagnostics.DebugMatches len = %d, want 2: %#v", len(diagnostics.DebugMatches), diagnostics.DebugMatches)
@@ -555,6 +570,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
 	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
+	t.Setenv("WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD", "700")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", "7")
 	t.Setenv("WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS", "14")
@@ -578,6 +594,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_BENCH_API_ENABLE", "true")
 	t.Setenv("WK_METRICS_ENABLE", "true")
 	t.Setenv("WK_PPROF_ENABLE", "true")
+	t.Setenv("WK_HEALTH_DEBUG_ENABLE", "true")
 	t.Setenv("WK_DIAGNOSTICS_ENABLE", "false")
 	t.Setenv("WK_DIAGNOSTICS_BUFFER_SIZE", "32100")
 	t.Setenv("WK_DIAGNOSTICS_SAMPLE_RATE", "0.35")
@@ -586,6 +603,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DIAGNOSTICS_DEEP_SAMPLE_RATE", "0.02")
 	t.Setenv("WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS", "125")
 	t.Setenv("WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH", "7")
+	t.Setenv("WK_DIAGNOSTICS_DEBUG_API_ENABLE", "true")
 	t.Setenv("WK_DIAGNOSTICS_DEBUG_MATCHES", `[{"trace_id":"env-trace","ttl_seconds":30,"sample_rate":1}]`)
 
 	cfg, err := loadConfig([]string{"-config", path})
@@ -638,6 +656,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Conversation.MaxLastMessageConcurrency != 16 {
 		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
+	if cfg.Channel.LargeGroupSubscriberThreshold != 700 {
+		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 700", cfg.Channel.LargeGroupSubscriberThreshold)
+	}
 	if !cfg.Delivery.Enabled || cfg.Delivery.FanoutPageSize != 64 || cfg.Delivery.PushBatchSize != 32 ||
 		cfg.Delivery.ChannelWriteReactorCount != 7 ||
 		cfg.Delivery.ChannelWritePrepareWorkers != 14 ||
@@ -680,6 +701,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if !cfg.Observability.PProfEnabled {
 		t.Fatalf("Observability.PProfEnabled = false, want true")
 	}
+	if !cfg.Observability.HealthDebugEnabled {
+		t.Fatalf("Observability.HealthDebugEnabled = false, want true")
+	}
 	if cfg.Observability.Diagnostics.Enabled {
 		t.Fatalf("Diagnostics.Enabled = true, want env false")
 	}
@@ -703,6 +727,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Observability.Diagnostics.DeepMaxItemsPerBatch != 7 {
 		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 7", cfg.Observability.Diagnostics.DeepMaxItemsPerBatch)
+	}
+	if !cfg.Observability.Diagnostics.DebugAPIEnabled {
+		t.Fatalf("Diagnostics.DebugAPIEnabled = false, want env true")
 	}
 	if len(cfg.Observability.Diagnostics.DebugMatches) != 1 ||
 		cfg.Observability.Diagnostics.DebugMatches[0].TraceID != "env-trace" ||
@@ -811,6 +838,9 @@ func TestLoadConfigExampleFile(t *testing.T) {
 	if !cfg.Observability.MetricsEnabled {
 		t.Fatalf("Observability.MetricsEnabled = false, want true")
 	}
+	if cfg.Observability.HealthDebugEnabled {
+		t.Fatalf("Observability.HealthDebugEnabled = true, want false")
+	}
 	assertExampleDiagnostics(t, cfg.Observability.Diagnostics)
 }
 
@@ -843,6 +873,9 @@ func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 			}
 			if len(cfg.Gateway.Listeners) != 2 {
 				t.Fatalf("Gateway.Listeners len = %d, want 2", len(cfg.Gateway.Listeners))
+			}
+			if cfg.Observability.HealthDebugEnabled {
+				t.Fatalf("Observability.HealthDebugEnabled = true, want false")
 			}
 			assertExampleDiagnostics(t, cfg.Observability.Diagnostics)
 		})
@@ -932,6 +965,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority admit batch rows zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
 		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "conversation authority admit concurrency zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
+		{name: "channel large group subscriber threshold", line: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=many", wantKey: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"},
+		{name: "channel large group subscriber threshold negative", line: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=-1", wantKey: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
 		{name: "delivery channel write prepare workers", line: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=many", wantKey: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS"},
 		{name: "delivery channel write prepare workers negative", line: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS=-1", wantKey: "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS"},
@@ -977,6 +1012,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "diagnostics deep sample rate high", line: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=1.5", wantKey: "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE"},
 		{name: "diagnostics deep slow threshold negative", line: "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=-1", wantKey: "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS"},
 		{name: "diagnostics deep max items negative", line: "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=-1", wantKey: "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH"},
+		{name: "diagnostics debug api enable", line: "WK_DIAGNOSTICS_DEBUG_API_ENABLE=maybe", wantKey: "WK_DIAGNOSTICS_DEBUG_API_ENABLE"},
+		{name: "health debug enable", line: "WK_HEALTH_DEBUG_ENABLE=maybe", wantKey: "WK_HEALTH_DEBUG_ENABLE"},
 		{name: "diagnostics debug matches", line: "WK_DIAGNOSTICS_DEBUG_MATCHES=not-json", wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
 		{name: "diagnostics debug match sample rate negative", line: `WK_DIAGNOSTICS_DEBUG_MATCHES=[{"trace_id":"bad","ttl_seconds":1,"sample_rate":-0.1}]`, wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
 		{name: "diagnostics debug match ttl negative", line: `WK_DIAGNOSTICS_DEBUG_MATCHES=[{"trace_id":"bad","ttl_seconds":-1,"sample_rate":1}]`, wantKey: "WK_DIAGNOSTICS_DEBUG_MATCHES"},
@@ -1123,6 +1160,9 @@ func assertExampleDiagnostics(t *testing.T, diagnostics app.DiagnosticsConfig) {
 	}
 	if diagnostics.DeepMaxItemsPerBatch != 16 {
 		t.Fatalf("Diagnostics.DeepMaxItemsPerBatch = %d, want 16", diagnostics.DeepMaxItemsPerBatch)
+	}
+	if diagnostics.DebugAPIEnabled {
+		t.Fatalf("Diagnostics.DebugAPIEnabled = true, want false")
 	}
 	if len(diagnostics.DebugMatches) != 0 {
 		t.Fatalf("Diagnostics.DebugMatches len = %d, want 0", len(diagnostics.DebugMatches))

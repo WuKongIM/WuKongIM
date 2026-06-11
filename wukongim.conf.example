@@ -315,6 +315,8 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
 # WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY limits concurrent authority admission batches.
 # WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
+# WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD marks ordinary group channels large when subscriber count exceeds this threshold.
+# WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=500
 # Optional internalv2 online delivery fanout and owner-local recvack tracking.
 # WK_DELIVERY_ENABLE=false
 # WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT controls channel-hashed authority reactors for SEND append admission; zero derives a CPU-aware default.

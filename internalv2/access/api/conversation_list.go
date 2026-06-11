@@ -53,6 +53,7 @@ func (s *Server) registerConversationRoutes() {
 		return
 	}
 	s.engine.POST("/conversation/list", s.handleConversationList)
+	s.engine.POST("/conversation/sync", s.handleConversationSync)
 }
 
 func (s *Server) handleConversationList(c *gin.Context) {

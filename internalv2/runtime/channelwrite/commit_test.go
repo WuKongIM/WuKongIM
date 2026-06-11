@@ -3,6 +3,7 @@ package channelwrite
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -178,6 +179,145 @@ func TestCommitEffectFailuresDropThenAdvance(t *testing.T) {
 		t.Fatalf("recipient delivery enqueue message ids = %#v, want failures dropped then next events", got)
 	}
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+}
+
+func TestNonLargeGroupSubscriberSnapshotCachedInChannelState(t *testing.T) {
+	source := &recordingSubscriberSourceForRecipientTest{
+		pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}, {UID: "u3"}}, Done: true}},
+	}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1150),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		Subscribers:                source,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientBatchSize:         16,
+		SubscriberPageSize:         1,
+	})
+	target := localTargetForAppendTest("room")
+	target.SubscriberMutationVersion = 7
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "one"),
+		appendSendItemForTest("u1", "room", "two"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1150, 1)
+	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1151, 2)
+
+	enqueuer.waitCalls(t, 2)
+	if source.calls != 1 {
+		t.Fatalf("subscriber source calls = %d, want one cached non-large snapshot load", source.calls)
+	}
+	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3", "u2", "u3"}) {
+		t.Fatalf("recipient uids = %#v, want cached subscribers dispatched for both messages", got)
+	}
+	if !reflect.DeepEqual(source.limits, []int{subscriberSnapshotLoadLimit}) {
+		t.Fatalf("subscriber load limits = %#v, want one snapshot load", source.limits)
+	}
+}
+
+func TestSubscriberMutationUpdatePatchesCachedSnapshot(t *testing.T) {
+	source := &recordingSubscriberSourceForRecipientTest{
+		pages: []SubscriberPage{{Recipients: []Recipient{{UID: "u2"}, {UID: "u3"}}, Done: true}},
+	}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1170),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		Subscribers:                source,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientBatchSize:         16,
+		SubscriberPageSize:         1,
+	})
+	target := localTargetForAppendTest("room")
+	target.SubscriberMutationVersion = 1
+
+	first, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "one"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal(first) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, first), 0, 1170, 1)
+	enqueuer.waitCalls(t, 1)
+
+	if err := group.ApplySubscriberMutation(context.Background(), SubscriberMutationUpdate{
+		ChannelID:                 target.ChannelID,
+		SubscriberMutationVersion: 2,
+		AddedUIDs:                 []string{"u4"},
+		RemovedUIDs:               []string{"u2"},
+	}); err != nil {
+		t.Fatalf("ApplySubscriberMutation() error = %v", err)
+	}
+	target.SubscriberMutationVersion = 2
+	second, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "two"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal(second) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, second), 0, 1171, 2)
+	enqueuer.waitCalls(t, 2)
+
+	if source.calls != 1 {
+		t.Fatalf("subscriber source calls = %d, want cached snapshot patched without reload", source.calls)
+	}
+	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3", "u3", "u4"}) {
+		t.Fatalf("recipient uids = %#v, want patched cached subscribers", got)
+	}
+}
+
+func TestLargeGroupSubscribersRemainPagedPerCommittedMessage(t *testing.T) {
+	source := &recordingSubscriberSourceForRecipientTest{
+		pages: []SubscriberPage{
+			{Recipients: []Recipient{{UID: "u2"}}, Cursor: "next"},
+			{Recipients: []Recipient{{UID: "u3"}}, Done: true},
+			{Recipients: []Recipient{{UID: "u2"}}, Cursor: "next"},
+			{Recipients: []Recipient{{UID: "u3"}}, Done: true},
+		},
+	}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1160),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		Subscribers:                source,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientBatchSize:         16,
+		SubscriberPageSize:         1,
+	})
+	target := localTargetForAppendTest("room")
+	target.Large = true
+	target.SubscriberMutationVersion = 9
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "one"),
+		appendSendItemForTest("u1", "room", "two"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1160, 1)
+	requireAppendSuccess(t, waitFutureForTest(t, future), 1, 1161, 2)
+
+	enqueuer.waitCalls(t, 4)
+	if source.calls != 4 {
+		t.Fatalf("subscriber page calls = %d, want two pages per large-group message", source.calls)
+	}
+	if !reflect.DeepEqual(source.limits, []int{1, 1, 1, 1}) {
+		t.Fatalf("subscriber page limits = %#v, want configured page size for large groups", source.limits)
+	}
+	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3", "u2", "u3"}) {
+		t.Fatalf("recipient uids = %#v, want paged subscribers for both messages", got)
+	}
 }
 
 func TestBlockedCommitBacklogBackpressuresLaterSubmit(t *testing.T) {
@@ -436,6 +576,18 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) messageIDs() []uint64 {
 	out := make([]uint64, 0, len(r.batches))
 	for _, batch := range r.batches {
 		out = append(out, batch.Event.MessageID)
+	}
+	return out
+}
+
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) recipientUIDs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []string
+	for _, batch := range r.batches {
+		for _, recipient := range batch.Recipients {
+			out = append(out, recipient.UID)
+		}
 	}
 	return out
 }

@@ -40,6 +40,8 @@ type Config struct {
 	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
+	// Channel configures channel management behavior.
+	Channel ChannelConfig
 	// Conversation configures conversation authority and list reads.
 	Conversation ConversationConfig
 	// Presence configures connection-route activation and authority touch behavior.
@@ -88,6 +90,8 @@ type ObservabilityConfig struct {
 	MetricsEnabled bool
 	// PProfEnabled exposes net/http/pprof endpoints on the API listener.
 	PProfEnabled bool
+	// HealthDebugEnabled exposes local debug snapshot endpoints on the API listener.
+	HealthDebugEnabled bool
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
 
@@ -124,6 +128,8 @@ type DiagnosticsConfig struct {
 	DeepSlowThreshold time.Duration
 	// DeepMaxItemsPerBatch bounds how many traced messages one deep batch may expand into events.
 	DeepMaxItemsPerBatch int
+	// DebugAPIEnabled enables local diagnostics debug HTTP endpoints on the API listener.
+	DebugAPIEnabled bool
 	// DebugMatches configures temporary high-priority sampling rules.
 	DebugMatches []DiagnosticsDebugMatchConfig
 }
@@ -178,6 +184,12 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 
 // MessageConfig contains message usecase settings.
 type MessageConfig struct{}
+
+// ChannelConfig contains channel management settings.
+type ChannelConfig struct {
+	// LargeGroupSubscriberThreshold marks a channel large when ordinary subscriber count exceeds it.
+	LargeGroupSubscriberThreshold int
+}
 
 // ConversationConfig contains conversation authority and read-model settings.
 type ConversationConfig struct {
@@ -289,24 +301,31 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	return cfg
 }
 
+func defaultChannelConfig(cfg ChannelConfig) ChannelConfig {
+	if cfg.LargeGroupSubscriberThreshold == 0 {
+		cfg.LargeGroupSubscriberThreshold = 500
+	}
+	return cfg
+}
+
 func defaultChannelWriteReactorCount() int {
 	return appMaxInt(4, runtime.GOMAXPROCS(0))
 }
 
 func defaultChannelWritePrepareWorkers() int {
-	return 8
+	return 100
 }
 
 func defaultChannelWriteAppendWorkers() int {
-	return 96
+	return 2000
 }
 
 func defaultChannelWritePostCommitWorkers() int {
-	return 8
+	return 1000
 }
 
 func defaultChannelWriteRecipientDispatchConcurrency() int {
-	return 4
+	return 100
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
@@ -405,6 +424,13 @@ func validatePresenceConfig(cfg PresenceConfig) error {
 	}
 	if cfg.RouteTTL < 0 {
 		return fmt.Errorf("%w: presence route ttl must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateChannelConfig(cfg ChannelConfig) error {
+	if cfg.LargeGroupSubscriberThreshold <= 0 {
+		return fmt.Errorf("%w: channel large group subscriber threshold must be positive", ErrInvalidConfig)
 	}
 	return nil
 }

@@ -34,12 +34,15 @@ New(Config)
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
-       without exposing HTTP debug APIs
+       and expose local diagnostics debug APIs only when
+       Observability.Diagnostics.DebugAPIEnabled=true
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when the cluster exposes channel metadata APIs:
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
-       and, when exposed by the cluster, wire the same adapter as the
-       UID-owned membership projection index
+       and the configured large-group subscriber threshold, wire a subscriber
+       mutation observer that updates channelwrite channel-state caches, and,
+       when exposed by the cluster, wire the same adapter as the UID-owned
+       membership projection index
   -> when the cluster exposes conversation metadata reads:
        create an infra/cluster read adapter for channel-owned last visible
        message reads and DB-only UID-owned active conversation pages
@@ -85,8 +88,9 @@ New(Config)
      clusterv2 committed message reader when exposed for channel message sync
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
-     usecases, optional bench presence snapshot controller, and real benchmark
-     channel/subscriber data writer when API.ListenAddr is configured
+     usecases, optional debug snapshots, optional bench presence snapshot
+     controller, and real benchmark channel/subscriber data writer when
+     API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -192,7 +196,11 @@ Legacy channel management requests flow from internalv2 HTTP through
 Mutations are proposed through Slot ownership; reads use the current routed Slot
 metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
 through the UID-owned membership facade for compatible metadata reads; the
-conversation list itself pages UID-owned active conversation rows instead.
+conversation list itself pages UID-owned active conversation rows instead. When
+the channelwrite group is available, the app-level subscriber mutation observer
+forwards the final large-group flag and subscriber mutation version to
+`channelwrite.Group.ApplySubscriberMutation` so non-large channel subscriber
+snapshots cached in `channelState` stay aligned with API mutations.
 
 Conversation list reads flow from entry adapters through
 `internalv2/usecase/conversation`. When the cluster exposes the conversation

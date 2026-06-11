@@ -32,6 +32,7 @@ PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
+RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
@@ -74,6 +75,8 @@ Options:
   --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
   --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
+  --resource-interval SECS
+                         Server process CPU/memory sample interval. 0 disables periodic sampling. Default: 1.
   -h, --help             Show this help.
 
 Example:
@@ -98,6 +101,12 @@ require_positive_int() {
   local value="$2"
   [[ "$value" =~ ^[0-9]+$ ]] || die "$name must be a positive integer: $value"
   (( value > 0 )) || die "$name must be a positive integer: $value"
+}
+
+require_nonnegative_number() {
+  local name="$1"
+  local value="$2"
+  [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "$name must be a non-negative number: $value"
 }
 
 split_csv() {
@@ -247,6 +256,11 @@ while [[ $# -gt 0 ]]; do
       METRICS_ADDRS="$2"
       shift 2
       ;;
+    --resource-interval)
+      [[ $# -ge 2 ]] || die '--resource-interval requires a value'
+      RESOURCE_SAMPLE_INTERVAL="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -262,6 +276,7 @@ require_positive_int '--users' "$USERS"
 require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
+require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
 case "$SENDER_PICK" in
   first_online|round_robin)
@@ -293,8 +308,10 @@ split_csv "$METRICS_ADDRS" METRICS_VALUES
 
 WORKER_PID=""
 CLUSTER_PID=""
+RESOURCE_SAMPLER_PID=""
 
 cleanup() {
+  stop_server_resource_sampler
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
     curl -fsS -X POST "${WORKER_ADDR%/}/v1/stop" >/dev/null 2>&1 || true
@@ -645,6 +662,191 @@ capture_node_pprof() {
   done
 }
 
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+is_nonnegative_number() {
+  [[ "$1" =~ ^[0-9]+([.][0-9]+)?$ ]]
+}
+
+is_nonnegative_int() {
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+server_pid_from_log() {
+  local node="$1"
+  local log_file="$OUT_DIR/cluster-start.log"
+  [[ -f "$log_file" ]] || return 0
+  awk -v node="node${node}" '
+    index($0, node " pid=") {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^pid=/) {
+          sub(/^pid=/, "", $i)
+          pid = $i
+        }
+      }
+    }
+    END {
+      if (pid != "") {
+        print pid
+      }
+    }
+  ' "$log_file"
+}
+
+server_pid_from_process_table() {
+  local node="$1"
+  local config="$ROOT_DIR/scripts/wukongimv2/wukongimv2-node${node}.conf"
+  pgrep -f "$config" 2>/dev/null | head -n 1 || true
+}
+
+server_pid_for_node() {
+  local node="$1"
+  local pid
+  pid="$(server_pid_from_log "$node" || true)"
+  if [[ -z "$pid" ]]; then
+    pid="$(server_pid_from_process_table "$node")"
+  fi
+  printf '%s' "$pid"
+}
+
+write_resource_error_sample() {
+  local phase="$1"
+  local node_name="$2"
+  local reason="$3"
+  local ts
+  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  mkdir -p "$OUT_DIR/resources"
+  printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":null,"error":"%s"}\n' \
+    "$ts" "$phase" "$node_name" "$(json_escape "$reason")" >>"$OUT_DIR/resources/server-process.jsonl" || true
+  return 0
+}
+
+sample_server_resources() {
+  local phase="$1"
+  local ts node node_name pid line cpu mem rss vsz elapsed command
+  ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  mkdir -p "$OUT_DIR/resources"
+  for node in 1 2 3; do
+    node_name="node${node}"
+    pid="$(server_pid_for_node "$node")"
+    if [[ -z "$pid" ]]; then
+      write_resource_error_sample "$phase" "$node_name" "pid_not_found"
+      continue
+    fi
+    line="$(LC_ALL=C ps -p "$pid" -o pcpu= -o pmem= -o rss= -o vsz= -o etime= -o comm= 2>/dev/null || true)"
+    if [[ -z "${line//[[:space:]]/}" ]]; then
+      write_resource_error_sample "$phase" "$node_name" "ps_sample_unavailable"
+      continue
+    fi
+    read -r cpu mem rss vsz elapsed command <<<"$line"
+    if ! is_nonnegative_number "$cpu" || ! is_nonnegative_number "$mem" || ! is_nonnegative_int "$rss" || ! is_nonnegative_int "$vsz"; then
+      write_resource_error_sample "$phase" "$node_name" "invalid_ps_sample"
+      continue
+    fi
+    printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":%s,"cpu_percent":%.3f,"mem_percent":%.3f,"rss_kb":%s,"vsz_kb":%s,"elapsed":"%s","command":"%s"}\n' \
+      "$ts" "$phase" "$node_name" "$pid" "$cpu" "$mem" "$rss" "$vsz" "$elapsed" "$(json_escape "$command")" \
+      >>"$OUT_DIR/resources/server-process.jsonl" || true
+  done
+  return 0
+}
+
+resource_periodic_sampling_enabled() {
+  awk -v interval="$RESOURCE_SAMPLE_INTERVAL" 'BEGIN { exit !(interval > 0) }'
+}
+
+start_server_resource_sampler() {
+  sample_server_resources before || true
+  if ! resource_periodic_sampling_enabled; then
+    return
+  fi
+  (
+    while true; do
+      sleep "$RESOURCE_SAMPLE_INTERVAL"
+      sample_server_resources interval || true
+    done
+  ) &
+  RESOURCE_SAMPLER_PID="$!"
+}
+
+stop_server_resource_sampler() {
+  if [[ -n "$RESOURCE_SAMPLER_PID" ]]; then
+    kill "$RESOURCE_SAMPLER_PID" >/dev/null 2>&1 || true
+    wait "$RESOURCE_SAMPLER_PID" 2>/dev/null || true
+    RESOURCE_SAMPLER_PID=""
+  fi
+}
+
+write_server_resource_summary() {
+  local samples="$OUT_DIR/resources/server-process.jsonl"
+  local summary="$OUT_DIR/resources/server-process-summary.tsv"
+  mkdir -p "$OUT_DIR/resources"
+  if [[ ! -f "$samples" ]]; then
+    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\n' >"$summary" || true
+    return 0
+  fi
+  awk '
+    function json_number(key, line, pattern, rest) {
+      pattern = "\"" key "\":"
+      pos = index(line, pattern)
+      if (pos == 0) return ""
+      rest = substr(line, pos + length(pattern))
+      sub(/[,}].*/, "", rest)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", rest)
+      return rest
+    }
+    function json_string(key, line, pattern, rest) {
+      pattern = "\"" key "\":\""
+      pos = index(line, pattern)
+      if (pos == 0) return ""
+      rest = substr(line, pos + length(pattern))
+      sub(/".*/, "", rest)
+      return rest
+    }
+    BEGIN {
+      print "node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb"
+    }
+    {
+      node = json_string("node", $0)
+      pid = json_number("pid", $0)
+      if (node == "" || pid == "" || pid == "null") next
+      cpu = json_number("cpu_percent", $0) + 0
+      mem = json_number("mem_percent", $0) + 0
+      rss = json_number("rss_kb", $0) + 0
+      vsz = json_number("vsz_kb", $0) + 0
+      samples[node]++
+      last_pid[node] = pid
+      cpu_sum[node] += cpu
+      mem_sum[node] += mem
+      if (samples[node] == 1 || cpu > cpu_max[node]) cpu_max[node] = cpu
+      if (samples[node] == 1 || mem > mem_max[node]) mem_max[node] = mem
+      if (samples[node] == 1 || rss > rss_max[node]) rss_max[node] = rss
+      if (samples[node] == 1 || vsz > vsz_max[node]) vsz_max[node] = vsz
+    }
+    END {
+      for (i = 1; i <= 3; i++) {
+        node = "node" i
+        if (samples[node] == 0) continue
+        printf "%s\t%s\t%d\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+          node,
+          last_pid[node],
+          samples[node],
+          cpu_sum[node] / samples[node],
+          cpu_max[node],
+          mem_sum[node] / samples[node],
+          mem_max[node],
+          rss_max[node],
+          vsz_max[node]
+      }
+    }
+  ' "$samples" >"$summary" || {
+    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\n' >"$summary" || true
+    return 0
+  }
+  return 0
+}
+
 classify_metrics() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -784,12 +986,22 @@ cluster_transport_peak_summary() {
   local metrics_dir="$OUT_DIR/metrics/$tag"
   local out="$OUT_DIR/cluster_transport_peak_summary.tsv"
   local summarizer="$ROOT_DIR/scripts/cluster-transport-peak-summary.awk"
-  local samples=("$metrics_dir"/*-sample-*.prom)
-  if [[ ! -e "${samples[0]}" ]]; then
-    printf '%s\t0\t0\t0.000\t0.000\t0.000\t0.000\t0\t0\n' "$tag" >>"$out"
+  local addr id
+  local wrote=0
+  local samples=()
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      continue
+    fi
+    wrote=1
+    awk -v tag="$tag" -v node="$id" -v interval="$RUNTIME_POOL_SAMPLE_INTERVAL" -f "$summarizer" "${samples[@]}" >>"$out" || true
+  done
+  if [[ "$wrote" -eq 0 ]]; then
+    printf '%s\tunknown\t0\t0\t0.000\t0.000\t0.000\t0.000\t0\t0\n' "$tag" >>"$out"
     return
   fi
-  awk -v tag="$tag" -v interval="$RUNTIME_POOL_SAMPLE_INTERVAL" -f "$summarizer" "${samples[@]}" >>"$out" || true
 }
 
 run_attempt() {
@@ -900,6 +1112,7 @@ START_SCRIPT=$START_SCRIPT
 READY_TIMEOUT=$READY_TIMEOUT
 PROFILE_SECONDS=$PROFILE_SECONDS
 RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
+RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF
   mkdir -p "$OUT_DIR/config"
   cp "$ROOT_DIR"/scripts/wukongimv2/wukongimv2-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
@@ -926,10 +1139,11 @@ write_display_summary() {
       }
       close(rpc_file)
 
-      print "# bench result"
-      printf "p99 gate: <= %.0f ms, send_errors: 0\n\n", p99_limit * 1000
+      print "BENCH RESULT"
+      print "------------"
+      printf "p99 gate: <= %.0f ms | send_errors: 0\n", p99_limit * 1000
       printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
-      printf "%-9s %10s %10s %8s %8s %9s %9s %12s %s\n", "offered", "actual", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
+      printf "%9s %10s %7s %8s %8s %8s %8s %8s %12s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
     }
     NR == 1 {
       next
@@ -976,7 +1190,7 @@ write_display_summary() {
         best_p99 = p99
         best_rpc = rpc_qps[tag]
       }
-      printf "%-9.0f %10.1f %10s %8.0f %8.1f %9.1f %9.1f %12.1f %s\n", offered, actual, result, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], note
+      printf "%9.0f %10.1f %7.3f %8s %8.0f %8.1f %8.1f %8.1f %12.1f %s\n", offered, actual, actual_ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], note
     }
     END {
       print ""
@@ -987,14 +1201,16 @@ write_display_summary() {
       }
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
+  append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv" >>"$OUT_DIR/summary.txt"
   append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
   append_channelwrite_pool_pressure_display "$OUT_DIR/channelwrite_metrics_summary.tsv" >>"$OUT_DIR/summary.txt"
   append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
-append_runtime_pool_pressure_display() {
+append_server_resource_peak_display() {
   local file="$1"
-  printf '\n# runtime pool pressure\n'
+  printf '\nSERVER PROCESS PEAKS\n'
+  printf '%s\n' '--------------------'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
@@ -1003,33 +1219,25 @@ append_runtime_pool_pressure_display() {
     NR == 1 { next }
     {
       entries++
-      fill = $9 + 0
-      inflight_util = $15 + 0
-      pool_key = $2 "\034" $3 "\034" $4
-      if ((fill >= 0.9 || inflight_util >= 0.9) && !(pool_key in over90_seen)) {
-        over90_seen[pool_key] = 1
-        over90_pools++
+      node[entries] = $1
+      pid[entries] = $2
+      samples[entries] = $3 + 0
+      avg_cpu[entries] = $4 + 0
+      max_cpu[entries] = $5 + 0
+      avg_mem[entries] = $6 + 0
+      max_mem[entries] = $7 + 0
+      max_rss_kb[entries] = $8 + 0
+      if (entries == 1 || max_cpu[entries] > peak_cpu) {
+        peak_cpu = max_cpu[entries]
+        peak_cpu_node = $1
       }
-      full += $16 + 0
-      busy += $17 + 0
-      dirty += $18 + 0
-      requeued += $19 + 0
-      if (fill > max_fill) {
-        max_fill = fill
+      if (entries == 1 || max_mem[entries] > peak_mem) {
+        peak_mem = max_mem[entries]
+        peak_mem_node = $1
       }
-      if (inflight_util > max_inflight_util) {
-        max_inflight_util = inflight_util
-      }
-      score = fill + inflight_util
-      if ($20 != "") {
-        score += 1
-      }
-      if (($16 + $17 + $18 + $19) > 0) {
-        score += 1
-      }
-      if (score > worst_score) {
-        worst_score = score
-        worst = sprintf("tag=%s node=%s pool=%s/%s queue=%s priority=%s reason=%s", $1, $2, $3, $4, $5, $6, $20)
+      if (entries == 1 || max_rss_kb[entries] > peak_rss_kb) {
+        peak_rss_kb = max_rss_kb[entries]
+        peak_rss_node = $1
       }
     }
     END {
@@ -1037,15 +1245,103 @@ append_runtime_pool_pressure_display() {
         print "none"
         exit
       }
-      printf "entries=%.0f over90_pools=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
-        entries, over90_pools, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+      printf "peak_cpu=%s %.3f%% peak_rss=%s %.3fMiB peak_mem=%s %.3f%% details=resources/server-process-summary.tsv\n",
+        peak_cpu_node, peak_cpu, peak_rss_node, peak_rss_kb / 1024, peak_mem_node, peak_mem
+      printf "%-8s %7s %8s %9s %9s %12s %9s\n", "node", "samples", "pid", "avg_cpu%", "max_cpu%", "max_rssMiB", "max_mem%"
+      for (i = 1; i <= entries; i++) {
+        printf "%-8s %7.0f %8s %9.3f %9.3f %12.3f %9.3f\n",
+          node[i], samples[i], pid[i], avg_cpu[i], max_cpu[i], max_rss_kb[i] / 1024, max_mem[i]
+      }
+    }
+  ' "$file"
+}
+
+append_runtime_pool_pressure_display() {
+  local file="$1"
+  printf '\nRUNTIME POOL PRESSURE\n'
+  printf '%s\n' '---------------------'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    NR == 1 { next }
+    {
+      node = $2
+      remember_node(node)
+      fill = $9 + 0
+      inflight_util = $15 + 0
+      full = $16 + 0
+      busy = $17 + 0
+      dirty = $18 + 0
+      requeued = $19 + 0
+      reason = $20
+      pool = $3 "/" $4 "/" $5
+
+      pressure_pools[node]++
+      pool_key = node "\034" $3 "\034" $4 "\034" $5 "\034" $6
+      if ((fill >= 0.9 || inflight_util >= 0.9) && !(pool_key in over90_seen)) {
+        over90_seen[pool_key] = 1
+        hot_pools[node]++
+      }
+      full_sum[node] += full
+      busy_sum[node] += busy
+      dirty_sum[node] += dirty
+      requeued_sum[node] += requeued
+      if (fill > max_fill[node]) {
+        max_fill[node] = fill
+      }
+      if (inflight_util > max_inflight_util[node]) {
+        max_inflight_util[node] = inflight_util
+      }
+      score = fill + inflight_util
+      if (reason != "") {
+        score += 1
+      }
+      if ((full + busy + dirty + requeued) > 0) {
+        score += 1
+      }
+      if (score > worst_score[node]) {
+        worst_score[node] = score
+        worst_pool[node] = pool
+        worst_reason[node] = reason
+      }
+      if (score > global_worst_score) {
+        global_worst_score = score
+        global_worst_node = node
+        global_worst_pool = pool
+        global_worst_reason = reason
+      }
+    }
+    END {
+      if (node_count == 0) {
+        print "none"
+        exit
+      }
+      printf "worst_node=%s worst_pool=%s reason=%s details=runtime_pool_pressure_summary.tsv\n",
+        global_worst_node, global_worst_pool, global_worst_reason
+      printf "%-16s %14s %9s %10s %12s %7s %7s %7s %8s %-28s %s\n",
+        "node", "pressure_pools", "hot_pools", "max_qfill", "max_inflight", "full", "busy", "dirty", "requeue", "worst_pool", "reason"
+      for (i = 1; i <= node_count; i++) {
+        node = node_order[i]
+        printf "%-16s %14.0f %9.0f %10.3f %12.3f %7.0f %7.0f %7.0f %8.0f %-28s %s\n",
+          node, pressure_pools[node], hot_pools[node], max_fill[node], max_inflight_util[node],
+          full_sum[node], busy_sum[node], dirty_sum[node], requeued_sum[node], worst_pool[node], worst_reason[node]
+      }
     }
   ' "$file"
 }
 
 append_channelwrite_pool_pressure_display() {
   local file="$1"
-  printf '\n# channelwrite pool pressure\n'
+  printf '\nCHANNELWRITE POOL PRESSURE\n'
+  printf '%s\n' '--------------------------'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
@@ -1058,6 +1354,18 @@ append_channelwrite_pool_pressure_display() {
       }
       return $col + 0
     }
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    function add_reason(reason, item) {
+      if (reason == "") {
+        return item
+      }
+      return reason "," item
+    }
     NR == 1 {
       for (i = 1; i <= NF; i++) {
         idx[$i] = i
@@ -1065,45 +1373,71 @@ append_channelwrite_pool_pressure_display() {
       next
     }
     {
-      entries++
-      submit += metric_value("effect_pool_submit_delta")
-      full += metric_value("effect_pool_full_delta")
-      errors += metric_value("effect_pool_error_delta")
-      over90_pools += metric_value("effect_pool_over90_count")
-      util = metric_value("effect_pool_util_max")
-      saturated = metric_value("effect_pool_saturated_max")
-      if (util > max_util) {
-        max_util = util
-      }
-      if (saturated > max_saturated) {
-        max_saturated = saturated
-      }
-      score = util + saturated
-      if (metric_value("effect_pool_full_delta") > 0) {
-        score += 1
-      }
-      if (metric_value("effect_pool_error_delta") > 0) {
-        score += 1
-      }
+      node = $2
+      remember_node(node)
+      router_total[node] = metric_value("router_total_delta")
+      route_block[node] = metric_value("router_backpressured_delta") + metric_value("router_channel_busy_delta") + metric_value("router_route_not_ready_delta") + metric_value("router_timeout_delta")
+      router_errors[node] = metric_value("router_error_delta")
+      local_reject[node] = metric_value("local_admission_rejected_delta")
+      router_avg_ms[node] = metric_value("router_avg_ms")
+      mailbox_fill[node] = metric_value("mailbox_fill_max")
+      pending_append[node] = metric_value("pending_append_max")
+      post_backlog[node] = metric_value("post_commit_backlog_max")
+      effect_avg_ms[node] = metric_value("effect_avg_ms")
+      effect_util[node] = metric_value("effect_pool_util_max")
+      pool_full[node] = metric_value("effect_pool_full_delta")
+      pool_error[node] = metric_value("effect_pool_error_delta")
+      saturated[node] = metric_value("effect_pool_saturated_max")
+      over90[node] = metric_value("effect_pool_over90_count")
+
+      reason = ""
+      if (router_errors[node] > 0) reason = add_reason(reason, "router_error")
+      if (route_block[node] > 0) reason = add_reason(reason, "route_block")
+      if (local_reject[node] > 0) reason = add_reason(reason, "local_reject")
+      if (mailbox_fill[node] >= 0.5) reason = add_reason(reason, "mailbox_fill")
+      if (pending_append[node] > 0) reason = add_reason(reason, "pending_append")
+      if (post_backlog[node] > 0) reason = add_reason(reason, "post_commit_backlog")
+      if (pool_full[node] > 0) reason = add_reason(reason, "effect_pool_full")
+      if (pool_error[node] > 0) reason = add_reason(reason, "effect_pool_error")
+      if (effect_util[node] >= 0.9 || saturated[node] > 0 || over90[node] > 0) reason = add_reason(reason, "effect_pool_hot")
+      if (reason == "") reason = "ok"
+      reason_by_node[node] = reason
+
+      score = mailbox_fill[node] + effect_util[node]
+      if (router_errors[node] > 0) score += 1
+      if (route_block[node] > 0) score += 1
+      if (local_reject[node] > 0) score += 1
+      if (pending_append[node] > 0 || post_backlog[node] > 0) score += 1
+      if (pool_full[node] > 0 || pool_error[node] > 0 || saturated[node] > 0 || over90[node] > 0) score += 1
       if (score > worst_score) {
         worst_score = score
-        worst = sprintf("tag=%s node=%s", $1, $2)
+        worst_node = node
+        worst_reason = reason
       }
     }
     END {
-      if (entries == 0) {
+      if (node_count == 0) {
         print "none"
         exit
       }
-      printf "entries=%.0f over90_pools=%.0f submit=%.0f full=%.0f errors=%.0f max_util=%.3f saturated=%.0f worst=%s details=channelwrite_metrics_summary.tsv\n",
-        entries, over90_pools, submit, full, errors, max_util, max_saturated, worst
+      printf "worst_node=%s reason=%s details=channelwrite_metrics_summary.tsv\n", worst_node, worst_reason
+      printf "%-16s %8s %11s %9s %9s %10s %8s %12s %9s %11s %9s %8s %9s %s\n",
+        "node", "router", "route_block", "local_rej", "router_ms", "mailbox", "pending", "post_backlog", "effect_ms", "effect_util", "pool_full", "pool_err", "saturated", "reason"
+      for (i = 1; i <= node_count; i++) {
+        node = node_order[i]
+        printf "%-16s %8.0f %11.0f %9.0f %9.3f %10.3f %8.0f %12.0f %9.3f %11.3f %9.0f %8.0f %9.0f %s\n",
+          node, router_total[node], route_block[node], local_reject[node], router_avg_ms[node], mailbox_fill[node],
+          pending_append[node], post_backlog[node], effect_avg_ms[node], effect_util[node],
+          pool_full[node], pool_error[node], saturated[node], reason_by_node[node]
+      }
     }
   ' "$file"
 }
 
 append_cluster_transport_peak_display() {
   local file="$1"
-  printf '\n# cluster internal transport peak\n'
+  printf '\nCLUSTER INTERNAL TRANSPORT PEAK\n'
+  printf '%s\n' '-------------------------------'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
@@ -1112,14 +1446,21 @@ append_cluster_transport_peak_display() {
     NR == 1 { next }
     {
       entries++
-      sample_pairs += $3 + 0
-      peak = $4 + 0
+      node = $2
+      sample_pairs = $4 + 0
+      peak = $5 + 0
+      node_order[entries] = node
+      sample_pairs_by_node[node] = sample_pairs
+      peak_internal_by_node[node] = peak
+      peak_out_by_node[node] = $6 + 0
+      peak_in_by_node[node] = $7 + 0
+      peak_duplex_by_node[node] = $8 + 0
+      peak_interval_by_node[node] = $9 "-" $10
       if (entries == 1 || peak > peak_internal) {
         peak_internal = peak
-        peak_out = $5 + 0
-        peak_in = $6 + 0
-        peak_duplex = $7 + 0
-        worst = sprintf("tag=%s interval=%s-%s", $1, $8, $9)
+        peak_node = node
+        peak_duplex = $8 + 0
+        peak_interval = $9 "-" $10
       }
     }
     END {
@@ -1127,8 +1468,55 @@ append_cluster_transport_peak_display() {
         print "none"
         exit
       }
-      printf "entries=%.0f sample_pairs=%.0f peak_internal_mib_s=%.3f peak_out_mib_s=%.3f peak_in_mib_s=%.3f peak_duplex_mib_s=%.3f worst=%s details=cluster_transport_peak_summary.tsv\n",
-        entries, sample_pairs, peak_internal, peak_out, peak_in, peak_duplex, worst
+      printf "peak_node=%s peak_internal_mib_s=%.3f peak_duplex_mib_s=%.3f interval=%s details=cluster_transport_peak_summary.tsv\n",
+        peak_node, peak_internal, peak_duplex, peak_interval
+      printf "%-16s %12s %10s %10s %12s %9s %s\n",
+        "node", "peak_mib/s", "out_mib/s", "in_mib/s", "duplex_mib/s", "samples", "interval"
+      for (i = 1; i <= entries; i++) {
+        node = node_order[i]
+        printf "%-16s %12.3f %10.3f %10.3f %12.3f %9.0f %s\n",
+          node, peak_internal_by_node[node], peak_out_by_node[node], peak_in_by_node[node],
+          peak_duplex_by_node[node], sample_pairs_by_node[node], peak_interval_by_node[node]
+      }
+    }
+  ' "$file"
+}
+
+server_resource_peak_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    NR == 1 { next }
+    {
+      entries++
+      cpu = $5 + 0
+      mem = $7 + 0
+      rss = $8 + 0
+      if (entries == 1 || cpu > peak_cpu) {
+        peak_cpu = cpu
+        peak_cpu_node = $1
+      }
+      if (entries == 1 || mem > peak_mem) {
+        peak_mem = mem
+        peak_mem_node = $1
+      }
+      if (entries == 1 || rss > peak_rss) {
+        peak_rss = rss
+        peak_rss_node = $1
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      printf "- peak_cpu: %s %.3f%%\n", peak_cpu_node, peak_cpu
+      printf "- peak_rss: %s %.3fMiB\n", peak_rss_node, peak_rss / 1024
+      printf "- peak_mem: %s %.3f%%\n", peak_mem_node, peak_mem
+      printf "- details: resources/server-process-summary.tsv\n"
     }
   ' "$file"
 }
@@ -1140,45 +1528,72 @@ runtime_pool_pressure_markdown() {
     return
   fi
   awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
     NR == 1 { next }
     {
-      entries++
+      node = $2
+      remember_node(node)
       fill = $9 + 0
       inflight_util = $15 + 0
-      pool_key = $2 "\034" $3 "\034" $4
+      full = $16 + 0
+      busy = $17 + 0
+      dirty = $18 + 0
+      requeued = $19 + 0
+      reason = $20
+      pool = $3 "/" $4 "/" $5
+      pressure_pools[node]++
+      pool_key = node "\034" $3 "\034" $4 "\034" $5 "\034" $6
       if ((fill >= 0.9 || inflight_util >= 0.9) && !(pool_key in over90_seen)) {
         over90_seen[pool_key] = 1
-        over90_pools++
+        hot_pools[node]++
       }
-      full += $16 + 0
-      busy += $17 + 0
-      dirty += $18 + 0
-      requeued += $19 + 0
-      if (fill > max_fill) {
-        max_fill = fill
+      full_sum[node] += full
+      busy_sum[node] += busy
+      dirty_sum[node] += dirty
+      requeued_sum[node] += requeued
+      if (fill > max_fill[node]) {
+        max_fill[node] = fill
       }
-      if (inflight_util > max_inflight_util) {
-        max_inflight_util = inflight_util
+      if (inflight_util > max_inflight_util[node]) {
+        max_inflight_util[node] = inflight_util
       }
       score = fill + inflight_util
-      if ($20 != "") {
+      if (reason != "") {
         score += 1
       }
-      if (($16 + $17 + $18 + $19) > 0) {
+      if ((full + busy + dirty + requeued) > 0) {
         score += 1
       }
-      if (score > worst_score) {
-        worst_score = score
-        worst = sprintf("tag=%s node=%s pool=%s/%s queue=%s priority=%s reason=%s", $1, $2, $3, $4, $5, $6, $20)
+      if (score > worst_score[node]) {
+        worst_score[node] = score
+        worst_pool[node] = pool
+        worst_reason[node] = reason
+      }
+      if (score > global_worst_score) {
+        global_worst_score = score
+        global_worst_node = node
+        global_worst_pool = pool
+        global_worst_reason = reason
       }
     }
     END {
-      if (entries == 0) {
+      if (node_count == 0) {
         print "- none"
         exit
       }
-      printf "- entries=%.0f over90_pools=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
-        entries, over90_pools, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+      printf "- worst_node=%s worst_pool=%s reason=%s details=runtime_pool_pressure_summary.tsv\n",
+        global_worst_node, global_worst_pool, global_worst_reason
+      for (i = 1; i <= node_count; i++) {
+        node = node_order[i]
+        printf "- node=%s pressure_pools=%.0f hot_pools=%.0f max_qfill=%.3f max_inflight=%.3f full=%.0f busy=%.0f dirty=%.0f requeue=%.0f worst_pool=%s reason=%s\n",
+          node, pressure_pools[node], hot_pools[node], max_fill[node], max_inflight_util[node],
+          full_sum[node], busy_sum[node], dirty_sum[node], requeued_sum[node], worst_pool[node], worst_reason[node]
+      }
     }
   ' "$file"
 }
@@ -1197,6 +1612,18 @@ channelwrite_pool_pressure_markdown() {
       }
       return $col + 0
     }
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    function add_reason(reason, item) {
+      if (reason == "") {
+        return item
+      }
+      return reason "," item
+    }
     NR == 1 {
       for (i = 1; i <= NF; i++) {
         idx[$i] = i
@@ -1204,38 +1631,59 @@ channelwrite_pool_pressure_markdown() {
       next
     }
     {
-      entries++
-      submit += metric_value("effect_pool_submit_delta")
-      full += metric_value("effect_pool_full_delta")
-      errors += metric_value("effect_pool_error_delta")
-      over90_pools += metric_value("effect_pool_over90_count")
-      util = metric_value("effect_pool_util_max")
-      saturated = metric_value("effect_pool_saturated_max")
-      if (util > max_util) {
-        max_util = util
-      }
-      if (saturated > max_saturated) {
-        max_saturated = saturated
-      }
-      score = util + saturated
-      if (metric_value("effect_pool_full_delta") > 0) {
-        score += 1
-      }
-      if (metric_value("effect_pool_error_delta") > 0) {
-        score += 1
-      }
+      node = $2
+      remember_node(node)
+      router_total[node] = metric_value("router_total_delta")
+      route_block[node] = metric_value("router_backpressured_delta") + metric_value("router_channel_busy_delta") + metric_value("router_route_not_ready_delta") + metric_value("router_timeout_delta")
+      router_errors[node] = metric_value("router_error_delta")
+      local_reject[node] = metric_value("local_admission_rejected_delta")
+      mailbox_fill[node] = metric_value("mailbox_fill_max")
+      pending_append[node] = metric_value("pending_append_max")
+      post_backlog[node] = metric_value("post_commit_backlog_max")
+      effect_util[node] = metric_value("effect_pool_util_max")
+      pool_full[node] = metric_value("effect_pool_full_delta")
+      pool_error[node] = metric_value("effect_pool_error_delta")
+      saturated[node] = metric_value("effect_pool_saturated_max")
+      over90[node] = metric_value("effect_pool_over90_count")
+
+      reason = ""
+      if (router_errors[node] > 0) reason = add_reason(reason, "router_error")
+      if (route_block[node] > 0) reason = add_reason(reason, "route_block")
+      if (local_reject[node] > 0) reason = add_reason(reason, "local_reject")
+      if (mailbox_fill[node] >= 0.5) reason = add_reason(reason, "mailbox_fill")
+      if (pending_append[node] > 0) reason = add_reason(reason, "pending_append")
+      if (post_backlog[node] > 0) reason = add_reason(reason, "post_commit_backlog")
+      if (pool_full[node] > 0) reason = add_reason(reason, "effect_pool_full")
+      if (pool_error[node] > 0) reason = add_reason(reason, "effect_pool_error")
+      if (effect_util[node] >= 0.9 || saturated[node] > 0 || over90[node] > 0) reason = add_reason(reason, "effect_pool_hot")
+      if (reason == "") reason = "ok"
+      reason_by_node[node] = reason
+
+      score = mailbox_fill[node] + effect_util[node]
+      if (router_errors[node] > 0) score += 1
+      if (route_block[node] > 0) score += 1
+      if (local_reject[node] > 0) score += 1
+      if (pending_append[node] > 0 || post_backlog[node] > 0) score += 1
+      if (pool_full[node] > 0 || pool_error[node] > 0 || saturated[node] > 0 || over90[node] > 0) score += 1
       if (score > worst_score) {
         worst_score = score
-        worst = sprintf("tag=%s node=%s", $1, $2)
+        worst_node = node
+        worst_reason = reason
       }
     }
     END {
-      if (entries == 0) {
+      if (node_count == 0) {
         print "- none"
         exit
       }
-      printf "- entries=%.0f over90_pools=%.0f submit=%.0f full=%.0f errors=%.0f max_util=%.3f saturated=%.0f worst=%s details=channelwrite_metrics_summary.tsv\n",
-        entries, over90_pools, submit, full, errors, max_util, max_saturated, worst
+      printf "- worst_node=%s reason=%s details=channelwrite_metrics_summary.tsv\n", worst_node, worst_reason
+      for (i = 1; i <= node_count; i++) {
+        node = node_order[i]
+        printf "- node=%s router=%.0f route_block=%.0f local_rej=%.0f mailbox=%.3f pending=%.0f post_backlog=%.0f effect_util=%.3f pool_full=%.0f pool_err=%.0f saturated=%.0f reason=%s\n",
+          node, router_total[node], route_block[node], local_reject[node], mailbox_fill[node],
+          pending_append[node], post_backlog[node], effect_util[node], pool_full[node],
+          pool_error[node], saturated[node], reason_by_node[node]
+      }
     }
   ' "$file"
 }
@@ -1250,14 +1698,21 @@ cluster_transport_peak_markdown() {
     NR == 1 { next }
     {
       entries++
-      sample_pairs += $3 + 0
-      peak = $4 + 0
+      node = $2
+      sample_pairs = $4 + 0
+      peak = $5 + 0
+      node_order[entries] = node
+      sample_pairs_by_node[node] = sample_pairs
+      peak_internal_by_node[node] = peak
+      peak_out_by_node[node] = $6 + 0
+      peak_in_by_node[node] = $7 + 0
+      peak_duplex_by_node[node] = $8 + 0
+      peak_interval_by_node[node] = $9 "-" $10
       if (entries == 1 || peak > peak_internal) {
         peak_internal = peak
-        peak_out = $5 + 0
-        peak_in = $6 + 0
-        peak_duplex = $7 + 0
-        worst = sprintf("tag=%s interval=%s-%s", $1, $8, $9)
+        peak_node = node
+        peak_duplex = $8 + 0
+        peak_interval = $9 "-" $10
       }
     }
     END {
@@ -1265,8 +1720,14 @@ cluster_transport_peak_markdown() {
         print "- none"
         exit
       }
-      printf "- entries=%.0f sample_pairs=%.0f peak_internal_mib_s=%.3f peak_out_mib_s=%.3f peak_in_mib_s=%.3f peak_duplex_mib_s=%.3f worst=%s details=cluster_transport_peak_summary.tsv\n",
-        entries, sample_pairs, peak_internal, peak_out, peak_in, peak_duplex, worst
+      printf "- peak_node=%s peak_internal_mib_s=%.3f peak_duplex_mib_s=%.3f interval=%s details=cluster_transport_peak_summary.tsv\n",
+        peak_node, peak_internal, peak_duplex, peak_interval
+      for (i = 1; i <= entries; i++) {
+        node = node_order[i]
+        printf "- node=%s peak_internal_mib_s=%.3f out_mib_s=%.3f in_mib_s=%.3f duplex_mib_s=%.3f samples=%.0f interval=%s\n",
+          node, peak_internal_by_node[node], peak_out_by_node[node], peak_in_by_node[node],
+          peak_duplex_by_node[node], sample_pairs_by_node[node], peak_interval_by_node[node]
+      }
     }
   ' "$file"
 }
@@ -1275,24 +1736,28 @@ print_summary() {
   write_display_summary
   write_evidence_summary
   cat "$OUT_DIR/summary.txt"
-  log "details:"
-  printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
-  printf '  rpc_pull: %s\n' "$OUT_DIR/rpc_pull_qps.tsv"
-  printf '  channelv2: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
-  printf '  channelwrite: %s\n' "$OUT_DIR/channelwrite_metrics_summary.tsv"
-  printf '  runtime_pool: %s\n' "$OUT_DIR/channelv2_metrics_summary.tsv"
-  printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
-  printf '  cluster_transport_peak: %s\n' "$OUT_DIR/cluster_transport_peak_summary.tsv"
-  printf '  reports: %s\n' "$OUT_DIR/reports"
-  printf '  metrics: %s\n' "$OUT_DIR/metrics"
+  log "evidence: $OUT_DIR"
+  printf '  %-23s %s\n' "summary" "summary.tsv"
+  printf '  %-23s %s\n' "summary_md" "summary.md"
+  printf '  %-23s %s\n' "rpc_pull" "rpc_pull_qps.tsv"
+  printf '  %-23s %s\n' "channelv2" "channelv2_metrics_summary.tsv"
+  printf '  %-23s %s\n' "channelwrite" "channelwrite_metrics_summary.tsv"
+  printf '  %-23s %s\n' "runtime_pool_metrics" "channelv2_metrics_summary.tsv (runtime_pool_* columns)"
+  printf '  %-23s %s\n' "runtime_pool_pressure" "runtime_pool_pressure_summary.tsv"
+  printf '  %-23s %s\n' "cluster_transport_peak" "cluster_transport_peak_summary.tsv"
+  printf '  %-23s %s\n' "resources" "resources/"
+  printf '  %-23s %s\n' "reports" "reports/"
+  printf '  %-23s %s\n' "metrics" "metrics/"
 }
 
 write_evidence_summary() {
   local best_line
+  local server_resource_peaks
   local runtime_pool_pressure
   local channelwrite_pool_pressure
   local cluster_transport_peak
   best_line="$(grep '^best pass:' "$OUT_DIR/summary.txt" 2>/dev/null || true)"
+  server_resource_peaks="$(server_resource_peak_markdown "$OUT_DIR/resources/server-process-summary.tsv")"
   runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
   channelwrite_pool_pressure="$(channelwrite_pool_pressure_markdown "$OUT_DIR/channelwrite_metrics_summary.tsv")"
   cluster_transport_peak="$(cluster_transport_peak_markdown "$OUT_DIR/cluster_transport_peak_summary.tsv")"
@@ -1315,6 +1780,7 @@ write_evidence_summary() {
 - config: config/
 - metrics: metrics/
 - pprof: pprof/
+- resources: resources/
 - logs: logs/
 - reports: reports/
 - rpc_pull: rpc_pull_qps.tsv
@@ -1327,6 +1793,9 @@ write_evidence_summary() {
 
 ## Result
 ${best_line:-best pass: none}
+
+## Server Process Peaks
+${server_resource_peaks}
 
 ## Runtime Pool Pressure
 ${runtime_pool_pressure}
@@ -1349,6 +1818,7 @@ main() {
   ensure_worker
   write_target_and_workers
   write_run_metadata
+  start_server_resource_sampler
 
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
 tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
@@ -1366,7 +1836,7 @@ EOF
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 EOF
   cat >"$OUT_DIR/cluster_transport_peak_summary.tsv" <<'EOF'
-tag	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq
+tag	node	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq
 EOF
 
   local qps
@@ -1375,6 +1845,9 @@ EOF
     run_attempt "$qps"
   done
 
+  stop_server_resource_sampler
+  sample_server_resources after || true
+  write_server_resource_summary || true
   collect_node_logs after
   scrape_metrics_snapshot after
   capture_node_pprof after

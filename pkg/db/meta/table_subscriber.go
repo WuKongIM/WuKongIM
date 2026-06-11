@@ -162,12 +162,24 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 		if err != nil {
 			return err
 		}
+		_, exists, err := s.db.get(key)
+		if err != nil {
+			return err
+		}
 		if add {
+			if !exists {
+				channel.SubscriberCount++
+			}
 			if err := batch.Set(key, nil); err != nil {
 				return err
 			}
-		} else if err := batch.Delete(key); err != nil {
-			return err
+		} else {
+			if exists && channel.SubscriberCount > 0 {
+				channel.SubscriberCount--
+			}
+			if err := batch.Delete(key); err != nil {
+				return err
+			}
 		}
 	}
 	if err := s.stageChannel(batch, primaryKey, channel); err != nil {

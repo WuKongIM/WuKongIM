@@ -114,7 +114,7 @@ func TestChannelIDIndexStoresLegacyValue(t *testing.T) {
 	ctx := context.Background()
 	shard := store.db.HashSlot(44)
 
-	channel := Channel{ChannelID: "legacy-value", ChannelType: 1, Ban: 1}
+	channel := Channel{ChannelID: "legacy-value", ChannelType: 1, Ban: 1, Large: 1}
 	if err := shard.UpsertChannel(ctx, channel); err != nil {
 		t.Fatalf("UpsertChannel: %v", err)
 	}
@@ -131,6 +131,65 @@ func TestChannelIDIndexStoresLegacyValue(t *testing.T) {
 	got, err := decodeChannelValue(updated.ChannelID, updated.ChannelType, value)
 	if err != nil || got != updated {
 		t.Fatalf("channel id index value = %+v err=%v, want %+v", got, err, updated)
+	}
+}
+
+func TestChannelStoresLargeFlag(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(46)
+
+	channel := Channel{ChannelID: "large-group", ChannelType: 2, Large: 1}
+	if err := shard.UpsertChannel(ctx, channel); err != nil {
+		t.Fatalf("UpsertChannel: %v", err)
+	}
+
+	got, ok, err := shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannel() ok=%v err=%v", ok, err)
+	}
+	if got.Large != 1 {
+		t.Fatalf("Large = %d, want 1", got.Large)
+	}
+}
+
+func TestChannelDecodeRequiresSubscriberCount(t *testing.T) {
+	missingSubscriberCount := appendValueInt64(nil, 1)
+	missingSubscriberCount = appendValueInt64(missingSubscriberCount, 2)
+	missingSubscriberCount = appendValueInt64(missingSubscriberCount, 3)
+	missingSubscriberCount = appendValueInt64(missingSubscriberCount, 4)
+	missingSubscriberCount = appendValueUint64(missingSubscriberCount, 5)
+
+	_, err := decodeChannelValue("missing-count", 2, missingSubscriberCount)
+	if !errors.Is(err, dberrors.ErrCorruptValue) {
+		t.Fatalf("decodeChannelValue() err = %v, want ErrCorruptValue", err)
+	}
+}
+
+func TestChannelUpdatePreservesSubscriberCount(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(45)
+	channel := Channel{ChannelID: "preserve-count", ChannelType: 1}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"u1", "u2"}, 1); err != nil {
+		t.Fatalf("AddSubscribers(): %v", err)
+	}
+
+	updated := Channel{ChannelID: channel.ChannelID, ChannelType: channel.ChannelType, Ban: 1}
+	if err := shard.UpdateChannel(ctx, updated); err != nil {
+		t.Fatalf("UpdateChannel(): %v", err)
+	}
+	got, ok, err := shard.GetChannel(ctx, channel.ChannelID, channel.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannel(after update) ok=%v err=%v", ok, err)
+	}
+	if got.Ban != 1 || got.SubscriberCount != 2 {
+		t.Fatalf("channel after update = %+v, want ban=1 subscriber_count=2", got)
 	}
 }
 

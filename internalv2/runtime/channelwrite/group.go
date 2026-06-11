@@ -93,6 +93,22 @@ type SubscriberPage = contract.SubscriberPage
 // Route describes one online recipient endpoint resolved by presence.
 type Route = contract.Route
 
+// SubscriberMutationUpdate describes a committed subscriber-list change for one channel.
+type SubscriberMutationUpdate struct {
+	// ChannelID identifies the channel whose cached subscriber snapshot changed.
+	ChannelID ChannelID
+	// Large reports whether the channel should use paged subscriber fanout after the mutation.
+	Large bool
+	// SubscriberMutationVersion is the durable subscriber-list version after the mutation.
+	SubscriberMutationVersion uint64
+	// Reset reports that AddedUIDs replaces the cached snapshot instead of patching it.
+	Reset bool
+	// AddedUIDs are subscribers appended by this mutation.
+	AddedUIDs []string
+	// RemovedUIDs are subscribers removed by this mutation.
+	RemovedUIDs []string
+}
+
 // PushCommand groups recipient routes owned by the same node for one envelope.
 type PushCommand = contract.PushCommand
 
@@ -219,6 +235,46 @@ func (g *Group) Stop(ctx context.Context) error {
 	return nil
 }
 
+// ApplySubscriberMutation updates cached non-large subscriber snapshots after external metadata mutations.
+func (g *Group) ApplySubscriberMutation(ctx context.Context, update SubscriberMutationUpdate) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := contextErr(ctx); err != nil {
+		return err
+	}
+	if g == nil {
+		return nil
+	}
+	g.mu.RLock()
+	if !g.started || g.stopping || g.stopped || len(g.reactors) == 0 {
+		g.mu.RUnlock()
+		return nil
+	}
+	target := AuthorityTarget{
+		ChannelID:                 update.ChannelID,
+		ChannelKey:                channelKey(update.ChannelID),
+		Large:                     update.Large,
+		SubscriberMutationVersion: update.SubscriberMutationVersion,
+	}
+	reactor := g.reactorForTarget(target)
+	ack := make(chan error, 1)
+	event := subscriberMutationEvent{update: update.clone(), ack: ack}
+	select {
+	case reactor.mailbox <- event:
+	case <-ctx.Done():
+		g.mu.RUnlock()
+		return ctx.Err()
+	}
+	g.mu.RUnlock()
+	select {
+	case err := <-ack:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // SubmitLocal admits a batch to the local channel-authority reactor.
 func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items []SendBatchItem) (*Future, error) {
 	if ctx == nil {
@@ -246,6 +302,12 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 		return nil, err
 	}
 	return future, nil
+}
+
+func (u SubscriberMutationUpdate) clone() SubscriberMutationUpdate {
+	u.AddedUIDs = append([]string(nil), u.AddedUIDs...)
+	u.RemovedUIDs = append([]string(nil), u.RemovedUIDs...)
+	return u
 }
 
 func (g *Group) reactorForTarget(target AuthorityTarget) *reactor {
