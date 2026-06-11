@@ -94,8 +94,7 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
 	"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD",
 	"WK_DELIVERY_ENABLE",
-	"WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT",
-	"WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS",
+	"WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT",
 	"WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS",
 	"WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS",
 	"WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY",
@@ -828,25 +827,15 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Delivery.Enabled = enabled
 	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT"); raw != "" {
-		reactors, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT", raw)
+	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT"); raw != "" {
+		shards, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		if reactors < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT: value must be >= 0")
+		if shards < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_SHARD_COUNT: value must be >= 0")
 		}
-		cfg.Delivery.ChannelWriteReactorCount = reactors
-	}
-	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS"); raw != "" {
-		workers, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS", raw)
-		if err != nil {
-			return app.Config{}, err
-		}
-		if workers < 0 {
-			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_CHANNEL_WRITE_PREPARE_WORKERS: value must be >= 0")
-		}
-		cfg.Delivery.ChannelWritePrepareWorkers = workers
+		cfg.Delivery.ChannelWriteShardCount = shards
 	}
 	if raw := configValue(values, "WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS"); raw != "" {
 		workers, err := parseInt("WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS", raw)

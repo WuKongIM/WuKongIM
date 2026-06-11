@@ -69,17 +69,18 @@ func newWriterRuntime(t *testing.T, cfg writerRuntimeConfig) *writerRuntime {
 	w := newChannelWriter(target, limits)
 	rt := &writerRuntime{t: t, pool: newWorkerPool(4), writer: w}
 	w.ports = writerPorts{
-		prepare:  preparePorts{messageID: newBenchmarkMessageIDs(1)},
-		append:   appendPorts{appender: cfg.appender},
-		commit:   commitPorts{},
-		pool:     rt.pool,
-		schedule: rt.schedule,
+		prepare:    preparePorts{messageID: newBenchmarkMessageIDs(1)},
+		append:     appendPorts{appender: cfg.appender},
+		commit:     commitPorts{},
+		pool:       rt.pool,
+		schedule:   rt.schedule,
+		runtimeCtx: context.Background(),
 	}
 	return rt
 }
 
 func (rt *writerRuntime) schedule(w *channelWriter) {
-	_ = rt.pool.submit(func() { w.advance() })
+	go w.advance()
 }
 
 func (rt *writerRuntime) submit(target AuthorityTarget, items []SendBatchItem) (*Future, error) {

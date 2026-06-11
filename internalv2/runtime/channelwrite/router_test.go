@@ -122,7 +122,7 @@ func TestRouterRoutesRequestScopedSendByCanonicalChannel(t *testing.T) {
 		t.Fatalf("local target channel = %#v, want canonical request-scoped channel %#v", local.target.ChannelID, canonical)
 	}
 	if len(local.items) != 1 || local.items[0].Command.ChannelID != "" || !local.items[0].Command.RequestScoped {
-		t.Fatalf("submitted item command = %#v, want original request-scoped command preserved for reactor prepare", local.items)
+		t.Fatalf("submitted item command = %#v, want original request-scoped command preserved for authority writer prepare", local.items)
 	}
 }
 
@@ -151,7 +151,7 @@ func TestRouterRoutesNormalizePersonSendByCanonicalChannel(t *testing.T) {
 		t.Fatalf("local target channel = %#v, want canonical person channel %#v", local.target.ChannelID, canonical)
 	}
 	if len(local.items) != 1 || local.items[0].Command.ChannelID != "u2" || !local.items[0].Command.NormalizePersonChannel {
-		t.Fatalf("submitted item command = %#v, want original normalize-person command preserved for reactor prepare", local.items)
+		t.Fatalf("submitted item command = %#v, want original normalize-person command preserved for authority writer prepare", local.items)
 	}
 }
 

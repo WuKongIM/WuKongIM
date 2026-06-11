@@ -88,7 +88,6 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 	group := newPreparedGroupWithOptions(t, Options{
 		LocalNodeID:                1,
 		MessageID:                  ids,
-		PrepareWorkers:             1,
 		AppendWorkers:              1,
 		PostCommitWorkers:          1,
 		Clock:                      clock,
@@ -154,9 +153,9 @@ func TestPrepareNormalizesPersonChannel(t *testing.T) {
 
 func TestPrepareRequestScopedTargetMismatchReturnsStaleRouteWithoutState(t *testing.T) {
 	group := newPreparedGroupWithOptions(t, Options{
-		LocalNodeID:  1,
-		ReactorCount: 4,
-		MessageID:    newSequenceIDsForPrepare(100),
+		LocalNodeID: 1,
+		ShardCount:  4,
+		MessageID:   newSequenceIDsForPrepare(100),
 	})
 	target := AuthorityTarget{
 		ChannelID:    ChannelID{ID: "original", Type: 2},
@@ -185,9 +184,9 @@ func TestPrepareRequestScopedTargetMismatchReturnsStaleRouteWithoutState(t *test
 
 func TestPrepareNormalizedPersonTargetMismatchReturnsStaleRouteWithoutState(t *testing.T) {
 	group := newPreparedGroupWithOptions(t, Options{
-		LocalNodeID:  1,
-		ReactorCount: 4,
-		MessageID:    newSequenceIDsForPrepare(100),
+		LocalNodeID: 1,
+		ShardCount:  4,
+		MessageID:   newSequenceIDsForPrepare(100),
 	})
 	target := AuthorityTarget{
 		ChannelID:    ChannelID{ID: "u2", Type: 1},
@@ -352,10 +351,10 @@ func TestPrepareIdempotencyNormalizedPersonTargetMismatchReturnsStaleRoute(t *te
 	existing := SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}
 	idempotency := &recordingIdempotencyForPrepare{result: existing, ok: true}
 	group := newPreparedGroupWithOptions(t, Options{
-		LocalNodeID:  1,
-		ReactorCount: 4,
-		MessageID:    ids,
-		Idempotency:  idempotency,
+		LocalNodeID: 1,
+		ShardCount:  4,
+		MessageID:   ids,
+		Idempotency: idempotency,
 	})
 	target := AuthorityTarget{
 		ChannelID:    ChannelID{ID: "u2", Type: 1},
@@ -400,10 +399,10 @@ func TestPrepareIdempotencyRequestScopedTargetMismatchReturnsStaleRoute(t *testi
 	existing := SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}
 	idempotency := &recordingIdempotencyForPrepare{result: existing, ok: true}
 	group := newPreparedGroupWithOptions(t, Options{
-		LocalNodeID:  1,
-		ReactorCount: 4,
-		MessageID:    ids,
-		Idempotency:  idempotency,
+		LocalNodeID: 1,
+		ShardCount:  4,
+		MessageID:   ids,
+		Idempotency: idempotency,
 	})
 	target := AuthorityTarget{
 		ChannelID:    ChannelID{ID: "original", Type: 2},
@@ -559,7 +558,6 @@ func newPreparedGroup(t *testing.T, ports preparePortsForTest) *preparedGroupFor
 		Authorizer:        ports.authorizer,
 		Idempotency:       ports.idempotency,
 		SenderFence:       ports.fence,
-		PrepareWorkers:    1,
 		AppendWorkers:     1,
 		PostCommitWorkers: 1,
 		Clock:             ports.clock,
@@ -622,18 +620,13 @@ func targetForPrepareItems(items []SendBatchItem) AuthorityTarget {
 func (g *preparedGroupForTest) pendingForChannel(t *testing.T, channelID ChannelID) []preparedSend {
 	t.Helper()
 
-	key := channelKey(channelID)
-	for _, reactor := range g.group.reactors {
-		reactor.mu.Lock()
-		state := reactor.states[key]
-		if state != nil {
-			pending := append([]preparedSend(nil), state.pendingItems...)
-			reactor.mu.Unlock()
-			return pending
-		}
-		reactor.mu.Unlock()
+	writer := g.group.writerForTest(channelID)
+	if writer == nil {
+		return nil
 	}
-	return nil
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	return append([]preparedSend(nil), writer.state.pendingItems...)
 }
 
 func (g *preparedGroupForTest) singleAppendRequest(t *testing.T) AppendBatchRequest {
@@ -650,12 +643,14 @@ func (g *preparedGroupForTest) singleAppendRequest(t *testing.T) AppendBatchRequ
 
 func (g *Group) preparedForTest() []preparedSend {
 	var out []preparedSend
-	for _, reactor := range g.reactors {
-		reactor.mu.Lock()
-		for _, state := range reactor.states {
-			out = append(out, state.pendingItems...)
+	for _, shard := range g.shards {
+		shard.mu.RLock()
+		for _, writer := range shard.writers {
+			writer.mu.Lock()
+			out = append(out, writer.state.pendingItems...)
+			writer.mu.Unlock()
 		}
-		reactor.mu.Unlock()
+		shard.mu.RUnlock()
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Index < out[j].Index

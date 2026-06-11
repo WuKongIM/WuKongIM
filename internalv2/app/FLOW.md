@@ -11,7 +11,7 @@ Prometheus metrics registry, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
 management, UID connection-route authority, channel-authority write routing,
-channel write reactors, UID recipient authority inside post-commit effects,
+per-channel authority writers, UID recipient authority inside post-commit effects,
 conversation authority active cache/list reads, and opt-in local online
 delivery.
 
@@ -75,15 +75,15 @@ New(Config)
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
   -> when the cluster exposes ChannelV2 append plus channel append authority:
-       create channelwrite.Group with multiple channel-hashed authority reactors,
+       create channelwrite.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, append metrics observer,
-       and ants-backed prepare/append/post-commit worker pools
+       and shared append/post-commit worker pools
        create channelwrite.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Write RPC so remote nodes can submit to the local
-       authority reactor
+       authority writer group
   -> create message.App as a thin facade over channelwrite.Router, with the
      clusterv2 committed message reader when exposed for channel message sync
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
@@ -98,29 +98,29 @@ New(Config)
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
 `wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With
 delivery disabled, committed message effects still run inside the channel
-authority reactor so recent conversation state is updated, but no online
+authority writer so recent conversation state is updated, but no online
 delivery is submitted. With delivery enabled, gateway RECVACK and session close
 feedback flows to the delivery usecase, while channelwrite post-commit effects
 enqueue recipient-authority delivery batches into the recipient delivery worker.
-`Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
-count with a minimum of four. `ChannelWritePrepareWorkers`,
-`ChannelWriteAppendWorkers`, and `ChannelWritePostCommitWorkers` feed shared
-ants stage pools sized by reactor count. Prepare and post-commit default to
-eight workers per reactor; append defaults to 96 workers per reactor because it
-is the foreground durable-append path that determines SEND/SENDACK throughput.
+`Config.Delivery.ChannelWriteShardCount` defaults to a CPU-aware lookup-shard
+count with a minimum of four. `ChannelWriteAppendWorkers` and
+`ChannelWritePostCommitWorkers` size the shared worker budget used by
+channelwrite append and post-commit work. Prepare runs inline on the writer
+advance path; append remains the foreground durable path that determines
+SEND/SENDACK throughput.
 `ChannelWriteRecipientDispatchConcurrency` defaults to four recipient-authority
-targets per post-commit envelope. Reactor count controls channel-state
-sharding; stage workers run only blocking effects and never write channel
-state. The delivery observer maps both reactor-level worker/queue
-pressure and shared ants pool submit/full/saturation observations into
+targets per post-commit envelope. The lookup-shard count controls writer map
+sharding; shared workers run only blocking effects and never write channel
+state concurrently with another advance for the same channel. The delivery
+observer maps aggregate writer pressure and shared pool submit/full/saturation observations into
 Prometheus, which the three-node bench script summarizes in
 `channelwrite_metrics_summary.tsv`. Per-channel append ordering remains capped
-by channel state even when different channels run through different reactors or
-workers.
+by the single-writer invariant even when different channels run through
+different shards or workers.
 The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, conversation active-batch admission, recipient authority
 grouping, and delivery enqueue all run after SENDACK from the authority
-reactor's best-effort post-commit pipeline. The recipient delivery worker later
+writer's best-effort post-commit pipeline. The recipient delivery worker later
 drains accepted batches, resolves online routes, and pushes owner-node delivery
 commands. Post-commit persistence and restart replay are not part of
 channelwrite. Post-commit enqueue failures are logged with the failing phase and
@@ -152,7 +152,7 @@ for delivery; when clusterv2 exposes batch key routing, the app recipient
 resolver resolves each subscriber page's unique UIDs through one batch route
 lookup before grouping. When delivery is enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
-channelwrite recipient processor outside the authority reactor. `/bench/v1/channels` and
+channelwrite recipient processor outside the authority writer. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
 through Slot proposals. The benchmark data writer uses bounded concurrency for
 independent channel/subscriber mutations while preserving subscriber mutation
@@ -172,10 +172,10 @@ queue-depth observations use the same adapter. The delivery runtime itself stays
 independent from Prometheus and concrete logging backends.
 
 The ChannelV2 metrics observer also logs rare admitted-append cancellation
-snapshots emitted by the reactor. These lines include the channel key, op id,
-commit mode, LEO/HW/target offset, queue and in-flight counts, and quorum
-progress flags plus a compact leader-visible follower summary so benchmark
-timeout triage can identify the stuck append phase without adding
+snapshots emitted by the append runtime. These lines include the channel key,
+op id, commit mode, LEO/HW/target offset, queue and in-flight counts, and
+quorum progress flags plus a compact leader-visible follower summary so
+benchmark timeout triage can identify the stuck append phase without adding
 high-cardinality Prometheus labels.
 
 Message append observations record low-cardinality metrics for every durable
@@ -270,7 +270,7 @@ through the app message facade. Sends delegate to `channelwrite.Router`, which
 resolves the canonical channel's append authority. Local authority sends are
 admitted to the local `channelwrite.Group`; remote authority sends are forwarded
 through access/node Channel Write RPC to the target node, where they enter only
-that node's authority reactor. Channel message sync uses the
+that node's authority writer group. Channel message sync uses the
 `internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
 messages through the clusterv2 Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
@@ -290,14 +290,14 @@ gateway/API send
   -> message.App delegates to channelwrite.Router
   -> Router resolves channel append authority
   -> local channel authority:
-       channelwrite.Group admits the batch to the channel-hashed reactor
+       channelwrite.Group admits the batch to the channel writer
   -> remote channel authority:
        access/node Channel Write RPC forwards the batch
-       remote node admits it to its local channel-hashed reactor
-  -> authority reactor prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
+       remote node admits it to its local channel writer
+  -> authority writer prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
   -> ChannelV2 persists messages and returns append result
   -> SENDACK returns to sender
-  -> authority reactor post-commit effect:
+  -> authority writer post-commit effect:
        scope person recipients or page subscribers
        ConversationAuthorityClient.AdmitActiveBatch for the expanded recipient set
        group recipients by UID authority target for delivery
@@ -323,7 +323,7 @@ Start(ctx)
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
-  -> channel write group Start(ctx): open local channel-authority reactor admission
+  -> channel write group Start(ctx): open local channel-authority writer admission
   -> api.Start()
   -> gateway.Start()
 

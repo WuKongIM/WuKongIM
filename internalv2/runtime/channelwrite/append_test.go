@@ -16,7 +16,6 @@ func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 		LocalNodeID:       1,
 		MessageID:         newSequenceIDsForPrepare(10),
 		Appender:          appender,
-		PrepareWorkers:    2,
 		AppendWorkers:     2,
 		PostCommitWorkers: 2,
 	})
@@ -54,7 +53,6 @@ func TestAppendInflightLimitAboveOneAllowsSecondSameChannelAppend(t *testing.T) 
 		MessageID:           newSequenceIDsForPrepare(30),
 		Appender:            appender,
 		AppendInflightLimit: 2,
-		PrepareWorkers:      2,
 		AppendWorkers:       2,
 		PostCommitWorkers:   2,
 	})
@@ -78,18 +76,17 @@ func TestAppendInflightLimitAboveOneAllowsSecondSameChannelAppend(t *testing.T) 
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 31, 2)
 }
 
-func TestDifferentChannelsAppendIndependentlyOnDifferentReactors(t *testing.T) {
+func TestDifferentChannelsAppendIndependentlyOnDifferentShards(t *testing.T) {
 	appender := newBlockingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID:       1,
-		ReactorCount:      2,
+		ShardCount:        2,
 		MessageID:         newSequenceIDsForPrepare(20),
 		Appender:          appender,
-		PrepareWorkers:    2,
 		AppendWorkers:     2,
 		PostCommitWorkers: 2,
 	})
-	firstTarget, secondTarget := differentReactorTargetsForAppendTest(t, group)
+	firstTarget, secondTarget := differentShardTargetsForAppendTest(t, group)
 
 	firstC := submitNoWaitForAppendTest(group, firstTarget, appendSendItemForTest("u1", firstTarget.ChannelID.ID, "first"))
 	firstStart := appender.waitStarted(t)
@@ -294,41 +291,6 @@ func TestAppendCompletionsResultClassDoesNotAllocate(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("appendCompletionsResultClass allocations = %.1f, want 0", allocs)
-	}
-}
-
-func TestRecordAppendCompletionDoesNotAllocateSingleDispatch(t *testing.T) {
-	target := localTargetForAppendTest("room")
-	key := targetKey(target)
-	r := newReactor(
-		0,
-		1,
-		channelStateLimits{},
-		newEffectScheduler(effectSchedulerOptions{ReactorCount: 1, PrepareWorkers: 1, AppendWorkers: 1, PostCommitWorkers: 1}),
-		preparePorts{},
-		appendPorts{},
-		commitPorts{},
-	)
-	state := newChannelState(target, r.limits)
-	r.states[key] = state
-	event := appendCompletedEvent{
-		key: key,
-		seq: 0,
-		items: []appendItemCompletion{{
-			item:     preparedSend{Index: 0},
-			result:   SendBatchItemResult{Err: ErrAppendFailed},
-			traceErr: ErrAppendFailed,
-		}},
-	}
-
-	allocs := testing.AllocsPerRun(100, func() {
-		state.appendInflight = 1
-		state.appendInflightItems = 1
-		state.nextAppendDrainSeq = 0
-		r.recordAppendCompletion(event)
-	})
-	if allocs != 0 {
-		t.Fatalf("recordAppendCompletion allocations = %.1f, want 0", allocs)
 	}
 }
 
@@ -744,17 +706,17 @@ func localTargetForAppendTest(channelID string) AuthorityTarget {
 	return target
 }
 
-func differentReactorTargetsForAppendTest(t *testing.T, group *Group) (AuthorityTarget, AuthorityTarget) {
+func differentShardTargetsForAppendTest(t *testing.T, group *Group) (AuthorityTarget, AuthorityTarget) {
 	t.Helper()
 	first := localTargetForAppendTest("room-0")
-	firstReactor := group.reactorForTarget(first)
+	firstShard := group.shardForTarget(first)
 	for i := 1; i < 128; i++ {
 		next := localTargetForAppendTest("room-" + string(rune('a'+i)))
-		if group.reactorForTarget(next) != firstReactor {
+		if group.shardForTarget(next) != firstShard {
 			return first, next
 		}
 	}
-	t.Fatalf("could not find channels assigned to different reactors")
+	t.Fatalf("could not find channels assigned to different shards")
 	return AuthorityTarget{}, AuthorityTarget{}
 }
 
@@ -810,19 +772,15 @@ func requireAppendSuccessAnyID(t *testing.T, results []SendBatchItemResult, inde
 
 func committedForAppendTest(t *testing.T, group *Group, channelID ChannelID) []CommittedEnvelope {
 	t.Helper()
-	key := channelKey(channelID)
-	for _, reactor := range group.reactors {
-		reactor.mu.Lock()
-		state := reactor.states[key]
-		if state != nil {
-			committed := append([]CommittedEnvelope(nil), state.committed...)
-			for i := range committed {
-				committed[i] = committed[i].Clone()
-			}
-			reactor.mu.Unlock()
-			return committed
-		}
-		reactor.mu.Unlock()
+	writer := group.writerForTest(channelID)
+	if writer == nil {
+		return nil
 	}
-	return nil
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	committed := append([]CommittedEnvelope(nil), writer.state.committed...)
+	for i := range committed {
+		committed[i] = committed[i].Clone()
+	}
+	return committed
 }

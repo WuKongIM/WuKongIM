@@ -251,11 +251,8 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 	if cfg.Enabled {
 		t.Fatalf("Enabled = true, want false by default")
 	}
-	if cfg.ChannelWriteReactorCount != 6 {
-		t.Fatalf("ChannelWriteReactorCount = %d, want 6", cfg.ChannelWriteReactorCount)
-	}
-	if cfg.ChannelWritePrepareWorkers != 100 {
-		t.Fatalf("ChannelWritePrepareWorkers = %d, want 100", cfg.ChannelWritePrepareWorkers)
+	if cfg.ChannelWriteShardCount != 6 {
+		t.Fatalf("ChannelWriteShardCount = %d, want 6", cfg.ChannelWriteShardCount)
 	}
 	if cfg.ChannelWriteAppendWorkers != 2000 {
 		t.Fatalf("ChannelWriteAppendWorkers = %d, want 2000", cfg.ChannelWriteAppendWorkers)
@@ -284,8 +281,7 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 
 	negative := defaultDeliveryConfig(DeliveryConfig{
 		Enabled:                                  true,
-		ChannelWriteReactorCount:                 -5,
-		ChannelWritePrepareWorkers:               -6,
+		ChannelWriteShardCount:                   -5,
 		ChannelWriteAppendWorkers:                -7,
 		ChannelWritePostCommitWorkers:            -8,
 		ChannelWriteRecipientDispatchConcurrency: -7,
@@ -295,8 +291,7 @@ func TestDefaultDeliveryConfigKeepsDisabledAndUsesRuntimeDefaults(t *testing.T) 
 		PendingAckMaxPerSession:                  -3,
 		EventQueueSize:                           -4,
 	})
-	if !negative.Enabled || negative.ChannelWriteReactorCount != -5 ||
-		negative.ChannelWritePrepareWorkers != -6 ||
+	if !negative.Enabled || negative.ChannelWriteShardCount != -5 ||
 		negative.ChannelWriteAppendWorkers != -7 ||
 		negative.ChannelWritePostCommitWorkers != -8 ||
 		negative.ChannelWriteRecipientDispatchConcurrency != -7 ||
@@ -312,8 +307,7 @@ func TestValidateDeliveryConfigRejectsInvalidValues(t *testing.T) {
 		name string
 		cfg  DeliveryConfig
 	}{
-		{name: "channelwrite reactor count", cfg: DeliveryConfig{ChannelWriteReactorCount: -1}},
-		{name: "channelwrite prepare workers", cfg: DeliveryConfig{ChannelWritePrepareWorkers: -1}},
+		{name: "channelwrite shard count", cfg: DeliveryConfig{ChannelWriteShardCount: -1}},
 		{name: "channelwrite append workers", cfg: DeliveryConfig{ChannelWriteAppendWorkers: -1}},
 		{name: "channelwrite post-commit workers", cfg: DeliveryConfig{ChannelWritePostCommitWorkers: -1}},
 		{name: "channelwrite recipient dispatch concurrency", cfg: DeliveryConfig{ChannelWriteRecipientDispatchConcurrency: -1}},

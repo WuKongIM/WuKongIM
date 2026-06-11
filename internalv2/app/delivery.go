@@ -136,36 +136,21 @@ func (o deliveryMessageObserver) ObserveChannelWriteLocalAdmission(event channel
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.ObserveLocalAdmission(event.ReactorID, event.Result, event.Items)
+	o.app.metrics.ChannelWrite.ObserveLocalAdmission(event.Result, event.Items)
 }
 
-func (o deliveryMessageObserver) SetChannelWriteReactorPressure(event channelwrite.ReactorPressureObservation) {
+func (o deliveryMessageObserver) SetChannelWriteWriterPressure(event channelwrite.WriterPressureObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
 	}
-	o.app.metrics.ChannelWrite.SetReactorPressure(
-		event.ReactorID,
-		event.MailboxDepth,
-		event.MailboxCapacity,
-		event.EffectSlotsUsed,
-		event.EffectSlotsCapacity,
+	o.app.metrics.ChannelWrite.SetWriterPressure(
+		event.AdmissionDepth,
+		event.AdmissionCapacity,
+		event.WorkerRunning,
+		event.WorkerCapacity,
 		event.PendingAppendItems,
 		event.AppendInflightItems,
 		event.PostCommitBacklog,
-	)
-}
-
-func (o deliveryMessageObserver) SetChannelWriteEffectWorkerPressure(event channelwrite.EffectWorkerPressureObservation) {
-	if o.app == nil || o.app.metrics == nil {
-		return
-	}
-	o.app.metrics.ChannelWrite.SetEffectWorkerPressure(
-		event.ReactorID,
-		event.Stage,
-		event.WorkerInflight,
-		event.WorkerCapacity,
-		event.QueueDepth,
-		event.QueueCapacity,
 	)
 }
 
@@ -195,7 +180,6 @@ func (o deliveryMessageObserver) ObserveChannelWritePostCommitFailure(event chan
 	}
 	o.app.deliveryLogger().Error("channelwrite post-commit failed",
 		wklog.Event("internalv2.app.channelwrite.post_commit_failed"),
-		wklog.Int("reactorID", event.ReactorID),
 		wklog.ChannelID(event.ChannelID),
 		wklog.ChannelType(int64(event.ChannelType)),
 		wklog.Uint64("messageID", event.MessageID),

@@ -3,18 +3,20 @@
 ## Responsibility
 
 `internalv2/runtime/channelwrite` owns local channel-authority write admission.
-It is the in-memory reactor group entered only after routing has resolved that
-the local node is the current channel authority.
+It is entered only after routing has resolved that the local node is the current
+channel append authority. The package validates SEND commands, allocates
+message IDs, admits durable append work, completes item-aligned futures, and
+runs best-effort post-commit recipient/conversation effects.
 
 ## Router Flow
 
-`Router` is the channel-authority routing front door for SEND batches. Before
-it resolves authority, it performs only side-effect-safe command checks and
+`Router` is the channel-authority routing front door for SEND batches. Before it
+resolves authority, it performs only side-effect-safe command checks and
 canonical channel derivation: malformed terminal commands fail item-locally
 without resolving or creating channel metadata, request-scoped sends derive the
 stable temporary command channel, and person-channel sends with
 `NormalizePersonChannel` derive the canonical person channel. The original send
-command is still submitted unchanged so reactor prepare remains the
+command is still submitted unchanged so the local authority writer remains the
 authoritative validation, idempotency, message-id allocation, and canonical
 command mutation point.
 
@@ -28,7 +30,7 @@ Router.SendBatch
 ```
 
 The local path is the only path that may enter `SubmitLocal`; remote targets are
-forwarded and must not create local `channelState`. Route movement errors
+forwarded and must not create local `channelWriter` state. Route movement errors
 (`ErrStaleRoute`, `ErrNotChannelAuthority`, `ErrNotLeader`,
 `ErrRouteNotReady`) are retried with bounded backoff while item deadlines allow
 it. Retry sleeps wake when pending item cancellation or deadlines arrive, so
@@ -52,88 +54,68 @@ caller/session cancellation.
 `SubmitLocal` accepts an `AuthorityTarget` that carries the channel authority
 identity plus recipient fanout metadata (`Large` and
 `SubscriberMutationVersion`). The group rejects targets whose `LeaderNodeID`
-does not match `Options.LocalNodeID` before choosing a reactor. Remote channels
-are handled by `Router` through the `RemoteForwarder` port and never create proxy
-`channelState` inside this package.
+does not match `Options.LocalNodeID` before choosing a shard. Remote channels
+are handled by `Router` through the `RemoteForwarder` port and never create
+proxy `channelWriter` state inside this package.
 
-`channelState` is created lazily by the owning reactor after local authority
+`channelWriter` is created lazily by the owning shard after local authority
 validation. State is keyed by the channel routing key derived from
 `AuthorityTarget.ChannelKey` or from `ChannelID` when the target omits an
-explicit key. Reactor selection uses the same channel key, not the sender UID.
+explicit key. Shard selection uses the same channel key, not the sender UID.
 When later submissions carry a newer subscriber mutation version or a changed
-large-channel flag, the reactor invalidates only the recipient snapshot cache
-inside the existing state; append authority fences remain owned by the state
-created for that channel key.
+large-channel flag, the writer invalidates only its recipient snapshot cache;
+append authority fences remain owned by the state created for that channel key.
 
 ## Lifecycle
 
-`Group.Start` starts all reactors and opens local admission. `Group.Stop` closes
-admission, closes reactor mailboxes, and waits for already accepted mailbox
-events to drain until the caller context expires. A stopped group is not
-restarted because reactor mailboxes are closed as part of shutdown.
+`Group.Start` opens local admission and prepares shared worker pools. Writers
+are created lazily on accepted local submissions. `Group.Stop` closes admission,
+cancels the runtime context used by append and post-commit work, and waits for
+already accepted writers to drain until the caller context expires. A stopped
+group is not restarted.
 
-## Current Reactor Scope
+## Writer Execution
 
-The runtime currently implements local authority validation, reactor routing,
-lifecycle, pre-append preparation, lazy state creation, channel-level append
-flow control, durable append scheduling, committed-message handoff, and
-item-aligned futures. Submission checks caller cancellation before mailbox
-enqueue; after that check, bounded mailbox enqueue is non-blocking and returns
-`ErrBackpressured` when full. Once a submit event is accepted into a reactor
-mailbox, caller cancellation no longer turns the accepted event into a rejected
-submit. The group lock is held only through closed-state validation, reactor
-selection, and mailbox enqueue, then released while waiting for reactor
-admission ack so `Stop` can close admission promptly.
+The runtime implements local authority validation, hash-sharded writer lookup,
+lifecycle, pre-append preparation, channel-level append flow control, durable
+append scheduling, committed-message handoff, and item-aligned futures.
+Submission checks caller cancellation before admission. After that check,
+bounded local admission is non-blocking and returns `ErrBackpressured` when the
+group is closed or its outstanding accepted work is at capacity. Once a submit
+event is accepted into a writer, caller cancellation no longer turns the
+accepted event into a rejected submit.
 
-Accepted submit events dispatch preparation through the shared ants-backed
-effect scheduler. The reactor remains the only writer of `channelState`; ants
-workers only execute blocking prepare, append, and post-commit effects, then
-return completion events to the owning reactor. The reactor bounds accepted
-prepare/append admission with the same capacity as its mailbox, so new
-submissions return `ErrBackpressured` instead of growing unbounded in memory
-when workers or appenders are saturated. The reserved slot is released only
-when the item-aligned future completes. Each accepted prepare effect receives a
-monotonic sequence for the submitted authority target; completion events may
-arrive out of order, but the reactor drains them only in sequence so
-same-channel pending order matches submission order even with multiple workers.
-Effect worker pressure metrics report busy worker count, configured worker
-capacity, effect queue depth, and effect queue capacity per reactor and stage
-(`prepare`, `append`, and `post_commit`) so saturation can be distinguished
-from downstream append or post-commit latency. Shared ants pool observations
-also report pool submit results (`submitted`, `full`, and `error`) plus
-in-flight/capacity/saturation gauges per stage, so benchmark evidence can show
-when dispatch is delayed because a stage pool is full. Prepare, append, and
-post-commit worker budgets are configured independently as group-level shared
-worker counts and are not multiplied by reactor count. Recipient authority
-dispatch fanout inside one `post_commit` effect is configured separately from
-the post-commit worker count so increasing post-commit workers does not also
-multiply downstream recipient-authority concurrency.
+Each active channel has one `channelWriter`. The writer owns one
+`channelState`, a lightweight inbox, and an atomic scheduled flag. The scheduled
+flag guarantees that at most one goroutine advances that channel at a time. The
+group uses shards only for writer lookup and creation; shard locks are not held
+while preparing, appending, or committing messages.
 
-The reactor loop applies prepare completion events, and only those completion
-events mutate `channelState`. Rejected and idempotent items complete their
-item-aligned future slots immediately with their reason/error/result. Valid
-prepared items receive one message id and one server timestamp. Before a
-prepared item can enter the pending queue, its canonical prepared channel must
-still match the submitted `AuthorityTarget`; request-scoped derivation or
-person-channel normalization that changes the channel away from the target
-returns `ErrStaleRoute` for that item and creates no state. Idempotency hits
-use the same canonical target validation before their stored result can
-complete successfully, so stale routes cannot bypass authority ownership by
-returning an older successful result. Matching prepared items enter the owning
-channel state's pending queue in input order only when the state's pending plus
-in-flight item count is below `PendingItemHighWatermark`; saturated channels
-complete those items with `ErrChannelBusy` before they reach the append port.
+Accepted submit events are prepared inline on the writer advance path. Rejected
+and idempotent items complete their item-aligned future slots immediately with
+their reason/error/result. Valid prepared items receive one message id and one
+server timestamp. Before a prepared item can enter the pending queue, its
+canonical prepared channel must still match the submitted `AuthorityTarget`;
+request-scoped derivation or person-channel normalization that changes the
+channel away from the target returns `ErrStaleRoute` for that item and creates
+no state. Idempotency hits use the same canonical target validation before
+their stored result can complete successfully, so stale routes cannot bypass
+authority ownership by returning an older successful result. Matching prepared
+items enter the writer state's pending queue in input order only when the
+state's pending plus in-flight item count is below
+`PendingItemHighWatermark`; saturated channels complete those items with
+`ErrChannelBusy` before they reach the append port.
 
-The owning reactor builds channel-aligned append batches from prepared pending
-items and keeps up to `AppendInflightLimit` append batches in flight per
-channel. Blocking `Appender.AppendBatch` calls run in worker goroutines and
-return completion events to the same authority reactor. Completion events are
-drained by append sequence before mutating `channelState`, so SENDACK and
-post-commit handoff remain in submission order even when same-channel append
-workers finish out of order. The appender port must preserve durable per-channel
-append order for concurrent same-channel requests or serialize the requests
-internally. Append requests clone payloads at the appender boundary and carry
-the resolved authority epoch and leader epoch as append fences.
+The writer builds channel-aligned append batches from prepared pending items
+and keeps up to `AppendInflightLimit` append batches in flight per channel.
+Blocking `Appender.AppendBatch` calls run on the shared worker pool and wake the
+same writer when they complete. Completion events are drained by append sequence
+before mutating `channelState`, so SENDACK and post-commit handoff remain in
+submission order even when same-channel append calls finish out of order. The
+appender port must preserve durable per-channel append order for concurrent
+same-channel requests or serialize the requests internally. Append requests
+clone payloads at the appender boundary and carry the resolved authority epoch
+and leader epoch as append fences.
 
 Batch-level append errors are returned to all active items from that single
 append attempt without retry. Short append results complete missing items with
@@ -144,9 +126,9 @@ enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
 point for best-effort post-commit recipient work. Post-commit side effects are
 not checkpointed and not replayed after authority restart.
 
-Post-commit work is scheduled from the authority `channelState` after durable
-append succeeds and is independent from `SENDACK` completion. A committed
-envelope remains pending only until one recipient delivery enqueue attempt completes.
+Post-commit work is scheduled from the writer state after durable append
+succeeds and is independent from `SENDACK` completion. A committed envelope
+remains pending only until one recipient delivery enqueue attempt completes.
 Success prunes the payload-bearing envelope from the backlog. Failure is logged
 through `PostCommitFailureObserver`, counted through effect metrics, and then
 the envelope is dropped without retry so one bad active-admission, recipient
@@ -154,11 +136,11 @@ route, or delivery enqueue side effect cannot block later messages on the same
 channel. The failure observation carries a precise post-commit phase plus
 sampled recipient, target, and dispatch context so route-resolution failures
 can be distinguished from conversation active admission and delivery enqueue
-failures in logs. Each channel keeps only one committed envelope in flight
-at a time, and concurrency inside that envelope is limited to recipient
-authority targets. Unprocessed and in-flight commit backlog still participates
-in the channel high-watermark, but failed best-effort work is dropped promptly
-to avoid retaining unbounded payloads.
+failures in logs. Each channel keeps only one committed envelope in flight at a
+time, and concurrency inside that envelope is limited to recipient authority
+targets. Unprocessed and in-flight commit backlog still participates in the
+channel high-watermark, but failed best-effort work is dropped promptly to
+avoid retaining unbounded payloads.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
@@ -168,15 +150,15 @@ effect never loads the full subscriber set into memory. Non-large channels load
 the full subscriber snapshot once for the current `SubscriberMutationVersion`
 and cache it in `channelState`; later committed messages reuse that cache until
 a new target version invalidates it. External subscriber metadata mutations may
-also call `Group.ApplySubscriberMutation`; the owning reactor applies that
-event through its mailbox so `channelState` remains single-writer. Large
-updates clear the cached snapshot, reset updates replace the cached non-large
-snapshot, and add/remove updates patch an already-ready non-large snapshot while
-advancing the cached mutation version. A non-terminal subscriber page in the
-large-channel path must return a non-empty cursor different from the previous
-cursor; otherwise dispatch fails before that page's recipients are admitted or
-dispatched, avoiding partial side effects for the invalid page before the
-envelope is dropped.
+also call `Group.ApplySubscriberMutation`; the group applies that mutation
+directly to the owning writer state so non-large cached snapshots stay aligned
+with API mutations. Large updates clear the cached snapshot, reset updates
+replace the cached non-large snapshot, and add/remove updates patch an
+already-ready non-large snapshot while advancing the cached mutation version. A
+non-terminal subscriber page in the large-channel path must return a non-empty
+cursor different from the previous cursor; otherwise dispatch fails before that
+page's recipients are admitted or dispatched, avoiding partial side effects for
+the invalid page before the envelope is dropped.
 
 After each recipient set is formed, channelwrite admits one
 `conversationactive.ActiveBatch` before enqueueing recipient delivery batches.
@@ -189,12 +171,12 @@ configured. If active admission fails, the post-commit failure phase is
 `conversation_active` and recipient delivery is not enqueued for that recipient
 set.
 
-Recipient delivery is now an enqueue contract. When delivery enqueueing is
-configured, recipient batches are grouped by the full fenced recipient authority
-target after active admission succeeds. UID authority resolution is performed
-once per unique trimmed UID and uses the optional batch resolver when available;
-invalid or missing targets map to route-not-ready before enqueueing. Different
-recipient authority targets may enqueue concurrently up to
+Recipient delivery is an enqueue contract. When delivery enqueueing is
+configured, recipient batches are grouped by the full fenced recipient
+authority target after active admission succeeds. UID authority resolution is
+performed once per unique trimmed UID and uses the optional batch resolver when
+available; invalid or missing targets map to route-not-ready before enqueueing.
+Different recipient authority targets may enqueue concurrently up to
 `RecipientDispatchConcurrency`; batches for the same target are enqueued
 sequentially. The dedicated delivery worker drains the accepted batches,
 resolves presence, groups routes by owner node, skips only the sender's exact
@@ -214,8 +196,19 @@ queue depth/capacity, enqueue result/wait time, processing result/duration, and
 recipient batch size. These observations do not include UID, channel, or target
 labels.
 
-`Stop` cancels the runtime context passed to prepare, append, and post-commit
-effects before waiting for reactors to drain. Once cancellation is observed,
-the reactor does not schedule more queued post-commit backlog, avoiding a
-one-by-one walk of canceled work during shutdown. Ports must respect their
-context promptly for Stop to complete without waiting for the caller's timeout.
+## Pressure Observability
+
+Writer pressure observations are produced from aggregate counters maintained on
+state transitions; they do not scan shard writer maps. Admission depth tracks
+accepted items that have not yet completed their futures. Pending append,
+append in-flight, and post-commit backlog counters are updated by the writer as
+items move between queues. Shared pool observations report submit results and
+current running/capacity gauges for append and post-commit tasks. The writer
+pressure observer reports the local writer group aggregate rather than a
+per-channel event loop.
+
+`Stop` cancels the runtime context passed to append and post-commit effects
+before waiting for writers to drain. Once cancellation is observed, writers do
+not schedule more queued post-commit backlog, avoiding a one-by-one walk of
+canceled work during shutdown. Ports must respect their context promptly for
+Stop to complete without waiting for the caller's timeout.

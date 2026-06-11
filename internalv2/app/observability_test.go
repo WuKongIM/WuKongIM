@@ -1185,7 +1185,6 @@ func TestDeliveryMessageObserverLogsChannelWritePostCommitFailure(t *testing.T) 
 	observer := deliveryMessageObserver{app: app}
 
 	observer.ObserveChannelWritePostCommitFailure(channelwrite.PostCommitFailureObservation{
-		ReactorID:             3,
 		ChannelID:             "room",
 		ChannelType:           2,
 		MessageID:             42,
