@@ -396,6 +396,36 @@ func TestServiceReplyPayloadIsCopied(t *testing.T) {
 	}
 }
 
+func TestServiceWithExecutorNormalizesOptionsAndRuns(t *testing.T) {
+	executor, err := NewExecutor(1, nil)
+	if err != nil {
+		t.Fatalf("NewExecutor() error = %v", err)
+	}
+	defer func() {
+		if err := executor.Stop(); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
+
+	svc := NewServiceWithExecutor(1, func(context.Context, []byte) ([]byte, error) {
+		return []byte("ok"), nil
+	}, core.ServiceOptions{}, nil, executor)
+	defer svc.Stop()
+
+	reply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("r")), Reply: reply}); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+
+	resp := waitResponse(t, reply)
+	if resp.Err != nil {
+		t.Fatalf("reply err = %v", resp.Err)
+	}
+	if got := string(resp.Payload); got != "ok" {
+		t.Fatalf("reply payload = %q, want ok", got)
+	}
+}
+
 func waitResponse(t *testing.T, ch <-chan Response) Response {
 	t.Helper()
 
