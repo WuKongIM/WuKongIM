@@ -80,7 +80,7 @@ git commit -m "channelwrite: enqueue recipient delivery batches"
 - Test: `internalv2/runtime/channelwrite/delivery_worker_test.go`
 - Update: `internalv2/runtime/channelwrite/FLOW.md`
 
-- [ ] **Step 1: Write failing worker lifecycle tests**
+- [x] **Step 1: Write failing worker lifecycle tests**
 
 Add tests for a worker that:
 
@@ -91,7 +91,7 @@ Add tests for a worker that:
 - drains accepted work on `Stop(ctx)` until the context expires
 - records failures through an observer-compatible hook without returning them to channelwrite after admission
 
-- [ ] **Step 2: Run tests to verify red**
+- [x] **Step 2: Run tests to verify red**
 
 Run:
 
@@ -101,7 +101,7 @@ GOWORK=off go test ./internalv2/runtime/channelwrite -run 'TestRecipientDelivery
 
 Expected: FAIL because the worker does not exist.
 
-- [ ] **Step 3: Implement the bounded worker**
+- [x] **Step 3: Implement the bounded worker**
 
 Add `RecipientDeliveryWorker` with options:
 
@@ -124,7 +124,7 @@ EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch)
 
 Use internal queue commands that clone `RecipientBatch`. Worker goroutines call `processor.ProcessRecipientBatch`; errors are observed as post-commit failures using the existing detail extraction. Admission errors should use the same sentinel and low-cardinality error classes as existing channelwrite pressure where practical.
 
-- [ ] **Step 4: Run tests to verify green**
+- [x] **Step 4: Run tests to verify green**
 
 Run:
 

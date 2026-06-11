@@ -189,6 +189,15 @@ presence, groups routes by owner node, skips only the sender's exact accepted
 session for echo suppression, retries retryable owner pushes, and performs
 owner-local concrete session writes outside `channelState`.
 
+`RecipientDeliveryWorker` owns the bounded async queue for those delivery
+batches. Admission is open only between `Start` and `Stop`; closed admission
+returns `ErrRecipientDeliveryWorkerClosed`, and a full queue waits for capacity
+until the caller context expires. `Stop` closes admission first, then drains
+already accepted batches until the caller context expires. Processing failures
+are terminal best-effort delivery failures: they are observed through the same
+post-commit failure surface with the recipient authority target attached, and
+they are not returned to channelwrite after the batch has been accepted.
+
 `Stop` cancels the runtime context passed to prepare, append, and post-commit
 effects before waiting for reactors to drain. Once cancellation is observed,
 the reactor does not schedule more queued post-commit backlog, avoiding a
