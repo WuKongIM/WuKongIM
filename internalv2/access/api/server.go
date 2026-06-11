@@ -59,6 +59,24 @@ type BenchData interface {
 	AddSubscribers(context.Context, []BenchSubscriberMutation) (int, error)
 }
 
+// LegacyRouteAddresses contains legacy client gateway addresses returned by /route APIs.
+type LegacyRouteAddresses struct {
+	// TCPAddr is the published WKProto TCP gateway address.
+	TCPAddr string
+	// WSAddr is the published WebSocket gateway address.
+	WSAddr string
+	// WSSAddr is the published secure WebSocket gateway address.
+	WSSAddr string
+}
+
+// LegacyRouteNodeAddresses stores public and intranet route addresses for one cluster node.
+type LegacyRouteNodeAddresses struct {
+	// External is returned by legacy route APIs unless the request asks for intranet addresses.
+	External LegacyRouteAddresses
+	// Intranet is returned by legacy route APIs when intranet=1 is supplied.
+	Intranet LegacyRouteAddresses
+}
+
 // MessageUsecase coordinates compatible message send and channel sync routes.
 type MessageUsecase interface {
 	Send(context.Context, messageusecase.SendCommand) (messageusecase.SendResult, error)
@@ -186,6 +204,12 @@ type Options struct {
 	Conversations ConversationUsecase
 	// ConversationListObserver records conversation list read performance.
 	ConversationListObserver ConversationListObserver
+	// LegacyRouteExternal is the default public gateway address set returned by /route APIs.
+	LegacyRouteExternal LegacyRouteAddresses
+	// LegacyRouteIntranet is the default intranet gateway address set returned by /route APIs.
+	LegacyRouteIntranet LegacyRouteAddresses
+	// LegacyRouteNodes maps node_id query parameters to node-specific legacy route addresses.
+	LegacyRouteNodes map[uint64]LegacyRouteNodeAddresses
 	// MetricsHandler serves Prometheus metrics when configured.
 	MetricsHandler http.Handler
 	// PProfEnabled exposes net/http/pprof endpoints for controlled performance runs.
@@ -225,6 +249,9 @@ type Server struct {
 	messages                MessageUsecase
 	conversations           ConversationUsecase
 	conversationObserver    ConversationListObserver
+	legacyRouteExternal     LegacyRouteAddresses
+	legacyRouteIntranet     LegacyRouteAddresses
+	legacyRouteNodes        map[uint64]LegacyRouteNodeAddresses
 	metricsHandler          http.Handler
 	pprofEnabled            bool
 	debugEnabled            bool
@@ -243,6 +270,7 @@ func New(opts Options) *Server {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	engine := gin.New()
+	engine.Use(openCORSMiddleware())
 	engine.HandleMethodNotAllowed = true
 	s := &Server{
 		engine:                  engine,
@@ -260,6 +288,9 @@ func New(opts Options) *Server {
 		messages:                opts.Messages,
 		conversations:           opts.Conversations,
 		conversationObserver:    opts.ConversationListObserver,
+		legacyRouteExternal:     opts.LegacyRouteExternal,
+		legacyRouteIntranet:     opts.LegacyRouteIntranet,
+		legacyRouteNodes:        cloneLegacyRouteNodes(opts.LegacyRouteNodes),
 		metricsHandler:          opts.MetricsHandler,
 		pprofEnabled:            opts.PProfEnabled,
 		debugEnabled:            opts.DebugEnabled,
@@ -275,6 +306,17 @@ func New(opts Options) *Server {
 	}
 	s.registerRoutes()
 	return s
+}
+
+func cloneLegacyRouteNodes(nodes map[uint64]LegacyRouteNodeAddresses) map[uint64]LegacyRouteNodeAddresses {
+	if len(nodes) == 0 {
+		return nil
+	}
+	out := make(map[uint64]LegacyRouteNodeAddresses, len(nodes))
+	for nodeID, addrs := range nodes {
+		out[nodeID] = addrs
+	}
+	return out
 }
 
 // Handler returns the HTTP handler for tests and in-process harnesses.
@@ -389,6 +431,8 @@ func (s *Server) registerRoutes() {
 	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
 		s.registerDiagnosticsRoutes()
 	}
+	s.engine.GET("/route", s.handleRoute)
+	s.engine.POST("/route/batch", s.handleRouteBatch)
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
 	s.registerMessageRoutes()

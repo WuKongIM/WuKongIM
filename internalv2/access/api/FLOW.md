@@ -30,6 +30,8 @@ GET  /debug/pprof/*                   (optional, when PProfEnabled is configured
 GET  /debug/diagnostics/trace/:trace_id (optional, when DiagnosticsDebugEnabled is configured)
 GET  /debug/diagnostics/message       (optional, when DiagnosticsDebugEnabled is configured)
 GET  /debug/diagnostics/events        (optional, when DiagnosticsDebugEnabled is configured)
+GET  /route
+POST /route/batch
 GET  /bench/v1/capabilities
 GET  /bench/v1/capacity-target
 GET  /bench/v1/snapshot
@@ -83,6 +85,15 @@ passes both a diagnostics reader and `DiagnosticsDebugEnabled=true`. They query
 the node-local bounded diagnostics store and are intended for controlled
 performance and troubleshooting runs.
 
+The compatible `/route` and `/route/batch` routes are registered regardless of
+bench mode. They keep the legacy address response envelopes and select public
+or intranet gateway addresses from composition-root configuration based on
+`intranet=1`. When `node_id`, `nodeId`, or `nodeID` is supplied, the adapter
+returns the node-specific address set derived by the composition root from the
+static cluster voters. Invalid or unknown node IDs return the legacy
+`{"status":400,"msg":"节点参数有误！"}` envelope, and `/route/batch` only
+accepts a JSON array of UID strings.
+
 The compatible `/channel*` routes are registered regardless of bench mode. They
 keep the existing request and response envelopes, including `{"status":200}`
 mutation success responses and `{"status":400,"msg":"..."}` validation errors.
@@ -131,6 +142,11 @@ the requesting user. If the composition root does not provide a conversation
 usecase, the route fails closed with the compatible JSON error envelope.
 
 ## Phase-1 Semantics
+
+All routes inherit open browser CORS handling from the HTTP adapter. The
+middleware echoes a request `Origin` when present, falls back to `*` when no
+origin is supplied, and answers preflight `OPTIONS` requests with `204` before
+business handlers run.
 
 The user-token mutation route is intentionally restricted to setup
 acknowledgments for black-box `wkbench` compatibility. The current

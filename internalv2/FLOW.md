@@ -16,7 +16,7 @@ storage, or routing branches that bypass cluster semantics.
 | Package | Responsibility |
 |---------|----------------|
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
-| `access/api` | Health, readiness, bench/v1 target HTTP surface, and legacy-compatible channel management HTTP adapters. |
+| `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel management HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel write calls between internalv2 nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |

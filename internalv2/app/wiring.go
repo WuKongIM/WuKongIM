@@ -363,15 +363,19 @@ func (a *App) wireDelivery() {
 	}
 }
 
-func (a *App) wireChannelWrite(nodeID uint64) {
+func (a *App) wireChannelWrite(nodeID uint64) error {
 	if a.channelWrites == nil {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
 		writeNode, hasWriteNode := a.cluster.(clusterinfra.ChannelWriteNode)
 		if hasAppendNode && hasWriteNode {
+			messageIDs, err := newNodeMessageIDs(nodeID)
+			if err != nil {
+				return fmt.Errorf("internalv2/app: create message id generator: %w", err)
+			}
 			opts := channelwrite.Options{
 				LocalNodeID:                  nodeID,
 				Appender:                     clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
-				MessageID:                    newNodeMessageIDs(nodeID),
+				MessageID:                    messageIDs,
 				ReactorCount:                 a.cfg.Delivery.ChannelWriteReactorCount,
 				PrepareWorkers:               a.cfg.Delivery.ChannelWritePrepareWorkers,
 				AppendWorkers:                a.cfg.Delivery.ChannelWriteAppendWorkers,
@@ -443,6 +447,7 @@ func (a *App) wireChannelWrite(nodeID uint64) {
 			}
 		}
 	}
+	return nil
 }
 
 func (a *App) channelWriteOwnerPusher(nodeID uint64) channelwrite.OwnerPusher {
@@ -489,6 +494,8 @@ func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 
 func (a *App) wireAPI() {
 	if a.api == nil && strings.TrimSpace(a.cfg.API.ListenAddr) != "" {
+		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(a.cfg.API, a.cfg.Gateway.Listeners)
+		legacyRouteNodes := legacyRouteNodeAddresses(a.cfg.NodeID, a.cfg.Cluster.Control.Voters, legacyRouteExternal, legacyRouteIntranet)
 		a.api = accessapi.New(accessapi.Options{
 			ListenAddr:               a.cfg.API.ListenAddr,
 			Readyz:                   a.readyzReport,
@@ -504,6 +511,9 @@ func (a *App) wireAPI() {
 			Messages:                 a.apiMessages,
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
+			LegacyRouteExternal:      legacyRouteExternal,
+			LegacyRouteIntranet:      legacyRouteIntranet,
+			LegacyRouteNodes:         legacyRouteNodes,
 			MetricsHandler:           a.metricsHandler(),
 			PProfEnabled:             a.cfg.Observability.PProfEnabled,
 			DebugEnabled:             a.cfg.Observability.HealthDebugEnabled,

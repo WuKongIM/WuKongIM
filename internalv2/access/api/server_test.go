@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -156,6 +157,154 @@ func TestBenchRoutesAreNotRegisteredWhenDisabled(t *testing.T) {
 
 	resp, err := http.Get(httpSrv.URL + "/bench/v1/capabilities")
 	requireStatus(t, resp, err, http.StatusNotFound)
+}
+
+func TestRouteReturnsLegacyExternalAddresses(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteExternal: LegacyRouteAddresses{
+			TCPAddr: "198.51.100.10:5100",
+			WSAddr:  "ws://198.51.100.10:5200",
+			WSSAddr: "wss://198.51.100.10:5210",
+		},
+		LegacyRouteIntranet: LegacyRouteAddresses{
+			TCPAddr: "10.0.0.10:5100",
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/route?uid=u1", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !jsonEqual(rec.Body.String(), `{"tcp_addr":"198.51.100.10:5100","ws_addr":"ws://198.51.100.10:5200","wss_addr":"wss://198.51.100.10:5210"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestRouteReturnsLegacyIntranetAddresses(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteExternal: LegacyRouteAddresses{
+			TCPAddr: "198.51.100.10:5100",
+			WSAddr:  "ws://198.51.100.10:5200",
+			WSSAddr: "wss://198.51.100.10:5210",
+		},
+		LegacyRouteIntranet: LegacyRouteAddresses{
+			TCPAddr: "10.0.0.10:5100",
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/route?uid=u1&intranet=1", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !jsonEqual(rec.Body.String(), `{"tcp_addr":"10.0.0.10:5100","ws_addr":"","wss_addr":""}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestRouteBatchReturnsSpecifiedNodeIntranetAddresses(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteNodes: map[uint64]LegacyRouteNodeAddresses{
+			2: {
+				External: LegacyRouteAddresses{
+					TCPAddr: "198.51.100.20:5100",
+					WSAddr:  "ws://198.51.100.20:5200",
+					WSSAddr: "wss://198.51.100.20:5210",
+				},
+				Intranet: LegacyRouteAddresses{
+					TCPAddr: "10.0.0.20:5100",
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/route/batch?node_id=2&intranet=1", bytes.NewBufferString(`["u1","u2"]`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !jsonEqual(rec.Body.String(), `[{"uids":["u1","u2"],"tcp_addr":"10.0.0.20:5100","ws_addr":"","wss_addr":""}]`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestRouteBatchReturnsLegacyInvalidRequestError(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/route/batch", bytes.NewBufferString(`{"uids":["u1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if !jsonEqual(rec.Body.String(), `{"msg":"数据格式有误！","status":400}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestCORSHeadersAddedToNormalResponses(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("Origin", "http://localhost:5175")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got, want := rec.Header().Get("Access-Control-Allow-Origin"), "http://localhost:5175"; got != want {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, want)
+	}
+	if !hasHeaderValue(rec.Header().Values("Vary"), "Origin") {
+		t.Fatalf("Vary = %#v, want Origin", rec.Header().Values("Vary"))
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodGet) {
+		t.Fatalf("Access-Control-Allow-Methods = %q, want %s", got, http.MethodGet)
+	}
+}
+
+func TestCORSPreflightHandlesUserTokenRoute(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/user/token", nil)
+	req.Header.Set("Origin", "http://localhost:5175")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "content-type,authorization")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if got, want := rec.Header().Get("Access-Control-Allow-Origin"), "http://localhost:5175"; got != want {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, want)
+	}
+	if !hasHeaderValue(rec.Header().Values("Vary"), "Origin") {
+		t.Fatalf("Vary = %#v, want Origin", rec.Header().Values("Vary"))
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodPost) {
+		t.Fatalf("Access-Control-Allow-Methods = %q, want %s", got, http.MethodPost)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Content-Type") || !strings.Contains(got, "Authorization") {
+		t.Fatalf("Access-Control-Allow-Headers = %q, want Content-Type and Authorization", got)
+	}
 }
 
 func TestServerServesMetricsWhenHandlerConfigured(t *testing.T) {
@@ -314,4 +463,13 @@ func postJSON(t *testing.T, url, body string, want int) {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", bytes.NewBufferString(body))
 	requireStatus(t, resp, err, want)
+}
+
+func hasHeaderValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

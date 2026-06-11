@@ -139,8 +139,8 @@ WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
 # Channel management marks ordinary group channels large when subscriber count exceeds this threshold.
 WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=500
 
-# Optional online delivery fanout and owner-local recvack tracking.
-WK_DELIVERY_ENABLE=false
+# Online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.
+WK_DELIVERY_ENABLE=true
 # Channel write reactors own channel-authority state by channel hash; zero derives a CPU-aware default.
 WK_DELIVERY_CHANNEL_WRITE_REACTOR_COUNT=0
 # Channel write prepare workers are per reactor; zero uses the bounded default of 8 workers per reactor.

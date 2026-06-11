@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,6 +30,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/bwmarrin/snowflake"
 )
 
 // ClusterRuntime is the cluster lifecycle surface used by the app root.
@@ -144,7 +147,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wirePresence()
 	app.wireUsers()
 	app.wireDelivery()
-	app.wireChannelWrite(clusterCfg.NodeID)
+	if err := app.wireChannelWrite(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
 	app.wireMessages()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
@@ -379,6 +384,136 @@ func gatewayAddressesFromListeners(listeners []gateway.ListenerOptions) accessap
 	return out
 }
 
+func legacyRouteAddresses(apiCfg APIConfig, listeners []gateway.ListenerOptions) (accessapi.LegacyRouteAddresses, accessapi.LegacyRouteAddresses) {
+	external, intranet := legacyRouteAddressesFromListeners(listeners)
+	if trimmed := strings.TrimSpace(apiCfg.ExternalTCPAddr); trimmed != "" {
+		external.TCPAddr = trimmed
+	}
+	if trimmed := strings.TrimSpace(apiCfg.ExternalWSAddr); trimmed != "" {
+		external.WSAddr = trimmed
+	}
+	if trimmed := strings.TrimSpace(apiCfg.ExternalWSSAddr); trimmed != "" {
+		external.WSSAddr = trimmed
+	}
+	return external, intranet
+}
+
+func legacyRouteAddressesFromListeners(listeners []gateway.ListenerOptions) (accessapi.LegacyRouteAddresses, accessapi.LegacyRouteAddresses) {
+	var external accessapi.LegacyRouteAddresses
+	var intranet accessapi.LegacyRouteAddresses
+	for _, listener := range listeners {
+		network := strings.ToLower(strings.TrimSpace(listener.Network))
+		switch network {
+		case "websocket":
+			addr := normalizeWebsocketAddress(listener.Address)
+			switch {
+			case strings.HasPrefix(strings.ToLower(addr), "wss://"):
+				if external.WSSAddr == "" {
+					external.WSSAddr = addr
+				}
+			case external.WSAddr == "":
+				external.WSAddr = addr
+			}
+		default:
+			if external.TCPAddr == "" {
+				external.TCPAddr = normalizeTCPAddress(listener.Address)
+			}
+			if intranet.TCPAddr == "" {
+				intranet.TCPAddr = normalizeTCPAddress(listener.Address)
+			}
+		}
+	}
+	return external, intranet
+}
+
+func legacyRouteNodeAddresses(localNodeID uint64, voters []clusterv2.ControlVoter, external, intranet accessapi.LegacyRouteAddresses) map[uint64]accessapi.LegacyRouteNodeAddresses {
+	out := make(map[uint64]accessapi.LegacyRouteNodeAddresses, len(voters)+1)
+	if localNodeID != 0 {
+		out[localNodeID] = accessapi.LegacyRouteNodeAddresses{External: external, Intranet: intranet}
+	}
+	for _, voter := range voters {
+		if voter.NodeID == 0 || voter.NodeID == localNodeID {
+			continue
+		}
+		host := legacyRouteNodeHost(voter.Addr)
+		if host == "" {
+			continue
+		}
+		out[voter.NodeID] = accessapi.LegacyRouteNodeAddresses{
+			External: legacyRouteAddressesForHost(external, host),
+			Intranet: legacyRouteAddressesForHost(intranet, host),
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func legacyRouteAddressesForHost(addrs accessapi.LegacyRouteAddresses, host string) accessapi.LegacyRouteAddresses {
+	return accessapi.LegacyRouteAddresses{
+		TCPAddr: legacyRouteHostPort(addrs.TCPAddr, host),
+		WSAddr:  legacyRouteURLHost(addrs.WSAddr, host),
+		WSSAddr: legacyRouteURLHost(addrs.WSSAddr, host),
+	}
+}
+
+func legacyRouteNodeHost(addr string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+		return legacyRouteHostOnly(parsed.Host)
+	}
+	trimmed = strings.TrimPrefix(trimmed, "tcp://")
+	return legacyRouteHostOnly(trimmed)
+}
+
+func legacyRouteHostOnly(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		return strings.Trim(addr, "[]")
+	}
+	return ""
+}
+
+func legacyRouteHostPort(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func legacyRouteURLHost(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(parsed.Host)
+	if err == nil {
+		parsed.Host = net.JoinHostPort(host, port)
+		return parsed.String()
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		parsed.Host = host
+		return parsed.String()
+	}
+	return trimmed
+}
+
 func normalizeTCPAddress(addr string) string {
 	trimmed := strings.TrimSpace(addr)
 	return strings.TrimPrefix(trimmed, "tcp://")
@@ -393,18 +528,22 @@ func normalizeWebsocketAddress(addr string) string {
 	return "ws://" + trimmed
 }
 
+// nodeMessageIDs allocates node-scoped Snowflake message ids.
 type nodeMessageIDs struct {
-	next atomic.Uint64
+	// node is the Snowflake generator bound to the effective cluster node id.
+	node *snowflake.Node
 }
 
-func newNodeMessageIDs(nodeID uint64) *nodeMessageIDs {
-	g := &nodeMessageIDs{}
-	g.next.Store(nodeID << 48)
-	return g
+func newNodeMessageIDs(nodeID uint64) (*nodeMessageIDs, error) {
+	node, err := snowflake.NewNode(int64(nodeID))
+	if err != nil {
+		return nil, err
+	}
+	return &nodeMessageIDs{node: node}, nil
 }
 
 func (g *nodeMessageIDs) Next() uint64 {
-	return g.next.Add(1)
+	return uint64(g.node.Generate())
 }
 
 type nodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)

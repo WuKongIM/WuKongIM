@@ -77,7 +77,7 @@ func (o Options) gnetOptions() []gnetv2.Option {
 		opts = append(opts, gnetv2.WithNumEventLoop(o.NumEventLoop))
 	}
 	if o.ReusePort {
-		opts = append(opts, gnetv2.WithReusePort(true))
+		opts = append(opts, gnetv2.WithReusePort(true), gnetv2.WithReuseAddr(true))
 	}
 	if o.ReadBufferCap > 0 {
 		opts = append(opts, gnetv2.WithReadBufferCap(o.ReadBufferCap))

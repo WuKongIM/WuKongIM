@@ -52,6 +52,9 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if cfg.Channel.LargeGroupSubscriberThreshold != 500 {
 		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 500", cfg.Channel.LargeGroupSubscriberThreshold)
 	}
+	if !cfg.Delivery.Enabled {
+		t.Fatalf("Delivery.Enabled = false, want true by default")
+	}
 }
 
 func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {

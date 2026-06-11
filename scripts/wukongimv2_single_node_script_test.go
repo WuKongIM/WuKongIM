@@ -110,3 +110,31 @@ func TestWukongIMV2SingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 		t.Fatalf("dry-run output should not use example configs:\n%s", text)
 	}
 }
+
+func TestWukongIMV2SingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
+	root := repoRoot(t)
+	singleDataDir := filepath.Join(root, "data/wukongimv2-single-node-data")
+	threeNode1DataDir := filepath.Join(root, "data/wukongimv2-node-1")
+
+	cmd := exec.Command("bash", "scripts/start-wukongimv2-single-node.sh", "--dry-run")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	if !strings.Contains(text, "data_dir="+singleDataDir) {
+		t.Fatalf("dry-run output should default to isolated data dir %q:\n%s", singleDataDir, text)
+	}
+	if strings.Contains(text, "data_dir="+threeNode1DataDir) {
+		t.Fatalf("dry-run output should not reuse three-node node1 data dir:\n%s", text)
+	}
+
+	config := readFile(t, filepath.Join(root, "scripts/wukongimv2/wukongimv2.conf"))
+	if !strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongimv2-single-node-data") {
+		t.Fatalf("single-node config should use isolated data dir:\n%s", config)
+	}
+	if strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongimv2-node-1") {
+		t.Fatalf("single-node config should not reuse three-node node1 data dir:\n%s", config)
+	}
+}

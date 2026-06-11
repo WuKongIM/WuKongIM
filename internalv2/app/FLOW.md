@@ -88,18 +88,20 @@ New(Config)
      clusterv2 committed message reader when exposed for channel message sync
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
-     usecases, optional debug snapshots, optional bench presence snapshot
-     controller, and real benchmark channel/subscriber data writer when
+     usecases, legacy route address lookup derived from gateway listeners and
+     static cluster voters, optional debug snapshots, optional bench presence
+     snapshot controller, and real benchmark channel/subscriber data writer when
      API.ListenAddr is configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
-`Delivery.Enabled` defaults to false. With delivery disabled, committed message
-effects still run inside the channel authority reactor so recent conversation
-state is updated, but no online delivery is submitted. With delivery enabled,
-gateway RECVACK and session close feedback flows to the delivery usecase, while
-channelwrite post-commit effects enqueue recipient-authority delivery batches
-into the recipient delivery worker.
+`Delivery.Enabled` remains false for app-level zero-value configs, while the
+`wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With
+delivery disabled, committed message effects still run inside the channel
+authority reactor so recent conversation state is updated, but no online
+delivery is submitted. With delivery enabled, gateway RECVACK and session close
+feedback flows to the delivery usecase, while channelwrite post-commit effects
+enqueue recipient-authority delivery batches into the recipient delivery worker.
 `Config.Delivery.ChannelWriteReactorCount` defaults to a CPU-aware reactor
 count with a minimum of four. `ChannelWritePrepareWorkers`,
 `ChannelWriteAppendWorkers`, and `ChannelWritePostCommitWorkers` feed shared

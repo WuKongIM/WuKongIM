@@ -11,8 +11,6 @@ This domain covers black-box message delivery scenarios.
 | Scenario | Purpose | Run |
 | --- | --- | --- |
 | `single_node_send_message` | Prove one fresh single-node cluster can complete a WKProto send/receive closure. | `go test -tags=e2e ./test/e2e/message/single_node_send_message -count=1` |
-| `wukongimv2_single_node_send` | Prove `cmd/wukongimv2` can complete one single-node cluster WKProto SEND -> SENDACK closure and expose sender/receiver rows through `/conversation/list`. | `GOWORK=off go test -tags=e2e ./test/e2e/message/wukongimv2_single_node_send -count=1` |
-| `wukongimv2_recipient_authority` | Prove `cmd/wukongimv2` routes committed group messages through recipient UID authority, updates subscriber-owned `/conversation/list` rows, and exposes low-cardinality authority metrics, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2e/message/wukongimv2_recipient_authority -count=1` |
 | `cross_node_closure` | Prove a three-node cluster can complete one cross-node message closure across two follower nodes. | `go test -tags=e2e ./test/e2e/message/cross_node_closure -count=1` |
 | `delivery_tag_group_delivery` | Prove group-channel delivery uses delivery tag partitions, refreshes after public subscriber mutations, and supports opt-in 100k subscriber stress. | `go test -tags=e2e ./test/e2e/message/delivery_tag_group_delivery -count=1` |
 | `request_scoped_subscriber_delivery` | Prove request-scoped `/message/send` subscribers deliver only to the requested online subscribers across nodes. | `go test -tags=e2e ./test/e2e/message/request_scoped_subscriber_delivery -count=1` |
@@ -24,6 +22,7 @@ This domain covers black-box message delivery scenarios.
 
 ## Maintenance Rules
 
+- `cmd/wukongimv2` message scenarios live under `test/e2ev2/message`.
 - When adding a new message scenario, create `test/e2e/message/<scenario>/`.
 - Give each scenario its own `AGENTS.md` and one primary
   `<scenario>_test.go`.

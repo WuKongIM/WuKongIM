@@ -72,6 +72,7 @@ directory tree.
 - When a scenario needs custom artifact roots or node config overrides for
   debugging, pass `test/e2e/suite` options directly to
   `StartSingleNodeCluster(...)` or `StartThreeNodeCluster(...)`.
+- `cmd/wukongimv2` scenarios live under `test/e2ev2`.
 
 ## Catalog
 
@@ -83,8 +84,6 @@ directory tree.
 | `cluster` | `test/e2e/cluster/node_scalein_channel_drain` | Prove manager-driven data-node scale-in drains Slot ownership, channel replicas, active channel migrations, and runtime sessions before reporting the node safe to remove while WKProto delivery continues. | `go test -tags=e2e ./test/e2e/cluster/node_scalein_channel_drain -count=1 -timeout 3m` |
 | `cluster` | `test/e2e/cluster/gofail_transport` | Opt-in smoke that starts a gofail-enabled single-node cluster and verifies transport failpoints are exposed through `GOFAIL_HTTP`. | `WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2E_GOFAIL_TRANSPORT_SMOKE=1 go test -tags=e2e ./test/e2e/cluster/gofail_transport -count=1` |
 | `message` | `test/e2e/message/single_node_send_message` | Prove one fresh single-node cluster can complete a real WKProto `Send -> SendAck -> Recv -> RecvAck` closure. | `go test -tags=e2e ./test/e2e/message/single_node_send_message -count=1` |
-| `message` | `test/e2e/message/wukongimv2_single_node_send` | Prove `cmd/wukongimv2` can complete one single-node cluster WKProto `SEND -> SENDACK` closure and expose sender/receiver rows through `/conversation/list`. | `GOWORK=off go test -tags=e2e ./test/e2e/message/wukongimv2_single_node_send -count=1` |
-| `message` | `test/e2e/message/wukongimv2_recipient_authority` | Prove `cmd/wukongimv2` routes committed group messages through recipient UID authority, updates subscriber-owned `/conversation/list` rows, and exposes low-cardinality authority metrics, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2e/message/wukongimv2_recipient_authority -count=1` |
 | `message` | `test/e2e/message/cross_node_closure` | Prove a three-node cluster can deliver one person-channel message when sender and recipient are connected to different follower nodes. | `go test -tags=e2e ./test/e2e/message/cross_node_closure -count=1` |
 | `message` | `test/e2e/message/delivery_tag_group_delivery` | Prove a three-node cluster can deliver group messages through delivery tag subscriber partitions, refresh after public subscriber mutations, and run opt-in 100k subscriber stress. | `go test -tags=e2e ./test/e2e/message/delivery_tag_group_delivery -count=1` |
 | `message` | `test/e2e/message/request_scoped_subscriber_delivery` | Prove request-scoped `/message/send` subscribers deliver only to requested online subscribers across nodes. | `go test -tags=e2e ./test/e2e/message/request_scoped_subscriber_delivery -count=1` |

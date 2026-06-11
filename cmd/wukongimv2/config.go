@@ -233,6 +233,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Channel: app.ChannelConfig{
 			LargeGroupSubscriberThreshold: 500,
 		},
+		Delivery: app.DeliveryConfig{
+			Enabled: true,
+		},
 	}
 	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
 	if err != nil {
@@ -941,6 +944,7 @@ func defaultGatewayGnetOptions() gateway.GnetTransportOptions {
 	return gateway.GnetTransportOptions{
 		Multicore:    loops > 1,
 		NumEventLoop: loops,
+		ReusePort:    true,
 	}
 }
 

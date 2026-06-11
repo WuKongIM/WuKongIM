@@ -38,6 +38,7 @@ import (
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/bwmarrin/snowflake"
 )
 
 func newTestApp(t *testing.T, cfg Config, opts ...Option) (*App, error) {
@@ -64,6 +65,61 @@ func startTestApp(t *testing.T, app *App) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 	})
+}
+
+func TestLegacyRouteAddressesPreferExplicitExternalConfig(t *testing.T) {
+	cfg := APIConfig{
+		ExternalTCPAddr: "im.example.com:15100",
+		ExternalWSSAddr: "wss://im.example.com:15300",
+	}
+	listeners := []gateway.ListenerOptions{
+		{Name: "tcp-wkproto", Network: "tcp", Address: "127.0.0.1:5100"},
+		{Name: "ws-jsonrpc", Network: "websocket", Address: "127.0.0.1:5200"},
+	}
+
+	external, intranet := legacyRouteAddresses(cfg, listeners)
+
+	if external != (accessapi.LegacyRouteAddresses{
+		TCPAddr: "im.example.com:15100",
+		WSAddr:  "ws://127.0.0.1:5200",
+		WSSAddr: "wss://im.example.com:15300",
+	}) {
+		t.Fatalf("external = %#v", external)
+	}
+	if intranet != (accessapi.LegacyRouteAddresses{TCPAddr: "127.0.0.1:5100"}) {
+		t.Fatalf("intranet = %#v", intranet)
+	}
+}
+
+func TestLegacyRouteNodeAddressesDeriveRemoteVoterHosts(t *testing.T) {
+	external := accessapi.LegacyRouteAddresses{
+		TCPAddr: "im-node1.example.com:15100",
+		WSAddr:  "ws://im-node1.example.com:15200",
+		WSSAddr: "wss://im-node1.example.com:15300",
+	}
+	intranet := accessapi.LegacyRouteAddresses{TCPAddr: "10.0.0.1:5100"}
+	voters := []clusterv2.ControlVoter{
+		{NodeID: 1, Addr: "node1.internal:7000"},
+		{NodeID: 2, Addr: "node2.internal:7000"},
+	}
+
+	nodes := legacyRouteNodeAddresses(1, voters, external, intranet)
+
+	if got := nodes[1]; got != (accessapi.LegacyRouteNodeAddresses{External: external, Intranet: intranet}) {
+		t.Fatalf("local node route = %#v", got)
+	}
+	if got := nodes[2]; got != (accessapi.LegacyRouteNodeAddresses{
+		External: accessapi.LegacyRouteAddresses{
+			TCPAddr: "node2.internal:15100",
+			WSAddr:  "ws://node2.internal:15200",
+			WSSAddr: "wss://node2.internal:15300",
+		},
+		Intranet: accessapi.LegacyRouteAddresses{
+			TCPAddr: "node2.internal:5100",
+		},
+	}) {
+		t.Fatalf("remote node route = %#v", got)
+	}
 }
 
 func TestStartOrderIsClusterThenGateway(t *testing.T) {
@@ -2685,8 +2741,17 @@ func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
 	if result.Reason != message.ReasonSuccess {
 		t.Fatalf("send reason = %v, want success", result.Reason)
 	}
-	if got, want := result.MessageID, uint64(7<<48)+1; got != want {
-		t.Fatalf("first message id = %d, want %d", got, want)
+	requireSnowflakeMessageIDNode(t, int64(result.MessageID), 7)
+}
+
+func requireSnowflakeMessageIDNode(t testing.TB, messageID int64, nodeID uint64) {
+	t.Helper()
+	if messageID <= 0 {
+		t.Fatalf("message id = %d, want positive Snowflake id", messageID)
+	}
+	id := snowflake.ParseInt64(messageID)
+	if got, want := id.Node(), int64(nodeID); got != want {
+		t.Fatalf("message id node = %d, want %d from %d", got, want, messageID)
 	}
 }
 

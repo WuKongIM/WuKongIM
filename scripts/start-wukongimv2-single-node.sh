@@ -6,7 +6,7 @@ CONFIG_PATH="${WK_WUKONGIMV2_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongimv2/wu
 BIN_PATH="${WK_WUKONGIMV2_SINGLE_NODE_BIN:-$ROOT_DIR/data/wukongimv2-single-node/wukongimv2}"
 LOG_DIR="${WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR:-$ROOT_DIR/data/wukongimv2-single-node-logs}"
 READY_URL="${WK_WUKONGIMV2_SINGLE_NODE_READY_URL:-http://127.0.0.1:5001/readyz}"
-DATA_DIR="${WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongimv2-node-1}"
+DATA_DIR="${WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongimv2-single-node-data}"
 READY_TIMEOUT="${WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT:-60}"
 POLL_INTERVAL="${WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL:-1}"
 BUILD=1
@@ -27,7 +27,7 @@ Options:
   --no-build             Reuse --bin instead of running go build.
   --bin PATH             Binary path. Default: WK_WUKONGIMV2_SINGLE_NODE_BIN or data/wukongimv2-single-node/wukongimv2.
   --config PATH          Config path. Default: WK_WUKONGIMV2_SINGLE_NODE_CONFIG or scripts/wukongimv2/wukongimv2.conf.
-  --data-dir DIR         Data dir removed by --clean. Default: WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR or data/wukongimv2-node-1.
+  --data-dir DIR         Data dir removed by --clean. Default: WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR or data/wukongimv2-single-node-data.
   --log-dir DIR          Log directory. Default: WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR or data/wukongimv2-single-node-logs.
   --ready-url URL        Ready probe URL. Default: WK_WUKONGIMV2_SINGLE_NODE_READY_URL or http://127.0.0.1:5001/readyz.
   --ready-timeout SECS   Ready wait timeout. Default: WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT or 60.

@@ -65,9 +65,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	if ack.ClientSeq != send.ClientSeq || ack.ClientMsgNo != send.ClientMsgNo {
 		t.Fatalf("sendack client mapping = seq:%d msgNo:%q, want seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo, send.ClientSeq, send.ClientMsgNo)
 	}
-	if ack.MessageID != int64(uint64(cfg.NodeID<<48)+1) {
-		t.Fatalf("sendack message id = %d, want first node-scoped id %d", ack.MessageID, uint64(cfg.NodeID<<48)+1)
-	}
+	requireSnowflakeMessageIDNode(t, ack.MessageID, cfg.NodeID)
 	if ack.MessageSeq != 1 {
 		t.Fatalf("sendack message sequence = %d, want first committed channel sequence 1", ack.MessageSeq)
 	}
@@ -102,9 +100,7 @@ func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 	if first.ReasonCode != frame.ReasonSuccess {
 		t.Fatalf("first sendack reason = %v, want %v", first.ReasonCode, frame.ReasonSuccess)
 	}
-	if first.MessageID != int64(uint64(cfg.NodeID<<48)+1) {
-		t.Fatalf("first message id = %d, want %d", first.MessageID, uint64(cfg.NodeID<<48)+1)
-	}
+	requireSnowflakeMessageIDNode(t, first.MessageID, cfg.NodeID)
 	if first.MessageSeq != 1 {
 		t.Fatalf("first message seq = %d, want 1", first.MessageSeq)
 	}
@@ -113,8 +109,9 @@ func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 	if second.ReasonCode != frame.ReasonSuccess {
 		t.Fatalf("second sendack reason = %v, want %v", second.ReasonCode, frame.ReasonSuccess)
 	}
-	if second.MessageID != int64(uint64(cfg.NodeID<<48)+2) {
-		t.Fatalf("second message id = %d, want %d", second.MessageID, uint64(cfg.NodeID<<48)+2)
+	requireSnowflakeMessageIDNode(t, second.MessageID, cfg.NodeID)
+	if second.MessageID <= first.MessageID {
+		t.Fatalf("second message id = %d, want greater than first %d", second.MessageID, first.MessageID)
 	}
 	if second.MessageSeq != 2 {
 		t.Fatalf("second message seq = %d, want 2", second.MessageSeq)
