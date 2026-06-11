@@ -122,6 +122,7 @@ func (n *Node) ensureDefaultTransport() error {
 		NodeID:    n.cfg.NodeID,
 		Discovery: n.discovery,
 		Observer:  n.cfg.Transport.Observer,
+		PoolSize:  1000,
 	})
 	n.defaultTransport = true
 	n.registeredRPCHandlers = make(map[uint8]struct{})
