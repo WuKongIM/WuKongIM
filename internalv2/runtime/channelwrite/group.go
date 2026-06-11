@@ -2,7 +2,6 @@ package channelwrite
 
 import (
 	"context"
-	"hash/fnv"
 	"strconv"
 	"sync"
 
@@ -328,9 +327,16 @@ func channelKey(channelID ChannelID) string {
 }
 
 func hashString64(value string) uint64 {
-	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(value))
-	return hash.Sum64()
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	for i := 0; i < len(value); i++ {
+		hash ^= uint64(value[i])
+		hash *= prime64
+	}
+	return hash
 }
 
 func cloneSendBatchItems(items []SendBatchItem) []SendBatchItem {
