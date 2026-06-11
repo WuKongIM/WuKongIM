@@ -2,6 +2,7 @@ package channelwrite
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"strconv"
 	"sync/atomic"
@@ -27,13 +28,9 @@ func BenchmarkSubmitLocalHotChannel(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+		results, err := submitAndWaitBenchmark(group, target, item)
 		if err != nil {
-			b.Fatalf("SubmitLocal() error = %v", err)
-		}
-		results, err := future.Wait(context.Background())
-		if err != nil {
-			b.Fatalf("Future.Wait() error = %v", err)
+			b.Fatalf("submit/wait error = %v", err)
 		}
 		if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
 			b.Fatalf("results = %#v, want one successful result", results)
@@ -70,17 +67,16 @@ func BenchmarkSubmitLocalManyChannelsParallel(b *testing.B) {
 		for pb.Next() {
 			n := seq.Add(1)
 			idx := int(n % channelCount)
-			future, err := group.SubmitLocal(context.Background(), targets[idx], []SendBatchItem{items[idx]})
+			results, err := submitAndWaitBenchmark(group, targets[idx], items[idx])
 			if err != nil {
 				if failed.CompareAndSwap(false, true) {
-					b.Errorf("SubmitLocal() error = %v", err)
+					b.Errorf("submit/wait error = %v", err)
 				}
 				continue
 			}
-			results, err := future.Wait(context.Background())
-			if err != nil || len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+			if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
 				if failed.CompareAndSwap(false, true) {
-					b.Errorf("results = %#v wait_err=%v, want one successful result", results, err)
+					b.Errorf("results = %#v, want one successful result", results)
 				}
 			}
 		}
@@ -127,6 +123,31 @@ func BenchmarkObservePressureWithObserver10KChannels(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		reactor.observePressure()
+	}
+}
+
+// submitAndWaitBenchmark submits one item and waits, retrying transient
+// per-channel admission backpressure (ErrBackpressured / ErrChannelBusy) which
+// is a load-shedding signal, not a correctness failure.
+func submitAndWaitBenchmark(group *Group, target AuthorityTarget, item SendBatchItem) ([]SendBatchItemResult, error) {
+	for {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+		if err != nil {
+			if errors.Is(err, ErrBackpressured) || errors.Is(err, ErrChannelBusy) {
+				runtime.Gosched()
+				continue
+			}
+			return nil, err
+		}
+		results, err := future.Wait(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		if len(results) == 1 && (errors.Is(results[0].Err, ErrBackpressured) || errors.Is(results[0].Err, ErrChannelBusy)) {
+			runtime.Gosched()
+			continue
+		}
+		return results, nil
 	}
 }
 
