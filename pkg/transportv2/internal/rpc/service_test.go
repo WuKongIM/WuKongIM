@@ -184,6 +184,70 @@ func TestServiceTimeout(t *testing.T) {
 	}
 }
 
+func TestServiceHandlerPanicRepliesAndReleasesPayload(t *testing.T) {
+	var released atomic.Int32
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
+		panic("boom")
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, nil)
+	defer svc.Stop()
+
+	reply := make(chan Response, 1)
+	err := svc.Enqueue(Request{
+		Payload: core.NewOwnedBuffer([]byte("panic"), func([]byte) {
+			released.Add(1)
+		}),
+		Reply: reply,
+	})
+	if err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+
+	resp := waitResponse(t, reply)
+	if resp.Err == nil {
+		t.Fatal("reply err is nil, want panic error")
+	}
+	if got := released.Load(); got != 1 {
+		t.Fatalf("released = %d, want 1", got)
+	}
+}
+
+func TestServiceConcurrencyRemainsBounded(t *testing.T) {
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	secondStarted := make(chan struct{})
+	var calls atomic.Int32
+
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
+		call := calls.Add(1)
+		if call == 1 {
+			close(firstStarted)
+			<-releaseFirst
+			return nil, nil
+		}
+		close(secondStarted)
+		return nil, nil
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 1024}, nil)
+	defer svc.Stop()
+
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("first"))}); err != nil {
+		t.Fatalf("Enqueue(first) error = %v", err)
+	}
+	waitClosed(t, firstStarted)
+
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("second"))}); err != nil {
+		t.Fatalf("Enqueue(second) error = %v", err)
+	}
+
+	select {
+	case <-secondStarted:
+		t.Fatal("second handler started while first handler still holds concurrency slot")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseFirst)
+	waitClosed(t, secondStarted)
+}
+
 func TestServiceMaxQueueBytesReturnsBusy(t *testing.T) {
 	block := make(chan struct{})
 	started := make(chan struct{})
