@@ -49,6 +49,33 @@ func TestRecipientDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T
 	}
 }
 
+func TestRecipientDeliveryEnqueuerTakesPriorityOverDeprecatedRouter(t *testing.T) {
+	enqueuer := &recordingRecipientRouterForRecipientTest{}
+	router := &recordingRecipientRouterForRecipientTest{}
+	group := New(Options{
+		LocalNodeID:                1,
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientRouter:            router,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
+		RecipientBatchSize:         16,
+	})
+
+	target := recipientAuthorityTargetForTest(1, 1, 1)
+	if err := group.reactors[0].commitPorts.deliveryEnqueuer.EnqueueRecipientBatch(context.Background(), target, RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 1},
+		Recipients: []Recipient{{UID: "u1"}},
+	}); err != nil {
+		t.Fatalf("EnqueueRecipientBatch() error = %v", err)
+	}
+
+	if got := enqueuer.callCount(); got != 1 {
+		t.Fatalf("enqueuer calls = %d, want 1", got)
+	}
+	if got := router.callCount(); got != 0 {
+		t.Fatalf("deprecated router calls = %d, want 0 when enqueuer is configured", got)
+	}
+}
+
 func TestSubmitLocalRejectsRemoteAuthorityWithoutState(t *testing.T) {
 	group := newStartedTestGroup(t, Options{LocalNodeID: 1})
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 2}

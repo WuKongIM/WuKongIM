@@ -26,7 +26,7 @@ func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
 	err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
 		subscribers:                source,
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 		subscriberPageSize:         2,
 	})
@@ -60,7 +60,7 @@ func TestActiveBatchAdmittedBeforeRecipientRouter(t *testing.T) {
 	err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
 		activeAdmitter:             active,
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 		subscriberPageSize:         2,
 	})
@@ -132,7 +132,7 @@ func TestActiveBatchFailureStopsRecipientRouter(t *testing.T) {
 	}, commitPorts{
 		activeAdmitter:             active,
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if !errors.Is(err, activeErr) {
@@ -161,7 +161,7 @@ func TestPersonChannelDerivesExactlyCanonicalParticipants(t *testing.T) {
 		ChannelType: 1,
 	}, commitPorts{
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 		subscriberPageSize:         2,
 	})
@@ -192,7 +192,7 @@ func TestGroupChannelPagesSubscribersBeforeDispatchingNextPage(t *testing.T) {
 	}, commitPorts{
 		subscribers:                source,
 		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7},
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 		subscriberPageSize:         2,
 	})
@@ -227,7 +227,7 @@ func TestRecipientBatchesAreGroupedByRecipientAuthorityTarget(t *testing.T) {
 		{UID: "u3"},
 	}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if err != nil {
@@ -245,6 +245,63 @@ func TestRecipientBatchesAreGroupedByRecipientAuthorityTarget(t *testing.T) {
 	}
 }
 
+func TestRecipientDeliveryBatchesAreEnqueuedByRecipientAuthorityTarget(t *testing.T) {
+	enqueuer := &recordingRecipientDeliveryEnqueuerForRecipientTest{}
+	target10 := recipientAuthorityTargetForTest(1, 10, 100)
+	target20 := recipientAuthorityTargetForTest(2, 20, 200)
+	resolver := mapRecipientAuthorityResolverForRecipientTest{
+		targets: map[string]RecipientAuthorityTarget{
+			"u1": target10,
+			"u2": target20,
+			"u3": target10,
+		},
+	}
+	payload := []byte("before")
+	event := CommittedEnvelope{
+		MessageID:  1,
+		MessageSeq: 9,
+		Payload:    payload,
+	}
+	recipients := []Recipient{{UID: "u1"}, {UID: "u2"}, {UID: "u3"}}
+
+	err := dispatchRecipientSet(context.Background(), event, recipients, commitPorts{
+		recipientAuthorityResolver: resolver,
+		deliveryEnqueuer:           enqueuer,
+		recipientBatchSize:         16,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+	payload[0] = 'X'
+	event.MessageID = 99
+	event.Payload[1] = 'Y'
+	recipients[0].UID = "changed"
+
+	got := enqueuer.byTarget()
+	if !reflect.DeepEqual(got[target10], []string{"u1", "u3"}) {
+		t.Fatalf("target 10 recipients = %#v, want u1,u3", got[target10])
+	}
+	if !reflect.DeepEqual(got[target20], []string{"u2"}) {
+		t.Fatalf("target 20 recipients = %#v, want u2", got[target20])
+	}
+	if len(enqueuer.batches) != 2 {
+		t.Fatalf("enqueued batches = %d, want 2", len(enqueuer.batches))
+	}
+	for _, batch := range enqueuer.batches {
+		if batch.Event.MessageID != 1 {
+			t.Fatalf("enqueued event MessageID = %d, want cloned original 1", batch.Event.MessageID)
+		}
+		if string(batch.Event.Payload) != "before" {
+			t.Fatalf("enqueued payload = %q, want cloned original before", batch.Event.Payload)
+		}
+		for _, recipient := range batch.Recipients {
+			if recipient.UID == "changed" {
+				t.Fatalf("enqueued recipients were aliased to caller slice: %#v", batch.Recipients)
+			}
+		}
+	}
+}
+
 func TestRecipientBatchesKeepSameLeaderDifferentFenceTargetsSeparate(t *testing.T) {
 	router := &recordingRecipientRouterForRecipientTest{}
 	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}
@@ -258,7 +315,7 @@ func TestRecipientBatchesKeepSameLeaderDifferentFenceTargetsSeparate(t *testing.
 		{UID: "u2"},
 	}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if err != nil {
@@ -292,7 +349,7 @@ func TestRecipientAuthorityBatchResolverResolvesUniqueTrimmedUIDsOnce(t *testing
 		{UID: " "},
 	}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if err != nil {
@@ -329,7 +386,7 @@ func TestRecipientAuthorityFallbackResolverReusesDuplicateUIDTarget(t *testing.T
 		{UID: " u1 "},
 	}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         1,
 	})
 	if err != nil {
@@ -359,7 +416,7 @@ func TestRecipientDispatchesDifferentAuthorityTargetsConcurrently(t *testing.T) 
 			recipientAuthorityResolver: mapRecipientAuthorityResolverForRecipientTest{
 				targets: map[string]RecipientAuthorityTarget{"u1": first, "u2": second},
 			},
-			recipientRouter:              router,
+			deliveryEnqueuer:             router,
 			recipientBatchSize:           1,
 			recipientDispatchConcurrency: 2,
 		})
@@ -397,7 +454,7 @@ func TestRecipientDispatchKeepsSameAuthorityTargetBatchesSequential(t *testing.T
 			recipientAuthorityResolver: mapRecipientAuthorityResolverForRecipientTest{
 				targets: map[string]RecipientAuthorityTarget{"u1": target, "u2": target},
 			},
-			recipientRouter:              router,
+			deliveryEnqueuer:             router,
 			recipientBatchSize:           1,
 			recipientDispatchConcurrency: 2,
 		})
@@ -427,7 +484,7 @@ func TestInvalidRecipientAuthorityTargetMapsRouteNotReady(t *testing.T) {
 
 	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{MessageID: 1}, []Recipient{{UID: "u1"}}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if !errors.Is(err, ErrRouteNotReady) {
@@ -453,7 +510,7 @@ func TestRecipientAuthorityResolveFailureCarriesPostCommitFailureDetail(t *testi
 		{UID: "u1"},
 	}, commitPorts{
 		recipientAuthorityResolver: resolver,
-		recipientRouter:            router,
+		deliveryEnqueuer:           router,
 		recipientBatchSize:         16,
 	})
 	if !errors.Is(err, ErrRouteNotReady) {
@@ -492,7 +549,7 @@ func TestSubscriberPageInvalidCursorReturnsError(t *testing.T) {
 			}, commitPorts{
 				subscribers:                source,
 				recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{target: recipientAuthorityTargetForTest(1, 7, 1)},
-				recipientRouter:            router,
+				deliveryEnqueuer:           router,
 				recipientBatchSize:         16,
 				subscriberPageSize:         2,
 			})
@@ -608,6 +665,10 @@ func (r *recordingRecipientRouterForRecipientTest) DispatchRecipientBatch(_ cont
 	return nil
 }
 
+func (r *recordingRecipientRouterForRecipientTest) EnqueueRecipientBatch(ctx context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	return r.DispatchRecipientBatch(ctx, target, batch)
+}
+
 func (r *recordingRecipientRouterForRecipientTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -632,6 +693,53 @@ func (r *recordingRecipientRouterForRecipientTest) byTarget() map[RecipientAutho
 	out := make(map[RecipientAuthorityTarget][]string)
 	for i, batch := range r.batches {
 		target := r.targets[i]
+		for _, recipient := range batch.Recipients {
+			out[target] = append(out[target], recipient.UID)
+		}
+	}
+	return out
+}
+
+type recordingRecipientDeliveryEnqueuerForRecipientTest struct {
+	mu      sync.Mutex
+	steps   *orderedStepsForDeliveryTest
+	targets []RecipientAuthorityTarget
+	batches []RecipientBatch
+}
+
+func (e *recordingRecipientDeliveryEnqueuerForRecipientTest) EnqueueRecipientBatch(_ context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	e.steps.add("delivery")
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.targets = append(e.targets, target)
+	e.batches = append(e.batches, batch.Clone())
+	return nil
+}
+
+func (e *recordingRecipientDeliveryEnqueuerForRecipientTest) callCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.batches)
+}
+
+func (e *recordingRecipientDeliveryEnqueuerForRecipientTest) allUIDs() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []string
+	for _, batch := range e.batches {
+		for _, recipient := range batch.Recipients {
+			out = append(out, recipient.UID)
+		}
+	}
+	return out
+}
+
+func (e *recordingRecipientDeliveryEnqueuerForRecipientTest) byTarget() map[RecipientAuthorityTarget][]string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make(map[RecipientAuthorityTarget][]string)
+	for i, batch := range e.batches {
+		target := e.targets[i]
 		for _, recipient := range batch.Recipients {
 			out[target] = append(out[target], recipient.UID)
 		}
@@ -664,6 +772,10 @@ func (r *blockingRecipientRouterForRecipientTest) DispatchRecipientBatch(ctx con
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (r *blockingRecipientRouterForRecipientTest) EnqueueRecipientBatch(ctx context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	return r.DispatchRecipientBatch(ctx, target, batch)
 }
 
 func (r *blockingRecipientRouterForRecipientTest) waitStartedTargets(t *testing.T, want int) []RecipientAuthorityTarget {

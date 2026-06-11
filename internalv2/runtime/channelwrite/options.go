@@ -259,6 +259,12 @@ type BatchRecipientAuthorityResolver interface {
 	ResolveRecipientAuthorities(context.Context, []string) (map[string]RecipientAuthorityTarget, error)
 }
 
+// RecipientDeliveryEnqueuer accepts post-commit recipient batches for asynchronous delivery processing.
+type RecipientDeliveryEnqueuer interface {
+	// EnqueueRecipientBatch queues one committed recipient batch for the recipient authority target.
+	EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
+}
+
 // RecipientAuthorityRouter dispatches recipient batches to their authority target.
 type RecipientAuthorityRouter interface {
 	// DispatchRecipientBatch sends a batch to the recipient authority target.
@@ -317,7 +323,10 @@ type Options struct {
 	Subscribers SubscriberSource
 	// RecipientAuthorityResolver resolves each recipient UID to its recipient authority node.
 	RecipientAuthorityResolver RecipientAuthorityResolver
+	// RecipientDeliveryEnqueuer queues selected recipients for asynchronous delivery processing.
+	RecipientDeliveryEnqueuer RecipientDeliveryEnqueuer
 	// RecipientRouter dispatches selected recipients to their recipient authority node.
+	// Deprecated: use RecipientDeliveryEnqueuer. This compatibility bridge will be removed after app wiring migrates.
 	RecipientRouter RecipientAuthorityRouter
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
 	ConversationActiveAdmitter ConversationActiveAdmitter
@@ -414,16 +423,28 @@ func appendPortsFromOptions(opts Options) appendPorts {
 }
 
 func commitPortsFromOptions(opts Options) commitPorts {
+	deliveryEnqueuer := opts.RecipientDeliveryEnqueuer
+	if deliveryEnqueuer == nil && opts.RecipientRouter != nil {
+		deliveryEnqueuer = recipientRouterDeliveryEnqueuer{router: opts.RecipientRouter}
+	}
 	return commitPorts{
 		subscribers:                  opts.Subscribers,
 		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
-		recipientRouter:              opts.RecipientRouter,
+		deliveryEnqueuer:             deliveryEnqueuer,
 		subscriberPageSize:           opts.SubscriberPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,
 		recipientDispatchConcurrency: opts.RecipientDispatchConcurrency,
 		observer:                     opts.Observer,
 	}
+}
+
+type recipientRouterDeliveryEnqueuer struct {
+	router RecipientAuthorityRouter
+}
+
+func (e recipientRouterDeliveryEnqueuer) EnqueueRecipientBatch(ctx context.Context, target RecipientAuthorityTarget, batch RecipientBatch) error {
+	return e.router.DispatchRecipientBatch(ctx, target, batch)
 }
 
 func stateLimitsFromOptions(opts Options) channelStateLimits {

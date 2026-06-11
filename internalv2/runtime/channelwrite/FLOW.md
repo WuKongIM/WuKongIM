@@ -140,16 +140,15 @@ not checkpointed and not replayed after authority restart.
 
 Post-commit work is scheduled from the authority `channelState` after durable
 append succeeds and is independent from `SENDACK` completion. A committed
-envelope remains pending only until one recipient dispatch attempt completes.
+envelope remains pending only until one recipient delivery enqueue attempt completes.
 Success prunes the payload-bearing envelope from the backlog. Failure is logged
 through `PostCommitFailureObserver`, counted through effect metrics, and then
-the envelope is dropped without retry so one bad active-admission, presence,
-route, or push side effect cannot block later messages on the same channel. The
-failure observation carries a precise post-commit phase plus sampled recipient,
-target, and dispatch context so route-resolution failures can be distinguished
-from conversation active admission, presence lookup, recipient dispatch, and
-owner push failures in logs. Each channel keeps only one committed envelope in
-flight
+the envelope is dropped without retry so one bad active-admission, recipient
+route, or delivery enqueue side effect cannot block later messages on the same
+channel. The failure observation carries a precise post-commit phase plus
+sampled recipient, target, and dispatch context so route-resolution failures
+can be distinguished from conversation active admission and delivery enqueue
+failures in logs. Each channel keeps only one committed envelope in flight
 at a time, and concurrency inside that envelope is limited to recipient
 authority targets. Unprocessed and in-flight commit backlog still participates
 in the channel high-watermark, but failed best-effort work is dropped promptly
@@ -166,30 +165,29 @@ dispatched, avoiding partial side effects for the invalid page before the
 envelope is dropped.
 
 After each recipient set is formed, channelwrite admits one
-`conversationactive.ActiveBatch` before invoking the message delivery router.
+`conversationactive.ActiveBatch` before enqueueing recipient delivery batches.
 The batch carries `SenderUID` from the committed event, channel identity,
 message sequence, activity timestamp, and the expanded recipient UIDs. Receiver
 entries leave `IsSender` unset; the active worker advances the sender read
 sequence from `SenderUID` semantics. This active admission still runs when
-online delivery is disabled or no `RecipientRouter` is configured. If active
-admission fails, the post-commit failure phase is `conversation_active` and
-message delivery is not attempted for that recipient set.
+online delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
+configured. If active admission fails, the post-commit failure phase is
+`conversation_active` and recipient delivery is not enqueued for that recipient
+set.
 
-Recipient-authority processing is now delivery-only: it resolves online routes
-and pushes delivery commands, but does not maintain recent-conversation
-projection rows. When delivery is configured, recipient batches are grouped by
-the full fenced recipient authority target after active admission succeeds. UID
-authority resolution is performed once per unique trimmed UID and uses the
-optional batch resolver when available; invalid or missing targets map to
-route-not-ready before dispatch. Different recipient authority targets may
-dispatch concurrently up to `RecipientDispatchConcurrency`; batches for the
-same target are dispatched sequentially. Delivery pushes are grouped by owner
-node. The sender's own echo is skipped only for the exact owner node and
-session that accepted the original SEND; other sender sessions remain eligible.
-Retryable owner push routes are retried with bounded backoff and an attempt cap;
-routes still retryable after the final attempt return an explicit
-retry-exhausted error. Owner-local concrete session writes remain outside
-`channelState`.
+Recipient delivery is now an enqueue contract. When delivery enqueueing is
+configured, recipient batches are grouped by the full fenced recipient authority
+target after active admission succeeds. UID authority resolution is performed
+once per unique trimmed UID and uses the optional batch resolver when available;
+invalid or missing targets map to route-not-ready before enqueueing. Different
+recipient authority targets may enqueue concurrently up to
+`RecipientDispatchConcurrency`; batches for the same target are enqueued
+sequentially. During migration, the deprecated `RecipientRouter` compatibility
+bridge may execute this enqueue contract inline until app wiring supplies the
+dedicated delivery worker. Once wired, that worker drains the batches, resolves
+presence, groups routes by owner node, skips only the sender's exact accepted
+session for echo suppression, retries retryable owner pushes, and performs
+owner-local concrete session writes outside `channelState`.
 
 `Stop` cancels the runtime context passed to prepare, append, and post-commit
 effects before waiting for reactors to drain. Once cancellation is observed,
