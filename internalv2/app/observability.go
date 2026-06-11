@@ -12,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -270,6 +271,20 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityHandof
 		return
 	}
 	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(event conversationactive.CacheObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.SetActiveCache(event.Rows, event.DirtyRows, event.OldestDirtyAge)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveActiveFlush(event.Result, event.Selected, event.Flushed, event.Duration)
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {

@@ -22,6 +22,12 @@ type ConversationMetrics struct {
 	authorityCachePressure    *prometheus.CounterVec
 	authorityListTotal        *prometheus.CounterVec
 	authorityHandoffTotal     *prometheus.CounterVec
+	activeCacheRows           prometheus.Gauge
+	activeCacheDirtyRows      prometheus.Gauge
+	activeCacheOldestDirtyAge prometheus.Gauge
+	activeFlushTotal          *prometheus.CounterVec
+	activeFlushRows           *prometheus.HistogramVec
+	activeFlushDuration       *prometheus.HistogramVec
 }
 
 func newConversationMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ConversationMetrics {
@@ -87,6 +93,38 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Conversation authority handoff and drain attempts by normalized result.",
 			ConstLabels: labels,
 		}, []string{"result"}),
+		activeCacheRows: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_rows",
+			Help:        "Current rows in the conversation active cache.",
+			ConstLabels: labels,
+		}),
+		activeCacheDirtyRows: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_dirty_rows",
+			Help:        "Current dirty rows in the conversation active cache.",
+			ConstLabels: labels,
+		}),
+		activeCacheOldestDirtyAge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_oldest_dirty_age_seconds",
+			Help:        "Age in seconds of the oldest dirty conversation active cache row.",
+			ConstLabels: labels,
+		}),
+		activeFlushTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_active_flush_total",
+			Help:        "Total conversation active cache flush attempts by normalized result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		activeFlushRows: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_active_flush_rows",
+			Help:        "Conversation active cache rows selected or flushed per attempt.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "kind"}),
+		activeFlushDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_active_flush_duration_seconds",
+			Help:        "Conversation active cache flush latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -101,6 +139,12 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.authorityCachePressure,
 		m.authorityListTotal,
 		m.authorityHandoffTotal,
+		m.activeCacheRows,
+		m.activeCacheDirtyRows,
+		m.activeCacheOldestDirtyAge,
+		m.activeFlushTotal,
+		m.activeFlushRows,
+		m.activeFlushDuration,
 	)
 
 	return m
@@ -156,6 +200,34 @@ func (m *ConversationMetrics) ObserveAuthorityHandoff(result string) {
 	m.authorityHandoffTotal.WithLabelValues(conversationAuthorityResult(result)).Inc()
 }
 
+// SetActiveCache sets the current conversation active cache pressure gauges.
+func (m *ConversationMetrics) SetActiveCache(rows, dirtyRows int, oldestDirtyAge time.Duration) {
+	if m == nil {
+		return
+	}
+	m.activeCacheRows.Set(float64(nonNegative(rows)))
+	m.activeCacheDirtyRows.Set(float64(nonNegative(dirtyRows)))
+	if oldestDirtyAge < 0 {
+		oldestDirtyAge = 0
+	}
+	m.activeCacheOldestDirtyAge.Set(oldestDirtyAge.Seconds())
+}
+
+// ObserveActiveFlush records one conversation active cache flush attempt.
+func (m *ConversationMetrics) ObserveActiveFlush(result string, selected, flushed int, dur time.Duration) {
+	if m == nil {
+		return
+	}
+	result = conversationAuthorityResult(result)
+	m.activeFlushTotal.WithLabelValues(result).Inc()
+	m.activeFlushRows.WithLabelValues(result, conversationActiveFlushRowsKind("selected")).Observe(float64(nonNegative(selected)))
+	m.activeFlushRows.WithLabelValues(result, conversationActiveFlushRowsKind("flushed")).Observe(float64(nonNegative(flushed)))
+	if dur < 0 {
+		dur = 0
+	}
+	m.activeFlushDuration.WithLabelValues(result).Observe(dur.Seconds())
+}
+
 func conversationAuthorityPhase(phase string) string {
 	switch phase {
 	case "admit", "list", "flush":
@@ -171,6 +243,15 @@ func conversationAuthorityResult(result string) string {
 		return result
 	case "accepted":
 		return "ok"
+	default:
+		return "other"
+	}
+}
+
+func conversationActiveFlushRowsKind(kind string) string {
+	switch kind {
+	case "selected", "flushed":
+		return kind
 	default:
 		return "other"
 	}

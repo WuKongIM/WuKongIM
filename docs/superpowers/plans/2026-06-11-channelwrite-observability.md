@@ -17,11 +17,11 @@
 - Modify: `internalv2/runtime/conversationactive/manager.go`
 - Test: `internalv2/runtime/conversationactive/manager_test.go`
 
-- [ ] **Step 1: Write failing tests for cache and flush events**
+- [x] **Step 1: Write failing tests for cache and flush events**
 
 Add tests showing `MarkActive` reports cache rows/dirty rows and `Flush` reports selected/flushed rows, result, duration, and oldest dirty age.
 
-- [ ] **Step 2: Run red test**
+- [x] **Step 2: Run red test**
 
 ```bash
 GOWORK=off go test ./internalv2/runtime/conversationactive -run 'Test.*Observe' -count=1
@@ -29,13 +29,13 @@ GOWORK=off go test ./internalv2/runtime/conversationactive -run 'Test.*Observe' 
 
 Expected: FAIL because observer APIs do not exist.
 
-- [ ] **Step 3: Implement observer events**
+- [x] **Step 3: Implement observer events**
 
 Add `Observer`, `CacheObservation`, and `FlushObservation` types. Extend
 `Options` with `Observer`. Emit cache observations after cache mutations and
 flush observations around store writes.
 
-- [ ] **Step 4: Run green test**
+- [x] **Step 4: Run green test**
 
 ```bash
 GOWORK=off go test ./internalv2/runtime/conversationactive -count=1
@@ -52,12 +52,12 @@ Expected: PASS.
 - Test: `internalv2/app/observability_test.go`
 - Modify: `internalv2/app/conversation_authority.go`
 
-- [ ] **Step 1: Write failing metrics tests**
+- [x] **Step 1: Write failing metrics tests**
 
 Add registry and app observer tests for active cache rows, dirty rows, oldest
 dirty age, flush totals, flush rows, and flush duration.
 
-- [ ] **Step 2: Run red tests**
+- [x] **Step 2: Run red tests**
 
 ```bash
 GOWORK=off go test ./pkg/metrics ./internalv2/app -run 'Test.*Conversation.*Active|Test.*Conversation.*Flush' -count=1
@@ -65,12 +65,12 @@ GOWORK=off go test ./pkg/metrics ./internalv2/app -run 'Test.*Conversation.*Acti
 
 Expected: FAIL because metrics methods and mapping do not exist.
 
-- [ ] **Step 3: Implement mapping**
+- [x] **Step 3: Implement mapping**
 
 Add metrics fields/methods and make the app conversation authority observer
 implement `conversationactive.Observer`.
 
-- [ ] **Step 4: Run green tests**
+- [x] **Step 4: Run green tests**
 
 ```bash
 GOWORK=off go test ./pkg/metrics ./internalv2/app -count=1

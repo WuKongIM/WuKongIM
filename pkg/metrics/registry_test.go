@@ -1325,6 +1325,62 @@ func TestConversationMetricsTrackAuthorityCountersAndLowCardinalityLabels(t *tes
 	requireNoMetricFamily(t, families, "wukongim_conversation_authority_channel_id")
 }
 
+func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Conversation.SetActiveCache(12, 5, 2*time.Second)
+	reg.Conversation.ObserveActiveFlush("ok", 4, 3, 7*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	rows := requireMetricFamily(t, families, "wukongim_conversation_active_cache_rows")
+	require.Equal(t, float64(12), findMetricByLabels(t, rows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	dirty := requireMetricFamily(t, families, "wukongim_conversation_active_cache_dirty_rows")
+	require.Equal(t, float64(5), findMetricByLabels(t, dirty, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	age := requireMetricFamily(t, families, "wukongim_conversation_active_cache_oldest_dirty_age_seconds")
+	require.Equal(t, float64(2), findMetricByLabels(t, age, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	total := requireMetricFamily(t, families, "wukongim_conversation_active_flush_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+	}).GetCounter().GetValue())
+
+	flushRows := requireMetricFamily(t, families, "wukongim_conversation_active_flush_rows")
+	require.Equal(t, float64(4), findMetricByLabels(t, flushRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"kind":      "selected",
+	}).GetHistogram().GetSampleSum())
+	require.Equal(t, float64(3), findMetricByLabels(t, flushRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+		"kind":      "flushed",
+	}).GetHistogram().GetSampleSum())
+
+	duration := requireMetricFamily(t, families, "wukongim_conversation_active_flush_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, duration, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"result":    "ok",
+	}).GetHistogram().GetSampleCount())
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {

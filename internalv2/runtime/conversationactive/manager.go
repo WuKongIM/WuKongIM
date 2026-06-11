@@ -48,6 +48,8 @@ type Manager struct {
 	store ActiveStore
 	// maxCachedRows bounds cached rows across all UIDs; zero means unbounded.
 	maxCachedRows int
+	// observer receives cache and flush observations.
+	observer Observer
 	// totalRows tracks cached active rows across all UID maps.
 	totalRows int
 	// nextVersion allocates monotonic cache-entry versions for dirty flush fencing.
@@ -68,6 +70,7 @@ func NewManager(opts Options) *Manager {
 		nowMS:         nowMS,
 		store:         opts.Store,
 		maxCachedRows: opts.MaxCachedRows,
+		observer:      opts.Observer,
 		cache:         make(map[string]map[conversationKey]cacheEntry),
 	}
 }
@@ -132,6 +135,7 @@ func (m *Manager) MarkActive(ctx context.Context, patches []ActivePatch) error {
 				m.markActiveLocked(patch)
 			}
 			m.mu.Unlock()
+			m.observeCache()
 			return nil
 		}
 		if newRows > m.maxCachedRows {
@@ -264,9 +268,12 @@ func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
+	startedAt := time.Now()
 
 	entries := m.dirtyFlushEntries(limit)
 	if len(entries) == 0 {
+		m.observeFlush(FlushObservation{Result: "no_dirty", Duration: positiveDuration(time.Since(startedAt))})
+		m.observeCache()
 		return FlushResult{}, nil
 	}
 
@@ -275,10 +282,70 @@ func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error
 		patches = append(patches, activePatchMetaPatch(entry.patch))
 	}
 	if err := m.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
+		m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+		m.observeCache()
 		return FlushResult{Selected: len(entries)}, err
 	}
 	m.clearFlushedDirty(entries)
+	m.observeFlush(FlushObservation{Result: "ok", Selected: len(entries), Flushed: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+	m.observeCache()
 	return FlushResult{Selected: len(entries), Flushed: len(entries)}, nil
+}
+
+func (m *Manager) observeCache() {
+	if m.observer == nil {
+		return
+	}
+	m.observer.ObserveConversationActiveCache(m.cacheObservation())
+}
+
+func (m *Manager) observeFlush(obs FlushObservation) {
+	if m.observer == nil {
+		return
+	}
+	m.observer.ObserveConversationActiveFlush(obs)
+}
+
+func (m *Manager) cacheObservation() CacheObservation {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var dirtyRows int
+	var oldestDirtyAt int64
+	for _, byChannel := range m.cache {
+		for _, entry := range byChannel {
+			if !entry.dirty {
+				continue
+			}
+			dirtyRows++
+			activeAt := entry.patch.ActiveAtMS
+			if activeAt <= 0 {
+				continue
+			}
+			if oldestDirtyAt == 0 || activeAt < oldestDirtyAt {
+				oldestDirtyAt = activeAt
+			}
+		}
+	}
+	return CacheObservation{
+		Rows:           m.totalRows,
+		DirtyRows:      dirtyRows,
+		OldestDirtyAge: dirtyAge(m.nowMS(), oldestDirtyAt),
+	}
+}
+
+func dirtyAge(nowMS int64, oldestDirtyAtMS int64) time.Duration {
+	if nowMS <= 0 || oldestDirtyAtMS <= 0 || nowMS <= oldestDirtyAtMS {
+		return 0
+	}
+	return time.Duration(nowMS-oldestDirtyAtMS) * time.Millisecond
+}
+
+func positiveDuration(d time.Duration) time.Duration {
+	if d <= 0 {
+		return time.Nanosecond
+	}
+	return d
 }
 
 func (m *Manager) dirtyFlushEntries(limit int) []flushEntry {

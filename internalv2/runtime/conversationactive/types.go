@@ -3,6 +3,7 @@ package conversationactive
 import (
 	"context"
 	"errors"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -21,6 +22,38 @@ type Options struct {
 	Store ActiveStore
 	// MaxCachedRows bounds in-memory active rows across all users; zero disables the bound.
 	MaxCachedRows int
+	// Observer receives low-cardinality cache and flush observations.
+	Observer Observer
+}
+
+// Observer receives conversation active cache and flush observations.
+type Observer interface {
+	// ObserveConversationActiveCache records a current cache pressure snapshot.
+	ObserveConversationActiveCache(CacheObservation)
+	// ObserveConversationActiveFlush records one dirty-row flush attempt.
+	ObserveConversationActiveFlush(FlushObservation)
+}
+
+// CacheObservation reports current in-memory active cache pressure.
+type CacheObservation struct {
+	// Rows is the number of cached active rows across all users.
+	Rows int
+	// DirtyRows is the number of cached rows still waiting to flush.
+	DirtyRows int
+	// OldestDirtyAge is the age of the oldest dirty row by ActiveAtMS.
+	OldestDirtyAge time.Duration
+}
+
+// FlushObservation reports one active dirty-row flush attempt.
+type FlushObservation struct {
+	// Result is a low-cardinality outcome such as ok, error, or no_dirty.
+	Result string
+	// Selected is the number of dirty rows selected for the attempt.
+	Selected int
+	// Flushed is the number of selected rows durably written.
+	Flushed int
+	// Duration is the flush attempt latency.
+	Duration time.Duration
 }
 
 // ActiveStore reads and persists durable active conversation rows for cache/DB view merging.

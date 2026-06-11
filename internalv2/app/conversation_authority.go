@@ -177,9 +177,14 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		targets:     make(map[conversationAuthorityTargetKey]conversationAuthorityState),
 		observer:    opts.Observer,
 	}
+	var activeObserver conversationactive.Observer
+	if observer, ok := opts.Observer.(conversationactive.Observer); ok {
+		activeObserver = observer
+	}
 	authority.active = conversationactive.NewManager(conversationactive.Options{
 		Store:         conversationActiveStoreAdapter{authority: authority},
 		MaxCachedRows: opts.MaxRows,
+		Observer:      activeObserver,
 	})
 	return authority
 }

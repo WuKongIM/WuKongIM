@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -439,6 +440,29 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	}
 }
 
+func TestManagerObservesCacheRowsAndDirtyLag(t *testing.T) {
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{
+		NowMS:    func() int64 { return 2500 },
+		Observer: observer,
+	})
+
+	if err := m.MarkActive(context.Background(), []ActivePatch{
+		{UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000},
+		{UID: "u1", ChannelID: "new", ChannelType: 2, ActiveAtMS: 2000},
+	}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	got := observer.lastCache(t)
+	if got.Rows != 2 || got.DirtyRows != 2 {
+		t.Fatalf("cache observation rows=%d dirty=%d, want 2/2", got.Rows, got.DirtyRows)
+	}
+	if got.OldestDirtyAge != 1500*time.Millisecond {
+		t.Fatalf("oldest dirty age = %s, want 1.5s", got.OldestDirtyAge)
+	}
+}
+
 func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
@@ -465,6 +489,75 @@ func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	}
 	if got := m.DirtyCountForTest(); got != 0 {
 		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
+	}
+}
+
+func TestManagerObservesFlushResults(t *testing.T) {
+	ctx := context.Background()
+	observer := &recordingConversationActiveObserver{}
+	store := &recordingActiveStore{}
+	m := NewManager(Options{
+		Store:    store,
+		NowMS:    func() int64 { return 3000 },
+		Observer: observer,
+	})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Selected != 1 || result.Flushed != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 flushed=1", result)
+	}
+
+	flush := observer.lastFlush(t)
+	if flush.Result != "ok" || flush.Selected != 1 || flush.Flushed != 1 {
+		t.Fatalf("flush observation = %+v, want ok selected=1 flushed=1", flush)
+	}
+	if flush.Duration <= 0 {
+		t.Fatalf("flush duration = %s, want positive", flush.Duration)
+	}
+	cache := observer.lastCache(t)
+	if cache.Rows != 1 || cache.DirtyRows != 0 || cache.OldestDirtyAge != 0 {
+		t.Fatalf("post-flush cache observation = %+v, want rows=1 dirty=0 age=0", cache)
+	}
+}
+
+func TestManagerObservesFlushFailureAndNoDirty(t *testing.T) {
+	ctx := context.Background()
+	touchErr := errors.New("touch failed")
+	observer := &recordingConversationActiveObserver{}
+	store := &recordingActiveStore{touchErr: touchErr}
+	m := NewManager(Options{
+		Store:    store,
+		NowMS:    func() int64 { return 3000 },
+		Observer: observer,
+	})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	if _, err := m.Flush(ctx, 0); !errors.Is(err, touchErr) {
+		t.Fatalf("Flush(error) = %v, want %v", err, touchErr)
+	}
+	failed := observer.lastFlush(t)
+	if failed.Result != "error" || failed.Selected != 1 || failed.Flushed != 0 {
+		t.Fatalf("failed flush observation = %+v, want error selected=1 flushed=0", failed)
+	}
+
+	store.touchErr = nil
+	if _, err := m.Flush(ctx, 0); err != nil {
+		t.Fatalf("Flush(cleanup) error = %v", err)
+	}
+	if _, err := m.Flush(ctx, 0); err != nil {
+		t.Fatalf("Flush(no dirty) error = %v", err)
+	}
+	noDirty := observer.lastFlush(t)
+	if noDirty.Result != "no_dirty" || noDirty.Selected != 0 || noDirty.Flushed != 0 {
+		t.Fatalf("no-dirty flush observation = %+v, want no_dirty selected=0 flushed=0", noDirty)
 	}
 }
 
@@ -575,6 +668,35 @@ type recordingActiveStore struct {
 	touchErr  error
 	touchHook func()
 	touches   [][]metadb.UserConversationActivePatch
+}
+
+type recordingConversationActiveObserver struct {
+	cache []CacheObservation
+	flush []FlushObservation
+}
+
+func (o *recordingConversationActiveObserver) ObserveConversationActiveCache(event CacheObservation) {
+	o.cache = append(o.cache, event)
+}
+
+func (o *recordingConversationActiveObserver) ObserveConversationActiveFlush(event FlushObservation) {
+	o.flush = append(o.flush, event)
+}
+
+func (o *recordingConversationActiveObserver) lastCache(t *testing.T) CacheObservation {
+	t.Helper()
+	if len(o.cache) == 0 {
+		t.Fatalf("no cache observations")
+	}
+	return o.cache[len(o.cache)-1]
+}
+
+func (o *recordingConversationActiveObserver) lastFlush(t *testing.T) FlushObservation {
+	t.Helper()
+	if len(o.flush) == 0 {
+		t.Fatalf("no flush observations")
+	}
+	return o.flush[len(o.flush)-1]
 }
 
 func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
