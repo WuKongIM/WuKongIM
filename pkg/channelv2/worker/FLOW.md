@@ -18,8 +18,8 @@ Submit(ctx, Task)
   -> enqueue queuedTask into pool-owned bounded queue
   -> dispatcher receives queuedTask
   -> dispatcher collects eligible batch peers
-  -> dispatcher submits task group to ants executor
-  -> executor runs blocking store or transport call
+  -> dispatcher submits the collected execution window to ants
+  -> executor runs each grouped blocking store or transport call serially
   -> CompletionSink receives one Result per original task
 ```
 
@@ -34,14 +34,16 @@ RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Store append and store apply tasks can batch across different
 channel keys when the store factory exposes the optional batch interface.
 
-Batching changes only the blocking dependency call. Reactors still observe one
-fenced completion per original task.
+Batching changes only the blocking dependency call. A collected execution
+window may split into multiple incompatible groups, but those groups still run
+serially inside one ants task so the window preserves dispatcher order. Reactors
+still observe one fenced completion per original task.
 
 ## Shutdown
 
 `Close` cancels the pool context, closes admission to new submissions, stops
 dispatcher draining, completes queued tasks that never reached the executor with
-`ErrClosed`, waits for submitted task groups, and releases the ants pool.
+`ErrClosed`, waits for submitted execution windows, and releases the ants pool.
 
 Running tasks receive the canceled pool context through `Task.Run` and exit
 cooperatively when their dependency honors context cancellation.

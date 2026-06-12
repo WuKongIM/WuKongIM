@@ -16,10 +16,8 @@ func (p *Pool) dispatch() {
 		select {
 		case queued := <-p.queue:
 			p.observeQueueDepth()
-			for _, group := range p.taskGroups(queued) {
-				if !p.submitGroup(group) {
-					return
-				}
+			if !p.submitGroups(p.taskGroups(queued)) {
+				return
 			}
 		case <-p.stop:
 			return
@@ -27,15 +25,16 @@ func (p *Pool) dispatch() {
 	}
 }
 
-func (p *Pool) submitGroup(group []queuedTask) bool {
-	if len(group) == 0 {
+func (p *Pool) submitGroups(groups [][]queuedTask) bool {
+	taskCount := queuedGroupCount(groups)
+	if taskCount == 0 {
 		return true
 	}
 	for {
 		select {
 		case <-p.stop:
-			p.releaseQueuedSlotsAndObserve(len(group))
-			p.completeGroupWithErr(group, ch.ErrClosed)
+			p.releaseQueuedSlotsAndObserve(taskCount)
+			p.completeGroupsWithErr(groups, ch.ErrClosed)
 			return false
 		default:
 		}
@@ -43,10 +42,12 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 		p.taskWG.Add(1)
 		err := p.exec.submit(func() {
 			defer p.taskWG.Done()
-			p.runTaskGroup(group)
+			for _, group := range groups {
+				p.runTaskGroup(group)
+			}
 		})
 		if err == nil {
-			p.releaseQueuedSlotsAndObserve(len(group))
+			p.releaseQueuedSlotsAndObserve(taskCount)
 			return true
 		}
 		p.taskWG.Done()
@@ -55,17 +56,17 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 			if p.waitExecutorRetry() {
 				continue
 			}
-			p.releaseQueuedSlotsAndObserve(len(group))
-			p.completeGroupWithErr(group, ch.ErrClosed)
+			p.releaseQueuedSlotsAndObserve(taskCount)
+			p.completeGroupsWithErr(groups, ch.ErrClosed)
 			return false
 		}
 		if errors.Is(err, ch.ErrClosed) {
-			p.releaseQueuedSlotsAndObserve(len(group))
-			p.completeGroupWithErr(group, ch.ErrClosed)
+			p.releaseQueuedSlotsAndObserve(taskCount)
+			p.completeGroupsWithErr(groups, ch.ErrClosed)
 			return false
 		}
-		p.releaseQueuedSlotsAndObserve(len(group))
-		p.completeGroupWithErr(group, fmt.Errorf("channelv2 worker executor submit: %w", err))
+		p.releaseQueuedSlotsAndObserve(taskCount)
+		p.completeGroupsWithErr(groups, fmt.Errorf("channelv2 worker executor submit: %w", err))
 		return true
 	}
 }
@@ -91,6 +92,20 @@ func (p *Pool) completeQueuedClosed() {
 			p.observeQueueDepth()
 			return
 		}
+	}
+}
+
+func queuedGroupCount(groups [][]queuedTask) int {
+	count := 0
+	for _, group := range groups {
+		count += len(group)
+	}
+	return count
+}
+
+func (p *Pool) completeGroupsWithErr(groups [][]queuedTask, err error) {
+	for _, group := range groups {
+		p.completeGroupWithErr(group, err)
 	}
 }
 

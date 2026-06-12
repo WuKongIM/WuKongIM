@@ -504,6 +504,67 @@ func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
+func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := newBlockingPullTransport(1)
+	exec, err := newExecutor(2)
+	require.NoError(t, err)
+	defer exec.close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pool := &Pool{
+		cfg:    PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2},
+		deps:   Deps{Transport: tr},
+		sink:   sink,
+		queue:  make(chan queuedTask, 2),
+		slots:  make(chan struct{}, 2),
+		stop:   make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
+		exec:   exec,
+		obs:    noopQueueObserver{},
+	}
+	defer func() {
+		tr.Release()
+		close(pool.stop)
+		pool.dispatchWG.Wait()
+	}()
+
+	first := queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:a", OpID: 1},
+		RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}},
+	}}
+	second := queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:b", OpID: 2},
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 2}},
+	}}
+	pool.slots <- struct{}{}
+	pool.slots <- struct{}{}
+	pool.queue <- first
+	pool.queue <- second
+
+	pool.dispatchWG.Add(1)
+	go pool.dispatch()
+
+	select {
+	case <-tr.Started():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first RPC subgroup to start")
+	}
+	select {
+	case result := <-sink.ch:
+		t.Fatalf("completed op %d before first collected RPC subgroup was released", result.Fence.OpID)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	tr.Release()
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
 func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := &batchWorkerTransport{}
@@ -797,6 +858,43 @@ func (t *batchWorkerTransport) PullHintBatchCalls() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.pullHintBatchCalls
+}
+
+type blockingPullTransport struct {
+	batchWorkerTransport
+	blockedNode ch.NodeID
+	started     chan struct{}
+	release     chan struct{}
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingPullTransport(blockedNode ch.NodeID) *blockingPullTransport {
+	return &blockingPullTransport{
+		blockedNode: blockedNode,
+		started:     make(chan struct{}),
+		release:     make(chan struct{}),
+	}
+}
+
+func (t *blockingPullTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	if node == t.blockedNode {
+		t.startOnce.Do(func() { close(t.started) })
+		select {
+		case <-t.release:
+		case <-ctx.Done():
+			return transport.PullResponse{}, ctx.Err()
+		}
+	}
+	return t.batchWorkerTransport.Pull(ctx, node, req)
+}
+
+func (t *blockingPullTransport) Started() <-chan struct{} {
+	return t.started
+}
+
+func (t *blockingPullTransport) Release() {
+	t.releaseOnce.Do(func() { close(t.release) })
 }
 
 type batchApplyStoreFactory struct {
