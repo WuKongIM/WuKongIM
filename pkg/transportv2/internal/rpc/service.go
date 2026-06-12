@@ -22,6 +22,9 @@ type Request struct {
 	Payload core.OwnedBuffer
 	// Reply optionally receives a copied response payload and terminal handler error.
 	Reply chan Response
+	// Respond, when non-nil, is invoked exactly once with the terminal response in
+	// place of Reply. It runs on the executor worker goroutine; it must not block.
+	Respond func(Response)
 }
 
 // Service owns a bounded queue and executor-backed pump for a registered transport service.
@@ -140,7 +143,7 @@ func (s *Service) Enqueue(req Request) error {
 		snapshot := s.queueSnapshotLocked()
 		s.mu.Unlock()
 		req.Payload.Release()
-		trySendResponse(req.Reply, Response{Err: core.ErrStopped})
+		deliver(req, Response{Err: core.ErrStopped})
 		s.observeAdmissionAndQueue("stopped", payloadLen, snapshot)
 		return core.ErrStopped
 	}
@@ -185,7 +188,7 @@ func (s *Service) Stop() {
 				if s.queuedBytes < 0 {
 					s.queuedBytes = 0
 				}
-				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
+				deliver(req, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 			default:
 				s.mu.Unlock()
@@ -217,7 +220,7 @@ func (s *Service) pump() {
 			s.observe(event)
 			if !active {
 				s.releaseToken()
-				trySendResponse(req.Reply, Response{Err: core.ErrStopped})
+				deliver(req, Response{Err: core.ErrStopped})
 				req.Payload.Release()
 				continue
 			}
@@ -237,7 +240,7 @@ func (s *Service) pump() {
 				}
 				s.taskWG.Done()
 				s.releaseToken()
-				trySendResponse(req.Reply, Response{Err: err})
+				deliver(req, Response{Err: err})
 				req.Payload.Release()
 				s.observeTask(taskResult(err), payloadLen, 0)
 				break
@@ -304,14 +307,14 @@ func (s *Service) handle(req Request) error {
 	if ctx.Err() != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		err = core.ErrTimeout
 	}
-	if req.Reply == nil {
+	if req.Reply == nil && req.Respond == nil {
 		return err
 	}
 
 	reply := Response{Payload: append([]byte(nil), resp...), Err: err}
 	// Reply channels are required to be buffered by callers; non-blocking send keeps Stop from
-	// waiting forever when the caller has abandoned a request.
-	trySendResponse(req.Reply, reply)
+	// waiting forever when the caller has abandoned a request. Respond runs inline on the worker.
+	deliver(req, reply)
 	return err
 }
 
@@ -434,6 +437,14 @@ func trySendResponse(ch chan Response, resp Response) {
 	}
 }
 
+func deliver(req Request, resp Response) {
+	if req.Respond != nil {
+		req.Respond(resp)
+		return
+	}
+	trySendResponse(req.Reply, resp)
+}
+
 // serviceTask is one executor unit for a service handler invocation.
 type serviceTask struct {
 	// service owns the task lifecycle and observation state.
@@ -464,7 +475,7 @@ func (t *serviceTask) run() {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = "panic"
-			trySendResponse(t.req.Reply, Response{
+			deliver(t.req, Response{
 				Err: fmt.Errorf("transportv2: service handler panic: %v", recovered),
 			})
 		}

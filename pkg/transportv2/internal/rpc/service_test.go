@@ -450,6 +450,32 @@ func TestServiceReplyPayloadIsCopied(t *testing.T) {
 	}
 }
 
+func TestServiceInvokesRespondCallback(t *testing.T) {
+	svc := NewService(7, func(ctx context.Context, payload []byte) ([]byte, error) {
+		return append([]byte("echo:"), payload...), nil
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 1 << 20}, nil)
+	defer svc.Stop()
+
+	got := make(chan Response, 1)
+	err := svc.Enqueue(Request{
+		Payload: core.CopyOwnedBuffer([]byte("hi")),
+		Respond: func(resp Response) {
+			got <- resp
+		},
+	})
+	if err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	select {
+	case resp := <-got:
+		if resp.Err != nil || string(resp.Payload) != "echo:hi" {
+			t.Fatalf("Respond got %+v, want echo:hi", resp)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Respond callback not invoked")
+	}
+}
+
 func TestServiceWithExecutorNormalizesOptionsAndRuns(t *testing.T) {
 	executor, err := NewExecutor(1, nil)
 	if err != nil {
