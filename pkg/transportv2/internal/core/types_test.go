@@ -1,6 +1,10 @@
 package core
 
-import "testing"
+import (
+	"sync"
+	"sync/atomic"
+	"testing"
+)
 
 func TestPriorityValidation(t *testing.T) {
 	for _, pri := range []Priority{PriorityRaft, PriorityControl, PriorityRPC, PriorityBulk} {
@@ -46,6 +50,30 @@ func TestOwnedBufferBytesAndLenAreEmptyAfterRelease(t *testing.T) {
 	}
 	if got := buf.Len(); got != 0 {
 		t.Fatalf("Len() after Release() = %d, want 0", got)
+	}
+}
+
+func TestOwnedBufferConcurrentReleaseReleasesOnce(t *testing.T) {
+	var releases int32
+	buf := NewOwnedBuffer([]byte("abc"), func([]byte) {
+		atomic.AddInt32(&releases, 1)
+	})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buf.Release()
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&releases); got != 1 {
+		t.Fatalf("releases = %d, want 1", got)
+	}
+	if buf.Bytes() != nil || buf.Len() != 0 {
+		t.Fatalf("after release Bytes()/Len() = %v/%d, want nil/0", buf.Bytes(), buf.Len())
 	}
 }
 

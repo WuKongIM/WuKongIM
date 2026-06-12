@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -220,9 +220,9 @@ var (
 )
 
 type ownedState struct {
-	data    []byte
-	release func([]byte)
-	once    sync.Once
+	data     []byte
+	release  func([]byte)
+	released atomic.Bool
 }
 
 // OwnedBuffer carries payload bytes plus explicit release ownership.
@@ -246,6 +246,9 @@ func (b OwnedBuffer) Bytes() []byte {
 	if b.state == nil {
 		return nil
 	}
+	if b.state.released.Load() {
+		return nil
+	}
 	return b.state.data
 }
 
@@ -259,11 +262,12 @@ func (b OwnedBuffer) Release() {
 	if b.state == nil {
 		return
 	}
-	b.state.once.Do(func() {
-		data := b.state.data
-		b.state.data = nil
-		if b.state.release != nil {
-			b.state.release(data)
-		}
-	})
+	if !b.state.released.CompareAndSwap(false, true) {
+		return
+	}
+	data := b.state.data
+	b.state.data = nil
+	if b.state.release != nil {
+		b.state.release(data)
+	}
 }
