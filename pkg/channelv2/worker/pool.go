@@ -91,6 +91,7 @@ type Pool struct {
 	deps   Deps
 	sink   CompletionSink
 	queue  chan queuedTask
+	slots  chan struct{}
 	stop   chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -122,6 +123,7 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 		deps:   deps,
 		sink:   sink,
 		queue:  make(chan queuedTask, cfg.QueueSize),
+		slots:  make(chan struct{}, cfg.QueueSize),
 		stop:   make(chan struct{}),
 		ctx:    ctx,
 		cancel: cancel,
@@ -187,10 +189,8 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		return ctx.Err()
 	default:
 	}
-	queued := queuedTask{task: task, enqueuedAt: time.Now()}
 	select {
-	case p.queue <- queued:
-		return nil
+	case p.slots <- struct{}{}:
 	case <-p.stop:
 		result = "closed"
 		return ch.ErrClosed
@@ -198,6 +198,23 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		result = workerAdmissionResult(ctx.Err())
 		return ctx.Err()
 	default:
+		result = "full"
+		return ch.ErrBackpressured
+	}
+	queued := queuedTask{task: task, enqueuedAt: time.Now()}
+	select {
+	case p.queue <- queued:
+		return nil
+	case <-p.stop:
+		p.releaseQueuedSlots(1)
+		result = "closed"
+		return ch.ErrClosed
+	case <-ctx.Done():
+		p.releaseQueuedSlots(1)
+		result = workerAdmissionResult(ctx.Err())
+		return ctx.Err()
+	default:
+		p.releaseQueuedSlots(1)
 		result = "full"
 		return ch.ErrBackpressured
 	}
@@ -232,11 +249,21 @@ func (p *Pool) QueueDepth() int {
 	if p == nil {
 		return 0
 	}
-	return len(p.queue)
+	return len(p.slots)
 }
 
 func (p *Pool) observeQueueDepth() {
-	p.observer().SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
+	p.observer().SetWorkerQueueDepth(p.cfg.Name, p.QueueDepth())
+}
+
+func (p *Pool) releaseQueuedSlots(count int) {
+	for i := 0; i < count; i++ {
+		select {
+		case <-p.slots:
+		default:
+			return
+		}
+	}
 }
 
 func (p *Pool) observeQueueCapacity() {
