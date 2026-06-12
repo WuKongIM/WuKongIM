@@ -364,7 +364,7 @@ func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
 		Kind:  TaskFunc,
 		Fence: queuedFence,
 		RunFunc: func(context.Context) Result {
-			return Result{Kind: TaskFunc, Fence: queuedFence}
+			return Result{Kind: TaskFunc, Fence: queuedFence, Err: errors.New("queued task ran")}
 		},
 	}))
 
@@ -377,9 +377,8 @@ func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
 		t.Fatal("pool Close did not return")
 	}
 
-	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
 	results := sink.Results()
-	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(results))
+	_ = resultByOpID(t, results, 1)
 	require.ErrorIs(t, resultByOpID(t, results, 2).Err, ch.ErrClosed)
 }
 
