@@ -131,6 +131,54 @@ func TestPoolReportsCapacityWorkersAdmissionWaitAndTaskDuration(t *testing.T) {
 	}
 }
 
+func TestPoolSetQueueObserverConcurrentWithExecution(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 64)}
+	pool, err := NewPool(PoolConfig{Name: "race", Workers: 2, QueueSize: 64}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	stopObservers := make(chan struct{})
+	observerDone := make(chan struct{})
+	stopObserverLoop := sync.Once{}
+	cleanupObserverLoop := func() {
+		stopObserverLoop.Do(func() {
+			close(stopObservers)
+			select {
+			case <-observerDone:
+			case <-time.After(time.Second):
+				t.Fatal("observer setter did not stop")
+			}
+		})
+	}
+	t.Cleanup(cleanupObserverLoop)
+
+	go func() {
+		defer close(observerDone)
+		for {
+			select {
+			case <-stopObservers:
+				return
+			default:
+				pool.SetQueueObserver(&recordingPoolPressureObserver{})
+			}
+		}
+	}()
+
+	for i := 0; i < 32; i++ {
+		fence := ch.Fence{ChannelKey: ch.ChannelKey("1:race"), OpID: ch.OpID(i + 1)}
+		require.NoError(t, pool.Submit(context.Background(), Task{
+			Kind:  TaskFunc,
+			Fence: fence,
+			RunFunc: func(context.Context) Result {
+				time.Sleep(100 * time.Microsecond)
+				return Result{Kind: TaskFunc, Fence: fence}
+			},
+		}))
+	}
+	require.Eventually(t, func() bool { return sink.Len() == 32 }, time.Second, time.Millisecond)
+	cleanupObserverLoop()
+}
+
 func TestPoolReportsFullClosedAndCanceledAdmission(t *testing.T) {
 	obs := &recordingPoolPressureObserver{}
 	block := make(chan struct{})
@@ -293,6 +341,139 @@ func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
 	}
 }
 
+func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 2}, Deps{}, sink)
+	require.NoError(t, err)
+
+	block := make(chan struct{})
+	release := sync.Once{}
+	closed := make(chan error, 1)
+	closeStarted := make(chan struct{})
+	waitClose := sync.Once{}
+	var closeErr error
+	waitForClose := func() error {
+		release.Do(func() { close(block) })
+		waitClose.Do(func() {
+			select {
+			case <-closeStarted:
+				select {
+				case closeErr = <-closed:
+				case <-time.After(time.Second):
+					closeErr = errors.New("pool Close did not return")
+				}
+			default:
+				closeErr = pool.Close()
+			}
+		})
+		return closeErr
+	}
+	t.Cleanup(func() { require.NoError(t, waitForClose()) })
+
+	blockingStarted := make(chan struct{})
+	blockingFence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
+	queuedFence := ch.Fence{ChannelKey: ch.ChannelKey("1:b"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 2}
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: blockingFence,
+		RunFunc: func(context.Context) Result {
+			close(blockingStarted)
+			<-block
+			return Result{Kind: TaskFunc, Fence: blockingFence}
+		},
+	}))
+	require.Eventually(t, func() bool {
+		select {
+		case <-blockingStarted:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: queuedFence,
+		RunFunc: func(context.Context) Result {
+			return Result{Kind: TaskFunc, Fence: queuedFence, Err: errors.New("queued task ran")}
+		},
+	}))
+
+	go func() {
+		close(closeStarted)
+		closed <- pool.Close()
+	}()
+
+	deadline := time.After(100 * time.Millisecond)
+queuedResult:
+	for {
+		if resultContainsOpID(sink.Results(), queuedFence.OpID) {
+			require.ErrorIs(t, resultByOpID(t, sink.Results(), queuedFence.OpID).Err, ch.ErrClosed)
+			break queuedResult
+		}
+		select {
+		case result := <-sink.ch:
+			if result.Fence.OpID == queuedFence.OpID {
+				require.ErrorIs(t, result.Err, ch.ErrClosed)
+				break queuedResult
+			}
+		case <-deadline:
+			t.Fatal("queued task was not completed while running task was blocked")
+		}
+	}
+
+	require.NoError(t, waitForClose())
+}
+
+func TestPoolCompletesAcceptedTaskAfterExecutorSaturation(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 4}, Deps{}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	block := make(chan struct{})
+	started := make(chan struct{})
+	release := sync.Once{}
+	defer release.Do(func() { close(block) })
+
+	firstFence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
+	secondFence := ch.Fence{ChannelKey: ch.ChannelKey("1:b"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 2}
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: firstFence,
+		RunFunc: func(context.Context) Result {
+			close(started)
+			<-block
+			return Result{Kind: TaskFunc, Fence: firstFence}
+		},
+	}))
+	require.Eventually(t, func() bool {
+		select {
+		case <-started:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, time.Millisecond)
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: secondFence,
+		RunFunc: func(context.Context) Result {
+			return Result{Kind: TaskFunc, Fence: secondFence}
+		},
+	}))
+
+	require.Never(t, func() bool {
+		return sink.Len() > 0 && resultContainsOpID(sink.Results(), 2)
+	}, 20*time.Millisecond, time.Millisecond)
+
+	release.Do(func() { close(block) })
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
 func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := &batchWorkerTransport{}
@@ -321,6 +502,67 @@ func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
 	require.Equal(t, 1, obs.batchCalls["rpc:rpc_pull:ok"])
 	require.Equal(t, 2, obs.batchItems["rpc:rpc_pull:ok"])
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
+}
+
+func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := newBlockingPullTransport(1)
+	exec, err := newExecutor(2)
+	require.NoError(t, err)
+	defer exec.close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pool := &Pool{
+		cfg:    PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2},
+		deps:   Deps{Transport: tr},
+		sink:   sink,
+		queue:  make(chan queuedTask, 2),
+		slots:  make(chan struct{}, 2),
+		stop:   make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
+		exec:   exec,
+		obs:    noopQueueObserver{},
+	}
+	defer func() {
+		tr.Release()
+		close(pool.stop)
+		pool.dispatchWG.Wait()
+	}()
+
+	first := queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:a", OpID: 1},
+		RPCPull: &RPCPullTask{Node: 1, Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1}},
+	}}
+	second := queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:    TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: "1:b", OpID: 2},
+		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 2}},
+	}}
+	pool.slots <- struct{}{}
+	pool.slots <- struct{}{}
+	pool.queue <- first
+	pool.queue <- second
+
+	pool.dispatchWG.Add(1)
+	go pool.dispatch()
+
+	select {
+	case <-tr.Started():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first RPC subgroup to start")
+	}
+	select {
+	case result := <-sink.ch:
+		t.Fatalf("completed op %d before first collected RPC subgroup was released", result.Fence.OpID)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	tr.Release()
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
 func TestPoolBatchesRPCPullHintTasksByNode(t *testing.T) {
@@ -493,6 +735,26 @@ func resultOpIDs(results []Result) []ch.OpID {
 	return out
 }
 
+func resultByOpID(t *testing.T, results []Result, opID ch.OpID) Result {
+	t.Helper()
+	for _, result := range results {
+		if result.Fence.OpID == opID {
+			return result
+		}
+	}
+	t.Fatalf("missing result for op id %d in %#v", opID, results)
+	return Result{}
+}
+
+func resultContainsOpID(results []Result, opID ch.OpID) bool {
+	for _, result := range results {
+		if result.Fence.OpID == opID {
+			return true
+		}
+	}
+	return false
+}
+
 func resultStoreApplyLEOs(results []Result) []uint64 {
 	out := make([]uint64, 0, len(results))
 	for _, result := range results {
@@ -596,6 +858,43 @@ func (t *batchWorkerTransport) PullHintBatchCalls() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.pullHintBatchCalls
+}
+
+type blockingPullTransport struct {
+	batchWorkerTransport
+	blockedNode ch.NodeID
+	started     chan struct{}
+	release     chan struct{}
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingPullTransport(blockedNode ch.NodeID) *blockingPullTransport {
+	return &blockingPullTransport{
+		blockedNode: blockedNode,
+		started:     make(chan struct{}),
+		release:     make(chan struct{}),
+	}
+}
+
+func (t *blockingPullTransport) Pull(ctx context.Context, node ch.NodeID, req transport.PullRequest) (transport.PullResponse, error) {
+	if node == t.blockedNode {
+		t.startOnce.Do(func() { close(t.started) })
+		select {
+		case <-t.release:
+		case <-ctx.Done():
+			return transport.PullResponse{}, ctx.Err()
+		}
+	}
+	return t.batchWorkerTransport.Pull(ctx, node, req)
+}
+
+func (t *blockingPullTransport) Started() <-chan struct{} {
+	return t.started
+}
+
+func (t *blockingPullTransport) Release() {
+	t.releaseOnce.Do(func() { close(t.release) })
 }
 
 type batchApplyStoreFactory struct {
