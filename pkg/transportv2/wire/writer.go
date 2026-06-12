@@ -44,12 +44,24 @@ func WriteFrame(w io.Writer, frame Frame, maxBodyBytes int) error {
 // frame.Body.Bytes() for the duration of the call and does not release bodies.
 func WriteFrames(w io.Writer, frames []Frame, maxBodyBytes int) error {
 	var buffers net.Buffers
+	return WriteFramesInto(w, &buffers, frames, maxBodyBytes)
+}
+
+// WriteFramesInto writes frames using the caller-provided net.Buffers as scratch.
+// It resets buffers to zero length, appends each frame's header and borrowed body,
+// and writes them as one batch. The caller's backing capacity is reused across calls.
+// It borrows every frame.Body.Bytes() for the duration of the call and does not
+// release bodies.
+func WriteFramesInto(w io.Writer, buffers *net.Buffers, frames []Frame, maxBodyBytes int) error {
+	*buffers = (*buffers)[:0]
 	for _, frame := range frames {
-		if err := AppendFrame(&buffers, frame, maxBodyBytes); err != nil {
+		if err := AppendFrame(buffers, frame, maxBodyBytes); err != nil {
 			return err
 		}
 	}
-	_, err := buffers.WriteTo(w)
+	writeBuffers := *buffers
+	_, err := writeBuffers.WriteTo(w)
+	*buffers = (*buffers)[:0]
 	return err
 }
 

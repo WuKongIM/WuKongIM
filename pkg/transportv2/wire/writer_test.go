@@ -202,6 +202,30 @@ func TestWriteFramesWritesReadableFrames(t *testing.T) {
 	}
 }
 
+func TestWriteFramesIntoReusesBuffers(t *testing.T) {
+	var out bytes.Buffer
+	buffers := make(net.Buffers, 0, 8)
+	frame := Frame{
+		Header: Header{Kind: core.FrameKindData, Priority: core.PriorityRaft},
+		Body:   core.NewOwnedBuffer([]byte("abc"), nil),
+	}
+
+	if err := WriteFramesInto(&out, &buffers, []Frame{frame}, 1024); err != nil {
+		t.Fatalf("WriteFramesInto() error = %v", err)
+	}
+	got, err := ReadFrame(bytes.NewReader(out.Bytes()), 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame() error = %v", err)
+	}
+	defer got.Body.Release()
+	if string(got.Body.Bytes()) != "abc" {
+		t.Fatalf("body = %q, want abc", got.Body.Bytes())
+	}
+	if cap(buffers) < 8 {
+		t.Fatalf("cap(buffers) = %d, want caller capacity preserved (>=8)", cap(buffers))
+	}
+}
+
 func TestWriteFramesRejectsInvalidFrameBeforeWriting(t *testing.T) {
 	var out bytes.Buffer
 	frames := []Frame{
