@@ -346,6 +346,30 @@ func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
 	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 2}, Deps{}, sink)
 	require.NoError(t, err)
 
+	block := make(chan struct{})
+	release := sync.Once{}
+	closed := make(chan error, 1)
+	closeStarted := make(chan struct{})
+	waitClose := sync.Once{}
+	var closeErr error
+	waitForClose := func() error {
+		release.Do(func() { close(block) })
+		waitClose.Do(func() {
+			select {
+			case <-closeStarted:
+				select {
+				case closeErr = <-closed:
+				case <-time.After(time.Second):
+					closeErr = errors.New("pool Close did not return")
+				}
+			default:
+				closeErr = pool.Close()
+			}
+		})
+		return closeErr
+	}
+	t.Cleanup(func() { require.NoError(t, waitForClose()) })
+
 	blockingStarted := make(chan struct{})
 	blockingFence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
 	queuedFence := ch.Fence{ChannelKey: ch.ChannelKey("1:b"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 2}
@@ -353,10 +377,10 @@ func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
 	require.NoError(t, pool.Submit(context.Background(), Task{
 		Kind:  TaskFunc,
 		Fence: blockingFence,
-		RunFunc: func(ctx context.Context) Result {
+		RunFunc: func(context.Context) Result {
 			close(blockingStarted)
-			<-ctx.Done()
-			return Result{Kind: TaskFunc, Fence: blockingFence, Err: ctx.Err()}
+			<-block
+			return Result{Kind: TaskFunc, Fence: blockingFence}
 		},
 	}))
 	require.Eventually(t, func() bool {
@@ -376,18 +400,30 @@ func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {
 		},
 	}))
 
-	closed := make(chan error, 1)
-	go func() { closed <- pool.Close() }()
-	select {
-	case err := <-closed:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("pool Close did not return")
+	go func() {
+		close(closeStarted)
+		closed <- pool.Close()
+	}()
+
+	deadline := time.After(100 * time.Millisecond)
+queuedResult:
+	for {
+		if resultContainsOpID(sink.Results(), queuedFence.OpID) {
+			require.ErrorIs(t, resultByOpID(t, sink.Results(), queuedFence.OpID).Err, ch.ErrClosed)
+			break queuedResult
+		}
+		select {
+		case result := <-sink.ch:
+			if result.Fence.OpID == queuedFence.OpID {
+				require.ErrorIs(t, result.Err, ch.ErrClosed)
+				break queuedResult
+			}
+		case <-deadline:
+			t.Fatal("queued task was not completed while running task was blocked")
+		}
 	}
 
-	results := sink.Results()
-	_ = resultByOpID(t, results, 1)
-	require.ErrorIs(t, resultByOpID(t, results, 2).Err, ch.ErrClosed)
+	require.NoError(t, waitForClose())
 }
 
 func TestPoolCompletesAcceptedTaskAfterExecutorSaturation(t *testing.T) {
