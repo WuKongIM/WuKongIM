@@ -555,6 +555,17 @@ func TestConnRPCResponseDecode(t *testing.T) {
 	})
 }
 
+func TestEncodeRPCResponseContentAndRelease(t *testing.T) {
+	payload := []byte("response-body")
+	buf := EncodeRPCResponse(wire.ResponseOK, payload)
+	got := buf.Bytes()
+	if len(got) != 1+len(payload) || got[0] != wire.ResponseOK || string(got[1:]) != "response-body" {
+		t.Fatalf("EncodeRPCResponse bytes = %v, want status+payload", got)
+	}
+	buf.Release()
+	buf.Release()
+}
+
 func testLimits() core.Limits {
 	return core.Limits{
 		MaxFrameBodyBytes:     1024,

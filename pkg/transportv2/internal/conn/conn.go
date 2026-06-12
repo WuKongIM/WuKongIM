@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/buffer"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/core"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/internal/sched"
@@ -436,8 +437,9 @@ func releaseOutbounds(outbounds []Outbound) {
 
 // EncodeRPCResponse returns an owned RPC response body containing status then payload.
 func EncodeRPCResponse(status uint8, payload []byte) core.OwnedBuffer {
-	body := make([]byte, 1+len(payload))
+	buf := buffer.DefaultSlabPool.Get(1 + len(payload))
+	body := buf.Bytes()
 	body[0] = status
 	copy(body[1:], payload)
-	return core.NewOwnedBuffer(body, nil)
+	return buf
 }
