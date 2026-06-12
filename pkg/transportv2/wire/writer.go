@@ -37,9 +37,17 @@ func AppendFrame(buffers *net.Buffers, frame Frame, maxBodyBytes int) error {
 // WriteFrame writes one frame using net.Buffers. It borrows frame.Body.Bytes() for
 // the duration of the call and does not release frame.Body.
 func WriteFrame(w io.Writer, frame Frame, maxBodyBytes int) error {
+	return WriteFrames(w, []Frame{frame}, maxBodyBytes)
+}
+
+// WriteFrames writes frames as one net.Buffers batch. It borrows every
+// frame.Body.Bytes() for the duration of the call and does not release bodies.
+func WriteFrames(w io.Writer, frames []Frame, maxBodyBytes int) error {
 	var buffers net.Buffers
-	if err := AppendFrame(&buffers, frame, maxBodyBytes); err != nil {
-		return err
+	for _, frame := range frames {
+		if err := AppendFrame(&buffers, frame, maxBodyBytes); err != nil {
+			return err
+		}
 	}
 	_, err := buffers.WriteTo(w)
 	return err

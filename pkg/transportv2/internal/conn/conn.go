@@ -15,6 +15,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/wire"
 )
 
+var writeFrames = wire.WriteFrames
+
 // Config configures a single connection actor.
 type Config struct {
 	// Limits bounds frame size, write queue depth, and write batch size.
@@ -246,24 +248,9 @@ func (c *Conn) writeLoop() {
 		if err != nil {
 			return
 		}
-		for i, item := range batch {
-			outbound, ok := item.Value.(Outbound)
-			if !ok {
-				continue
-			}
-			if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
-				outbound.Payload.Release()
-				c.pending.Delete(outbound.RequestID)
-				c.observePendingRPC("ok")
-				continue
-			}
-			writeErr := c.writeOutbound(outbound)
-			outbound.Payload.Release()
-			if writeErr != nil {
-				releaseSchedItems(batch[i+1:])
-				c.shutdown(writeErr)
-				return
-			}
+		if err := c.writeOutboundBatch(batch); err != nil {
+			c.shutdown(err)
+			return
 		}
 	}
 }
@@ -279,6 +266,71 @@ func (c *Conn) writeOutbound(outbound Outbound) error {
 	}
 	c.observeBytes("sent_bytes", outbound.Kind, outbound.Payload.Len())
 	return nil
+}
+
+func (c *Conn) writeOutboundBatch(items []sched.Item) error {
+	outbounds := make([]Outbound, 0, len(items))
+	frames := make([]wire.Frame, 0, len(items))
+	batchBytes := 0
+
+	flush := func() error {
+		if len(outbounds) == 0 {
+			return nil
+		}
+		if timeout := c.cfg.Limits.WriteTimeout; timeout > 0 {
+			if err := c.raw.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+				releaseOutbounds(outbounds)
+				return err
+			}
+		}
+		if err := writeFrames(c.raw, frames, c.cfg.Limits.MaxFrameBodyBytes); err != nil {
+			releaseOutbounds(outbounds)
+			return err
+		}
+		for _, outbound := range outbounds {
+			c.observeBytes("sent_bytes", outbound.Kind, outbound.Payload.Len())
+		}
+		releaseOutbounds(outbounds)
+		outbounds = outbounds[:0]
+		frames = frames[:0]
+		batchBytes = 0
+		return nil
+	}
+
+	for i, item := range items {
+		outbound, ok := item.Value.(Outbound)
+		if !ok {
+			continue
+		}
+		if outbound.writeCtx != nil && outbound.writeCtx.Err() != nil {
+			outbound.Payload.Release()
+			c.pending.Delete(outbound.RequestID)
+			c.observePendingRPC("ok")
+			continue
+		}
+		if c.outboundBatchWouldExceed(len(outbounds), batchBytes, outbound) {
+			if err := flush(); err != nil {
+				releaseSchedItems(items[i:])
+				return err
+			}
+		}
+		outbounds = append(outbounds, outbound)
+		frames = append(frames, outbound.toFrame())
+		batchBytes += outbound.Payload.Len()
+	}
+
+	return flush()
+}
+
+func (c *Conn) outboundBatchWouldExceed(frames int, bytes int, next Outbound) bool {
+	if frames == 0 {
+		return false
+	}
+	limits := c.cfg.Limits
+	if frames+1 > limits.MaxBatchFrames {
+		return true
+	}
+	return bytes+next.Payload.Len() > limits.MaxBatchBytes
 }
 
 func (c *Conn) shutdown(err error) {
@@ -365,6 +417,12 @@ func releaseSchedItems(items []sched.Item) {
 		if !ok {
 			continue
 		}
+		outbound.Payload.Release()
+	}
+}
+
+func releaseOutbounds(outbounds []Outbound) {
+	for _, outbound := range outbounds {
 		outbound.Payload.Release()
 	}
 }

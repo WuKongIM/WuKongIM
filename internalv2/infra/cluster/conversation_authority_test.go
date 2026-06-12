@@ -182,6 +182,74 @@ func TestConversationAuthorityClientAdmitActiveBatchCoalescesDuplicateRecipients
 	}
 }
 
+func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRoute(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{activeBatchErrs: []error{conversationusecase.ErrStaleRoute, nil}}
+	firstTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	freshTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]clusterv2.Route{
+			"receiver": {firstTarget, freshTarget},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want 2 for fresh retry", got)
+	}
+	if len(local.activeBatches) != 2 {
+		t.Fatalf("active batch attempts = %d, want 2", len(local.activeBatches))
+	}
+	if local.activeBatches[0].target.RouteRevision != 10 || local.activeBatches[1].target.RouteRevision != 11 {
+		t.Fatalf("active batch targets = %#v, want original then fresh route", local.activeBatches)
+	}
+}
+
+func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteOnlyOnce(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{activeBatchAlwaysErr: conversationusecase.ErrStaleRoute}
+	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]clusterv2.Route{
+			"receiver": {
+				target,
+				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
+				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22},
+			},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitActiveBatch() error = %v, want ErrStaleRoute", err)
+	}
+	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want one retry only", got)
+	}
+	if len(local.activeBatches) != 2 {
+		t.Fatalf("active batch attempts = %d, want one retry only", len(local.activeBatches))
+	}
+}
+
 func TestConversationAuthorityClientRoutesRemoteList(t *testing.T) {
 	remoteAuthority := &fakeConversationAuthorityLocal{page: conversationusecase.ActiveViewPage{
 		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
@@ -680,16 +748,18 @@ func (f *fakeConversationAuthorityNode) WatchRouteAuthorities() <-chan clusterv2
 }
 
 type fakeConversationAuthorityLocal struct {
-	patches          []conversationusecase.ActivePatch
-	deliveredPatches []conversationusecase.ActivePatch
-	targets          []conversationusecase.RouteTarget
-	activeBatches    []activeBatchDelivery
-	page             conversationusecase.ActiveViewPage
-	admitErrs        []error
-	admitAlwaysErr   error
-	listErrs         []error
-	drainResult      string
-	drainTargets     []conversationusecase.RouteTarget
+	patches              []conversationusecase.ActivePatch
+	deliveredPatches     []conversationusecase.ActivePatch
+	targets              []conversationusecase.RouteTarget
+	activeBatches        []activeBatchDelivery
+	page                 conversationusecase.ActiveViewPage
+	admitErrs            []error
+	admitAlwaysErr       error
+	activeBatchErrs      []error
+	activeBatchAlwaysErr error
+	listErrs             []error
+	drainResult          string
+	drainTargets         []conversationusecase.RouteTarget
 }
 
 func (f *fakeConversationAuthorityLocal) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
@@ -714,6 +784,16 @@ func (f *fakeConversationAuthorityLocal) AdmitActiveBatch(_ context.Context, tar
 		target: target,
 		batch:  cloneConversationActiveBatch(batch),
 	})
+	if f.activeBatchAlwaysErr != nil {
+		return f.activeBatchAlwaysErr
+	}
+	if len(f.activeBatchErrs) > 0 {
+		err := f.activeBatchErrs[0]
+		f.activeBatchErrs = f.activeBatchErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

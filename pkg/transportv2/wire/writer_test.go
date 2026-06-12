@@ -152,3 +152,80 @@ func TestAppendFrameBatchesMultipleFrames(t *testing.T) {
 		t.Fatalf("remaining bytes = %d, want 0", out.Len())
 	}
 }
+
+func TestWriteFramesWritesReadableFrames(t *testing.T) {
+	var out bytes.Buffer
+	frames := []Frame{
+		{
+			Header: Header{
+				Kind:      core.FrameKindData,
+				Priority:  core.PriorityRPC,
+				ServiceID: 7,
+				RequestID: 8,
+			},
+			Body: core.NewOwnedBuffer([]byte("alpha"), nil),
+		},
+		{
+			Header: Header{
+				Kind:      core.FrameKindNotify,
+				Priority:  core.PriorityControl,
+				ServiceID: 9,
+				RequestID: 10,
+			},
+			Body: core.NewOwnedBuffer([]byte("beta"), nil),
+		},
+	}
+
+	if err := WriteFrames(&out, frames, 1024); err != nil {
+		t.Fatalf("WriteFrames() error = %v", err)
+	}
+
+	first, err := ReadFrame(&out, 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame(first) error = %v", err)
+	}
+	defer first.Body.Release()
+	second, err := ReadFrame(&out, 1024)
+	if err != nil {
+		t.Fatalf("ReadFrame(second) error = %v", err)
+	}
+	defer second.Body.Release()
+
+	if string(first.Body.Bytes()) != "alpha" {
+		t.Fatalf("first body = %q, want alpha", first.Body.Bytes())
+	}
+	if string(second.Body.Bytes()) != "beta" {
+		t.Fatalf("second body = %q, want beta", second.Body.Bytes())
+	}
+	if out.Len() != 0 {
+		t.Fatalf("remaining bytes = %d, want 0", out.Len())
+	}
+}
+
+func TestWriteFramesRejectsInvalidFrameBeforeWriting(t *testing.T) {
+	var out bytes.Buffer
+	frames := []Frame{
+		{
+			Header: Header{
+				Kind:     core.FrameKindData,
+				Priority: core.PriorityRPC,
+			},
+			Body: core.NewOwnedBuffer([]byte("valid"), nil),
+		},
+		{
+			Header: Header{
+				Kind:     core.FrameKindData,
+				Priority: core.PriorityRPC,
+			},
+			Body: core.NewOwnedBuffer([]byte("too-large"), nil),
+		},
+	}
+
+	err := WriteFrames(&out, frames, 4)
+	if !errors.Is(err, core.ErrMsgTooLarge) {
+		t.Fatalf("WriteFrames() error = %v, want ErrMsgTooLarge", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("written bytes = %d, want 0", out.Len())
+	}
+}

@@ -403,9 +403,11 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
 		"# ants pool usage",
 		"node=node1",
-		"pools=3",
+		"pools=4",
 		"transportv2/service_executor",
 		"3/4",
+		"channelv2/store_append",
+		"5/64",
 		"channelappend/advance",
 		"1/2",
 		"channelappend/effect",
@@ -435,6 +437,7 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	for _, want := range []string{
 		"offered_qps\tattempt_dir\ttag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
 		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelv2\tstore_append\t5\t64\t0\t0.078",
 		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
 		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
 	} {
@@ -454,6 +457,7 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 		"node=node1",
 		"max_util=0.750",
 		"transportv2/service_executor",
+		"channelv2/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
 	} {
@@ -567,12 +571,14 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"ANTS POOL USAGE",
 		"details=ants_pool_usage_summary.tsv",
 		"node=127_0_0_1_5011",
-		"pools=3",
+		"pools=4",
 		"pool",
 		"used/cap",
 		"waiting",
 		"transportv2/service_executor",
 		"3/4",
+		"channelv2/store_append",
+		"5/64",
 		"channelappend/advance",
 		"2/4",
 		"channelappend/effect",
@@ -601,6 +607,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	for _, want := range []string{
 		"tag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
 		"000100\t127_0_0_1_5011\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"000100\t127_0_0_1_5011\tchannelv2\tstore_append\t5\t64\t0\t0.078",
 		"000100\t127_0_0_1_5011\tchannelappend\tadvance\t2\t4\t0\t0.500",
 		"000100\t127_0_0_1_5011\tchannelappend\teffect\t10\t10\t1\t1.000",
 	} {
@@ -624,6 +631,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"node=127_0_0_1_5011",
 		"max_util=1.000",
 		"transportv2/service_executor",
+		"channelv2/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
 	} {
@@ -1836,6 +1844,10 @@ wukongim_ants_pool_running{node_id="1",node_name="node-1",component="transportv2
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 4
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 2
 wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 0.750
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 5
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 64
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0.078
 wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 1
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 2
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0
@@ -1929,6 +1941,7 @@ OUT
 cat >"$out_dir/ants_pool_usage_summary.tsv" <<'OUT'
 tag	node	component	pool	running	capacity	waiting	utilization_max
 000100	node1	transportv2	service_executor	3	4	2	0.750
+000100	node1	channelv2	store_append	5	64	0	0.078
 000100	node1	channelappend	advance	1	2	0	0.500
 000100	node1	channelappend	effect	4	8	1	0.500
 OUT
@@ -2099,6 +2112,10 @@ wukongim_ants_pool_running{node_id="1",node_name="node-1",component="transportv2
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 4
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 2
 wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 0.750
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 5
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 64
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0.078
 wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 2
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 4
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0

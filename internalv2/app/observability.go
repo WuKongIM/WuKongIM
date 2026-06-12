@@ -394,6 +394,13 @@ func (o channelV2MetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
 	o.metrics.ChannelV2.SetWorkerInflightPeak(pool, peak)
 }
 
+func (o channelV2MetricsObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.AntsPool.SetUsage("channelv2", pool, running, capacity, waiting)
+}
+
 func (o channelV2MetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
 	if o.metrics == nil {
 		return
@@ -1130,6 +1137,15 @@ func (o multiChannelV2Observer) SetWorkerInflightPeak(pool string, peak int) {
 	}
 }
 
+func (o multiChannelV2Observer) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+	for _, observer := range o {
+		antsObserver, ok := observer.(worker.AntsPoolObserver)
+		if ok {
+			antsObserver.SetWorkerAntsPoolUsage(pool, running, capacity, waiting)
+		}
+	}
+}
+
 func (o multiChannelV2Observer) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
 	for _, observer := range o {
 		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
@@ -1521,6 +1537,7 @@ var _ worker.QueueCapacityObserver = channelV2MetricsObserver{}
 var _ worker.AdmissionObserver = channelV2MetricsObserver{}
 var _ worker.WaitObserver = channelV2MetricsObserver{}
 var _ worker.TaskObserver = channelV2MetricsObserver{}
+var _ worker.AntsPoolObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
@@ -1528,6 +1545,7 @@ var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}
+var _ worker.AntsPoolObserver = multiChannelV2Observer{}
 var _ reactor.AppendQueuePressureObserver = multiChannelV2Observer{}
 var _ reactor.RuntimeObserver = multiChannelV2Observer{}
 var _ reactor.ReplicationObserver = multiChannelV2Observer{}

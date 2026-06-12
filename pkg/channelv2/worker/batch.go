@@ -173,6 +173,7 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	}
 	running := int(p.inflight.Add(1))
 	p.observeInflight(running)
+	p.observeAntsPool()
 	started := time.Now()
 	results, _ := p.runQueuedGroupSafely(group)
 	duration := nonNegativeDuration(time.Since(started))
@@ -182,6 +183,7 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	}
 	running = int(p.inflight.Add(-1))
 	p.observeInflight(running)
+	p.observeAntsPool()
 	for _, result := range results {
 		p.sink.Complete(result)
 	}

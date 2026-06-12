@@ -50,6 +50,9 @@ cooperatively when their dependency honors context cancellation.
 
 ## Observability
 
-Worker queue, capacity, admission, wait, task, batch, and inflight observers
-retain their existing meanings. Inflight is the number of running task groups,
-not the number of original tasks inside those groups.
+Worker queue, capacity, admission, wait, task, batch, inflight, and ants pool
+usage observers retain their existing meanings. Inflight is the number of
+running task groups, not the number of original tasks inside those groups.
+Ants pool usage is reported with the worker pool name so app-level metrics can
+publish it through the existing generic `wukongim_ants_pool_*` gauges and bench
+`ANTS POOL USAGE` summaries.

@@ -1,6 +1,7 @@
 package conversationactive
 
 import (
+	"container/heap"
 	"context"
 	"sync"
 	"time"
@@ -52,6 +53,12 @@ type Manager struct {
 	observer Observer
 	// totalRows tracks cached active rows across all UID maps.
 	totalRows int
+	// dirtyRows tracks cached rows that still need durable flush.
+	dirtyRows int
+	// dirtyActiveAtCounts counts dirty rows by positive ActiveAtMS for oldest-age observation.
+	dirtyActiveAtCounts map[int64]int
+	// dirtyActiveAtHeap keeps candidate dirty ActiveAtMS values ordered by oldest first.
+	dirtyActiveAtHeap dirtyActiveAtMinHeap
 	// nextVersion allocates monotonic cache-entry versions for dirty flush fencing.
 	nextVersion uint64
 	// cache stores UID -> conversation key -> active projection entry.
@@ -67,11 +74,12 @@ func NewManager(opts Options) *Manager {
 		}
 	}
 	return &Manager{
-		nowMS:         nowMS,
-		store:         opts.Store,
-		maxCachedRows: opts.MaxCachedRows,
-		observer:      opts.Observer,
-		cache:         make(map[string]map[conversationKey]cacheEntry),
+		nowMS:               nowMS,
+		store:               opts.Store,
+		maxCachedRows:       opts.MaxCachedRows,
+		observer:            opts.Observer,
+		dirtyActiveAtCounts: make(map[int64]int),
+		cache:               make(map[string]map[conversationKey]cacheEntry),
 	}
 }
 
@@ -163,6 +171,7 @@ func (m *Manager) markActiveLocked(patch ActivePatch) {
 		m.nextVersion++
 		byChannel[key] = cacheEntry{patch: patch, version: m.nextVersion, dirty: true}
 		m.totalRows++
+		m.trackDirtyLocked(patch.ActiveAtMS)
 		return
 	}
 
@@ -177,6 +186,11 @@ func (m *Manager) markActiveLocked(patch ActivePatch) {
 		return
 	}
 
+	if current.dirty {
+		m.moveDirtyActiveAtLocked(current.patch.ActiveAtMS, merged.ActiveAtMS)
+	} else {
+		m.trackDirtyLocked(merged.ActiveAtMS)
+	}
 	m.nextVersion++
 	current.patch = merged
 	current.version = m.nextVersion
@@ -307,28 +321,13 @@ func (m *Manager) observeFlush(obs FlushObservation) {
 }
 
 func (m *Manager) cacheObservation() CacheObservation {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var dirtyRows int
-	var oldestDirtyAt int64
-	for _, byChannel := range m.cache {
-		for _, entry := range byChannel {
-			if !entry.dirty {
-				continue
-			}
-			dirtyRows++
-			activeAt := entry.patch.ActiveAtMS
-			if activeAt <= 0 {
-				continue
-			}
-			if oldestDirtyAt == 0 || activeAt < oldestDirtyAt {
-				oldestDirtyAt = activeAt
-			}
-		}
-	}
+	m.mu.Lock()
+	rows := m.totalRows
+	dirtyRows := m.dirtyRows
+	oldestDirtyAt := m.oldestDirtyAtLocked()
+	m.mu.Unlock()
 	return CacheObservation{
-		Rows:           m.totalRows,
+		Rows:           rows,
 		DirtyRows:      dirtyRows,
 		OldestDirtyAge: dirtyAge(m.nowMS(), oldestDirtyAt),
 	}
@@ -387,7 +386,56 @@ func (m *Manager) clearFlushedDirty(entries []flushEntry) {
 		}
 		current.dirty = false
 		byChannel[flushed.key] = current
+		m.untrackDirtyLocked(current.patch.ActiveAtMS)
 	}
+}
+
+func (m *Manager) trackDirtyLocked(activeAtMS int64) {
+	m.dirtyRows++
+	if activeAtMS <= 0 {
+		return
+	}
+	if m.dirtyActiveAtCounts == nil {
+		m.dirtyActiveAtCounts = make(map[int64]int)
+	}
+	if m.dirtyActiveAtCounts[activeAtMS] == 0 {
+		heap.Push(&m.dirtyActiveAtHeap, activeAtMS)
+	}
+	m.dirtyActiveAtCounts[activeAtMS]++
+}
+
+func (m *Manager) untrackDirtyLocked(activeAtMS int64) {
+	if m.dirtyRows > 0 {
+		m.dirtyRows--
+	}
+	if activeAtMS <= 0 || m.dirtyActiveAtCounts == nil {
+		return
+	}
+	count := m.dirtyActiveAtCounts[activeAtMS]
+	if count <= 1 {
+		delete(m.dirtyActiveAtCounts, activeAtMS)
+		return
+	}
+	m.dirtyActiveAtCounts[activeAtMS] = count - 1
+}
+
+func (m *Manager) moveDirtyActiveAtLocked(oldActiveAtMS, newActiveAtMS int64) {
+	if oldActiveAtMS == newActiveAtMS {
+		return
+	}
+	m.untrackDirtyLocked(oldActiveAtMS)
+	m.trackDirtyLocked(newActiveAtMS)
+}
+
+func (m *Manager) oldestDirtyAtLocked() int64 {
+	for m.dirtyActiveAtHeap.Len() > 0 {
+		oldest := m.dirtyActiveAtHeap[0]
+		if m.dirtyActiveAtCounts[oldest] > 0 {
+			return oldest
+		}
+		heap.Pop(&m.dirtyActiveAtHeap)
+	}
+	return 0
 }
 
 func activePatchMetaPatch(patch ActivePatch) metadb.UserConversationActivePatch {
@@ -406,15 +454,7 @@ func (m *Manager) DirtyCountForTest() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var count int
-	for _, byChannel := range m.cache {
-		for _, entry := range byChannel {
-			if entry.dirty {
-				count++
-			}
-		}
-	}
-	return count
+	return m.dirtyRows
 }
 
 // EntryForTest returns a cached active row for tests.
@@ -428,4 +468,30 @@ func (m *Manager) EntryForTest(uid, channelID string, channelType uint8) (Active
 	}
 	entry, ok := byChannel[conversationKey{channelID: channelID, channelType: channelType}]
 	return entry.patch, ok
+}
+
+type dirtyActiveAtMinHeap []int64
+
+func (h dirtyActiveAtMinHeap) Len() int {
+	return len(h)
+}
+
+func (h dirtyActiveAtMinHeap) Less(i, j int) bool {
+	return h[i] < h[j]
+}
+
+func (h dirtyActiveAtMinHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *dirtyActiveAtMinHeap) Push(x any) {
+	*h = append(*h, x.(int64))
+}
+
+func (h *dirtyActiveAtMinHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }

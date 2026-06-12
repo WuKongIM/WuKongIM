@@ -36,6 +36,7 @@ var _ conversationusecase.Store = (*ConversationAuthorityClient)(nil)
 
 const (
 	defaultConversationRouteRetryAttempts = 100
+	conversationAdmissionRetryAttempts    = 2
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
 )
 
@@ -87,20 +88,30 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	groups, err := c.groupActiveBatchByTarget(batch)
-	if err != nil {
-		return err
-	}
-	for _, group := range groups {
-		authority, err := c.authorityForTarget(group.target)
+
+	for attempt := 0; attempt < conversationAdmissionRetryAttempts; attempt++ {
+		groups, err := c.groupActiveBatchByTarget(batch)
 		if err != nil {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
 			return err
 		}
-		if err := authority.AdmitActiveBatch(ctx, group.target, group.batch); err != nil {
+		if err := c.admitActiveBatchGroups(ctx, groups); err != nil {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRoute(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
 			return err
 		}
+		return nil
 	}
-	return nil
+	return conversationusecase.ErrRouteNotReady
 }
 
 // ListUserConversationActiveView reads one UID's active view from the current authority leader.
@@ -226,6 +237,19 @@ func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBat
 		},
 	})
 	return len(*groups) - 1
+}
+
+func (c *ConversationAuthorityClient) admitActiveBatchGroups(ctx context.Context, groups []conversationAuthorityActiveBatchGroup) error {
+	for _, group := range groups {
+		authority, err := c.authorityForTarget(group.target)
+		if err != nil {
+			return err
+		}
+		if err := authority.AdmitActiveBatch(ctx, group.target, group.batch); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {

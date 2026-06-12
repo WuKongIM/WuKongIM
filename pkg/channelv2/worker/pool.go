@@ -61,6 +61,12 @@ type BatchObserver interface {
 	ObserveWorkerBatch(pool string, kind TaskKind, items int, err error)
 }
 
+// AntsPoolObserver receives direct ants/v2 executor occupancy samples.
+// Implementations are called synchronously from pool paths and should be concurrency-safe and non-blocking.
+type AntsPoolObserver interface {
+	SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int)
+}
+
 // queuedTask carries enqueue timing for wait-duration observation.
 type queuedTask struct {
 	task       Task
@@ -148,6 +154,7 @@ func (p *Pool) SetQueueObserver(observer QueueObserver) {
 	p.observeQueueCapacity()
 	p.observeWorkers()
 	p.observeQueueDepth()
+	p.observeAntsPool()
 }
 
 func (p *Pool) observer() QueueObserver {
@@ -288,6 +295,22 @@ func (p *Pool) observeWorkers() {
 		return
 	}
 	obs.SetWorkerWorkers(p.cfg.Name, p.cfg.Workers)
+}
+
+func (p *Pool) observeAntsPool() {
+	obs, ok := p.observer().(AntsPoolObserver)
+	if !ok {
+		return
+	}
+	capacity := 0
+	waiting := 0
+	if p.exec != nil {
+		capacity = p.exec.capacity()
+		waiting = p.exec.waiting()
+	}
+	// Inflight mirrors occupied execution windows and lets completion samples
+	// publish zero before the ants worker goroutine returns to the pool.
+	obs.SetWorkerAntsPoolUsage(p.cfg.Name, int(p.inflight.Load()), capacity, waiting)
 }
 
 func (p *Pool) observeAdmission(result string) {

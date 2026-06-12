@@ -1,5 +1,19 @@
 # WKSIM Stress Findings
 
+## 2026-06-12 three-node real-qps 4000 pprof CPU triage
+
+- Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, current dirty worktree.
+- Baseline evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps/`.
+- Baseline result: 1945.6 actual QPS, 0.486 actual/offered ratio, p99 5348.4ms, no send errors. Server CPU peaked at node1=375.2%, node2=362.2%, node3=284.9%.
+- Repeat evidence without post-run pprof: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live/`. Result stayed consistent at 1977.4 actual QPS, p99 4010.7ms, and `channelv2/channelv2-rpc` nearly saturated on all nodes.
+- The script's built-in `--profile-seconds 30` captures CPU after the benchmark run, so its profiles mostly show idle/runtime wait (`kevent`, `pthread_cond_wait`, `usleep`) and are not representative of the high-CPU window.
+- Live 15s pprof evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live15/004000-qps/pprof/live/`. The live sampling perturbed throughput, so use it only for hot-path attribution.
+- Live pprof root cause: about one third of sampled CPU per node is `transportv2/internal/conn.(*Conn).writeLoop -> writeOutbound -> wire.WriteFrame -> net.Buffers.WriteTo -> syscall.writev`. `Conn.writeLoop` receives scheduler batches but writes each outbound frame separately, producing a high syscall/writev rate under group fanout and conversation-active RPC traffic.
+- Secondary CPU source: `conversationactive.Manager.MarkActive -> observeCache -> cacheObservation` accounts for about 10-13% cumulative CPU during live sampling. `cacheObservation` scans the whole UID conversation active cache after each admission batch.
+- Amplifier: baseline node logs contain 15010/13417/14002 `channelappend post-commit failed` entries on node1/node2/node3, all matching `conversation_active: internalv2/usecase/conversation: stale route`. These are best-effort post-commit failures, not SENDACK errors, but they add RPC/logging pressure and coincide with high `channelappend_effect_error_delta` and post-commit backlog.
+- Finding: the high CPU is primarily transport write syscall overhead driven by many small internal RPC/response frames, with additional conversation-active cache observation scans and post-commit stale-route failure amplification. The throughput failure is classified as mixed ChannelV2/storage/replication backpressure rather than gateway queue exhaustion.
+- Post-fix smoke evidence: `docs/development/perf-runs/20260612-160102-three-node-real-qps/004000-qps/` after transport batched writes, incremental conversation-active cache observation, and one fresh-route retry for active-batch admission. Result remained 1920.2 actual QPS, ratio 0.480, p99 3816.2ms, no send errors. The stale-route post-commit amplifier dropped sharply (`channelappend_effect_error_delta` 4/2/193; stale-route log counts 4/2/193), but ChannelV2 RPC/store append/apply pools were still near saturation, so the remaining throughput bottleneck is below the fixed CPU amplifiers.
+
 ## 2026-06-09 three-node real-qps 5000 channelwrite triage
 
 - Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 5000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.

@@ -131,6 +131,55 @@ func TestPoolReportsCapacityWorkersAdmissionWaitAndTaskDuration(t *testing.T) {
 	}
 }
 
+func TestPoolReportsAntsPoolUsage(t *testing.T) {
+	obs := &recordingPoolPressureObserver{}
+	sink := &captureSink{ch: make(chan Result, 1)}
+	pool, err := NewPool(PoolConfig{Name: "store_append", Workers: 1, QueueSize: 2}, Deps{}, sink)
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	block := make(chan struct{})
+	release := sync.Once{}
+	defer func() {
+		release.Do(func() { close(block) })
+		_ = pool.Close()
+	}()
+	pool.SetQueueObserver(obs)
+
+	started := make(chan struct{})
+	if err := pool.Submit(context.Background(), Task{
+		Kind: TaskFunc,
+		RunFunc: func(context.Context) Result {
+			close(started)
+			<-block
+			return Result{Kind: TaskFunc}
+		},
+	}); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for worker task to start")
+	}
+
+	require.Eventually(t, func() bool {
+		usage := obs.AntsUsage("store_append")
+		return usage.running == 1 && usage.capacity == 1 && usage.waiting == 0
+	}, time.Second, time.Millisecond)
+
+	release.Do(func() { close(block) })
+	select {
+	case <-sink.ch:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for worker result")
+	}
+	require.Eventually(t, func() bool {
+		usage := obs.AntsUsage("store_append")
+		return usage.running == 0 && usage.capacity == 1 && usage.waiting == 0
+	}, time.Second, time.Millisecond)
+}
+
 func TestPoolSetQueueObserverConcurrentWithExecution(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 64)}
 	pool, err := NewPool(PoolConfig{Name: "race", Workers: 2, QueueSize: 64}, Deps{}, sink)
@@ -1086,6 +1135,13 @@ type recordingPoolPressureObserver struct {
 	tasks      map[string]time.Duration
 	batchCalls map[string]int
 	batchItems map[string]int
+	antsUsage  map[string]recordedAntsUsage
+}
+
+type recordedAntsUsage struct {
+	running  int
+	capacity int
+	waiting  int
 }
 
 func (o *recordingPoolPressureObserver) ensure() {
@@ -1097,6 +1153,7 @@ func (o *recordingPoolPressureObserver) ensure() {
 		o.tasks = make(map[string]time.Duration)
 		o.batchCalls = make(map[string]int)
 		o.batchItems = make(map[string]int)
+		o.antsUsage = make(map[string]recordedAntsUsage)
 	}
 }
 
@@ -1114,6 +1171,19 @@ func (o *recordingPoolPressureObserver) SetWorkerWorkers(pool string, workers in
 	defer o.mu.Unlock()
 	o.ensure()
 	o.workers[pool] = workers
+}
+
+func (o *recordingPoolPressureObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.ensure()
+	o.antsUsage[pool] = recordedAntsUsage{running: running, capacity: capacity, waiting: waiting}
+}
+
+func (o *recordingPoolPressureObserver) AntsUsage(pool string) recordedAntsUsage {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.antsUsage[pool]
 }
 
 func (o *recordingPoolPressureObserver) ObserveWorkerAdmission(pool string, result string) {

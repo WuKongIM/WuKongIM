@@ -19,6 +19,12 @@ type recordingObserver struct {
 	events []core.Event
 }
 
+type writeBatchSnapshot struct {
+	serviceIDs []uint16
+	bodies     []string
+	maxBody    int
+}
+
 func (o *recordingObserver) ObserveTransport(event core.Event) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -94,6 +100,61 @@ func TestConnWriteLoopSetsWriteDeadline(t *testing.T) {
 	deadline := waitDeadline(t, raw.writeDeadlineCh)
 	if time.Until(deadline) <= 0 {
 		t.Fatalf("write deadline = %v, want future deadline", deadline)
+	}
+
+	c.shutdown(nil)
+	waitClosed(t, c.writeDone)
+}
+
+func TestConnWriteLoopWritesSchedulerBatchOnce(t *testing.T) {
+	raw := newDeadlineConn()
+	limits := testLimits()
+	limits.MaxBatchFrames = 3
+	limits.MaxBatchBytes = 64
+	c := New(raw, Config{Limits: limits}, nil)
+
+	batchCh := make(chan writeBatchSnapshot, 1)
+	oldWriteFrames := writeFrames
+	writeFrames = func(w io.Writer, frames []wire.Frame, maxBodyBytes int) error {
+		snapshot := writeBatchSnapshot{maxBody: maxBodyBytes}
+		for _, frame := range frames {
+			snapshot.serviceIDs = append(snapshot.serviceIDs, frame.Header.ServiceID)
+			snapshot.bodies = append(snapshot.bodies, string(frame.Body.Bytes()))
+		}
+		batchCh <- snapshot
+		return nil
+	}
+	t.Cleanup(func() {
+		writeFrames = oldWriteFrames
+	})
+
+	for i, body := range []string{"one", "two", "three"} {
+		if err := c.Send(context.Background(), Outbound{
+			Priority:  core.PriorityRPC,
+			ServiceID: uint16(10 + i),
+			Payload:   core.CopyOwnedBuffer([]byte(body)),
+		}); err != nil {
+			t.Fatalf("Send(%q) error = %v", body, err)
+		}
+	}
+
+	go c.writeLoop()
+	snapshot := waitWriteBatch(t, batchCh)
+	if len(snapshot.serviceIDs) != 3 {
+		t.Fatalf("write batch frame count = %d, want 3; snapshot=%+v", len(snapshot.serviceIDs), snapshot)
+	}
+	if snapshot.maxBody != limits.MaxFrameBodyBytes {
+		t.Fatalf("max body = %d, want %d", snapshot.maxBody, limits.MaxFrameBodyBytes)
+	}
+	for i, want := range []uint16{10, 11, 12} {
+		if got := snapshot.serviceIDs[i]; got != want {
+			t.Fatalf("service id[%d] = %d, want %d", i, got, want)
+		}
+	}
+	for i, want := range []string{"one", "two", "three"} {
+		if got := snapshot.bodies[i]; got != want {
+			t.Fatalf("body[%d] = %q, want %q", i, got, want)
+		}
 	}
 
 	c.shutdown(nil)
@@ -526,6 +587,17 @@ func waitDeadline(t *testing.T, ch <-chan time.Time) time.Time {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for write deadline")
 		return time.Time{}
+	}
+}
+
+func waitWriteBatch(t *testing.T, ch <-chan writeBatchSnapshot) writeBatchSnapshot {
+	t.Helper()
+	select {
+	case batch := <-ch:
+		return batch
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for write batch")
+		return writeBatchSnapshot{}
 	}
 }
 

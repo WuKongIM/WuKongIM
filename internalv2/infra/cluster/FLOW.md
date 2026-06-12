@@ -131,9 +131,10 @@ current authority leader and leaves cache/list business rules inside the local
 authority implementation. Legacy patch admission resolves each `ActivePatch`
 UID with `RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each
 group to the local authority when the target leader is this node or through
-access/node Conversation Authority RPC when the leader is remote. Admission is
-best-effort and does not retry route-not-ready, stale-route, or not-leader
-errors; callers are expected to log and drop failed active admission.
+access/node Conversation Authority RPC when the leader is remote. Legacy patch
+admission is best-effort and does not retry route-not-ready, stale-route, or
+not-leader errors; callers are expected to log and drop failed active
+admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
 unique recipient UID, caches each UID's `RouteTarget` for the whole batch,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
@@ -141,7 +142,10 @@ one target-scoped batch per group. Only the sender-owned target receives
 `SenderUID`; other target batches carry an empty `SenderUID` and only their
 recipient subset, so a receiver authority cannot cache the sender row by
 mistake. If the sender is not in the recipient set, the sender target still
-receives a sender-only batch.
+receives a sender-only batch. Active-batch admission retries route-not-ready,
+stale-route, and not-leader errors once by resolving fresh UID routes and
+regrouping the whole batch; continued failure is returned to the caller so the
+post-commit path remains bounded.
 The remote RPC client chunks large patch groups and active-batch recipient
 groups at the codec collection limit before sending them. List resolves the
 requested UID once per retry attempt and reads the active view from that
@@ -174,9 +178,10 @@ ConversationAuthorityClient
 
 List route-not-ready, stale-route, and not-leader results are retried with a
 short bounded backoff so authority movement can settle without changing
-conversation list semantics. Admission returns those errors directly. Raw
+conversation list semantics. Legacy patch admission returns those errors
+directly, while active-batch admission makes one fresh-route retry. Raw
 clusterv2 route errors returned by remote RPC calls are mapped to the same
-conversation route sentinels before the list retry decision.
+conversation route sentinels before retry decisions.
 
 ## Channel Append Authority Flow
 
