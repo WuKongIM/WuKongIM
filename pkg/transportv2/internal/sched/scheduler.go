@@ -390,10 +390,8 @@ func (s *Scheduler) snapshotLaneQueueLocked(priority core.Priority) queueSnapsho
 		if s.lanes[i].priority != priority {
 			continue
 		}
-		snapshot.items = len(s.lanes[i].queue)
-		for _, item := range s.lanes[i].queue {
-			snapshot.bytes += queueBytes(item)
-		}
+		snapshot.items = s.lanes[i].items
+		snapshot.bytes = s.lanes[i].bytes
 		return snapshot
 	}
 	return snapshot
