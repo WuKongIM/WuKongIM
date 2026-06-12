@@ -247,17 +247,14 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		return
 	}
 
-	reply := make(chan rpc.Response, 1)
-	if err := service.Enqueue(rpc.Request{Payload: inbound.Payload, Reply: reply}); err != nil {
-		s.sendRPCError(ctx, inbound, err)
-		return
-	}
-	go s.sendRPCResponse(ctx, inbound, reply)
-}
-
-func (s *Server) sendRPCResponse(ctx context.Context, inbound conn.Inbound, reply <-chan rpc.Response) {
-	select {
-	case resp := <-reply:
+	respond := func(resp rpc.Response) {
+		select {
+		case <-inbound.Conn.Done():
+			return
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		status := wire.ResponseOK
 		payload := resp.Payload
 		if resp.Err != nil {
@@ -271,8 +268,11 @@ func (s *Server) sendRPCResponse(ctx context.Context, inbound conn.Inbound, repl
 			RequestID: inbound.RequestID,
 			Payload:   conn.EncodeRPCResponse(status, payload),
 		})
-	case <-inbound.Conn.Done():
-	case <-s.ctx.Done():
+	}
+
+	if err := service.Enqueue(rpc.Request{Payload: inbound.Payload, Respond: respond}); err != nil {
+		s.sendRPCError(ctx, inbound, err)
+		return
 	}
 }
 
