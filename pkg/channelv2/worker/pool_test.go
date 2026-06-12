@@ -139,6 +139,19 @@ func TestPoolSetQueueObserverConcurrentWithExecution(t *testing.T) {
 
 	stopObservers := make(chan struct{})
 	observerDone := make(chan struct{})
+	stopObserverLoop := sync.Once{}
+	cleanupObserverLoop := func() {
+		stopObserverLoop.Do(func() {
+			close(stopObservers)
+			select {
+			case <-observerDone:
+			case <-time.After(time.Second):
+				t.Fatal("observer setter did not stop")
+			}
+		})
+	}
+	t.Cleanup(cleanupObserverLoop)
+
 	go func() {
 		defer close(observerDone)
 		for {
@@ -163,12 +176,7 @@ func TestPoolSetQueueObserverConcurrentWithExecution(t *testing.T) {
 		}))
 	}
 	require.Eventually(t, func() bool { return sink.Len() == 32 }, time.Second, time.Millisecond)
-	close(stopObservers)
-	select {
-	case <-observerDone:
-	case <-time.After(time.Second):
-		t.Fatal("observer setter did not stop")
-	}
+	cleanupObserverLoop()
 }
 
 func TestPoolReportsFullClosedAndCanceledAdmission(t *testing.T) {
