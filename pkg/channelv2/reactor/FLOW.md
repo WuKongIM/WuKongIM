@@ -171,15 +171,15 @@ apply, and one stopped ACK RPC in flight. Ordinary durable progress after store
 apply directly drives the next pull instead of waiting for the due scheduler.
 The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
-RPC worker pools may batch same-target `TaskRPCPull` and `TaskRPCPullHint`
-items across different channels before handing them to transport. The reactor
-still submits and receives one fenced worker task per channel, so batching does
-not change per-channel lifecycle or replication state.
-Store worker pools may batch queued `TaskStoreAppend` or `TaskStoreApply` items
-across different channels when the store factory supports leader-append or
-follower-apply batching. The reactor still observes one fenced completion per
-channel; only the blocking storage boundary changes from multiple worker/store
-calls into one store-level batch request.
+RPC worker admission queues may batch same-target `TaskRPCPull` and
+`TaskRPCPullHint` items across different channels before an ants-backed worker
+executes the transport call. The reactor still submits and receives one fenced
+worker task per channel, so batching does not change per-channel lifecycle or
+replication state.
+Store worker admission queues may batch queued `TaskStoreAppend` or
+`TaskStoreApply` items across different channels when the store factory supports
+leader-append or follower-apply batching. The ants executor only runs prepared
+blocking groups; it is not the source of worker backpressure.
 When the leader serves records to a follower that is still behind, it schedules a
 bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
 resume hint, and the append hot path opportunistically sends it when the retry is
