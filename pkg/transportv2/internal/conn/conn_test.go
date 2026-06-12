@@ -114,8 +114,8 @@ func TestConnWriteLoopWritesSchedulerBatchOnce(t *testing.T) {
 	c := New(raw, Config{Limits: limits}, nil)
 
 	batchCh := make(chan writeBatchSnapshot, 1)
-	oldWriteFrames := writeFrames
-	writeFrames = func(w io.Writer, frames []wire.Frame, maxBodyBytes int) error {
+	oldWriteFramesInto := writeFramesInto
+	writeFramesInto = func(w io.Writer, buffers *net.Buffers, frames []wire.Frame, maxBodyBytes int) error {
 		snapshot := writeBatchSnapshot{maxBody: maxBodyBytes}
 		for _, frame := range frames {
 			snapshot.serviceIDs = append(snapshot.serviceIDs, frame.Header.ServiceID)
@@ -125,7 +125,7 @@ func TestConnWriteLoopWritesSchedulerBatchOnce(t *testing.T) {
 		return nil
 	}
 	t.Cleanup(func() {
-		writeFrames = oldWriteFrames
+		writeFramesInto = oldWriteFramesInto
 	})
 
 	for i, body := range []string{"one", "two", "three"} {
@@ -159,6 +159,51 @@ func TestConnWriteLoopWritesSchedulerBatchOnce(t *testing.T) {
 
 	c.shutdown(nil)
 	waitClosed(t, c.writeDone)
+}
+
+func TestWriteLoopReusesScratchAcrossBatches(t *testing.T) {
+	clientSide, serverSide := net.Pipe()
+	defer clientSide.Close()
+	defer serverSide.Close()
+
+	limits := core.Limits{
+		MaxFrameBodyBytes:     1 << 20,
+		MaxQueuedBytesPerConn: 1 << 20,
+		MaxQueuedItemsPerConn: 256,
+		MaxBatchBytes:         64,
+		MaxBatchFrames:        4,
+		WriteTimeout:          time.Second,
+	}
+	c := New(serverSide, Config{Limits: limits}, nil)
+	c.Start()
+	defer c.Close(nil)
+
+	const total = 32
+	go func() {
+		for i := 0; i < total; i++ {
+			payload := []byte{byte(i), byte(i), byte(i)}
+			_ = c.Send(context.Background(), Outbound{
+				Kind:     core.FrameKindData,
+				Priority: core.PriorityRaft,
+				Payload:  core.NewOwnedBuffer(payload, nil),
+			})
+		}
+	}()
+
+	r := clientSide
+	for i := 0; i < total; i++ {
+		_ = r.SetReadDeadline(time.Now().Add(2 * time.Second))
+		frame, err := wire.ReadFrame(r, limits.MaxFrameBodyBytes)
+		if err != nil {
+			t.Fatalf("ReadFrame(%d) error = %v", i, err)
+		}
+		body := frame.Body.Bytes()
+		if len(body) != 3 || body[0] != byte(i) || body[1] != byte(i) || body[2] != byte(i) {
+			frame.Body.Release()
+			t.Fatalf("frame %d body = %v, want three bytes of %d", i, body, i)
+		}
+		frame.Body.Release()
+	}
 }
 
 func TestConnDispatchesInboundFrame(t *testing.T) {

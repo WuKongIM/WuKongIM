@@ -15,7 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2/wire"
 )
 
-var writeFrames = wire.WriteFrames
+var writeFramesInto = wire.WriteFramesInto
 
 // Config configures a single connection actor.
 type Config struct {
@@ -243,13 +243,20 @@ func (c *Conn) readLoop() {
 
 func (c *Conn) writeLoop() {
 	defer close(c.writeDone)
+	var (
+		outbounds []Outbound
+		frames    []wire.Frame
+		buffers   net.Buffers
+	)
 	for {
 		batch, err := c.scheduler.WaitBatch()
 		if err != nil {
 			return
 		}
-		if err := c.writeOutboundBatch(batch); err != nil {
-			c.shutdown(err)
+		var werr error
+		outbounds, frames, werr = c.writeOutboundBatch(batch, outbounds, frames, &buffers)
+		if werr != nil {
+			c.shutdown(werr)
 			return
 		}
 	}
@@ -268,9 +275,9 @@ func (c *Conn) writeOutbound(outbound Outbound) error {
 	return nil
 }
 
-func (c *Conn) writeOutboundBatch(items []sched.Item) error {
-	outbounds := make([]Outbound, 0, len(items))
-	frames := make([]wire.Frame, 0, len(items))
+func (c *Conn) writeOutboundBatch(items []sched.Item, outbounds []Outbound, frames []wire.Frame, buffers *net.Buffers) ([]Outbound, []wire.Frame, error) {
+	outbounds = outbounds[:0]
+	frames = frames[:0]
 	batchBytes := 0
 
 	flush := func() error {
@@ -283,7 +290,7 @@ func (c *Conn) writeOutboundBatch(items []sched.Item) error {
 				return err
 			}
 		}
-		if err := writeFrames(c.raw, frames, c.cfg.Limits.MaxFrameBodyBytes); err != nil {
+		if err := writeFramesInto(c.raw, buffers, frames, c.cfg.Limits.MaxFrameBodyBytes); err != nil {
 			releaseOutbounds(outbounds)
 			return err
 		}
@@ -311,7 +318,7 @@ func (c *Conn) writeOutboundBatch(items []sched.Item) error {
 		if c.outboundBatchWouldExceed(len(outbounds), batchBytes, outbound) {
 			if err := flush(); err != nil {
 				releaseSchedItems(items[i:])
-				return err
+				return outbounds, frames, err
 			}
 		}
 		outbounds = append(outbounds, outbound)
@@ -319,7 +326,7 @@ func (c *Conn) writeOutboundBatch(items []sched.Item) error {
 		batchBytes += outbound.Payload.Len()
 	}
 
-	return flush()
+	return outbounds, frames, flush()
 }
 
 func (c *Conn) outboundBatchWouldExceed(frames int, bytes int, next Outbound) bool {
