@@ -237,6 +237,7 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 	var batch []Item
 	var events []core.Event
 	var batchBytes int64
+	touched := make([]bool, len(s.lanes))
 
 	for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
 		s.openRoundLocked()
@@ -267,7 +268,7 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 		s.queuedBytes -= itemBytes
 		batch = append(batch, item)
 		events = append(events, s.waitEventLocked(item, itemBytes))
-		events = append(events, s.queueEventLocked(item.Priority, "ok"))
+		touched[s.nextLane] = true
 		batchBytes += itemBytes
 		s.roundOutput = true
 
@@ -276,6 +277,12 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 		}
 		if len(l.queue) == 0 {
 			s.finishLaneLocked()
+		}
+	}
+
+	for i := range s.lanes {
+		if touched[i] {
+			events = append(events, s.queueEventLocked(s.lanes[i].priority, "ok"))
 		}
 	}
 
