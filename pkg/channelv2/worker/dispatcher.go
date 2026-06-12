@@ -34,6 +34,7 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 	for {
 		select {
 		case <-p.stop:
+			p.releaseQueuedSlots(len(group))
 			p.completeGroupWithErr(group, ch.ErrClosed)
 			return false
 		default:
