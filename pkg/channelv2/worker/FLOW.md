@@ -24,7 +24,9 @@ Submit(ctx, Task)
 ```
 
 `PoolConfig.QueueSize` is the admission queue capacity. `QueueDepth` reports
-only this explicit queue. `PoolConfig.Workers` is the ants executor capacity.
+current admission occupancy, including queued work and dispatcher-held groups
+not yet accepted by the executor. `PoolConfig.Workers` is the ants executor
+capacity.
 
 ## Batching
 
@@ -37,9 +39,9 @@ fenced completion per original task.
 
 ## Shutdown
 
-`Close` cancels the pool context, stops dispatcher admission, completes queued
-tasks that never reached the executor with `ErrClosed`, waits for submitted task
-groups, and releases the ants pool.
+`Close` cancels the pool context, closes admission to new submissions, stops
+dispatcher draining, completes queued tasks that never reached the executor with
+`ErrClosed`, waits for submitted task groups, and releases the ants pool.
 
 Running tasks receive the canceled pool context through `Task.Run` and exit
 cooperatively when their dependency honors context cancellation.

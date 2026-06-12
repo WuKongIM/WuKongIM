@@ -98,11 +98,11 @@ leader-side quorum append wait stages: leader stages show when an append becomes
 quorum-covered, while follower stages show which follower step delayed that
 coverage.
 
-The RPC worker admission queue may coalesce queued `TaskRPCPull` or
+The RPC worker dispatcher may coalesce queued `TaskRPCPull` or
 `TaskRPCPullHint` items that target the same remote node into one transport
 batch before executing the group on the ants-backed worker executor.
 
-Store worker admission queues may coalesce queued `TaskStoreAppend` or
+Store worker dispatchers may coalesce queued `TaskStoreAppend` or
 `TaskStoreApply` items when the store factory implements the optional
 leader-append or follower-apply batch surfaces; ants only runs the prepared
 blocking group.
