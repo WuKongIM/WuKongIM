@@ -1,5 +1,15 @@
 # WKSIM Stress Findings
 
+## 2026-06-12 transportv2 hot-path surgical refactor follow-up
+
+- Scenario: `GOWORK=off ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transportv2 scheduler/write/RPC/OwnedBuffer hot-path refactor.
+- Evidence: `docs/development/perf-runs/20260612-171931-three-node-real-qps/`.
+- Result: 2464.0 actual QPS, 0.616 actual/offered ratio, p99 458.1ms, p95 340.8ms, max 890.0ms, and 1 send error. Server CPU peaked at node1=248.8%, node2=318.1%, node3=261.0%.
+- Pool pressure: ChannelV2 store-apply/store-append remained the main visible saturation point. Node2 reached `channelv2-store-apply` 64/64 and `channelv2-store-append` 62/64; node1/node3 also showed high store apply utilization. `transportv2/service_executor` stayed low at 0.137/0.184/0.141 utilization.
+- Live pprof evidence: `docs/development/perf-runs/20260612-171931-three-node-real-qps-live15/004000-qps/pprof/live/`. The live sampling perturbed latency and should be used only for attribution; that run produced 3714.0 actual QPS, p99 2351.6ms, and no send errors.
+- Live pprof attribution: `transportv2/internal/conn.(*Conn).writeLoop -> writeOutboundBatch -> wire.WriteFramesInto -> net.Buffers.WriteTo -> syscall.writev` remained visible at roughly 18-20% cumulative CPU per sampled node, down from the earlier ~1/3 write-loop share but still material. `Scheduler` observation was not a top hot path.
+- Finding: the transportv2 hot-path refactor improved local microbenchmarks and removed scheduler observation scanning, but this three-node 4000 QPS scenario is still bounded primarily by ChannelV2/store append/apply/RPC pressure. Remaining transport write syscall cost is lower than the baseline but still worth a later protocol/write aggregation pass if ChannelV2 pressure is relieved.
+
 ## 2026-06-12 three-node real-qps 4000 pprof CPU triage
 
 - Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, current dirty worktree.
