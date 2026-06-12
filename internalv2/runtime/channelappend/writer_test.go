@@ -2,10 +2,10 @@ package channelappend
 
 import "testing"
 
-func TestNewChannelAppendrStartsIdle(t *testing.T) {
+func TestNewChannelWriterStartsIdle(t *testing.T) {
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "c1", Type: 2}, LeaderNodeID: 1}
 	target.ChannelKey = channelKey(target.ChannelID)
-	w := newChannelAppendr(target, channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 1})
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 1})
 	if w.scheduled.Load() {
 		t.Fatal("new writer must not be scheduled")
 	}
@@ -20,7 +20,7 @@ func TestNewChannelAppendrStartsIdle(t *testing.T) {
 func TestWriterEnqueueActivatesOnce(t *testing.T) {
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "c1", Type: 2}, LeaderNodeID: 1}
 	target.ChannelKey = channelKey(target.ChannelID)
-	w := newChannelAppendr(target, channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 1})
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 1024, appendInflightLimit: 1})
 
 	first := w.enqueue(submittedBatch{target: target, future: newFuture(0)})
 	if !first {

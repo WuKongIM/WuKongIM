@@ -9,11 +9,17 @@ import (
 )
 
 const (
-	defaultAuthorityShardCount                   = 1
-	defaultAdvancePoolSize                       = 1
-	defaultAdmissionCapacityPerShard             = 1024
-	defaultChannelBacklogHighWatermark           = 1024
-	defaultAppendInflightBatchesPerChannel       = 1
+	defaultAuthorityShardCount         = 1
+	defaultAdvancePoolSize             = 1
+	defaultAdmissionCapacityPerShard   = 1024
+	defaultChannelBacklogHighWatermark = 1024
+	// defaultAppendInflightBatchesPerChannel only bounds how many same-channel
+	// append batches this runtime keeps in flight toward the appender. The
+	// downstream channelv2 reactor serializes and coalesces per-channel appends,
+	// so this value affects submit concurrency and batching efficiency, never
+	// durable ordering or MessageSeq assignment.
+	defaultAppendInflightBatchesPerChannel       = 10
+	defaultWriterIdleRetention                   = 10 * time.Minute
 	defaultEffectPoolSize                        = 2
 	defaultSubscriberScanPageSize                = 256
 	defaultRecipientBatchSize                    = 256
@@ -342,8 +348,10 @@ type Options struct {
 	AdmissionCapacityPerShard int
 	// ChannelBacklogHighWatermark is reserved for per-channel admission pressure. Values <= 0 use a bounded default.
 	ChannelBacklogHighWatermark int
-	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use one in-flight batch.
+	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
 	AppendInflightBatchesPerChannel int
+	// WriterIdleRetention keeps drained channel writers available for reuse before shard cleanup may reclaim them. Values <= 0 use a conservative default.
+	WriterIdleRetention time.Duration
 	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Values <= 0 use a conservative default.
 	EffectPoolSize int
 	// Observer receives non-fatal append observations.
@@ -387,6 +395,9 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.AppendInflightBatchesPerChannel <= 0 {
 		opts.AppendInflightBatchesPerChannel = defaultAppendInflightBatchesPerChannel
+	}
+	if opts.WriterIdleRetention <= 0 {
+		opts.WriterIdleRetention = defaultWriterIdleRetention
 	}
 	if opts.EffectPoolSize <= 0 {
 		opts.EffectPoolSize = defaultEffectPoolSize

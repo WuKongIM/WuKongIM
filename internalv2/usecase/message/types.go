@@ -22,16 +22,6 @@ const (
 	ReasonUnsupported = channelappend.ReasonUnsupported
 )
 
-// CommitMode controls when durable append completes.
-type CommitMode = channelappend.CommitMode
-
-const (
-	// CommitModeQuorum waits for quorum commit.
-	CommitModeQuorum = channelappend.CommitModeQuorum
-	// CommitModeLocal completes after local durable append.
-	CommitModeLocal = channelappend.CommitModeLocal
-)
-
 // ChannelID identifies a message channel.
 type ChannelID = channelappend.ChannelID
 
@@ -46,15 +36,3 @@ type SendBatchItem = channelappend.SendBatchItem
 
 // SendBatchItemResult aligns with one SendBatch item.
 type SendBatchItemResult = channelappend.SendBatchItemResult
-
-// Message is the durable append payload used by the message appender port.
-type Message = channelappend.Message
-
-// AppendBatchRequest appends messages to one canonical channel.
-type AppendBatchRequest = channelappend.AppendBatchRequest
-
-// AppendBatchResult returns item-aligned append outcomes.
-type AppendBatchResult = channelappend.AppendBatchResult
-
-// AppendBatchItemResult is one append result inside a batch.
-type AppendBatchItemResult = channelappend.AppendBatchItemResult

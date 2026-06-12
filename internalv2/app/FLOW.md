@@ -294,10 +294,10 @@ gateway/API send
   -> message.App delegates to channelappend.Router
   -> Router resolves channel append authority
   -> local channel authority:
-       channelappend.Group admits the batch to the channel appendr
+       channelappend.Group admits the batch to the channel writer
   -> remote channel authority:
        access/node Channel Append RPC forwards the batch
-       remote node admits it to its local channel appendr
+       remote node admits it to its local channel writer
   -> authority writer prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
   -> ChannelV2 persists messages and returns append result
   -> SENDACK returns to sender

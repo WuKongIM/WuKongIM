@@ -39,7 +39,7 @@ func BenchmarkSubmitLocalHotChannel(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
-func BenchmarkSubmitLocalHotChannelAppendrPressureObserver(b *testing.B) {
+func BenchmarkSubmitLocalHotChannelWriterPressureObserver(b *testing.B) {
 	group := newBenchmarkChannelAppendGroup(b, Options{
 		LocalNodeID:               1,
 		AuthorityShardCount:       1,
@@ -224,7 +224,7 @@ func BenchmarkGroupMetricsTransitionDisabled(b *testing.B) {
 }
 
 func BenchmarkGroupMetricsTransitionEnabled(b *testing.B) {
-	var admissionUsed atomic.Int64
+	metricShard := newShard(channelStateLimits{}, 4096, time.Minute)
 	pool := newWorkerPool(1)
 	b.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -235,7 +235,7 @@ func BenchmarkGroupMetricsTransitionEnabled(b *testing.B) {
 	})
 	metrics := &groupMetrics{
 		observer:          &benchmarkWriterPressureObserver{},
-		admissionUsed:     &admissionUsed,
+		admissionShards:   []*shard{metricShard},
 		admissionCapacity: 4096,
 		pool:              pool,
 	}

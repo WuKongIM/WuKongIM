@@ -251,11 +251,11 @@ func TestDefaultChannelAppendConfigUsesRuntimeDefaults(t *testing.T) {
 	if cfg.AuthorityShardCount != 6 {
 		t.Fatalf("AuthorityShardCount = %d, want 6", cfg.AuthorityShardCount)
 	}
-	if cfg.AdvancePoolSize != 6 {
-		t.Fatalf("AdvancePoolSize = %d, want 6", cfg.AdvancePoolSize)
+	if cfg.AdvancePoolSize != 500 {
+		t.Fatalf("AdvancePoolSize = %d, want 500", cfg.AdvancePoolSize)
 	}
-	if cfg.EffectPoolSize != 18000 {
-		t.Fatalf("EffectPoolSize = %d, want 18000", cfg.EffectPoolSize)
+	if cfg.EffectPoolSize != 2000 {
+		t.Fatalf("EffectPoolSize = %d, want 2000", cfg.EffectPoolSize)
 	}
 	if cfg.RecipientAuthorityDispatchConcurrency != 100 {
 		t.Fatalf("RecipientAuthorityDispatchConcurrency = %d, want 100", cfg.RecipientAuthorityDispatchConcurrency)

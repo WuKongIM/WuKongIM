@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -51,16 +51,16 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	}
 	appender := NewChannelAppender(node)
 
-	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:           message.ChannelID{ID: "room", Type: 1},
+	res, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:           channelappend.ChannelID{ID: "room", Type: 1},
 		ExpectedEpoch:       12,
 		ExpectedLeaderEpoch: 34,
 		TraceID:             "trace-request",
 		ChannelKey:          "channel/key-request",
 		Attempt:             4,
-		CommitMode:          message.CommitModeQuorum,
+		CommitMode:          channelappend.CommitModeQuorum,
 		OmitResultPayload:   true,
-		Messages: []message.Message{
+		Messages: []channelappend.Message{
 			{
 				MessageID:         10,
 				MessageSeq:        1,
@@ -142,10 +142,10 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	if len(res.Items) != 2 {
 		t.Fatalf("len(result.Items) = %d, want 2", len(res.Items))
 	}
-	assertMessageResult(t, res.Items[0], message.AppendBatchItemResult{
+	assertMessageResult(t, res.Items[0], channelappend.AppendBatchItemResult{
 		MessageID:  10,
 		MessageSeq: 101,
-		Message: message.Message{
+		Message: channelappend.Message{
 			MessageID:         10,
 			MessageSeq:        101,
 			ChannelID:         "room",
@@ -158,10 +158,10 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 			ServerTimestampMS: 1001,
 		},
 	})
-	assertMessageResult(t, res.Items[1], message.AppendBatchItemResult{
+	assertMessageResult(t, res.Items[1], channelappend.AppendBatchItemResult{
 		MessageID:  11,
 		MessageSeq: 102,
-		Message: message.Message{
+		Message: channelappend.Message{
 			MessageID:         11,
 			MessageSeq:        102,
 			ChannelID:         "room",
@@ -187,12 +187,12 @@ func TestChannelAppenderRecordsChannelAppendTraceOnSuccess(t *testing.T) {
 	}
 	appender := NewChannelAppender(node)
 
-	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
 		TraceID:    "trace-1",
 		ChannelKey: "channel/key-1",
 		Attempt:    2,
-		Messages: []message.Message{
+		Messages: []channelappend.Message{
 			{
 				MessageID:   10,
 				ChannelID:   "room",
@@ -222,16 +222,16 @@ func TestChannelAppenderRecordsChannelAppendTraceOnBatchError(t *testing.T) {
 	t.Cleanup(restore)
 	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrBackpressured})
 
-	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
 		TraceID:    "trace-error",
 		ChannelKey: "channel/key-error",
 		Attempt:    3,
-		Messages: []message.Message{
+		Messages: []channelappend.Message{
 			{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-error", TraceID: "trace-error", ChannelKey: "channel/key-error"},
 		},
 	})
-	if !errors.Is(err, message.ErrBackpressured) {
+	if !errors.Is(err, channelappend.ErrBackpressured) {
 		t.Fatalf("AppendBatch() error = %v, want backpressured", err)
 	}
 
@@ -246,19 +246,19 @@ func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
 	logger := &recordingClusterLogger{}
 	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrNotReady}, logger)
 
-	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:           message.ChannelID{ID: "room", Type: 2},
+	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:           channelappend.ChannelID{ID: "room", Type: 2},
 		ExpectedEpoch:       12,
 		ExpectedLeaderEpoch: 34,
 		TraceID:             "trace-error",
 		ChannelKey:          "channel/key-error",
 		Attempt:             3,
-		Messages: []message.Message{
+		Messages: []channelappend.Message{
 			{MessageID: 10, FromUID: "u1", ClientMsgNo: "client-error", TraceID: "trace-error", ChannelKey: "channel/key-error"},
 			{MessageID: 11, FromUID: "u2", ClientMsgNo: "client-error-2"},
 		},
 	})
-	if !errors.Is(err, message.ErrRouteNotReady) {
+	if !errors.Is(err, channelappend.ErrRouteNotReady) {
 		t.Fatalf("AppendBatch() error = %v, want route not ready", err)
 	}
 
@@ -288,10 +288,10 @@ func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *t
 		}},
 	})
 
-	_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
 		ChannelKey: "channel/key-1",
-		Messages:   []message.Message{{MessageID: 10, ClientMsgNo: "client-1"}},
+		Messages:   []channelappend.Message{{MessageID: 10, ClientMsgNo: "client-1"}},
 	})
 	if err != nil {
 		t.Fatalf("AppendBatch() without trace id error = %v", err)
@@ -301,11 +301,11 @@ func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *t
 	}
 
 	restore()
-	_, err = appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
+	_, err = appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
 		TraceID:    "trace-disabled",
 		ChannelKey: "channel/key-disabled",
-		Messages:   []message.Message{{MessageID: 10, TraceID: "trace-disabled", ClientMsgNo: "client-disabled"}},
+		Messages:   []channelappend.Message{{MessageID: 10, TraceID: "trace-disabled", ClientMsgNo: "client-disabled"}},
 	})
 	if err != nil {
 		t.Fatalf("AppendBatch() without active sink error = %v", err)
@@ -328,10 +328,10 @@ func TestChannelAppenderClonesPayloadsBothDirections(t *testing.T) {
 	appender := NewChannelAppender(node)
 	payload := []byte("source")
 
-	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID:  message.ChannelID{ID: "room", Type: 1},
-		Messages:   []message.Message{{MessageID: 10, Payload: payload}},
-		CommitMode: message.CommitModeQuorum,
+	res, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
+		Messages:   []channelappend.Message{{MessageID: 10, Payload: payload}},
+		CommitMode: channelappend.CommitModeQuorum,
 	})
 	if err != nil {
 		t.Fatalf("AppendBatch() error = %v", err)
@@ -351,19 +351,19 @@ func TestChannelAppenderClonesPayloadsBothDirections(t *testing.T) {
 func TestChannelAppenderMapsCommitModes(t *testing.T) {
 	cases := []struct {
 		name string
-		in   message.CommitMode
+		in   channelappend.CommitMode
 		want channelv2.CommitMode
 	}{
-		{name: "quorum", in: message.CommitModeQuorum, want: channelv2.CommitModeQuorum},
-		{name: "local", in: message.CommitModeLocal, want: channelv2.CommitModeLocal},
-		{name: "default", in: message.CommitMode(0), want: channelv2.CommitModeQuorum},
+		{name: "quorum", in: channelappend.CommitModeQuorum, want: channelv2.CommitModeQuorum},
+		{name: "local", in: channelappend.CommitModeLocal, want: channelv2.CommitModeLocal},
+		{name: "default", in: channelappend.CommitMode(0), want: channelv2.CommitModeQuorum},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			node := &recordingNode{}
 			appender := NewChannelAppender(node)
-			_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-				ChannelID:  message.ChannelID{ID: "room", Type: 1},
+			_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+				ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
 				CommitMode: tc.in,
 			})
 			if err != nil {
@@ -378,13 +378,13 @@ func TestChannelAppenderMapsCommitModes(t *testing.T) {
 
 func TestChannelAppenderRequiresNode(t *testing.T) {
 	var nilAppender *ChannelAppender
-	if _, err := nilAppender.AppendBatch(context.Background(), message.AppendBatchRequest{}); !errors.Is(err, message.ErrAppenderRequired) {
-		t.Fatalf("nil appender error = %v, want %v", err, message.ErrAppenderRequired)
+	if _, err := nilAppender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{}); !errors.Is(err, channelappend.ErrAppenderRequired) {
+		t.Fatalf("nil appender error = %v, want %v", err, channelappend.ErrAppenderRequired)
 	}
 
 	appender := NewChannelAppender(nil)
-	if _, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{}); !errors.Is(err, message.ErrAppenderRequired) {
-		t.Fatalf("nil node error = %v, want %v", err, message.ErrAppenderRequired)
+	if _, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{}); !errors.Is(err, channelappend.ErrAppenderRequired) {
+		t.Fatalf("nil node error = %v, want %v", err, channelappend.ErrAppenderRequired)
 	}
 }
 
@@ -396,26 +396,26 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		want      error
 		unchanged bool
 	}{
-		{name: "clusterv2 not leader", err: clusterv2.ErrNotLeader, want: message.ErrNotLeader},
-		{name: "channelv2 not leader", err: channelv2.ErrNotLeader, want: message.ErrNotLeader},
-		{name: "stale meta", err: channelv2.ErrStaleMeta, want: message.ErrStaleRoute},
-		{name: "not replica", err: channelv2.ErrNotReplica, want: message.ErrStaleRoute},
-		{name: "textual not replica", err: errors.New(channelv2.ErrNotReplica.Error()), want: message.ErrStaleRoute},
-		{name: "channel missing", err: channelv2.ErrChannelNotFound, want: message.ErrChannelNotFound},
-		{name: "backpressured", err: channelv2.ErrBackpressured, want: message.ErrBackpressured},
-		{name: "clusterv2 route not ready", err: clusterv2.ErrRouteNotReady, want: message.ErrRouteNotReady},
-		{name: "clusterv2 no slot leader", err: clusterv2.ErrNoSlotLeader, want: message.ErrRouteNotReady},
-		{name: "channelv2 not ready", err: channelv2.ErrNotReady, want: message.ErrRouteNotReady},
+		{name: "clusterv2 not leader", err: clusterv2.ErrNotLeader, want: channelappend.ErrNotLeader},
+		{name: "channelv2 not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotLeader},
+		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
+		{name: "not replica", err: channelv2.ErrNotReplica, want: channelappend.ErrStaleRoute},
+		{name: "textual not replica", err: errors.New(channelv2.ErrNotReplica.Error()), want: channelappend.ErrStaleRoute},
+		{name: "channel missing", err: channelv2.ErrChannelNotFound, want: channelappend.ErrChannelNotFound},
+		{name: "backpressured", err: channelv2.ErrBackpressured, want: channelappend.ErrBackpressured},
+		{name: "clusterv2 route not ready", err: clusterv2.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "clusterv2 no slot leader", err: clusterv2.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
+		{name: "channelv2 not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled, unchanged: true},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded, unchanged: true},
-		{name: "unknown", err: unknown, want: message.ErrAppendFailed},
+		{name: "unknown", err: unknown, want: channelappend.ErrAppendFailed},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			appender := NewChannelAppender(&recordingNode{err: tc.err})
-			_, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-				ChannelID: message.ChannelID{ID: "room", Type: 1},
-				Messages:  []message.Message{{MessageID: 1, Payload: []byte("x")}},
+			_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+				ChannelID: channelappend.ChannelID{ID: "room", Type: 1},
+				Messages:  []channelappend.Message{{MessageID: 1, Payload: []byte("x")}},
 			})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("AppendBatch() error = %v, want %v", err, tc.want)
@@ -438,15 +438,15 @@ func TestChannelAppenderMapsItemErrors(t *testing.T) {
 	}
 	appender := NewChannelAppender(node)
 
-	res, err := appender.AppendBatch(context.Background(), message.AppendBatchRequest{
-		ChannelID: message.ChannelID{ID: "room", Type: 1},
-		Messages:  []message.Message{{MessageID: 10}},
+	res, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
+		ChannelID: channelappend.ChannelID{ID: "room", Type: 1},
+		Messages:  []channelappend.Message{{MessageID: 10}},
 	})
 	if err != nil {
 		t.Fatalf("AppendBatch() error = %v", err)
 	}
-	if len(res.Items) != 1 || !errors.Is(res.Items[0].Err, message.ErrBackpressured) {
-		t.Fatalf("item error = %#v, want %v", res.Items, message.ErrBackpressured)
+	if len(res.Items) != 1 || !errors.Is(res.Items[0].Err, channelappend.ErrBackpressured) {
+		t.Fatalf("item error = %#v, want %v", res.Items, channelappend.ErrBackpressured)
 	}
 }
 
@@ -482,7 +482,7 @@ func assertChannelMessage(t *testing.T, got, want channelv2.Message) {
 	}
 }
 
-func assertMessageResult(t *testing.T, got, want message.AppendBatchItemResult) {
+func assertMessageResult(t *testing.T, got, want channelappend.AppendBatchItemResult) {
 	t.Helper()
 	if got.MessageID != want.MessageID ||
 		got.MessageSeq != want.MessageSeq ||

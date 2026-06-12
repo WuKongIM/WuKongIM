@@ -133,7 +133,7 @@ func (h *Handler) OnListenerError(listener string, err error) {
 }
 
 func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPacket, error) {
-	if h == nil || h.presence == nil {
+	if h.presence == nil {
 		return nil, ErrPresenceRequired
 	}
 	cmd, err := activateCommandFromContext(ctx, time.Now())
@@ -149,9 +149,6 @@ func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPac
 func (h *Handler) OnSessionOpen(coregateway.Context) error { return nil }
 
 func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
-	if h == nil {
-		return nil
-	}
 	reqCtx := requestContextFromContext(&ctx)
 	var presenceErr error
 	if h.presence != nil {
@@ -184,7 +181,7 @@ func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
 }
 
 func (h *Handler) OnSessionActivateRollback(ctx coregateway.Context, _ error) {
-	if h == nil || h.presence == nil {
+	if h.presence == nil {
 		return
 	}
 	if err := h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx)); err != nil {
@@ -223,7 +220,7 @@ func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 }
 
 func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
-	if h == nil || h.presence == nil || ctx == nil || ctx.Session == nil {
+	if h.presence == nil || ctx == nil || ctx.Session == nil {
 		return
 	}
 	sessionID := ctx.Session.ID()
@@ -244,7 +241,7 @@ func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
 }
 
 func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) error {
-	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, true, h.traceIDGenerator)
+	cmd, err := mapSendCommandWithPayload(ctx, pkt, h.ownerNodeID, h.traceIDGenerator)
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticatedSession) {
 			return h.writeSendack(ctx, pkt, message.SendResult{Reason: message.ReasonAuthFail}, sendackSourceSingleResult, sendackErrorClassUnauthenticated, sendTraceFields{})
@@ -269,7 +266,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 }
 
 func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
-	if h == nil || h.delivery == nil || ctx == nil || ctx.Session == nil || pkt == nil {
+	if h.delivery == nil || ctx == nil || ctx.Session == nil || pkt == nil {
 		return nil
 	}
 	uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
@@ -301,7 +298,7 @@ func (h *Handler) sendBatchOne(item message.SendBatchItem) (message.SendResult, 
 	if cmd.TraceID != "" {
 		startedAt = time.Now()
 	}
-	if h == nil || h.messages == nil {
+	if h.messages == nil {
 		h.logMessageUsecaseMissing()
 		result := message.SendResult{Reason: message.ReasonSystemError}
 		if cmd.TraceID != "" {
@@ -356,7 +353,7 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	if trace.traceID != "" {
 		recordGatewayWriteSendack(trace, result, nil, sendtraceElapsedSince(startedAt))
 	}
-	if h != nil && h.sendackObserver != nil {
+	if h.sendackObserver != nil {
 		h.sendackObserver.SendackWritten(SendackEvent{Reason: result.Reason, Source: source, ErrorClass: class})
 	}
 	return nil
@@ -406,9 +403,6 @@ func (h *Handler) logMissingRequestContext(ctx *coregateway.Context, pkt *frame.
 }
 
 func (h *Handler) logMessageUsecaseMissing() {
-	if h == nil {
-		return
-	}
 	h.frameLogger().Error("gateway message usecase missing",
 		wklog.Event("internalv2.access.gateway.message_usecase_missing"),
 		wklog.SourceModule("message.send"),
@@ -416,9 +410,6 @@ func (h *Handler) logMessageUsecaseMissing() {
 }
 
 func (h *Handler) logSendBatchResultCountMismatch(items, validItems, results int) {
-	if h == nil {
-		return
-	}
 	h.frameLogger().Error("gateway send batch result count mismatch",
 		wklog.Event("internalv2.access.gateway.send_batch_result_count_mismatch"),
 		wklog.Int("items", items),
@@ -440,14 +431,14 @@ func shouldLogSendErrorClass(class string) bool {
 }
 
 func (h *Handler) connLogger() wklog.Logger {
-	if h == nil || h.logger == nil {
+	if h.logger == nil {
 		return wklog.NewNop()
 	}
 	return h.logger.Named("conn")
 }
 
 func (h *Handler) frameLogger() wklog.Logger {
-	if h == nil || h.logger == nil {
+	if h.logger == nil {
 		return wklog.NewNop()
 	}
 	return h.logger.Named("frame")

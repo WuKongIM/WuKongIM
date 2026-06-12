@@ -8,14 +8,14 @@ import (
 )
 
 func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, 0, true, nil)
+	return mapSendCommandWithPayload(ctx, pkt, 0, nil)
 }
 
 func mapSendCommandForBatch(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	return mapSendCommandWithPayload(ctx, pkt, 0, false, nil)
+	return mapSendCommandWithPayload(ctx, pkt, 0, nil)
 }
 
-func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, clonePayload bool, traceIDGenerator TraceIDGenerator) (message.SendCommand, error) {
+func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, traceIDGenerator TraceIDGenerator) (message.SendCommand, error) {
 	if ctx == nil || ctx.Session == nil {
 		return message.SendCommand{}, ErrUnauthenticatedSession
 	}
@@ -43,11 +43,7 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd.ChannelID = pkt.ChannelID
 	cmd.ChannelType = pkt.ChannelType
 	cmd.NormalizePersonChannel = pkt.ChannelType == frame.ChannelTypePerson
-	if clonePayload {
-		cmd.Payload = cloneBytes(pkt.Payload)
-	} else {
-		cmd.Payload = pkt.Payload
-	}
+	cmd.Payload = pkt.Payload
 	cmd.NoPersist = pkt.Framer.NoPersist
 	cmd.SyncOnce = pkt.Framer.SyncOnce
 	cmd.RedDot = pkt.Framer.RedDot
@@ -85,13 +81,4 @@ func writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result messag
 		ClientMsgNo: clientMsgNo,
 		ReasonCode:  mapReason(result.Reason),
 	})
-}
-
-func cloneBytes(in []byte) []byte {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]byte, len(in))
-	copy(out, in)
-	return out
 }

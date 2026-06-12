@@ -24,10 +24,11 @@ channelappend.AppendBatchRequest
   -> channelappend.AppendBatchResult
 ```
 
-Payloads are cloned in both directions unless the channelappend runtime marks result
-payloads as unnecessary for SENDACK-only flows. Commit mode, expected authority
-epoch fences, and typed errors are mapped at this boundary so the channelappend
-runtime stays cluster-agnostic.
+This adapter is the durable append ownership boundary: outbound message payloads
+are cloned before entering `channelv2`, and inbound result payloads are cloned
+unless the channelappend runtime marks them unnecessary for SENDACK-only flows.
+Commit mode, expected authority epoch fences, and typed errors are mapped at
+this boundary so the channelappend runtime stays cluster-agnostic.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.

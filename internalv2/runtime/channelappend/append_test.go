@@ -13,10 +13,11 @@ import (
 func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 	appender := newBlockingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{
-		LocalNodeID:    1,
-		MessageID:      newSequenceIDsForPrepare(10),
-		Appender:       appender,
-		EffectPoolSize: 4,
+		LocalNodeID:                     1,
+		MessageID:                       newSequenceIDsForPrepare(10),
+		Appender:                        appender,
+		AppendInflightBatchesPerChannel: 1,
+		EffectPoolSize:                  4,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -344,12 +345,13 @@ func TestAppendSuccessPrunesNoopCommitWithoutRecipientEffects(t *testing.T) {
 	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
 }
 
-func TestAppendClonesPayloadAtAppenderBoundary(t *testing.T) {
+func TestAppendSharesImmutablePayloadWithAppender(t *testing.T) {
 	payload := []byte("hello")
+	appender := &payloadAliasAppenderForAppendTest{payload: payload}
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID: 1,
 		MessageID:   newSequenceIDsForPrepare(500),
-		Appender:    mutatingAppenderForAppendTest{},
+		Appender:    appender,
 	})
 	target := localTargetForAppendTest("room")
 
@@ -368,8 +370,8 @@ func TestAppendClonesPayloadAtAppenderBoundary(t *testing.T) {
 	}
 
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 500, 1)
-	if got := string(payload); got != "hello" {
-		t.Fatalf("source payload = %q, want append boundary clone to protect command payload", got)
+	if !appender.sawAlias {
+		t.Fatalf("append request payload did not share immutable command payload")
 	}
 }
 
@@ -594,13 +596,16 @@ func (s appendStartedForAppendTest) Release() {
 	close(s.release)
 }
 
-type mutatingAppenderForAppendTest struct{}
+type payloadAliasAppenderForAppendTest struct {
+	payload  []byte
+	sawAlias bool
+}
 
-func (mutatingAppenderForAppendTest) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+func (a *payloadAliasAppenderForAppendTest) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
 	items := make([]AppendBatchItemResult, len(req.Messages))
 	for i, msg := range req.Messages {
-		if len(req.Messages[i].Payload) > 0 {
-			req.Messages[i].Payload[0] = 'H'
+		if len(msg.Payload) > 0 && len(a.payload) > 0 && &msg.Payload[0] == &a.payload[0] {
+			a.sawAlias = true
 		}
 		msg.MessageSeq = uint64(i + 1)
 		items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}

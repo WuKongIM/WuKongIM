@@ -30,7 +30,7 @@ Router.SendBatch
 ```
 
 The local path is the only path that may enter `SubmitLocal`; remote targets are
-forwarded and must not create local `channelAppendr` state. Route movement errors
+forwarded and must not create local `channelWriter` state. Route movement errors
 (`ErrStaleRoute`, `ErrNotChannelAuthority`, `ErrNotLeader`,
 `ErrRouteNotReady`) are retried with bounded backoff while item deadlines allow
 it. Retry sleeps wake when pending item cancellation or deadlines arrive, so
@@ -40,14 +40,19 @@ remote authority share the same pressure limit.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while
-waiting for retry wakeups. Once local or remote authority returns item-aligned
-results, those results are preserved so a late deadline cannot erase a durable
-append success or its committed handoff. This prevents one item context or
-deadline from canceling other items that happen to share the same authority
-batch. When a shared transport context is canceled only after an item's own
-deadline has expired, the item result is reported as deadline-exceeded rather
-than a generic cancellation so metrics keep send-timeout failures distinct from
-caller/session cancellation.
+waiting for retry wakeups. The single-item path derives its submit context
+directly from that item context/deadline. Multi-item batches use a shared
+neutral context so one item cannot cancel unrelated items; the shared context is
+canceled only when every submitted item has reached its own terminal signal.
+Runtime watchers use `context.AfterFunc` and timers instead of per-item goroutine
+waiters. Once local or remote authority returns item-aligned results, those
+results are preserved so a late deadline cannot erase a durable append success
+or its committed handoff. This prevents one item context or deadline from
+canceling other items that happen to share the same authority batch. When a
+shared transport context is canceled only after an item's own deadline has
+expired, the item result is reported as deadline-exceeded rather than a generic
+cancellation so metrics keep send-timeout failures distinct from caller/session
+cancellation.
 
 ## Authority-Only State
 
@@ -56,9 +61,9 @@ identity plus recipient fanout metadata (`Large` and
 `SubscriberMutationVersion`). The group rejects targets whose `LeaderNodeID`
 does not match `Options.LocalNodeID` before choosing a shard. Remote channels
 are handled by `Router` through the `RemoteForwarder` port and never create
-proxy `channelAppendr` state inside this package.
+proxy `channelWriter` state inside this package.
 
-`channelAppendr` is created lazily by the owning shard after local authority
+`channelWriter` is created lazily by the owning shard after local authority
 validation. State is keyed by the channel routing key derived from
 `AuthorityTarget.ChannelKey` or from `ChannelID` when the target omits an
 explicit key. Shard selection uses the same channel key, not the sender UID.
@@ -69,10 +74,11 @@ append authority fences remain owned by the state created for that channel key.
 ## Lifecycle
 
 `Group.Start` opens local admission and prepares shared worker pools. Writers
-are created lazily on accepted local submissions. `Group.Stop` closes admission,
-cancels the runtime context used by append and post-commit work, and waits for
-already accepted writers to drain until the caller context expires. A stopped
-group is not restarted.
+are created lazily on accepted local submissions and reclaimed opportunistically
+after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
+closes admission, cancels the runtime context used by append and post-commit
+work, and waits for already accepted writers to drain until the caller context
+expires. A stopped group is not restarted.
 
 ## Writer Execution
 
@@ -80,12 +86,12 @@ The runtime implements local authority validation, hash-sharded writer lookup,
 lifecycle, pre-append preparation, channel-level append flow control, durable
 append scheduling, committed-message handoff, and item-aligned futures.
 Submission checks caller cancellation before admission. After that check,
-bounded local admission is non-blocking and returns `ErrBackpressured` when the
-group is closed or its outstanding accepted work is at capacity. Once a submit
-event is accepted into a writer, caller cancellation no longer turns the
-accepted event into a rejected submit.
+bounded local admission is shard-local, non-blocking, and returns
+`ErrBackpressured` when the group is closed or the target shard's outstanding
+accepted work is at capacity. Once a submit event is accepted into a writer,
+caller cancellation no longer turns the accepted event into a rejected submit.
 
-Each active channel has one `channelAppendr`. The writer owns one
+Each active channel has one `channelWriter`. The writer owns one
 `channelState`, a lightweight inbox, and an atomic scheduled flag. The scheduled
 flag guarantees that at most one goroutine advances that channel at a time. The
 group uses shards only for writer lookup and creation; shard locks are not held
@@ -114,8 +120,9 @@ before mutating `channelState`, so SENDACK and post-commit handoff remain in
 submission order even when same-channel append calls finish out of order. The
 appender port must preserve durable per-channel append order for concurrent
 same-channel requests or serialize the requests internally. Append requests
-clone payloads at the appender boundary and carry the resolved authority epoch
-and leader epoch as append fences.
+borrow immutable send-path payloads and carry the resolved authority epoch and
+leader epoch as append fences; concrete storage adapters clone payloads when
+they cross into durable ownership.
 
 Batch-level append errors are returned to all active items from that single
 append attempt without retry. Short append results complete missing items with
@@ -129,6 +136,9 @@ not checkpointed and not replayed after authority restart.
 Post-commit work is scheduled from the writer state after durable append
 succeeds and is independent from `SENDACK` completion. A committed envelope
 remains pending only until one recipient delivery enqueue attempt completes.
+The committed envelope owns one payload copy when it enters the async
+post-commit backlog; later state and recipient dispatch steps pass that
+immutable envelope by reference until the delivery worker takes its queue copy.
 Success prunes the payload-bearing envelope from the backlog. Failure is logged
 through `PostCommitFailureObserver`, counted through effect metrics, and then
 the envelope is dropped without retry so one bad active-admission, recipient
@@ -199,16 +209,16 @@ labels.
 ## Pressure Observability
 
 Writer pressure observations are produced from aggregate counters maintained on
-state transitions; they do not scan shard writer maps. Admission depth tracks
-accepted items that have not yet completed their futures. Pending append,
-append in-flight, and post-commit backlog counters are updated by the writer as
-items move between queues. Shared pool observations report submit results and
-current running/capacity gauges for append and post-commit tasks. The writer
-pressure observer reports the local writer group aggregate rather than a
-per-channel event loop. When the observer supports ants pool samples, the group
-also emits direct ants/v2 running/capacity/waiting observations for the advance
-pool and the effect pool; benchmark scripts use these samples for the per-node
-peak `used/cap` ants pool summary.
+state transitions; they do not scan shard writer maps. Admission depth is the
+sum of shard-local accepted items that have not yet completed their futures.
+Pending append, append in-flight, and post-commit backlog counters are updated
+by the writer as items move between queues. Shared pool observations report
+submit results and current running/capacity gauges for append and post-commit
+tasks. The writer pressure observer reports the local writer group aggregate
+rather than a per-channel event loop. When the observer supports ants pool
+samples, the group also emits direct ants/v2 running/capacity/waiting
+observations for the advance pool and the effect pool; benchmark scripts use
+these samples for the per-node peak `used/cap` ants pool summary.
 
 `Stop` cancels the runtime context passed to append and post-commit effects
 before waiting for writers to drain. Once cancellation is observed, writers do

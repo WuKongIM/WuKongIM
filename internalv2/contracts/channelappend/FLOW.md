@@ -26,6 +26,10 @@ resolve routes, append messages, dispatch recipients, or push gateway frames.
 - `SendCommand`, `Message`, `AppendBatchRequest`, `CommittedEnvelope`,
   `RecipientBatch`, and push/result DTOs provide clone helpers when they own
   slices.
+- SEND hot-path implementations may pass payload and message-scoped UID slices
+  by reference. Callers and callees must treat those slices as immutable until a
+  concrete ownership boundary, such as durable storage or an async worker queue,
+  takes its own copy.
 - `AuthorityTarget` identifies the fenced channel authority route used for
   write admission.
 - `AppendBatchRequest` carries the expected authority epoch and leader epoch so

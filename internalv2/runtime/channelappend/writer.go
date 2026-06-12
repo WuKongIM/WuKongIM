@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// channelAppendr is the single-writer state machine for one locally authoritative channel.
+// channelWriter is the single-writer state machine for one locally authoritative channel.
 // Invariant: at most one goroutine advances a writer at a time (guarded by scheduled).
-type channelAppendr struct {
+type channelWriter struct {
 	key string
 
 	// ports are the dependencies used to advance this writer's state machine.
@@ -17,6 +17,8 @@ type channelAppendr struct {
 
 	// scheduled reports whether a worker is already queued to advance this writer.
 	scheduled atomic.Bool
+	// lastIdleUnixNano records when this writer last drained all work, or zero while active.
+	lastIdleUnixNano atomic.Int64
 
 	// mu guards state, inbox, and the phase transitions inside advance.
 	mu    sync.Mutex
@@ -38,13 +40,13 @@ type writerPorts struct {
 	append     appendPorts
 	commit     commitPorts
 	pool       *workerPool
-	schedule   func(*channelAppendr)
+	schedule   func(*channelWriter)
 	runtimeCtx context.Context
 	metrics    *groupMetrics
 }
 
-func newChannelAppendr(target AuthorityTarget, limits channelStateLimits) *channelAppendr {
-	return &channelAppendr{
+func newChannelWriter(target AuthorityTarget, limits channelStateLimits) *channelWriter {
+	return &channelWriter{
 		key:   targetKey(target),
 		state: newChannelState(target, limits),
 	}
@@ -52,7 +54,8 @@ func newChannelAppendr(target AuthorityTarget, limits channelStateLimits) *chann
 
 // enqueue appends a batch to the inbox and reports whether the caller should
 // schedule this writer onto a worker (true only on the scheduled false->true edge).
-func (w *channelAppendr) enqueue(batch submittedBatch) bool {
+func (w *channelWriter) enqueue(batch submittedBatch) bool {
+	w.lastIdleUnixNano.Store(0)
 	w.mu.Lock()
 	w.inbox = append(w.inbox, batch)
 	w.mu.Unlock()
@@ -61,28 +64,48 @@ func (w *channelAppendr) enqueue(batch submittedBatch) bool {
 
 // tryActivate marks the writer scheduled. It returns true only for the
 // goroutine that won the false->true transition, which then owns advancing it.
-func (w *channelAppendr) tryActivate() bool {
+func (w *channelWriter) tryActivate() bool {
 	return w.scheduled.CompareAndSwap(false, true)
 }
 
 // deactivate clears the scheduled flag and reports whether more work arrived
 // after the caller stopped advancing (caller must re-activate if true).
-func (w *channelAppendr) deactivate() bool {
+func (w *channelWriter) deactivate() bool {
 	w.scheduled.Store(false)
 	w.mu.Lock()
 	more := w.hasRunnableWorkLocked()
 	w.mu.Unlock()
+	if !more {
+		w.lastIdleUnixNano.Store(time.Now().UnixNano())
+	}
 	return more
 }
 
-func (w *channelAppendr) hasRunnableWorkLocked() bool {
+func (w *channelWriter) hasRunnableWorkLocked() bool {
 	return len(w.inbox) > 0 || w.state.hasRunnableWork(w.ports.commit.hasPostCommitWork())
+}
+
+func (w *channelWriter) idleExpired(now time.Time, idleRetention time.Duration) bool {
+	if w == nil || idleRetention <= 0 || w.scheduled.Load() {
+		return false
+	}
+	w.mu.Lock()
+	idle := len(w.inbox) == 0 && !w.state.hasPendingWork()
+	w.mu.Unlock()
+	if !idle {
+		return false
+	}
+	idleAt := w.lastIdleUnixNano.Load()
+	if idleAt == 0 {
+		return false
+	}
+	return !time.Unix(0, idleAt).Add(idleRetention).After(now)
 }
 
 // advance pushes the writer's state machine forward as far as it can without
 // blocking, submitting blocking append/commit effects to the shared pool.
 // Exactly one goroutine runs advance for a given writer at a time.
-func (w *channelAppendr) advance() {
+func (w *channelWriter) advance() {
 	if !w.ports.commit.hasPostCommitWork() {
 		w.advanceAppendOnly()
 		return
@@ -109,7 +132,7 @@ func (w *channelAppendr) advance() {
 	}
 }
 
-func (w *channelAppendr) advanceAppendOnly() {
+func (w *channelWriter) advanceAppendOnly() {
 	for {
 		w.mu.Lock()
 		w.drainInboxLocked()
@@ -128,7 +151,7 @@ func (w *channelAppendr) advanceAppendOnly() {
 }
 
 // drainInboxLocked prepares inbox batches inline and admits prepared items to state.
-func (w *channelAppendr) drainInboxLocked() {
+func (w *channelWriter) drainInboxLocked() {
 	if len(w.inbox) == 0 {
 		return
 	}
@@ -142,7 +165,7 @@ func (w *channelAppendr) drainInboxLocked() {
 
 // admitPreparedLocked applies prepare results: completes terminal items on the
 // future immediately and enqueues append-bound items, honoring canAdmit backpressure.
-func (w *channelAppendr) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) {
+func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) {
 	for _, item := range outcome.canonicalResults {
 		if !preparedCommandMatchesTarget(batch.target, item.command) {
 			outcome.results[item.index] = SendBatchItemResult{Err: ErrStaleRoute}
@@ -179,7 +202,7 @@ func (w *channelAppendr) admitPreparedLocked(batch submittedBatch, outcome prepa
 	})
 }
 
-func (w *channelAppendr) nextAppendLocked() (appendEffect, bool) {
+func (w *channelWriter) nextAppendLocked() (appendEffect, bool) {
 	seq, items, ok := w.state.nextAppendBatch()
 	if !ok {
 		return appendEffect{}, false
@@ -190,7 +213,7 @@ func (w *channelAppendr) nextAppendLocked() (appendEffect, bool) {
 	return appendEffect{target: w.state.target, key: w.key, seq: seq, items: items}, true
 }
 
-func (w *channelAppendr) runAppend(effect appendEffect) {
+func (w *channelWriter) runAppend(effect appendEffect) {
 	_ = w.ports.pool.submit(func() {
 		completion := effect.run(w.ports.runtimeCtx, w.ports.append)
 		w.applyAppendCompletion(completion)
@@ -198,7 +221,7 @@ func (w *channelAppendr) runAppend(effect appendEffect) {
 	})
 }
 
-func (w *channelAppendr) applyAppendCompletion(event appendCompletedEvent) {
+func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 	var dispatch []appendCompletionDispatchItem
 	w.mu.Lock()
 	w.state.recordAppendCompletion(event)
@@ -232,13 +255,13 @@ type appendCompletionDispatchItem struct {
 	duration   time.Duration
 }
 
-func (w *channelAppendr) dispatchAppendItemCompletion(completion appendItemCompletion, dur time.Duration) {
+func (w *channelWriter) dispatchAppendItemCompletion(completion appendItemCompletion, dur time.Duration) {
 	observeAppendCompletion(w.ports.append.observer, completion, dur)
 	recordAppendDurableTrace(completion.item, appendTraceMessageSeq(completion), completion.traceErr, dur)
 	completion.item.future.completeItem(completion.item.Index, completion.result)
 }
 
-func (w *channelAppendr) nextCommitLocked() (commitEffect, bool) {
+func (w *channelWriter) nextCommitLocked() (commitEffect, bool) {
 	if contextErr(w.ports.runtimeCtx) != nil {
 		dropped := w.state.dropCommitBacklog()
 		w.ports.metrics.addPostCommitBacklog(-dropped)
@@ -248,7 +271,7 @@ func (w *channelAppendr) nextCommitLocked() (commitEffect, bool) {
 	return w.state.nextCommitEffect(w.key)
 }
 
-func (w *channelAppendr) runCommit(effect commitEffect) {
+func (w *channelWriter) runCommit(effect commitEffect) {
 	_ = w.ports.pool.submit(func() {
 		completion := effect.run(w.ports.runtimeCtx, w.ports.commit)
 		w.applyCommitCompletion(completion)
@@ -256,7 +279,7 @@ func (w *channelAppendr) runCommit(effect commitEffect) {
 	})
 }
 
-func (w *channelAppendr) applyCommitCompletion(event commitCompletedEvent) {
+func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
 	w.mu.Lock()
 	backlogBefore := w.state.commitBacklog()
 	if event.err == nil {
@@ -280,7 +303,7 @@ func (w *channelAppendr) applyCommitCompletion(event commitCompletedEvent) {
 // rescheduleIfNeeded re-activates the writer only when completion handling made
 // more work available. This avoids scheduling an empty advance after every
 // append completion on the SEND hot path.
-func (w *channelAppendr) rescheduleIfNeeded() {
+func (w *channelWriter) rescheduleIfNeeded() {
 	w.mu.Lock()
 	more := w.hasRunnableWorkLocked()
 	w.mu.Unlock()

@@ -101,6 +101,9 @@ func (r *Router) Send(ctx context.Context, cmd SendCommand) (SendResult, error) 
 
 // SendBatch routes sends and returns item-aligned results.
 func (r *Router) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	if len(items) == 1 {
+		return []SendBatchItemResult{r.sendSingle(items[0])}
+	}
 	results := make([]SendBatchItemResult, len(items))
 	pending := make([]int, 0, len(items))
 	attempts := make([]int, len(items))
@@ -138,6 +141,41 @@ func (r *Router) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 	return results
 }
 
+func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
+	prepared, routeChannel, result, done := prepareRouterItem(item, time.Now())
+	if done {
+		return result
+	}
+	attempts := 0
+	for {
+		attempts++
+		if err := routerItemError(prepared, time.Now()); err != nil {
+			return SendBatchItemResult{Err: err}
+		}
+		if r.resolver == nil {
+			return SendBatchItemResult{Err: ErrRouteNotReady}
+		}
+		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(prepared), routeChannel)
+		if err != nil {
+			if shouldRetryRouterError(err) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
+				r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
+				continue
+			}
+			return SendBatchItemResult{Err: err}
+		}
+		target, err = normalizeRouterTarget(routeChannel, target)
+		if err != nil {
+			return SendBatchItemResult{Err: err}
+		}
+		result = r.submitSingleTarget(target, prepared)
+		if shouldRetryRouterError(result.Err) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
+			r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
+			continue
+		}
+		return result
+	}
+}
+
 type routerBatchGroup struct {
 	target  AuthorityTarget
 	indexes []int
@@ -156,7 +194,7 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 			results[index] = SendBatchItemResult{Err: err}
 			continue
 		}
-		if r == nil || r.resolver == nil {
+		if r.resolver == nil {
 			results[index] = SendBatchItemResult{Err: ErrRouteNotReady}
 			continue
 		}
@@ -206,72 +244,99 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	path := "remote"
 	results := make([]SendBatchItemResult, len(group.items))
 	activeItems, activePositions := activeRouterGroupItems(group.items, results, time.Now())
-	if len(activeItems) == 0 {
-		observeRouterGroup(r.routerObserver(), RouterObservation{Path: "pre_route", Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
+	finish := func() []SendBatchItemResult {
+		observeRouterGroup(r.observer, RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
 		return results
 	}
-	localNodeID := uint64(0)
-	if r != nil {
-		localNodeID = r.localNodeID
+	finishActive := func(activeResults []SendBatchItemResult) []SendBatchItemResult {
+		results = mergeActiveRouterResults(activePositions, activeResults, results)
+		return finish()
+	}
+	if len(activeItems) == 0 {
+		path = "pre_route"
+		return finish()
 	}
 	ctx, cancel := routerAllItemsContext(activeItems)
 	defer cancel()
-	var activeResults []SendBatchItemResult
-	if group.target.LeaderNodeID == localNodeID {
+	if group.target.LeaderNodeID == r.localNodeID {
 		path = "local"
-		if r == nil || r.local == nil {
-			activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
-			results = mergeActiveRouterResults(activePositions, activeResults, results)
-			observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-			return results
+		if r.local == nil {
+			return finishActive(routerErrorResults(len(activeItems), ErrRouteNotReady))
 		}
 		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
-			activeResults = routerErrorResults(len(activeItems), err)
-			results = mergeActiveRouterResults(activePositions, activeResults, results)
-			observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-			return results
+			return finishActive(routerErrorResults(len(activeItems), err))
 		}
 		if future == nil {
-			activeResults = routerErrorResults(len(activeItems), ErrAppendResultMissing)
-			results = mergeActiveRouterResults(activePositions, activeResults, results)
-			observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-			return results
+			return finishActive(routerErrorResults(len(activeItems), ErrAppendResultMissing))
 		}
-		activeResults, err = future.Wait(ctx)
+		activeResults, err := future.Wait(ctx)
 		if err != nil {
 			activeResults = routerErrorResults(len(activeItems), err)
 		}
 		activeResults = rewriteTerminalRouterErrors(activeItems, activeResults, time.Now())
-		results = mergeActiveRouterResults(activePositions, activeResults, results)
-		observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-		return results
+		return finishActive(activeResults)
 	}
-	if r == nil || r.remote == nil {
-		activeResults = routerErrorResults(len(activeItems), ErrRouteNotReady)
-		results = mergeActiveRouterResults(activePositions, activeResults, results)
-		observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-		return results
+	if r.remote == nil {
+		return finishActive(routerErrorResults(len(activeItems), ErrRouteNotReady))
 	}
 	if !r.acquireOutbound(group.target.LeaderNodeID) {
-		activeResults = routerErrorResults(len(activeItems), ErrBackpressured)
-		results = mergeActiveRouterResults(activePositions, activeResults, results)
-		observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-		return results
+		return finishActive(routerErrorResults(len(activeItems), ErrBackpressured))
 	}
 	defer r.releaseOutbound(group.target.LeaderNodeID)
-	activeResults = r.remote.ForwardSendBatch(ctx, group.target, activeItems)
+	activeResults := r.remote.ForwardSendBatch(ctx, group.target, activeItems)
 	activeResults = rewriteTerminalRouterErrors(activeItems, activeResults, time.Now())
-	results = mergeActiveRouterResults(activePositions, activeResults, results)
-	observeRouterGroup(r.routerObserver(), RouterObservation{Path: path, Result: routerResultsClass(results), Items: len(group.items), Duration: time.Since(startedAt)})
-	return results
+	return finishActive(activeResults)
 }
 
-func (r *Router) routerObserver() RouterObserver {
-	if r == nil {
-		return nil
+func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) SendBatchItemResult {
+	startedAt := time.Now()
+	path := "remote"
+	finish := func(result SendBatchItemResult) SendBatchItemResult {
+		observeRouterGroup(r.observer, RouterObservation{Path: path, Result: resultClass(result), Items: 1, Duration: time.Since(startedAt)})
+		return result
 	}
-	return r.observer
+	if err := routerItemError(item, time.Now()); err != nil {
+		path = "pre_route"
+		return finish(SendBatchItemResult{Err: err})
+	}
+	ctx, cancel := routerAllItemsContext([]SendBatchItem{item})
+	defer cancel()
+	if target.LeaderNodeID == r.localNodeID {
+		path = "local"
+		if r.local == nil {
+			return finish(SendBatchItemResult{Err: ErrRouteNotReady})
+		}
+		future, err := r.local.SubmitLocal(ctx, target, []SendBatchItem{item})
+		if err != nil {
+			return finish(SendBatchItemResult{Err: err})
+		}
+		if future == nil {
+			return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
+		}
+		activeResults, err := future.Wait(ctx)
+		if err != nil {
+			return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: err}, time.Now()))
+		}
+		if len(activeResults) != 1 {
+			return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
+		}
+		result := rewriteTerminalRouterError(item, activeResults[0], time.Now())
+		return finish(result)
+	}
+	if r.remote == nil {
+		return finish(SendBatchItemResult{Err: ErrRouteNotReady})
+	}
+	if !r.acquireOutbound(target.LeaderNodeID) {
+		return finish(SendBatchItemResult{Err: ErrBackpressured})
+	}
+	defer r.releaseOutbound(target.LeaderNodeID)
+	activeResults := r.remote.ForwardSendBatch(ctx, target, []SendBatchItem{item})
+	if len(activeResults) != 1 {
+		return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
+	}
+	result := rewriteTerminalRouterError(item, activeResults[0], time.Now())
+	return finish(result)
 }
 
 func prepareRouterItem(item SendBatchItem, now time.Time) (SendBatchItem, ChannelID, SendBatchItemResult, bool) {
@@ -463,78 +528,50 @@ func mergeActiveRouterResults(activePositions []int, activeResults []SendBatchIt
 }
 
 func routerAllItemsContext(items []SendBatchItem) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
 	if len(items) == 0 {
+		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		return ctx, cancel
 	}
-	watchableItems := make([]SendBatchItem, 0, len(items))
+	if len(items) == 1 {
+		base := routerItemContext(items[0])
+		if deadline, ok := routerItemDeadline(items[0]); ok {
+			return context.WithDeadline(base, deadline)
+		}
+		return context.WithCancel(base)
+	}
 	for _, item := range items {
-		if routerItemHasTerminalSignal(item) {
-			watchableItems = append(watchableItems, item)
+		if !routerItemHasTerminalSignal(item) {
+			return context.WithCancel(context.Background())
 		}
 	}
-	if len(watchableItems) == 0 {
-		return ctx, cancel
+	ctx, cancel := context.WithCancel(context.Background())
+	cleanup := watchRouterItemTerminals(items, cancel, true)
+	return ctx, func() {
+		cleanup()
+		cancel()
 	}
-	stop := make(chan struct{})
-	var stopOnce sync.Once
-	stopAll := func() {
-		stopOnce.Do(func() {
-			close(stop)
-			cancel()
-		})
-	}
-	done := make(chan struct{}, len(watchableItems))
-	for _, item := range watchableItems {
-		go func(item SendBatchItem) {
-			waitRouterItemTerminal(item, stop)
-			select {
-			case done <- struct{}{}:
-			case <-stop:
-			}
-		}(item)
-	}
-	if len(watchableItems) == len(items) {
-		go func() {
-			for range watchableItems {
-				select {
-				case <-done:
-				case <-stop:
-					return
-				}
-			}
-			cancel()
-		}()
-	}
-	return ctx, stopAll
 }
 
 func routerPendingWakeSignal(items []SendBatchItem, pending []int) (<-chan struct{}, func()) {
 	wake := make(chan struct{})
-	stop := make(chan struct{})
 	var wakeOnce sync.Once
 	signal := func() {
 		wakeOnce.Do(func() { close(wake) })
 	}
-	var stopOnce sync.Once
-	cleanup := func() {
-		stopOnce.Do(func() { close(stop) })
-	}
+	watched := make([]SendBatchItem, 0, len(pending))
 	for _, index := range pending {
 		item := items[index]
 		if err := routerItemError(item, time.Now()); err != nil {
 			signal()
-			break
+			return wake, func() {}
 		}
 		if !routerItemHasTerminalSignal(item) {
 			continue
 		}
-		go func(item SendBatchItem) {
-			waitRouterItemTerminal(item, stop)
-			signal()
-		}(item)
+		watched = append(watched, item)
 	}
+	cleanup := watchRouterItemTerminals(watched, signal, false)
 	return wake, cleanup
 }
 
@@ -545,32 +582,68 @@ func routerItemHasTerminalSignal(item SendBatchItem) bool {
 	return item.Context != nil && item.Context.Done() != nil
 }
 
-func waitRouterItemTerminal(item SendBatchItem, stop <-chan struct{}) {
-	deadline, hasDeadline := routerItemDeadline(item)
-	var timer *time.Timer
-	var timerC <-chan time.Time
-	if hasDeadline {
-		delay := time.Until(deadline)
-		if delay <= 0 {
-			return
+func watchRouterItemTerminals(items []SendBatchItem, signal func(), requireAll bool) func() {
+	if len(items) == 0 {
+		return func() {}
+	}
+	var mu sync.Mutex
+	stopped := false
+	remaining := len(items)
+	fire := func() {
+		shouldSignal := false
+		mu.Lock()
+		if !stopped {
+			if requireAll {
+				remaining--
+				shouldSignal = remaining == 0
+			} else {
+				shouldSignal = true
+			}
+			if shouldSignal {
+				stopped = true
+			}
 		}
-		timer = time.NewTimer(delay)
-		timerC = timer.C
-		defer timer.Stop()
+		mu.Unlock()
+		if shouldSignal {
+			signal()
+		}
 	}
-	var ctxDone <-chan struct{}
-	if item.Context != nil {
-		ctxDone = item.Context.Done()
+	cleanups := make([]func(), 0, len(items)*2)
+	for _, item := range items {
+		cleanups = append(cleanups, watchRouterItemTerminal(item, fire)...)
 	}
-	if ctxDone == nil && timerC == nil {
-		<-stop
-		return
+	return func() {
+		mu.Lock()
+		stopped = true
+		mu.Unlock()
+		for _, cleanup := range cleanups {
+			cleanup()
+		}
 	}
-	select {
-	case <-ctxDone:
-	case <-timerC:
-	case <-stop:
+}
+
+func watchRouterItemTerminal(item SendBatchItem, signal func()) []func() {
+	var once sync.Once
+	fire := func() { once.Do(signal) }
+	if err := routerItemError(item, time.Now()); err != nil {
+		fire()
+		return nil
 	}
+	cleanups := make([]func(), 0, 2)
+	if item.Context != nil && item.Context.Done() != nil {
+		stop := context.AfterFunc(item.Context, fire)
+		cleanups = append(cleanups, func() { stop() })
+	}
+	if !item.Deadline.IsZero() {
+		delay := time.Until(item.Deadline)
+		if delay <= 0 {
+			fire()
+			return cleanups
+		}
+		timer := time.AfterFunc(delay, fire)
+		cleanups = append(cleanups, func() { timer.Stop() })
+	}
+	return cleanups
 }
 
 func normalizeRouterGroupResults(want int, got []SendBatchItemResult) []SendBatchItemResult {
@@ -596,17 +669,22 @@ func rewriteTerminalRouterErrors(items []SendBatchItem, results []SendBatchItemR
 		if results[i].Err == nil {
 			continue
 		}
-		if errors.Is(results[i].Err, context.Canceled) {
-			if err := routerItemError(items[i], now); errors.Is(err, context.DeadlineExceeded) {
-				results[i].Err = err
-			}
-		}
+		results[i] = rewriteTerminalRouterError(items[i], results[i], now)
 	}
 	return results
 }
 
+func rewriteTerminalRouterError(item SendBatchItem, result SendBatchItemResult, now time.Time) SendBatchItemResult {
+	if errors.Is(result.Err, context.Canceled) {
+		if err := routerItemError(item, now); errors.Is(err, context.DeadlineExceeded) {
+			result.Err = err
+		}
+	}
+	return result
+}
+
 func (r *Router) acquireOutbound(nodeID uint64) bool {
-	if r == nil || r.maxOutbound <= 0 {
+	if r.maxOutbound <= 0 {
 		return true
 	}
 	r.outboundMu.Lock()
@@ -619,7 +697,7 @@ func (r *Router) acquireOutbound(nodeID uint64) bool {
 }
 
 func (r *Router) releaseOutbound(nodeID uint64) {
-	if r == nil || r.maxOutbound <= 0 {
+	if r.maxOutbound <= 0 {
 		return
 	}
 	r.outboundMu.Lock()

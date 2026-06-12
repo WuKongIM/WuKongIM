@@ -171,7 +171,7 @@ func (s *channelState) popNextAppendCompletion() (appendCompletedEvent, bool) {
 }
 
 func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
-	s.committed = append(s.committed, event.Clone())
+	s.committed = append(s.committed, event)
 }
 
 func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
@@ -181,7 +181,7 @@ func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
 	if s.commitCursor >= len(s.committed) {
 		return commitEffect{}, false
 	}
-	event := s.committed[s.commitCursor].Clone()
+	event := s.committed[s.commitCursor]
 	s.commitAttempts++
 	effect := commitEffect{
 		key:             key,

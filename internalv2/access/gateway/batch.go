@@ -34,7 +34,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			contexts[i].ReplyToken = item.ReplyToken
 		}
 		ctx := &contexts[i]
-		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, false, traceIDGenerator)
+		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, traceIDGenerator)
 		if err != nil {
 			if errors.Is(err, ErrUnauthenticatedSession) {
 				results[i].Reason = message.ReasonAuthFail
@@ -59,7 +59,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
 	}
 
-	if h == nil || h.messages == nil {
+	if h.messages == nil {
 		h.logMessageUsecaseMissing()
 		for j, index := range validIndexes {
 			result := message.SendResult{Reason: message.ReasonSystemError}

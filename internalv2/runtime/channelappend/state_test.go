@@ -90,3 +90,17 @@ func TestChannelStateDropCurrentCommitAdvancesCursorWithoutMovingBacklog(t *test
 		t.Fatalf("commitBacklog() = %d, want 2", backlog)
 	}
 }
+
+func TestChannelStateCommitEffectSharesQueuedImmutablePayload(t *testing.T) {
+	payload := []byte("payload")
+	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1, Payload: payload})
+
+	effect, ok := state.nextCommitEffect("2:room")
+	if !ok {
+		t.Fatalf("nextCommitEffect() ok = false, want true")
+	}
+	if len(effect.event.Payload) == 0 || &effect.event.Payload[0] != &payload[0] {
+		t.Fatalf("commit effect payload did not share queued immutable payload")
+	}
+}

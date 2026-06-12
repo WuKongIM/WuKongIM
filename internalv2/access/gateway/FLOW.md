@@ -82,6 +82,7 @@ gateway core; the adapter does not write CONNACK directly.
   commands. Authority, conflict, and route policy stay in the presence usecase.
 - Delivery feedback only maps gateway Context/session values into delivery
   commands. Fanout, ack tracking, and local push policy stay outside gateway.
-- Single-frame SEND payloads are cloned while mapping so later frame reuse
-  cannot mutate usecase commands. Batched SEND keeps the async-dispatch-owned
-  frame payload until `internalv2/usecase/message` clones at the append boundary.
+- Single-frame and batched SEND payloads are mapped as immutable send-path
+  slices. The adapter does not clone payload bytes; durable append and async
+  delivery boundaries take ownership copies when they cross into storage or
+  worker queues.

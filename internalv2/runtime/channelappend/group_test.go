@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -154,6 +155,58 @@ func TestSubmitLocalIgnoresCallerCancellationAfterMailboxAcceptance(t *testing.T
 	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1, 1)
 }
 
+func TestSubmitLocalAdmissionCapacityIsShardLocal(t *testing.T) {
+	appender := newBlockingAppenderForAppendTest()
+	group := New(Options{
+		LocalNodeID:                 1,
+		AuthorityShardCount:         2,
+		AdmissionCapacityPerShard:   1,
+		MessageID:                   newSequenceIDsForPrepare(1),
+		Appender:                    appender,
+		ChannelBacklogHighWatermark: 16,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		for {
+			select {
+			case started := <-appender.startedC:
+				started.Release()
+			default:
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if err := group.Stop(ctx); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+				return
+			}
+		}
+	})
+
+	first := localTargetForAppendTest("admission-a")
+	second := differentShardTargetForTest(t, group, first)
+	firstFuture, err := group.SubmitLocal(context.Background(), first, []SendBatchItem{testSendItem("u1", first.ChannelID.ID)})
+	if err != nil {
+		t.Fatalf("first SubmitLocal() error = %v", err)
+	}
+	if firstFuture == nil {
+		t.Fatalf("first future is nil")
+	}
+	_ = appender.waitStarted(t)
+
+	if _, err := group.SubmitLocal(context.Background(), first, []SendBatchItem{testSendItem("u2", first.ChannelID.ID)}); !errors.Is(err, ErrBackpressured) {
+		t.Fatalf("same-shard SubmitLocal() error = %v, want ErrBackpressured", err)
+	}
+	secondFuture, err := group.SubmitLocal(context.Background(), second, []SendBatchItem{testSendItem("u3", second.ChannelID.ID)})
+	if err != nil {
+		t.Fatalf("different-shard SubmitLocal() error = %v, want nil", err)
+	}
+	if secondFuture == nil {
+		t.Fatalf("second future is nil")
+	}
+}
+
 func TestSubmitLocalFutureCompletesWithAppendResults(t *testing.T) {
 	group := newStartedTestGroup(t, Options{
 		LocalNodeID: 1,
@@ -182,6 +235,19 @@ func TestSubmitLocalFutureCompletesWithAppendResults(t *testing.T) {
 	}
 	requireAppendSuccess(t, results, 0, 1, 1)
 	requireAppendSuccess(t, results, 1, 2, 2)
+}
+
+func differentShardTargetForTest(t *testing.T, group *Group, first AuthorityTarget) AuthorityTarget {
+	t.Helper()
+	firstShard := group.shardForTarget(first)
+	for i := 0; i < 1024; i++ {
+		target := localTargetForAppendTest("admission-b-" + strconv.Itoa(i))
+		if group.shardForTarget(target) != firstShard {
+			return target
+		}
+	}
+	t.Fatalf("could not find target on a different shard")
+	return AuthorityTarget{}
 }
 
 func TestStopCancelsAcceptedAppendAndClosesAdmission(t *testing.T) {
@@ -334,7 +400,7 @@ func (g *Group) StateCountForTest() int {
 	return count
 }
 
-func (g *Group) writerForTest(channelID ChannelID) *channelAppendr {
+func (g *Group) writerForTest(channelID ChannelID) *channelWriter {
 	key := channelKey(channelID)
 	for _, shard := range g.shards {
 		shard.mu.RLock()
@@ -347,7 +413,7 @@ func (g *Group) writerForTest(channelID ChannelID) *channelAppendr {
 	return nil
 }
 
-func (w *channelAppendr) materializedStateForTest() bool {
+func (w *channelWriter) materializedStateForTest() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return len(w.inbox) > 0 ||

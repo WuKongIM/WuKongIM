@@ -258,7 +258,7 @@ func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, targe
 			n = len(recipients)
 		}
 		batch := RecipientBatch{
-			Event:      event.Clone(),
+			Event:      event,
 			Recipients: append([]Recipient(nil), recipients[:n]...),
 		}
 		if err := enqueuer.EnqueueRecipientBatch(ctx, target, batch); err != nil {

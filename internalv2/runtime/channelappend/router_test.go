@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -92,6 +93,23 @@ func TestRouterAllItemsContextDoesNotStartWaitersForPlainItems(t *testing.T) {
 	if delta := after - before; delta > 8 {
 		cancel()
 		t.Fatalf("routerAllItemsContext spawned %d goroutines for plain items, want <= 8", delta)
+	}
+}
+
+func TestRouterAllItemsContextSingleDeadlineUsesNativeDeadline(t *testing.T) {
+	item := routerItem("u1", "room", 2)
+	item.Deadline = time.Now().Add(time.Hour)
+
+	ctx, cancel := routerAllItemsContext([]SendBatchItem{item})
+	defer cancel()
+	if deadline, ok := ctx.Deadline(); !ok || !deadline.Equal(item.Deadline) {
+		t.Fatalf("context deadline = %v/%v, want item deadline %v", deadline, ok, item.Deadline)
+	}
+	time.Sleep(10 * time.Millisecond)
+	buf := make([]byte, 1<<20)
+	n := runtime.Stack(buf, true)
+	if strings.Contains(string(buf[:n]), "watchRouterItemTerminal") {
+		t.Fatalf("single deadline item started router watcher goroutine")
 	}
 }
 

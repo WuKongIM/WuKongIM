@@ -278,9 +278,11 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	if !cmd.NoPersist || !cmd.SyncOnce || !cmd.RedDot {
 		t.Fatalf("mapped framer flags = noPersist:%v syncOnce:%v redDot:%v", cmd.NoPersist, cmd.SyncOnce, cmd.RedDot)
 	}
-	pkt.Payload[0] = 'H'
 	if string(cmd.Payload) != "hello" {
-		t.Fatalf("command payload = %q, want cloned original payload", string(cmd.Payload))
+		t.Fatalf("command payload = %q, want frame payload", string(cmd.Payload))
+	}
+	if len(cmd.Payload) == 0 || &cmd.Payload[0] != &pkt.Payload[0] {
+		t.Fatalf("command payload does not share immutable frame payload")
 	}
 
 	ack := requireSendack(t, written, 0)

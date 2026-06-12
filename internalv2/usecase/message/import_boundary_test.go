@@ -41,9 +41,10 @@ func TestMessageUsecaseImportBoundary(t *testing.T) {
 	}
 }
 
-func TestMessagePackageAliasesChannelAppendTypes(t *testing.T) {
+func TestMessagePackageAliasesSendFacadeTypes(t *testing.T) {
 	var _ channelappend.SendCommand = message.SendCommand{}
-	var _ channelappend.Decision = message.Decision{}
+	var _ channelappend.SendBatchItem = message.SendBatchItem{}
+	var _ channelappend.SendBatchItemResult = message.SendBatchItemResult{}
 
 	reasons := []struct {
 		name     string

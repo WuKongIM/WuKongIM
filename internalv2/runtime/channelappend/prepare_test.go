@@ -476,17 +476,17 @@ func TestPrepareCanceledItemsDoNotBlockOtherItems(t *testing.T) {
 	}
 }
 
-func TestPrepareItemContextReusesRuntimeContextForPlainItem(t *testing.T) {
+func TestPrepareItemContextFollowsRuntimeCancellation(t *testing.T) {
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	effectCtx, cleanup := prepareItemContext(runtimeCtx, context.Background())
-
-	cleanup()
-	if err := contextErr(effectCtx); err != nil {
-		runtimeCancel()
-		t.Fatalf("cleanup canceled plain item effect context: %v", err)
-	}
+	defer cleanup()
 
 	runtimeCancel()
+	select {
+	case <-effectCtx.Done():
+	case <-time.After(time.Second):
+		t.Fatalf("effect context was not canceled by runtime cancellation")
+	}
 	if err := contextErr(effectCtx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("runtime cancellation error = %v, want context.Canceled", err)
 	}

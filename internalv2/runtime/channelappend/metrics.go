@@ -6,7 +6,7 @@ import "sync/atomic"
 type groupMetrics struct {
 	observer WriterPressureObserver
 
-	admissionUsed     *atomic.Int64
+	admissionShards   []*shard
 	admissionCapacity int64
 	pool              *workerPool
 	advancePool       *workerPool
@@ -44,10 +44,7 @@ func (m *groupMetrics) observePressure() {
 	if m.observer == nil {
 		return
 	}
-	admissionUsed := 0
-	if m.admissionUsed != nil {
-		admissionUsed = int(m.admissionUsed.Load())
-	}
+	admissionUsed := m.admissionDepth()
 	workerUsed, workerCapacity := 0, 0
 	if m.pool != nil {
 		workerUsed = m.pool.running()
@@ -68,6 +65,20 @@ func (m *groupMetrics) observePressure() {
 	}
 	observeWorkerPool(antsObserver, "advance", m.advancePool)
 	observeWorkerPool(antsObserver, "effect", m.pool)
+}
+
+func (m *groupMetrics) admissionDepth() int {
+	if m == nil {
+		return 0
+	}
+	depth := int64(0)
+	for _, shard := range m.admissionShards {
+		if shard == nil {
+			continue
+		}
+		depth += shard.admissionUsed.Load()
+	}
+	return int(depth)
 }
 
 func observeWorkerPool(observer AntsPoolObserver, name string, pool *workerPool) {

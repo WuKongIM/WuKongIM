@@ -302,6 +302,39 @@ func TestRecipientDeliveryBatchesAreEnqueuedByRecipientAuthorityTarget(t *testin
 	}
 }
 
+func TestDispatchRecipientSetSharesImmutablePayloadBeforeDeliveryQueue(t *testing.T) {
+	payload := []byte("payload")
+	enqueuer := &payloadAliasRecipientEnqueuerForRecipientTest{payload: payload}
+
+	err := dispatchRecipientSet(context.Background(), CommittedEnvelope{
+		MessageID:  1,
+		MessageSeq: 9,
+		Payload:    payload,
+	}, []Recipient{{UID: "u1"}}, commitPorts{
+		recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{target: recipientAuthorityTargetForTest(1, 10, 100)},
+		deliveryEnqueuer:           enqueuer,
+		recipientBatchSize:         16,
+	})
+	if err != nil {
+		t.Fatalf("dispatchRecipientSet() error = %v", err)
+	}
+	if !enqueuer.sawAlias {
+		t.Fatalf("recipient batch payload did not share immutable committed payload before delivery queue")
+	}
+}
+
+type payloadAliasRecipientEnqueuerForRecipientTest struct {
+	payload  []byte
+	sawAlias bool
+}
+
+func (e *payloadAliasRecipientEnqueuerForRecipientTest) EnqueueRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
+	if len(batch.Event.Payload) > 0 && len(e.payload) > 0 && &batch.Event.Payload[0] == &e.payload[0] {
+		e.sawAlias = true
+	}
+	return nil
+}
+
 func TestRecipientBatchesKeepSameLeaderDifferentFenceTargetsSeparate(t *testing.T) {
 	enqueuer := &recordingRecipientEnqueuerForRecipientTest{}
 	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}

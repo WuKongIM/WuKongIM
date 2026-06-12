@@ -142,7 +142,7 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 			ClientMsgNo:       cmd.ClientMsgNo,
 			TraceID:           cmd.TraceID,
 			ChannelKey:        cmd.ChannelKey,
-			Payload:           cloneBytes(cmd.Payload),
+			Payload:           cmd.Payload,
 			ServerTimestampMS: serverTimestampMS,
 		})
 	}
@@ -203,7 +203,7 @@ func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appe
 			})
 			continue
 		}
-		appended := res.Items[i].Clone()
+		appended := res.Items[i]
 		if appended.Err != nil {
 			out = append(out, appendItemCompletion{
 				item:     item,

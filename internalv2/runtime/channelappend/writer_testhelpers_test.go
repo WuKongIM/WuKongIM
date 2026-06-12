@@ -59,14 +59,14 @@ type writerRuntimeConfig struct {
 type writerRuntime struct {
 	t      *testing.T
 	pool   *workerPool
-	writer *channelAppendr
+	writer *channelWriter
 }
 
 func newWriterRuntime(t *testing.T, cfg writerRuntimeConfig) *writerRuntime {
 	t.Helper()
 	limits := channelStateLimits{pendingItemHighWatermark: 4096, appendInflightLimit: 1}
 	target := benchmarkAuthorityTarget("rt")
-	w := newChannelAppendr(target, limits)
+	w := newChannelWriter(target, limits)
 	rt := &writerRuntime{t: t, pool: newWorkerPool(4), writer: w}
 	w.ports = writerPorts{
 		prepare:    preparePorts{messageID: newBenchmarkMessageIDs(1)},
@@ -79,13 +79,13 @@ func newWriterRuntime(t *testing.T, cfg writerRuntimeConfig) *writerRuntime {
 	return rt
 }
 
-func (rt *writerRuntime) schedule(w *channelAppendr) {
+func (rt *writerRuntime) schedule(w *channelWriter) {
 	go w.advance()
 }
 
 func (rt *writerRuntime) submit(target AuthorityTarget, items []SendBatchItem) (*Future, error) {
 	future := newFuture(len(items))
-	batch := submittedBatch{target: target, items: cloneSendBatchItems(items), future: future}
+	batch := submittedBatch{target: target, items: copySendBatchItems(items), future: future}
 	if rt.writer.enqueue(batch) {
 		rt.schedule(rt.writer)
 	}
