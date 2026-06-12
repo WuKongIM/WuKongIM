@@ -142,12 +142,12 @@ func (l *conversationAuthorityRouteLifecycle) handleRouteAuthority(ctx context.C
 		l.localAuthority.markActive(target)
 	case target.LeaderNodeID == 0:
 		if hadPrevious && l.localAuthorityCapable(previous) {
-			l.drainAuthorityTarget(ctx, previous)
+			l.startAuthorityDrain(ctx, previous)
 		}
 		l.localAuthority.markWarming(target)
 	default:
 		if hadPrevious && l.localAuthorityCapable(previous) {
-			l.drainAuthorityTarget(ctx, previous)
+			l.startAuthorityDrain(ctx, previous)
 		}
 	}
 }
@@ -170,7 +170,29 @@ func (l *conversationAuthorityRouteLifecycle) localAuthorityCapable(target conve
 	return target.LeaderNodeID == 0 || target.LeaderNodeID == l.localNodeID
 }
 
-func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.Context, target conversationusecase.RouteTarget) {
+func (l *conversationAuthorityRouteLifecycle) startAuthorityDrain(ctx context.Context, target conversationusecase.RouteTarget) {
+	if l == nil || l.localAuthority == nil {
+		return
+	}
+	result, err := l.localAuthority.beginDrainAuthority(target)
+	if err != nil {
+		l.localAuthority.observeHandoff(result, err)
+		return
+	}
+	l.mu.Lock()
+	if l.cancel == nil {
+		l.mu.Unlock()
+		return
+	}
+	l.wg.Add(1)
+	l.mu.Unlock()
+	go func() {
+		defer l.wg.Done()
+		l.drainAuthorityTarget(ctx)
+	}()
+}
+
+func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.Context) {
 	if l == nil || l.localAuthority == nil {
 		return
 	}
@@ -183,7 +205,7 @@ func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.C
 		drainCtx, cancel = context.WithTimeout(ctx, l.handoffTimeout)
 		defer cancel()
 	}
-	_, _ = l.localAuthority.DrainAuthority(drainCtx, target)
+	_, _ = l.localAuthority.finishDrainingAuthority(drainCtx)
 }
 
 func conversationAuthorityRouteTargetNewer(next, current conversationusecase.RouteTarget) bool {

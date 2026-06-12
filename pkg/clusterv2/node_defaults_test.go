@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 func TestNodeProposeDelegatesToService(t *testing.T) {
@@ -29,6 +30,58 @@ func TestNodeProposeDelegatesToService(t *testing.T) {
 	}
 	if proposer.calls != 1 || proposer.last.Key != "u1" {
 		t.Fatalf("proposer calls=%d last=%#v, want key u1", proposer.calls, proposer.last)
+	}
+}
+
+func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1},
+			{SlotID: 2, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 2},
+		},
+		HashSlots: control.HashSlotTable{Revision: 1, Count: 4, Ranges: []control.HashSlotRange{
+			{From: 0, To: 1, SlotID: 1},
+			{From: 2, To: 3, SlotID: 2},
+		}},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 2, HashSlotCount: 4}
+	node.started.Store(true)
+
+	if err := node.ProbeWriteReady(context.Background()); err != nil {
+		t.Fatalf("ProbeWriteReady() error = %v", err)
+	}
+
+	if proposer.calls != 2 {
+		t.Fatalf("proposer calls=%d, want one probe per physical slot", proposer.calls)
+	}
+	got := map[uint32]uint16{}
+	for _, req := range proposer.requests {
+		if !reflect.DeepEqual(req.Command, metafsm.EncodeNoopCommand()) {
+			t.Fatalf("probe command = %v, want noop command", req.Command)
+		}
+		if !req.Target.HasSlotID || !req.Target.HasHashSlot {
+			t.Fatalf("probe target = %#v, want explicit slot and hash slot", req.Target)
+		}
+		got[req.Target.SlotID] = req.Target.HashSlot
+	}
+	want := map[uint32]uint16{1: 0, 2: 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("probe targets = %#v, want %#v", got, want)
 	}
 }
 
@@ -282,12 +335,14 @@ func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {
 }
 
 type recordingProposer struct {
-	calls int
-	last  propose.Request
+	calls    int
+	last     propose.Request
+	requests []propose.Request
 }
 
 func (p *recordingProposer) Propose(_ context.Context, req propose.Request) error {
 	p.calls++
 	p.last = req
+	p.requests = append(p.requests, req)
 	return nil
 }

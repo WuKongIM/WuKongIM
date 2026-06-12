@@ -40,6 +40,7 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
 	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
 	"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS",
+	"WK_CLUSTER_CHANNEL_RPC_WORKERS",
 	"WK_CLUSTER_MAX_CHANNELS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
@@ -233,6 +234,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Delivery: app.DeliveryConfig{
 			Enabled: true,
 		},
+		Cluster: clusterv2.Config{
+			Channel: clusterv2.ChannelConfig{
+				StoreAppendWorkers: 500,
+				StoreApplyWorkers:  500,
+				RPCWorkers:         500,
+			},
+		},
 	}
 	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
 	if err != nil {
@@ -321,6 +329,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS: value must be >= 0")
 		}
 		cfg.Cluster.Channel.StoreApplyWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_RPC_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_RPC_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_RPC_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.RPCWorkers = workers
 	}
 	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
 		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)

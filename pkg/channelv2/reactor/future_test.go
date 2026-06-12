@@ -25,6 +25,21 @@ func TestFutureAwaitContextCancellation(t *testing.T) {
 	_, err := future.Await(ctx)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
+
+func TestFutureAwaitPrefersCompletedResultOverCanceledContext(t *testing.T) {
+	for i := 0; i < 256; i++ {
+		future := NewFuture()
+		future.Complete(Result{Append: ch.AppendResult{MessageSeq: 9}})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		res, err := future.Await(ctx)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9), res.Append.MessageSeq)
+	}
+}
+
 func TestFutureDoneAndResultRemainAvailableAfterCompletion(t *testing.T) {
 	future := NewFuture()
 	future.Complete(Result{Append: ch.AppendResult{MessageSeq: 7}})

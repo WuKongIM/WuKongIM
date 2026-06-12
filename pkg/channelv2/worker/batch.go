@@ -458,24 +458,39 @@ func batchTaskContext(parent context.Context, group []queuedTask, active []int) 
 	}
 	var deadline time.Time
 	hasDeadline := false
+	now := time.Now()
 	for _, index := range active {
 		taskCtx := group[index].task.Context
-		if taskCtx == nil {
-			continue
+		if taskCtx != nil {
+			next, ok := taskCtx.Deadline()
+			if ok && (!hasDeadline || next.Before(deadline)) {
+				deadline = next
+				hasDeadline = true
+			}
 		}
-		next, ok := taskCtx.Deadline()
-		if !ok {
-			continue
-		}
-		if !hasDeadline || next.Before(deadline) {
-			deadline = next
-			hasDeadline = true
+		if timeout := taskRunTimeout(group[index].task); timeout > 0 {
+			next := now.Add(timeout)
+			if !hasDeadline || next.Before(deadline) {
+				deadline = next
+				hasDeadline = true
+			}
 		}
 	}
 	if !hasDeadline {
 		return parent, func() {}
 	}
 	return context.WithDeadline(parent, deadline)
+}
+
+// taskRunTimeout returns an execution-only timeout that starts after queue wait.
+func taskRunTimeout(task Task) time.Duration {
+	switch task.Kind {
+	case TaskRPCPull:
+		if task.RPCPull != nil {
+			return task.RPCPull.Timeout
+		}
+	}
+	return 0
 }
 
 func batchContextErr(task Task, ctx context.Context, err error) error {

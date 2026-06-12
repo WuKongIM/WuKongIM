@@ -59,9 +59,10 @@ WK_METRICS_ENABLE=true
 WK_EXTERNAL_TCPADDR=127.0.0.1:5100
 # Optional: 0 lets clusterv2 derive max(4, GOMAXPROCS).
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
-# Optional: 0 keeps ChannelV2 runtime defaults for blocking store workers.
+# Optional: 0 keeps ChannelV2 runtime defaults for blocking workers.
 # WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
 # WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
+# WK_CLUSTER_CHANNEL_RPC_WORKERS=0
 # Optional: tune gateway SEND async sharding and micro-batch collection.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms

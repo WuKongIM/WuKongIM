@@ -25,7 +25,7 @@ type commitEffect struct {
 	key             string
 	seq             uint64
 	attempt         int
-	event           CommittedEnvelope
+	events          []CommittedEnvelope
 	target          AuthorityTarget
 	subscriberCache subscriberCache
 }
@@ -34,28 +34,55 @@ type commitCompletedEvent struct {
 	key             string
 	seq             uint64
 	attempt         int
-	err             error
-	result          string
-	event           CommittedEnvelope
-	detail          PostCommitFailureDetail
-	checkpointSeq   uint64
+	items           []commitCompletedItem
 	subscriberCache subscriberCache
+}
+
+type commitCompletedItem struct {
+	err           error
+	result        string
+	event         CommittedEnvelope
+	detail        PostCommitFailureDetail
+	checkpointSeq uint64
 }
 
 func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitCompletedEvent {
 	startedAt := time.Now()
 	result := channelAppendResultOK
 	defer func() {
-		observeEffect(ports.observer, EffectObservation{Stage: "post_commit", Result: result, Items: 1, Duration: elapsedSince(startedAt)})
+		observeEffect(ports.observer, EffectObservation{Stage: "post_commit", Result: result, Items: len(e.events), Duration: elapsedSince(startedAt)})
 	}()
-	dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, e.event, e.subscriberCache, ports)
-	if err != nil {
-		result = errorClass(err)
-		detail := postCommitFailureDetailFromError(err)
-		err = fmt.Errorf("%w: %w", ErrCommitEffectFailed, err)
-		return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, err: err, result: result, event: e.event.Clone(), detail: detail}
+	completion := commitCompletedEvent{
+		key:             e.key,
+		seq:             e.seq,
+		attempt:         e.attempt,
+		items:           make([]commitCompletedItem, 0, len(e.events)),
+		subscriberCache: e.subscriberCache,
 	}
-	return commitCompletedEvent{key: e.key, seq: e.seq, attempt: e.attempt, checkpointSeq: e.event.MessageSeq, subscriberCache: dispatch.subscriberCache}
+	cache := e.subscriberCache
+	for _, event := range e.events {
+		dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, event, cache, ports)
+		if err != nil {
+			itemResult := errorClass(err)
+			if result == channelAppendResultOK {
+				result = itemResult
+			} else if result != itemResult {
+				result = channelAppendResultMixed
+			}
+			detail := postCommitFailureDetailFromError(err)
+			completion.items = append(completion.items, commitCompletedItem{
+				err:    fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),
+				result: itemResult,
+				event:  event,
+				detail: detail,
+			})
+			continue
+		}
+		cache = dispatch.subscriberCache
+		completion.subscriberCache = cache
+		completion.items = append(completion.items, commitCompletedItem{event: event, checkpointSeq: event.MessageSeq})
+	}
+	return completion
 }
 
 func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEvent {
@@ -67,18 +94,26 @@ func commitScheduleErrorCompletion(effect commitEffect, scheduleErr error) commi
 }
 
 func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFailureDetail) commitCompletedEvent {
-	return commitCompletedEvent{
+	completion := commitCompletedEvent{
 		key:     effect.key,
 		seq:     effect.seq,
 		attempt: effect.attempt,
-		err:     fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),
-		result:  errorClass(err),
-		event:   effect.event,
-		detail:  detail,
+		items:   make([]commitCompletedItem, 0, len(effect.events)),
 	}
+	itemErr := fmt.Errorf("%w: %w", ErrCommitEffectFailed, err)
+	result := errorClass(err)
+	for _, event := range effect.events {
+		completion.items = append(completion.items, commitCompletedItem{
+			err:    itemErr,
+			result: result,
+			event:  event,
+			detail: detail,
+		})
+	}
+	return completion
 }
 
 // postCommitFailureFromEvent maps a failed commit completion to its observation.
-func postCommitFailureFromEvent(event commitCompletedEvent) PostCommitFailureObservation {
-	return event.detail.toObservation(event.event, event.attempt, event.result, event.err)
+func postCommitFailureFromItem(event commitCompletedEvent, item commitCompletedItem) PostCommitFailureObservation {
+	return item.detail.toObservation(item.event, event.attempt, item.result, item.err)
 }

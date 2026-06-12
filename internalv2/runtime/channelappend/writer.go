@@ -42,6 +42,7 @@ type writerPorts struct {
 	pool       *workerPool
 	schedule   func(*channelWriter)
 	runtimeCtx context.Context
+	stopped    *atomic.Bool
 	metrics    *groupMetrics
 }
 
@@ -262,7 +263,7 @@ func (w *channelWriter) dispatchAppendItemCompletion(completion appendItemComple
 }
 
 func (w *channelWriter) nextCommitLocked() (commitEffect, bool) {
-	if contextErr(w.ports.runtimeCtx) != nil {
+	if w.runtimeStopped() {
 		dropped := w.state.dropCommitBacklog()
 		w.ports.metrics.addPostCommitBacklog(-dropped)
 		w.ports.metrics.observePressure()
@@ -280,24 +281,33 @@ func (w *channelWriter) runCommit(effect commitEffect) {
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
+	var failures []commitCompletedItem
 	w.mu.Lock()
 	backlogBefore := w.state.commitBacklog()
-	if event.err == nil {
+	if len(event.items) > 0 {
 		w.state.recordSubscriberCache(event.subscriberCache)
-		w.state.finishCommitSuccess(event.checkpointSeq)
+		w.state.finishCommit(len(event.items))
 	} else {
 		w.state.finishCommitFailure()
-		w.state.dropCurrentCommit()
 	}
-	if contextErr(w.ports.runtimeCtx) != nil {
+	if w.runtimeStopped() {
 		w.state.dropCommitBacklog()
 	}
 	w.ports.metrics.addPostCommitBacklog(w.state.commitBacklog() - backlogBefore)
 	w.ports.metrics.observePressure()
 	w.mu.Unlock()
-	if event.err != nil {
-		observePostCommitFailure(w.ports.append.observer, postCommitFailureFromEvent(event))
+	for _, item := range event.items {
+		if item.err != nil {
+			failures = append(failures, item)
+		}
 	}
+	for _, item := range failures {
+		observePostCommitFailure(w.ports.append.observer, postCommitFailureFromItem(event, item))
+	}
+}
+
+func (w *channelWriter) runtimeStopped() bool {
+	return w != nil && w.ports.stopped != nil && w.ports.stopped.Load()
 }
 
 // rescheduleIfNeeded re-activates the writer only when completion handling made

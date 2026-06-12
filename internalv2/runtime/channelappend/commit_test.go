@@ -71,6 +71,46 @@ func TestNoopPostCommitPortsDoNotScheduleCommitEffect(t *testing.T) {
 	}
 }
 
+func TestCommitEffectsBatchSameChannelBacklog(t *testing.T) {
+	observer := &recordingEffectObserverForCommitTest{}
+	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(925),
+		Appender:                   newRecordingAppenderForAppendTest(),
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  enqueuer,
+		RecipientBatchSize:         16,
+		Observer:                   observer,
+	})
+	target := localTargetForAppendTest("room")
+	items := []SendBatchItem{
+		appendSendItemForTest("u1", "room", "one"),
+		appendSendItemForTest("u1", "room", "two"),
+		appendSendItemForTest("u1", "room", "three"),
+	}
+	for i := range items {
+		items[i].Command.MessageScopedUIDs = []string{"u2"}
+	}
+
+	future, err := group.SubmitLocal(context.Background(), target, items)
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+	for i := range items {
+		requireAppendSuccess(t, waitFutureForTest(t, future), i, uint64(925+i), uint64(i+1))
+	}
+
+	enqueuer.waitCalls(t, 3)
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+	if got := enqueuer.messageIDs(); !reflect.DeepEqual(got, []uint64{925, 926, 927}) {
+		t.Fatalf("recipient delivery message ids = %#v, want ordered batch", got)
+	}
+	if got := observer.stageCount(effectStagePostCommit); got != 1 {
+		t.Fatalf("post-commit effect observations = %d, want one batched effect", got)
+	}
+}
+
 func TestAppendOmitResultPayloadStillDispatchesOriginalPayload(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
 	enqueuer := &scriptedRecipientDeliveryEnqueuerForCommitTest{}
@@ -443,6 +483,18 @@ func (o *recordingEffectObserverForCommitTest) hasStage(stage string) bool {
 		}
 	}
 	return false
+}
+
+func (o *recordingEffectObserverForCommitTest) stageCount(stage string) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var count int
+	for _, got := range o.stages {
+		if got == stage {
+			count++
+		}
+	}
+	return count
 }
 
 func (r staticRecipientAuthorityResolverForCommitTest) ResolveRecipientAuthority(_ context.Context, _ string) (RecipientAuthorityTarget, error) {

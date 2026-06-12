@@ -77,6 +77,8 @@ type Config struct {
 	StoreAppendWorkers int
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
 	StoreApplyWorkers int
+	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
+	RPCWorkers int
 	// MailboxSize bounds each ChannelV2 reactor mailbox.
 	MailboxSize int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
@@ -127,6 +129,7 @@ func NewService(cfg Config) (*Service, error) {
 			ReactorCount:                  cfg.ReactorCount,
 			StoreAppendWorkers:            cfg.StoreAppendWorkers,
 			StoreApplyWorkers:             cfg.StoreApplyWorkers,
+			RPCWorkers:                    cfg.RPCWorkers,
 			MailboxSize:                   cfg.MailboxSize,
 			MaxChannels:                   cfg.MaxChannels,
 			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,

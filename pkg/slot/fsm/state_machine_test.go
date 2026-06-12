@@ -135,6 +135,36 @@ func TestStateMachineEncodeUpsertCommands(t *testing.T) {
 	}
 }
 
+func TestStateMachineEncodeNoopCommand(t *testing.T) {
+	decoded, err := decodeCommand(EncodeNoopCommand())
+	if err != nil {
+		t.Fatalf("decodeCommand(noop) error = %v", err)
+	}
+	if _, ok := decoded.(*noopCmd); !ok {
+		t.Fatalf("decodeCommand(noop) type = %T, want *noopCmd", decoded)
+	}
+}
+
+func TestStateMachineApplyNoopCommand(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		Index:    1,
+		Term:     1,
+		HashSlot: 11,
+		Data:     EncodeNoopCommand(),
+	})
+	if err != nil {
+		t.Fatalf("Apply(noop) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(noop) result = %q, want %q", result, ApplyResultOK)
+	}
+}
+
 func TestDecodeUpsertChannelRuntimeMetaCommandPreservesRetentionFields(t *testing.T) {
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID:            "decode-retention",

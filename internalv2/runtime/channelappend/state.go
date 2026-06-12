@@ -1,6 +1,9 @@
 package channelappend
 
-const committedCompactMinPrefix = 1024
+const (
+	committedCompactMinPrefix = 1024
+	commitBatchMaxEvents      = 64
+)
 
 // channelState holds in-memory state for one locally authoritative channel.
 type channelState struct {
@@ -22,7 +25,9 @@ type channelState struct {
 	nextCommitSeq            uint64
 	commitCursor             int
 	commitInflight           bool
-	commitAttempts           int
+	// commitInflightEvents is the number of committed envelopes owned by the current post-commit effect.
+	commitInflightEvents int
+	commitAttempts       int
 	// subscriberCache stores the full non-large subscriber snapshot for post-commit fanout.
 	subscriberCache subscriberCache
 }
@@ -136,6 +141,9 @@ func (s *channelState) finishAppend(items int) {
 }
 
 func (s *channelState) recordAppendCompletion(event appendCompletedEvent) {
+	if event.seq < s.nextAppendDrainSeq {
+		return
+	}
 	if event.seq == s.nextAppendDrainSeq && !s.hasReadyAppendCompletion {
 		s.readyAppendCompletion = event
 		s.hasReadyAppendCompletion = true
@@ -181,18 +189,27 @@ func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
 	if s.commitCursor >= len(s.committed) {
 		return commitEffect{}, false
 	}
-	event := s.committed[s.commitCursor]
+	limit := commitBatchMaxEvents
+	backlog := s.commitBacklog()
+	if backlog < limit {
+		limit = backlog
+	}
+	if limit <= 0 {
+		return commitEffect{}, false
+	}
+	events := s.committed[s.commitCursor : s.commitCursor+limit]
 	s.commitAttempts++
 	effect := commitEffect{
 		key:             key,
 		seq:             s.nextCommitSeq,
 		attempt:         s.commitAttempts,
-		event:           event,
+		events:          events,
 		target:          s.target,
-		subscriberCache: s.subscriberCache.clone(),
+		subscriberCache: s.subscriberCache,
 	}
-	s.nextCommitSeq++
+	s.nextCommitSeq += uint64(limit)
 	s.commitInflight = true
+	s.commitInflightEvents = limit
 	return effect, true
 }
 
@@ -200,32 +217,55 @@ func (s *channelState) recordSubscriberCache(cache subscriberCache) {
 	if s.target.Large || !cache.ready || cache.mutationVersion != s.target.SubscriberMutationVersion {
 		return
 	}
+	if s.subscriberCache.sameBacking(cache) {
+		return
+	}
 	s.subscriberCache = cache.clone()
 }
 
-func (s *channelState) finishCommitSuccess(checkpointSeq uint64) {
+func (s *channelState) finishCommit(count int) {
 	s.commitInflight = false
-	s.dropCurrentCommit()
+	if count <= 0 {
+		count = s.commitInflightEvents
+	}
+	s.commitInflightEvents = 0
+	s.dropCommitted(count)
 }
 
 func (s *channelState) finishCommitFailure() {
 	s.commitInflight = false
+	s.commitInflightEvents = 0
 }
 
 func (s *channelState) cancelCommitDispatch() {
 	s.commitInflight = false
+	s.commitInflightEvents = 0
 	if s.commitAttempts > 0 {
 		s.commitAttempts--
 	}
 }
 
 func (s *channelState) dropCurrentCommit() {
+	s.dropCommitted(1)
+}
+
+func (s *channelState) dropCommitted(count int) {
+	if count <= 0 {
+		s.commitAttempts = 0
+		return
+	}
 	if s.commitCursor >= len(s.committed) {
 		s.commitAttempts = 0
 		return
 	}
-	s.committed[s.commitCursor] = CommittedEnvelope{}
-	s.commitCursor++
+	end := s.commitCursor + count
+	if end > len(s.committed) {
+		end = len(s.committed)
+	}
+	for i := s.commitCursor; i < end; i++ {
+		s.committed[i] = CommittedEnvelope{}
+	}
+	s.commitCursor = end
 	s.commitAttempts = 0
 	s.pruneCommittedPrefixIfNeeded()
 }
@@ -234,6 +274,7 @@ func (s *channelState) dropCommitBacklog() int {
 	backlog := s.commitBacklog()
 	if backlog == 0 {
 		s.commitInflight = false
+		s.commitInflightEvents = 0
 		s.commitAttempts = 0
 		return 0
 	}
@@ -243,6 +284,7 @@ func (s *channelState) dropCommitBacklog() int {
 	s.committed = nil
 	s.commitCursor = 0
 	s.commitInflight = false
+	s.commitInflightEvents = 0
 	s.commitAttempts = 0
 	return backlog
 }
@@ -299,6 +341,17 @@ func (c subscriberCache) clone() subscriberCache {
 
 func (c subscriberCache) matches(target AuthorityTarget) bool {
 	return !target.Large && c.ready && c.mutationVersion == target.SubscriberMutationVersion
+}
+
+// sameBacking reports whether two caches already share the same immutable recipient snapshot.
+func (c subscriberCache) sameBacking(other subscriberCache) bool {
+	if c.ready != other.ready || c.mutationVersion != other.mutationVersion || len(c.recipients) != len(other.recipients) {
+		return false
+	}
+	if len(c.recipients) == 0 {
+		return true
+	}
+	return &c.recipients[0] == &other.recipients[0]
 }
 
 func (c *subscriberCache) remove(uids []string) {

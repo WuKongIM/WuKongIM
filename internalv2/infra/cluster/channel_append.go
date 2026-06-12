@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -121,7 +122,7 @@ func mapChannelAppendRouteError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case appendErrorMatches(err, channelv2.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
+	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotChannelAuthority, err)
 	case appendErrorMatches(err, channelv2.ErrStaleMeta):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)

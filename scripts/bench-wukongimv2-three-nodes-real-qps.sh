@@ -79,12 +79,28 @@ Notes:
 USAGE
 }
 
+# ─── ANSI colors (disabled when not a tty) ───────────────────────────────────
+if [[ -t 1 ]]; then
+  C_RESET=$'\033[0m'
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_GREEN=$'\033[32m'
+  C_RED=$'\033[31m'
+  C_YELLOW=$'\033[33m'
+  C_CYAN=$'\033[36m'
+  C_MAGENTA=$'\033[35m'
+  C_WHITE=$'\033[97m'
+else
+  C_RESET='' C_BOLD='' C_DIM='' C_GREEN='' C_RED=''
+  C_YELLOW='' C_CYAN='' C_MAGENTA='' C_WHITE=''
+fi
+
 log() {
-  printf '[bench-real-qps] %s\n' "$*"
+  printf '%s[bench-real-qps]%s %s\n' "$C_CYAN" "$C_RESET" "$*"
 }
 
 die() {
-  printf '[bench-real-qps] ERROR: %s\n' "$*" >&2
+  printf '%s[bench-real-qps] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2
   exit 1
 }
 
@@ -330,8 +346,9 @@ CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
-CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
-CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}
+CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
+CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
+CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
 CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}
@@ -472,6 +489,21 @@ channelappend_attempt_summary() {
   ' "$metrics"
 }
 
+filter_child_bench_result_display() {
+  awk '
+    /^BENCH RESULT$/ {
+      skip = 1
+      next
+    }
+    skip && /^SERVER PROCESS PEAKS$/ {
+      skip = 0
+    }
+    !skip {
+      print
+    }
+  '
+}
+
 write_runtime_pool_pressure_summary() {
   local out="$OUT_DIR/runtime_pool_pressure_summary.tsv"
   local qps tag attempt_dir file line
@@ -512,12 +544,13 @@ EOF
 
 append_ants_pool_usage_display() {
   local file="$1"
-  printf '# ants pool usage\n'
+  printf '\n%s# ants pool usage%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
   fi
-  awk -F'\t' '
+  awk -F'\t' -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_dim="$C_DIM" \
+    -v c_yellow="$C_YELLOW" -v c_green="$C_GREEN" '
     function remember_node(node) {
       if (!(node in seen_node)) {
         seen_node[node] = 1
@@ -564,20 +597,24 @@ append_ants_pool_usage_display() {
         print "none"
         exit
       }
-      printf "details=ants_pool_usage_summary.tsv\n"
+      printf "%sdetails=ants_pool_usage_summary.tsv%s\n", c_dim, c_reset
       for (n = 1; n <= node_count; n++) {
         node = node_order[n]
-        printf "\nnode=%s pools=%.0f max_util=%.3f offered=%.0f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
-          node, pools_by_node[node], max_util[node], max_offered[node],
+        util_color = (max_util[node] >= 0.8) ? c_yellow : c_green
+        printf "\n%snode=%s%s pools=%.0f max_util=%s%.3f%s pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          c_bold, node, c_reset, pools_by_node[node],
+          util_color, max_util[node], c_reset,
           max_pool[node], max_running[node], max_capacity[node], max_waiting[node]
-        printf "  %-9s %-24s %12s %10s %8s\n", "offered", "pool", "used/cap", "util", "waiting"
+        printf "  %s%-9s %-28s %12s %10s %8s%s\n", c_dim, "offered", "pool", "used/cap", "util", "waiting", c_reset
         for (i = 1; i <= entries; i++) {
           if (row_node[i] != node) {
             continue
           }
-          printf "  %-9.0f %-24s %12s %10.3f %8.0f\n",
+          util_color = (row_util[i] >= 0.8) ? c_yellow : ""
+          printf "  %-9.0f %-28s %12s %s%10.3f%s %8.0f\n",
             row_offered[i], row_pool[i],
-            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]),
+            util_color, row_util[i], (util_color != "") ? c_reset : "",
             row_waiting[i]
         }
       }
@@ -591,11 +628,13 @@ append_real_qps_result_display() {
   p99_limit="$(duration_seconds "$STABLE_P99")"
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'BENCH RESULT\n'
-    printf '%s\n' '------------'
+    printf '%s\n' '────────────'
     printf 'none\n'
     return
   fi
-  awk -F'\t' -v p99_limit="$p99_limit" -v actual_min_ratio="$MIN_ACTUAL_RATIO" '
+  awk -F'\t' -v p99_limit="$p99_limit" -v actual_min_ratio="$MIN_ACTUAL_RATIO" \
+    -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_green="$C_GREEN" \
+    -v c_red="$C_RED" -v c_dim="$C_DIM" -v c_yellow="$C_YELLOW" '
     function attempt_rpc_qps(attempt_dir, file, line, parts, total) {
       file = attempt_dir "/rpc_pull_qps.tsv"
       total = 0
@@ -610,11 +649,11 @@ append_real_qps_result_display() {
       return total
     }
     BEGIN {
-      print "BENCH RESULT"
-      print "------------"
-      printf "p99 gate: <= %.0f ms | send_errors: 0\n", p99_limit * 1000
+      printf "%sBENCH RESULT%s\n", c_bold, c_reset
+      print "────────────"
+      printf "p99 gate: <= %.0f ms │ send_errors: 0\n", p99_limit * 1000
       printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
-      printf "%9s %10s %7s %8s %8s %8s %8s %8s %12s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
+      printf "%s%9s %10s %7s %8s %8s %8s %8s %8s %12s %s%s\n", c_dim, "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note", c_reset
     }
     NR == 1 { next }
     {
@@ -635,14 +674,19 @@ append_real_qps_result_display() {
         best_p99 = p99
         best_rpc = rpc_qps
       }
-      printf "%9.0f %10.1f %7.3f %8s %8.0f %8.1f %8.1f %8.1f %12.1f %s\n", offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps, note
+      if (result == "PASS") {
+        result_str = c_green "    PASS" c_reset
+      } else {
+        result_str = c_red "    FAIL" c_reset
+      }
+      printf "%9.0f %10.1f %7.3f %s %8.0f %8.1f %8.1f %8.1f %12.1f %s%s%s\n", offered, actual, ratio, result_str, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps, c_dim, note, c_reset
     }
     END {
       print ""
       if (best_actual > 0) {
-        printf "best pass: offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", best_offered, best_actual, best_p99 * 1000, best_rpc
+        printf "%s★ best pass:%s offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", c_green, c_reset, best_offered, best_actual, best_p99 * 1000, best_rpc
       } else {
-        print "best pass: none"
+        printf "%s✗ best pass: none%s\n", c_yellow, c_reset
       }
     }
   ' "$file"
@@ -650,12 +694,12 @@ append_real_qps_result_display() {
 
 append_runtime_pool_pressure_display() {
   local file="$1"
-  printf '\n# runtime pool pressure\n'
+  printf '\n%s# runtime pool pressure%s\n' "$C_BOLD" "$C_RESET"
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
   fi
-  awk -F'\t' '
+  awk -F'\t' -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_yellow="$C_YELLOW" -v c_dim="$C_DIM" '
     NR == 1 { next }
     {
       entries++
@@ -688,8 +732,15 @@ append_runtime_pool_pressure_display() {
         print "none"
         exit
       }
-      printf "entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
-        entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
+      fill_color = (max_fill >= 0.8) ? c_yellow : ""
+      util_color = (max_inflight_util >= 0.8) ? c_yellow : ""
+      printf "entries=%.0f max_fill=%s%.3f%s max_inflight_util=%s%.3f%s full=%.0f busy=%.0f dirty=%.0f requeued=%.0f\n",
+        entries,
+        fill_color, max_fill, (fill_color != "") ? c_reset : "",
+        util_color, max_inflight_util, (util_color != "") ? c_reset : "",
+        full, busy, dirty, requeued
+      printf "%sworst=%s%s\n%sdetails=runtime_pool_pressure_summary.tsv%s\n",
+        c_dim, worst, c_reset, c_dim, c_reset
     }
   ' "$file"
 }
@@ -909,9 +960,14 @@ append_attempt_summary() {
 write_display_summary() {
   write_ants_pool_usage_summary
   write_runtime_pool_pressure_summary
-  append_real_qps_result_display "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
-  printf '\n' >>"$OUT_DIR/summary.txt"
-  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
+  # The summary.txt file is plain (no ANSI) for archival; the live terminal
+  # output uses the colorized functions directly in main().
+  (
+    C_RESET='' C_BOLD='' C_DIM='' C_GREEN='' C_RED='' C_YELLOW='' C_CYAN='' C_MAGENTA='' C_WHITE=''
+    append_real_qps_result_display "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
+    printf '\n' >>"$OUT_DIR/summary.txt"
+    append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
+  )
 }
 
 write_markdown_summary() {
@@ -961,9 +1017,13 @@ run_attempt() {
   attempt_dir="$OUT_DIR/${tag}-qps"
   console="$attempt_dir/real-qps-console.txt"
   mkdir -p "$attempt_dir"
+  printf '\n%s── qps=%s tag=%s ──%s\n' "$C_MAGENTA" "$qps" "$tag" "$C_RESET"
   log "running clean qps=$qps tag=$tag out=$attempt_dir"
   set +e
   GOWORK="${GOWORK:-off}" \
+  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
+  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
+  WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}" \
   WK_BENCH_PAYLOAD_BYTES="$PAYLOAD_BYTES" \
     "$BASE_SCRIPT" \
       --qps "$qps" \
@@ -988,7 +1048,7 @@ run_attempt() {
       --api "$API_ADDRS" \
       --gateway "$GATEWAY_ADDRS" \
       --metrics "$METRICS_ADDRS" \
-      > >(tee "$console") 2>&1
+      > >(tee "$console" | filter_child_bench_result_display) 2>&1
   child_exit=$?
   set -e
   append_attempt_summary "$qps" "$tag" "$attempt_dir" "$child_exit"
@@ -1008,11 +1068,15 @@ EOF
   done
   write_display_summary
   write_markdown_summary
-  cat "$OUT_DIR/summary.txt"
+  printf '\n%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n\n' "$C_DIM" "$C_RESET"
+  append_real_qps_result_display "$OUT_DIR/summary.tsv"
+  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv"
+  append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv"
+  printf '\n%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n' "$C_DIM" "$C_RESET"
   log "details:"
-  printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
-  printf '  ants_pool_usage: %s\n' "$OUT_DIR/ants_pool_usage_summary.tsv"
-  printf '  attempts: %s\n' "$OUT_DIR"
+  printf '  %ssummary:%s        %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR/summary.tsv"
+  printf '  %sants_pool_usage:%s %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR/ants_pool_usage_summary.tsv"
+  printf '  %sattempts:%s       %s\n' "$C_DIM" "$C_RESET" "$OUT_DIR"
 }
 
 main "$@"

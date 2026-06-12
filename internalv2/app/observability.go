@@ -569,7 +569,7 @@ func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err 
 	if err != nil {
 		result = "err"
 	}
-	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d)
+	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d, channelV2PullHintErrorLabel(err))
 }
 
 func (o slotMetricsObserver) SetSchedulerWorkers(workers int) {

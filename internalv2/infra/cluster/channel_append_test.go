@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -117,6 +118,7 @@ func TestChannelAppendClientMapsRouteErrors(t *testing.T) {
 		unchanged bool
 	}{
 		{name: "channel not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
+		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
 		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
 		{name: "channel not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "cluster route not ready", err: clusterv2.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},

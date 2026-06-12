@@ -87,12 +87,28 @@ Example:
 USAGE
 }
 
+# ─── ANSI colors (disabled when not a tty) ───────────────────────────────────
+if [[ -t 1 ]]; then
+  C_RESET=$'\033[0m'
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_GREEN=$'\033[32m'
+  C_RED=$'\033[31m'
+  C_YELLOW=$'\033[33m'
+  C_CYAN=$'\033[36m'
+  C_MAGENTA=$'\033[35m'
+  C_WHITE=$'\033[97m'
+else
+  C_RESET='' C_BOLD='' C_DIM='' C_GREEN='' C_RED=''
+  C_YELLOW='' C_CYAN='' C_MAGENTA='' C_WHITE=''
+fi
+
 log() {
-  printf '[bench-three-1000ch] %s\n' "$*"
+  printf '%s[bench-three-1000ch]%s %s\n' "$C_CYAN" "$C_RESET" "$*"
 }
 
 die() {
-  printf '[bench-three-1000ch] ERROR: %s\n' "$*" >&2
+  printf '%s[bench-three-1000ch] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2
   exit 1
 }
 
@@ -345,8 +361,9 @@ start_cluster() {
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
-  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}" \
-  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}" \
+  WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
+  WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
+  WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}" \
   WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}" \
   WK_CHANNEL_APPEND_SHARD_COUNT="${WK_CHANNEL_APPEND_SHARD_COUNT:-0}" \
@@ -715,6 +732,23 @@ server_pid_for_node() {
   printf '%s' "$pid"
 }
 
+sample_node_goroutines() {
+  local node="$1"
+  local idx=$((node - 1))
+  local addr metrics
+  addr="${API_VALUES[$idx]:-}"
+  [[ -n "$addr" ]] || return 0
+  metrics="$(curl -fsS --max-time 2 "${addr%/}/metrics" 2>/dev/null || true)"
+  [[ -n "$metrics" ]] || return 0
+  awk '
+    $0 ~ /^#/ { next }
+    $1 == "go_goroutines" || $1 ~ /^go_goroutines[{]/ {
+      print int($NF)
+      exit
+    }
+  ' <<<"$metrics"
+}
+
 write_resource_error_sample() {
   local phase="$1"
   local node_name="$2"
@@ -729,7 +763,7 @@ write_resource_error_sample() {
 
 sample_server_resources() {
   local phase="$1"
-  local ts node node_name pid line cpu mem rss vsz elapsed command
+  local ts node node_name pid line cpu mem rss vsz elapsed command goroutines
   ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   mkdir -p "$OUT_DIR/resources"
   for node in 1 2 3; do
@@ -749,8 +783,12 @@ sample_server_resources() {
       write_resource_error_sample "$phase" "$node_name" "invalid_ps_sample"
       continue
     fi
-    printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":%s,"cpu_percent":%.3f,"mem_percent":%.3f,"rss_kb":%s,"vsz_kb":%s,"elapsed":"%s","command":"%s"}\n' \
-      "$ts" "$phase" "$node_name" "$pid" "$cpu" "$mem" "$rss" "$vsz" "$elapsed" "$(json_escape "$command")" \
+    goroutines="$(sample_node_goroutines "$node")"
+    if ! is_nonnegative_int "$goroutines"; then
+      goroutines="null"
+    fi
+    printf '{"timestamp":"%s","phase":"%s","node":"%s","pid":%s,"cpu_percent":%.3f,"mem_percent":%.3f,"rss_kb":%s,"vsz_kb":%s,"elapsed":"%s","command":"%s","goroutines":%s}\n' \
+      "$ts" "$phase" "$node_name" "$pid" "$cpu" "$mem" "$rss" "$vsz" "$elapsed" "$(json_escape "$command")" "$goroutines" \
       >>"$OUT_DIR/resources/server-process.jsonl" || true
   done
   return 0
@@ -787,7 +825,7 @@ write_server_resource_summary() {
   local summary="$OUT_DIR/resources/server-process-summary.tsv"
   mkdir -p "$OUT_DIR/resources"
   if [[ ! -f "$samples" ]]; then
-    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\n' >"$summary" || true
+    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\tmax_goroutines\n' >"$summary" || true
     return 0
   fi
   awk '
@@ -809,7 +847,7 @@ write_server_resource_summary() {
       return rest
     }
     BEGIN {
-      print "node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb"
+      print "node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\tmax_goroutines"
     }
     {
       node = json_string("node", $0)
@@ -819,6 +857,11 @@ write_server_resource_summary() {
       mem = json_number("mem_percent", $0) + 0
       rss = json_number("rss_kb", $0) + 0
       vsz = json_number("vsz_kb", $0) + 0
+      goroutines_raw = json_number("goroutines", $0)
+      goroutines = -1
+      if (goroutines_raw != "" && goroutines_raw != "null") {
+        goroutines = goroutines_raw + 0
+      }
       samples[node]++
       last_pid[node] = pid
       cpu_sum[node] += cpu
@@ -827,12 +870,16 @@ write_server_resource_summary() {
       if (samples[node] == 1 || mem > mem_max[node]) mem_max[node] = mem
       if (samples[node] == 1 || rss > rss_max[node]) rss_max[node] = rss
       if (samples[node] == 1 || vsz > vsz_max[node]) vsz_max[node] = vsz
+      if (goroutines >= 0 && (!has_goroutines[node] || goroutines > goroutines_max[node])) {
+        has_goroutines[node] = 1
+        goroutines_max[node] = goroutines
+      }
     }
     END {
       for (i = 1; i <= 3; i++) {
         node = "node" i
         if (samples[node] == 0) continue
-        printf "%s\t%s\t%d\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\n",
+        printf "%s\t%s\t%d\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\t%.0f\n",
           node,
           last_pid[node],
           samples[node],
@@ -841,11 +888,12 @@ write_server_resource_summary() {
           mem_sum[node] / samples[node],
           mem_max[node],
           rss_max[node],
-          vsz_max[node]
+          vsz_max[node],
+          has_goroutines[node] ? goroutines_max[node] : 0
       }
     }
   ' "$samples" >"$summary" || {
-    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\n' >"$summary" || true
+    printf 'node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\tmax_goroutines\n' >"$summary" || true
     return 0
   }
   return 0
@@ -1120,8 +1168,9 @@ CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
 CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}
 CLUSTER_CHANNEL_REACTOR_COUNT=${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}
-CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}
-CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}
+CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}
+CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}
+CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
 CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}
@@ -1152,7 +1201,12 @@ EOF
 write_display_summary() {
   local p99_limit
   p99_limit="$(duration_seconds "$STABLE_P99")"
-  awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" '
+  # Write archival summary.txt without ANSI escapes
+  (
+    C_RESET='' C_BOLD='' C_DIM='' C_GREEN='' C_RED='' C_YELLOW='' C_CYAN='' C_MAGENTA='' C_WHITE=''
+    awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" \
+      -v c_bold="" -v c_reset="" -v c_green="" \
+      -v c_red="" -v c_dim="" -v c_yellow="" '
     BEGIN {
       FS = "\t"
       while ((getline line < rpc_file) > 0) {
@@ -1164,11 +1218,11 @@ write_display_summary() {
       }
       close(rpc_file)
 
-      print "BENCH RESULT"
-      print "------------"
-      printf "p99 gate: <= %.0f ms | send_errors: 0\n", p99_limit * 1000
+      printf "%sBENCH RESULT%s\n", c_bold, c_reset
+      print "────────────"
+      printf "p99 gate: <= %.0f ms │ send_errors: 0\n", p99_limit * 1000
       printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
-      printf "%9s %10s %7s %8s %8s %8s %8s %8s %12s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
+      printf "%s%9s %10s %7s %8s %8s %8s %8s %8s %12s %s%s\n", c_dim, "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note", c_reset
     }
     NR == 1 {
       next
@@ -1215,31 +1269,37 @@ write_display_summary() {
         best_p99 = p99
         best_rpc = rpc_qps[tag]
       }
-      printf "%9.0f %10.1f %7.3f %8s %8.0f %8.1f %8.1f %8.1f %12.1f %s\n", offered, actual, actual_ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], note
+      if (result == "PASS") {
+        result_str = c_green "    PASS" c_reset
+      } else {
+        result_str = c_red "    FAIL" c_reset
+      }
+      printf "%9.0f %10.1f %7.3f %s %8.0f %8.1f %8.1f %8.1f %12.1f %s%s%s\n", offered, actual, actual_ratio, result_str, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], c_dim, note, c_reset
     }
     END {
       print ""
       if (best_actual > 0) {
-        printf "best pass: offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", best_offered, best_actual, best_p99 * 1000, best_rpc
+        printf "%s★ best pass:%s offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", c_green, c_reset, best_offered, best_actual, best_p99 * 1000, best_rpc
       } else {
-        print "best pass: none"
+        printf "%s✗ best pass: none%s\n", c_yellow, c_reset
       }
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
-  append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv" >>"$OUT_DIR/summary.txt"
-  append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
-  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
+    append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv" >>"$OUT_DIR/summary.txt"
+    append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
+    append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
+  )
 }
 
 append_server_resource_peak_display() {
   local file="$1"
-  printf '\nSERVER PROCESS PEAKS\n'
-  printf '%s\n' '--------------------'
+  printf '\n%sSERVER PROCESS PEAKS%s\n' "$C_BOLD" "$C_RESET"
+  printf '%s\n' '────────────────────'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
   fi
-  awk -F'\t' '
+  awk -F'\t' -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_dim="$C_DIM" '
     NR == 1 { next }
     {
       entries++
@@ -1251,6 +1311,7 @@ append_server_resource_peak_display() {
       avg_mem[entries] = $6 + 0
       max_mem[entries] = $7 + 0
       max_rss_kb[entries] = $8 + 0
+      max_goroutines[entries] = $10 + 0
       if (entries == 1 || max_cpu[entries] > peak_cpu) {
         peak_cpu = max_cpu[entries]
         peak_cpu_node = $1
@@ -1263,18 +1324,22 @@ append_server_resource_peak_display() {
         peak_rss_kb = max_rss_kb[entries]
         peak_rss_node = $1
       }
+      if (max_goroutines[entries] > 0 && (peak_goroutines == 0 || max_goroutines[entries] > peak_goroutines)) {
+        peak_goroutines = max_goroutines[entries]
+        peak_goroutines_node = $1
+      }
     }
     END {
       if (entries == 0) {
         print "none"
         exit
       }
-      printf "peak_cpu=%s %.3f%% peak_rss=%s %.3fMiB peak_mem=%s %.3f%% details=resources/server-process-summary.tsv\n",
-        peak_cpu_node, peak_cpu, peak_rss_node, peak_rss_kb / 1024, peak_mem_node, peak_mem
-      printf "%-8s %7s %8s %9s %9s %12s %9s\n", "node", "samples", "pid", "avg_cpu%", "max_cpu%", "max_rssMiB", "max_mem%"
+      printf "peak_cpu=%s %.3f%% peak_rss=%s %.3fMiB peak_mem=%s %.3f%% peak_goroutines=%s %.0f %sdetails=resources/server-process-summary.tsv%s\n",
+        peak_cpu_node, peak_cpu, peak_rss_node, peak_rss_kb / 1024, peak_mem_node, peak_mem, peak_goroutines_node, peak_goroutines, c_dim, c_reset
+      printf "%s%-8s %7s %8s %9s %9s %12s %9s %14s%s\n", c_dim, "node", "samples", "pid", "avg_cpu%", "max_cpu%", "max_rssMiB", "max_mem%", "max_goroutines", c_reset
       for (i = 1; i <= entries; i++) {
-        printf "%-8s %7.0f %8s %9.3f %9.3f %12.3f %9.3f\n",
-          node[i], samples[i], pid[i], avg_cpu[i], max_cpu[i], max_rss_kb[i] / 1024, max_mem[i]
+        printf "%-8s %7.0f %8s %9.3f %9.3f %12.3f %9.3f %14.0f\n",
+          node[i], samples[i], pid[i], avg_cpu[i], max_cpu[i], max_rss_kb[i] / 1024, max_mem[i], max_goroutines[i]
       }
     }
   ' "$file"
@@ -1282,13 +1347,14 @@ append_server_resource_peak_display() {
 
 append_ants_pool_usage_display() {
   local file="$1"
-  printf '\nANTS POOL USAGE\n'
-  printf '%s\n' '---------------'
+  printf '\n%sANTS POOL USAGE%s\n' "$C_BOLD" "$C_RESET"
+  printf '%s\n' '───────────────'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
   fi
-  awk -F'\t' '
+  awk -F'\t' -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_dim="$C_DIM" \
+    -v c_yellow="$C_YELLOW" -v c_green="$C_GREEN" '
     function remember_node(node) {
       if (!(node in seen_node)) {
         seen_node[node] = 1
@@ -1332,20 +1398,25 @@ append_ants_pool_usage_display() {
         print "none"
         exit
       }
-      printf "details=ants_pool_usage_summary.tsv\n"
+      printf "%sdetails=ants_pool_usage_summary.tsv%s\n", c_dim, c_reset
       for (n = 1; n <= node_count; n++) {
         node = node_order[n]
-        printf "\nnode=%s pools=%.0f max_util=%.3f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
-          node, pools_by_node[node], max_util[node], max_pool[node],
-          max_running[node], max_capacity[node], max_waiting[node]
-        printf "  %-28s %12s %10s %8s\n", "pool", "used/cap", "util", "waiting"
+        util_color = (max_util[node] >= 0.8) ? c_yellow : c_green
+        printf "\n%snode=%s%s pools=%.0f max_util=%s%.3f%s pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          c_bold, node, c_reset, pools_by_node[node],
+          util_color, max_util[node], c_reset,
+          max_pool[node], max_running[node], max_capacity[node], max_waiting[node]
+        printf "  %s%-28s %12s %10s %8s%s\n", c_dim, "pool", "used/cap", "util", "waiting", c_reset
         for (i = 1; i <= entries; i++) {
           if (row_node[i] != node) {
             continue
           }
-          printf "  %-28s %12s %10.3f %8.0f\n",
+          util_color = (row_util[i] >= 0.8) ? c_yellow : ""
+          printf "  %-28s %12s %s%10.3f%s %8.0f\n",
             row_pool[i],
-            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]),
+            util_color, row_util[i], (util_color != "") ? c_reset : "",
+            row_waiting[i]
             row_waiting[i]
         }
       }
@@ -1533,13 +1604,13 @@ append_channelappend_pool_pressure_display() {
 
 append_cluster_transport_peak_display() {
   local file="$1"
-  printf '\nCLUSTER INTERNAL TRANSPORT PEAK\n'
-  printf '%s\n' '-------------------------------'
+  printf '\n%sCLUSTER INTERNAL TRANSPORT PEAK%s\n' "$C_BOLD" "$C_RESET"
+  printf '%s\n' '───────────────────────────────'
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
     printf 'none\n'
     return
   fi
-  awk -F'\t' '
+  awk -F'\t' -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_dim="$C_DIM" '
     NR == 1 { next }
     {
       entries++
@@ -1565,10 +1636,10 @@ append_cluster_transport_peak_display() {
         print "none"
         exit
       }
-      printf "peak_node=%s peak_internal_mib_s=%.3f peak_duplex_mib_s=%.3f interval=%s details=cluster_transport_peak_summary.tsv\n",
-        peak_node, peak_internal, peak_duplex, peak_interval
-      printf "%-16s %12s %10s %10s %12s %9s %s\n",
-        "node", "peak_mib/s", "out_mib/s", "in_mib/s", "duplex_mib/s", "samples", "interval"
+      printf "peak_node=%s peak_internal_mib_s=%.3f peak_duplex_mib_s=%.3f interval=%s %sdetails=cluster_transport_peak_summary.tsv%s\n",
+        peak_node, peak_internal, peak_duplex, peak_interval, c_dim, c_reset
+      printf "%s%-16s %12s %10s %10s %12s %9s %s%s\n", c_dim,
+        "node", "peak_mib/s", "out_mib/s", "in_mib/s", "duplex_mib/s", "samples", "interval", c_reset
       for (i = 1; i <= entries; i++) {
         node = node_order[i]
         printf "%-16s %12.3f %10.3f %10.3f %12.3f %9.0f %s\n",
@@ -1592,6 +1663,7 @@ server_resource_peak_markdown() {
       cpu = $5 + 0
       mem = $7 + 0
       rss = $8 + 0
+      goroutines = $10 + 0
       if (entries == 1 || cpu > peak_cpu) {
         peak_cpu = cpu
         peak_cpu_node = $1
@@ -1604,6 +1676,10 @@ server_resource_peak_markdown() {
         peak_rss = rss
         peak_rss_node = $1
       }
+      if (goroutines > 0 && (peak_goroutines == 0 || goroutines > peak_goroutines)) {
+        peak_goroutines = goroutines
+        peak_goroutines_node = $1
+      }
     }
     END {
       if (entries == 0) {
@@ -1613,6 +1689,9 @@ server_resource_peak_markdown() {
       printf "- peak_cpu: %s %.3f%%\n", peak_cpu_node, peak_cpu
       printf "- peak_rss: %s %.3fMiB\n", peak_rss_node, peak_rss / 1024
       printf "- peak_mem: %s %.3f%%\n", peak_mem_node, peak_mem
+      if (peak_goroutines > 0) {
+        printf "- peak_goroutines: %s %.0f\n", peak_goroutines_node, peak_goroutines
+      }
       printf "- details: resources/server-process-summary.tsv\n"
     }
   ' "$file"
@@ -1914,13 +1993,56 @@ cluster_transport_peak_markdown() {
 print_summary() {
   write_display_summary
   write_evidence_summary
-  cat "$OUT_DIR/summary.txt"
-  log "evidence: $OUT_DIR"
-  printf '  %-23s %s\n' "summary" "summary.tsv"
-  printf '  %-23s %s\n' "summary_md" "summary.md"
-  printf '  %-23s %s\n' "server_process" "resources/server-process-summary.tsv"
-  printf '  %-23s %s\n' "cluster_transport" "cluster_transport_peak_summary.tsv"
-  printf '  %-23s %s\n' "ants_pool_usage" "ants_pool_usage_summary.tsv"
+  # Live terminal output uses colorized functions
+  local p99_limit
+  p99_limit="$(duration_seconds "$STABLE_P99")"
+  awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" \
+    -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_green="$C_GREEN" \
+    -v c_red="$C_RED" -v c_dim="$C_DIM" -v c_yellow="$C_YELLOW" '
+    BEGIN {
+      FS = "\t"
+      while ((getline line < rpc_file) > 0) {
+        split(line, parts, "\t")
+        if (parts[1] == "tag") { continue }
+        rpc_qps[parts[1]] += parts[4] + 0
+      }
+      close(rpc_file)
+      printf "%sBENCH RESULT%s\n", c_bold, c_reset
+      print "────────────"
+      printf "p99 gate: <= %.0f ms │ send_errors: 0\n", p99_limit * 1000
+      printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
+      printf "%s%9s %10s %7s %8s %8s %8s %8s %8s %12s %s%s\n", c_dim, "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note", c_reset
+    }
+    NR == 1 { next }
+    {
+      tag = $1; offered = $2 + 0; status = $3; exit_status = $4 + 0
+      actual = $5 + 0; errors = $7 + 0; p95 = $11 + 0; p99 = $12 + 0; max = $13 + 0
+      actual_ratio = (offered > 0) ? actual / offered : 0
+      note = "ok"; result = "PASS"
+      if (status != "passed") { result = "FAIL"; note = status }
+      if (exit_status != 0) { result = "FAIL"; note = "exit=" exit_status }
+      if (errors > 0) { result = "FAIL"; note = "send_errors" }
+      if (p99 > p99_limit) { result = "FAIL"; note = "p99" }
+      if (actual_ratio < actual_min_ratio) { result = "FAIL"; note = sprintf("actual_ratio=%.3f", actual_ratio) }
+      if (result == "PASS" && actual > best_actual) { best_actual = actual; best_offered = offered; best_p99 = p99; best_rpc = rpc_qps[tag] }
+      result_str = (result == "PASS") ? c_green "    PASS" c_reset : c_red "    FAIL" c_reset
+      printf "%9.0f %10.1f %7.3f %s %8.0f %8.1f %8.1f %8.1f %12.1f %s%s%s\n", offered, actual, actual_ratio, result_str, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], c_dim, note, c_reset
+    }
+    END {
+      print ""
+      if (best_actual > 0) { printf "%s★ best pass:%s offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", c_green, c_reset, best_offered, best_actual, best_p99 * 1000, best_rpc }
+      else { printf "%s✗ best pass: none%s\n", c_yellow, c_reset }
+    }
+  ' "$OUT_DIR/summary.tsv"
+  append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv"
+  append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv"
+  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv"
+  log "evidence:"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "summary" "$C_RESET" "summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "summary_md" "$C_RESET" "summary.md"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "server_process" "$C_RESET" "resources/server-process-summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "cluster_transport" "$C_RESET" "cluster_transport_peak_summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "ants_pool_usage" "$C_RESET" "ants_pool_usage_summary.tsv"
 }
 
 write_evidence_summary() {

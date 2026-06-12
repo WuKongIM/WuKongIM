@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	rpcBatchMaxItems         = 64
+	rpcBatchMaxItems         = 2
 	rpcBatchMaxWait          = 250 * time.Microsecond
 	storeAppendBatchMaxItems = 64
 	storeAppendBatchMaxWait  = 250 * time.Microsecond

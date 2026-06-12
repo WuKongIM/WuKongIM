@@ -13,12 +13,18 @@ import (
 const (
 	defaultClusterWriteReadyTimeout = 10 * time.Second
 	clusterWriteReadyPollInterval   = 10 * time.Millisecond
+	clusterWriteReadyProbeTimeout   = time.Second
 )
 
 // clusterWriteReadyRuntime exposes the clusterv2 route state needed before gateway sends are admitted.
 type clusterWriteReadyRuntime interface {
 	Snapshot() clusterv2.Snapshot
 	RouteHashSlot(uint16) (clusterv2.Route, error)
+}
+
+// clusterWriteProbeRuntime optionally proves that routed Slot writes can commit.
+type clusterWriteProbeRuntime interface {
+	ProbeWriteReady(context.Context) error
 }
 
 // Start starts the cluster first, then optional API and gateway runtimes when configured.
@@ -306,7 +312,7 @@ func (a *App) lifecycleLogger() wklog.Logger {
 	return a.logger.Named("lifecycle")
 }
 
-func (a *App) readyzReport(context.Context) (bool, any) {
+func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	if a == nil || a.cluster == nil {
 		return false, map[string]any{"ready": false, "reason": "cluster not configured"}
 	}
@@ -315,7 +321,7 @@ func (a *App) readyzReport(context.Context) (bool, any) {
 		return true, map[string]any{"ready": true}
 	}
 	var lastErr error
-	if clusterWriteReady(routes, &lastErr) {
+	if clusterWriteReady(ctx, routes, &lastErr) {
 		return true, map[string]any{"ready": true}
 	}
 	reason := "cluster write routing not ready"
@@ -342,7 +348,7 @@ func (a *App) waitClusterWriteReady(ctx context.Context) error {
 
 	var lastErr error
 	for {
-		if clusterWriteReady(routes, &lastErr) {
+		if clusterWriteReady(waitCtx, routes, &lastErr) {
 			return nil
 		}
 		select {
@@ -356,7 +362,7 @@ func (a *App) waitClusterWriteReady(ctx context.Context) error {
 	}
 }
 
-func clusterWriteReady(routes clusterWriteReadyRuntime, lastErr *error) bool {
+func clusterWriteReady(ctx context.Context, routes clusterWriteReadyRuntime, lastErr *error) bool {
 	snapshot := routes.Snapshot()
 	if !snapshot.RoutesReady || !snapshot.SlotsReady || !snapshot.ChannelsReady || snapshot.HashSlotCount == 0 {
 		*lastErr = fmt.Errorf("snapshot not ready: routes=%t slots=%t channels=%t hashSlotCount=%d", snapshot.RoutesReady, snapshot.SlotsReady, snapshot.ChannelsReady, snapshot.HashSlotCount)
@@ -370,6 +376,15 @@ func clusterWriteReady(routes clusterWriteReadyRuntime, lastErr *error) bool {
 		}
 		if route.Leader == 0 {
 			*lastErr = fmt.Errorf("route hash slot %d has no leader", hashSlot)
+			return false
+		}
+	}
+	if probe, ok := routes.(clusterWriteProbeRuntime); ok {
+		probeCtx, cancel := context.WithTimeout(ctx, clusterWriteReadyProbeTimeout)
+		err := probe.ProbeWriteReady(probeCtx)
+		cancel()
+		if err != nil {
+			*lastErr = fmt.Errorf("write probe: %w", err)
 			return false
 		}
 	}

@@ -20,6 +20,8 @@ type Config struct {
 	StoreAppendWorkers int
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the reactor default.
 	StoreApplyWorkers int
+	// RPCWorkers caps blocking replication RPC workers. Zero keeps the reactor default.
+	RPCWorkers int
 	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
 	MaxChannels int
 	Store       store.Factory
@@ -85,6 +87,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	workerPools := worker.PoolsConfig{
 		StoreAppend: worker.PoolConfig{Workers: cfg.StoreAppendWorkers},
 		StoreApply:  worker.PoolConfig{Workers: cfg.StoreApplyWorkers},
+		RPC:         worker.PoolConfig{Workers: cfg.RPCWorkers},
 	}
 	group, err := reactor.NewGroup(reactor.Config{
 		LocalNode: cfg.LocalNode, ReactorCount: cfg.ReactorCount, MailboxSize: cfg.MailboxSize, MaxChannels: cfg.MaxChannels, Store: cfg.Store, Transport: cfg.Transport,

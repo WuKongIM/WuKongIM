@@ -47,6 +47,27 @@ func TestChannelStateRecordsInOrderAppendCompletionWithoutMap(t *testing.T) {
 	}
 }
 
+func TestChannelStateIgnoresStaleAppendCompletion(t *testing.T) {
+	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
+	payload := []byte("payload")
+	completion := appendCompletedEvent{
+		seq: 0,
+		items: []appendItemCompletion{{
+			item: preparedSend{Command: SendCommand{Payload: payload}},
+		}},
+	}
+	state.recordAppendCompletion(completion)
+	if _, ok := state.popNextAppendCompletion(); !ok {
+		t.Fatalf("popNextAppendCompletion() ok = false, want true")
+	}
+
+	state.recordAppendCompletion(completion)
+
+	if state.completedAppends != nil {
+		t.Fatalf("completedAppends retained stale append completion: %#v", state.completedAppends)
+	}
+}
+
 func TestChannelStateNextAppendBatchDoesNotAllocatePendingCopy(t *testing.T) {
 	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
 	pending := make([]preparedSend, 16)
@@ -100,7 +121,57 @@ func TestChannelStateCommitEffectSharesQueuedImmutablePayload(t *testing.T) {
 	if !ok {
 		t.Fatalf("nextCommitEffect() ok = false, want true")
 	}
-	if len(effect.event.Payload) == 0 || &effect.event.Payload[0] != &payload[0] {
+	if len(effect.events) != 1 {
+		t.Fatalf("commit effect events = %d, want 1", len(effect.events))
+	}
+	if len(effect.events[0].Payload) == 0 || &effect.events[0].Payload[0] != &payload[0] {
 		t.Fatalf("commit effect payload did not share queued immutable payload")
+	}
+}
+
+func TestChannelStateCommitEffectReusesReadySubscriberCache(t *testing.T) {
+	recipients := []Recipient{{UID: "u1"}, {UID: "u2"}}
+	state := newChannelState(AuthorityTarget{
+		ChannelID:                 ChannelID{ID: "room", Type: 2},
+		SubscriberMutationVersion: 7,
+	}, channelStateLimits{})
+	state.subscriberCache = subscriberCache{
+		ready:           true,
+		mutationVersion: 7,
+		recipients:      recipients,
+	}
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1})
+
+	effect, ok := state.nextCommitEffect("2:room")
+	if !ok {
+		t.Fatalf("nextCommitEffect() ok = false, want true")
+	}
+	if len(effect.subscriberCache.recipients) == 0 {
+		t.Fatalf("commit effect subscriber cache is empty")
+	}
+	if &effect.subscriberCache.recipients[0] != &state.subscriberCache.recipients[0] {
+		t.Fatalf("commit effect cloned ready subscriber cache; hot path should reuse immutable backing")
+	}
+}
+
+func TestChannelStateRecordSubscriberCacheNoopsWhenAlreadyCurrent(t *testing.T) {
+	recipients := []Recipient{{UID: "u1"}, {UID: "u2"}}
+	state := newChannelState(AuthorityTarget{
+		ChannelID:                 ChannelID{ID: "room", Type: 2},
+		SubscriberMutationVersion: 7,
+	}, channelStateLimits{})
+	state.subscriberCache = subscriberCache{
+		ready:           true,
+		mutationVersion: 7,
+		recipients:      recipients,
+	}
+
+	state.recordSubscriberCache(state.subscriberCache)
+
+	if len(state.subscriberCache.recipients) == 0 {
+		t.Fatalf("subscriber cache is empty")
+	}
+	if &state.subscriberCache.recipients[0] != &recipients[0] {
+		t.Fatalf("recordSubscriberCache cloned an already-current subscriber cache")
 	}
 }

@@ -145,3 +145,13 @@
 - Experiment evidence: `docs/development/perf-runs/20260611-120017-three-node-1000ch/`.
 - Experiment result: 1088.1 actual QPS, p99 403.5ms, still 1 send error, and post-commit pool full remained high at 92539 total. Raising only post-commit workers reduced but did not remove channelwrite post-commit saturation or foreground backpressure.
 - Finding: the current 10000 offered-QPS run fails because the workload overdrives bounded channelwrite/ChannelV2 runtime capacity. The foreground abort is a single channelwrite local `ErrBackpressured` surfaced as `ReasonSystemError`; the dominant sustained pressure is post-commit effect pool saturation plus downstream ChannelV2 storage/replication and Slot scheduler pressure.
+
+## 2026-06-12 three-node real-qps 4000 channelappend CPU profile
+
+- Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration. CPU pprof was captured manually during the load window from API ports 5011/5012/5013.
+- Evidence: `docs/development/perf-runs/20260612-173851-three-node-real-qps-4000-pprof/`.
+- Result: 2626.9 actual QPS, 0.657 actual/offered ratio, p99 3633.9ms, no send errors. Server CPU peaked at node1=350.5%, node2=301.7%, node3=344.4%.
+- Pprof finding: the largest application stack is `internalv2/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. `transportv2` write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
+- Runtime evidence: each node had about 5.3k goroutines, dominated by gateway async send collectors, ChannelV2 append future waiters, and ants workers. ChannelV2 store-apply/store-append/RPC pools and transport service workers hit saturation on at least one node.
+- Post-commit evidence: `channelappend_effect_error_delta=32452`, and all sampled after-run post-commit errors were `phase=conversation_active` with `internalv2/usecase/conversation: stale route` (node1=7258, node2=15599, node3=9595). This amplifies channelappend post-commit work and logging but is not the foreground SEND failure source.
+- Finding: the high CPU is not caused by raw Pebble writes. It is mostly channelappend post-commit state-machine scheduling and transport fanout under excessive concurrency, with ChannelV2 replication/quorum wait causing the long p99 tail (`append_post_store_commit_wait_p99` about 2.38-2.45s).

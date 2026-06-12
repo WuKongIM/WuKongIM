@@ -1099,6 +1099,60 @@ func TestConversationAuthorityRouteLifecycleRemoteEventDrainsPreviousLocalTarget
 	}
 }
 
+func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t *testing.T) {
+	oldLocalTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 11, AuthorityEpoch: 21}
+	newLocalTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 12, AuthorityEpoch: 22}
+	touchStarted := make(chan struct{})
+	touchBlock := make(chan struct{})
+	store := &appRecordingConversationAuthorityStore{
+		touchStarted: touchStarted,
+		touchBlock:   touchBlock,
+	}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent, 2)
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterv2.RouteAuthority {
+			return []clusterv2.RouteAuthority{authorityFromConversationTarget(oldLocalTarget)}
+		},
+		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 250 * time.Millisecond,
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		close(touchBlock)
+		if err := lifecycle.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
+	if err := local.AdmitPatches(context.Background(), oldLocalTarget, []conversationusecase.ActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g-blocking-drain",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   101,
+		MessageSeq:  7,
+	}}); err != nil {
+		t.Fatalf("seed AdmitPatches() error = %v", err)
+	}
+
+	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+	select {
+	case <-touchStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for handoff drain to enter store touch")
+	}
+	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(newLocalTarget)}}
+
+	waitUntil(t, 75*time.Millisecond, func() bool {
+		return local.AdmitPatches(context.Background(), newLocalTarget, nil) == nil
+	})
+}
+
 func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T) {
 	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
 	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 9, AuthorityEpoch: 21}
@@ -2611,8 +2665,35 @@ func TestStartWaitsForClusterWriteReadinessBeforeGateway(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	if got := joinCalls(calls); got != "cluster.start,cluster.route,gateway.start" {
-		t.Fatalf("calls = %s, want cluster.start,cluster.route,gateway.start", got)
+	if got := joinCalls(calls); got != "cluster.start,cluster.route,cluster.probe,gateway.start" {
+		t.Fatalf("calls = %s, want cluster.start,cluster.route,cluster.probe,gateway.start", got)
+	}
+}
+
+func TestStartWaitsForClusterWriteProbeBeforeGateway(t *testing.T) {
+	calls := make([]string, 0, 6)
+	cluster := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterv2.Snapshot{
+			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {Leader: 1, Peers: []uint64{1}},
+		},
+		probeErrors: []error{clusterv2.ErrNotLeader, nil},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if got := joinCalls(calls); got != "cluster.start,cluster.route,cluster.probe,cluster.route,cluster.probe,gateway.start" {
+		t.Fatalf("calls = %s, want route and probe retry before gateway.start", got)
 	}
 }
 
@@ -2893,8 +2974,9 @@ func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelv2
 
 type fakeWriteReadyCluster struct {
 	fakeCluster
-	snapshots []clusterv2.Snapshot
-	routes    map[uint16]clusterv2.Route
+	snapshots   []clusterv2.Snapshot
+	routes      map[uint16]clusterv2.Route
+	probeErrors []error
 }
 
 func (f *fakeWriteReadyCluster) Snapshot() clusterv2.Snapshot {
@@ -2913,6 +2995,18 @@ func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route,
 		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
 	}
 	return route, nil
+}
+
+func (f *fakeWriteReadyCluster) ProbeWriteReady(context.Context) error {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, "cluster.probe")
+	}
+	if len(f.probeErrors) == 0 {
+		return nil
+	}
+	err := f.probeErrors[0]
+	f.probeErrors = f.probeErrors[1:]
+	return err
 }
 
 type fakePresenceCluster struct {
@@ -2990,6 +3084,9 @@ func conversationPatchesByUID(patches []metadb.UserConversationActivePatch) map[
 
 type appRecordingConversationAuthorityStore struct {
 	mu                 sync.Mutex
+	touchStarted       chan struct{}
+	touchStartedOnce   sync.Once
+	touchBlock         <-chan struct{}
 	touchBatches       [][]metadb.UserConversationActivePatch
 	rows               map[metadb.ConversationKey]metadb.UserConversationState
 	lastTouchDeadlineV time.Time
@@ -3023,6 +3120,18 @@ func (s *appRecordingConversationAuthorityStore) GetUserConversationState(_ cont
 }
 
 func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+	if s.touchStarted != nil {
+		s.touchStartedOnce.Do(func() {
+			close(s.touchStarted)
+		})
+	}
+	if s.touchBlock != nil {
+		select {
+		case <-s.touchBlock:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if deadline, ok := ctx.Deadline(); ok {

@@ -92,6 +92,7 @@ func TestConfigRejectsNegativeChannelStoreWorkers(t *testing.T) {
 	}{
 		{name: "append", config: ChannelConfig{StoreAppendWorkers: -1}},
 		{name: "apply", config: ChannelConfig{StoreApplyWorkers: -1}},
+		{name: "rpc", config: ChannelConfig{RPCWorkers: -1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{

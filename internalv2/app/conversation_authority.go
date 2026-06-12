@@ -322,33 +322,50 @@ func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conve
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	result, err = a.beginDrainAuthority(target)
+	if err != nil {
+		return result, err
+	}
+	return a.flushDrainingAuthority(ctx)
+}
+
+func (a *conversationAuthority) beginDrainAuthority(target conversationusecase.RouteTarget) (conversationDrainResult, error) {
 	routeTarget := targetKey(target)
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if target.LeaderNodeID != 0 && target.LeaderNodeID != a.localNodeID {
-		a.mu.Unlock()
-		result = conversationDrainResultBusy
-		err = conversationusecase.ErrNotLeader
-		return result, err
+		return conversationDrainResultBusy, conversationusecase.ErrNotLeader
 	}
 	if _, ok := a.targets[routeTarget]; !ok {
-		a.mu.Unlock()
-		err = conversationusecase.ErrStaleRoute
-		return result, err
+		return conversationDrainResultNoDirty, conversationusecase.ErrStaleRoute
 	}
 	a.setTargetStateLocked(routeTarget, conversationAuthorityDraining)
-	a.mu.Unlock()
+	return conversationDrainResultNoDirty, nil
+}
 
+func (a *conversationAuthority) finishDrainingAuthority(ctx context.Context) (result conversationDrainResult, err error) {
+	if a == nil {
+		return conversationDrainResultNoDirty, nil
+	}
+	result = conversationDrainResultNoDirty
+	defer func() {
+		a.observeHandoff(result, err)
+	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.flushDrainingAuthority(ctx)
+}
+
+func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context) (conversationDrainResult, error) {
 	flush, flushErr := a.active.Flush(ctx, 0)
 	if flushErr != nil {
-		result = conversationDrainResultBusy
-		err = mapConversationActiveError(flushErr)
-		return result, err
+		return conversationDrainResultBusy, mapConversationActiveError(flushErr)
 	}
 	if flush.Selected == 0 {
-		return result, nil
+		return conversationDrainResultNoDirty, nil
 	}
-	result = conversationDrainResultDrained
-	return result, nil
+	return conversationDrainResultDrained, nil
 }
 
 // ListUserConversationActiveView is a conservative test/backward adapter for unscoped reads.

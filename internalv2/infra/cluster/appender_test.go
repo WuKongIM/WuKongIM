@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -397,6 +398,7 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		unchanged bool
 	}{
 		{name: "clusterv2 not leader", err: clusterv2.ErrNotLeader, want: channelappend.ErrNotLeader},
+		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "channelv2 not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
 		{name: "not replica", err: channelv2.ErrNotReplica, want: channelappend.ErrStaleRoute},

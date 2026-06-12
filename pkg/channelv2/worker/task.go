@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -102,7 +103,9 @@ type StoreCloseTask struct {
 
 // RPCPullTask asks a remote leader for records.
 type RPCPullTask struct {
-	Node    ch.NodeID
+	Node ch.NodeID
+	// Timeout bounds the transport call after a worker starts executing the task; queue wait is excluded.
+	Timeout time.Duration
 	Request transport.PullRequest
 }
 
@@ -338,8 +341,17 @@ func runRPCPull(ctx context.Context, deps Deps, t Task) Result {
 	if payload == nil || deps.Transport == nil {
 		return invalidResult(t)
 	}
+	ctx, cancel := taskExecutionTimeout(ctx, payload.Timeout)
+	defer cancel()
 	resp, err := deps.Transport.Pull(ctx, payload.Node, payload.Request)
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, RPCPull: &RPCPullResult{Response: resp}}
+}
+
+func taskExecutionTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return parent, func() {}
+	}
+	return context.WithTimeout(parent, timeout)
 }
 
 func runRPCAck(ctx context.Context, deps Deps, t Task) Result {

@@ -63,8 +63,8 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		AckOffset:   rc.state.LEO,
 		MaxBytes:    r.cfg.PullMaxBytes,
 	}
-	pullCtx, cancelPull := r.followerPullContext()
-	if err := r.submitRPCPull(pullCtx, rc.state.Leader, fence, req); err != nil {
+	pullCtx, cancelPull := followerPullCancelContext()
+	if err := r.submitRPCPull(pullCtx, rc.state.Leader, fence, req, r.followerPullRPCTimeout()); err != nil {
 		cancelPull()
 		if !rc.replication.hintedAt.IsZero() && req.NextOffset <= rc.replication.hintedLeaderLEO {
 			r.observeReplicationStage(replicationStagePullHintToSubmit, "err", now.Sub(rc.replication.hintedAt))
@@ -95,8 +95,8 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	}
 }
 
-func (r *Reactor) followerPullContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), r.followerPullRPCTimeout())
+func followerPullCancelContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.Background())
 }
 
 func (r *Reactor) followerPullRPCTimeout() time.Duration {
@@ -347,7 +347,7 @@ func (r *Reactor) submitPendingMetaPull(rc *runtimeChannel, now time.Time) error
 			MaxBytes:    r.cfg.PullMaxBytes,
 			NeedMeta:    true,
 		}
-		if err := r.submitRPCPull(context.Background(), pending.leader, fence, req); err != nil {
+		if err := r.submitRPCPull(context.Background(), pending.leader, fence, req, 0); err != nil {
 			pending.lastError = err
 			if retryablePendingPullError(err) && pending.retryCount < 1 {
 				pending.retryCount++

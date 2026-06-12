@@ -280,8 +280,9 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"--recv-ack BOOL",
 		"--heartbeat BOOL",
 		`WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}"`,
-		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}"`,
-		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}"`,
+		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}"`,
+		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}"`,
+		`WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}"`,
 		`WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT="${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}"`,
 		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}"`,
@@ -292,8 +293,9 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		`WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"`,
 		`WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}"`,
 		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}`,
-		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}`,
-		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}`,
+		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}`,
+		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}`,
+		`CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}`,
 		`CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}`,
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}`,
@@ -339,8 +341,12 @@ func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}`,
 		`CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}`,
 		`CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-0}`,
-		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-64}`,
-		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-64}`,
+		`CLUSTER_CHANNEL_STORE_APPEND_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}`,
+		`CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}`,
+		`CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}`,
+		`WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}"`,
+		`WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}"`,
+		`WK_CLUSTER_CHANNEL_RPC_WORKERS="${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}"`,
 		`CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}`,
 		`GATEWAY_ASYNC_SEND_DISPATCH_WORKERS=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS:-2048}`,
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
@@ -380,6 +386,13 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("real-qps script failed: %v\n%s", err, output)
+	}
+	if got := strings.Count(string(output), "BENCH RESULT"); got != 1 {
+		t.Fatalf("real-qps console should print one aggregate BENCH RESULT, got %d:\n%s", got, output)
+	}
+	childConsole := readFile(t, filepath.Join(outDir, "000100-qps", "real-qps-console.txt"))
+	if !strings.Contains(childConsole, "child summary should stay in attempt console") {
+		t.Fatalf("child console should retain child output:\n%s", childConsole)
 	}
 
 	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
@@ -705,10 +718,10 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 
 	resourceSummary := readFile(t, filepath.Join(outDir, "resources", "server-process-summary.tsv"))
 	for _, want := range []string{
-		"node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb",
-		"node1\t111\t2\t12.500\t12.500\t1.200\t1.200\t123456\t789000",
-		"node2\t222\t2\t25.000\t25.000\t2.300\t2.300\t234567\t890000",
-		"node3\t333\t2\t3.500\t3.500\t0.700\t0.700\t345678\t901000",
+		"node\tpid\tsamples\tavg_cpu_percent\tmax_cpu_percent\tavg_mem_percent\tmax_mem_percent\tmax_rss_kb\tmax_vsz_kb\tmax_goroutines",
+		"node1\t111\t2\t12.500\t12.500\t1.200\t1.200\t123456\t789000\t1111",
+		"node2\t222\t2\t25.000\t25.000\t2.300\t2.300\t234567\t890000\t1111",
+		"node3\t333\t2\t3.500\t3.500\t0.700\t0.700\t345678\t901000\t1111",
 	} {
 		if !strings.Contains(resourceSummary, want) {
 			t.Fatalf("resource summary missing %q:\n%s", want, resourceSummary)
@@ -722,6 +735,8 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 		"best pass: none",
 		"SERVER PROCESS PEAKS",
 		"details=resources/server-process-summary.tsv",
+		"peak_goroutines=node1 1111",
+		"max_goroutines",
 		"CLUSTER INTERNAL TRANSPORT PEAK",
 		"details=cluster_transport_peak_summary.tsv",
 		"ANTS POOL USAGE",
@@ -1925,6 +1940,8 @@ if [[ -z "$out_dir" || -z "$qps" ]]; then
   exit 2
 fi
 mkdir -p "$out_dir"
+echo 'BENCH RESULT'
+echo 'child summary should stay in attempt console'
 cat >"$out_dir/summary.tsv" <<'OUT'
 tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
 000100	100	passed	0	99	99	0	0	0	0.001	0.002	0.003	0.004
@@ -2084,6 +2101,7 @@ case "$url" in
 	      printf '%s\n' "$count" > "$count_file"
 	      cat <<OUT
 wukongim_channelv2_rpc_pull_total 1
+go_goroutines 1111
 wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 7
 wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 10
 wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 512
@@ -2131,6 +2149,7 @@ OUT
 	    fi
 	    cat <<'OUT'
 wukongim_channelv2_rpc_pull_total 1
+go_goroutines 1111
 OUT
     ;;
   http://127.0.0.1:501*/debug/pprof/goroutine?debug=2)

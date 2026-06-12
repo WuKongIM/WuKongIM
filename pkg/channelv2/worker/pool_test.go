@@ -553,6 +553,134 @@ func TestPoolBatchesRPCPullTasksByNode(t *testing.T) {
 	require.ElementsMatch(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
 
+func TestPoolRPCPullTimeoutStartsWhenWorkerExecutes(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
+	tr := &batchWorkerTransport{}
+	pool, err := NewPool(PoolConfig{Name: "rpc", Workers: 1, QueueSize: 4}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	block := make(chan struct{})
+	started := make(chan struct{})
+	blockFence := ch.Fence{ChannelKey: "1:block", OpID: 1}
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: blockFence,
+		RunFunc: func(context.Context) Result {
+			close(started)
+			<-block
+			return Result{Kind: TaskFunc, Fence: blockFence}
+		},
+	}))
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocking task to start")
+	}
+
+	pullFence := ch.Fence{ChannelKey: "1:a", OpID: 2}
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskRPCPull,
+		Fence: pullFence,
+		RPCPull: &RPCPullTask{
+			Node:    2,
+			Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1},
+			Timeout: time.Millisecond,
+		},
+	}))
+	time.Sleep(5 * time.Millisecond)
+	close(block)
+
+	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
+	result := resultByOpID(t, sink.Results(), 2)
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, tr.PullCalls())
+}
+
+func TestPoolRPCPullBatchTimeoutStartsWhenWorkerExecutes(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 3)}
+	tr := &batchWorkerTransport{}
+	pool, err := NewPool(PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	block := make(chan struct{})
+	started := make(chan struct{})
+	blockFence := ch.Fence{ChannelKey: "1:block", OpID: 1}
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskFunc,
+		Fence: blockFence,
+		RunFunc: func(context.Context) Result {
+			close(started)
+			<-block
+			return Result{Kind: TaskFunc, Fence: blockFence}
+		},
+	}))
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocking task to start")
+	}
+
+	first := Task{
+		Kind:  TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: "1:a", OpID: 2},
+		RPCPull: &RPCPullTask{
+			Node:    2,
+			Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1},
+			Timeout: time.Millisecond,
+		},
+	}
+	second := Task{
+		Kind:  TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: "1:b", OpID: 3},
+		RPCPull: &RPCPullTask{
+			Node:    2,
+			Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 3},
+			Timeout: time.Millisecond,
+		},
+	}
+	require.NoError(t, pool.Submit(context.Background(), first))
+	require.NoError(t, pool.Submit(context.Background(), second))
+	time.Sleep(5 * time.Millisecond)
+	close(block)
+
+	require.Eventually(t, func() bool { return sink.Len() == 3 }, time.Second, time.Millisecond)
+	firstResult := resultByOpID(t, sink.Results(), 2)
+	secondResult := resultByOpID(t, sink.Results(), 3)
+	require.NoError(t, firstResult.Err)
+	require.NoError(t, secondResult.Err)
+	require.Equal(t, 1, tr.PullBatchCalls())
+	require.Equal(t, 0, tr.PullCalls())
+}
+
+func TestPoolRPCPullTimeoutAppliesDuringTransportCall(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 1)}
+	tr := newBlockingPullTransport(2)
+	pool, err := NewPool(PoolConfig{Name: "rpc", Workers: 1, QueueSize: 2}, Deps{Transport: tr}, sink)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	require.NoError(t, pool.Submit(context.Background(), Task{
+		Kind:  TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: "1:a", OpID: 1},
+		RPCPull: &RPCPullTask{
+			Node:    2,
+			Request: transport.PullRequest{ChannelKey: "1:a", NextOffset: 1},
+			Timeout: time.Millisecond,
+		},
+	}))
+	select {
+	case <-tr.Started():
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocking pull to start")
+	}
+
+	require.Eventually(t, func() bool { return sink.Len() == 1 }, time.Second, time.Millisecond)
+	result := resultByOpID(t, sink.Results(), 1)
+	require.ErrorIs(t, result.Err, context.DeadlineExceeded)
+}
+
 func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := newBlockingPullTransport(1)
@@ -605,7 +733,7 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	}
 	select {
 	case result := <-sink.ch:
-		t.Fatalf("completed op %d before first collected RPC subgroup was released", result.Fence.OpID)
+		t.Fatalf("second RPC subgroup ran before first completed: %+v", result)
 	case <-time.After(20 * time.Millisecond):
 	}
 

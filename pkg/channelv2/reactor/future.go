@@ -84,7 +84,19 @@ func (f *Future) Await(ctx context.Context) (Result, error) {
 	case <-f.done:
 		result := f.Result()
 		return result, result.Err
+	default:
+	}
+	select {
+	case <-f.done:
+		result := f.Result()
+		return result, result.Err
 	case <-ctx.Done():
+		select {
+		case <-f.done:
+			result := f.Result()
+			return result, result.Err
+		default:
+		}
 		return Result{}, ctx.Err()
 	}
 }

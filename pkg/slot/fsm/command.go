@@ -44,6 +44,7 @@ const (
 	cmdTypeHideUserConversations                uint8 = 16
 	cmdTypeUpsertCMDConversationStates          uint8 = 17
 	cmdTypeAdvanceCMDConversationReadSeq        uint8 = 18
+	cmdTypeNoop                                 uint8 = 19
 	cmdTypeUpsertUserChannelMemberships         uint8 = 44
 	cmdTypeDeleteUserChannelMemberships         uint8 = 45
 	cmdTypeUpsertChannelLatest                  uint8 = 46
@@ -256,6 +257,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeHideUserConversations:                decodeHideUserConversations,
 	cmdTypeUpsertCMDConversationStates:          decodeUpsertCMDConversationStates,
 	cmdTypeAdvanceCMDConversationReadSeq:        decodeAdvanceCMDConversationReadSeq,
+	cmdTypeNoop:                                 decodeNoop,
 	cmdTypeUpsertUserChannelMemberships:         decodeUpsertUserChannelMemberships,
 	cmdTypeDeleteUserChannelMemberships:         decodeDeleteUserChannelMemberships,
 	cmdTypeUpsertChannelLatest:                  decodeUpsertChannelLatest,
@@ -278,6 +280,17 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeAbortChannelMigration:                decodeAbortChannelMigration,
 	cmdTypeGarbageCollectMigrationTasks:         decodeGarbageCollectMigrationTasks,
 	cmdTypeCreateChannelMigrationGuarded:        decodeCreateChannelMigrationTaskWithRuntimeGuard,
+}
+
+// --- Noop ---
+
+type noopCmd struct{}
+
+func (*noopCmd) apply(*metadb.WriteBatch, uint16) error { return nil }
+
+// EncodeNoopCommand encodes a side-effect-free Slot write probe command.
+func EncodeNoopCommand() []byte {
+	return []byte{commandVersion, cmdTypeNoop}
 }
 
 // --- UpsertUser ---
@@ -2155,6 +2168,18 @@ func decodeCommand(data []byte) (command, error) {
 		return nil, fmt.Errorf("%w: unknown command type %d", metadb.ErrInvalidArgument, cmdType)
 	}
 	return decoder(data[headerSize:])
+}
+
+func decodeNoop(data []byte) (command, error) {
+	off := 0
+	for off < len(data) {
+		_, _, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+	}
+	return &noopCmd{}, nil
 }
 
 func decodeUpsertUser(data []byte) (command, error) {

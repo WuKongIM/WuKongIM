@@ -116,6 +116,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=24",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=20",
+		"WK_CLUSTER_CHANNEL_RPC_WORKERS=18",
 		"WK_CLUSTER_MAX_CHANNELS=10000",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=1",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=500us",
@@ -207,6 +208,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.StoreApplyWorkers != 20 {
 		t.Fatalf("Channel.StoreApplyWorkers = %d, want 20", cfg.Cluster.Channel.StoreApplyWorkers)
+	}
+	if cfg.Cluster.Channel.RPCWorkers != 18 {
+		t.Fatalf("Channel.RPCWorkers = %d, want 18", cfg.Cluster.Channel.RPCWorkers)
 	}
 	if cfg.Cluster.Channel.MaxChannels != 10000 {
 		t.Fatalf("Channel.MaxChannels = %d, want 10000", cfg.Cluster.Channel.MaxChannels)
@@ -543,6 +547,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_CHANNEL_REACTOR_COUNT", "6")
 	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", "11")
 	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", "13")
+	t.Setenv("WK_CLUSTER_CHANNEL_RPC_WORKERS", "17")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", "2")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
@@ -611,8 +616,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Cluster.Channel.ReactorCount != 6 {
 		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Cluster.Channel.ReactorCount)
 	}
-	if cfg.Cluster.Channel.StoreAppendWorkers != 11 || cfg.Cluster.Channel.StoreApplyWorkers != 13 {
-		t.Fatalf("Channel store workers = append:%d apply:%d, want append:11 apply:13", cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers)
+	if cfg.Cluster.Channel.StoreAppendWorkers != 11 || cfg.Cluster.Channel.StoreApplyWorkers != 13 || cfg.Cluster.Channel.RPCWorkers != 17 {
+		t.Fatalf("Channel workers = append:%d apply:%d rpc:%d, want append:11 apply:13 rpc:17", cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers, cfg.Cluster.Channel.RPCWorkers)
 	}
 	if cfg.Cluster.Channel.AppendBatchMaxRecords != 2 {
 		t.Fatalf("Channel.AppendBatchMaxRecords = %d, want 2", cfg.Cluster.Channel.AppendBatchMaxRecords)
@@ -898,6 +903,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "store append workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"},
 		{name: "store apply workers", line: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"},
 		{name: "store apply workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"},
+		{name: "rpc workers", line: "WK_CLUSTER_CHANNEL_RPC_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_RPC_WORKERS"},
+		{name: "rpc workers negative", line: "WK_CLUSTER_CHANNEL_RPC_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_RPC_WORKERS"},
 		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=many", wantKey: "WK_CLUSTER_MAX_CHANNELS"},
 		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=many", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
 		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},

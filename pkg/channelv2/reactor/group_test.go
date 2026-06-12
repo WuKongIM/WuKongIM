@@ -230,11 +230,13 @@ func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
 		WorkerPools: worker.PoolsConfig{
 			StoreAppend: worker.PoolConfig{Workers: 7},
 			StoreApply:  worker.PoolConfig{Workers: 9},
+			RPC:         worker.PoolConfig{Workers: 11},
 		},
 	})
 
 	require.Equal(t, 7, pools.StoreAppend.Workers)
 	require.Equal(t, 9, pools.StoreApply.Workers)
+	require.Equal(t, 11, pools.RPC.Workers)
 }
 
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {

@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
@@ -118,7 +119,7 @@ func (r *Reactor) submitStoreClose(ctx context.Context, fence ch.Fence, cs store
 	})
 }
 
-func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.PullRequest) error {
+func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.Fence, req transport.PullRequest, timeout time.Duration) error {
 	if r.cfg.Pools == nil {
 		return ch.ErrInvalidConfig
 	}
@@ -126,7 +127,7 @@ func (r *Reactor) submitRPCPull(ctx context.Context, leader ch.NodeID, fence ch.
 		Kind:    worker.TaskRPCPull,
 		Fence:   fence,
 		Context: ctx,
-		RPCPull: &worker.RPCPullTask{Node: leader, Request: req},
+		RPCPull: &worker.RPCPullTask{Node: leader, Request: req, Timeout: timeout},
 	})
 }
 

@@ -35,6 +35,7 @@ type ChannelV2Metrics struct {
 	appendWaitStageDuration  *prometheus.HistogramVec
 	replicationStageDuration *prometheus.HistogramVec
 	workerTaskDuration       *prometheus.HistogramVec
+	workerTaskErrorTotal     *prometheus.CounterVec
 	workerBatchItems         *prometheus.HistogramVec
 	rpcPullTotal             *prometheus.CounterVec
 }
@@ -164,6 +165,11 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"kind", "result"}),
+		workerTaskErrorTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_worker_task_error_total",
+			Help:        "Total ChannelV2 worker task errors by kind and low-cardinality error class.",
+			ConstLabels: labels,
+		}, []string{"kind", "error"}),
 		workerBatchItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_worker_batch_items",
 			Help:        "Number of logical worker tasks coalesced into each ChannelV2 worker-side batch.",
@@ -201,6 +207,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.appendWaitStageDuration,
 		m.replicationStageDuration,
 		m.workerTaskDuration,
+		m.workerTaskErrorTotal,
 		m.workerBatchItems,
 		m.rpcPullTotal,
 	)
@@ -350,11 +357,18 @@ func (m *ChannelV2Metrics) ObserveReplicationStage(stage string, result string, 
 	m.replicationStageDuration.WithLabelValues(stage, result).Observe(d.Seconds())
 }
 
-func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d time.Duration) {
+func (m *ChannelV2Metrics) ObserveWorkerResult(kind string, result string, d time.Duration, errorClass ...string) {
 	if m == nil {
 		return
 	}
 	m.workerTaskDuration.WithLabelValues(kind, result).Observe(d.Seconds())
+	if result == "err" {
+		class := "other"
+		if len(errorClass) > 0 && errorClass[0] != "" {
+			class = errorClass[0]
+		}
+		m.workerTaskErrorTotal.WithLabelValues(kind, class).Inc()
+	}
 	if kind == "rpc_pull" {
 		m.rpcPullTotal.WithLabelValues(result).Inc()
 	}

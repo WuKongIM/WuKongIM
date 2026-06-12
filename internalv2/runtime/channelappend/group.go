@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,7 +19,9 @@ type Group struct {
 
 	runtimeCtx    context.Context
 	runtimeCancel context.CancelFunc
-	metrics       groupMetrics
+	// runtimeStopped is the hot-path stop signal checked by channel writers.
+	runtimeStopped atomic.Bool
+	metrics        groupMetrics
 
 	mu       sync.RWMutex
 	started  bool
@@ -62,6 +65,7 @@ func New(opts Options) *Group {
 		pool:       pool,
 		schedule:   group.schedule,
 		runtimeCtx: runtimeCtx,
+		stopped:    &group.runtimeStopped,
 		metrics:    metrics,
 	}
 	for i := range group.shards {
@@ -107,6 +111,7 @@ func (g *Group) Stop(ctx context.Context) error {
 		return nil
 	}
 	g.stopping = true
+	g.runtimeStopped.Store(true)
 	g.runtimeCancel()
 	g.mu.Unlock()
 

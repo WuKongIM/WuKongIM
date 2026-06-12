@@ -79,6 +79,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			ReactorCount:                  n.cfg.Channel.ReactorCount,
 			StoreAppendWorkers:            n.cfg.Channel.StoreAppendWorkers,
 			StoreApplyWorkers:             n.cfg.Channel.StoreApplyWorkers,
+			RPCWorkers:                    n.cfg.Channel.RPCWorkers,
 			MailboxSize:                   n.cfg.Channel.MailboxSize,
 			MaxChannels:                   n.cfg.Channel.MaxChannels,
 			AppendBatchMaxRecords:         n.cfg.Channel.AppendBatchMaxRecords,
