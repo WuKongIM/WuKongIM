@@ -182,12 +182,12 @@ func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
 	s.committed = append(s.committed, event)
 }
 
-func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
+func (s *channelState) nextCommitEffect(key string, out *commitEffect) bool {
 	if s.commitInflight {
-		return commitEffect{}, false
+		return false
 	}
 	if s.commitCursor >= len(s.committed) {
-		return commitEffect{}, false
+		return false
 	}
 	limit := commitBatchMaxEvents
 	backlog := s.commitBacklog()
@@ -195,22 +195,20 @@ func (s *channelState) nextCommitEffect(key string) (commitEffect, bool) {
 		limit = backlog
 	}
 	if limit <= 0 {
-		return commitEffect{}, false
+		return false
 	}
 	events := s.committed[s.commitCursor : s.commitCursor+limit]
 	s.commitAttempts++
-	effect := commitEffect{
-		key:             key,
-		seq:             s.nextCommitSeq,
-		attempt:         s.commitAttempts,
-		events:          events,
-		target:          s.target,
-		subscriberCache: s.subscriberCache,
-	}
+	out.key = key
+	out.seq = s.nextCommitSeq
+	out.attempt = s.commitAttempts
+	out.events = events
+	out.target = s.target
+	out.subscriberCache = s.subscriberCache
 	s.nextCommitSeq += uint64(limit)
 	s.commitInflight = true
 	s.commitInflightEvents = limit
-	return effect, true
+	return true
 }
 
 func (s *channelState) recordSubscriberCache(cache subscriberCache) {

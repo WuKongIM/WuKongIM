@@ -111,18 +111,20 @@ func (w *channelWriter) advance() {
 		w.advanceAppendOnly()
 		return
 	}
+	var appendEff appendEffect
+	var commitEff commitEffect
 	for {
 		w.mu.Lock()
 		w.drainInboxLocked()
-		appendEffect, hasAppend := w.nextAppendLocked()
-		commitEffect, hasCommit := w.nextCommitLocked()
+		hasAppend := w.nextAppendLocked(&appendEff)
+		hasCommit := w.nextCommitLocked(&commitEff)
 		w.mu.Unlock()
 
 		if hasAppend {
-			w.runAppend(appendEffect)
+			w.runAppend(&appendEff)
 		}
 		if hasCommit {
-			w.runCommit(commitEffect)
+			w.runCommit(&commitEff)
 		}
 		if !hasAppend && !hasCommit {
 			if w.deactivate() && w.tryActivate() {
@@ -134,14 +136,15 @@ func (w *channelWriter) advance() {
 }
 
 func (w *channelWriter) advanceAppendOnly() {
+	var appendEff appendEffect
 	for {
 		w.mu.Lock()
 		w.drainInboxLocked()
-		appendEffect, hasAppend := w.nextAppendLocked()
+		hasAppend := w.nextAppendLocked(&appendEff)
 		w.mu.Unlock()
 
 		if hasAppend {
-			w.runAppend(appendEffect)
+			w.runAppend(&appendEff)
 			continue
 		}
 		if w.deactivate() && w.tryActivate() {
@@ -203,20 +206,25 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 	})
 }
 
-func (w *channelWriter) nextAppendLocked() (appendEffect, bool) {
+func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
 	seq, items, ok := w.state.nextAppendBatch()
 	if !ok {
-		return appendEffect{}, false
+		return false
 	}
 	w.ports.metrics.addPendingAppendItems(-len(items))
 	w.ports.metrics.addAppendInflightItems(len(items))
 	w.ports.metrics.observePressure()
-	return appendEffect{target: w.state.target, key: w.key, seq: seq, items: items}, true
+	out.target = w.state.target
+	out.key = w.key
+	out.seq = seq
+	out.items = items
+	return true
 }
 
-func (w *channelWriter) runAppend(effect appendEffect) {
+func (w *channelWriter) runAppend(effect *appendEffect) {
+	snapshot := *effect
 	_ = w.ports.pool.submit(func() {
-		completion := effect.run(w.ports.runtimeCtx, w.ports.append)
+		completion := snapshot.run(w.ports.runtimeCtx, w.ports.append)
 		w.applyAppendCompletion(completion)
 		w.rescheduleIfNeeded()
 	})
@@ -262,19 +270,20 @@ func (w *channelWriter) dispatchAppendItemCompletion(completion appendItemComple
 	completion.item.future.completeItem(completion.item.Index, completion.result)
 }
 
-func (w *channelWriter) nextCommitLocked() (commitEffect, bool) {
+func (w *channelWriter) nextCommitLocked(out *commitEffect) bool {
 	if w.runtimeStopped() {
 		dropped := w.state.dropCommitBacklog()
 		w.ports.metrics.addPostCommitBacklog(-dropped)
 		w.ports.metrics.observePressure()
-		return commitEffect{}, false
+		return false
 	}
-	return w.state.nextCommitEffect(w.key)
+	return w.state.nextCommitEffect(w.key, out)
 }
 
-func (w *channelWriter) runCommit(effect commitEffect) {
+func (w *channelWriter) runCommit(effect *commitEffect) {
+	snapshot := *effect
 	_ = w.ports.pool.submit(func() {
-		completion := effect.run(w.ports.runtimeCtx, w.ports.commit)
+		completion := snapshot.run(w.ports.runtimeCtx, w.ports.commit)
 		w.applyCommitCompletion(completion)
 		w.rescheduleIfNeeded()
 	})

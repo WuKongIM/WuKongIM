@@ -117,7 +117,8 @@ func TestChannelStateCommitEffectSharesQueuedImmutablePayload(t *testing.T) {
 	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
 	state.enqueueCommitted(CommittedEnvelope{MessageID: 1, Payload: payload})
 
-	effect, ok := state.nextCommitEffect("2:room")
+	var effect commitEffect
+	ok := state.nextCommitEffect("2:room", &effect)
 	if !ok {
 		t.Fatalf("nextCommitEffect() ok = false, want true")
 	}
@@ -142,7 +143,8 @@ func TestChannelStateCommitEffectReusesReadySubscriberCache(t *testing.T) {
 	}
 	state.enqueueCommitted(CommittedEnvelope{MessageID: 1})
 
-	effect, ok := state.nextCommitEffect("2:room")
+	var effect commitEffect
+	ok := state.nextCommitEffect("2:room", &effect)
 	if !ok {
 		t.Fatalf("nextCommitEffect() ok = false, want true")
 	}
