@@ -85,20 +85,26 @@ type PoolConfig struct {
 	QueueSize int
 }
 
-// Pool runs blocking tasks with bounded concurrency and admission.
+// Pool runs blocking tasks with bounded admission and ants-backed execution.
 type Pool struct {
-	cfg          PoolConfig
-	deps         Deps
-	sink         CompletionSink
-	queue        chan queuedTask
-	stop         chan struct{}
-	ctx          context.Context
-	cancel       context.CancelFunc
-	obs          QueueObserver
+	cfg    PoolConfig
+	deps   Deps
+	sink   CompletionSink
+	queue  chan queuedTask
+	stop   chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	exec   *executor
+
+	obsMu sync.RWMutex
+	obs   QueueObserver
+
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
 	once         sync.Once
-	wg           sync.WaitGroup
+	closeErr     error
+	dispatchWG   sync.WaitGroup
+	taskWG       sync.WaitGroup
 }
 
 // NewPool starts a bounded worker pool.
@@ -106,12 +112,24 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	p := &Pool{cfg: cfg, deps: deps, sink: sink, queue: make(chan queuedTask, cfg.QueueSize), stop: make(chan struct{}), ctx: ctx, cancel: cancel, obs: noopQueueObserver{}}
-	p.wg.Add(cfg.Workers)
-	for i := 0; i < cfg.Workers; i++ {
-		go p.run()
+	exec, err := newExecutor(cfg.Workers)
+	if err != nil {
+		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &Pool{
+		cfg:    cfg,
+		deps:   deps,
+		sink:   sink,
+		queue:  make(chan queuedTask, cfg.QueueSize),
+		stop:   make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
+		exec:   exec,
+		obs:    noopQueueObserver{},
+	}
+	p.dispatchWG.Add(1)
+	go p.dispatch()
 	return p, nil
 }
 
@@ -123,10 +141,25 @@ func (p *Pool) SetQueueObserver(observer QueueObserver) {
 	if observer == nil {
 		observer = noopQueueObserver{}
 	}
+	p.obsMu.Lock()
 	p.obs = observer
+	p.obsMu.Unlock()
 	p.observeQueueCapacity()
 	p.observeWorkers()
 	p.observeQueueDepth()
+}
+
+func (p *Pool) observer() QueueObserver {
+	if p == nil {
+		return noopQueueObserver{}
+	}
+	p.obsMu.RLock()
+	observer := p.obs
+	p.obsMu.RUnlock()
+	if observer == nil {
+		return noopQueueObserver{}
+	}
+	return observer
 }
 
 // Submit enqueues task or returns a typed backpressure/closed error.
@@ -170,7 +203,7 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	}
 }
 
-// Close cancels running tasks and stops workers after they observe shutdown.
+// Close cancels running tasks, completes queued tasks as closed, and releases the executor.
 func (p *Pool) Close() error {
 	if p == nil {
 		return nil
@@ -178,9 +211,12 @@ func (p *Pool) Close() error {
 	p.once.Do(func() {
 		p.cancel()
 		close(p.stop)
+		p.dispatchWG.Wait()
+		p.completeQueuedClosed()
+		p.taskWG.Wait()
+		p.closeErr = p.exec.close()
 	})
-	p.wg.Wait()
-	return nil
+	return p.closeErr
 }
 
 // Name returns the configured pool name.
@@ -200,11 +236,11 @@ func (p *Pool) QueueDepth() int {
 }
 
 func (p *Pool) observeQueueDepth() {
-	p.obs.SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
+	p.observer().SetWorkerQueueDepth(p.cfg.Name, len(p.queue))
 }
 
 func (p *Pool) observeQueueCapacity() {
-	obs, ok := p.obs.(QueueCapacityObserver)
+	obs, ok := p.observer().(QueueCapacityObserver)
 	if !ok {
 		return
 	}
@@ -212,7 +248,7 @@ func (p *Pool) observeQueueCapacity() {
 }
 
 func (p *Pool) observeWorkers() {
-	obs, ok := p.obs.(QueueCapacityObserver)
+	obs, ok := p.observer().(QueueCapacityObserver)
 	if !ok {
 		return
 	}
@@ -220,7 +256,7 @@ func (p *Pool) observeWorkers() {
 }
 
 func (p *Pool) observeAdmission(result string) {
-	obs, ok := p.obs.(AdmissionObserver)
+	obs, ok := p.observer().(AdmissionObserver)
 	if !ok {
 		return
 	}
@@ -228,7 +264,7 @@ func (p *Pool) observeAdmission(result string) {
 }
 
 func (p *Pool) observeWait(kind TaskKind, d time.Duration) {
-	obs, ok := p.obs.(WaitObserver)
+	obs, ok := p.observer().(WaitObserver)
 	if !ok {
 		return
 	}
@@ -236,7 +272,7 @@ func (p *Pool) observeWait(kind TaskKind, d time.Duration) {
 }
 
 func (p *Pool) observeTask(kind TaskKind, err error, d time.Duration) {
-	obs, ok := p.obs.(TaskObserver)
+	obs, ok := p.observer().(TaskObserver)
 	if !ok {
 		return
 	}
@@ -244,7 +280,7 @@ func (p *Pool) observeTask(kind TaskKind, err error, d time.Duration) {
 }
 
 func (p *Pool) observeBatch(kind TaskKind, items int, err error) {
-	obs, ok := p.obs.(BatchObserver)
+	obs, ok := p.observer().(BatchObserver)
 	if !ok || items <= 0 {
 		return
 	}
@@ -252,7 +288,7 @@ func (p *Pool) observeBatch(kind TaskKind, items int, err error) {
 }
 
 func (p *Pool) observeInflight(inflight int) {
-	obs, ok := p.obs.(InflightObserver)
+	obs, ok := p.observer().(InflightObserver)
 	if !ok {
 		return
 	}
@@ -270,21 +306,6 @@ func (p *Pool) updateInflightPeak(inflight int) int {
 		}
 		if p.inflightPeak.CompareAndSwap(peak, value) {
 			return inflight
-		}
-	}
-}
-
-func (p *Pool) run() {
-	defer p.wg.Done()
-	for {
-		select {
-		case queued := <-p.queue:
-			p.observeQueueDepth()
-			for _, group := range p.taskGroups(queued) {
-				p.runTaskGroup(group)
-			}
-		case <-p.stop:
-			return
 		}
 	}
 }
