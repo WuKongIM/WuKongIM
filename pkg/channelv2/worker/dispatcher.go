@@ -34,7 +34,7 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 	for {
 		select {
 		case <-p.stop:
-			p.releaseQueuedSlots(len(group))
+			p.releaseQueuedSlotsAndObserve(len(group))
 			p.completeGroupWithErr(group, ch.ErrClosed)
 			return false
 		default:
@@ -43,10 +43,10 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 		p.taskWG.Add(1)
 		err := p.exec.submit(func() {
 			defer p.taskWG.Done()
-			p.runTaskGroupSafely(group)
+			p.runTaskGroup(group)
 		})
 		if err == nil {
-			p.releaseQueuedSlots(len(group))
+			p.releaseQueuedSlotsAndObserve(len(group))
 			return true
 		}
 		p.taskWG.Done()
@@ -55,16 +55,16 @@ func (p *Pool) submitGroup(group []queuedTask) bool {
 			if p.waitExecutorRetry() {
 				continue
 			}
-			p.releaseQueuedSlots(len(group))
+			p.releaseQueuedSlotsAndObserve(len(group))
 			p.completeGroupWithErr(group, ch.ErrClosed)
 			return false
 		}
 		if errors.Is(err, ch.ErrClosed) {
-			p.releaseQueuedSlots(len(group))
+			p.releaseQueuedSlotsAndObserve(len(group))
 			p.completeGroupWithErr(group, ch.ErrClosed)
 			return false
 		}
-		p.releaseQueuedSlots(len(group))
+		p.releaseQueuedSlotsAndObserve(len(group))
 		p.completeGroupWithErr(group, fmt.Errorf("channelv2 worker executor submit: %w", err))
 		return true
 	}
@@ -81,20 +81,11 @@ func (p *Pool) waitExecutorRetry() bool {
 	}
 }
 
-func (p *Pool) runTaskGroupSafely(group []queuedTask) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			p.completeGroupWithErr(group, fmt.Errorf("channelv2 worker panic: %v", recovered))
-		}
-	}()
-	p.runTaskGroup(group)
-}
-
 func (p *Pool) completeQueuedClosed() {
 	for {
 		select {
 		case queued := <-p.queue:
-			p.releaseQueuedSlots(1)
+			p.releaseQueuedSlotsAndObserve(1)
 			p.completeGroupWithErr([]queuedTask{queued}, ch.ErrClosed)
 		default:
 			p.observeQueueDepth()

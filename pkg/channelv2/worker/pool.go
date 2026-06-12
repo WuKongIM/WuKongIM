@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -100,6 +101,7 @@ type Pool struct {
 	obsMu sync.RWMutex
 	obs   QueueObserver
 
+	admissionMu  sync.RWMutex
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
 	once         sync.Once
@@ -189,6 +191,8 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		return ctx.Err()
 	default:
 	}
+	p.admissionMu.RLock()
+	defer p.admissionMu.RUnlock()
 	select {
 	case p.slots <- struct{}{}:
 	case <-p.stop:
@@ -229,7 +233,9 @@ func (p *Pool) Close() error {
 		p.cancel()
 		close(p.stop)
 		p.dispatchWG.Wait()
+		p.admissionMu.Lock()
 		p.completeQueuedClosed()
+		p.admissionMu.Unlock()
 		p.taskWG.Wait()
 		p.closeErr = p.exec.close()
 	})
@@ -264,6 +270,11 @@ func (p *Pool) releaseQueuedSlots(count int) {
 			return
 		}
 	}
+}
+
+func (p *Pool) releaseQueuedSlotsAndObserve(count int) {
+	p.releaseQueuedSlots(count)
+	p.observeQueueDepth()
 }
 
 func (p *Pool) observeQueueCapacity() {
@@ -501,7 +512,7 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	running := int(p.inflight.Add(1))
 	p.observeInflight(running)
 	started := time.Now()
-	results := p.runQueuedGroup(group)
+	results, _ := p.runQueuedGroupSafely(group)
 	duration := nonNegativeDuration(time.Since(started))
 	for i := range results {
 		results[i].Duration = duration
@@ -512,6 +523,20 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	for _, result := range results {
 		p.sink.Complete(result)
 	}
+}
+
+func (p *Pool) runQueuedGroupSafely(group []queuedTask) (results []Result, recovered bool) {
+	defer func() {
+		if value := recover(); value != nil {
+			recovered = true
+			err := fmt.Errorf("channelv2 worker panic: %v", value)
+			results = make([]Result, 0, len(group))
+			for _, queued := range group {
+				results = append(results, Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err})
+			}
+		}
+	}()
+	return p.runQueuedGroup(group), false
 }
 
 func (p *Pool) runQueuedGroup(group []queuedTask) []Result {
