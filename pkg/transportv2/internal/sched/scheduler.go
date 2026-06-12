@@ -48,6 +48,8 @@ type lane struct {
 	weight   int64
 	deficit  int64
 	queue    []Item
+	items    int
+	bytes    int64
 }
 
 // Scheduler is a byte-aware weighted priority queue.
@@ -158,6 +160,8 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 		if s.lanes[i].priority == item.Priority {
 			item.enqueuedAt = time.Now()
 			s.lanes[i].queue = append(s.lanes[i].queue, item)
+			s.lanes[i].items++
+			s.lanes[i].bytes += queueBytes(item)
 			s.queuedItems++
 			s.queuedBytes += int64(item.Bytes)
 			snapshot := s.snapshotQueueLocked()
@@ -256,6 +260,8 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 
 		l.queue[0] = Item{}
 		l.queue = l.queue[1:]
+		l.items--
+		l.bytes -= itemBytes
 		l.deficit -= itemCost
 		s.queuedItems--
 		s.queuedBytes -= itemBytes
@@ -490,6 +496,8 @@ func (s *Scheduler) drainLocked() []Item {
 		}
 		s.lanes[i].queue = nil
 		s.lanes[i].deficit = 0
+		s.lanes[i].items = 0
+		s.lanes[i].bytes = 0
 	}
 	s.queuedItems = 0
 	s.queuedBytes = 0

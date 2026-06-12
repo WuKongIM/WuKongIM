@@ -212,6 +212,42 @@ func findLastEventByPriority(events []core.Event, name, result string, priority 
 	return nil
 }
 
+func TestLaneCountersStayConsistent(t *testing.T) {
+	s := New(Config{
+		MaxItems:       64,
+		MaxBytes:       4096,
+		MaxBatchFrames: 4,
+		MaxBatchBytes:  256,
+	})
+	priorities := []core.Priority{
+		core.PriorityRaft, core.PriorityControl, core.PriorityRPC, core.PriorityBulk,
+	}
+	for round := 0; round < 50; round++ {
+		for i, p := range priorities {
+			_ = s.Enqueue(context.Background(), Item{Priority: p, Bytes: (i + 1) * 7, Value: round})
+		}
+		_ = s.NextBatch()
+		s.mu.Lock()
+		for li := range s.lanes {
+			l := &s.lanes[li]
+			wantItems := len(l.queue)
+			var wantBytes int64
+			for _, it := range l.queue {
+				wantBytes += queueBytes(it)
+			}
+			if l.items != wantItems {
+				s.mu.Unlock()
+				t.Fatalf("lane %d items = %d, want %d", li, l.items, wantItems)
+			}
+			if l.bytes != wantBytes {
+				s.mu.Unlock()
+				t.Fatalf("lane %d bytes = %d, want %d", li, l.bytes, wantBytes)
+			}
+		}
+		s.mu.Unlock()
+	}
+}
+
 func TestEnqueueRejectsInvalidPriority(t *testing.T) {
 	s := New(Config{})
 
