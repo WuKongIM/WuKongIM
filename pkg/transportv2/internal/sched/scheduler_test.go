@@ -248,6 +248,53 @@ func TestLaneCountersStayConsistent(t *testing.T) {
 	}
 }
 
+func TestConcurrentEnqueueAccountsAllItems(t *testing.T) {
+	observer := &recordingObserver{}
+	s := New(Config{
+		MaxItems:       100000,
+		MaxBytes:       1 << 30,
+		MaxBatchFrames: 64,
+		MaxBatchBytes:  1 << 20,
+		Observer:       observer,
+		SourceID:       5,
+	})
+
+	const goroutines, per = 16, 500
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < per; i++ {
+				if err := s.Enqueue(context.Background(), Item{
+					Priority: core.PriorityRaft, Bytes: 1, Value: i,
+				}); err != nil {
+					t.Errorf("Enqueue() error = %v", err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	s.mu.Lock()
+	gotItems := s.queuedItems
+	s.mu.Unlock()
+	if gotItems != goroutines*per {
+		t.Fatalf("queuedItems = %d, want %d", gotItems, goroutines*per)
+	}
+
+	okCount := 0
+	for _, e := range observer.snapshot() {
+		if e.Name == "scheduler_admission" && e.Result == "ok" {
+			okCount++
+		}
+	}
+	if okCount != goroutines*per {
+		t.Fatalf("scheduler_admission ok count = %d, want %d", okCount, goroutines*per)
+	}
+}
+
 func TestEnqueueRejectsInvalidPriority(t *testing.T) {
 	s := New(Config{})
 
