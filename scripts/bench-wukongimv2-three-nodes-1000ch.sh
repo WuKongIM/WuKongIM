@@ -985,6 +985,26 @@ runtime_pool_pressure_summary() {
   done
 }
 
+ants_pool_usage_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/ants_pool_usage_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/ants-pool-usage-summary.awk"
+  local addr id before after
+  local samples=()
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    [[ -f "$before" && -f "$after" ]] || continue
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      samples=()
+    fi
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" "${samples[@]}" >>"$out" || true
+  done
+}
+
 cluster_transport_peak_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -1036,6 +1056,7 @@ run_attempt() {
   channelv2_metrics_summary "$tag" "$duration"
   channelappend_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
+  ants_pool_usage_summary "$tag"
   cluster_transport_peak_summary "$tag"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
@@ -1206,9 +1227,8 @@ write_display_summary() {
     }
   ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
   append_server_resource_peak_display "$OUT_DIR/resources/server-process-summary.tsv" >>"$OUT_DIR/summary.txt"
-  append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
-  append_channelappend_pool_pressure_display "$OUT_DIR/channelappend_metrics_summary.tsv" >>"$OUT_DIR/summary.txt"
   append_cluster_transport_peak_display "$OUT_DIR/cluster_transport_peak_summary.tsv" >>"$OUT_DIR/summary.txt"
+  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
 append_server_resource_peak_display() {
@@ -1255,6 +1275,79 @@ append_server_resource_peak_display() {
       for (i = 1; i <= entries; i++) {
         printf "%-8s %7.0f %8s %9.3f %9.3f %12.3f %9.3f\n",
           node[i], samples[i], pid[i], avg_cpu[i], max_cpu[i], max_rss_kb[i] / 1024, max_mem[i]
+      }
+    }
+  ' "$file"
+}
+
+append_ants_pool_usage_display() {
+  local file="$1"
+  printf '\nANTS POOL USAGE\n'
+  printf '%s\n' '---------------'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    NR == 1 { next }
+    {
+      entries++
+      node = $2
+      remember_node(node)
+      pool = $3 "/" $4
+      running = $5 + 0
+      capacity = $6 + 0
+      waiting = $7 + 0
+      util = $8 + 0
+
+      row_node[entries] = node
+      row_pool[entries] = pool
+      row_running[entries] = running
+      row_capacity[entries] = capacity
+      row_waiting[entries] = waiting
+      row_util[entries] = util
+
+      pool_key = node "\034" pool
+      if (!(pool_key in seen_pool)) {
+        seen_pool[pool_key] = 1
+        pools_by_node[node]++
+      }
+      if (!(node in has_max) || util > max_util[node]) {
+        has_max[node] = 1
+        max_util[node] = util
+        max_pool[node] = pool
+        max_running[node] = running
+        max_capacity[node] = capacity
+        max_waiting[node] = waiting
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "none"
+        exit
+      }
+      printf "details=ants_pool_usage_summary.tsv\n"
+      for (n = 1; n <= node_count; n++) {
+        node = node_order[n]
+        printf "\nnode=%s pools=%.0f max_util=%.3f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          node, pools_by_node[node], max_util[node], max_pool[node],
+          max_running[node], max_capacity[node], max_waiting[node]
+        printf "  %-28s %12s %10s %8s\n", "pool", "used/cap", "util", "waiting"
+        for (i = 1; i <= entries; i++) {
+          if (row_node[i] != node) {
+            continue
+          }
+          printf "  %-28s %12s %10.3f %8.0f\n",
+            row_pool[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            row_waiting[i]
+        }
       }
     }
   ' "$file"
@@ -1525,6 +1618,88 @@ server_resource_peak_markdown() {
   ' "$file"
 }
 
+ants_pool_usage_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    NR == 1 { next }
+    {
+      entries++
+      node = $2
+      remember_node(node)
+      pool = $3 "/" $4
+      running = $5 + 0
+      capacity = $6 + 0
+      waiting = $7 + 0
+      util = $8 + 0
+
+      row_node[entries] = node
+      row_pool[entries] = pool
+      row_running[entries] = running
+      row_capacity[entries] = capacity
+      row_waiting[entries] = waiting
+      row_util[entries] = util
+
+      pool_key = node "\034" pool
+      if (!(pool_key in seen_pool)) {
+        seen_pool[pool_key] = 1
+        pools_by_node[node]++
+      }
+      if (!(node in has_max) || util > max_util[node]) {
+        has_max[node] = 1
+        max_util[node] = util
+        max_pool[node] = pool
+        max_running[node] = running
+        max_capacity[node] = capacity
+        max_waiting[node] = waiting
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      print "- details=ants_pool_usage_summary.tsv"
+      for (n = 1; n <= node_count; n++) {
+        node = node_order[n]
+        printf "- node=%s pools=%.0f max_util=%.3f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          node, pools_by_node[node], max_util[node], max_pool[node],
+          max_running[node], max_capacity[node], max_waiting[node]
+        for (i = 1; i <= entries; i++) {
+          if (row_node[i] != node) {
+            continue
+          }
+          printf "- node=%s pool=%s used/cap=%s util=%.3f waiting=%.0f\n",
+            row_node[i], row_pool[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            row_waiting[i]
+        }
+      }
+    }
+  ' "$file"
+}
+
+result_display_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk '
+    /^SERVER PROCESS PEAKS$/ || /^CLUSTER INTERNAL TRANSPORT PEAK$/ || /^ANTS POOL USAGE$/ || /^# ants pool usage$/ { exit }
+    { print }
+  ' "$file"
+}
+
 runtime_pool_pressure_markdown() {
   local file="$1"
   if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
@@ -1743,28 +1918,20 @@ print_summary() {
   log "evidence: $OUT_DIR"
   printf '  %-23s %s\n' "summary" "summary.tsv"
   printf '  %-23s %s\n' "summary_md" "summary.md"
-  printf '  %-23s %s\n' "rpc_pull" "rpc_pull_qps.tsv"
-  printf '  %-23s %s\n' "channelv2" "channelv2_metrics_summary.tsv"
-  printf '  %-23s %s\n' "channelappend" "channelappend_metrics_summary.tsv"
-  printf '  %-23s %s\n' "runtime_pool_metrics" "channelv2_metrics_summary.tsv (runtime_pool_* columns)"
-  printf '  %-23s %s\n' "runtime_pool_pressure" "runtime_pool_pressure_summary.tsv"
-  printf '  %-23s %s\n' "cluster_transport_peak" "cluster_transport_peak_summary.tsv"
-  printf '  %-23s %s\n' "resources" "resources/"
-  printf '  %-23s %s\n' "reports" "reports/"
-  printf '  %-23s %s\n' "metrics" "metrics/"
+  printf '  %-23s %s\n' "server_process" "resources/server-process-summary.tsv"
+  printf '  %-23s %s\n' "cluster_transport" "cluster_transport_peak_summary.tsv"
+  printf '  %-23s %s\n' "ants_pool_usage" "ants_pool_usage_summary.tsv"
 }
 
 write_evidence_summary() {
-  local best_line
+  local ants_pool_usage
+  local result_summary
   local server_resource_peaks
-  local runtime_pool_pressure
-  local channelappend_pool_pressure
   local cluster_transport_peak
-  best_line="$(grep '^best pass:' "$OUT_DIR/summary.txt" 2>/dev/null || true)"
+  result_summary="$(result_display_markdown "$OUT_DIR/summary.txt")"
   server_resource_peaks="$(server_resource_peak_markdown "$OUT_DIR/resources/server-process-summary.tsv")"
-  runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
-  channelappend_pool_pressure="$(channelappend_pool_pressure_markdown "$OUT_DIR/channelappend_metrics_summary.tsv")"
   cluster_transport_peak="$(cluster_transport_peak_markdown "$OUT_DIR/cluster_transport_peak_summary.tsv")"
+  ants_pool_usage="$(ants_pool_usage_markdown "$OUT_DIR/ants_pool_usage_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Bench Evidence
 
@@ -1778,37 +1945,24 @@ write_evidence_summary() {
 - clean_cluster: $CLEAN_CLUSTER
 
 ## Evidence
-- git: git.txt
-- env: env.txt
-- start_plan: start-plan.txt
-- config: config/
-- metrics: metrics/
-- pprof: pprof/
-- resources: resources/
-- logs: logs/
-- reports: reports/
-- rpc_pull: rpc_pull_qps.tsv
-- channelv2_metrics: channelv2_metrics_summary.tsv
-- channelappend_metrics: channelappend_metrics_summary.tsv
-- runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns
-- runtime_pool_pressure: runtime_pool_pressure_summary.tsv
-- cluster_transport_peak: cluster_transport_peak_summary.tsv
 - summary_tsv: summary.tsv
+- server_process: resources/server-process-summary.tsv
+- cluster_transport: cluster_transport_peak_summary.tsv
+- ants_pool_usage: ants_pool_usage_summary.tsv
 
 ## Result
-${best_line:-best pass: none}
+\`\`\`text
+${result_summary}
+\`\`\`
 
 ## Server Process Peaks
 ${server_resource_peaks}
 
-## Runtime Pool Pressure
-${runtime_pool_pressure}
-
-## ChannelAppend Pool Pressure
-${channelappend_pool_pressure}
-
 ## Cluster Internal Transport Peak
 ${cluster_transport_peak}
+
+## Ants Pool Usage
+${ants_pool_usage}
 EOF
 }
 
@@ -1838,6 +1992,9 @@ tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_
 EOF
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
+EOF
+  cat >"$OUT_DIR/ants_pool_usage_summary.tsv" <<'EOF'
+tag	node	component	pool	running	capacity	waiting	utilization_max
 EOF
   cat >"$OUT_DIR/cluster_transport_peak_summary.tsv" <<'EOF'
 tag	node	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq

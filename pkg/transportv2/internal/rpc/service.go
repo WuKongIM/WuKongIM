@@ -373,13 +373,20 @@ func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
 }
 
 func (s *Service) observeInflight(inflight int) {
-	s.observe(core.Event{
+	event := core.Event{
 		Name:      "service_inflight",
 		ServiceID: s.ID,
 		Result:    "ok",
 		Capacity:  s.opts.Concurrency,
 		Inflight:  inflight,
-	})
+	}
+	if s.executor != nil {
+		stats := s.executor.Stats()
+		event.PoolRunning = stats.Running
+		event.PoolCapacity = stats.Capacity
+		event.PoolWaiting = stats.Waiting
+	}
+	s.observe(event)
 }
 
 func (s *Service) observeTask(result string, payloadBytes int, duration time.Duration) {

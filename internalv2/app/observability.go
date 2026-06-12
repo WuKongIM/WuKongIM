@@ -641,6 +641,9 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 			o.metrics.RuntimePressure.SetPoolWorkers("transportv2", pool, event.Capacity)
 		}
 		o.metrics.RuntimePressure.SetPoolInflight("transportv2", pool, event.Inflight)
+		if event.PoolCapacity > 0 {
+			o.metrics.AntsPool.SetUsage("transportv2", "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
+		}
 	}
 }
 

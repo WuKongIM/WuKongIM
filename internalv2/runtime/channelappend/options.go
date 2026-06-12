@@ -141,6 +141,24 @@ type EffectPoolObserver interface {
 	ObserveChannelAppendEffectPool(EffectPoolObservation)
 }
 
+// AntsPoolObservation describes one direct ants/v2 pool occupancy sample.
+type AntsPoolObservation struct {
+	// Pool is the stable pool name within channelappend.
+	Pool string
+	// Running is the current number of executing workers.
+	Running int
+	// Capacity is the configured worker capacity.
+	Capacity int
+	// Waiting is the current number of blocked submitters.
+	Waiting int
+}
+
+// AntsPoolObserver receives direct ants/v2 pool occupancy samples.
+type AntsPoolObserver interface {
+	// ObserveChannelAppendAntsPool records one direct ants/v2 pool occupancy sample.
+	ObserveChannelAppendAntsPool(AntsPoolObservation)
+}
+
 // PostCommitFailureObservation describes one best-effort post-commit side-effect failure.
 type PostCommitFailureObservation struct {
 	// ChannelID is the committed message channel id.

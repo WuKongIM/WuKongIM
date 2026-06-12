@@ -491,6 +491,163 @@ EOF
   done
 }
 
+write_ants_pool_usage_summary() {
+  local out="$OUT_DIR/ants_pool_usage_summary.tsv"
+  local qps tag attempt_dir file line
+  cat >"$out" <<'EOF'
+offered_qps	attempt_dir	tag	node	component	pool	running	capacity	waiting	utilization_max
+EOF
+  for qps in "${QPS_VALUES[@]}"; do
+    tag="$(qps_tag "$qps")"
+    attempt_dir="$OUT_DIR/${tag}-qps"
+    file="$attempt_dir/ants_pool_usage_summary.tsv"
+    [[ -f "$file" ]] || continue
+    while IFS= read -r line; do
+      [[ "$line" == tag$'\t'* ]] && continue
+      [[ -n "$line" ]] || continue
+      printf '%s\t%s\t%s\n' "$qps" "$attempt_dir" "$line" >>"$out"
+    done <"$file"
+  done
+}
+
+append_ants_pool_usage_display() {
+  local file="$1"
+  printf '# ants pool usage\n'
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    NR == 1 { next }
+    {
+      entries++
+      offered = $1 + 0
+      node = $4
+      remember_node(node)
+      pool = $5 "/" $6
+      running = $7 + 0
+      capacity = $8 + 0
+      waiting = $9 + 0
+      util = $10 + 0
+
+      row_offered[entries] = offered
+      row_node[entries] = node
+      row_pool[entries] = pool
+      row_running[entries] = running
+      row_capacity[entries] = capacity
+      row_waiting[entries] = waiting
+      row_util[entries] = util
+
+      pool_key = node "\034" pool
+      if (!(pool_key in seen_pool)) {
+        seen_pool[pool_key] = 1
+        pools_by_node[node]++
+      }
+      if (!(node in has_max) || util > max_util[node]) {
+        has_max[node] = 1
+        max_util[node] = util
+        max_offered[node] = offered
+        max_pool[node] = pool
+        max_running[node] = running
+        max_capacity[node] = capacity
+        max_waiting[node] = waiting
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "none"
+        exit
+      }
+      printf "details=ants_pool_usage_summary.tsv\n"
+      for (n = 1; n <= node_count; n++) {
+        node = node_order[n]
+        printf "\nnode=%s pools=%.0f max_util=%.3f offered=%.0f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          node, pools_by_node[node], max_util[node], max_offered[node],
+          max_pool[node], max_running[node], max_capacity[node], max_waiting[node]
+        printf "  %-9s %-24s %12s %10s %8s\n", "offered", "pool", "used/cap", "util", "waiting"
+        for (i = 1; i <= entries; i++) {
+          if (row_node[i] != node) {
+            continue
+          }
+          printf "  %-9.0f %-24s %12s %10.3f %8.0f\n",
+            row_offered[i], row_pool[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            row_waiting[i]
+        }
+      }
+    }
+  ' "$file"
+}
+
+append_real_qps_result_display() {
+  local file="$1"
+  local p99_limit
+  p99_limit="$(duration_seconds "$STABLE_P99")"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf 'BENCH RESULT\n'
+    printf '%s\n' '------------'
+    printf 'none\n'
+    return
+  fi
+  awk -F'\t' -v p99_limit="$p99_limit" -v actual_min_ratio="$MIN_ACTUAL_RATIO" '
+    function attempt_rpc_qps(attempt_dir, file, line, parts, total) {
+      file = attempt_dir "/rpc_pull_qps.tsv"
+      total = 0
+      while ((getline line < file) > 0) {
+        split(line, parts, "\t")
+        if (parts[1] == "tag") {
+          continue
+        }
+        total += parts[4] + 0
+      }
+      close(file)
+      return total
+    }
+    BEGIN {
+      print "BENCH RESULT"
+      print "------------"
+      printf "p99 gate: <= %.0f ms | send_errors: 0\n", p99_limit * 1000
+      printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
+      printf "%9s %10s %7s %8s %8s %8s %8s %8s %12s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note"
+    }
+    NR == 1 { next }
+    {
+      offered = $2 + 0
+      attempt_dir = $3
+      actual = $7 + 0
+      ratio = $6 + 0
+      errors = $9 + 0
+      p95 = $13 + 0
+      p99 = $14 + 0
+      max = $15 + 0
+      result = $39
+      note = $40
+      rpc_qps = attempt_rpc_qps(attempt_dir)
+      if (result == "PASS" && actual > best_actual) {
+        best_actual = actual
+        best_offered = offered
+        best_p99 = p99
+        best_rpc = rpc_qps
+      }
+      printf "%9.0f %10.1f %7.3f %8s %8.0f %8.1f %8.1f %8.1f %12.1f %s\n", offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps, note
+    }
+    END {
+      print ""
+      if (best_actual > 0) {
+        printf "best pass: offered=%.0f actual=%.1f qps p99=%.1fms rpc_pull/s=%.1f\n", best_offered, best_actual, best_p99 * 1000, best_rpc
+      } else {
+        print "best pass: none"
+      }
+    }
+  ' "$file"
+}
+
 append_runtime_pool_pressure_display() {
   local file="$1"
   printf '\n# runtime pool pressure\n'
@@ -534,6 +691,91 @@ append_runtime_pool_pressure_display() {
       printf "entries=%.0f max_fill=%.3f max_inflight_util=%.3f full=%.0f busy=%.0f dirty=%.0f requeued=%.0f worst=%s details=runtime_pool_pressure_summary.tsv\n",
         entries, max_fill, max_inflight_util, full, busy, dirty, requeued, worst
     }
+  ' "$file"
+}
+
+ants_pool_usage_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]] || [[ "$(wc -l <"$file")" -le 1 ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk -F'\t' '
+    function remember_node(node) {
+      if (!(node in seen_node)) {
+        seen_node[node] = 1
+        node_order[++node_count] = node
+      }
+    }
+    NR == 1 { next }
+    {
+      entries++
+      offered = $1 + 0
+      node = $4
+      remember_node(node)
+      pool = $5 "/" $6
+      running = $7 + 0
+      capacity = $8 + 0
+      waiting = $9 + 0
+      util = $10 + 0
+
+      row_offered[entries] = offered
+      row_node[entries] = node
+      row_pool[entries] = pool
+      row_running[entries] = running
+      row_capacity[entries] = capacity
+      row_waiting[entries] = waiting
+      row_util[entries] = util
+
+      pool_key = node "\034" pool
+      if (!(pool_key in seen_pool)) {
+        seen_pool[pool_key] = 1
+        pools_by_node[node]++
+      }
+      if (!(node in has_max) || util > max_util[node]) {
+        has_max[node] = 1
+        max_util[node] = util
+        max_offered[node] = offered
+        max_pool[node] = pool
+        max_running[node] = running
+        max_capacity[node] = capacity
+        max_waiting[node] = waiting
+      }
+    }
+    END {
+      if (entries == 0) {
+        print "- none"
+        exit
+      }
+      print "- details=ants_pool_usage_summary.tsv"
+      for (n = 1; n <= node_count; n++) {
+        node = node_order[n]
+        printf "- node=%s pools=%.0f max_util=%.3f offered=%.0f pool=%s used/cap=%.0f/%.0f waiting=%.0f\n",
+          node, pools_by_node[node], max_util[node], max_offered[node],
+          max_pool[node], max_running[node], max_capacity[node], max_waiting[node]
+        for (i = 1; i <= entries; i++) {
+          if (row_node[i] != node) {
+            continue
+          }
+          printf "- offered=%.0f node=%s pool=%s used/cap=%s util=%.3f waiting=%.0f\n",
+            row_offered[i], row_node[i], row_pool[i],
+            sprintf("%.0f/%.0f", row_running[i], row_capacity[i]), row_util[i],
+            row_waiting[i]
+        }
+      }
+    }
+  ' "$file"
+}
+
+result_display_markdown() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    printf '%s\n' '- none'
+    return
+  fi
+  awk '
+    /^ANTS POOL USAGE$/ || /^# ants pool usage$/ { exit }
+    { print }
   ' "$file"
 }
 
@@ -665,41 +907,18 @@ append_attempt_summary() {
 }
 
 write_display_summary() {
+  write_ants_pool_usage_summary
   write_runtime_pool_pressure_summary
-  awk -F'\t' '
-    BEGIN {
-      print "# real qps result"
-      printf "%-9s %10s %8s %10s %8s %8s %9s %9s %9s %9s %9s %8s %8s %8s %8s %8s %s\n", "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "cw_err", "cw_busy", "cw_bp", "cw_mb", "cw_eff", "cw_wkr", "cw_eq", "cw_pc", "note"
-    }
-    NR == 1 { next }
-    {
-      offered = $2 + 0
-      actual = $7 + 0
-      ratio = $6 + 0
-      errors = $9 + 0
-      p95 = $13 + 0
-      p99 = $14 + 0
-      max = $15 + 0
-      cw_error = $27 + 0
-      cw_backpressured = $28 + 0
-      cw_busy = $29 + 0
-      cw_mailbox_fill = $33 + 0
-      cw_effect_fill = $34 + 0
-      cw_post_commit = $35 + 0
-      cw_worker_util = $37 + 0
-      cw_queue_fill = $38 + 0
-      result = $39
-      note = $40
-      printf "%-9.0f %10.1f %8.3f %10s %8.0f %8.1f %9.1f %9.1f %9.0f %9.0f %9.0f %8.3f %8.3f %8.3f %8.3f %8.0f %s\n",
-        offered, actual, ratio, result, errors, p99 * 1000, p95 * 1000, max * 1000, cw_error, cw_busy, cw_backpressured, cw_mailbox_fill, cw_effect_fill, cw_worker_util, cw_queue_fill, cw_post_commit, note
-    }
-  ' "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
-  append_runtime_pool_pressure_display "$OUT_DIR/runtime_pool_pressure_summary.tsv" >>"$OUT_DIR/summary.txt"
+  append_real_qps_result_display "$OUT_DIR/summary.tsv" >"$OUT_DIR/summary.txt"
+  printf '\n' >>"$OUT_DIR/summary.txt"
+  append_ants_pool_usage_display "$OUT_DIR/ants_pool_usage_summary.tsv" >>"$OUT_DIR/summary.txt"
 }
 
 write_markdown_summary() {
-  local runtime_pool_pressure
-  runtime_pool_pressure="$(runtime_pool_pressure_markdown "$OUT_DIR/runtime_pool_pressure_summary.tsv")"
+  local ants_pool_usage
+  local result_summary
+  result_summary="$(result_display_markdown "$OUT_DIR/summary.txt")"
+  ants_pool_usage="$(ants_pool_usage_markdown "$OUT_DIR/ants_pool_usage_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
 # Three-Node Real QPS Evidence
 
@@ -723,15 +942,15 @@ write_markdown_summary() {
 - env: env.txt
 - git: git.txt
 - attempt_dirs: one child directory per offered QPS value
-- runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns
-- runtime_pool_pressure: runtime_pool_pressure_summary.tsv
-- channelappend_metrics: each attempt's channelappend_metrics_summary.tsv, aggregated into summary.tsv
+- ants_pool_usage: ants_pool_usage_summary.tsv
 
 ## Result
-$(awk '/^# runtime pool pressure/ { exit } NR > 1 { print }' "$OUT_DIR/summary.txt" 2>/dev/null || true)
+\`\`\`text
+${result_summary}
+\`\`\`
 
-## Runtime Pool Pressure
-${runtime_pool_pressure}
+## Ants Pool Usage
+${ants_pool_usage}
 EOF
 }
 
@@ -792,7 +1011,7 @@ EOF
   cat "$OUT_DIR/summary.txt"
   log "details:"
   printf '  summary: %s\n' "$OUT_DIR/summary.tsv"
-  printf '  runtime_pool_pressure: %s\n' "$OUT_DIR/runtime_pool_pressure_summary.tsv"
+  printf '  ants_pool_usage: %s\n' "$OUT_DIR/ants_pool_usage_summary.tsv"
   printf '  attempts: %s\n' "$OUT_DIR"
 }
 

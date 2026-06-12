@@ -103,10 +103,13 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Duration:  time.Millisecond,
 	})
 	transportObserver.ObserveTransport(transportv2.Event{
-		Name:      "service_inflight",
-		ServiceID: 9,
-		Inflight:  2,
-		Capacity:  4,
+		Name:         "service_inflight",
+		ServiceID:    9,
+		Inflight:     2,
+		Capacity:     4,
+		PoolRunning:  3,
+		PoolCapacity: 8,
+		PoolWaiting:  1,
 	})
 	transportObserver.ObserveTransport(transportv2.Event{
 		Name:  "sent_bytes",
@@ -143,6 +146,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		"wukongim_runtime_pool_queue_depth",
 		"wukongim_runtime_pool_admission_total",
 		"wukongim_runtime_pool_task_duration_seconds",
+		"wukongim_ants_pool_running",
 	} {
 		family := requireAppMetricFamily(t, families, name)
 		if len(family.GetMetric()) == 0 {
@@ -292,6 +296,30 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	})
 	if got := transportServiceWorkers.GetGauge().GetValue(); got != 4 {
 		t.Fatalf("transportv2 service workers = %v, want 4", got)
+	}
+	antsRunning := requireAppMetricFamily(t, families, "wukongim_ants_pool_running")
+	transportServiceExecutor := findAppMetricByLabels(t, antsRunning, map[string]string{
+		"component": "transportv2",
+		"pool":      "service_executor",
+	})
+	if got := transportServiceExecutor.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("transportv2 service executor ants running = %v, want 3", got)
+	}
+	antsCapacity := requireAppMetricFamily(t, families, "wukongim_ants_pool_capacity")
+	transportServiceExecutorCapacity := findAppMetricByLabels(t, antsCapacity, map[string]string{
+		"component": "transportv2",
+		"pool":      "service_executor",
+	})
+	if got := transportServiceExecutorCapacity.GetGauge().GetValue(); got != 8 {
+		t.Fatalf("transportv2 service executor ants capacity = %v, want 8", got)
+	}
+	antsWaiting := requireAppMetricFamily(t, families, "wukongim_ants_pool_waiting")
+	transportServiceExecutorWaiting := findAppMetricByLabels(t, antsWaiting, map[string]string{
+		"component": "transportv2",
+		"pool":      "service_executor",
+	})
+	if got := transportServiceExecutorWaiting.GetGauge().GetValue(); got != 1 {
+		t.Fatalf("transportv2 service executor ants waiting = %v, want 1", got)
 	}
 	dbCommitWorkers := findAppMetricByLabels(t, workers, map[string]string{
 		"component": "db",

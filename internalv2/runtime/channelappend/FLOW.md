@@ -205,7 +205,10 @@ append in-flight, and post-commit backlog counters are updated by the writer as
 items move between queues. Shared pool observations report submit results and
 current running/capacity gauges for append and post-commit tasks. The writer
 pressure observer reports the local writer group aggregate rather than a
-per-channel event loop.
+per-channel event loop. When the observer supports ants pool samples, the group
+also emits direct ants/v2 running/capacity/waiting observations for the advance
+pool and the effect pool; benchmark scripts use these samples for the per-node
+peak `used/cap` ants pool summary.
 
 `Stop` cancels the runtime context passed to append and post-commit effects
 before waiting for writers to drain. Once cancellation is observed, writers do

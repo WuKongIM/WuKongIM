@@ -26,6 +26,7 @@ type Registry struct {
 	Delivery        *DeliveryMetrics
 	Diagnostics     *DiagnosticsMetrics
 	RuntimePressure *RuntimePressureMetrics
+	AntsPool        *AntsPoolMetrics
 }
 
 func New(nodeID uint64, nodeName string) *Registry {
@@ -53,6 +54,7 @@ func New(nodeID uint64, nodeName string) *Registry {
 		Delivery:        newDeliveryMetrics(registry, labels),
 		Diagnostics:     newDiagnosticsMetrics(registry, labels),
 		RuntimePressure: newRuntimePressureMetrics(registry, labels),
+		AntsPool:        newAntsPoolMetrics(registry, labels),
 	}
 }
 

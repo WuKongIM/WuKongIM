@@ -27,6 +27,7 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler pressure, ControllerV2 Raft step queue, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
@@ -114,8 +115,10 @@ recipient-authority target fanout per post-commit envelope. The lookup-shard cou
 sharding; shared workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
 observer maps aggregate writer pressure and shared pool submit/full/saturation observations into
-Prometheus, which the three-node bench script summarizes in
-`channelappend_metrics_summary.tsv`. Per-channel append ordering remains capped
+Prometheus, and also records direct ants/v2 occupancy for the channelappend
+advance/effect pools in the generic ants pool metrics. The three-node bench
+script summarizes these in `channelappend_metrics_summary.tsv` and
+`ants_pool_usage_summary.tsv`. Per-channel append ordering remains capped
 by the single-writer invariant even when different channels run through
 different shards or workers.
 The foreground SEND path waits only for channel-authority durable append;

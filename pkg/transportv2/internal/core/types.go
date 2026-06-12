@@ -89,6 +89,12 @@ type Event struct {
 	BytesCapacity int64
 	// Inflight is the currently running handler or pending RPC count associated with the event.
 	Inflight int
+	// PoolRunning is the current direct ants/v2 pool running count, when available.
+	PoolRunning int
+	// PoolCapacity is the configured direct ants/v2 pool capacity, when available.
+	PoolCapacity int
+	// PoolWaiting is the current direct ants/v2 pool waiting count, when available.
+	PoolWaiting int
 	// Duration is the elapsed time associated with the event.
 	Duration time.Duration
 }

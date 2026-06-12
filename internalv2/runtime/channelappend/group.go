@@ -191,6 +191,7 @@ func New(opts Options) *Group {
 			admissionUsed:     &group.admissionUsed,
 			admissionCapacity: group.admissionCapacity,
 			pool:              pool,
+			advancePool:       advancePool,
 		}
 		metrics = &group.metrics
 	}

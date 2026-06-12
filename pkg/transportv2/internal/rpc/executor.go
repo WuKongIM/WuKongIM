@@ -12,6 +12,16 @@ import (
 
 const serviceExecutorStopGrace = 100 * time.Millisecond
 
+// ExecutorStats captures direct ants/v2 pool occupancy.
+type ExecutorStats struct {
+	// Running is the current number of executing workers.
+	Running int
+	// Capacity is the configured pool capacity.
+	Capacity int
+	// Waiting is the current number of blocked submitters.
+	Waiting int
+}
+
 // Executor runs service tasks on a bounded ants worker pool.
 type Executor struct {
 	// mu protects pool tuning and capacity bookkeeping.
@@ -69,6 +79,23 @@ func (e *Executor) Tune(capacity int) {
 	}
 	e.pool.Tune(capacity)
 	e.capacity = capacity
+}
+
+// Stats returns current direct ants/v2 pool occupancy.
+func (e *Executor) Stats() ExecutorStats {
+	if e == nil {
+		return ExecutorStats{}
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	stats := ExecutorStats{Capacity: e.capacity}
+	if e.pool == nil {
+		return stats
+	}
+	stats.Running = e.pool.Running()
+	stats.Capacity = e.pool.Cap()
+	stats.Waiting = e.pool.Waiting()
+	return stats
 }
 
 // Submit schedules task execution on the service executor.

@@ -37,6 +37,11 @@ func (p *workerPool) capacity() int {
 	return p.pool.Cap()
 }
 
+// waiting reports the number of callers blocked waiting for a worker.
+func (p *workerPool) waiting() int {
+	return p.pool.Waiting()
+}
+
 func (p *workerPool) stop(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {

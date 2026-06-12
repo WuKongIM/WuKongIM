@@ -1196,6 +1196,54 @@ func TestRuntimePressureMetricsNilSafe(t *testing.T) {
 	m.ObserveTaskDuration("gateway", "async_auth", "auth", "ok", time.Millisecond)
 }
 
+func TestAntsPoolMetricsTrackPoolUsage(t *testing.T) {
+	reg := New(7, "node-7")
+
+	reg.AntsPool.SetUsage("channelappend", "effect", 6, 12, 1)
+	reg.AntsPool.SetUsage("", "", -1, -2, -3)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	running := requireMetricFamily(t, families, "wukongim_ants_pool_running")
+	require.Equal(t, float64(6), findMetricByLabels(t, running, map[string]string{
+		"node_id":   "7",
+		"node_name": "node-7",
+		"component": "channelappend",
+		"pool":      "effect",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, running, map[string]string{
+		"node_id":   "7",
+		"node_name": "node-7",
+		"component": "unknown",
+		"pool":      "unknown",
+	}).GetGauge().GetValue())
+
+	capacity := requireMetricFamily(t, families, "wukongim_ants_pool_capacity")
+	require.Equal(t, float64(12), findMetricByLabels(t, capacity, map[string]string{
+		"component": "channelappend",
+		"pool":      "effect",
+	}).GetGauge().GetValue())
+
+	waiting := requireMetricFamily(t, families, "wukongim_ants_pool_waiting")
+	require.Equal(t, float64(1), findMetricByLabels(t, waiting, map[string]string{
+		"component": "channelappend",
+		"pool":      "effect",
+	}).GetGauge().GetValue())
+
+	utilization := requireMetricFamily(t, families, "wukongim_ants_pool_utilization")
+	require.Equal(t, float64(0.5), findMetricByLabels(t, utilization, map[string]string{
+		"component": "channelappend",
+		"pool":      "effect",
+	}).GetGauge().GetValue())
+}
+
+func TestAntsPoolMetricsNilSafe(t *testing.T) {
+	var m *AntsPoolMetrics
+
+	m.SetUsage("channelappend", "effect", 1, 2, 3)
+}
+
 func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 	reg := New(11, "node-11")
 

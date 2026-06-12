@@ -314,7 +314,7 @@ func defaultChannelAppendAuthorityShardCount() int {
 }
 
 func defaultChannelAppendAdvancePoolSize() int {
-	return appMaxInt(4, runtime.GOMAXPROCS(0))
+	return 500
 }
 
 func defaultChannelAppendEffectPoolSize() int {
@@ -323,7 +323,7 @@ func defaultChannelAppendEffectPoolSize() int {
 }
 
 func defaultChannelAppendRecipientAuthorityDispatchConcurrency() int {
-	return 500
+	return 100
 }
 
 func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {

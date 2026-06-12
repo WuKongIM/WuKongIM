@@ -84,6 +84,9 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	if inflightStarted.Capacity != 1 {
 		t.Fatalf("service_inflight started capacity = %d, want worker concurrency 1", inflightStarted.Capacity)
 	}
+	if inflightStarted.PoolCapacity != 1 || inflightStarted.PoolRunning <= 0 || inflightStarted.PoolWaiting != 0 {
+		t.Fatalf("service_inflight started pool stats = %+v, want direct executor pool occupancy", *inflightStarted)
+	}
 
 	inflightDone := findInflight(events, 42, 0)
 	if inflightDone == nil {
@@ -91,6 +94,9 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	}
 	if inflightDone.Capacity != 1 {
 		t.Fatalf("service_inflight zero capacity = %d, want worker concurrency 1", inflightDone.Capacity)
+	}
+	if inflightDone.PoolCapacity != 1 || inflightDone.PoolWaiting != 0 {
+		t.Fatalf("service_inflight zero pool stats = %+v, want direct executor pool capacity", *inflightDone)
 	}
 
 	taskEvent := findEvent(events, "service_task", "ok")

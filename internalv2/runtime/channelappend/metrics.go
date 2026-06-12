@@ -9,6 +9,7 @@ type groupMetrics struct {
 	admissionUsed     *atomic.Int64
 	admissionCapacity int64
 	pool              *workerPool
+	advancePool       *workerPool
 
 	pendingAppendItems  atomic.Int64
 	appendInflightItems atomic.Int64
@@ -60,5 +61,23 @@ func (m *groupMetrics) observePressure() {
 		PendingAppendItems:  int(m.pendingAppendItems.Load()),
 		AppendInflightItems: int(m.appendInflightItems.Load()),
 		PostCommitBacklog:   int(m.postCommitBacklog.Load()),
+	})
+	antsObserver, ok := m.observer.(AntsPoolObserver)
+	if !ok || antsObserver == nil {
+		return
+	}
+	observeWorkerPool(antsObserver, "advance", m.advancePool)
+	observeWorkerPool(antsObserver, "effect", m.pool)
+}
+
+func observeWorkerPool(observer AntsPoolObserver, name string, pool *workerPool) {
+	if observer == nil || pool == nil {
+		return
+	}
+	observer.ObserveChannelAppendAntsPool(AntsPoolObservation{
+		Pool:     name,
+		Running:  pool.running(),
+		Capacity: pool.capacity(),
+		Waiting:  pool.waiting(),
 	})
 }

@@ -167,6 +167,13 @@ func (o deliveryMessageObserver) ObserveChannelAppendEffectPool(event channelapp
 	)
 }
 
+func (o deliveryMessageObserver) ObserveChannelAppendAntsPool(event channelappend.AntsPoolObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.AntsPool.SetUsage("channelappend", event.Pool, event.Running, event.Capacity, event.Waiting)
+}
+
 func (o deliveryMessageObserver) ObserveChannelAppendEffect(event channelappend.EffectObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return

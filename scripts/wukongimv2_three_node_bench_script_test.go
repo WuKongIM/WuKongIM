@@ -256,7 +256,8 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"channelv2_metrics_summary.tsv",
 		"runtime_pool_queue_depth_max",
 		"runtime_pool_admission_full_delta",
-		"- runtime_pool_metrics: channelv2_metrics_summary.tsv runtime_pool_* columns",
+		"- ants_pool_usage: ants_pool_usage_summary.tsv",
+		"ants_pool_usage_summary",
 		"runtime_pool_pressure_summary",
 		"runtime_pool_pressure_summary.tsv",
 		`RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"`,
@@ -347,7 +348,9 @@ func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		"runtime_pool_attempt_summary",
 		"runtime_pool_queue_fill_max",
 		"runtime_pool_admission_busy_delta",
-		"- runtime_pool_metrics: each attempt's channelv2_metrics_summary.tsv runtime_pool_* columns",
+		"write_ants_pool_usage_summary",
+		"# ants pool usage",
+		"ants_pool_usage_summary.tsv",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("real-qps script missing high-concurrency default %q", want)
@@ -394,37 +397,78 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
-		"0.700",
-		"# runtime pool pressure",
-		"entries=1",
-		"max_fill=0.700",
-		"full=3",
-		"busy=2",
-		"worst=offered=100",
-		"gateway",
-		"async_send",
-		"queue_backlog",
+		"BENCH RESULT",
+		"p99 gate: <= 400 ms | send_errors: 0",
+		"actual/offered gate: >= 0.95",
+		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
+		"# ants pool usage",
+		"node=node1",
+		"pools=3",
+		"transportv2/service_executor",
+		"3/4",
+		"channelappend/advance",
+		"1/2",
+		"channelappend/effect",
+		"4/8",
+		"details=ants_pool_usage_summary.tsv",
 	} {
 		if !strings.Contains(display, want) {
 			t.Fatalf("real-qps display summary missing %q:\n%s", want, display)
+		}
+	}
+	for _, unwanted := range []string{
+		"# runtime pool pressure",
+		"cw_err",
+		"entries=1 max_fill",
+		"gateway/async_send",
+		"gateway/async_auth",
+	} {
+		if strings.Contains(display, unwanted) {
+			t.Fatalf("real-qps display summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, display)
 		}
 	}
 	if strings.Contains(display, "component        pool") {
 		t.Fatalf("real-qps display summary should not print per-pool table rows:\n%s", display)
 	}
 
+	antsUsage := readFile(t, filepath.Join(outDir, "ants_pool_usage_summary.tsv"))
+	for _, want := range []string{
+		"offered_qps\tattempt_dir\ttag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
+	} {
+		if !strings.Contains(antsUsage, want) {
+			t.Fatalf("real-qps ants pool usage summary missing %q:\n%s", want, antsUsage)
+		}
+	}
+
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
-		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
-		"entries=1",
-		"max_fill=0.700",
-		"worst=offered=100",
-		"gateway",
-		"async_send",
-		"admission_full",
+		"## Result",
+		"p99 gate: <= 400 ms | send_errors: 0",
+		"actual/offered gate: >= 0.95",
+		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
+		"- ants_pool_usage: ants_pool_usage_summary.tsv",
+		"## Ants Pool Usage",
+		"node=node1",
+		"max_util=0.750",
+		"transportv2/service_executor",
+		"channelappend/advance",
+		"channelappend/effect",
 	} {
 		if !strings.Contains(topSummary, want) {
 			t.Fatalf("real-qps markdown summary missing %q:\n%s", want, topSummary)
+		}
+	}
+	for _, unwanted := range []string{
+		"## Runtime Pool Pressure",
+		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"admission_full",
+		"gateway/async_send",
+	} {
+		if strings.Contains(topSummary, unwanted) {
+			t.Fatalf("real-qps markdown summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, topSummary)
 		}
 	}
 	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
@@ -432,7 +476,7 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testing.T) {
+func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -512,63 +556,89 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsRuntimePoolPressureSummary(t *testi
 
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
-		"RUNTIME POOL PRESSURE",
-		"worst_node=127_0_0_1_5011",
-		"pressure_pools",
-		"hot_pools",
-		"max_qfill",
-		"127_0_0_1_5011",
-		"gateway",
-		"async_send",
-		"queue_backlog",
-		"admission_full",
-		"CHANNELWRITE POOL PRESSURE",
-		"details=channelappend_metrics_summary.tsv",
-		"route_block",
-		"effect_util",
-		"pool_full",
-		"127_0_0_1_5011",
-		"saturated",
-		"effect_pool_hot",
+		"BENCH RESULT",
+		"p99 gate: <= 400 ms | send_errors: 0",
+		"actual/offered gate: >= 0.90",
+		"best pass: none",
+		"SERVER PROCESS PEAKS",
+		"details=resources/server-process-summary.tsv",
 		"CLUSTER INTERNAL TRANSPORT PEAK",
-		"peak_node=127_0_0_1_",
-		"peak_internal_mib_s=",
-		"out_mib/s",
-		"in_mib/s",
-		"duplex_mib/s",
 		"details=cluster_transport_peak_summary.tsv",
+		"ANTS POOL USAGE",
+		"details=ants_pool_usage_summary.tsv",
+		"node=127_0_0_1_5011",
+		"pools=3",
+		"pool",
+		"used/cap",
+		"waiting",
+		"transportv2/service_executor",
+		"3/4",
+		"channelappend/advance",
+		"2/4",
+		"channelappend/effect",
+		"10/10",
 	} {
 		if !strings.Contains(display, want) {
-			t.Fatalf("display summary missing runtime pool pressure %q:\n%s", want, display)
+			t.Fatalf("display summary missing %q:\n%s", want, display)
+		}
+	}
+	for _, unwanted := range []string{
+		"RUNTIME POOL PRESSURE",
+		"CHANNELWRITE POOL PRESSURE",
+		"details=channelappend_metrics_summary.tsv",
+		"gateway/async_send",
+		"gateway/async_auth",
+	} {
+		if strings.Contains(display, unwanted) {
+			t.Fatalf("display summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, display)
 		}
 	}
 	if strings.Contains(display, "component        pool") {
 		t.Fatalf("display summary should not print per-pool table rows:\n%s", display)
 	}
 
+	antsUsage := readFile(t, filepath.Join(outDir, "ants_pool_usage_summary.tsv"))
+	for _, want := range []string{
+		"tag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
+		"000100\t127_0_0_1_5011\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"000100\t127_0_0_1_5011\tchannelappend\tadvance\t2\t4\t0\t0.500",
+		"000100\t127_0_0_1_5011\tchannelappend\teffect\t10\t10\t1\t1.000",
+	} {
+		if !strings.Contains(antsUsage, want) {
+			t.Fatalf("ants pool usage summary missing %q:\n%s", want, antsUsage)
+		}
+	}
+
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
-		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
-		"- cluster_transport_peak: cluster_transport_peak_summary.tsv",
-		"worst_node=127_0_0_1_5011",
-		"pressure_pools",
-		"hot_pools",
-		"max_qfill",
-		"gateway",
-		"async_send",
-		"admission_full",
-		"## ChannelAppend Pool Pressure",
-		"details=channelappend_metrics_summary.tsv",
-		"effect_util",
-		"pool_full",
-		"saturated=1",
+		"## Result",
+		"p99 gate: <= 400 ms | send_errors: 0",
+		"actual/offered gate: >= 0.90",
+		"best pass: none",
+		"- server_process: resources/server-process-summary.tsv",
+		"- cluster_transport: cluster_transport_peak_summary.tsv",
+		"- ants_pool_usage: ants_pool_usage_summary.tsv",
+		"## Server Process Peaks",
 		"## Cluster Internal Transport Peak",
-		"peak_node=127_0_0_1_",
-		"peak_internal_mib_s=",
-		"details=cluster_transport_peak_summary.tsv",
+		"## Ants Pool Usage",
+		"node=127_0_0_1_5011",
+		"max_util=1.000",
+		"transportv2/service_executor",
+		"channelappend/advance",
+		"channelappend/effect",
 	} {
 		if !strings.Contains(topSummary, want) {
-			t.Fatalf("markdown summary missing runtime pool pressure %q:\n%s", want, topSummary)
+			t.Fatalf("markdown summary missing %q:\n%s", want, topSummary)
+		}
+	}
+	for _, unwanted := range []string{
+		"## Runtime Pool Pressure",
+		"## ChannelAppend Pool Pressure",
+		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"details=channelappend_metrics_summary.tsv",
+	} {
+		if strings.Contains(topSummary, unwanted) {
+			t.Fatalf("markdown summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, topSummary)
 		}
 	}
 	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
@@ -641,23 +711,38 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 	for _, want := range []string{
 		"BENCH RESULT",
 		"actual/offered gate: >= 0.90",
-		"ratio",
+		"best pass: none",
 		"SERVER PROCESS PEAKS",
-		"peak_cpu=node2 25.000%",
-		"peak_rss=node3 337.576MiB",
 		"details=resources/server-process-summary.tsv",
+		"CLUSTER INTERNAL TRANSPORT PEAK",
+		"details=cluster_transport_peak_summary.tsv",
+		"ANTS POOL USAGE",
+		"none",
 	} {
 		if !strings.Contains(display, want) {
-			t.Fatalf("display summary missing server resource peak %q:\n%s", want, display)
+			t.Fatalf("display summary missing %q:\n%s", want, display)
 		}
 		if !strings.Contains(string(output), want) {
-			t.Fatalf("console output missing server resource peak %q:\n%s", want, output)
+			t.Fatalf("console output missing %q:\n%s", want, output)
+		}
+	}
+	for _, unwanted := range []string{
+		"RUNTIME POOL PRESSURE",
+		"CHANNELWRITE POOL PRESSURE",
+	} {
+		if strings.Contains(display, unwanted) {
+			t.Fatalf("display summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, display)
+		}
+		if strings.Contains(string(output), unwanted) {
+			t.Fatalf("console output should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, output)
 		}
 	}
 	for _, want := range []string{
 		"evidence: " + outDir,
 		"summary                 summary.tsv",
-		"resources               resources/",
+		"server_process          resources/server-process-summary.tsv",
+		"cluster_transport       cluster_transport_peak_summary.tsv",
+		"ants_pool_usage         ants_pool_usage_summary.tsv",
 	} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("console output missing compact evidence line %q:\n%s", want, output)
@@ -666,18 +751,29 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
-		"- resources: resources/",
 		"## Server Process Peaks",
-		"- peak_cpu: node2 25.000%",
-		"- peak_rss: node3 337.576MiB",
+		"details: resources/server-process-summary.tsv",
+		"## Cluster Internal Transport Peak",
+		"details=cluster_transport_peak_summary.tsv",
+		"- ants_pool_usage: ants_pool_usage_summary.tsv",
+		"## Ants Pool Usage",
+		"- none",
 	} {
 		if !strings.Contains(topSummary, want) {
-			t.Fatalf("markdown summary missing server resource peak %q:\n%s", want, topSummary)
+			t.Fatalf("markdown summary missing %q:\n%s", want, topSummary)
+		}
+	}
+	for _, unwanted := range []string{
+		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
+		"## Runtime Pool Pressure",
+	} {
+		if strings.Contains(topSummary, unwanted) {
+			t.Fatalf("markdown summary should hide runtime pressure, found %q:\n%s", unwanted, topSummary)
 		}
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptFailsWhenActualBelowNinetyPercentOffered(t *testing.T) {
+func TestWukongIMV2ThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -711,15 +807,24 @@ func TestWukongIMV2ThreeNodeBenchScriptFailsWhenActualBelowNinetyPercentOffered(
 		t.Fatalf("script failed: %v\n%s", err, output)
 	}
 
+	summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+	for _, want := range []string{
+		"010000\t10000\tpassed\t0\t1\t1\t0\t0\t0\t0.001\t0.002\t0.003\t0.004",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary tsv missing %q:\n%s", want, summary)
+		}
+	}
+
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
+		"BENCH RESULT",
 		"actual/offered gate: >= 0.90",
-		"FAIL",
-		"actual_ratio",
 		"best pass: none",
+		"ANTS POOL USAGE",
 	} {
 		if !strings.Contains(display, want) {
-			t.Fatalf("display summary missing %q:\n%s", want, display)
+			t.Fatalf("display summary should keep result and ants pool usage, missing %q:\n%s", want, display)
 		}
 	}
 }
@@ -1715,6 +1820,73 @@ func TestRuntimePoolPressureSummaryAwkReportsTimeoutAdmissions(t *testing.T) {
 	}
 }
 
+func TestAntsPoolUsageSummaryAwkReportsDedicatedAntsPoolsOnly(t *testing.T) {
+	root := repoRoot(t)
+	before := filepath.Join(t.TempDir(), "before.prom")
+	after := filepath.Join(t.TempDir(), "after.prom")
+	writeFile(t, before, `wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} 1
+`)
+	writeFile(t, after, `wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 7
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 10
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
+wukongim_channelappend_writer_pool_running{node_id="1",node_name="node-1"} 6
+wukongim_channelappend_writer_pool_capacity{node_id="1",node_name="node-1"} 12
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 3
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 4
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 2
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 0.750
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 1
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 2
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 4
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 8
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 1
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} 4
+ wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc",result="full"} 2
+`)
+	sample := filepath.Join(t.TempDir(), "sample.prom")
+	writeFile(t, sample, `wukongim_ants_pool_running{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 10
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 20
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 9
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 0.500
+`)
+
+	cmd := exec.Command("awk",
+		"-v", "tag=000100",
+		"-v", "node=node1",
+		"-f", filepath.Join(root, "scripts", "ants-pool-usage-summary.awk"),
+		before,
+		after,
+		sample,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ants pool usage awk failed: %v\n%s", err, output)
+	}
+	summary := string(output)
+	for _, want := range []string{
+		"000100\tnode1\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
+		"000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("ants pool usage awk missing %q:\n%s", want, summary)
+		}
+	}
+	for _, unwanted := range []string{
+		"gateway\tasync_send",
+		"gateway\tasync_auth",
+		"channelappend\twriter",
+		"effect_prepare",
+	} {
+		if strings.Contains(summary, unwanted) {
+			t.Fatalf("ants pool usage awk should exclude non-ants runtime pool %q:\n%s", unwanted, summary)
+		}
+	}
+}
+
 func writeFakeRealQPSBenchBase(t *testing.T, path string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -1753,6 +1925,12 @@ OUT
 cat >"$out_dir/runtime_pool_pressure_summary.tsv" <<'OUT'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 000100	node1	gateway	async_send	send	none	7	10	0.700	200	400	0.500	8	16	0.500	3	2	1	5	queue_backlog,admission_full
+OUT
+cat >"$out_dir/ants_pool_usage_summary.tsv" <<'OUT'
+tag	node	component	pool	running	capacity	waiting	utilization_max
+000100	node1	transportv2	service_executor	3	4	2	0.750
+000100	node1	channelappend	advance	1	2	0	0.500
+000100	node1	channelappend	effect	4	8	1	0.500
 OUT
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -1899,13 +2077,36 @@ wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="gate
 wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none"} 1024
 wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
 wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_send"} 16
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="gateway",pool="async_auth"} 2
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="gateway",pool="async_auth"} 16
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 2
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 8
+wukongim_runtime_pool_queue_bytes{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 80
+wukongim_runtime_pool_queue_bytes_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 160
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="transportv2",pool="service_9"} 3
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="transportv2",pool="service_9"} 4
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} $count
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc",result="full"} $count
+wukongim_channelappend_writer_pool_running{node_id="1",node_name="node-1"} 6
+wukongim_channelappend_writer_pool_capacity{node_id="1",node_name="node-1"} 12
 wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="submitted"} $((count * 2))
 wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="full"} $count
 wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="error"} 0
 wukongim_channelappend_effect_pool_inflight{node_id="1",node_name="node-1",stage="prepare"} 10
 wukongim_channelappend_effect_pool_capacity{node_id="1",node_name="node-1",stage="prepare"} 10
 wukongim_channelappend_effect_pool_saturated{node_id="1",node_name="node-1",stage="prepare"} 1
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 3
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 4
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 2
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transportv2",pool="service_executor"} 0.750
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 2
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 4
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0.500
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 10
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 10
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 1
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelappend",pool="effect"} 1
 wukongim_transport_sent_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_request"} $((count * 1048576))
 wukongim_transport_received_bytes_total{node_id="1",node_name="node-1",msg_type="rpc_response"} $((count * 524288))
 OUT
