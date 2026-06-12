@@ -73,33 +73,12 @@ func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFail
 		attempt: effect.attempt,
 		err:     fmt.Errorf("%w: %w", ErrCommitEffectFailed, err),
 		result:  errorClass(err),
-		event:   effect.event.Clone(),
+		event:   effect.event,
 		detail:  detail,
 	}
 }
 
 // postCommitFailureFromEvent maps a failed commit completion to its observation.
 func postCommitFailureFromEvent(event commitCompletedEvent) PostCommitFailureObservation {
-	return PostCommitFailureObservation{
-		ChannelID:             event.event.ChannelID,
-		ChannelType:           event.event.ChannelType,
-		MessageID:             event.event.MessageID,
-		MessageSeq:            event.event.MessageSeq,
-		Attempt:               event.attempt,
-		Result:                event.result,
-		Phase:                 event.detail.Phase,
-		UID:                   event.detail.UID,
-		UIDCount:              event.detail.UIDCount,
-		RecipientCount:        event.detail.RecipientCount,
-		TargetHashSlot:        event.detail.TargetHashSlot,
-		TargetSlotID:          event.detail.TargetSlotID,
-		TargetLeaderNodeID:    event.detail.TargetLeaderNodeID,
-		TargetRouteRevision:   event.detail.TargetRouteRevision,
-		TargetAuthorityEpoch:  event.detail.TargetAuthorityEpoch,
-		DispatchTargetCount:   event.detail.DispatchTargetCount,
-		DispatchBatchSize:     event.detail.DispatchBatchSize,
-		DispatchOwnerNodeID:   event.detail.DispatchOwnerNodeID,
-		DispatchOwnerRouteNum: event.detail.DispatchOwnerRouteNum,
-		Err:                   event.err,
-	}
+	return event.detail.toObservation(event.event, event.attempt, event.result, event.err)
 }

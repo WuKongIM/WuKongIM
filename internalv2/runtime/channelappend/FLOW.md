@@ -138,7 +138,8 @@ succeeds and is independent from `SENDACK` completion. A committed envelope
 remains pending only until one recipient delivery enqueue attempt completes.
 The committed envelope owns one payload copy when it enters the async
 post-commit backlog; later state and recipient dispatch steps pass that
-immutable envelope by reference until the delivery worker takes its queue copy.
+immutable envelope by reference through the delivery worker and owner-push
+planning. Concrete owner push adapters copy or serialize at their boundary.
 Success prunes the payload-bearing envelope from the backlog. Failure is logged
 through `PostCommitFailureObserver`, counted through effect metrics, and then
 the envelope is dropped without retry so one bad active-admission, recipient
@@ -194,17 +195,18 @@ accepted session for echo suppression, retries retryable owner pushes, and
 performs owner-local concrete session writes outside `channelState`.
 
 `RecipientDeliveryWorker` owns the bounded async queue for those delivery
-batches. Admission is open only between `Start` and `Stop`; closed admission
-returns `ErrRecipientDeliveryWorkerClosed`, and a full queue waits for capacity
-until the caller context expires. `Stop` closes admission first, then drains
-already accepted batches until the caller context expires. Processing failures
-are terminal best-effort delivery failures: they are observed through the same
-post-commit failure surface with the recipient authority target attached, and
-they are not returned to channelappend after the batch has been accepted. The
-worker also emits low-cardinality queue, admission, and process observations:
-queue depth/capacity, enqueue result/wait time, processing result/duration, and
-recipient batch size. These observations do not include UID, channel, or target
-labels.
+batches. The buffered queue is the admission backpressure primitive; there is
+no second slot semaphore. Admission is open only between `Start` and `Stop`;
+closed admission returns `ErrRecipientDeliveryWorkerClosed`, and a full queue
+waits for capacity until the caller context expires. `Stop` closes admission
+first, then drains already accepted batches until the caller context expires.
+Processing failures are terminal best-effort delivery failures: they are
+observed through the same post-commit failure surface with the recipient
+authority target attached, and they are not returned to channelappend after the
+batch has been accepted. The worker also emits low-cardinality queue, admission,
+and process observations: queue depth/capacity, enqueue result/wait time,
+processing result/duration, and recipient batch size. These observations do not
+include UID, channel, or target labels.
 
 ## Pressure Observability
 

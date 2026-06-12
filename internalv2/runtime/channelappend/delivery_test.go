@@ -166,6 +166,35 @@ func (p *recordingOwnerPusherForDeliveryTest) Push(_ context.Context, cmd PushCo
 	return PushResult{Accepted: append([]Route(nil), cmd.Routes...)}, nil
 }
 
+type payloadAliasOwnerPusherForDeliveryTest struct {
+	mu      sync.Mutex
+	payload []byte
+	calls   int
+	aliased bool
+}
+
+func (p *payloadAliasOwnerPusherForDeliveryTest) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	if len(p.payload) > 0 && len(cmd.Envelope.Payload) > 0 && &cmd.Envelope.Payload[0] == &p.payload[0] {
+		p.aliased = true
+	}
+	return PushResult{Accepted: append([]Route(nil), cmd.Routes...)}, nil
+}
+
+func (p *payloadAliasOwnerPusherForDeliveryTest) callCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
+}
+
+func (p *payloadAliasOwnerPusherForDeliveryTest) sawAlias() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.aliased
+}
+
 func (p *recordingOwnerPusherForDeliveryTest) callCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()

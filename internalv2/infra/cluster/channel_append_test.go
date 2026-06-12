@@ -29,7 +29,7 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 			SubscriberMutationVersion: 19,
 		},
 	}
-	client := NewChannelAppendClient(node, nil)
+	client := NewChannelAppendClient(node, nil, nil)
 
 	target, err := client.ResolveAppendAuthority(context.Background(), channelID)
 	if err != nil {
@@ -44,6 +44,50 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 	}
 }
 
+func TestChannelAppendClientCachesRecipientMetadata(t *testing.T) {
+	channelID := channelappend.ChannelID{ID: "room", Type: 2}
+	node := &channelAppendNodeForTest{
+		nodeID: 1,
+		meta: channelv2.Meta{
+			ID:          channelv2.ChannelID{ID: channelID.ID, Type: channelID.Type},
+			Key:         "2:room",
+			Leader:      3,
+			Epoch:       11,
+			LeaderEpoch: 7,
+		},
+		channel: metadb.Channel{
+			ChannelID:                 channelID.ID,
+			ChannelType:               int64(channelID.Type),
+			Large:                     1,
+			SubscriberMutationVersion: 19,
+		},
+	}
+	cache := NewChannelAppendMetadataCache()
+	client := NewChannelAppendClient(node, nil, cache)
+
+	first, err := client.ResolveAppendAuthority(context.Background(), channelID)
+	if err != nil {
+		t.Fatalf("first ResolveAppendAuthority() error = %v", err)
+	}
+	node.channel = metadb.Channel{
+		ChannelID:                 channelID.ID,
+		ChannelType:               int64(channelID.Type),
+		Large:                     0,
+		SubscriberMutationVersion: 20,
+	}
+	second, err := client.ResolveAppendAuthority(context.Background(), channelID)
+	if err != nil {
+		t.Fatalf("second ResolveAppendAuthority() error = %v", err)
+	}
+
+	if node.metadataCalls != 1 {
+		t.Fatalf("GetChannelMetadata calls = %d, want 1 cached lookup", node.metadataCalls)
+	}
+	if !first.Large || first.SubscriberMutationVersion != 19 || !second.Large || second.SubscriberMutationVersion != 19 {
+		t.Fatalf("targets = %#v %#v, want cached recipient metadata", first, second)
+	}
+}
+
 func TestChannelAppendClientAllowsMissingChannelMetadata(t *testing.T) {
 	channelID := channelappend.ChannelID{ID: "room", Type: 2}
 	client := NewChannelAppendClient(&channelAppendNodeForTest{
@@ -54,7 +98,7 @@ func TestChannelAppendClientAllowsMissingChannelMetadata(t *testing.T) {
 			Epoch:       11,
 			LeaderEpoch: 7,
 		},
-	}, nil)
+	}, nil, nil)
 
 	target, err := client.ResolveAppendAuthority(context.Background(), channelID)
 	if err != nil {
@@ -84,7 +128,7 @@ func TestChannelAppendClientMapsRouteErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewChannelAppendClient(&channelAppendNodeForTest{err: tc.err}, nil)
+			client := NewChannelAppendClient(&channelAppendNodeForTest{err: tc.err}, nil, nil)
 			_, err := client.ResolveAppendAuthority(context.Background(), channelappend.ChannelID{ID: "room", Type: 2})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("ResolveAppendAuthority() error = %v, want %v", err, tc.want)
@@ -102,7 +146,7 @@ func TestChannelAppendClientForwardsRemoteResultsWithoutInterpretation(t *testin
 		{Result: channelappend.SendResult{Reason: channelappend.ReasonUnsupported}},
 		{Err: channelappend.ErrStaleRoute},
 	}}
-	client := NewChannelAppendClient(&channelAppendNodeForTest{nodeID: 1}, remote)
+	client := NewChannelAppendClient(&channelAppendNodeForTest{nodeID: 1}, remote, nil)
 	items := []channelappend.SendBatchItem{
 		{Context: context.Background(), Command: channelappend.SendCommand{FromUID: "u1", ChannelID: "remote", ChannelType: 2}},
 		{Context: context.Background(), Command: channelappend.SendCommand{FromUID: "u2", ChannelID: "remote", ChannelType: 2}},
@@ -118,12 +162,13 @@ func TestChannelAppendClientForwardsRemoteResultsWithoutInterpretation(t *testin
 }
 
 type channelAppendNodeForTest struct {
-	nodeID  uint64
-	meta    channelv2.Meta
-	channel metadb.Channel
-	err     error
-	lastID  channelv2.ChannelID
-	calls   int
+	nodeID        uint64
+	meta          channelv2.Meta
+	channel       metadb.Channel
+	err           error
+	lastID        channelv2.ChannelID
+	calls         int
+	metadataCalls int
 }
 
 func (n *channelAppendNodeForTest) NodeID() uint64 {
@@ -140,6 +185,7 @@ func (n *channelAppendNodeForTest) ResolveChannelAppendAuthority(_ context.Conte
 }
 
 func (n *channelAppendNodeForTest) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
+	n.metadataCalls++
 	if n.err != nil {
 		return metadb.Channel{}, n.err
 	}

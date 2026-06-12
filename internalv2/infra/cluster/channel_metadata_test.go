@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 	node := &recordingChannelMetadataNode{}
-	store := NewChannelMetadataStore(node)
+	store := NewChannelMetadataStore(node, nil)
 
 	if err := store.UpsertChannelMemberships(context.Background(), "g1", 2, []string{"u1", "u2"}, 9, 123); err != nil {
 		t.Fatalf("UpsertChannelMemberships(): %v", err)
@@ -23,6 +24,33 @@ func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 	}
 	if got, want := node.membershipDeletes, []membershipDeleteNodeCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, updatedAt: 456}}; !equalMembershipDeleteNodeCalls(got, want) {
 		t.Fatalf("membership deletes = %#v, want %#v", got, want)
+	}
+}
+
+func TestChannelMetadataStoreRefreshesAppendMetadataCache(t *testing.T) {
+	node := &recordingChannelMetadataNode{}
+	cache := NewChannelAppendMetadataCache()
+	store := NewChannelMetadataStore(node, cache)
+
+	channel := metadb.Channel{
+		ChannelID:                 "g1",
+		ChannelType:               2,
+		Large:                     1,
+		SubscriberMutationVersion: 7,
+	}
+	if err := store.UpsertChannel(context.Background(), channel); err != nil {
+		t.Fatalf("UpsertChannel() error = %v", err)
+	}
+	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2})
+	if !ok || !metadata.Large || metadata.SubscriberMutationVersion != 7 {
+		t.Fatalf("metadata cache = %#v ok=%v, want large version 7", metadata, ok)
+	}
+
+	if err := store.DeleteChannel(context.Background(), "g1", 2); err != nil {
+		t.Fatalf("DeleteChannel() error = %v", err)
+	}
+	if metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2}); ok {
+		t.Fatalf("metadata cache = %#v ok=true, want deleted", metadata)
 	}
 }
 

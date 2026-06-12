@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 )
@@ -16,7 +17,17 @@ type channelAppendSubscriberMutationObserver struct {
 }
 
 func (o channelAppendSubscriberMutationObserver) ObserveSubscriberMutation(ctx context.Context, event channelusecase.SubscriberMutationEvent) {
-	if o.app == nil || o.app.channelAppends == nil {
+	if o.app == nil {
+		return
+	}
+	channelID := channelappend.ChannelID{
+		ID:   event.ChannelID,
+		Type: event.ChannelType,
+	}
+	if o.app.channelAppendMetadata != nil {
+		o.app.channelAppendMetadata.Store(channelID, clusterChannelAppendMetadata(event))
+	}
+	if o.app.channelAppends == nil {
 		return
 	}
 	if ctx == nil {
@@ -25,14 +36,18 @@ func (o channelAppendSubscriberMutationObserver) ObserveSubscriberMutation(ctx c
 	applyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), channelAppendSubscriberMutationTimeout)
 	defer cancel()
 	_ = o.app.channelAppends.ApplySubscriberMutation(applyCtx, channelappend.SubscriberMutationUpdate{
-		ChannelID: channelappend.ChannelID{
-			ID:   event.ChannelID,
-			Type: event.ChannelType,
-		},
+		ChannelID:                 channelID,
 		Large:                     event.Large,
 		SubscriberMutationVersion: event.SubscriberMutationVersion,
 		Reset:                     event.Reset,
 		AddedUIDs:                 append([]string(nil), event.AddedUIDs...),
 		RemovedUIDs:               append([]string(nil), event.RemovedUIDs...),
 	})
+}
+
+func clusterChannelAppendMetadata(event channelusecase.SubscriberMutationEvent) clusterinfra.ChannelAppendMetadata {
+	return clusterinfra.ChannelAppendMetadata{
+		Large:                     event.Large,
+		SubscriberMutationVersion: event.SubscriberMutationVersion,
+	}
 }

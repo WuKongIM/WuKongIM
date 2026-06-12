@@ -5,7 +5,9 @@ import (
 	"reflect"
 	"testing"
 
+	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
+	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
 
@@ -38,6 +40,26 @@ func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets = %#v, want %#v", got, want)
+	}
+}
+
+func TestChannelAppendSubscriberMutationObserverRefreshesMetadataCache(t *testing.T) {
+	cache := clusterinfra.NewChannelAppendMetadataCache()
+	app := &App{channelAppendMetadata: cache}
+	observer := channelAppendSubscriberMutationObserver{app: app}
+
+	observer.ObserveSubscriberMutation(context.Background(), channelusecase.SubscriberMutationEvent{
+		ChannelKey: channelusecase.ChannelKey{
+			ChannelID:   "g1",
+			ChannelType: 2,
+		},
+		Large:                     true,
+		SubscriberMutationVersion: 7,
+	})
+
+	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "g1", Type: 2})
+	if !ok || !metadata.Large || metadata.SubscriberMutationVersion != 7 {
+		t.Fatalf("metadata cache = %#v ok=%v, want large version 7", metadata, ok)
 	}
 }
 

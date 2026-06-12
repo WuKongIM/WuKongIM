@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -24,14 +25,15 @@ type ChannelMembershipNode interface {
 
 // ChannelMetadataStore adapts clusterv2 Slot metadata to the entry-agnostic channel usecase.
 type ChannelMetadataStore struct {
-	node           ChannelMetadataNode
-	membershipNode ChannelMembershipNode
+	node                ChannelMetadataNode
+	membershipNode      ChannelMembershipNode
+	appendMetadataCache *ChannelAppendMetadataCache
 }
 
 // NewChannelMetadataStore creates a clusterv2-backed channel metadata store.
-func NewChannelMetadataStore(node ChannelMetadataNode) *ChannelMetadataStore {
+func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *ChannelAppendMetadataCache) *ChannelMetadataStore {
 	membershipNode, _ := node.(ChannelMembershipNode)
-	return &ChannelMetadataStore{node: node, membershipNode: membershipNode}
+	return &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}
 }
 
 // GetChannel reads channel metadata from the current Slot route.
@@ -47,7 +49,11 @@ func (s *ChannelMetadataStore) UpsertChannel(ctx context.Context, ch metadb.Chan
 	if s == nil || s.node == nil {
 		return metadb.ErrNotFound
 	}
-	return s.node.UpsertChannelMetadata(ctx, ch)
+	if err := s.node.UpsertChannelMetadata(ctx, ch); err != nil {
+		return err
+	}
+	s.appendMetadataCache.storeChannel(ch)
+	return nil
 }
 
 // DeleteChannel removes channel metadata through Slot ownership.
@@ -55,7 +61,11 @@ func (s *ChannelMetadataStore) DeleteChannel(ctx context.Context, channelID stri
 	if s == nil || s.node == nil {
 		return metadb.ErrNotFound
 	}
-	return s.node.DeleteChannelMetadata(ctx, channelID, channelType)
+	if err := s.node.DeleteChannelMetadata(ctx, channelID, channelType); err != nil {
+		return err
+	}
+	s.appendMetadataCache.Delete(channelappend.ChannelID{ID: channelID, Type: uint8(channelType)})
+	return nil
 }
 
 // AddChannelSubscribers appends channel subscribers through Slot ownership.

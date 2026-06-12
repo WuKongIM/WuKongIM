@@ -81,3 +81,47 @@ func postCommitTargetDetail(target RecipientAuthorityTarget) PostCommitFailureDe
 		TargetAuthorityEpoch: target.AuthorityEpoch,
 	}
 }
+
+func (d PostCommitFailureDetail) withFallback(fallback PostCommitFailureDetail) PostCommitFailureDetail {
+	if d.TargetHashSlot == 0 {
+		d.TargetHashSlot = fallback.TargetHashSlot
+	}
+	if d.TargetSlotID == 0 {
+		d.TargetSlotID = fallback.TargetSlotID
+	}
+	if d.TargetLeaderNodeID == 0 {
+		d.TargetLeaderNodeID = fallback.TargetLeaderNodeID
+	}
+	if d.TargetRouteRevision == 0 {
+		d.TargetRouteRevision = fallback.TargetRouteRevision
+	}
+	if d.TargetAuthorityEpoch == 0 {
+		d.TargetAuthorityEpoch = fallback.TargetAuthorityEpoch
+	}
+	return d
+}
+
+func (d PostCommitFailureDetail) toObservation(event CommittedEnvelope, attempt int, result string, err error) PostCommitFailureObservation {
+	return PostCommitFailureObservation{
+		ChannelID:             event.ChannelID,
+		ChannelType:           event.ChannelType,
+		MessageID:             event.MessageID,
+		MessageSeq:            event.MessageSeq,
+		Attempt:               attempt,
+		Result:                result,
+		Phase:                 d.Phase,
+		UID:                   d.UID,
+		UIDCount:              d.UIDCount,
+		RecipientCount:        d.RecipientCount,
+		TargetHashSlot:        d.TargetHashSlot,
+		TargetSlotID:          d.TargetSlotID,
+		TargetLeaderNodeID:    d.TargetLeaderNodeID,
+		TargetRouteRevision:   d.TargetRouteRevision,
+		TargetAuthorityEpoch:  d.TargetAuthorityEpoch,
+		DispatchTargetCount:   d.DispatchTargetCount,
+		DispatchBatchSize:     d.DispatchBatchSize,
+		DispatchOwnerNodeID:   d.DispatchOwnerNodeID,
+		DispatchOwnerRouteNum: d.DispatchOwnerRouteNum,
+		Err:                   err,
+	}
+}

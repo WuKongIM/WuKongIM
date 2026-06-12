@@ -175,7 +175,6 @@ func channelAppendTestTarget() channelappend.AuthorityTarget {
 		LeaderNodeID:              3,
 		Epoch:                     4,
 		LeaderEpoch:               5,
-		RouteRevision:             6,
 		Large:                     true,
 		SubscriberMutationVersion: 7,
 	}

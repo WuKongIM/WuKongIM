@@ -53,6 +53,36 @@ func TestRecipientDeliveryWorkerProcessesAcceptedBatches(t *testing.T) {
 	waitDeliveryWorkerCondition(t, func() bool { return pusher.callCount() == 1 })
 }
 
+func TestRecipientDeliveryWorkerSharesImmutableEnvelopeWithOwnerPush(t *testing.T) {
+	payload := []byte("payload")
+	pusher := &payloadAliasOwnerPusherForDeliveryTest{payload: payload}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		Processor: NewRecipientProcessor(RecipientProcessorOptions{
+			PresenceResolver: &recordingPresenceResolverForDeliveryTest{routes: []Route{{UID: "u1", OwnerNodeID: 1, SessionID: 10}}},
+			OwnerPusher:      pusher,
+		}),
+		QueueSize: 2,
+		Workers:   1,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = worker.Stop(context.Background()) })
+
+	batch := RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 1, Payload: payload},
+		Recipients: []Recipient{{UID: "u1"}},
+	}
+	if err := worker.EnqueueRecipientBatch(context.Background(), recipientAuthorityTargetForTest(1, 1, 1), batch); err != nil {
+		t.Fatalf("EnqueueRecipientBatch() error = %v", err)
+	}
+
+	waitDeliveryWorkerCondition(t, func() bool { return pusher.callCount() == 1 })
+	if !pusher.sawAlias() {
+		t.Fatalf("owner push envelope payload did not share immutable committed envelope payload")
+	}
+}
+
 func TestRecipientDeliveryWorkerFullQueueReturnsContextError(t *testing.T) {
 	blocker := newBlockingPresenceResolverForDeliveryWorkerTest()
 	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
@@ -221,6 +251,35 @@ func TestRecipientDeliveryWorkerObservesProcessingFailures(t *testing.T) {
 	if got.MessageID != 10 || got.MessageSeq != 4 || got.Phase != "presence_resolve" || got.UID != "u1" ||
 		got.TargetHashSlot != target.HashSlot || got.TargetLeaderNodeID != target.LeaderNodeID {
 		t.Fatalf("post-commit failure observation = %#v, want presence failure with target detail", got)
+	}
+}
+
+func TestPostCommitFailureDetailBuildsObservationWithFallback(t *testing.T) {
+	event := CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2}
+	detail := PostCommitFailureDetail{
+		Phase:               "owner_push",
+		UID:                 "u1",
+		RecipientCount:      2,
+		DispatchBatchSize:   2,
+		DispatchOwnerNodeID: 7,
+	}
+	fallback := PostCommitFailureDetail{
+		TargetHashSlot:       8,
+		TargetSlotID:         4,
+		TargetLeaderNodeID:   3,
+		TargetRouteRevision:  99,
+		TargetAuthorityEpoch: 100,
+	}
+	err := errors.New("push failed")
+
+	got := detail.withFallback(fallback).toObservation(event, 5, "error", err)
+
+	if got.ChannelID != "g1" || got.ChannelType != 2 || got.MessageID != 10 || got.MessageSeq != 4 ||
+		got.Attempt != 5 || got.Result != "error" || got.Phase != "owner_push" || got.UID != "u1" ||
+		got.RecipientCount != 2 || got.DispatchBatchSize != 2 || got.DispatchOwnerNodeID != 7 ||
+		got.TargetHashSlot != 8 || got.TargetSlotID != 4 || got.TargetLeaderNodeID != 3 ||
+		got.TargetRouteRevision != 99 || got.TargetAuthorityEpoch != 100 || got.Err != err {
+		t.Fatalf("observation = %#v, want detail mapped with fallback", got)
 	}
 }
 

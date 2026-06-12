@@ -29,16 +29,17 @@ type ChannelAppendRemoteForwarder interface {
 
 // ChannelAppendClient adapts clusterv2 channel authority resolution to channelappend ports.
 type ChannelAppendClient struct {
-	node   ChannelAppendAuthorityNode
-	remote ChannelAppendRemoteForwarder
+	node     ChannelAppendAuthorityNode
+	remote   ChannelAppendRemoteForwarder
+	metadata *ChannelAppendMetadataCache
 }
 
 var _ channelappend.AuthorityResolver = (*ChannelAppendClient)(nil)
 var _ channelappend.RemoteForwarder = (*ChannelAppendClient)(nil)
 
 // NewChannelAppendClient creates a clusterv2-backed channel append client.
-func NewChannelAppendClient(node ChannelAppendAuthorityNode, remote ChannelAppendRemoteForwarder) *ChannelAppendClient {
-	return &ChannelAppendClient{node: node, remote: remote}
+func NewChannelAppendClient(node ChannelAppendAuthorityNode, remote ChannelAppendRemoteForwarder, metadata *ChannelAppendMetadataCache) *ChannelAppendClient {
+	return &ChannelAppendClient{node: node, remote: remote, metadata: metadata}
 }
 
 // ResolveAppendAuthority maps ChannelV2 metadata to a channelappend authority target.
@@ -60,15 +61,28 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 	if target.ChannelID != id {
 		return channelappend.AuthorityTarget{}, channelappend.ErrStaleRoute
 	}
+	if metadata, ok := c.metadata.Lookup(id); ok {
+		applyChannelAppendMetadata(&target, metadata)
+		return target, nil
+	}
 	channel, err := c.node.GetChannelMetadata(ctx, id.ID, int64(id.Type))
 	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
 		return channelappend.AuthorityTarget{}, mapChannelAppendRouteError(err)
 	}
 	if err == nil {
-		target.Large = channel.Large != 0
-		target.SubscriberMutationVersion = channel.SubscriberMutationVersion
+		metadata := ChannelAppendMetadata{
+			Large:                     channel.Large != 0,
+			SubscriberMutationVersion: channel.SubscriberMutationVersion,
+		}
+		applyChannelAppendMetadata(&target, metadata)
+		c.metadata.Store(id, metadata)
 	}
 	return target, nil
+}
+
+func applyChannelAppendMetadata(target *channelappend.AuthorityTarget, metadata ChannelAppendMetadata) {
+	target.Large = metadata.Large
+	target.SubscriberMutationVersion = metadata.SubscriberMutationVersion
 }
 
 // ForwardSendBatch forwards items to a remote channel authority without interpreting results.
@@ -84,12 +98,11 @@ func (c *ChannelAppendClient) ForwardSendBatch(ctx context.Context, target chann
 
 func channelAppendTargetFromMeta(meta channelv2.Meta) channelappend.AuthorityTarget {
 	return channelappend.AuthorityTarget{
-		ChannelID:     channelappend.ChannelID{ID: meta.ID.ID, Type: meta.ID.Type},
-		ChannelKey:    string(meta.Key),
-		LeaderNodeID:  uint64(meta.Leader),
-		Epoch:         meta.Epoch,
-		LeaderEpoch:   meta.LeaderEpoch,
-		RouteRevision: 0,
+		ChannelID:    channelappend.ChannelID{ID: meta.ID.ID, Type: meta.ID.Type},
+		ChannelKey:   string(meta.Key),
+		LeaderNodeID: uint64(meta.Leader),
+		Epoch:        meta.Epoch,
+		LeaderEpoch:  meta.LeaderEpoch,
 	}
 }
 

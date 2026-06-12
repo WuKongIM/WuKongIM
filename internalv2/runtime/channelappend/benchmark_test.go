@@ -320,11 +320,10 @@ func newBenchmarkChannelAppendGroup(b *testing.B, opts Options) *Group {
 
 func benchmarkAuthorityTarget(channelID string) AuthorityTarget {
 	target := AuthorityTarget{
-		ChannelID:     ChannelID{ID: channelID, Type: 2},
-		LeaderNodeID:  1,
-		Epoch:         1,
-		LeaderEpoch:   1,
-		RouteRevision: 1,
+		ChannelID:    ChannelID{ID: channelID, Type: 2},
+		LeaderNodeID: 1,
+		Epoch:        1,
+		LeaderEpoch:  1,
 	}
 	target.ChannelKey = channelKey(target.ChannelID)
 	return target

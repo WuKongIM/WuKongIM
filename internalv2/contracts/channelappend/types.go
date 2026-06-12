@@ -55,8 +55,6 @@ type AuthorityTarget struct {
 	Epoch uint64
 	// LeaderEpoch fences authority leadership changes.
 	LeaderEpoch uint64
-	// RouteRevision is the routing-table revision used to resolve this target.
-	RouteRevision uint64
 	// Large reports whether the channel should use paged subscriber fanout.
 	Large bool
 	// SubscriberMutationVersion identifies the subscriber-list version used for recipient cache invalidation.
@@ -283,7 +281,7 @@ type CommittedEnvelope struct {
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp used for conversation ordering.
 	ServerTimestampMS int64
-	// Payload is a copy of the committed payload.
+	// Payload is the writer-owned post-commit payload copy. Delivery paths treat it as immutable.
 	Payload []byte
 	// RedDot carries the client red-dot flag for delivery side effects.
 	RedDot bool
@@ -371,7 +369,7 @@ type Route struct {
 type PushCommand struct {
 	// OwnerNodeID is the recipient owner node that should accept the push.
 	OwnerNodeID uint64
-	// Envelope is an independent copy of the message being pushed.
+	// Envelope is the immutable committed message being pushed.
 	Envelope CommittedEnvelope
 	// Routes are the recipient endpoints owned by OwnerNodeID.
 	Routes []Route

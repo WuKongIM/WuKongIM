@@ -39,7 +39,6 @@ type RecipientDeliveryWorkerOptions struct {
 type RecipientDeliveryWorker struct {
 	processor *RecipientProcessor
 	queue     chan recipientDeliveryCommand
-	slots     chan struct{}
 	workers   int
 	observer  AppendObserver
 
@@ -67,14 +66,9 @@ func NewRecipientDeliveryWorker(opts RecipientDeliveryWorkerOptions) *RecipientD
 	if workers <= 0 {
 		workers = defaultRecipientDeliveryWorkers
 	}
-	slots := make(chan struct{}, queueSize)
-	for i := 0; i < queueSize; i++ {
-		slots <- struct{}{}
-	}
 	return &RecipientDeliveryWorker{
 		processor: opts.Processor,
 		queue:     make(chan recipientDeliveryCommand, queueSize),
-		slots:     slots,
 		workers:   workers,
 		observer:  opts.Observer,
 		state:     recipientDeliveryWorkerClosed,
@@ -162,95 +156,34 @@ func (w *RecipientDeliveryWorker) EnqueueRecipientBatch(ctx context.Context, tar
 		admissionResult = recipientDeliveryAdmissionResultFromError(err)
 		return err
 	}
-	cmd := recipientDeliveryCommand{target: target, batch: batch.Clone()}
-
-	for {
-		w.mu.Lock()
-		if w.state != recipientDeliveryWorkerOpen {
-			w.mu.Unlock()
-			admissionResult = recipientDeliveryResultClosed
-			return ErrRecipientDeliveryWorkerClosed
-		}
-		queue := w.queue
-		slots := w.slots
-		acceptDone := w.acceptDone
-		select {
-		case <-acceptDone:
-			w.mu.Unlock()
-			admissionResult = recipientDeliveryResultClosed
-			return ErrRecipientDeliveryWorkerClosed
-		default:
-		}
-		select {
-		case <-slots:
-			if err := w.enqueueWithSlotLocked(queue, acceptDone, cmd); err != nil {
-				w.mu.Unlock()
-				w.releaseSlot()
-				if errors.Is(err, ErrRecipientDeliveryWorkerClosed) {
-					admissionResult = recipientDeliveryResultClosed
-					return err
-				}
-				continue
-			}
-			w.mu.Unlock()
-			w.observeQueue()
-			return nil
-		default:
-		}
+	cmd := recipientDeliveryCommand{target: target, batch: batch}
+	w.mu.Lock()
+	if w.state != recipientDeliveryWorkerOpen {
 		w.mu.Unlock()
-
-		select {
-		case <-slots:
-			w.mu.Lock()
-			if w.state != recipientDeliveryWorkerOpen || w.acceptDone != acceptDone {
-				w.mu.Unlock()
-				w.releaseSlot()
-				admissionResult = recipientDeliveryResultClosed
-				return ErrRecipientDeliveryWorkerClosed
-			}
-			if err := w.enqueueWithSlotLocked(w.queue, acceptDone, cmd); err != nil {
-				w.mu.Unlock()
-				w.releaseSlot()
-				if errors.Is(err, ErrRecipientDeliveryWorkerClosed) {
-					admissionResult = recipientDeliveryResultClosed
-					return err
-				}
-				continue
-			}
-			w.mu.Unlock()
-			w.observeQueue()
-			return nil
-		case <-acceptDone:
-			admissionResult = recipientDeliveryResultClosed
-			return ErrRecipientDeliveryWorkerClosed
-		case <-ctx.Done():
-			admissionResult = recipientDeliveryAdmissionResultFromError(ctx.Err())
-			return ctx.Err()
-		}
-	}
-}
-
-func (w *RecipientDeliveryWorker) enqueueWithSlotLocked(queue chan recipientDeliveryCommand, acceptDone <-chan struct{}, cmd recipientDeliveryCommand) error {
-	select {
-	case <-acceptDone:
+		admissionResult = recipientDeliveryResultClosed
 		return ErrRecipientDeliveryWorkerClosed
-	default:
 	}
+	queue := w.queue
+	acceptDone := w.acceptDone
+	w.mu.Unlock()
+
 	select {
 	case queue <- cmd:
+		w.observeQueue()
 		return nil
-	default:
-		return errRecipientDeliverySlotMismatch
+	case <-acceptDone:
+		admissionResult = recipientDeliveryResultClosed
+		return ErrRecipientDeliveryWorkerClosed
+	case <-ctx.Done():
+		admissionResult = recipientDeliveryAdmissionResultFromError(ctx.Err())
+		return ctx.Err()
 	}
 }
-
-var errRecipientDeliverySlotMismatch = errors.New("internalv2/channelappend: recipient delivery slot mismatch")
 
 func (w *RecipientDeliveryWorker) runWorker(acceptDone <-chan struct{}) {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.releaseSlot()
 			w.observeQueue()
 			w.runCommand(cmd)
 		case <-acceptDone:
@@ -264,7 +197,6 @@ func (w *RecipientDeliveryWorker) drain() {
 	for {
 		select {
 		case cmd := <-w.queue:
-			w.releaseSlot()
 			w.observeQueue()
 			w.runCommand(cmd)
 		default:
@@ -290,7 +222,7 @@ func (w *RecipientDeliveryWorker) runCommand(cmd recipientDeliveryCommand) {
 	if w.processor == nil {
 		return
 	}
-	if err := w.processor.ProcessRecipientBatch(context.Background(), cmd.batch.Clone()); err != nil {
+	if err := w.processor.ProcessRecipientBatch(context.Background(), cmd.batch); err != nil {
 		result = recipientDeliveryResultError
 		w.observeProcessingFailure(cmd, err)
 	}
@@ -343,50 +275,8 @@ func (w *RecipientDeliveryWorker) observeProcessingFailure(cmd recipientDelivery
 	if detail.Phase == "" {
 		detail.Phase = "recipient_delivery"
 	}
-	targetDetail := postCommitTargetDetail(cmd.target)
-	if detail.TargetHashSlot == 0 {
-		detail.TargetHashSlot = targetDetail.TargetHashSlot
-	}
-	if detail.TargetSlotID == 0 {
-		detail.TargetSlotID = targetDetail.TargetSlotID
-	}
-	if detail.TargetLeaderNodeID == 0 {
-		detail.TargetLeaderNodeID = targetDetail.TargetLeaderNodeID
-	}
-	if detail.TargetRouteRevision == 0 {
-		detail.TargetRouteRevision = targetDetail.TargetRouteRevision
-	}
-	if detail.TargetAuthorityEpoch == 0 {
-		detail.TargetAuthorityEpoch = targetDetail.TargetAuthorityEpoch
-	}
-	observePostCommitFailure(w.observer, PostCommitFailureObservation{
-		ChannelID:             cmd.batch.Event.ChannelID,
-		ChannelType:           cmd.batch.Event.ChannelType,
-		MessageID:             cmd.batch.Event.MessageID,
-		MessageSeq:            cmd.batch.Event.MessageSeq,
-		Result:                errorClass(err),
-		Phase:                 detail.Phase,
-		UID:                   detail.UID,
-		UIDCount:              detail.UIDCount,
-		RecipientCount:        detail.RecipientCount,
-		TargetHashSlot:        detail.TargetHashSlot,
-		TargetSlotID:          detail.TargetSlotID,
-		TargetLeaderNodeID:    detail.TargetLeaderNodeID,
-		TargetRouteRevision:   detail.TargetRouteRevision,
-		TargetAuthorityEpoch:  detail.TargetAuthorityEpoch,
-		DispatchTargetCount:   detail.DispatchTargetCount,
-		DispatchBatchSize:     detail.DispatchBatchSize,
-		DispatchOwnerNodeID:   detail.DispatchOwnerNodeID,
-		DispatchOwnerRouteNum: detail.DispatchOwnerRouteNum,
-		Err:                   err,
-	})
-}
-
-func (w *RecipientDeliveryWorker) releaseSlot() {
-	select {
-	case w.slots <- struct{}{}:
-	default:
-	}
+	detail = detail.withFallback(postCommitTargetDetail(cmd.target))
+	observePostCommitFailure(w.observer, detail.toObservation(cmd.batch.Event, 0, errorClass(err), err))
 }
 
 func (w *RecipientDeliveryWorker) waitClosed(ctx context.Context, done <-chan struct{}) error {

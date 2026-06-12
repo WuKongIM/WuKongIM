@@ -82,6 +82,10 @@ subscriber mutation version into the required clusterv2 facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
+When configured with `ChannelAppendMetadataCache`, successful channel metadata
+upserts refresh append fanout metadata and deletes remove cached entries; final
+subscriber mutation versions are still refreshed by the channel usecase
+mutation observer after subscriber changes commit.
 
 ## Conversation Read Flow
 
@@ -180,9 +184,12 @@ conversation route sentinels before the list retry decision.
 clusterv2. It resolves canonical channel append authority through the narrow
 `Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
 ChannelV2 service so metadata creation policy remains in `pkg/clusterv2/channels`.
-It then reads durable channel metadata to attach the large-channel flag and
-subscriber mutation version used by channelappend recipient fanout. The adapter
-maps `channelv2.Meta` and channel metadata to `channelappend.AuthorityTarget`
+It attaches the large-channel flag and subscriber mutation version from a shared
+`ChannelAppendMetadataCache` when present; cache misses read durable channel
+metadata once and populate the cache. Subscriber mutation observers refresh the
+same cache, so hot channels avoid a foreground Slot metadata lookup on every
+SEND while still seeing low-churn fanout metadata changes. The adapter maps
+`channelv2.Meta` and recipient fanout metadata to `channelappend.AuthorityTarget`
 with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
 `LeaderEpoch`, `Large`, and `SubscriberMutationVersion`.
 
@@ -192,7 +199,8 @@ channelappend.Router
        -> clusterv2.Node.ResolveChannelAppendAuthority
        -> channels.Service.ResolveAppendAuthority
        -> ChannelMetaEnsurer.EnsureChannelMeta when append would create metadata
-       -> clusterv2.Node.GetChannelMetadata for recipient fanout metadata
+       -> ChannelAppendMetadataCache hit: attach fanout metadata
+       -> cache miss: clusterv2.Node.GetChannelMetadata and cache metadata
   -> local authority: channelappend.Group.SubmitLocal
   -> remote authority: ChannelAppendClient.ForwardSendBatch
        -> injected ChannelAppendRemoteForwarder

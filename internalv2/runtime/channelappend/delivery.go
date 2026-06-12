@@ -86,7 +86,7 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 		ownerRoutes := grouped[ownerNodeID]
 		if err := pushOwnerRoutesWithRetry(ctx, ports, PushCommand{
 			OwnerNodeID: ownerNodeID,
-			Envelope:    batch.Event.Clone(),
+			Envelope:    batch.Event,
 			Routes:      ownerRoutes,
 		}); err != nil {
 			detail := postCommitBatchDetail("owner_push", batch)
@@ -173,7 +173,7 @@ func pushOwnerRoutesWithRetry(ctx context.Context, ports recipientPorts, cmd Pus
 		if err := contextErr(ctx); err != nil {
 			return err
 		}
-		result, err := ports.pusher.Push(ctx, cmd.Clone())
+		result, err := ports.pusher.Push(ctx, cmd)
 		if err != nil {
 			if attempt == attempts {
 				return err

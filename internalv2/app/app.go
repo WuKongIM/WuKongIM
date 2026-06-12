@@ -72,6 +72,7 @@ type App struct {
 	channelAppends              *channelappend.Group
 	channelAppendRouter         *channelappend.Router
 	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
+	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
 	channels                    *channelusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App

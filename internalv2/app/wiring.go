@@ -140,7 +140,8 @@ func (a *App) wireDeliveryMetadata() {
 func (a *App) wireChannels() {
 	if a.channels == nil {
 		if node, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
-			store := clusterinfra.NewChannelMetadataStore(node)
+			metadata := a.ensureChannelAppendMetadataCache()
+			store := clusterinfra.NewChannelMetadataStore(node, metadata)
 			channelOptions := channelusecase.Options{
 				Store:                         store,
 				LargeGroupSubscriberThreshold: a.cfg.Channel.LargeGroupSubscriberThreshold,
@@ -273,7 +274,7 @@ func (a *App) wireUsers() {
 			userStore := clusterinfra.NewUserMetadataStore(node)
 			var systemUIDs userusecase.SystemUIDStore
 			if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
-				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode)
+				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode, nil)
 			}
 			a.users = userusecase.New(userusecase.Options{
 				Users:        userStore,
@@ -372,6 +373,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ChannelAppendAuthorityNode)
 		if hasAppendNode && hasAuthorityNode {
+			metadata := a.ensureChannelAppendMetadataCache()
 			messageIDs, err := newNodeMessageIDs(nodeID)
 			if err != nil {
 				return fmt.Errorf("internalv2/app: create message id generator: %w", err)
@@ -429,7 +431,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
 				remote = accessnode.NewClient(rpcNode)
 			}
-			client := clusterinfra.NewChannelAppendClient(authorityNode, remote)
+			client := clusterinfra.NewChannelAppendClient(authorityNode, remote, metadata)
 			router := channelappend.NewRouter(channelappend.RouterOptions{
 				LocalNodeID:        nodeID,
 				Resolver:           client,
@@ -451,6 +453,13 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 		}
 	}
 	return nil
+}
+
+func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMetadataCache {
+	if a.channelAppendMetadata == nil {
+		a.channelAppendMetadata = clusterinfra.NewChannelAppendMetadataCache()
+	}
+	return a.channelAppendMetadata
 }
 
 func (a *App) channelAppendOwnerPusher(nodeID uint64) channelappend.OwnerPusher {
