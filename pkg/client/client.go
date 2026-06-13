@@ -21,6 +21,7 @@ type Client struct {
 	mu         sync.Mutex
 	conn       net.Conn
 	closed     bool
+	writeCh    chan writeRequest
 	readerDone chan struct{}
 	writerDone chan struct{}
 }
@@ -36,9 +37,10 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		cfg:    cfg,
-		proto:  codec.New(),
-		crypto: crypto,
+		cfg:     cfg,
+		proto:   codec.New(),
+		crypto:  crypto,
+		writeCh: make(chan writeRequest, cfg.SendQueueCapacity),
 	}, nil
 }
 
@@ -144,8 +146,20 @@ func (c *Client) Close() error {
 func (c *Client) startLoops() {
 	c.readerDone = make(chan struct{})
 	c.writerDone = make(chan struct{})
-	close(c.readerDone)
-	close(c.writerDone)
+	go func() {
+		defer close(c.writerDone)
+		c.writerLoop()
+	}()
+	go func() {
+		defer close(c.readerDone)
+		c.readerLoop()
+	}()
+}
+
+func (c *Client) writerLoop() {
+}
+
+func (c *Client) readerLoop() {
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
