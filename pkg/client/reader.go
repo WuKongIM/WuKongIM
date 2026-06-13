@@ -8,11 +8,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
-// readerLoop reads WKProto frames from the active TCP stream and routes them.
-func (c *Client) readerLoop() {
-	conn, pending, session, err := c.currentSession()
-	if err != nil {
-		c.failRead(nil, nil, err)
+// readerLoop reads WKProto frames from one captured TCP stream and routes them.
+func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkprotoenc.SessionCrypto) {
+	if conn == nil {
+		c.failRead(nil, nil, ErrNotConnected)
 		return
 	}
 

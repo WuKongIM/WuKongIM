@@ -134,7 +134,7 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	oldPending = c.pending
 	c.conn = conn
 	c.pending = newPendingTracker()
-	c.startLoops()
+	c.startLoops(conn, c.pending, c.crypto.currentSession())
 	c.mu.Unlock()
 
 	if oldPending != nil {
@@ -170,7 +170,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) startLoops() {
+func (c *Client) startLoops(conn net.Conn, pending *pendingTracker, session *wkprotoenc.SessionCrypto) {
 	readerDone := make(chan struct{})
 	writerDone := make(chan struct{})
 	c.readerDone = readerDone
@@ -181,7 +181,7 @@ func (c *Client) startLoops() {
 	}()
 	go func() {
 		defer close(readerDone)
-		c.readerLoop()
+		c.readerLoop(conn, pending, session)
 	}()
 }
 
@@ -205,19 +205,6 @@ func (c *Client) currentConn() (net.Conn, error) {
 		return nil, ErrNotConnected
 	}
 	return c.conn, nil
-}
-
-// currentSession returns the active connection, SENDACK tracker, and crypto snapshot.
-func (c *Client) currentSession() (net.Conn, *pendingTracker, *wkprotoenc.SessionCrypto, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil, nil, nil, ErrClosed
-	}
-	if c.conn == nil {
-		return nil, nil, nil, ErrNotConnected
-	}
-	return c.conn, c.pending, c.crypto.currentSession(), nil
 }
 
 func (c *Client) writeFrameSync(ctx context.Context, conn net.Conn, f frame.Frame) error {

@@ -522,7 +522,7 @@ func TestClientReaderUsesSessionCryptoSnapshot(t *testing.T) {
 	c.crypto.mu.Unlock()
 	c.mu.Lock()
 	c.conn = clientConn
-	c.startLoops()
+	c.startLoops(clientConn, c.pending, oldSession)
 	c.mu.Unlock()
 
 	recvData := encodeClientTestFrameOrFatal(t, &frame.RecvPacket{
@@ -598,7 +598,7 @@ func TestClientReaderFailureDoesNotCloseReplacedConnection(t *testing.T) {
 
 	c.mu.Lock()
 	c.conn = oldClientConn
-	c.startLoops()
+	c.startLoops(oldClientConn, c.pending, c.crypto.currentSession())
 	oldReaderDone := c.readerDone
 	c.mu.Unlock()
 
@@ -704,7 +704,7 @@ func newConnectedPipeClientOrFatal(t *testing.T, cfg Config) (*Client, net.Conn)
 	}
 	c.mu.Lock()
 	c.conn = clientConn
-	c.startLoops()
+	c.startLoops(clientConn, c.pending, c.crypto.currentSession())
 	c.mu.Unlock()
 	t.Cleanup(func() {
 		_ = c.Close()
