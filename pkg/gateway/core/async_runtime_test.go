@@ -8,9 +8,21 @@ import (
 )
 
 func TestNewAsyncRuntimeUsesNormalizedOptions(t *testing.T) {
-	srv := &Server{
-		options: gatewaytypes.Options{
-			Runtime: gatewaytypes.RuntimeOptions{
+	tests := []struct {
+		name string
+		opts gatewaytypes.RuntimeOptions
+		want gatewaytypes.RuntimeOptions
+	}{
+		{
+			name: "configured values",
+			opts: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        2,
+				AsyncSendQueueCapacity:  8,
+				AsyncAuthWorkers:        1,
+				AsyncAuthQueueCapacity:  4,
+				AsyncPoolReleaseTimeout: time.Millisecond,
+			},
+			want: gatewaytypes.RuntimeOptions{
 				AsyncSendWorkers:        2,
 				AsyncSendQueueCapacity:  8,
 				AsyncAuthWorkers:        1,
@@ -18,30 +30,48 @@ func TestNewAsyncRuntimeUsesNormalizedOptions(t *testing.T) {
 				AsyncPoolReleaseTimeout: time.Millisecond,
 			},
 		},
+		{
+			name: "zero values use defaults",
+			opts: gatewaytypes.RuntimeOptions{},
+			want: gatewaytypes.DefaultRuntimeOptions(),
+		},
 	}
-	runtime, err := newAsyncRuntime(srv)
-	if err != nil {
-		t.Fatalf("newAsyncRuntime failed: %v", err)
-	}
-	defer runtime.stop()
 
-	if runtime.auth == nil {
-		t.Fatal("auth executor is nil")
-	}
-	if runtime.send == nil {
-		t.Fatal("send executor is nil")
-	}
-	if got := runtime.auth.workers; got != 1 {
-		t.Fatalf("auth workers = %d, want 1", got)
-	}
-	if got := runtime.auth.totalCapacity(); got != 4 {
-		t.Fatalf("auth capacity = %d, want 4", got)
-	}
-	if got := runtime.send.workers; got != 2 {
-		t.Fatalf("send workers = %d, want 2", got)
-	}
-	if got := runtime.send.totalCapacity(); got != 8 {
-		t.Fatalf("send capacity = %d, want 8", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := &Server{
+				options: gatewaytypes.Options{
+					Runtime: tt.opts,
+				},
+			}
+			runtime, err := newAsyncRuntime(srv)
+			if err != nil {
+				t.Fatalf("newAsyncRuntime failed: %v", err)
+			}
+			defer runtime.stop()
+
+			if runtime.auth == nil {
+				t.Fatal("auth executor is nil")
+			}
+			if runtime.send == nil {
+				t.Fatal("send executor is nil")
+			}
+			if got := runtime.auth.workers; got != tt.want.AsyncAuthWorkers {
+				t.Fatalf("auth workers = %d, want %d", got, tt.want.AsyncAuthWorkers)
+			}
+			if got := runtime.auth.totalCapacity(); got != tt.want.AsyncAuthQueueCapacity {
+				t.Fatalf("auth capacity = %d, want %d", got, tt.want.AsyncAuthQueueCapacity)
+			}
+			if got := runtime.send.workers; got != tt.want.AsyncSendWorkers {
+				t.Fatalf("send workers = %d, want %d", got, tt.want.AsyncSendWorkers)
+			}
+			if got := runtime.send.totalCapacity(); got != tt.want.AsyncSendQueueCapacity {
+				t.Fatalf("send capacity = %d, want %d", got, tt.want.AsyncSendQueueCapacity)
+			}
+			if got := runtime.releaseTimeout; got != tt.want.AsyncPoolReleaseTimeout {
+				t.Fatalf("release timeout = %s, want %s", got, tt.want.AsyncPoolReleaseTimeout)
+			}
+		})
 	}
 }
 
