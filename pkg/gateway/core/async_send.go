@@ -297,8 +297,6 @@ func (e *sendExecutor) nextShardBatch(collector *asyncSendBatchCollector, shard 
 		return nil, false
 	}
 	if len(shard.tasks) == 0 {
-		shard.scheduled = false
-		shard.drainOwned = false
 		shard.mu.Unlock()
 		return nil, false
 	}
@@ -389,11 +387,22 @@ func (e *sendExecutor) finishShardDrain(shard *asyncSendShard) {
 	if shard == nil {
 		return
 	}
+	var shouldSchedule bool
 	shard.mu.Lock()
 	shard.draining = false
-	shard.scheduled = false
-	shard.drainOwned = false
+	if !shard.closed && len(shard.tasks) > 0 {
+		shouldSchedule = true
+		shard.scheduled = true
+		shard.drainOwned = true
+	} else {
+		shard.scheduled = false
+		shard.drainOwned = false
+	}
 	shard.mu.Unlock()
+	if shouldSchedule {
+		e.schedule(shard)
+		return
+	}
 	e.wg.Done()
 }
 

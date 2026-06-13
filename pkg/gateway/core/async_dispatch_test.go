@@ -996,6 +996,94 @@ func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
 	}
 }
 
+func TestSendExecutorNextShardBatchKeepsDrainOwnershipForFinish(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	shard := executor.shards[0]
+	shard.mu.Lock()
+	shard.scheduled = true
+	shard.drainOwned = true
+	shard.draining = true
+	shard.mu.Unlock()
+
+	collector := newAsyncSendBatchCollector(shard.tasks, asyncSendBatchLimits{maxRecords: 1})
+	batch, ok := executor.nextShardBatch(collector, shard)
+
+	shard.mu.Lock()
+	scheduled := shard.scheduled
+	drainOwned := shard.drainOwned
+	draining := shard.draining
+	shard.scheduled = false
+	shard.drainOwned = false
+	shard.draining = false
+	shard.mu.Unlock()
+
+	if ok || batch != nil {
+		t.Fatalf("next shard batch = (%#v, %v), want no batch", batch, ok)
+	}
+	if !scheduled || !drainOwned || !draining {
+		t.Fatalf("shard state after empty batch: scheduled=%v drainOwned=%v draining=%v, want ownership kept for finish", scheduled, drainOwned, draining)
+	}
+}
+
+func TestSendExecutorFinishShardDrainReschedulesQueuedTask(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  1,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	shard := executor.shards[0]
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.reserve() {
+		t.Fatal("reserve rejected queued task")
+	}
+	executor.wg.Add(1)
+	shard.mu.Lock()
+	shard.scheduled = true
+	shard.drainOwned = true
+	shard.draining = true
+	shard.tasks <- asyncDispatchTask{
+		state:      state,
+		frame:      &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "queued-during-finish"},
+		enqueuedAt: time.Now(),
+	}
+	shard.mu.Unlock()
+
+	executor.finishShardDrain(shard)
+
+	eventually(t, time.Second, func() bool {
+		batches := handler.snapshotBatches()
+		return len(batches) == 1 && len(batches[0]) == 1 && batches[0][0].Frame.ClientMsgNo == "queued-during-finish"
+	}, "send executor did not reschedule task queued while shard drain finished")
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 after rescheduled task drains", got)
+	}
+}
+
 func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchTask {
 	return asyncDispatchTask{
 		frame: &frame.SendPacket{
