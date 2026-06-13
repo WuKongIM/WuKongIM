@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
@@ -221,6 +222,137 @@ func TestClientConnectCancelsBlockedConnackReadPromptly(t *testing.T) {
 	}
 }
 
+func TestClientReaderDecodesConcatenatedSendacksOutOfOrder(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
+
+	first, err := c.pending.add(pendingKey{ClientSeq: 1, ClientMsgNo: "one"}, time.Second)
+	if err != nil {
+		t.Fatalf("pending.add(first) error = %v", err)
+	}
+	second, err := c.pending.add(pendingKey{ClientSeq: 2, ClientMsgNo: "two"}, time.Second)
+	if err != nil {
+		t.Fatalf("pending.add(second) error = %v", err)
+	}
+
+	secondAck := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+		ClientSeq:   2,
+		ClientMsgNo: "two",
+		MessageID:   2002,
+		MessageSeq:  22,
+		ReasonCode:  frame.ReasonSuccess,
+	})
+	firstAck := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+		ClientSeq:   1,
+		ClientMsgNo: "one",
+		MessageID:   1001,
+		MessageSeq:  11,
+		ReasonCode:  frame.ReasonSuccess,
+	})
+	if _, err := serverConn.Write(append(secondAck, firstAck...)); err != nil {
+		t.Fatalf("server Write() error = %v", err)
+	}
+
+	secondOutcome := readPendingOutcomeOrFatal(t, second)
+	if secondOutcome.err != nil {
+		t.Fatalf("second pending err = %v", secondOutcome.err)
+	}
+	if secondOutcome.result.MessageID != 2002 {
+		t.Fatalf("second MessageID = %d, want 2002", secondOutcome.result.MessageID)
+	}
+
+	firstOutcome := readPendingOutcomeOrFatal(t, first)
+	if firstOutcome.err != nil {
+		t.Fatalf("first pending err = %v", firstOutcome.err)
+	}
+	if firstOutcome.result.MessageID != 1001 {
+		t.Fatalf("first MessageID = %d, want 1001", firstOutcome.result.MessageID)
+	}
+}
+
+func TestClientReaderPreservesPartialFrameBytes(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
+
+	entry, err := c.pending.add(pendingKey{ClientSeq: 7, ClientMsgNo: "split"}, time.Second)
+	if err != nil {
+		t.Fatalf("pending.add() error = %v", err)
+	}
+
+	ack := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+		ClientSeq:   7,
+		ClientMsgNo: "split",
+		MessageID:   7007,
+		MessageSeq:  77,
+		ReasonCode:  frame.ReasonSuccess,
+	})
+	cut := len(ack) / 2
+	if cut == 0 {
+		t.Fatal("encoded SENDACK too short to split")
+	}
+	if _, err := serverConn.Write(ack[:cut]); err != nil {
+		t.Fatalf("server first Write() error = %v", err)
+	}
+	select {
+	case outcome := <-entry.done:
+		t.Fatalf("pending resolved before complete frame: %+v", outcome)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if _, err := serverConn.Write(ack[cut:]); err != nil {
+		t.Fatalf("server second Write() error = %v", err)
+	}
+
+	outcome := readPendingOutcomeOrFatal(t, entry)
+	if outcome.err != nil {
+		t.Fatalf("pending err = %v", outcome.err)
+	}
+	if outcome.result.MessageID != 7007 {
+		t.Fatalf("MessageID = %d, want 7007", outcome.result.MessageID)
+	}
+}
+
+func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
+	c, err := New(Config{
+		Addr:                   "pipe",
+		InboundFrameBufferSize: 2,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	for i := int64(1); i <= 3; i++ {
+		if err := c.routeInboundFrame(&frame.RecvPacket{
+			Setting:   frame.SettingNoEncrypt,
+			MessageID: i,
+			Payload:   []byte{byte(i)},
+		}); err != nil {
+			t.Fatalf("routeInboundFrame(RECV %d) error = %v", i, err)
+		}
+	}
+
+	first := <-c.recvCh
+	second := <-c.recvCh
+	if first.MessageID != 2 || second.MessageID != 3 {
+		t.Fatalf("queued MessageIDs = %d,%d, want 2,3", first.MessageID, second.MessageID)
+	}
+}
+
+func TestRouteInboundDisconnectReturnsReadFailure(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = c.routeInboundFrame(&frame.DisconnectPacket{
+		ReasonCode: frame.ReasonAuthFail,
+		Reason:     "bad token",
+	})
+	if err == nil {
+		t.Fatal("routeInboundFrame(DISCONNECT) error = nil")
+	}
+	if !strings.Contains(err.Error(), "bad token") || !strings.Contains(err.Error(), frame.ReasonAuthFail.String()) {
+		t.Fatalf("routeInboundFrame(DISCONNECT) error = %v, want reason fields", err)
+	}
+}
+
 type contextErrDialer struct{}
 
 func (contextErrDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
@@ -252,6 +384,51 @@ func newPipeClientServerOrFatal(t *testing.T, cfg Config) (*Client, net.Conn) {
 		_ = serverConn.Close()
 	})
 	return c, serverConn
+}
+
+func newConnectedPipeClientOrFatal(t *testing.T, cfg Config) (*Client, net.Conn) {
+	t.Helper()
+
+	cfg.Addr = "pipe"
+	clientConn, serverConn := net.Pipe()
+	cfg.Dialer = fakeDialer{conn: clientConn}
+	c, err := New(cfg)
+	if err != nil {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+		t.Fatalf("New() error = %v", err)
+	}
+	c.mu.Lock()
+	c.conn = clientConn
+	c.startLoops()
+	c.mu.Unlock()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = serverConn.Close()
+	})
+	return c, serverConn
+}
+
+func encodeClientTestFrameOrFatal(t *testing.T, f frame.Frame) []byte {
+	t.Helper()
+
+	data, err := codec.New().EncodeFrame(f, frame.LatestVersion)
+	if err != nil {
+		t.Fatalf("EncodeFrame(%T) error = %v", f, err)
+	}
+	return data
+}
+
+func readPendingOutcomeOrFatal(t *testing.T, entry *pendingEntry) sendOutcome {
+	t.Helper()
+
+	select {
+	case outcome := <-entry.done:
+		return outcome
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for pending outcome")
+		return sendOutcome{}
+	}
 }
 
 func TestNormalizeConfigAppliesToolingDefaults(t *testing.T) {

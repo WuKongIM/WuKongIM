@@ -18,10 +18,14 @@ type Client struct {
 	proto  codec.Protocol
 	crypto *cryptoState
 
-	mu         sync.Mutex
-	conn       net.Conn
-	closed     bool
-	writeCh    chan writeRequest
+	mu      sync.Mutex
+	conn    net.Conn
+	closed  bool
+	writeCh chan writeRequest
+	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
+	pending *pendingTracker
+	// recvCh buffers inbound RECV frames for future public receive APIs.
+	recvCh     chan *frame.RecvPacket
 	readerDone chan struct{}
 	writerDone chan struct{}
 }
@@ -41,6 +45,8 @@ func New(cfg Config) (*Client, error) {
 		proto:   codec.New(),
 		crypto:  crypto,
 		writeCh: make(chan writeRequest, cfg.SendQueueCapacity),
+		pending: newPendingTracker(),
+		recvCh:  make(chan *frame.RecvPacket, cfg.InboundFrameBufferSize),
 	}, nil
 }
 
@@ -135,8 +141,12 @@ func (c *Client) Close() error {
 	c.closed = true
 	conn := c.conn
 	c.conn = nil
+	pending := c.pending
 	c.mu.Unlock()
 
+	if pending != nil {
+		pending.close(ErrClosed)
+	}
 	if conn != nil {
 		return conn.Close()
 	}
@@ -159,9 +169,6 @@ func (c *Client) startLoops() {
 }
 
 func (c *Client) writerLoop() {
-}
-
-func (c *Client) readerLoop() {
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
