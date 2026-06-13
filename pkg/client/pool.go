@@ -16,8 +16,9 @@ type poolClient interface {
 
 // Pool owns multiple WKProto sessions for tooling workloads.
 type Pool struct {
-	cfg PoolConfig
-	mu  sync.RWMutex
+	cfg    PoolConfig
+	mu     sync.RWMutex
+	closed bool
 	// clients stores connected sessions keyed by UID.
 	clients map[string]poolClient
 }
@@ -26,6 +27,11 @@ type Pool struct {
 func NewPool(cfg PoolConfig) (*Pool, error) {
 	if len(cfg.Addrs) == 0 && cfg.Client.Addr == "" {
 		return nil, ErrMissingAddr
+	}
+	for _, addr := range cfg.Addrs {
+		if addr == "" {
+			return nil, ErrMissingAddr
+		}
 	}
 	if cfg.Balance == "" {
 		cfg.Balance = defaultPoolBalanceRoundRobin
@@ -44,6 +50,13 @@ func (p *Pool) Connect(ctx context.Context, identities []Identity) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return ErrClosed
+	}
+	p.mu.RUnlock()
+
 	addrs := p.cfg.Addrs
 	if len(addrs) == 0 {
 		addrs = []string{p.cfg.Client.Addr}
@@ -64,14 +77,17 @@ func (p *Pool) Connect(ctx context.Context, identities []Identity) error {
 		throttle = ticker.C
 	}
 
+	nextClients := make(map[string]poolClient, len(identities))
 	for i, identity := range identities {
 		if err := ctx.Err(); err != nil {
+			closePoolClients(nextClients)
 			return err
 		}
 		if i > 0 && throttle != nil {
 			select {
 			case <-throttle:
 			case <-ctx.Done():
+				closePoolClients(nextClients)
 				return ctx.Err()
 			}
 		}
@@ -83,6 +99,7 @@ func (p *Pool) Connect(ctx context.Context, identities []Identity) error {
 		}
 		c, err := New(cfg)
 		if err != nil {
+			closePoolClients(nextClients)
 			return err
 		}
 		if _, err = c.Connect(ctx, ConnectOptions{
@@ -92,19 +109,34 @@ func (p *Pool) Connect(ctx context.Context, identities []Identity) error {
 			Token:      identity.Token,
 		}); err != nil {
 			_ = c.Close()
+			closePoolClients(nextClients)
 			return err
 		}
-
-		p.mu.Lock()
-		if p.clients == nil {
-			p.clients = make(map[string]poolClient)
-		}
-		old := p.clients[identity.UID]
-		p.clients[identity.UID] = c
-		p.mu.Unlock()
-		if old != nil {
+		if old := nextClients[identity.UID]; old != nil {
 			_ = old.Close()
 		}
+		nextClients[identity.UID] = c
+	}
+
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		closePoolClients(nextClients)
+		return ErrClosed
+	}
+	if p.clients == nil {
+		p.clients = make(map[string]poolClient)
+	}
+	oldClients := make([]poolClient, 0, len(nextClients))
+	for uid, client := range nextClients {
+		if old := p.clients[uid]; old != nil {
+			oldClients = append(oldClients, old)
+		}
+		p.clients[uid] = client
+	}
+	p.mu.Unlock()
+	for _, client := range oldClients {
+		_ = client.Close()
 	}
 	return nil
 }
@@ -115,6 +147,10 @@ func (p *Pool) Client(uid string) (*Client, bool) {
 		return nil, false
 	}
 	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return nil, false
+	}
 	client := p.clients[uid]
 	p.mu.RUnlock()
 	c, ok := client.(*Client)
@@ -126,7 +162,13 @@ func (p *Pool) SendBatch(ctx context.Context, msgs []RoutedMessage) ([]SendResul
 	if p == nil {
 		return nil, ErrClosed
 	}
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return nil, ErrClosed
+	}
 	if len(msgs) == 0 {
+		p.mu.RUnlock()
 		return nil, nil
 	}
 
@@ -138,7 +180,6 @@ func (p *Pool) SendBatch(ctx context.Context, msgs []RoutedMessage) ([]SendResul
 	}
 	groups := make(map[string]*grouped)
 
-	p.mu.RLock()
 	for i, msg := range msgs {
 		client := p.clients[msg.UID]
 		if client == nil {
@@ -175,12 +216,18 @@ func (p *Pool) Close() error {
 	if p == nil {
 		return nil
 	}
-	p.mu.RLock()
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return ErrClosed
+	}
+	p.closed = true
 	clients := make([]poolClient, 0, len(p.clients))
 	for _, client := range p.clients {
 		clients = append(clients, client)
 	}
-	p.mu.RUnlock()
+	p.clients = make(map[string]poolClient)
+	p.mu.Unlock()
 
 	var first error
 	for _, client := range clients {
@@ -189,4 +236,10 @@ func (p *Pool) Close() error {
 		}
 	}
 	return first
+}
+
+func closePoolClients(clients map[string]poolClient) {
+	for _, client := range clients {
+		_ = client.Close()
+	}
 }
