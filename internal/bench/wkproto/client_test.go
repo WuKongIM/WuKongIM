@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -576,6 +577,55 @@ func TestClientPublishFrameResultEvictsRecvForSendack(t *testing.T) {
 	}
 	if ack.ClientSeq != 7 {
 		t.Fatalf("sendack client seq = %d, want 7", ack.ClientSeq)
+	}
+}
+
+func TestClientSessionPublishKeepsConcurrentPriorityResults(t *testing.T) {
+	oldProcs := runtime.GOMAXPROCS(2)
+	defer runtime.GOMAXPROCS(oldProcs)
+
+	const queueSize = 20000
+	session := &clientSession{
+		frameCh: make(chan frameResult, queueSize),
+		stopCh:  make(chan struct{}),
+	}
+	for i := 0; i < queueSize; i++ {
+		session.frameCh <- frameResult{frame: &frame.RecvPacket{MessageID: int64(i + 1)}}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		session.publishFrameResult(frameResult{frame: &frame.SendackPacket{ClientSeq: 1}})
+	}()
+
+	deadline := time.After(time.Second)
+	for len(session.frameCh) == queueSize {
+		select {
+		case <-deadline:
+			t.Fatal("first publisher did not start draining")
+		default:
+			runtime.Gosched()
+		}
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		session.publishFrameResult(frameResult{frame: &frame.SendackPacket{ClientSeq: 2}})
+	}()
+	wg.Wait()
+
+	seen := map[uint64]bool{}
+	for len(session.frameCh) > 0 {
+		result := <-session.frameCh
+		if ack, ok := result.frame.(*frame.SendackPacket); ok {
+			seen[ack.ClientSeq] = true
+		}
+	}
+	if !seen[1] || !seen[2] {
+		t.Fatalf("queued sendacks = %#v, want client seqs 1 and 2", seen)
 	}
 }
 

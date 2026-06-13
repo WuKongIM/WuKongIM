@@ -64,6 +64,8 @@ type clientSession struct {
 	stopCh chan struct{}
 	// closeOnce makes session shutdown idempotent.
 	closeOnce sync.Once
+	// publishMu serializes priority eviction and requeue operations on frameCh.
+	publishMu sync.Mutex
 	// pendingMu protects pendingSendacks and pendingDone.
 	pendingMu sync.Mutex
 	// pendingSendacks counts SEND futures that still need to publish a SENDACK frame.
@@ -268,6 +270,8 @@ func (c *Client) publishFrameResult(frameCh chan frameResult, stopCh <-chan stru
 }
 
 func (s *clientSession) publishFrameResult(result frameResult) {
+	s.publishMu.Lock()
+	defer s.publishMu.Unlock()
 	publishFrameResult(s.frameCh, s.stopCh, result)
 }
 
