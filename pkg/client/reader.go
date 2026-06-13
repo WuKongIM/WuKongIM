@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -76,6 +77,9 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 			return err
 		}
 		c.enqueueRecv(pkt)
+		if c.cfg.AutoRecvAck {
+			_ = c.RecvAck(context.Background(), pkt.MessageID, pkt.MessageSeq)
+		}
 		return nil
 	case *frame.PongPacket:
 		return nil

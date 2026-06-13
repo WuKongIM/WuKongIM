@@ -281,6 +281,98 @@ func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error
 	return futures[0], nil
 }
 
+// ReadFrame waits for the next inbound data frame exposed by this client.
+func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if c == nil {
+		return nil, ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case pkt := <-c.recvCh:
+		if pkt == nil {
+			return nil, ErrClosed
+		}
+		return pkt, nil
+	case <-c.closeCh:
+		return nil, ErrClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// Recv waits for the next inbound RECV packet.
+func (c *Client) Recv(ctx context.Context) (*frame.RecvPacket, error) {
+	f, err := c.ReadFrame(ctx)
+	if err != nil {
+		return nil, err
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		return nil, fmt.Errorf("client: expected *frame.RecvPacket, got %T", f)
+	}
+	return recv, nil
+}
+
+// RecvAck sends a RECVACK control frame for one received message.
+func (c *Client) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return c.writeControl(ctx, &frame.RecvackPacket{MessageID: messageID, MessageSeq: messageSeq})
+}
+
+// Ping sends a PING control frame.
+func (c *Client) Ping(ctx context.Context) error {
+	return c.writeControl(ctx, &frame.PingPacket{})
+}
+
+func (c *Client) writeControl(ctx context.Context, f frame.Frame) error {
+	if c == nil {
+		return ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrClosed
+	}
+	conn := c.conn
+	if conn == nil {
+		c.mu.Unlock()
+		return ErrNotConnected
+	}
+	c.mu.Unlock()
+
+	result := make(chan error, 1)
+	req := writeRequest{
+		kind:   writeKindFrame,
+		frame:  f,
+		result: result,
+		ctx:    ctx,
+		conn:   conn,
+	}
+	select {
+	case c.writeCh <- req:
+	case <-c.closeCh:
+		return ErrClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case err := <-result:
+		return err
+	case <-c.closeCh:
+		return ErrClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 type preparedSend struct {
 	msg Message
 	pkt *frame.SendPacket

@@ -801,6 +801,156 @@ func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
 	}
 }
 
+func TestClientRecvDecryptsAndAutoAcks(t *testing.T) {
+	c, serverConn := newPipeClientServerOrFatal(t, Config{
+		AutoRecvAck: true,
+		Token:       "cfg-token",
+	})
+
+	serverErr := runTestServer(func() error {
+		f, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		connect, ok := f.(*frame.ConnectPacket)
+		if !ok {
+			return fmt.Errorf("server read %T, want CONNECT", f)
+		}
+		keys, serverKey, err := wkprotoenc.NegotiateServerSession(connect.ClientKey)
+		if err != nil {
+			return err
+		}
+		if err := writeTestFrame(serverConn, &frame.ConnackPacket{
+			Framer: frame.Framer{
+				FrameType:        frame.CONNACK,
+				HasServerVersion: true,
+			},
+			ServerVersion: frame.LatestVersion,
+			ReasonCode:    frame.ReasonSuccess,
+			ServerKey:     serverKey,
+			Salt:          string(keys.AESIV),
+		}); err != nil {
+			return err
+		}
+		sealed, err := wkprotoenc.SealRecvPacket(&frame.RecvPacket{
+			MessageID:   42,
+			MessageSeq:  9,
+			ClientMsgNo: "recv-42",
+			ChannelID:   "uid-recv",
+			ChannelType: frame.ChannelTypePerson,
+			FromUID:     "from-recv",
+			Payload:     []byte("hello"),
+		}, keys)
+		if err != nil {
+			return err
+		}
+		if err := writeTestFrame(serverConn, sealed); err != nil {
+			return err
+		}
+		ackFrame, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		ack, ok := ackFrame.(*frame.RecvackPacket)
+		if !ok {
+			return fmt.Errorf("server read %T, want RECVACK", ackFrame)
+		}
+		if ack.MessageID != 42 || ack.MessageSeq != 9 {
+			return fmt.Errorf("recvack = (%d,%d), want (42,9)", ack.MessageID, ack.MessageSeq)
+		}
+		return nil
+	})
+
+	if _, err := c.Connect(context.Background(), ConnectOptions{
+		UID:        "uid-recv",
+		DeviceID:   "dev-recv",
+		DeviceFlag: frame.APP,
+	}); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	recv, err := c.Recv(context.Background())
+	if err != nil {
+		t.Fatalf("Recv() error = %v", err)
+	}
+	if recv.MessageID != 42 || recv.MessageSeq != 9 {
+		t.Fatalf("recv = (%d,%d), want (42,9)", recv.MessageID, recv.MessageSeq)
+	}
+	if string(recv.Payload) != "hello" {
+		t.Fatalf("recv payload = %q, want hello", recv.Payload)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientCloseFailsPendingSend(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{})
+
+	future, err := c.SendAsync(context.Background(), Message{
+		ClientMsgNo: "close-pending",
+		ChannelID:   "uid-close",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("x"),
+	})
+	if err != nil {
+		t.Fatalf("SendAsync() error = %v", err)
+	}
+	_ = c.Close()
+
+	_, err = future.Wait(context.Background())
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("future error = %v, want %v", err, ErrClosed)
+	}
+}
+
+func TestClientRecvReturnsErrClosedOnClose(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{})
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := c.Recv(context.Background())
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("Recv() returned before Close: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	_ = c.Close()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, ErrClosed) {
+			t.Fatalf("Recv() error = %v, want %v", err, ErrClosed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Recv() did not return after Close")
+	}
+}
+
+func TestClientPingWritesControlFrame(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
+
+	serverErr := runTestServer(func() error {
+		f, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		if _, ok := f.(*frame.PingPacket); !ok {
+			return fmt.Errorf("server read %T, want PING", f)
+		}
+		return nil
+	})
+
+	if err := c.Ping(context.Background()); err != nil {
+		t.Fatalf("Ping() error = %v", err)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
 func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
 	c, err := New(Config{
 		Addr:                   "pipe",
