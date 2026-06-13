@@ -33,6 +33,8 @@ type Client struct {
 	closed     bool
 	writeCh    chan writeRequest
 	closeCh    chan struct{}
+	// inflight limits SENDs that have been admitted and are waiting for SENDACK.
+	inflight chan struct{}
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
 	pending *pendingTracker
 	// recvMu protects bounded overwrite semantics for recvCh.
@@ -54,13 +56,14 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		cfg:     cfg,
-		proto:   codec.New(),
-		crypto:  crypto,
-		writeCh: make(chan writeRequest, cfg.SendQueueCapacity),
-		closeCh: make(chan struct{}),
-		pending: newPendingTracker(),
-		recvCh:  make(chan *frame.RecvPacket, cfg.InboundFrameBufferSize),
+		cfg:      cfg,
+		proto:    codec.New(),
+		crypto:   crypto,
+		writeCh:  make(chan writeRequest, cfg.SendQueueCapacity),
+		closeCh:  make(chan struct{}),
+		inflight: make(chan struct{}, cfg.MaxInflight),
+		pending:  newPendingTracker(),
+		recvCh:   make(chan *frame.RecvPacket, cfg.InboundFrameBufferSize),
 	}, nil
 }
 
@@ -331,15 +334,24 @@ func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend
 		c.observeSendQueue("full")
 		return nil, ErrSendQueueFull
 	}
+	reserved, err := c.reserveInflight(ctx, len(prepared))
+	if err != nil {
+		c.releaseInflightN(reserved)
+		if err == ErrSendQueueFull {
+			c.observeSendQueue("full")
+		}
+		return nil, err
+	}
 
 	futures := make([]*SendFuture, len(prepared))
 	reqs := make([]writeRequest, len(prepared))
 	for i, item := range prepared {
-		entry, err := pending.add(item.key, c.cfg.AckTimeout)
+		entry, err := pending.addWithFinish(item.key, c.cfg.AckTimeout, c.releaseInflight)
 		if err != nil {
 			for _, req := range reqs[:i] {
 				pending.fail(req.entry, err)
 			}
+			c.releaseInflightN(len(prepared) - i)
 			return nil, err
 		}
 		reqs[i] = writeRequest{
@@ -364,19 +376,53 @@ func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend
 
 	for _, req := range reqs {
 		select {
+		case c.writeCh <- req:
 		case <-c.closeCh:
 			for _, failed := range reqs {
 				pending.fail(failed.entry, ErrClosed)
 			}
 			return nil, ErrClosed
-		default:
 		}
-		c.writeCh <- req
 	}
 	for range reqs {
 		c.observeSendQueue("accepted")
 	}
 	return futures, nil
+}
+
+func (c *Client) reserveInflight(ctx context.Context, n int) (int, error) {
+	if n == 0 {
+		return 0, nil
+	}
+	if n > cap(c.inflight) {
+		return 0, ErrSendQueueFull
+	}
+
+	acquired := 0
+	for acquired < n {
+		select {
+		case c.inflight <- struct{}{}:
+			acquired++
+		case <-c.closeCh:
+			return acquired, ErrClosed
+		case <-ctx.Done():
+			return acquired, ctx.Err()
+		}
+	}
+	return acquired, nil
+}
+
+func (c *Client) releaseInflight() {
+	select {
+	case <-c.inflight:
+	default:
+	}
+}
+
+func (c *Client) releaseInflightN(n int) {
+	for i := 0; i < n; i++ {
+		c.releaseInflight()
+	}
 }
 
 func (c *Client) nextClientSeq(explicit uint64) (uint64, error) {

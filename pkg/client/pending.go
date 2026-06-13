@@ -28,6 +28,8 @@ type pendingEntry struct {
 	timeoutDone chan struct{}
 	// once guards completion against SENDACK, timeout, and close races.
 	once sync.Once
+	// onFinish runs after the entry reaches its terminal outcome.
+	onFinish func()
 }
 
 // pendingTracker indexes SEND futures until SENDACK, timeout, or close.
@@ -47,6 +49,10 @@ func newPendingTracker() *pendingTracker {
 }
 
 func (t *pendingTracker) add(key pendingKey, timeout time.Duration) (*pendingEntry, error) {
+	return t.addWithFinish(key, timeout, nil)
+}
+
+func (t *pendingTracker) addWithFinish(key pendingKey, timeout time.Duration, onFinish func()) (*pendingEntry, error) {
 	t.mu.Lock()
 	if t.closed {
 		t.mu.Unlock()
@@ -61,6 +67,7 @@ func (t *pendingTracker) add(key pendingKey, timeout time.Duration) (*pendingEnt
 		key:       key,
 		done:      make(chan sendOutcome, 1),
 		startedAt: time.Now(),
+		onFinish:  onFinish,
 	}
 	if timeout > 0 {
 		entry.timer = time.NewTimer(timeout)
@@ -179,5 +186,8 @@ func (e *pendingEntry) finish(out sendOutcome) {
 		}
 		e.done <- out
 		close(e.done)
+		if e.onFinish != nil {
+			e.onFinish()
+		}
 	})
 }

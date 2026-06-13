@@ -438,6 +438,31 @@ func TestClientSendBatchValidationFailureDoesNotLeavePending(t *testing.T) {
 	}
 }
 
+func TestClientSendBatchRejectsMoreThanMaxInflight(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{MaxInflight: 1})
+
+	_, err := c.SendBatch(context.Background(), []Message{
+		{
+			ClientMsgNo: "first-too-many",
+			ChannelID:   "ch-max-inflight",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("first"),
+		},
+		{
+			ClientMsgNo: "second-too-many",
+			ChannelID:   "ch-max-inflight",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("second"),
+		},
+	})
+	if !errors.Is(err, ErrSendQueueFull) {
+		t.Fatalf("SendBatch() error = %v, want %v", err, ErrSendQueueFull)
+	}
+	if n := pendingEntryCount(c.pending); n != 0 {
+		t.Fatalf("pending entries = %d, want 0", n)
+	}
+}
+
 func TestBuildSendPacketUsesAssignedSequenceWhenMessageSequenceIsZero(t *testing.T) {
 	payload := []byte("payload")
 	pkt, err := buildSendPacket(Message{
@@ -501,6 +526,78 @@ func TestClientSendAsyncCopiesPayloadBeforeQueue(t *testing.T) {
 	}
 	if result.MessageID != 303 {
 		t.Fatalf("MessageID = %d, want 303", result.MessageID)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientSendAsyncHonorsMaxInflight(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{
+		MaxInflight: 1,
+		AckTimeout:  time.Second,
+	})
+
+	first, err := c.SendAsync(context.Background(), Message{
+		ClientMsgNo: "first-inflight",
+		ChannelID:   "ch-inflight",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("first"),
+	})
+	if err != nil {
+		t.Fatalf("SendAsync(first) error = %v", err)
+	}
+
+	serverErr := runTestServer(func() error {
+		firstFrame, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		firstSend, ok := firstFrame.(*frame.SendPacket)
+		if !ok {
+			return fmt.Errorf("first frame = %T, want SEND", firstFrame)
+		}
+
+		secondStarted := make(chan struct{})
+		secondErr := make(chan error, 1)
+		go func() {
+			close(secondStarted)
+			_, err := c.SendAsync(context.Background(), Message{
+				ClientMsgNo: "second-inflight",
+				ChannelID:   "ch-inflight",
+				ChannelType: frame.ChannelTypeGroup,
+				Payload:     []byte("second"),
+			})
+			secondErr <- err
+		}()
+		<-secondStarted
+		select {
+		case err := <-secondErr:
+			return fmt.Errorf("second SendAsync returned before first ACK: %v", err)
+		case <-time.After(30 * time.Millisecond):
+		}
+
+		if err := writeTestFrame(serverConn, &frame.SendackPacket{
+			ClientSeq:   firstSend.ClientSeq,
+			ClientMsgNo: firstSend.ClientMsgNo,
+			MessageID:   501,
+			MessageSeq:  51,
+			ReasonCode:  frame.ReasonSuccess,
+		}); err != nil {
+			return err
+		}
+		if err := <-secondErr; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	result, err := first.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("first future error = %v", err)
+	}
+	if result.MessageID != 501 {
+		t.Fatalf("first MessageID = %d, want 501", result.MessageID)
 	}
 	if err := <-serverErr; err != nil {
 		t.Fatalf("server error = %v", err)
