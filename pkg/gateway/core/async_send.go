@@ -370,7 +370,7 @@ func (e *sendExecutor) shardForSend(state *sessionState, send *frame.SendPacket)
 	if e == nil || len(e.shards) == 0 {
 		return nil
 	}
-	return e.shards[asyncDispatchShardIndex(state, send, len(e.shards))]
+	return e.shards[asyncSendShardIndex(state, send, len(e.shards))]
 }
 
 func (e *sendExecutor) beginShardDrain(shard *asyncSendShard) bool {

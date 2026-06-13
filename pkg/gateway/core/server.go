@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,20 +26,6 @@ var (
 )
 
 const (
-	asyncDispatchQueuePerWorker = 1024
-	asyncDispatchWorkersPerCPU  = 8
-	minAsyncDispatchWorkers     = 128
-	maxAsyncDispatchWorkers     = 256
-	// asyncDispatchMinQueuePerWorker keeps enough burst room for one default SEND micro-batch per shard.
-	asyncDispatchMinQueuePerWorker = 128
-	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
-	asyncDispatchMaxBufferedTasks = 128 * 1024
-	asyncAuthQueuePerWorker       = 128
-	asyncAuthWorkersPerCPU        = 4
-	minAsyncAuthWorkers           = 16
-	maxAsyncAuthWorkers           = 64
-	asyncAuthMaxBufferedTasks     = 8 * 1024
-
 	authStatusOK   = "ok"
 	authStatusFail = "fail"
 
@@ -1053,42 +1038,6 @@ func (s *Server) closeIdleSessions(now time.Time) {
 	}
 }
 
-func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
-	defer s.workerWG.Done()
-	if queue == nil {
-		return
-	}
-	for task := range queue.tasks {
-		queue.consume(1)
-		s.observeAsyncAuthQueue(queue)
-		s.observeAsyncAuthWait(task)
-		s.runAuthTask(task)
-	}
-}
-
-func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
-	defer s.workerWG.Done()
-
-	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimitsFromOptions(s.options.DefaultSession))
-	for {
-		batch, ok := collector.nextBatch()
-		if !ok {
-			return
-		}
-		s.observeAsyncSendDequeued(batch)
-		s.observeAsyncSendBatch(batch)
-		if s.dispatchSendBatch(batch) {
-			continue
-		}
-		for _, task := range batch {
-			s.recordAsyncDispatchWait(task)
-			if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
-				s.handleHandlerError(task.state, err)
-			}
-		}
-	}
-}
-
 func asyncSendBatchLimitsFromOptions(opt gatewaytypes.SessionOptions) asyncSendBatchLimits {
 	opt = gatewaytypes.NormalizeSessionOptions(opt)
 	return asyncSendBatchLimits{
@@ -1161,24 +1110,6 @@ func (s *Server) sendBatchItems(batch []asyncDispatchTask) []gatewaytypes.SendBa
 		})
 	}
 	return items
-}
-
-func asyncDispatchWorkerCount(opt gatewaytypes.RuntimeOptions) int {
-	return gatewaytypes.NormalizeRuntimeOptions(opt).AsyncSendWorkers
-}
-
-func adaptiveAsyncDispatchWorkerCount(gomaxprocs int) int {
-	if gomaxprocs <= 0 {
-		return minAsyncDispatchWorkers
-	}
-	workers := gomaxprocs * asyncDispatchWorkersPerCPU
-	if workers < minAsyncDispatchWorkers {
-		return minAsyncDispatchWorkers
-	}
-	if workers > maxAsyncDispatchWorkers {
-		return maxAsyncDispatchWorkers
-	}
-	return workers
 }
 
 type asyncDispatchTask struct {
@@ -1349,142 +1280,12 @@ type asyncAuthTask struct {
 	replyToken string
 	connect    *frame.ConnectPacket
 	enqueuedAt time.Time
-	queue      *asyncAuthQueue
 }
 
 type asyncAuthStats interface {
 	depth() int
 	totalCapacity() int
 	workerCount() int
-}
-
-type asyncAuthQueue struct {
-	mu       sync.RWMutex
-	tasks    chan asyncAuthTask
-	capacity int
-	workers  int
-	queued   atomic.Int64
-	closed   bool
-}
-
-func newAsyncAuthQueue(workers int) *asyncAuthQueue {
-	if workers <= 0 {
-		workers = 1
-	}
-	queue := newAsyncAuthQueueWithCapacity(asyncAuthQueueCapacity(workers))
-	queue.workers = workers
-	return queue
-}
-
-func newAsyncAuthQueueWithCapacity(capacity int) *asyncAuthQueue {
-	if capacity <= 0 {
-		capacity = asyncAuthQueuePerWorker
-	}
-	return &asyncAuthQueue{
-		tasks:    make(chan asyncAuthTask, capacity),
-		capacity: capacity,
-		workers:  1,
-	}
-}
-
-func asyncAuthQueueCapacity(workers int) int {
-	if workers <= 0 {
-		workers = 1
-	}
-	capacity := workers * asyncAuthQueuePerWorker
-	if capacity > asyncAuthMaxBufferedTasks {
-		return asyncAuthMaxBufferedTasks
-	}
-	return capacity
-}
-
-func asyncAuthWorkerCount() int {
-	return adaptiveAsyncAuthWorkerCount(runtime.GOMAXPROCS(0))
-}
-
-func adaptiveAsyncAuthWorkerCount(gomaxprocs int) int {
-	if gomaxprocs <= 0 {
-		return minAsyncAuthWorkers
-	}
-	workers := gomaxprocs * asyncAuthWorkersPerCPU
-	if workers < minAsyncAuthWorkers {
-		return minAsyncAuthWorkers
-	}
-	if workers > maxAsyncAuthWorkers {
-		return maxAsyncAuthWorkers
-	}
-	return workers
-}
-
-func (q *asyncAuthQueue) submit(task asyncAuthTask) bool {
-	if q == nil || task.state == nil || task.connect == nil {
-		return false
-	}
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-	if q.closed {
-		return false
-	}
-	task.connect = cloneAuthConnectPacket(task.connect)
-	task.enqueuedAt = time.Now()
-	task.queue = q
-	q.queued.Add(1)
-	select {
-	case q.tasks <- task:
-		return true
-	default:
-		q.queued.Add(-1)
-		return false
-	}
-}
-
-func (q *asyncAuthQueue) consume(count int) {
-	if q == nil || count <= 0 {
-		return
-	}
-	remaining := q.queued.Add(-int64(count))
-	if remaining >= 0 {
-		return
-	}
-	q.queued.Add(-remaining)
-}
-
-func (q *asyncAuthQueue) depth() int {
-	if q == nil {
-		return 0
-	}
-	depth := q.queued.Load()
-	if depth < 0 {
-		return 0
-	}
-	return int(depth)
-}
-
-func (q *asyncAuthQueue) totalCapacity() int {
-	if q == nil {
-		return 0
-	}
-	return q.capacity
-}
-
-func (q *asyncAuthQueue) workerCount() int {
-	if q == nil {
-		return 0
-	}
-	return q.workers
-}
-
-func (q *asyncAuthQueue) close() {
-	if q == nil {
-		return
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.closed {
-		return
-	}
-	q.closed = true
-	close(q.tasks)
 }
 
 func cloneAuthConnectPacket(connect *frame.ConnectPacket) *frame.ConnectPacket {
@@ -1495,122 +1296,11 @@ func cloneAuthConnectPacket(connect *frame.ConnectPacket) *frame.ConnectPacket {
 	return &cloned
 }
 
-// asyncDispatchQueue shards SEND work by gateway session to avoid a single shared hot queue.
-type asyncDispatchQueue struct {
-	mu       sync.RWMutex
-	shards   []asyncDispatchShard
-	capacity int
-	queued   atomic.Int64
-	closed   bool
-}
-
-type asyncDispatchShard struct {
-	tasks chan asyncDispatchTask
-}
-
-func newAsyncDispatchQueue(shards int) *asyncDispatchQueue {
-	return newAsyncDispatchQueueWithCapacity(shards, asyncDispatchQueueCapacityPerShard(shards))
-}
-
-// asyncDispatchQueueCapacityPerShard keeps total buffered SEND slots bounded across many shards.
-func asyncDispatchQueueCapacityPerShard(shards int) int {
-	if shards <= 0 {
-		shards = 1
-	}
-	capacity := (asyncDispatchMaxBufferedTasks + shards - 1) / shards
-	if capacity > asyncDispatchQueuePerWorker {
-		return asyncDispatchQueuePerWorker
-	}
-	if capacity < asyncDispatchMinQueuePerWorker {
-		return asyncDispatchMinQueuePerWorker
-	}
-	return capacity
-}
-
-func newAsyncDispatchQueueWithCapacity(shards, capacityPerShard int) *asyncDispatchQueue {
-	if shards <= 0 {
-		shards = 1
-	}
-	if capacityPerShard <= 0 {
-		capacityPerShard = asyncDispatchQueuePerWorker
-	}
-	queue := &asyncDispatchQueue{shards: make([]asyncDispatchShard, shards), capacity: shards * capacityPerShard}
-	for i := range queue.shards {
-		queue.shards[i].tasks = make(chan asyncDispatchTask, capacityPerShard)
-	}
-	return queue
-}
-
-func (q *asyncDispatchQueue) submitSend(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if q == nil {
-		return false
-	}
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-	if q.closed {
-		return false
-	}
-	shard := q.shardForSend(state, send)
-	if len(shard.tasks) >= cap(shard.tasks) {
-		return false
-	}
-	task := asyncDispatchTask{
-		state:      state,
-		replyToken: replyToken,
-		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
-		enqueuedAt: time.Now(),
-		queue:      q,
-	}
-	select {
-	case shard.tasks <- task:
-		q.queued.Add(1)
-		return true
-	default:
-		return false
-	}
-}
-
-func (q *asyncDispatchQueue) consume(count int) {
-	if q == nil || count <= 0 {
-		return
-	}
-	remaining := q.queued.Add(-int64(count))
-	if remaining >= 0 {
-		return
-	}
-	q.queued.Add(-remaining)
-}
-
-func (q *asyncDispatchQueue) depth() int {
-	if q == nil {
-		return 0
-	}
-	depth := q.queued.Load()
-	if depth < 0 {
-		return 0
-	}
-	return int(depth)
-}
-
-func (q *asyncDispatchQueue) totalCapacity() int {
-	if q == nil {
-		return 0
-	}
-	return q.capacity
-}
-
 func stateOwnsDecodedFrames(state *sessionState) bool {
 	return state != nil && state.listener != nil && state.listener.ownsDecodedFrames
 }
 
-func (q *asyncDispatchQueue) shardForSend(state *sessionState, send *frame.SendPacket) asyncDispatchShard {
-	if q == nil || len(q.shards) == 0 {
-		return asyncDispatchShard{}
-	}
-	return q.shards[asyncDispatchShardIndex(state, send, len(q.shards))]
-}
-
-func asyncDispatchShardIndex(state *sessionState, _ frame.Frame, shards int) int {
+func asyncSendShardIndex(state *sessionState, _ frame.Frame, shards int) int {
 	if shards <= 1 {
 		return 0
 	}
@@ -1625,21 +1315,6 @@ func asyncDispatchShardIndex(state *sessionState, _ frame.Frame, shards int) int
 		return 0
 	}
 	return int(id % uint64(shards))
-}
-
-func (q *asyncDispatchQueue) close() {
-	if q == nil {
-		return
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.closed {
-		return
-	}
-	q.closed = true
-	for i := range q.shards {
-		close(q.shards[i].tasks)
-	}
 }
 
 func (s *Server) replyTokens(listener *listenerRuntime, sess session.Session, count int) []string {
@@ -1942,17 +1617,6 @@ func (s *Server) recordAsyncDispatchWait(task asyncDispatchTask) {
 	})
 }
 
-func (s *Server) observeAsyncSendDequeued(batch []asyncDispatchTask) {
-	queue := asyncSendBatchQueue(batch)
-	if queue == nil {
-		return
-	}
-	if consumer, ok := queue.(interface{ consume(int) }); ok {
-		consumer.consume(len(batch))
-	}
-	s.observeAsyncSendQueue(queue)
-}
-
 func (s *Server) observeAsyncSendQueue(queue asyncSendStats) {
 	observer := s.asyncSendObserver()
 	if observer == nil || queue == nil {
@@ -2085,15 +1749,6 @@ func (s *Server) transportPressureObserver() gatewaytypes.TransportPressureObser
 		return nil
 	}
 	return observer
-}
-
-func asyncSendBatchQueue(batch []asyncDispatchTask) asyncSendStats {
-	for _, task := range batch {
-		if task.queue != nil {
-			return task.queue
-		}
-	}
-	return nil
 }
 
 func connectionEventForState(state *sessionState) gatewaytypes.ConnectionEvent {

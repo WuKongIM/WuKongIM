@@ -323,46 +323,12 @@ func TestAsyncSendBatchOptionsCanDisableWaitButNotBounds(t *testing.T) {
 	}
 }
 
-func TestAsyncDispatchWorkerCountUsesExplicitOverride(t *testing.T) {
-	got := asyncDispatchWorkerCount(gatewaytypes.RuntimeOptions{AsyncSendWorkers: 7})
-	if got != 7 {
-		t.Fatalf("worker count = %d, want explicit override 7", got)
-	}
-}
-
-func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
-	tests := []struct {
-		name       string
-		gomaxprocs int
-		want       int
-	}{
-		{name: "low clamps to minimum", gomaxprocs: 1, want: 128},
-		{name: "scales by cpu", gomaxprocs: 10, want: 128},
-		{name: "high caps maximum", gomaxprocs: 128, want: 256},
-		{name: "invalid clamps minimum", gomaxprocs: 0, want: 128},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := adaptiveAsyncDispatchWorkerCount(tt.gomaxprocs); got != tt.want {
-				t.Fatalf("adaptive worker count = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestAdaptiveAsyncDispatchWorkerCountKeepsSessionBurstRoom(t *testing.T) {
-	workers := adaptiveAsyncDispatchWorkerCount(10)
-	if got, want := asyncDispatchQueueCapacityPerShard(workers), asyncDispatchQueuePerWorker; got != want {
-		t.Fatalf("default shard capacity = %d, want %d for session bursts", got, want)
-	}
-}
-
 func TestAsyncSendDispatchShardsBySessionNotChannel(t *testing.T) {
 	const shards = 256
 	state := &sessionState{session: session.New(session.Config{ID: 42})}
 
-	first := asyncDispatchShardIndex(state, &frame.SendPacket{ChannelID: "channel-a", ChannelType: 2}, shards)
-	second := asyncDispatchShardIndex(state, &frame.SendPacket{ChannelID: "channel-b", ChannelType: 2}, shards)
+	first := asyncSendShardIndex(state, &frame.SendPacket{ChannelID: "channel-a", ChannelType: 2}, shards)
+	second := asyncSendShardIndex(state, &frame.SendPacket{ChannelID: "channel-b", ChannelType: 2}, shards)
 
 	if first != second {
 		t.Fatalf("shard indexes = %d/%d, want same session shard independent of channel", first, second)
@@ -1036,21 +1002,6 @@ func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchT
 			ClientMsgNo: clientMsgNo,
 			Payload:     make([]byte, payloadBytes),
 		},
-	}
-}
-
-func queuedAsyncSendPacket(t *testing.T, queue *asyncDispatchQueue) *frame.SendPacket {
-	t.Helper()
-	select {
-	case task := <-queue.shards[0].tasks:
-		send, ok := task.frame.(*frame.SendPacket)
-		if !ok {
-			t.Fatalf("queued frame = %T, want *frame.SendPacket", task.frame)
-		}
-		return send
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for queued send")
-		return nil
 	}
 }
 
