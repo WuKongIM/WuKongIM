@@ -10,7 +10,7 @@ import (
 type writeKind uint8
 
 const (
-	writeKindSend writeKind = iota
+	writeKindSend writeKind = iota + 1
 	writeKindFrame
 	writeKindClose
 )
