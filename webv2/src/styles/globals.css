@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+:root {
+  --app-background: #f7f7f5;
+  --background: #ffffff;
+  --foreground: #202124;
+  --primary: #1d6f42;
+  --muted: #f0f1ef;
+  --muted-foreground: #6f7378;
+  --border: #dedfdd;
+  --success: #238641;
+  --warning: #a86616;
+  --sidebar: #eef0f2;
+  --sidebar-foreground: #25272a;
+  --sidebar-muted: #777b80;
+  --sidebar-border: #dcdee2;
+  --sidebar-primary: #24282d;
+  --sidebar-primary-foreground: #ffffff;
+  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--foreground);
+  background: var(--app-background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@theme inline {
+  --font-sans: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--app-background)] text-foreground;
+  }
+}
+
+@layer components {
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/70 hover:text-sidebar-foreground;
+  }
+
+  .sidebar-link-active {
+    @apply bg-white text-sidebar-foreground shadow-sm ring-1 ring-sidebar-border;
+  }
+
+  .sidebar-child-link {
+    @apply mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/70 hover:text-sidebar-foreground;
+  }
+
+  .sidebar-child-link-active {
+    @apply bg-white/80 text-sidebar-foreground shadow-sm ring-1 ring-sidebar-border;
+  }
+
+  .icon-button {
+    @apply grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground;
+  }
+
+  .content-panel {
+    @apply rounded-lg border border-border bg-background p-5 shadow-sm;
+  }
+}

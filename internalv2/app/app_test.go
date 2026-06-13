@@ -180,6 +180,55 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestStartStopOrderIncludesPrometheusBetweenAPIAndGateway(t *testing.T) {
+	calls := make([]string, 0, 8)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls}
+	prometheus := &recordingWorkerRuntime{calls: &calls, name: "prometheus"}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.prometheus = prometheus
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	want := "cluster.start,api.start,prometheus.start,gateway.start,gateway.stop,prometheus.stop,api.stop,cluster.stop"
+	if got := joinCalls(calls); got != want {
+		t.Fatalf("calls = %s, want %s", got, want)
+	}
+}
+
+func TestGatewayStartFailureStopsPrometheusBeforeAPI(t *testing.T) {
+	gatewayErr := errors.New("gateway start failed")
+	calls := make([]string, 0, 7)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls, startErr: gatewayErr}
+	prometheus := &recordingWorkerRuntime{calls: &calls, name: "prometheus"}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.prometheus = prometheus
+
+	err = app.Start(context.Background())
+	if !errors.Is(err, gatewayErr) {
+		t.Fatalf("Start() error = %v, want gateway error", err)
+	}
+
+	want := "cluster.start,api.start,prometheus.start,gateway.start,prometheus.stop,api.stop,cluster.stop"
+	if got := joinCalls(calls); got != want {
+		t.Fatalf("calls = %s, want %s", got, want)
+	}
+}
+
 func TestDefaultPresenceConfigUsesTouchDefaults(t *testing.T) {
 	cfg := defaultPresenceConfig(PresenceConfig{})
 
@@ -3847,14 +3896,22 @@ type recordingWorkerRuntime struct {
 	stopCount  int
 	startErr   error
 	stopErr    error
+	calls      *[]string
+	name       string
 }
 
 func (r *recordingWorkerRuntime) Start(context.Context) error {
+	if r.calls != nil && r.name != "" {
+		*r.calls = append(*r.calls, r.name+".start")
+	}
 	r.startCount++
 	return r.startErr
 }
 
 func (r *recordingWorkerRuntime) Stop(context.Context) error {
+	if r.calls != nil && r.name != "" {
+		*r.calls = append(*r.calls, r.name+".stop")
+	}
 	r.stopCount++
 	return r.stopErr
 }

@@ -55,6 +55,9 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if !cfg.Delivery.Enabled {
 		t.Fatalf("Delivery.Enabled = false, want true by default")
 	}
+	if cfg.Observability.Prometheus.Enabled {
+		t.Fatalf("Observability.Prometheus.Enabled = true, want false by default")
+	}
 }
 
 func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {
@@ -132,6 +135,14 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
 		"WK_METRICS_ENABLE=true",
+		"WK_PROMETHEUS_ENABLE=true",
+		"WK_PROMETHEUS_BINARY_PATH=/opt/prometheus/prometheus",
+		"WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
+		"WK_PROMETHEUS_DATA_DIR="+filepath.Join(dir, "prometheus"),
+		"WK_PROMETHEUS_RETENTION_TIME=48h",
+		"WK_PROMETHEUS_RETENTION_SIZE=2GB",
+		"WK_PROMETHEUS_SCRAPE_INTERVAL=10s",
+		`WK_PROMETHEUS_SCRAPE_TARGETS=["127.0.0.1:5042","127.0.0.1:5043"]`,
 		"WK_DEBUG_API_ENABLE=true",
 		"WK_EXTERNAL_TCPADDR=127.0.0.1:5142",
 		"WK_EXTERNAL_WSADDR=ws://127.0.0.1:5242",
@@ -332,6 +343,30 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if !cfg.Observability.MetricsEnabled {
 		t.Fatalf("Observability.MetricsEnabled = false, want true")
+	}
+	if !cfg.Observability.Prometheus.Enabled {
+		t.Fatalf("Observability.Prometheus.Enabled = false, want true")
+	}
+	if cfg.Observability.Prometheus.BinaryPath != "/opt/prometheus/prometheus" {
+		t.Fatalf("Prometheus.BinaryPath = %q", cfg.Observability.Prometheus.BinaryPath)
+	}
+	if cfg.Observability.Prometheus.ListenAddr != "127.0.0.1:9091" {
+		t.Fatalf("Prometheus.ListenAddr = %q", cfg.Observability.Prometheus.ListenAddr)
+	}
+	if cfg.Observability.Prometheus.DataDir != filepath.Join(dir, "prometheus") {
+		t.Fatalf("Prometheus.DataDir = %q", cfg.Observability.Prometheus.DataDir)
+	}
+	if cfg.Observability.Prometheus.RetentionTime != 48*time.Hour {
+		t.Fatalf("Prometheus.RetentionTime = %s, want 48h", cfg.Observability.Prometheus.RetentionTime)
+	}
+	if cfg.Observability.Prometheus.RetentionSize != "2GB" {
+		t.Fatalf("Prometheus.RetentionSize = %q", cfg.Observability.Prometheus.RetentionSize)
+	}
+	if cfg.Observability.Prometheus.ScrapeInterval != 10*time.Second {
+		t.Fatalf("Prometheus.ScrapeInterval = %s, want 10s", cfg.Observability.Prometheus.ScrapeInterval)
+	}
+	if got := strings.Join(cfg.Observability.Prometheus.ScrapeTargets, ","); got != "127.0.0.1:5042,127.0.0.1:5043" {
+		t.Fatalf("Prometheus.ScrapeTargets = %q", got)
 	}
 	if !cfg.Observability.DebugAPIEnabled {
 		t.Fatalf("Observability.DebugAPIEnabled = false, want true")
@@ -985,6 +1020,12 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "bench api max batch size", line: "WK_BENCH_API_MAX_BATCH_SIZE=many", wantKey: "WK_BENCH_API_MAX_BATCH_SIZE"},
 		{name: "bench api max payload bytes", line: "WK_BENCH_API_MAX_PAYLOAD_BYTES=large", wantKey: "WK_BENCH_API_MAX_PAYLOAD_BYTES"},
 		{name: "metrics enable", line: "WK_METRICS_ENABLE=maybe", wantKey: "WK_METRICS_ENABLE"},
+		{name: "prometheus enable", line: "WK_PROMETHEUS_ENABLE=maybe", wantKey: "WK_PROMETHEUS_ENABLE"},
+		{name: "prometheus retention time", line: "WK_PROMETHEUS_RETENTION_TIME=forever", wantKey: "WK_PROMETHEUS_RETENTION_TIME"},
+		{name: "prometheus retention time negative", line: "WK_PROMETHEUS_RETENTION_TIME=-1s", wantKey: "WK_PROMETHEUS_RETENTION_TIME"},
+		{name: "prometheus scrape interval", line: "WK_PROMETHEUS_SCRAPE_INTERVAL=often", wantKey: "WK_PROMETHEUS_SCRAPE_INTERVAL"},
+		{name: "prometheus scrape interval negative", line: "WK_PROMETHEUS_SCRAPE_INTERVAL=-1s", wantKey: "WK_PROMETHEUS_SCRAPE_INTERVAL"},
+		{name: "prometheus scrape targets", line: "WK_PROMETHEUS_SCRAPE_TARGETS=not-json", wantKey: "WK_PROMETHEUS_SCRAPE_TARGETS"},
 		{name: "debug api enable", line: "WK_DEBUG_API_ENABLE=maybe", wantKey: "WK_DEBUG_API_ENABLE"},
 		{name: "diagnostics enable", line: "WK_DIAGNOSTICS_ENABLE=maybe", wantKey: "WK_DIAGNOSTICS_ENABLE"},
 		{name: "diagnostics buffer size", line: "WK_DIAGNOSTICS_BUFFER_SIZE=many", wantKey: "WK_DIAGNOSTICS_BUFFER_SIZE"},

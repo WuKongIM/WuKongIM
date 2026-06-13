@@ -25,7 +25,12 @@ scripts/start-wukongimv2-single-node.sh --clean
 
 The script builds `cmd/wukongimv2`, starts the single-node cluster config,
 waits for `/readyz`, and keeps the node running until Ctrl+C. Logs are written
-under `data/wukongimv2-single-node-logs/`.
+under `data/wukongimv2-single-node-logs/`. This helper enables the app-managed
+Prometheus process by default; set `WK_PROMETHEUS_ENABLE=false` before running
+the script to disable it. When Prometheus is enabled and
+`WK_PROMETHEUS_BINARY_PATH` is unset, the script first builds Prometheus into
+the wukongimv2 embed assets and then builds wukongimv2, so the resulting
+`wukongimv2` executable carries the Prometheus binary.
 
 For a local static three-node cluster, the fastest path is the helper script:
 
@@ -77,6 +82,25 @@ With metrics enabled, scrape the standard Prometheus endpoint:
 ```sh
 curl -fsS http://127.0.0.1:5001/metrics
 ```
+
+To let `wukongimv2` manage a local Prometheus process for the node in manual
+`go run` usage, keep `WK_METRICS_ENABLE=true` and enable the Prometheus block in
+the config:
+
+```ini
+WK_PROMETHEUS_ENABLE=true
+WK_PROMETHEUS_BINARY_PATH=
+WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9090
+WK_PROMETHEUS_DATA_DIR=./data/wukongimv2-single-node-data/prometheus
+WK_PROMETHEUS_RETENTION_TIME=360h
+WK_PROMETHEUS_SCRAPE_INTERVAL=15s
+WK_PROMETHEUS_SCRAPE_TARGETS=[]
+```
+
+`WK_PROMETHEUS_SCRAPE_TARGETS=[]` derives one scrape target from
+`WK_API_LISTEN_ADDR`. Leave `WK_PROMETHEUS_BINARY_PATH` empty to use the
+embedded Prometheus binary; set it to an absolute path only when you want to
+override the embedded binary with an external Prometheus executable.
 
 For local testing without running Prometheus, keep two snapshots and classify
 them with wkbench:

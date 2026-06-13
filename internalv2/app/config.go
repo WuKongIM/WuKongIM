@@ -4,7 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
+	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -92,12 +96,34 @@ type ObservabilityConfig struct {
 	MetricsEnabled bool
 	// DebugAPIEnabled exposes local /debug endpoints on the API listener.
 	DebugAPIEnabled bool
+	// Prometheus configures the optional app-managed Prometheus process.
+	Prometheus PrometheusConfig
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
 
 	diagnosticsEnabledSet         bool
 	diagnosticsSampleRateSet      bool
 	diagnosticsErrorSampleRateSet bool
+}
+
+// PrometheusConfig controls the optional child Prometheus process managed by wukongimv2.
+type PrometheusConfig struct {
+	// Enabled starts the embedded or externally configured Prometheus child process during app startup.
+	Enabled bool
+	// BinaryPath is an optional external prometheus executable path; empty uses the embedded binary.
+	BinaryPath string
+	// ListenAddr is the Prometheus web listen address.
+	ListenAddr string
+	// DataDir stores the generated prometheus.yml file and Prometheus TSDB data.
+	DataDir string
+	// RetentionTime controls Prometheus TSDB time-based retention.
+	RetentionTime time.Duration
+	// RetentionSize optionally controls Prometheus TSDB size-based retention.
+	RetentionSize string
+	// ScrapeInterval controls how frequently Prometheus scrapes wukongimv2 metrics.
+	ScrapeInterval time.Duration
+	// ScrapeTargets lists host:port targets exposing the wukongimv2 /metrics endpoint.
+	ScrapeTargets []string
 }
 
 // SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
@@ -358,6 +384,7 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 }
 
 func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
+	cfg.Prometheus = defaultPrometheusConfig(cfg.Prometheus)
 	if !cfg.diagnosticsEnabledSet {
 		cfg.Diagnostics.Enabled = true
 	}
@@ -380,6 +407,53 @@ func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
 		cfg.Diagnostics.DeepMaxItemsPerBatch = 16
 	}
 	return cfg
+}
+
+func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = "127.0.0.1:9090"
+	}
+	if cfg.RetentionTime == 0 {
+		cfg.RetentionTime = 15 * 24 * time.Hour
+	}
+	if cfg.ScrapeInterval == 0 {
+		cfg.ScrapeInterval = 15 * time.Second
+	}
+	return cfg
+}
+
+func defaultPrometheusConfigForApp(cfg Config) PrometheusConfig {
+	prom := defaultPrometheusConfig(cfg.Observability.Prometheus)
+	if strings.TrimSpace(prom.DataDir) == "" {
+		dataDir := strings.TrimSpace(cfg.DataDir)
+		if dataDir == "" {
+			dataDir = strings.TrimSpace(cfg.Cluster.DataDir)
+		}
+		prom.DataDir = filepath.Join(dataDir, "prometheus")
+	}
+	if len(prom.ScrapeTargets) == 0 && strings.TrimSpace(cfg.API.ListenAddr) != "" {
+		prom.ScrapeTargets = []string{prometheusScrapeTargetFromAPI(cfg.API.ListenAddr)}
+	} else if len(prom.ScrapeTargets) > 0 {
+		targets := make([]string, 0, len(prom.ScrapeTargets))
+		for _, target := range prom.ScrapeTargets {
+			targets = append(targets, strings.TrimSpace(target))
+		}
+		prom.ScrapeTargets = targets
+	}
+	return prom
+}
+
+func prometheusScrapeTargetFromAPI(listenAddr string) string {
+	addr := strings.TrimSpace(listenAddr)
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	switch strings.Trim(host, "[]") {
+	case "", "0.0.0.0", "::":
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
 }
 
 func defaultLogConfig(cfg LogConfig) LogConfig {
@@ -500,6 +574,30 @@ func validateConversationConfig(cfg ConversationConfig) error {
 }
 
 func validateObservabilityConfig(cfg ObservabilityConfig) error {
+	if cfg.Prometheus.RetentionTime < 0 {
+		return fmt.Errorf("%w: prometheus retention time must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.Prometheus.ScrapeInterval < 0 {
+		return fmt.Errorf("%w: prometheus scrape interval must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.Prometheus.Enabled {
+		if cfg.Prometheus.ListenAddr != "" {
+			if err := validatePrometheusListenAddr(cfg.Prometheus.ListenAddr); err != nil {
+				return err
+			}
+		}
+		if len(cfg.Prometheus.ScrapeTargets) == 0 {
+			return fmt.Errorf("%w: prometheus requires scrape targets", ErrInvalidConfig)
+		}
+		for _, target := range cfg.Prometheus.ScrapeTargets {
+			if err := validatePrometheusScrapeTarget(target); err != nil {
+				return err
+			}
+		}
+		if !cfg.MetricsEnabled {
+			return fmt.Errorf("%w: prometheus requires metrics", ErrInvalidConfig)
+		}
+	}
 	if !validDiagnosticsSampleRate(cfg.Diagnostics.SampleRate) {
 		return fmt.Errorf("%w: diagnostics sample rate must be between 0 and 1", ErrInvalidConfig)
 	}
@@ -522,6 +620,45 @@ func validateObservabilityConfig(cfg ObservabilityConfig) error {
 		if match.TTLSeconds < 0 {
 			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
 		}
+	}
+	return nil
+}
+
+func validatePrometheusConfig(cfg Config) error {
+	if !cfg.Observability.Prometheus.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(cfg.API.ListenAddr) == "" {
+		return fmt.Errorf("%w: prometheus requires api listen addr", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validatePrometheusListenAddr(addr string) error {
+	if _, _, err := net.SplitHostPort(strings.TrimSpace(addr)); err != nil {
+		return fmt.Errorf("%w: prometheus listen addr must be host:port", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validatePrometheusScrapeTarget(target string) error {
+	trimmed := strings.TrimSpace(target)
+	if trimmed == "" {
+		return fmt.Errorf("%w: prometheus scrape target must be non-empty", ErrInvalidConfig)
+	}
+	if strings.Contains(trimmed, "://") {
+		return fmt.Errorf("%w: prometheus scrape target must be host:port without scheme", ErrInvalidConfig)
+	}
+	host, portText, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return fmt.Errorf("%w: prometheus scrape target must be host:port", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(host) == "" {
+		return fmt.Errorf("%w: prometheus scrape target host must be non-empty", ErrInvalidConfig)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 || port > 65535 {
+		return fmt.Errorf("%w: prometheus scrape target port must be 1-65535", ErrInvalidConfig)
 	}
 	return nil
 }

@@ -49,7 +49,11 @@ func (a *App) applyConfigDefaults() error {
 		return err
 	}
 	a.cfg.Observability = defaultObservabilityConfig(a.cfg.Observability)
+	a.cfg.Observability.Prometheus = defaultPrometheusConfigForApp(a.cfg)
 	if err := validateObservabilityConfig(a.cfg.Observability); err != nil {
+		return err
+	}
+	if err := validatePrometheusConfig(a.cfg); err != nil {
 		return err
 	}
 	a.cfg.Log = defaultLogConfig(a.cfg.Log)

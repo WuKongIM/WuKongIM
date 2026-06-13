@@ -93,6 +93,8 @@ type App struct {
 	presenceDirectory   *authoritypresence.Directory
 	presenceWorker      WorkerRuntime
 	metrics             *obsmetrics.Registry
+	// prometheus is the optional child Prometheus process managed by the app lifecycle.
+	prometheus WorkerRuntime
 	// diagnostics stores sampled send-path trace events for app-local queries.
 	diagnostics *obsdiagnostics.Store
 	// diagnosticsTracking stores dynamic diagnostics sampling rules.
@@ -111,6 +113,7 @@ type App struct {
 	channelAppendStarted      bool
 	deliveryStarted           bool
 	apiStarted                bool
+	prometheusStarted         bool
 	gatewayStarted            bool
 	deliveryErrors            atomic.Uint64
 }
@@ -155,6 +158,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
 	app.wireAPI()
+	app.wirePrometheus()
 	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}

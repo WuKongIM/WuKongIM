@@ -1,0 +1,3 @@
+prometheus-*
+!README.md
+!.gitignore

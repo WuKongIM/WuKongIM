@@ -104,20 +104,51 @@ func writeFakeGoWukongIMV2Starter(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/go.calls"
-if [[ "$1" != "build" || "$2" != "-o" || "$4" != "./cmd/wukongimv2" ]]; then
-  echo "unexpected go args: $*" >&2
-  exit 2
-fi
-cat > "$3" <<'BIN'
+case "$1" in
+  env)
+    case "$2" in
+      GOOS) echo testos ;;
+      GOARCH) echo testarch ;;
+      *) echo "unexpected go env arg: $*" >&2; exit 2 ;;
+    esac
+    exit 0
+    ;;
+  build)
+    if [[ "$2" == "-o" && "$4" == "./cmd/wukongimv2" ]]; then
+      cat > "$3" <<'BIN'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "$*" >> "` + callsDir + `/wukongimv2.calls"
+printf 'WK_PROMETHEUS_ENABLE=%s\n' "${WK_PROMETHEUS_ENABLE-}" >> "` + callsDir + `/wukongimv2.env"
+if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
+  printf 'WK_PROMETHEUS_BINARY_PATH=%s\n' "$WK_PROMETHEUS_BINARY_PATH" >> "` + callsDir + `/wukongimv2.env"
+else
+  printf 'WK_PROMETHEUS_BINARY_PATH=<unset>\n' >> "` + callsDir + `/wukongimv2.env"
+fi
 trap 'exit 0' TERM INT
 while true; do
   sleep 1
 done
 BIN
-chmod +x "$3"
+      chmod +x "$3"
+      exit 0
+    fi
+    if [[ "$2" == "-o" && "$4" == "./cmd/prometheus" ]]; then
+      cat > "$3" <<'PROM'
+#!/usr/bin/env bash
+echo fake prometheus
+PROM
+      chmod +x "$3"
+      exit 0
+    fi
+      echo "unexpected go build args: $*" >&2
+      exit 2
+      ;;
+  *)
+    echo "unexpected go args: $*" >&2
+    exit 2
+    ;;
+esac
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

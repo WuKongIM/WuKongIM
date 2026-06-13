@@ -57,6 +57,14 @@ var supportedConfigKeys = []string{
 	"WK_BENCH_API_MAX_BATCH_SIZE",
 	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
 	"WK_METRICS_ENABLE",
+	"WK_PROMETHEUS_ENABLE",
+	"WK_PROMETHEUS_BINARY_PATH",
+	"WK_PROMETHEUS_LISTEN_ADDR",
+	"WK_PROMETHEUS_DATA_DIR",
+	"WK_PROMETHEUS_RETENTION_TIME",
+	"WK_PROMETHEUS_RETENTION_SIZE",
+	"WK_PROMETHEUS_SCRAPE_INTERVAL",
+	"WK_PROMETHEUS_SCRAPE_TARGETS",
 	"WK_DEBUG_API_ENABLE",
 	"WK_DIAGNOSTICS_ENABLE",
 	"WK_DIAGNOSTICS_BUFFER_SIZE",
@@ -480,6 +488,44 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Observability.MetricsEnabled = metricsEnable
+	}
+	if raw := configValue(values, "WK_PROMETHEUS_ENABLE"); raw != "" {
+		prometheusEnable, err := parseBool("WK_PROMETHEUS_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Prometheus.Enabled = prometheusEnable
+	}
+	cfg.Observability.Prometheus.BinaryPath = configValue(values, "WK_PROMETHEUS_BINARY_PATH")
+	cfg.Observability.Prometheus.ListenAddr = configValue(values, "WK_PROMETHEUS_LISTEN_ADDR")
+	cfg.Observability.Prometheus.DataDir = configValue(values, "WK_PROMETHEUS_DATA_DIR")
+	if raw := configValue(values, "WK_PROMETHEUS_RETENTION_TIME"); raw != "" {
+		retentionTime, err := parseDuration("WK_PROMETHEUS_RETENTION_TIME", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if retentionTime < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PROMETHEUS_RETENTION_TIME: value must be >= 0")
+		}
+		cfg.Observability.Prometheus.RetentionTime = retentionTime
+	}
+	cfg.Observability.Prometheus.RetentionSize = configValue(values, "WK_PROMETHEUS_RETENTION_SIZE")
+	if raw := configValue(values, "WK_PROMETHEUS_SCRAPE_INTERVAL"); raw != "" {
+		scrapeInterval, err := parseDuration("WK_PROMETHEUS_SCRAPE_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if scrapeInterval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PROMETHEUS_SCRAPE_INTERVAL: value must be >= 0")
+		}
+		cfg.Observability.Prometheus.ScrapeInterval = scrapeInterval
+	}
+	if raw := configValue(values, "WK_PROMETHEUS_SCRAPE_TARGETS"); raw != "" {
+		scrapeTargets, err := parseStringList("WK_PROMETHEUS_SCRAPE_TARGETS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Prometheus.ScrapeTargets = scrapeTargets
 	}
 	if raw := configValue(values, "WK_DEBUG_API_ENABLE"); raw != "" {
 		debugAPIEnable, err := parseBool("WK_DEBUG_API_ENABLE", raw)
@@ -967,6 +1013,17 @@ func parseClusterNodes(raw string) ([]clusterNodeConfig, error) {
 		return nil, fmt.Errorf("parse WK_CLUSTER_NODES as JSON: %w", err)
 	}
 	return nodes, nil
+}
+
+func parseStringList(key, raw string) ([]string, error) {
+	var values []string
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, fmt.Errorf("parse %s as JSON: %w", key, err)
+	}
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return values, nil
 }
 
 func parseDiagnosticsDebugMatches(raw string) ([]app.DiagnosticsDebugMatchConfig, error) {

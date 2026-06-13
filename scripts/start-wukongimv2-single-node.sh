@@ -9,6 +9,9 @@ READY_URL="${WK_WUKONGIMV2_SINGLE_NODE_READY_URL:-http://127.0.0.1:5001/readyz}"
 DATA_DIR="${WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongimv2-single-node-data}"
 READY_TIMEOUT="${WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT:-60}"
 POLL_INTERVAL="${WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL:-1}"
+PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION:-v3.12.0}}"
+PROMETHEUS_REPO="${WK_PROMETHEUS_REPO:-https://github.com/prometheus/prometheus.git}"
+PROMETHEUS_EMBED_DIR="${WK_PROMETHEUS_EMBED_DIR:-$ROOT_DIR/internalv2/app/prometheus_embedded}"
 BUILD=1
 CLEAN=0
 DRY_RUN=0
@@ -21,6 +24,14 @@ Usage: scripts/start-wukongimv2-single-node.sh [options]
 
 Builds cmd/wukongimv2, starts the single-node cluster config, waits for
 /readyz, and keeps the node in the foreground until Ctrl+C.
+
+Prometheus is enabled by default for this helper script. Set
+WK_PROMETHEUS_ENABLE=false to keep the node metrics endpoint without starting
+the app-managed Prometheus process. When enabled and WK_PROMETHEUS_BINARY_PATH
+is unset, the script builds a Prometheus binary into the wukongimv2 embed
+assets before compiling wukongimv2, so the final wukongimv2 executable carries
+Prometheus with it. Set WK_PROMETHEUS_SOURCE_REF to choose the Prometheus Git
+ref used for that embedded build.
 
 Options:
   --clean                Remove the node data directory and log dir before start.
@@ -77,6 +88,12 @@ print_plan() {
   printf 'log_dir=%s\n' "$LOG_DIR"
   printf 'log=%s\n' "$(log_path)"
   printf 'ready=%s\n' "$READY_URL"
+  printf 'prometheus_enable=%s\n' "$WK_PROMETHEUS_ENABLE"
+  if [[ -n "${WK_PROMETHEUS_BINARY_PATH-}" ]]; then
+    printf 'prometheus_binary_path=%s\n' "$WK_PROMETHEUS_BINARY_PATH"
+  else
+    printf 'prometheus_binary_path=<embedded>\n'
+  fi
   printf 'cmd=%s -config %s\n' "$BIN_PATH" "$CONFIG_PATH"
 }
 
@@ -175,6 +192,17 @@ done
 require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 
+WK_PROMETHEUS_ENABLE="${WK_PROMETHEUS_ENABLE:-true}"
+export WK_PROMETHEUS_ENABLE
+WK_PROMETHEUS_EXTERNAL_BINARY=0
+if [[ -n "${WK_PROMETHEUS_BINARY_PATH-}" ]]; then
+  WK_PROMETHEUS_EXTERNAL_BINARY=1
+fi
+if [[ "$WK_PROMETHEUS_ENABLE" == "true" && "$WK_PROMETHEUS_EXTERNAL_BINARY" -eq 0 ]]; then
+  WK_PROMETHEUS_BINARY_PATH=""
+  export WK_PROMETHEUS_BINARY_PATH
+fi
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
   exit 0
@@ -189,7 +217,43 @@ fi
 
 mkdir -p "$(dirname "$BIN_PATH")" "$LOG_DIR"
 
+ensure_embedded_prometheus() {
+  local goos goarch suffix embed_name embed_path tmp src_dir gobin_path
+  goos="${GOOS:-$(go env GOOS)}"
+  goarch="${GOARCH:-$(go env GOARCH)}"
+  suffix=""
+  if [[ "$goos" == "windows" ]]; then
+    suffix=".exe"
+  fi
+  embed_name="prometheus-${goos}-${goarch}${suffix}"
+  embed_path="$PROMETHEUS_EMBED_DIR/$embed_name"
+  if [[ -x "$embed_path" ]]; then
+    log "using embedded prometheus asset: $embed_path"
+    return
+  fi
+  command -v git >/dev/null 2>&1 || die "git is required to build embedded prometheus from source"
+  log "building embedded prometheus $PROMETHEUS_SOURCE_REF for ${goos}/${goarch}"
+  mkdir -p "$PROMETHEUS_EMBED_DIR"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/wukongim-prometheus.XXXXXX")"
+  trap 'rm -rf "$tmp"; cleanup' EXIT
+  gobin_path="$tmp/prometheus${suffix}"
+  src_dir="$tmp/prometheus-src"
+  git clone --depth 1 --branch "$PROMETHEUS_SOURCE_REF" "$PROMETHEUS_REPO" "$src_dir"
+  (
+    cd "$src_dir"
+    GOOS="$goos" GOARCH="$goarch" go build -o "$gobin_path" ./cmd/prometheus
+  )
+  [[ -x "$gobin_path" ]] || die "prometheus build did not produce executable: $gobin_path"
+  cp "$gobin_path" "$embed_path"
+  chmod 0755 "$embed_path"
+  rm -rf "$tmp"
+  trap cleanup EXIT
+}
+
 if [[ "$BUILD" -eq 1 ]]; then
+  if [[ "$WK_PROMETHEUS_ENABLE" == "true" && "$WK_PROMETHEUS_EXTERNAL_BINARY" -eq 0 ]]; then
+    ensure_embedded_prometheus
+  fi
   log "building $BIN_PATH"
   (
     cd "$ROOT_DIR"

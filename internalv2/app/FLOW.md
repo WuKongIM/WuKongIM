@@ -7,7 +7,8 @@ phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
 usecase, the channel management usecase, the user management usecase, the
 conversation list usecase, the optional delivery usecase/runtime, the presence
 usecase, the gateway handler, the optional HTTP API runtime, the optional
-Prometheus metrics registry, and the optional gateway runtime. The phase-1
+Prometheus metrics registry, the optional app-managed Prometheus child process,
+and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
 management, UID connection-route authority, channel-authority write routing,
@@ -32,6 +33,11 @@ New(Config)
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
      counters, and recipient delivery worker queue/admission/process metrics
+  -> when Observability.Prometheus.Enabled=true:
+       validate that the API metrics endpoint is enabled and create a child
+       Prometheus runtime that writes prometheus.yml under the configured
+       Prometheus data dir, extracts the embedded Prometheus binary when no
+       external binary path is configured, and scrapes the node API /metrics endpoint
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -329,11 +335,13 @@ Start(ctx)
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
   -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
+  -> prometheus.Start(ctx): write prometheus.yml and start the child Prometheus process
   -> gateway.Start()
 
 Stop(ctx)
   -> restore diagnostics sendtrace sink
   -> gateway.Stop()
+  -> prometheus.Stop(ctx)
   -> api.Stop(ctx)
   -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler

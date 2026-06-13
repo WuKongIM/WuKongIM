@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1149,6 +1150,90 @@ func TestDiagnosticsConfigDefaultsAndValidation(t *testing.T) {
 			observability := ObservabilityConfig{Diagnostics: tt.cfg}
 			if err := validateObservabilityConfig(observability); !errors.Is(err, ErrInvalidConfig) {
 				t.Fatalf("validateObservabilityConfig() error = %v, want %v", err, ErrInvalidConfig)
+			}
+		})
+	}
+}
+
+func TestPrometheusConfigDefaultsAndValidation(t *testing.T) {
+	dir := t.TempDir()
+	app := &App{cfg: Config{
+		NodeID:  7,
+		DataDir: dir,
+		API:     APIConfig{ListenAddr: "0.0.0.0:5001"},
+		Observability: ObservabilityConfig{
+			MetricsEnabled: true,
+			Prometheus: PrometheusConfig{
+				Enabled: true,
+			},
+		},
+	}}
+
+	if err := app.applyConfigDefaults(); err != nil {
+		t.Fatalf("applyConfigDefaults() error = %v", err)
+	}
+
+	prom := app.cfg.Observability.Prometheus
+	if prom.BinaryPath != "" {
+		t.Fatalf("Prometheus.BinaryPath = %q, want empty embedded default", prom.BinaryPath)
+	}
+	if prom.ListenAddr != "127.0.0.1:9090" {
+		t.Fatalf("Prometheus.ListenAddr = %q, want 127.0.0.1:9090", prom.ListenAddr)
+	}
+	if prom.DataDir != filepath.Join(dir, "prometheus") {
+		t.Fatalf("Prometheus.DataDir = %q", prom.DataDir)
+	}
+	if prom.RetentionTime != 15*24*time.Hour {
+		t.Fatalf("Prometheus.RetentionTime = %s, want 360h", prom.RetentionTime)
+	}
+	if prom.ScrapeInterval != 15*time.Second {
+		t.Fatalf("Prometheus.ScrapeInterval = %s, want 15s", prom.ScrapeInterval)
+	}
+	if len(prom.ScrapeTargets) != 1 || prom.ScrapeTargets[0] != "127.0.0.1:5001" {
+		t.Fatalf("Prometheus.ScrapeTargets = %#v, want 127.0.0.1:5001", prom.ScrapeTargets)
+	}
+
+	tests := []struct {
+		name string
+		cfg  Config
+	}{
+		{
+			name: "requires metrics",
+			cfg: Config{
+				API: APIConfig{ListenAddr: "127.0.0.1:5001"},
+				Observability: ObservabilityConfig{
+					Prometheus: PrometheusConfig{Enabled: true},
+				},
+			},
+		},
+		{
+			name: "requires api listener",
+			cfg: Config{
+				Observability: ObservabilityConfig{
+					MetricsEnabled: true,
+					Prometheus:     PrometheusConfig{Enabled: true},
+				},
+			},
+		},
+		{
+			name: "rejects target URL",
+			cfg: Config{
+				API: APIConfig{ListenAddr: "127.0.0.1:5001"},
+				Observability: ObservabilityConfig{
+					MetricsEnabled: true,
+					Prometheus: PrometheusConfig{
+						Enabled:       true,
+						ScrapeTargets: []string{"http://127.0.0.1:5001"},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &App{cfg: tt.cfg}
+			if err := app.applyConfigDefaults(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("applyConfigDefaults() error = %v, want %v", err, ErrInvalidConfig)
 			}
 		})
 	}
