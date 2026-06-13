@@ -34,6 +34,12 @@ type submittedBatch struct {
 	future *Future
 }
 
+// preparedInboxBatch pairs an accepted submitted batch with its lock-free prepare outcome.
+type preparedInboxBatch struct {
+	batch   submittedBatch
+	outcome prepareOutcome
+}
+
 // writerPorts are the dependencies a writer needs to advance its state machine.
 type writerPorts struct {
 	prepare    preparePorts
@@ -44,6 +50,9 @@ type writerPorts struct {
 	runtimeCtx context.Context
 	stopped    *atomic.Bool
 	metrics    *groupMetrics
+
+	inboxCoalesceWindow   time.Duration
+	inboxCoalesceMaxItems int
 }
 
 func newChannelWriter(target AuthorityTarget, limits channelStateLimits) *channelWriter {
@@ -121,7 +130,13 @@ func (w *channelWriter) advance() {
 	var commitEff commitEffect
 	for {
 		w.mu.Lock()
-		w.drainInboxLocked()
+		inbox := w.takeInboxLocked()
+		if len(inbox) > 0 {
+			w.mu.Unlock()
+			prepared := w.prepareInbox(inbox)
+			w.mu.Lock()
+			w.admitPreparedInboxLocked(prepared)
+		}
 		hasAppend := w.nextAppendLocked(&appendEff)
 		hasCommit := w.nextCommitLocked(&commitEff)
 		if !hasAppend && !hasCommit {
@@ -147,7 +162,13 @@ func (w *channelWriter) advanceAppendOnly() {
 	var appendEff appendEffect
 	for {
 		w.mu.Lock()
-		w.drainInboxLocked()
+		inbox := w.takeInboxLocked()
+		if len(inbox) > 0 {
+			w.mu.Unlock()
+			prepared := w.prepareInbox(inbox)
+			w.mu.Lock()
+			w.admitPreparedInboxLocked(prepared)
+		}
 		hasAppend := w.nextAppendLocked(&appendEff)
 		if !hasAppend {
 			more := w.deactivateLocked()
@@ -163,16 +184,35 @@ func (w *channelWriter) advanceAppendOnly() {
 	}
 }
 
-// drainInboxLocked prepares inbox batches inline and admits prepared items to state.
-func (w *channelWriter) drainInboxLocked() {
+// takeInboxLocked detaches all currently accepted inbox batches from the writer.
+func (w *channelWriter) takeInboxLocked() []submittedBatch {
 	if len(w.inbox) == 0 {
-		return
+		return nil
 	}
 	inbox := w.inbox
 	w.inbox = nil
+	return inbox
+}
+
+// prepareInbox runs CPU-side send preparation outside channelWriter.mu.
+func (w *channelWriter) prepareInbox(inbox []submittedBatch) []preparedInboxBatch {
+	if len(inbox) == 0 {
+		return nil
+	}
+	prepared := make([]preparedInboxBatch, 0, len(inbox))
 	for _, batch := range inbox {
-		outcome := prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare)
-		w.admitPreparedLocked(batch, outcome)
+		prepared = append(prepared, preparedInboxBatch{
+			batch:   batch,
+			outcome: prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare),
+		})
+	}
+	return prepared
+}
+
+// admitPreparedInboxLocked moves prepared work into channelState while w.mu is held.
+func (w *channelWriter) admitPreparedInboxLocked(prepared []preparedInboxBatch) {
+	for _, item := range prepared {
+		w.admitPreparedLocked(item.batch, item.outcome)
 	}
 }
 

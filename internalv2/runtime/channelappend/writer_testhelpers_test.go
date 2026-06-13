@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 )
 
 // orderedAppender records the message seqs it appends, in call order.
@@ -52,7 +53,10 @@ func (r *routingAppender) AppendBatch(ctx context.Context, req AppendBatchReques
 }
 
 type writerRuntimeConfig struct {
-	appender Appender
+	appender              Appender
+	messageID             MessageIDAllocator
+	inboxCoalesceWindow   time.Duration
+	inboxCoalesceMaxItems int
 }
 
 // writerRuntime wraps a single writer + pool for advance-level tests, bypassing Group.
@@ -67,14 +71,20 @@ func newWriterRuntime(t *testing.T, cfg writerRuntimeConfig) *writerRuntime {
 	limits := channelStateLimits{pendingItemHighWatermark: 4096, appendInflightLimit: 1}
 	target := benchmarkAuthorityTarget("rt")
 	w := newChannelWriter(target, limits)
+	messageID := cfg.messageID
+	if messageID == nil {
+		messageID = newBenchmarkMessageIDs(1)
+	}
 	rt := &writerRuntime{t: t, pool: newWorkerPool(4), writer: w}
 	w.ports = writerPorts{
-		prepare:    preparePorts{messageID: newBenchmarkMessageIDs(1)},
-		append:     appendPorts{appender: cfg.appender},
-		commit:     commitPorts{},
-		pool:       rt.pool,
-		schedule:   rt.schedule,
-		runtimeCtx: context.Background(),
+		prepare:               preparePorts{messageID: messageID},
+		append:                appendPorts{appender: cfg.appender},
+		commit:                commitPorts{},
+		pool:                  rt.pool,
+		schedule:              rt.schedule,
+		runtimeCtx:            context.Background(),
+		inboxCoalesceWindow:   cfg.inboxCoalesceWindow,
+		inboxCoalesceMaxItems: cfg.inboxCoalesceMaxItems,
 	}
 	return rt
 }
