@@ -72,10 +72,16 @@ func (w *channelWriter) tryActivate() bool {
 // deactivate clears the scheduled flag and reports whether more work arrived
 // after the caller stopped advancing (caller must re-activate if true).
 func (w *channelWriter) deactivate() bool {
-	w.scheduled.Store(false)
 	w.mu.Lock()
-	more := w.hasRunnableWorkLocked()
+	more := w.deactivateLocked()
 	w.mu.Unlock()
+	return more
+}
+
+// deactivateLocked performs the scheduled-to-idle transition while w.mu is held.
+func (w *channelWriter) deactivateLocked() bool {
+	w.scheduled.Store(false)
+	more := w.hasRunnableWorkLocked()
 	if !more {
 		w.lastIdleUnixNano.Store(time.Now().UnixNano())
 	}
@@ -118,6 +124,14 @@ func (w *channelWriter) advance() {
 		w.drainInboxLocked()
 		hasAppend := w.nextAppendLocked(&appendEff)
 		hasCommit := w.nextCommitLocked(&commitEff)
+		if !hasAppend && !hasCommit {
+			more := w.deactivateLocked()
+			w.mu.Unlock()
+			if more && w.tryActivate() {
+				continue // work arrived during the deactivate window; keep going
+			}
+			return
+		}
 		w.mu.Unlock()
 
 		if hasAppend {
@@ -125,12 +139,6 @@ func (w *channelWriter) advance() {
 		}
 		if hasCommit {
 			w.runCommit(&commitEff)
-		}
-		if !hasAppend && !hasCommit {
-			if w.deactivate() && w.tryActivate() {
-				continue // work arrived during the deactivate window; keep going
-			}
-			return
 		}
 	}
 }
@@ -141,16 +149,17 @@ func (w *channelWriter) advanceAppendOnly() {
 		w.mu.Lock()
 		w.drainInboxLocked()
 		hasAppend := w.nextAppendLocked(&appendEff)
+		if !hasAppend {
+			more := w.deactivateLocked()
+			w.mu.Unlock()
+			if more && w.tryActivate() {
+				continue // work arrived during the deactivate window; keep going
+			}
+			return
+		}
 		w.mu.Unlock()
 
-		if hasAppend {
-			w.runAppend(&appendEff)
-			continue
-		}
-		if w.deactivate() && w.tryActivate() {
-			continue // work arrived during the deactivate window; keep going
-		}
-		return
+		w.runAppend(&appendEff)
 	}
 }
 
