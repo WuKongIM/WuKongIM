@@ -144,14 +144,16 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) startLoops() {
-	c.readerDone = make(chan struct{})
-	c.writerDone = make(chan struct{})
+	readerDone := make(chan struct{})
+	writerDone := make(chan struct{})
+	c.readerDone = readerDone
+	c.writerDone = writerDone
 	go func() {
-		defer close(c.writerDone)
+		defer close(writerDone)
 		c.writerLoop()
 	}()
 	go func() {
-		defer close(c.readerDone)
+		defer close(readerDone)
 		c.readerLoop()
 	}()
 }
