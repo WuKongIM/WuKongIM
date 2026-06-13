@@ -223,6 +223,55 @@ func TestAuthExecutorPanicClearsAuthPending(t *testing.T) {
 	}
 }
 
+func TestAuthExecutorPanicLoggingIsBestEffort(t *testing.T) {
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler:  handler,
+			Observer: asyncAuthPanicObserver{},
+			Logger:   asyncAuthPanicLogger{},
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	executor, err := newAuthExecutor(srv, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{
+		server:   srv,
+		closedCh: make(chan struct{}),
+	}
+	state.setAuthPending(true)
+
+	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
+		t.Fatal("auth submit rejected")
+	}
+
+	select {
+	case got := <-executor.panicC:
+		if got != "async auth queue observer panic" {
+			t.Fatalf("panic value = %v, want async auth queue observer panic", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("auth executor panic was not observed")
+	}
+	if state.isAuthPending() {
+		t.Fatal("auth pending remained true after executor panic")
+	}
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("executor depth after panic = %d, want 0", got)
+	}
+}
+
 func TestAsyncAuthQueueSubmitRejectsWhenFull(t *testing.T) {
 	queue := newAsyncAuthQueueWithCapacity(1)
 	state := &sessionState{}
@@ -587,6 +636,19 @@ func (l *asyncAuthRecordingLogger) With(...wklog.Field) wklog.Logger {
 	return l
 }
 func (l *asyncAuthRecordingLogger) Sync() error { return nil }
+
+type asyncAuthPanicLogger struct{}
+
+func (asyncAuthPanicLogger) Debug(string, ...wklog.Field) {}
+func (asyncAuthPanicLogger) Info(string, ...wklog.Field)  {}
+func (asyncAuthPanicLogger) Warn(string, ...wklog.Field)  { panic("logger warn panic") }
+func (asyncAuthPanicLogger) Error(string, ...wklog.Field) {}
+func (asyncAuthPanicLogger) Fatal(string, ...wklog.Field) {}
+func (asyncAuthPanicLogger) Named(string) wklog.Logger    { return asyncAuthPanicLogger{} }
+func (asyncAuthPanicLogger) With(...wklog.Field) wklog.Logger {
+	return asyncAuthPanicLogger{}
+}
+func (asyncAuthPanicLogger) Sync() error { return nil }
 
 type asyncAuthActivatingHandler struct {
 	rollbackCalled atomic.Bool

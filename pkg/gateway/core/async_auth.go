@@ -268,6 +268,9 @@ func (e *authExecutor) recordPanic(v any, task asyncAuthTask) {
 	case e.panicC <- v:
 	default:
 	}
+	defer func() {
+		_ = recover()
+	}()
 	e.logPanic(v, task)
 }
 
