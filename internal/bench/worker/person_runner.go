@@ -18,6 +18,11 @@ import (
 
 var errTargetUnavailable = errors.New("target unavailable")
 
+const (
+	defaultWorkerTrafficTimeout = 5 * time.Second
+	clientAckTimeoutSlack       = time.Second
+)
+
 // WorkloadClientFactory builds benchmark clients for the default worker runner.
 type WorkloadClientFactory func(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error)
 
@@ -108,6 +113,7 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		ClientFactory:    r.clientFactory,
 		Token:            "",
 		OperationTimeout: 0,
+		AckTimeout:       connectionAckTimeout(assignment),
 	})
 	if err != nil {
 		return err
@@ -123,6 +129,26 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return err
 	}
 	return nil
+}
+
+func connectionAckTimeout(assignment Assignment) time.Duration {
+	var maxTimeout time.Duration
+	for _, traffic := range assignment.Scenario.Messages.Traffic {
+		timeout := traffic.AckTimeout
+		if timeout <= 0 {
+			timeout = defaultWorkerTrafficTimeout
+		}
+		if warmup := assignment.Scenario.Run.Warmup; warmup > timeout {
+			timeout = warmup
+		}
+		if timeout > maxTimeout {
+			maxTimeout = timeout
+		}
+	}
+	if maxTimeout <= 0 {
+		return 0
+	}
+	return maxTimeout + clientAckTimeoutSlack
 }
 
 // ConnectionStatus returns the current active connection count and reconnect churn.

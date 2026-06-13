@@ -883,6 +883,66 @@ func TestClientRecvDecryptsAndAutoAcks(t *testing.T) {
 	}
 }
 
+func TestClientClearsConnectDeadlineBeforeReaderLoop(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+
+	c, err := New(Config{
+		Addr:             "pipe",
+		Dialer:           fakeDialer{conn: clientConn},
+		OperationTimeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer c.Close()
+
+	serverErr := runTestServer(func() error {
+		if _, err := readTestFrame(serverConn); err != nil {
+			return err
+		}
+		if err := writeTestFrame(serverConn, &frame.ConnackPacket{
+			Framer: frame.Framer{
+				FrameType:        frame.CONNACK,
+				HasServerVersion: true,
+			},
+			ServerVersion: frame.LatestVersion,
+			ReasonCode:    frame.ReasonSuccess,
+		}); err != nil {
+			return err
+		}
+		time.Sleep(60 * time.Millisecond)
+		return writeTestFrame(serverConn, &frame.RecvPacket{
+			Setting:     frame.SettingNoEncrypt,
+			MessageID:   31,
+			MessageSeq:  32,
+			ChannelID:   "uid-recv",
+			ChannelType: frame.ChannelTypePerson,
+			Payload:     []byte("after deadline"),
+		})
+	})
+
+	if _, err := c.Connect(context.Background(), ConnectOptions{
+		UID:        "uid-recv",
+		DeviceID:   "dev-recv",
+		DeviceFlag: frame.APP,
+	}); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	recv, err := c.Recv(ctx)
+	if err != nil {
+		t.Fatalf("Recv() error = %v", err)
+	}
+	if got, want := string(recv.Payload), "after deadline"; got != want {
+		t.Fatalf("recv payload = %q, want %q", got, want)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
 func TestClientCloseFailsPendingSend(t *testing.T) {
 	c, _ := newConnectedPipeClientOrFatal(t, Config{})
 

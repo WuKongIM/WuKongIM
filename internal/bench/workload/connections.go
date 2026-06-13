@@ -80,6 +80,8 @@ type ConnectionManagerConfig struct {
 	Token string
 	// OperationTimeout is passed to production WKProto clients.
 	OperationTimeout time.Duration
+	// AckTimeout is passed to production WKProto clients for internal SENDACK tracking.
+	AckTimeout time.Duration
 	// ClientFactory overrides production WKProto client creation for tests.
 	ClientFactory func(user ConnectionUser, addr string) (ConnectionClient, error)
 
@@ -129,6 +131,7 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 				Addr:             addr,
 				Token:            user.Token,
 				OperationTimeout: cfg.OperationTimeout,
+				AckTimeout:       cfg.AckTimeout,
 			})
 		}
 	}

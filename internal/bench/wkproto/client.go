@@ -15,6 +15,7 @@ import (
 const (
 	defaultOperationTimeout = 5 * time.Second
 	defaultFrameBufferSize  = 1024
+	defaultAckTimeoutSlack  = time.Second
 )
 
 var errClientNotConnected = errors.New("wkproto client: not connected")
@@ -31,6 +32,8 @@ type ClientConfig struct {
 	}
 	// OperationTimeout bounds handshake, read, and write operations when ctx has no deadline.
 	OperationTimeout time.Duration
+	// AckTimeout bounds the internal pending SENDACK wait; use a value above workload waits.
+	AckTimeout time.Duration
 	// FrameBufferSize bounds decoded inbound frames queued by the background reader.
 	FrameBufferSize int
 }
@@ -45,6 +48,7 @@ type Client struct {
 	token            string
 	dialer           tcpDialer
 	operationTimeout time.Duration
+	ackTimeout       time.Duration
 	frameBufferSize  int
 
 	mu      sync.Mutex
@@ -84,6 +88,9 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = defaultOperationTimeout
 	}
+	if cfg.AckTimeout <= 0 {
+		cfg.AckTimeout = cfg.OperationTimeout + defaultAckTimeoutSlack
+	}
 	if cfg.FrameBufferSize <= 0 {
 		cfg.FrameBufferSize = defaultFrameBufferSize
 	}
@@ -92,6 +99,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		token:            cfg.Token,
 		dialer:           cfg.Dialer,
 		operationTimeout: cfg.OperationTimeout,
+		ackTimeout:       cfg.AckTimeout,
 		frameBufferSize:  cfg.FrameBufferSize,
 	}, nil
 }
@@ -271,15 +279,50 @@ func publishFrameResult(frameCh chan frameResult, stopCh <-chan struct{}, result
 		return
 	default:
 	}
-	select {
-	case <-frameCh:
-	default:
+	if !isPriorityFrameResult(result) {
+		return
+	}
+	buffered := make([]frameResult, 0, len(frameCh))
+	droppedNonPriority := false
+	for {
+		select {
+		case queued := <-frameCh:
+			if !droppedNonPriority && !isPriorityFrameResult(queued) {
+				droppedNonPriority = true
+				continue
+			}
+			buffered = append(buffered, queued)
+		default:
+			goto drained
+		}
+	}
+
+drained:
+	for _, queued := range buffered {
+		select {
+		case frameCh <- queued:
+		case <-stopCh:
+			return
+		default:
+			return
+		}
+	}
+	if !droppedNonPriority {
+		return
 	}
 	select {
 	case frameCh <- result:
 	case <-stopCh:
 	default:
 	}
+}
+
+func isPriorityFrameResult(result frameResult) bool {
+	if result.err != nil {
+		return true
+	}
+	_, ok := result.frame.(*frame.SendackPacket)
+	return ok
 }
 
 func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
@@ -360,7 +403,7 @@ func (c *Client) newInner() (*wkclient.Client, error) {
 		Token:                  c.token,
 		Dialer:                 c.dialer,
 		OperationTimeout:       c.operationTimeout,
-		AckTimeout:             c.operationTimeout,
+		AckTimeout:             c.ackTimeout,
 		InboundFrameBufferSize: c.frameBufferSize,
 	})
 }

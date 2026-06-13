@@ -688,7 +688,10 @@ func (c *Client) withDeadline(ctx context.Context, setDeadline func(time.Time) e
 	}
 
 	done := make(chan struct{})
+	var deadlineWG sync.WaitGroup
+	deadlineWG.Add(1)
 	go func() {
+		defer deadlineWG.Done()
 		select {
 		case <-ctx.Done():
 			_ = setDeadline(time.Now())
@@ -698,6 +701,8 @@ func (c *Client) withDeadline(ctx context.Context, setDeadline func(time.Time) e
 
 	err := op()
 	close(done)
+	deadlineWG.Wait()
+	_ = setDeadline(time.Time{})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr

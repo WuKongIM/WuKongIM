@@ -789,6 +789,18 @@ func TestBuildGroupWorkloadsAppliesTrafficAckTimeout(t *testing.T) {
 	require.Less(t, observed, 100*time.Millisecond)
 }
 
+func TestConnectionAckTimeoutUsesLargestTrafficWindow(t *testing.T) {
+	assignment := groupShardAssignment("http://target.invalid")
+	assignment.Scenario.Run.Warmup = 20 * time.Second
+	assignment.Scenario.Messages.Traffic = []model.TrafficConfig{
+		{Name: "default", ChannelRef: "huge-group"},
+		{Name: "slow", ChannelRef: "huge-group", AckTimeout: 15 * time.Second},
+	}
+
+	timeout := connectionAckTimeout(assignment)
+	require.Greater(t, timeout, 20*time.Second)
+}
+
 func TestWorkerDefaultRunnerUsesChannelOwnersForHugeGroupPrepare(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

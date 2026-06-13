@@ -315,6 +315,70 @@ func TestClientSendExposesSendackThroughReadFrame(t *testing.T) {
 	}
 }
 
+func TestClientAckTimeoutCanExceedOperationTimeout(t *testing.T) {
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		if _, ok := f.(*frame.ConnectPacket); !ok {
+			t.Fatalf("first frame = %T, want *frame.ConnectPacket", f)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+
+		f, err = codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode send: %v", err)
+		}
+		send, ok := f.(*frame.SendPacket)
+		if !ok {
+			t.Fatalf("second frame = %T, want *frame.SendPacket", f)
+		}
+		time.Sleep(60 * time.Millisecond)
+		writeFrame(t, conn, &frame.SendackPacket{
+			ClientSeq:   send.ClientSeq,
+			ClientMsgNo: send.ClientMsgNo,
+			MessageID:   21,
+			MessageSeq:  22,
+			ReasonCode:  frame.ReasonSuccess,
+		})
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{
+		Addr:             server.addr,
+		OperationTimeout: 20 * time.Millisecond,
+		AckTimeout:       200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if err := client.Send(ctx, &frame.SendPacket{
+		ClientSeq:   13,
+		ClientMsgNo: "client-13",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hello"),
+	}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	f, err := client.ReadFrame(ctx)
+	if err != nil {
+		t.Fatalf("ReadFrame() error = %v", err)
+	}
+	if _, ok := f.(*frame.SendackPacket); !ok {
+		t.Fatalf("ReadFrame() = %T, want *frame.SendackPacket", f)
+	}
+}
+
 func TestClientReadFrameReportsRecvDecryptContext(t *testing.T) {
 	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
 		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
@@ -476,6 +540,42 @@ func TestClientPublishFrameResultDoesNotBlockWhenQueueFull(t *testing.T) {
 		}
 	default:
 		t.Fatal("frameCh is empty after publish")
+	}
+}
+
+func TestClientPublishFrameResultKeepsQueuedSendackWhenRecvArrivesFull(t *testing.T) {
+	client := &Client{}
+	frameCh := make(chan frameResult, 1)
+	frameCh <- frameResult{frame: &frame.SendackPacket{ClientSeq: 7}}
+	stopCh := make(chan struct{})
+
+	client.publishFrameResult(frameCh, stopCh, frameResult{frame: &frame.RecvPacket{MessageID: 1}})
+
+	result := <-frameCh
+	ack, ok := result.frame.(*frame.SendackPacket)
+	if !ok {
+		t.Fatalf("published frame = %T, want *frame.SendackPacket", result.frame)
+	}
+	if ack.ClientSeq != 7 {
+		t.Fatalf("sendack client seq = %d, want 7", ack.ClientSeq)
+	}
+}
+
+func TestClientPublishFrameResultEvictsRecvForSendack(t *testing.T) {
+	client := &Client{}
+	frameCh := make(chan frameResult, 1)
+	frameCh <- frameResult{frame: &frame.RecvPacket{MessageID: 1}}
+	stopCh := make(chan struct{})
+
+	client.publishFrameResult(frameCh, stopCh, frameResult{frame: &frame.SendackPacket{ClientSeq: 7}})
+
+	result := <-frameCh
+	ack, ok := result.frame.(*frame.SendackPacket)
+	if !ok {
+		t.Fatalf("published frame = %T, want *frame.SendackPacket", result.frame)
+	}
+	if ack.ClientSeq != 7 {
+		t.Fatalf("sendack client seq = %d, want 7", ack.ClientSeq)
 	}
 }
 
