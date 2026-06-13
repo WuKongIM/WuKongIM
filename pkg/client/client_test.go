@@ -412,6 +412,32 @@ func TestClientSendBeforeConnectRejectsQuickly(t *testing.T) {
 	}
 }
 
+func TestClientSendBatchValidationFailureDoesNotLeavePending(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{
+		AckTimeout: time.Second,
+	})
+
+	_, err := c.SendBatch(context.Background(), []Message{
+		{
+			ClientMsgNo: "valid",
+			ChannelID:   "ch-batch-validation",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("valid"),
+		},
+		{
+			ClientMsgNo: "invalid",
+			ChannelID:   "ch-batch-validation",
+			Payload:     []byte("missing channel type"),
+		},
+	})
+	if !errors.Is(err, ErrInvalidMessage) {
+		t.Fatalf("SendBatch() error = %v, want %v", err, ErrInvalidMessage)
+	}
+	if n := pendingEntryCount(c.pending); n != 0 {
+		t.Fatalf("pending entries = %d, want 0", n)
+	}
+}
+
 func TestBuildSendPacketUsesAssignedSequenceWhenMessageSequenceIsZero(t *testing.T) {
 	payload := []byte("payload")
 	pkt, err := buildSendPacket(Message{
@@ -428,6 +454,113 @@ func TestBuildSendPacketUsesAssignedSequenceWhenMessageSequenceIsZero(t *testing
 	payload[0] = 'P'
 	if string(pkt.Payload) != "payload" {
 		t.Fatalf("Payload = %q, want copied payload", pkt.Payload)
+	}
+}
+
+func TestClientSendAsyncCopiesPayloadBeforeQueue(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{
+		BatchMaxWait: 50 * time.Millisecond,
+	})
+
+	payload := []byte("payload")
+	future, err := c.SendAsync(context.Background(), Message{
+		ClientMsgNo: "copy-payload",
+		ChannelID:   "ch-copy",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     payload,
+	})
+	if err != nil {
+		t.Fatalf("SendAsync() error = %v", err)
+	}
+	payload[0] = 'P'
+
+	serverErr := runTestServer(func() error {
+		f, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		send, ok := f.(*frame.SendPacket)
+		if !ok {
+			return fmt.Errorf("server frame = %T, want SEND", f)
+		}
+		if string(send.Payload) != "payload" {
+			return fmt.Errorf("sent payload = %q, want payload", send.Payload)
+		}
+		return writeTestFrame(serverConn, &frame.SendackPacket{
+			ClientSeq:   send.ClientSeq,
+			ClientMsgNo: send.ClientMsgNo,
+			MessageID:   303,
+			MessageSeq:  3,
+			ReasonCode:  frame.ReasonSuccess,
+		})
+	})
+
+	result, err := future.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("future.Wait() error = %v", err)
+	}
+	if result.MessageID != 303 {
+		t.Fatalf("MessageID = %d, want 303", result.MessageID)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientWriterUsesRequestSessionSnapshot(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	oldSession := newTestSessionCryptoOrFatal(t, "old-send-key1234", "old-send-iv12345")
+	newSession := newTestSessionCryptoOrFatal(t, "new-send-key1234", "new-send-iv12345")
+	c.crypto.mu.Lock()
+	c.crypto.session = newSession
+	c.crypto.mu.Unlock()
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+	})
+	pkt, err := buildSendPacket(Message{
+		ClientMsgNo: "session-snapshot",
+		ChannelID:   "ch-session",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("secret"),
+	}, 1)
+	if err != nil {
+		t.Fatalf("buildSendPacket() error = %v", err)
+	}
+
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := c.writeBatch([]writeRequest{{
+			kind:    writeKindSend,
+			pkt:     pkt,
+			conn:    clientConn,
+			session: oldSession,
+		}})
+		writeErr <- err
+	}()
+
+	f, err := readTestFrame(serverConn)
+	if err != nil {
+		t.Fatalf("readTestFrame() error = %v", err)
+	}
+	send, ok := f.(*frame.SendPacket)
+	if !ok {
+		t.Fatalf("frame = %T, want SEND", f)
+	}
+	plain, err := wkprotoenc.DecryptPayloadWithCrypto(send.Payload, oldSession)
+	if err != nil {
+		t.Fatalf("DecryptPayloadWithCrypto(old session) error = %v", err)
+	}
+	if string(plain) != "secret" {
+		t.Fatalf("decrypted payload = %q, want secret", plain)
+	}
+	if err := <-writeErr; err != nil {
+		t.Fatalf("writeBatch() error = %v", err)
 	}
 }
 
@@ -619,6 +752,30 @@ func TestEnqueueRecvZeroCapacityDoesNotBlock(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("enqueueRecv blocked on zero-capacity channel")
+	}
+}
+
+func TestClientCloseStopsWriterWhenQueueFull(t *testing.T) {
+	c, err := New(Config{
+		Addr:              "pipe",
+		SendQueueCapacity: 1,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	c.writeCh <- writeRequest{kind: writeKindSend}
+	writerDone := make(chan struct{})
+	c.writerDone = writerDone
+	go func() {
+		defer close(writerDone)
+		c.writerLoop()
+	}()
+
+	_ = c.Close()
+	select {
+	case <-writerDone:
+	case <-time.After(time.Second):
+		t.Fatal("writer did not stop after Close with full write queue")
 	}
 }
 
@@ -870,6 +1027,15 @@ func readPendingOutcomeOrFatal(t *testing.T, entry *pendingEntry) sendOutcome {
 		t.Fatal("timed out waiting for pending outcome")
 		return sendOutcome{}
 	}
+}
+
+func pendingEntryCount(p *pendingTracker) int {
+	if p == nil {
+		return 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.entries)
 }
 
 func TestNormalizeConfigAppliesToolingDefaults(t *testing.T) {

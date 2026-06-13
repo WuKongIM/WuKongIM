@@ -24,11 +24,15 @@ type Client struct {
 
 	// connectMu serializes CONNECT handshakes so session state is published atomically.
 	connectMu  sync.Mutex
+	sendMu     sync.Mutex
+	closeOnce  sync.Once
 	writerOnce sync.Once
 	mu         sync.Mutex
 	conn       net.Conn
+	session    *wkprotoenc.SessionCrypto
 	closed     bool
 	writeCh    chan writeRequest
+	closeCh    chan struct{}
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
 	pending *pendingTracker
 	// recvMu protects bounded overwrite semantics for recvCh.
@@ -54,6 +58,7 @@ func New(cfg Config) (*Client, error) {
 		proto:   codec.New(),
 		crypto:  crypto,
 		writeCh: make(chan writeRequest, cfg.SendQueueCapacity),
+		closeCh: make(chan struct{}),
 		pending: newPendingTracker(),
 		recvCh:  make(chan *frame.RecvPacket, cfg.InboundFrameBufferSize),
 	}, nil
@@ -137,8 +142,9 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	oldConn = c.conn
 	oldPending = c.pending
 	c.conn = conn
+	c.session = c.crypto.currentSession()
 	c.pending = newPendingTracker()
-	c.startLoops(conn, c.pending, c.crypto.currentSession())
+	c.startLoops(conn, c.pending, c.session)
 	c.mu.Unlock()
 
 	if oldPending != nil {
@@ -162,15 +168,15 @@ func (c *Client) Close() error {
 	c.closed = true
 	conn := c.conn
 	c.conn = nil
+	c.session = nil
 	pending := c.pending
 	c.mu.Unlock()
 
+	c.closeOnce.Do(func() {
+		close(c.closeCh)
+	})
 	if pending != nil {
 		pending.close(ErrClosed)
-	}
-	select {
-	case c.writeCh <- writeRequest{kind: writeKindClose}:
-	default:
 	}
 	if conn != nil {
 		return conn.Close()
@@ -224,12 +230,18 @@ func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, e
 	}
 
 	futures := make([]*SendFuture, len(msgs))
+	prepared := make([]preparedSend, len(msgs))
 	for i := range msgs {
-		future, err := c.SendAsync(ctx, msgs[i])
+		item, err := c.prepareSend(msgs[i])
 		if err != nil {
 			return nil, err
 		}
-		futures[i] = future
+		prepared[i] = item
+	}
+	var err error
+	futures, err = c.admitPreparedSends(ctx, prepared)
+	if err != nil {
+		return nil, err
 	}
 
 	results := make([]SendResult, len(futures))
@@ -255,15 +267,52 @@ func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error
 		return nil, err
 	}
 
-	assignedSeq, err := c.nextClientSeq(msg.ClientSeq)
+	item, err := c.prepareSend(msg)
 	if err != nil {
 		return nil, err
 	}
-	msg.ClientSeq = assignedSeq
-	if _, err = buildSendPacket(msg, assignedSeq); err != nil {
+	futures, err := c.admitPreparedSends(ctx, []preparedSend{item})
+	if err != nil {
 		return nil, err
 	}
+	return futures[0], nil
+}
 
+type preparedSend struct {
+	msg Message
+	pkt *frame.SendPacket
+	key pendingKey
+}
+
+func (c *Client) prepareSend(msg Message) (preparedSend, error) {
+	assignedSeq, err := c.nextClientSeq(msg.ClientSeq)
+	if err != nil {
+		return preparedSend{}, err
+	}
+	msg.ClientSeq = assignedSeq
+	pkt, err := buildSendPacket(msg, assignedSeq)
+	if err != nil {
+		return preparedSend{}, err
+	}
+	msg.Payload = append([]byte(nil), pkt.Payload...)
+	return preparedSend{
+		msg: msg,
+		pkt: pkt,
+		key: pendingKey{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo},
+	}, nil
+}
+
+func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend) ([]*SendFuture, error) {
+	if len(prepared) == 0 {
+		return nil, nil
+	}
+
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -271,38 +320,63 @@ func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error
 	}
 	conn := c.conn
 	pending := c.pending
+	session := c.session
 	if conn == nil || pending == nil {
 		c.mu.Unlock()
 		return nil, ErrNotConnected
 	}
 	c.mu.Unlock()
 
-	entry, err := pending.add(pendingKey{ClientSeq: assignedSeq, ClientMsgNo: msg.ClientMsgNo}, c.cfg.AckTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	req := writeRequest{
-		kind:    writeKindSend,
-		msg:     msg,
-		entry:   entry,
-		ctx:     ctx,
-		conn:    conn,
-		pending: pending,
-	}
-	select {
-	case c.writeCh <- req:
-		c.observeSendQueue("accepted")
-		return &SendFuture{done: entry.done}, nil
-	case <-ctx.Done():
-		pending.fail(entry, ctx.Err())
-		c.observeSendQueue("canceled")
-		return nil, ctx.Err()
-	default:
-		pending.fail(entry, ErrSendQueueFull)
+	if len(c.writeCh)+len(prepared) > cap(c.writeCh) {
 		c.observeSendQueue("full")
 		return nil, ErrSendQueueFull
 	}
+
+	futures := make([]*SendFuture, len(prepared))
+	reqs := make([]writeRequest, len(prepared))
+	for i, item := range prepared {
+		entry, err := pending.add(item.key, c.cfg.AckTimeout)
+		if err != nil {
+			for _, req := range reqs[:i] {
+				pending.fail(req.entry, err)
+			}
+			return nil, err
+		}
+		reqs[i] = writeRequest{
+			kind:    writeKindSend,
+			msg:     item.msg,
+			pkt:     item.pkt,
+			entry:   entry,
+			ctx:     ctx,
+			conn:    conn,
+			pending: pending,
+			session: session,
+		}
+		futures[i] = &SendFuture{done: entry.done}
+	}
+
+	if err := ctx.Err(); err != nil {
+		for _, req := range reqs {
+			pending.fail(req.entry, err)
+		}
+		return nil, err
+	}
+
+	for _, req := range reqs {
+		select {
+		case <-c.closeCh:
+			for _, failed := range reqs {
+				pending.fail(failed.entry, ErrClosed)
+			}
+			return nil, ErrClosed
+		default:
+		}
+		c.writeCh <- req
+	}
+	for range reqs {
+		c.observeSendQueue("accepted")
+	}
+	return futures, nil
 }
 
 func (c *Client) nextClientSeq(explicit uint64) (uint64, error) {

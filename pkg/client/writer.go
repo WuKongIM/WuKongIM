@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 type writeKind uint8
@@ -24,6 +25,8 @@ type writeRequest struct {
 	kind writeKind
 	// msg carries the high-level SEND payload before it is encoded as a frame.
 	msg Message
+	// pkt is the immutable SEND packet captured when the request was admitted.
+	pkt *frame.SendPacket
 	// frame carries non-SEND control frames such as PING or RECVACK.
 	frame frame.Frame
 	// entry tracks the pending SENDACK future for SEND requests.
@@ -36,6 +39,8 @@ type writeRequest struct {
 	conn net.Conn
 	// pending is the tracker that owns entry for this request's session.
 	pending *pendingTracker
+	// session is the crypto snapshot for this request's session.
+	session *wkprotoenc.SessionCrypto
 }
 
 // batchLimits bounds how many ready writer requests can be coalesced.
@@ -98,6 +103,9 @@ func requestPayloadBytes(req writeRequest) int {
 	if req.kind != writeKindSend {
 		return 0
 	}
+	if req.pkt != nil {
+		return len(req.pkt.Payload)
+	}
 	if len(req.msg.Payload) > 0 {
 		return len(req.msg.Payload)
 	}
@@ -118,11 +126,15 @@ func (c *Client) runWriterLoop() {
 	var backlog []writeRequest
 	for {
 		if len(backlog) == 0 {
-			req := <-c.writeCh
-			if req.kind == writeKindClose {
+			select {
+			case req := <-c.writeCh:
+				if req.kind == writeKindClose {
+					return
+				}
+				backlog = append(backlog, req)
+			case <-c.closeCh:
 				return
 			}
-			backlog = append(backlog, req)
 		}
 
 		backlog = c.collectWriterBacklog(backlog, collector)
@@ -134,11 +146,20 @@ func (c *Client) runWriterLoop() {
 		if batch[0].kind == writeKindClose {
 			return
 		}
+		select {
+		case <-c.closeCh:
+			c.finishWriteBatch(batch, ErrClosed)
+			return
+		default:
+		}
 
 		started := time.Now()
-		bytesWritten, err := c.writeBatch(batch)
-		c.finishWriteBatch(batch, err)
-		c.observeSendBatch(countSendRequests(batch), bytesWritten, time.Since(started), err)
+		ready := c.filterCanceledBatch(batch)
+		if len(ready) > 0 {
+			bytesWritten, err := c.writeBatch(ready)
+			c.finishWriteBatch(ready, err)
+			c.observeSendBatch(countSendRequests(ready), bytesWritten, time.Since(started), err)
+		}
 		backlog = rest
 	}
 }
@@ -180,6 +201,8 @@ func (c *Client) collectWriterBacklog(backlog []writeRequest, collector *writeBa
 		select {
 		case req := <-c.writeCh:
 			backlog = append(backlog, req)
+		case <-c.closeCh:
+			return backlog
 		case <-timer.C:
 			return backlog
 		}
@@ -211,11 +234,15 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 	for _, req := range batch {
 		switch req.kind {
 		case writeKindSend:
-			pkt, err := buildSendPacket(req.msg, req.msg.ClientSeq)
-			if err != nil {
-				return buf.Len(), err
+			pkt := req.pkt
+			if pkt == nil {
+				var err error
+				pkt, err = buildSendPacket(req.msg, req.msg.ClientSeq)
+				if err != nil {
+					return buf.Len(), err
+				}
 			}
-			sealed, err := c.crypto.sealSend(pkt)
+			sealed, err := sealSendWithSession(pkt, req.session)
 			if err != nil {
 				return buf.Len(), err
 			}
@@ -239,7 +266,7 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 	}
 
 	data := buf.Bytes()
-	err := c.withDeadline(batchContext(batch), conn.SetWriteDeadline, func() error {
+	err := c.withDeadline(context.Background(), conn.SetWriteDeadline, func() error {
 		for len(data) > 0 {
 			n, err := conn.Write(data)
 			if err != nil {
@@ -258,24 +285,38 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 	return buf.Len(), nil
 }
 
-func batchContext(batch []writeRequest) context.Context {
-	if len(batch) == 0 || batch[0].ctx == nil {
-		return context.Background()
-	}
-	return batch[0].ctx
-}
-
 func (c *Client) finishWriteBatch(batch []writeRequest, err error) {
 	for _, req := range batch {
-		if req.kind == writeKindSend && err != nil {
-			if req.pending != nil {
-				req.pending.fail(req.entry, err)
-			}
-		}
-		if req.result != nil {
-			req.result <- err
+		c.finishWriteRequest(req, err)
+	}
+}
+
+func (c *Client) finishWriteRequest(req writeRequest, err error) {
+	if req.kind == writeKindSend && err != nil {
+		if req.pending != nil {
+			req.pending.fail(req.entry, err)
 		}
 	}
+	if req.result != nil {
+		select {
+		case req.result <- err:
+		default:
+		}
+	}
+}
+
+func (c *Client) filterCanceledBatch(batch []writeRequest) []writeRequest {
+	ready := make([]writeRequest, 0, len(batch))
+	for _, req := range batch {
+		if req.ctx != nil {
+			if err := req.ctx.Err(); err != nil {
+				c.finishWriteRequest(req, err)
+				continue
+			}
+		}
+		ready = append(ready, req)
+	}
+	return ready
 }
 
 func countSendRequests(batch []writeRequest) int {

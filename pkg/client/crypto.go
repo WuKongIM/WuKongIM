@@ -123,3 +123,20 @@ func (s *cryptoState) sealSend(pkt *frame.SendPacket) (*frame.SendPacket, error)
 	}
 	return &sealed, nil
 }
+
+func sealSendWithSession(pkt *frame.SendPacket, session *wkprotoenc.SessionCrypto) (*frame.SendPacket, error) {
+	if pkt == nil || pkt.Setting.IsSet(frame.SettingNoEncrypt) || session == nil {
+		return pkt, nil
+	}
+	sealed := *pkt
+	encrypted, err := wkprotoenc.EncryptPayloadWithCrypto(pkt.Payload, session)
+	if err != nil {
+		return nil, err
+	}
+	sealed.Payload = encrypted
+	sealed.MsgKey, err = wkprotoenc.SendMsgKeyWithCrypto(&sealed, session)
+	if err != nil {
+		return nil, err
+	}
+	return &sealed, nil
+}
