@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -15,6 +16,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
+
+var errStaleRecvSnapshot = errors.New("client: stale recv snapshot")
 
 // Client is one WKProto TCP session.
 type Client struct {
@@ -326,10 +329,23 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 		recvNotify := c.recvNotify
 		c.mu.Unlock()
 
+		f, err := c.readFrameFromSnapshot(ctx, recvCh, recvNotify)
+		if errors.Is(err, errStaleRecvSnapshot) {
+			continue
+		}
+		return f, err
+	}
+}
+
+func (c *Client) readFrameFromSnapshot(ctx context.Context, recvCh <-chan *frame.RecvPacket, recvNotify <-chan struct{}) (frame.Frame, error) {
+	for {
 		select {
 		case pkt := <-recvCh:
 			if pkt == nil {
 				return nil, ErrClosed
+			}
+			if !c.isCurrentRecvSnapshot(recvCh) {
+				return nil, c.staleRecvSnapshotError()
 			}
 			return pkt, nil
 		default:
@@ -340,14 +356,53 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 			if pkt == nil {
 				return nil, ErrClosed
 			}
+			if !c.isCurrentRecvSnapshot(recvCh) {
+				return nil, c.staleRecvSnapshotError()
+			}
 			return pkt, nil
 		case <-recvNotify:
+			if !c.isCurrentRecvSnapshot(recvCh) {
+				return nil, c.staleRecvSnapshotError()
+			}
+			return nil, c.recvUnavailableError()
 		case <-c.closeCh:
 			return nil, ErrClosed
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	}
+}
+
+func (c *Client) isCurrentRecvSnapshot(recvCh <-chan *frame.RecvPacket) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return !c.closed && sameRecvChannel(c.recvCh, recvCh)
+}
+
+func (c *Client) recvUnavailableError() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return ErrClosed
+	}
+	err := c.recvErr
+	if err == nil {
+		err = ErrNotConnected
+	}
+	return err
+}
+
+func (c *Client) staleRecvSnapshotError() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return ErrClosed
+	}
+	return errStaleRecvSnapshot
+}
+
+func sameRecvChannel(a chan *frame.RecvPacket, b <-chan *frame.RecvPacket) bool {
+	return (<-chan *frame.RecvPacket)(a) == b
 }
 
 // Recv waits for the next inbound RECV packet.

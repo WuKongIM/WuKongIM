@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -1078,6 +1079,89 @@ func TestClientDropsRecvFromStaleConnectionAfterReconnect(t *testing.T) {
 	}
 }
 
+func TestClientReadFrameDeliversQueuedRecvAfterCurrentConnectionEOF(t *testing.T) {
+	c, clientConn, serverConn := newClientWithManualConnectionOrFatal(t, Config{})
+	c.mu.Lock()
+	c.conn = clientConn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
+	recvCh := c.recvCh
+	recvNotify := c.recvNotify
+	c.mu.Unlock()
+
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 3, Setting: frame.SettingNoEncrypt}, clientConn)
+	c.failRead(clientConn, c.pending, io.EOF)
+	_ = serverConn.Close()
+
+	f, err := c.readFrameFromSnapshot(context.Background(), recvCh, recvNotify)
+	if err != nil {
+		t.Fatalf("readFrameFromSnapshot() error = %v", err)
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		t.Fatalf("readFrameFromSnapshot() = %T, want *frame.RecvPacket", f)
+	}
+	if recv.MessageID != 3 {
+		t.Fatalf("recv MessageID = %d, want 3", recv.MessageID)
+	}
+}
+
+func TestClientReadFrameRejectsPacketFromStaleSnapshotAfterClose(t *testing.T) {
+	c, clientConn, serverConn := newClientWithManualConnectionOrFatal(t, Config{})
+	oldCh := make(chan *frame.RecvPacket, 1)
+	oldNotify := make(chan struct{})
+	c.mu.Lock()
+	c.conn = clientConn
+	c.recvCh = oldCh
+	c.recvNotify = oldNotify
+	c.recvErr = nil
+	c.mu.Unlock()
+
+	oldCh <- &frame.RecvPacket{MessageID: 11, Setting: frame.SettingNoEncrypt}
+	_ = c.Close()
+	_ = serverConn.Close()
+
+	_, err := c.readFrameFromSnapshot(context.Background(), oldCh, oldNotify)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("readFrameFromSnapshot() error = %v, want %v", err, ErrClosed)
+	}
+}
+
+func TestClientReadFrameRejectsPacketFromStaleSnapshotAfterReconnect(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	oldClientConn, oldServerConn := net.Pipe()
+	newClientConn, newServerConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = oldClientConn.Close()
+		_ = oldServerConn.Close()
+		_ = newClientConn.Close()
+		_ = newServerConn.Close()
+	})
+
+	oldCh := make(chan *frame.RecvPacket, 1)
+	oldNotify := make(chan struct{})
+	c.mu.Lock()
+	c.conn = oldClientConn
+	c.recvCh = oldCh
+	c.recvNotify = oldNotify
+	c.recvErr = nil
+	c.conn = newClientConn
+	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
+	c.recvNotify = make(chan struct{})
+	close(oldNotify)
+	c.mu.Unlock()
+	oldCh <- &frame.RecvPacket{MessageID: 11, Setting: frame.SettingNoEncrypt}
+
+	_, err = c.readFrameFromSnapshot(context.Background(), oldCh, oldNotify)
+	if !errors.Is(err, errStaleRecvSnapshot) {
+		t.Fatalf("readFrameFromSnapshot() error = %v, want stale snapshot", err)
+	}
+}
+
 func TestClientPingWritesControlFrame(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 
@@ -1523,6 +1607,8 @@ func newConnectedPipeClientOrFatal(t *testing.T, cfg Config) (*Client, net.Conn)
 	}
 	c.mu.Lock()
 	c.conn = clientConn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
 	c.startLoops(clientConn, c.pending, c.crypto.currentSession())
 	c.mu.Unlock()
 	t.Cleanup(func() {
