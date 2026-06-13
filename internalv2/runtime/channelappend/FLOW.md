@@ -97,11 +97,21 @@ flag guarantees that at most one goroutine advances that channel at a time. The
 group uses shards only for writer lookup and creation; shard locks are not held
 while preparing, appending, or committing messages.
 
-Accepted submit events are prepared inline on the writer advance path. Rejected
-and idempotent items complete their item-aligned future slots immediately with
-their reason/error/result. Valid prepared items receive one message id and one
-server timestamp. Before a prepared item can enter the pending queue, its
-canonical prepared channel must still match the submitted `AuthorityTarget`;
+Accepted submit events enter a lightweight per-writer inbox. A scheduled writer
+may wait for the tiny runtime-only `InboxCoalesceWindow` before draining a
+small inbox, stopping earlier when the inbox reaches `InboxCoalesceMaxItems`
+logical send items. This wait runs only in the already scheduled writer
+goroutine, never in `SubmitLocal`, and never while holding `channelWriter.mu`.
+Its purpose is to merge near-simultaneous same-channel submissions into larger
+append batches without changing local authority ownership or durable ordering.
+
+After the wait, the writer briefly locks to detach the current inbox, prepares
+those accepted batches outside `channelWriter.mu`, and re-locks only to admit
+the prepared outcomes into `channelState`. Rejected and idempotent items
+complete their item-aligned future slots immediately with their
+reason/error/result. Valid prepared items receive one message id and one server
+timestamp. Before a prepared item can enter the pending queue, its canonical
+prepared channel must still match the submitted `AuthorityTarget`;
 request-scoped derivation or person-channel normalization that changes the
 channel away from the target returns `ErrStaleRoute` for that item and creates
 no state. Idempotency hits use the same canonical target validation before
