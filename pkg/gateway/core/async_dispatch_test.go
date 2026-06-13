@@ -86,8 +86,17 @@ func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T)
 	}
 }
 
-func TestAsyncDispatchQueueCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.T) {
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+func TestSendExecutorCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
 	payload := []byte("payload")
 	send := &frame.SendPacket{
 		ChannelID:   "channel-a",
@@ -96,12 +105,12 @@ func TestAsyncDispatchQueueCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *te
 	}
 	state := &sessionState{listener: &listenerRuntime{}}
 
-	if !queue.submitSend(state, "", send) {
-		t.Fatal("submitSend returned false")
+	if !executor.submit(state, "", send) {
+		t.Fatal("submit returned false")
 	}
 	payload[0] = 'P'
 
-	queued := queuedAsyncSendPacket(t, queue)
+	queued := queuedSendExecutorPacket(t, executor)
 	if got, want := string(queued.Payload), "payload"; got != want {
 		t.Fatalf("queued payload = %q, want %q", got, want)
 	}
@@ -110,8 +119,17 @@ func TestAsyncDispatchQueueCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *te
 	}
 }
 
-func TestAsyncDispatchQueueAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+func TestSendExecutorAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
 	payload := []byte("owned")
 	send := &frame.SendPacket{
 		ClientMsgNo: "before",
@@ -121,12 +139,12 @@ func TestAsyncDispatchQueueAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.
 	}
 	state := &sessionState{listener: &listenerRuntime{ownsDecodedFrames: true}}
 
-	if !queue.submitSend(state, "", send) {
-		t.Fatal("submitSend returned false")
+	if !executor.submit(state, "", send) {
+		t.Fatal("submit returned false")
 	}
 	send.ClientMsgNo = "after"
 
-	queued := queuedAsyncSendPacket(t, queue)
+	queued := queuedSendExecutorPacket(t, executor)
 	if !sameBackingArray(queued.Payload, send.Payload) {
 		t.Fatal("queued payload did not adopt owned decoded payload")
 	}
@@ -138,49 +156,83 @@ func TestAsyncDispatchQueueAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.
 	}
 }
 
-func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
-	srv := &Server{
-		options: gatewaytypes.Options{
-			Runtime: gatewaytypes.RuntimeOptions{
-				AsyncSendWorkers: 4,
-			},
-		},
+func TestSendExecutorUsesRuntimeWorkerCountAndCapacity(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        4,
+		AsyncSendQueueCapacity:  16,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
 	}
+	defer executor.stop()
 
-	srv.startAsyncDispatcher()
-	queue := srv.asyncDispatcher()
-	if queue == nil {
-		t.Fatal("async dispatcher was not started")
+	if got, want := executor.workers, 4; got != want {
+		t.Fatalf("send executor workers = %d, want %d", got, want)
 	}
-	if got, want := len(queue.shards), 4; got != want {
-		t.Fatalf("async dispatch shards = %d, want %d", got, want)
+	if got, want := sendExecutorShardCount(t, executor), 4; got != want {
+		t.Fatalf("send executor shards = %d, want %d", got, want)
 	}
-	for i, shard := range queue.shards {
-		if got, want := cap(shard.tasks), asyncDispatchQueuePerWorker; got != want {
-			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, want)
-		}
+	if got, want := executor.totalCapacity(), 16; got != want {
+		t.Fatalf("send executor capacity = %d, want %d", got, want)
 	}
-
-	queue.close()
-	srv.workerWG.Wait()
 }
 
-func TestAsyncDispatchQueueBoundsBufferedCapacityForManyWorkers(t *testing.T) {
-	queue := newAsyncDispatchQueue(maxAsyncDispatchWorkers)
-	if queue == nil {
-		t.Fatal("async dispatch queue was nil")
+func TestSendExecutorBoundsMailboxCapacityAcrossShards(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        4,
+		AsyncSendQueueCapacity:  10,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	shardCaps := sendExecutorShardCapacities(t, executor)
+	if got, want := len(shardCaps), 4; got != want {
+		t.Fatalf("send executor shards = %d, want %d", got, want)
+	}
+	for i, capacity := range shardCaps {
+		if capacity <= 0 {
+			t.Fatalf("send executor shard %d capacity = %d, want > 0", i, capacity)
+		}
+		if capacity != 3 {
+			t.Fatalf("send executor shard %d capacity = %d, want ceil(10/4)=3", i, capacity)
+		}
+	}
+	if got, want := executor.totalCapacity(), 10; got != want {
+		t.Fatalf("send executor total capacity = %d, want %d", got, want)
+	}
+}
+
+func TestSendExecutorRejectsWhenShardMailboxFullBeforePayloadClone(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{listener: &listenerRuntime{}}
+	if !executor.submit(state, "", &frame.SendPacket{Payload: []byte("first")}) {
+		t.Fatal("first submit rejected")
 	}
 
-	totalCapacity := 0
-	wantPerShard := asyncDispatchQueueCapacityPerShard(maxAsyncDispatchWorkers)
-	for i, shard := range queue.shards {
-		if got := cap(shard.tasks); got != wantPerShard {
-			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, wantPerShard)
-		}
-		totalCapacity += cap(shard.tasks)
+	payload := make([]byte, 64*1024)
+	packet := &frame.SendPacket{Payload: payload}
+	baseline := testing.AllocsPerRun(1000, func() {})
+	actual := testing.AllocsPerRun(1000, func() {
+		_ = executor.submit(state, "", packet)
+	})
+	if actual > baseline+0.5 {
+		t.Fatalf("allocs = %.2f, want near baseline %.2f; full shard should not clone payload", actual, baseline)
 	}
-	if totalCapacity > asyncDispatchMaxBufferedTasks {
-		t.Fatalf("async dispatch total capacity = %d, want <= %d", totalCapacity, asyncDispatchMaxBufferedTasks)
+	if got := executor.depth(); got != 1 {
+		t.Fatalf("send executor depth = %d, want 1", got)
 	}
 }
 
@@ -290,21 +342,30 @@ func TestRecordAsyncDispatchWaitIncludesSendClientMsgNo(t *testing.T) {
 	}
 }
 
-func TestServerAsyncSendDispatchObserverTracksQueueWaitAndBatch(t *testing.T) {
+func TestSendExecutorObserverTracksQueueWaitAndBatch(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
 	handler := &recordingAsyncSendBatchHandler{}
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
 		options: gatewaytypes.Options{
 			Observer: observer,
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  4,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
 			DefaultSession: gatewaytypes.SessionOptions{
 				AsyncSendBatchMaxRecords: 8,
 				AsyncSendBatchMaxBytes:   1024,
 			},
 		},
 	}
-	queue := newAsyncDispatchQueueWithCapacity(1, 4)
-	srv.asyncDispatch.Store(queue)
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
 	state := &sessionState{
 		server:         srv,
 		listener:       &listenerRuntime{eventProtocol: "wkproto"},
@@ -312,15 +373,25 @@ func TestServerAsyncSendDispatchObserverTracksQueueWaitAndBatch(t *testing.T) {
 		requestContext: context.Background(),
 	}
 
-	srv.dispatchSendFrameAsync(state, "", &frame.SendPacket{
+	if !executor.submit(state, "", &frame.SendPacket{
 		ChannelID:   "c1",
 		ClientMsgNo: "m1",
 		Payload:     []byte("abc"),
-	})
-	queue.close()
-	srv.workerWG.Add(1)
-	srv.runAsyncDispatchWorker(queue.shards[0].tasks)
+	}) {
+		t.Fatal("submit rejected")
+	}
+	srv.observeAsyncSendQueue(executor)
 
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if len(observer.queueEvents()) >= 2 && len(observer.batchEvents()) == 1 && len(observer.waitEvents()) == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if queues, batches, waits := observer.queueEvents(), observer.batchEvents(), observer.waitEvents(); len(queues) < 2 || len(batches) != 1 || len(waits) != 1 {
+		t.Fatalf("send observations queue/batch/wait = %d/%d/%d, want at least 2/1/1", len(queues), len(batches), len(waits))
+	}
 	queueEvents := observer.queueEvents()
 	if len(queueEvents) < 2 {
 		t.Fatalf("queue events = %d, want enqueue and dequeue observations", len(queueEvents))
@@ -366,21 +437,31 @@ func TestAsyncSendReportsAdmissionResults(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
-		options:    gatewaytypes.Options{Observer: observer},
+		options: gatewaytypes.Options{
+			Observer: observer,
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  1,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
+		},
 	}
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch.Store(queue)
+	executor, err := newSendExecutor(nil, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
 
 	state := &sessionState{server: srv, key: connKey{connID: 1}}
 	send := &frame.SendPacket{ChannelID: "c1", ChannelType: 1}
-	if !queue.submitSend(state, "r1", send) {
-		t.Fatal("first submitSend failed")
+	if !executor.submit(state, "r1", send) {
+		t.Fatal("first submit failed")
 	}
-	srv.observeAsyncSendAdmission(queue, true)
-	if queue.submitSend(state, "r2", send) {
-		t.Fatal("second submitSend unexpectedly succeeded")
+	srv.observeAsyncSendAdmission(nil, true)
+	if executor.submit(state, "r2", send) {
+		t.Fatal("second submit unexpectedly succeeded")
 	}
-	srv.observeAsyncSendAdmission(queue, false)
+	srv.observeAsyncSendAdmission(nil, false)
 
 	if len(observer.sendAdmissions) != 2 {
 		t.Fatalf("send admissions = %d, want 2", len(observer.sendAdmissions))
@@ -488,29 +569,44 @@ func TestAsyncSendBatchCollectWaitsForNearFutureTask(t *testing.T) {
 	}
 }
 
-func TestAsyncSendDispatchUsesBatchHandler(t *testing.T) {
+func TestSendExecutorDispatchesBatchOnAnts(t *testing.T) {
 	handler := &recordingAsyncSendBatchHandler{}
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
-		options: gatewaytypes.Options{DefaultSession: gatewaytypes.SessionOptions{
-			AsyncSendBatchMaxWait:    time.Millisecond,
-			AsyncSendBatchMaxRecords: 8,
-			AsyncSendBatchMaxBytes:   1024,
-		}},
+		options: gatewaytypes.Options{
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  8,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxWait:    time.Millisecond,
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
 	}
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),
 		requestContext: context.Background(),
 	}
-	tasks := make(chan asyncDispatchTask, 2)
-	tasks <- asyncDispatchTask{state: state, replyToken: "r1", frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1", Payload: []byte("one")}, enqueuedAt: time.Now()}
-	tasks <- asyncDispatchTask{state: state, replyToken: "r2", frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2", Payload: []byte("two")}, enqueuedAt: time.Now()}
-	close(tasks)
+	if !executor.submit(state, "r1", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1", Payload: []byte("one")}) {
+		t.Fatal("first submit rejected")
+	}
+	if !executor.submit(state, "r2", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2", Payload: []byte("two")}) {
+		t.Fatal("second submit rejected")
+	}
 
-	srv.workerWG.Add(1)
-	srv.runAsyncDispatchWorker(tasks)
-
+	eventually(t, time.Second, func() bool {
+		return len(handler.snapshotBatches()) == 1
+	}, "send executor did not dispatch batch")
 	if got := handler.frameCalls.Load(); got != 0 {
 		t.Fatalf("OnFrame calls = %d, want 0 when batch handler is available", got)
 	}
@@ -581,30 +677,72 @@ func TestAsyncSendDispatchBatchItemStoresContextByValue(t *testing.T) {
 	}
 }
 
-func TestAsyncSendDispatchFallsBackToFrameHandler(t *testing.T) {
+func TestSendExecutorFallsBackToFrameHandler(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
-		options: gatewaytypes.Options{DefaultSession: gatewaytypes.SessionOptions{
-			AsyncSendBatchMaxRecords: 8,
-			AsyncSendBatchMaxBytes:   1024,
-		}},
+		options: gatewaytypes.Options{
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  8,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
 	}
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),
 		requestContext: context.Background(),
 	}
-	tasks := make(chan asyncDispatchTask, 2)
-	tasks <- asyncDispatchTask{state: state, frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1"}}
-	tasks <- asyncDispatchTask{state: state, frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2"}}
-	close(tasks)
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1"}) {
+		t.Fatal("first submit rejected")
+	}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2"}) {
+		t.Fatal("second submit rejected")
+	}
 
-	srv.workerWG.Add(1)
-	srv.runAsyncDispatchWorker(tasks)
-
+	eventually(t, time.Second, func() bool {
+		return handler.frames.Load() == 2
+	}, "send executor did not fall back to OnFrame")
 	if got, want := handler.frames.Load(), uint64(2); got != want {
 		t.Fatalf("OnFrame calls = %d, want %d", got, want)
+	}
+}
+
+func TestSendExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  2,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+
+	if !executor.submit(&sessionState{}, "", &frame.SendPacket{Payload: []byte("queued")}) {
+		t.Fatal("submit before stop rejected")
+	}
+	executor.stop()
+	executor.stop()
+
+	if executor.submit(&sessionState{}, "", &frame.SendPacket{Payload: []byte("after")}) {
+		t.Fatal("submit accepted after stop")
+	}
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 after stop drains mailbox", got)
+	}
+	if sendExecutorShardIsOpen(t, executor, 0) {
+		t.Fatal("send executor shard remained open after stop")
 	}
 }
 
@@ -629,6 +767,75 @@ func queuedAsyncSendPacket(t *testing.T, queue *asyncDispatchQueue) *frame.SendP
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for queued send")
 		return nil
+	}
+}
+
+func queuedSendExecutorPacket(t *testing.T, executor *sendExecutor) *frame.SendPacket {
+	t.Helper()
+	task := receiveSendExecutorTask(t, executor, 0)
+	send, ok := task.frame.(*frame.SendPacket)
+	if !ok {
+		t.Fatalf("queued frame = %T, want *frame.SendPacket", task.frame)
+	}
+	return send
+}
+
+func receiveSendExecutorTask(t *testing.T, executor *sendExecutor, shardIndex int) asyncDispatchTask {
+	t.Helper()
+	if executor == nil {
+		t.Fatal("send executor is nil")
+	}
+	if shardIndex < 0 || shardIndex >= len(executor.shards) {
+		t.Fatalf("send executor shard index %d out of range", shardIndex)
+	}
+	select {
+	case task, ok := <-executor.shards[shardIndex].tasks:
+		if !ok {
+			t.Fatal("send executor tasks channel closed before queued send was read")
+		}
+		return task
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for queued send")
+		return asyncDispatchTask{}
+	}
+}
+
+func sendExecutorShardCount(t *testing.T, executor *sendExecutor) int {
+	t.Helper()
+	if executor == nil {
+		t.Fatal("send executor is nil")
+	}
+	return len(executor.shards)
+}
+
+func sendExecutorShardCapacities(t *testing.T, executor *sendExecutor) []int {
+	t.Helper()
+	if executor == nil {
+		t.Fatal("send executor is nil")
+	}
+	capacities := make([]int, 0, len(executor.shards))
+	for i, shard := range executor.shards {
+		if shard == nil {
+			t.Fatalf("send executor shard %d is nil", i)
+		}
+		capacities = append(capacities, cap(shard.tasks))
+	}
+	return capacities
+}
+
+func sendExecutorShardIsOpen(t *testing.T, executor *sendExecutor, shardIndex int) bool {
+	t.Helper()
+	if executor == nil {
+		t.Fatal("send executor is nil")
+	}
+	if shardIndex < 0 || shardIndex >= len(executor.shards) {
+		t.Fatalf("send executor shard index %d out of range", shardIndex)
+	}
+	select {
+	case _, ok := <-executor.shards[shardIndex].tasks:
+		return ok
+	default:
+		return true
 	}
 }
 

@@ -1249,7 +1249,12 @@ type asyncDispatchTask struct {
 	replyToken string
 	frame      frame.Frame
 	enqueuedAt time.Time
-	queue      *asyncDispatchQueue
+	queue      asyncSendStats
+}
+
+type asyncSendStats interface {
+	depth() int
+	totalCapacity() int
 }
 
 type asyncSendBatchLimits struct {
@@ -2005,11 +2010,13 @@ func (s *Server) observeAsyncSendDequeued(batch []asyncDispatchTask) {
 	if queue == nil {
 		return
 	}
-	queue.consume(len(batch))
+	if consumer, ok := queue.(interface{ consume(int) }); ok {
+		consumer.consume(len(batch))
+	}
 	s.observeAsyncSendQueue(queue)
 }
 
-func (s *Server) observeAsyncSendQueue(queue *asyncDispatchQueue) {
+func (s *Server) observeAsyncSendQueue(queue asyncSendStats) {
 	observer := s.asyncSendObserver()
 	if observer == nil || queue == nil {
 		return
@@ -2059,7 +2066,7 @@ func (s *Server) observeAsyncAuthWait(task asyncAuthTask) {
 	})
 }
 
-func (s *Server) observeAsyncSendAdmission(_ *asyncDispatchQueue, accepted bool) {
+func (s *Server) observeAsyncSendAdmission(_ asyncSendStats, accepted bool) {
 	observer := s.asyncSendAdmissionObserver()
 	if observer == nil {
 		return
@@ -2143,7 +2150,7 @@ func (s *Server) transportPressureObserver() gatewaytypes.TransportPressureObser
 	return observer
 }
 
-func asyncSendBatchQueue(batch []asyncDispatchTask) *asyncDispatchQueue {
+func asyncSendBatchQueue(batch []asyncDispatchTask) asyncSendStats {
 	for _, task := range batch {
 		if task.queue != nil {
 			return task.queue

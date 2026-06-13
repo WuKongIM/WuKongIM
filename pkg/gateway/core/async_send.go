@@ -1,13 +1,20 @@
 package core
 
 import (
+	"fmt"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/panjf2000/ants/v2"
 )
 
-// sendExecutor is a placeholder for bounded async SEND dispatch execution.
+const asyncSendPanicValueMaxLen = 256
+
+// sendExecutor admits SEND frames into bounded shard mailboxes and drains them on ants workers.
 type sendExecutor struct {
 	// server owns session and gateway state needed by send tasks.
 	server *Server
@@ -19,25 +26,142 @@ type sendExecutor struct {
 	queued atomic.Int64
 	// closed prevents new send admission after shutdown.
 	closed atomic.Bool
+	// pool runs shard drain tasks on bounded ants workers.
+	pool *ants.PoolWithFuncGeneric[*asyncSendShard]
+	// shards split SEND mailboxes by gateway session.
+	shards []*asyncSendShard
+	// releaseTimeout bounds graceful ants pool release.
+	releaseTimeout time.Duration
+	// stopOnce makes executor shutdown idempotent.
+	stopOnce sync.Once
+	// panicC records worker panics for package tests and diagnostics.
+	panicC chan any
+}
+
+// asyncSendShard owns one bounded SEND mailbox and its scheduled state.
+type asyncSendShard struct {
+	executor *sendExecutor
+	tasks    chan asyncDispatchTask
+
+	mu        sync.Mutex
+	scheduled bool
+	closed    bool
 }
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
-	return &sendExecutor{
-		server:   s,
-		workers:  opts.AsyncSendWorkers,
-		capacity: opts.AsyncSendQueueCapacity,
-	}, nil
+	opts = gatewaytypes.NormalizeRuntimeOptions(opts)
+	e := &sendExecutor{
+		server:         s,
+		workers:        opts.AsyncSendWorkers,
+		capacity:       opts.AsyncSendQueueCapacity,
+		releaseTimeout: opts.AsyncPoolReleaseTimeout,
+		panicC:         make(chan any, 1),
+	}
+
+	shardCapacity := asyncSendShardCapacity(e.capacity, e.workers)
+	e.shards = make([]*asyncSendShard, e.workers)
+	for i := range e.shards {
+		e.shards[i] = &asyncSendShard{
+			executor: e,
+			tasks:    make(chan asyncDispatchTask, shardCapacity),
+		}
+	}
+
+	pool, err := ants.NewPoolWithFuncGeneric[*asyncSendShard](
+		e.workers,
+		e.drainShard,
+		ants.WithNonblocking(true),
+		ants.WithDisablePurge(true),
+		ants.WithPanicHandler(func(v any) {
+			e.recordPanic(v, asyncDispatchTask{})
+		}),
+	)
+	if err != nil {
+		for _, shard := range e.shards {
+			close(shard.tasks)
+			shard.closed = true
+		}
+		return nil, err
+	}
+	e.pool = pool
+	return e, nil
 }
 
-func (e *sendExecutor) submit(*sessionState, string, *frame.SendPacket) bool {
-	return false
+func asyncSendShardCapacity(totalCapacity, shards int) int {
+	if shards <= 0 {
+		shards = 1
+	}
+	if totalCapacity <= 0 {
+		totalCapacity = 1
+	}
+	capacity := (totalCapacity + shards - 1) / shards
+	if capacity <= 0 {
+		return 1
+	}
+	return capacity
+}
+
+func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
+	if e == nil || send == nil || e.closed.Load() || len(e.shards) == 0 {
+		return false
+	}
+
+	shard := e.shardForSend(state, send)
+	if shard == nil {
+		return false
+	}
+
+	var shouldSchedule bool
+	shard.mu.Lock()
+	if shard.closed || len(shard.tasks) >= cap(shard.tasks) {
+		shard.mu.Unlock()
+		return false
+	}
+	task := asyncDispatchTask{
+		state:      state,
+		replyToken: replyToken,
+		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
+		enqueuedAt: time.Now(),
+		queue:      e,
+	}
+	shard.tasks <- task
+	e.queued.Add(1)
+	if !shard.scheduled && e.server != nil {
+		shard.scheduled = true
+		shouldSchedule = true
+	}
+	shard.mu.Unlock()
+
+	if shouldSchedule {
+		e.schedule(shard)
+	}
+	return true
 }
 
 func (e *sendExecutor) stop() {
 	if e == nil {
 		return
 	}
-	e.closed.Store(true)
+	e.stopOnce.Do(func() {
+		e.closed.Store(true)
+		for _, shard := range e.shards {
+			if shard == nil {
+				continue
+			}
+			shard.mu.Lock()
+			if !shard.closed {
+				shard.closed = true
+				close(shard.tasks)
+			}
+			shard.mu.Unlock()
+		}
+		for _, shard := range e.shards {
+			e.drainClosedShard(shard)
+		}
+		if e.pool != nil {
+			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
+		}
+	})
 }
 
 func (e *sendExecutor) depth() int {
@@ -52,4 +176,187 @@ func (e *sendExecutor) totalCapacity() int {
 		return 0
 	}
 	return e.capacity
+}
+
+func (e *sendExecutor) schedule(shard *asyncSendShard) {
+	if e == nil || shard == nil {
+		return
+	}
+	if e.closed.Load() {
+		e.markShardUnscheduled(shard)
+		return
+	}
+	err := e.pool.Invoke(shard)
+	switch {
+	case err == nil:
+		return
+	case isAntsBusy(err):
+		time.AfterFunc(time.Millisecond, func() {
+			e.schedule(shard)
+		})
+	case isAntsStopped(err):
+		e.markShardUnscheduled(shard)
+	default:
+		e.recordPanic(err, asyncDispatchTask{})
+		e.markShardUnscheduled(shard)
+	}
+}
+
+func (e *sendExecutor) drainShard(shard *asyncSendShard) {
+	if e == nil || shard == nil {
+		return
+	}
+	defer func() {
+		if v := recover(); v != nil {
+			e.recordPanic(v, asyncDispatchTask{})
+			e.markShardUnscheduled(shard)
+		}
+	}()
+
+	collector := newAsyncSendBatchCollector(shard.tasks, asyncSendBatchLimitsFromOptions(e.server.options.DefaultSession))
+	for {
+		batch, ok := e.nextShardBatch(collector, shard)
+		if !ok {
+			return
+		}
+		e.dispatchBatch(batch)
+	}
+}
+
+func (e *sendExecutor) nextShardBatch(collector *asyncSendBatchCollector, shard *asyncSendShard) ([]asyncDispatchTask, bool) {
+	if collector == nil || shard == nil {
+		return nil, false
+	}
+	if collector.hasPending {
+		task, ok := collector.nextTask()
+		if !ok {
+			return nil, false
+		}
+		return collector.collect(task), true
+	}
+
+	select {
+	case task, ok := <-shard.tasks:
+		if !ok {
+			return nil, false
+		}
+		return collector.collect(task), true
+	default:
+	}
+
+	shard.mu.Lock()
+	if shard.closed {
+		shard.mu.Unlock()
+		return nil, false
+	}
+	if len(shard.tasks) == 0 {
+		shard.scheduled = false
+		shard.mu.Unlock()
+		return nil, false
+	}
+	shard.mu.Unlock()
+	return nil, true
+}
+
+func (e *sendExecutor) dispatchBatch(batch []asyncDispatchTask) {
+	if e == nil || len(batch) == 0 {
+		return
+	}
+	e.consume(len(batch))
+	if e.server == nil {
+		return
+	}
+	e.server.observeAsyncSendQueue(e)
+	e.server.observeAsyncSendBatch(batch)
+	if e.server.dispatchSendBatch(batch) {
+		return
+	}
+	for _, task := range batch {
+		e.server.recordAsyncDispatchWait(task)
+		if err := e.server.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
+			e.server.handleHandlerError(task.state, err)
+		}
+	}
+}
+
+func (e *sendExecutor) consume(count int) {
+	if e == nil || count <= 0 {
+		return
+	}
+	remaining := e.queued.Add(-int64(count))
+	if remaining >= 0 {
+		return
+	}
+	e.queued.Add(-remaining)
+}
+
+func (e *sendExecutor) shardForSend(state *sessionState, send *frame.SendPacket) *asyncSendShard {
+	if e == nil || len(e.shards) == 0 {
+		return nil
+	}
+	return e.shards[asyncDispatchShardIndex(state, send, len(e.shards))]
+}
+
+func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
+	if shard == nil {
+		return
+	}
+	shard.mu.Lock()
+	shard.scheduled = false
+	shard.mu.Unlock()
+}
+
+func (e *sendExecutor) drainClosedShard(shard *asyncSendShard) {
+	if e == nil || shard == nil {
+		return
+	}
+	for {
+		select {
+		case _, ok := <-shard.tasks:
+			if !ok {
+				return
+			}
+			e.consume(1)
+		default:
+			return
+		}
+	}
+}
+
+func (e *sendExecutor) recordPanic(v any, task asyncDispatchTask) {
+	if e == nil {
+		return
+	}
+	select {
+	case e.panicC <- v:
+	default:
+	}
+	defer func() {
+		_ = recover()
+	}()
+	e.logPanic(v, task)
+}
+
+func (e *sendExecutor) logPanic(v any, task asyncDispatchTask) {
+	if e == nil || e.server == nil || e.server.options.Logger == nil {
+		return
+	}
+	fields := []wklog.Field{
+		wklog.String("panic", boundedAsyncSendPanicValue(v)),
+	}
+	if task.state != nil && task.state.listener != nil {
+		fields = append(fields, wklog.String("listener", task.state.listener.options.Name))
+	}
+	if send, ok := task.frame.(*frame.SendPacket); ok && send != nil {
+		fields = append(fields, wklog.String("channel_id", send.ChannelID), wklog.String("client_msg_no", send.ClientMsgNo))
+	}
+	e.server.options.Logger.Warn("gateway async send task panic", fields...)
+}
+
+func boundedAsyncSendPanicValue(v any) string {
+	text := fmt.Sprint(v)
+	if len(text) <= asyncSendPanicValueMaxLen {
+		return text
+	}
+	return text[:asyncSendPanicValueMaxLen]
 }
