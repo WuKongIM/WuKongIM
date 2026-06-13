@@ -1117,7 +1117,6 @@ type asyncDispatchTask struct {
 	replyToken string
 	frame      frame.Frame
 	enqueuedAt time.Time
-	queue      asyncSendStats
 }
 
 type asyncSendStats interface {

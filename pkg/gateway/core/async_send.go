@@ -131,7 +131,6 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 		replyToken: replyToken,
 		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
 		enqueuedAt: time.Now(),
-		queue:      e,
 	}
 	shard.tasks <- task
 	if !shard.scheduled && e.server != nil {
