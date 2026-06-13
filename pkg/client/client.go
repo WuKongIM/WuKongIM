@@ -168,37 +168,36 @@ func (c *Client) currentConn() (net.Conn, error) {
 }
 
 func (c *Client) writeFrameSync(ctx context.Context, conn net.Conn, f frame.Frame) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := conn.SetWriteDeadline(c.operationDeadline(ctx)); err != nil {
-		return err
-	}
 	data, err := c.proto.EncodeFrame(f, frame.LatestVersion)
 	if err != nil {
 		return err
 	}
-	for len(data) > 0 {
-		n, err := conn.Write(data)
-		if err != nil {
-			return err
+	return c.withDeadline(ctx, conn.SetWriteDeadline, func() error {
+		for len(data) > 0 {
+			n, err := conn.Write(data)
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return io.ErrShortWrite
+			}
+			data = data[n:]
 		}
-		if n == 0 {
-			return io.ErrShortWrite
-		}
-		data = data[n:]
-	}
-	return nil
+		return nil
+	})
 }
 
 func (c *Client) readFrameSync(ctx context.Context, conn net.Conn) (frame.Frame, error) {
-	if err := ctx.Err(); err != nil {
+	var f frame.Frame
+	err := c.withDeadline(ctx, conn.SetReadDeadline, func() error {
+		var err error
+		f, err = codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		return err
+	})
+	if err != nil {
 		return nil, err
 	}
-	if err := conn.SetReadDeadline(c.operationDeadline(ctx)); err != nil {
-		return nil, err
-	}
-	return codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+	return f, nil
 }
 
 func (c *Client) operationDeadline(ctx context.Context) time.Time {
@@ -207,6 +206,33 @@ func (c *Client) operationDeadline(ctx context.Context) time.Time {
 		return ctxDeadline
 	}
 	return deadline
+}
+
+func (c *Client) withDeadline(ctx context.Context, setDeadline func(time.Time) error, op func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := setDeadline(c.operationDeadline(ctx)); err != nil {
+		return err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = setDeadline(time.Now())
+		case <-done:
+		}
+	}()
+
+	err := op()
+	close(done)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+	}
+	return err
 }
 
 func (c *Client) observeConnect(opts ConnectOptions, elapsed time.Duration, err error) {

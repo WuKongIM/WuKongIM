@@ -169,6 +169,58 @@ func TestClientConnectHonorsCallerContext(t *testing.T) {
 	}
 }
 
+func TestClientConnectCancelsBlockedConnackReadPromptly(t *testing.T) {
+	c, serverConn := newPipeClientServerOrFatal(t, Config{Token: "cfg-token"})
+
+	connectRead := make(chan struct{})
+	releaseServer := make(chan struct{})
+	serverErr := runTestServer(func() error {
+		if _, err := readTestFrame(serverConn); err != nil {
+			return err
+		}
+		time.Sleep(50 * time.Millisecond)
+		close(connectRead)
+		<-releaseServer
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	connectErr := make(chan error, 1)
+	go func() {
+		_, err := c.Connect(ctx, ConnectOptions{
+			UID:        "uid-1",
+			DeviceID:   "device-1",
+			DeviceFlag: frame.APP,
+		})
+		connectErr <- err
+	}()
+
+	select {
+	case <-connectRead:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("server did not read CONNECT")
+	}
+
+	cancel()
+
+	select {
+	case err := <-connectErr:
+		if !errors.Is(err, context.Canceled) {
+			close(releaseServer)
+			t.Fatalf("Connect() error = %v, want %v", err, context.Canceled)
+		}
+	case <-time.After(500 * time.Millisecond):
+		_ = serverConn.Close()
+		close(releaseServer)
+		t.Fatal("Connect() did not return promptly after context cancellation")
+	}
+
+	close(releaseServer)
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
 type contextErrDialer struct{}
 
 func (contextErrDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
