@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -222,6 +223,117 @@ func TestClientConnectCancelsBlockedConnackReadPromptly(t *testing.T) {
 	}
 }
 
+func TestClientConnectSerializesConcurrentHandshakes(t *testing.T) {
+	firstClient, firstServer := net.Pipe()
+	secondClient, secondServer := net.Pipe()
+	dialer := &sequenceDialer{
+		conns:  []net.Conn{firstClient, secondClient},
+		called: make(chan int, 2),
+	}
+	c, err := New(Config{
+		Addr:   "pipe",
+		Token:  "cfg-token",
+		Dialer: dialer,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = firstServer.Close()
+		_ = secondServer.Close()
+	})
+
+	firstRead := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstServerErr := runTestServer(func() error {
+		if _, err := readTestFrame(firstServer); err != nil {
+			return err
+		}
+		close(firstRead)
+		<-releaseFirst
+		return writeTestFrame(firstServer, &frame.ConnackPacket{
+			Framer: frame.Framer{
+				FrameType:        frame.CONNACK,
+				HasServerVersion: true,
+			},
+			ServerVersion: frame.LatestVersion,
+			ReasonCode:    frame.ReasonSuccess,
+		})
+	})
+	secondServerErr := runTestServer(func() error {
+		if _, err := readTestFrame(secondServer); err != nil {
+			return err
+		}
+		return writeTestFrame(secondServer, &frame.ConnackPacket{
+			Framer: frame.Framer{
+				FrameType:        frame.CONNACK,
+				HasServerVersion: true,
+			},
+			ServerVersion: frame.LatestVersion,
+			ReasonCode:    frame.ReasonSuccess,
+		})
+	})
+
+	firstErr := make(chan error, 1)
+	go func() {
+		_, err := c.Connect(context.Background(), ConnectOptions{
+			UID:        "uid-1",
+			DeviceID:   "device-1",
+			DeviceFlag: frame.APP,
+		})
+		firstErr <- err
+	}()
+
+	if call := <-dialer.called; call != 1 {
+		t.Fatalf("first dial call = %d, want 1", call)
+	}
+	select {
+	case <-firstRead:
+	case <-time.After(time.Second):
+		t.Fatal("first server did not read CONNECT")
+	}
+
+	secondErr := make(chan error, 1)
+	go func() {
+		_, err := c.Connect(context.Background(), ConnectOptions{
+			UID:        "uid-2",
+			DeviceID:   "device-2",
+			DeviceFlag: frame.APP,
+		})
+		secondErr <- err
+	}()
+
+	select {
+	case call := <-dialer.called:
+		t.Fatalf("second Connect dialed before first handshake completed: call %d", call)
+	case <-time.After(30 * time.Millisecond):
+	}
+
+	close(releaseFirst)
+	if err := <-firstErr; err != nil {
+		t.Fatalf("first Connect() error = %v", err)
+	}
+	if err := <-firstServerErr; err != nil {
+		t.Fatalf("first server error = %v", err)
+	}
+
+	select {
+	case call := <-dialer.called:
+		if call != 2 {
+			t.Fatalf("second dial call = %d, want 2", call)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("second Connect did not start after first completed")
+	}
+	if err := <-secondErr; err != nil {
+		t.Fatalf("second Connect() error = %v", err)
+	}
+	if err := <-secondServerErr; err != nil {
+		t.Fatalf("second server error = %v", err)
+	}
+}
+
 func TestClientReaderDecodesConcatenatedSendacksOutOfOrder(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 
@@ -332,6 +444,57 @@ func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
 	second := <-c.recvCh
 	if first.MessageID != 2 || second.MessageID != 3 {
 		t.Fatalf("queued MessageIDs = %d,%d, want 2,3", first.MessageID, second.MessageID)
+	}
+}
+
+func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
+	c, err := New(Config{
+		Addr:                   "pipe",
+		InboundFrameBufferSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 1})
+
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	for i := int64(2); i <= 16; i++ {
+		wg.Add(1)
+		go func(messageID int64) {
+			defer wg.Done()
+			c.enqueueRecv(&frame.RecvPacket{MessageID: messageID})
+		}(i)
+	}
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("concurrent enqueueRecv calls blocked")
+	}
+}
+
+func TestEnqueueRecvZeroCapacityDoesNotBlock(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	c.recvCh = make(chan *frame.RecvPacket)
+
+	done := make(chan struct{})
+	go func() {
+		c.enqueueRecv(&frame.RecvPacket{MessageID: 1})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("enqueueRecv blocked on zero-capacity channel")
 	}
 }
 
@@ -480,6 +643,24 @@ type contextErrDialer struct{}
 
 func (contextErrDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
 	return nil, ctx.Err()
+}
+
+type sequenceDialer struct {
+	mu     sync.Mutex
+	conns  []net.Conn
+	called chan int
+}
+
+func (d *sequenceDialer) DialContext(context.Context, string, string) (net.Conn, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.conns) == 0 {
+		return nil, errors.New("no test connections")
+	}
+	conn := d.conns[0]
+	d.conns = d.conns[1:]
+	d.called <- cap(d.called) - len(d.conns)
+	return conn, nil
 }
 
 func runTestServer(fn func() error) <-chan error {

@@ -102,9 +102,11 @@ func (c *Client) decryptRecv(pkt *frame.RecvPacket, session *wkprotoenc.SessionC
 
 // enqueueRecv appends a RECV packet, dropping the oldest queued packet when full.
 func (c *Client) enqueueRecv(pkt *frame.RecvPacket) {
-	if pkt == nil || c.recvCh == nil {
+	if pkt == nil || c.recvCh == nil || cap(c.recvCh) == 0 {
 		return
 	}
+	c.recvMu.Lock()
+	defer c.recvMu.Unlock()
 	select {
 	case c.recvCh <- pkt:
 		return
@@ -114,7 +116,10 @@ func (c *Client) enqueueRecv(pkt *frame.RecvPacket) {
 	case <-c.recvCh:
 	default:
 	}
-	c.recvCh <- pkt
+	select {
+	case c.recvCh <- pkt:
+	default:
+	}
 }
 
 // failRead terminates the failed reader session without closing newer sessions.

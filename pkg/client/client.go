@@ -19,12 +19,16 @@ type Client struct {
 	proto  codec.Protocol
 	crypto *cryptoState
 
-	mu      sync.Mutex
-	conn    net.Conn
-	closed  bool
-	writeCh chan writeRequest
+	// connectMu serializes CONNECT handshakes so session state is published atomically.
+	connectMu sync.Mutex
+	mu        sync.Mutex
+	conn      net.Conn
+	closed    bool
+	writeCh   chan writeRequest
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
 	pending *pendingTracker
+	// recvMu protects bounded overwrite semantics for recvCh.
+	recvMu sync.Mutex
 	// recvCh buffers inbound RECV frames for future public receive APIs.
 	recvCh     chan *frame.RecvPacket
 	readerDone chan struct{}
@@ -57,6 +61,9 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	if opts.Token == "" {
 		opts.Token = c.cfg.Token
 	}
+
+	c.connectMu.Lock()
+	defer c.connectMu.Unlock()
 
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
