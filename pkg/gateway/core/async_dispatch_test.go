@@ -828,6 +828,95 @@ func TestSendExecutorStopDispatchesBufferedTasks(t *testing.T) {
 	}
 }
 
+func TestSendExecutorStopHonorsReleaseTimeoutWhenHandlerBlocks(t *testing.T) {
+	handler := newBlockingAsyncSendFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  1,
+				AsyncPoolReleaseTimeout: 20 * time.Millisecond,
+			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "blocked"}) {
+		t.Fatal("submit rejected")
+	}
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocked handler did not start")
+	}
+
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		executor.stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(250 * time.Millisecond):
+		close(handler.release)
+		t.Fatal("send executor stop did not honor release timeout")
+	}
+	close(handler.release)
+	if elapsed := time.Since(start); elapsed >= time.Second {
+		t.Fatalf("send executor stop took %s, want under 1s", elapsed)
+	}
+}
+
+func TestSendExecutorStopDuringSubmitDoesNotLeakDepth(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "queued"}) {
+		t.Fatal("submit rejected")
+	}
+	executor.server = srv
+	executor.shards[0].mu.Lock()
+	executor.shards[0].scheduled = true
+	executor.shards[0].mu.Unlock()
+
+	executor.stop()
+
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 when stop races with schedule ownership", got)
+	}
+	batches := handler.snapshotBatches()
+	if len(batches) != 1 || len(batches[0]) != 1 || batches[0][0].Frame.ClientMsgNo != "queued" {
+		t.Fatalf("batches = %#v, want queued task dispatched despite schedule ownership race", batches)
+	}
+}
+
 func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
 	handler := newPanicThenRecordingFrameHandler()
 	srv := &Server{
@@ -1062,6 +1151,19 @@ func newPanicThenRecordingFrameHandler() *panicThenRecordingFrameHandler {
 	}
 }
 
+type blockingAsyncSendFrameHandler struct {
+	startOnce sync.Once
+	started   chan struct{}
+	release   chan struct{}
+}
+
+func newBlockingAsyncSendFrameHandler() *blockingAsyncSendFrameHandler {
+	return &blockingAsyncSendFrameHandler{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
 type recordingSendTraceSink struct {
 	mu     sync.Mutex
 	events []sendtrace.Event
@@ -1216,6 +1318,22 @@ func (h *panicThenRecordingFrameHandler) clientMsgNos() []string {
 	defer h.mu.Unlock()
 	return append([]string(nil), h.seen...)
 }
+
+func (h *blockingAsyncSendFrameHandler) OnListenerError(string, error) {}
+func (h *blockingAsyncSendFrameHandler) OnSessionOpen(gatewaytypes.Context) error {
+	return nil
+}
+func (h *blockingAsyncSendFrameHandler) OnFrame(gatewaytypes.Context, frame.Frame) error {
+	h.startOnce.Do(func() {
+		close(h.started)
+	})
+	<-h.release
+	return nil
+}
+func (h *blockingAsyncSendFrameHandler) OnSessionClose(gatewaytypes.Context) error {
+	return nil
+}
+func (h *blockingAsyncSendFrameHandler) OnSessionError(gatewaytypes.Context, error) {}
 
 func (h *countingAsyncFrameHandler) sessionErrors() []error {
 	h.mu.Lock()

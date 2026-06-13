@@ -45,9 +45,10 @@ type asyncSendShard struct {
 	executor *sendExecutor
 	tasks    chan asyncDispatchTask
 
-	mu        sync.Mutex
-	scheduled bool
-	closed    bool
+	mu         sync.Mutex
+	scheduled  bool
+	drainOwned bool
+	closed     bool
 }
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
@@ -133,7 +134,9 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	}
 	shard.tasks <- task
 	if !shard.scheduled && e.server != nil {
+		e.wg.Add(1)
 		shard.scheduled = true
+		shard.drainOwned = true
 		shouldSchedule = true
 	}
 	shard.mu.Unlock()
@@ -163,19 +166,19 @@ func (e *sendExecutor) stop() {
 		}
 		if e.server != nil {
 			for _, shard := range e.shards {
-				if e.shardIsScheduled(shard) {
+				if e.shardHasDrainOwner(shard) {
 					continue
 				}
 				e.drainShard(shard)
 			}
-			e.wg.Wait()
+			e.waitForDrainOrTimeout()
 		} else {
 			for _, shard := range e.shards {
 				e.drainClosedShard(shard)
 			}
-		}
-		if e.pool != nil {
-			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
+			if e.pool != nil {
+				_ = e.pool.ReleaseTimeout(e.releaseTimeout)
+			}
 		}
 	})
 }
@@ -213,7 +216,6 @@ func (e *sendExecutor) schedule(shard *asyncSendShard) {
 	if e == nil || shard == nil {
 		return
 	}
-	e.wg.Add(1)
 	e.invokeScheduledShard(shard)
 }
 
@@ -290,6 +292,7 @@ func (e *sendExecutor) nextShardBatch(collector *asyncSendBatchCollector, shard 
 	}
 	if len(shard.tasks) == 0 {
 		shard.scheduled = false
+		shard.drainOwned = false
 		shard.mu.Unlock()
 		return nil, false
 	}
@@ -369,16 +372,49 @@ func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
 	}
 	shard.mu.Lock()
 	shard.scheduled = false
+	shard.drainOwned = false
 	shard.mu.Unlock()
 }
 
-func (e *sendExecutor) shardIsScheduled(shard *asyncSendShard) bool {
+func (e *sendExecutor) shardHasDrainOwner(shard *asyncSendShard) bool {
 	if shard == nil {
 		return false
 	}
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	return shard.scheduled
+	return shard.scheduled && shard.drainOwned
+}
+
+func (e *sendExecutor) waitForDrainOrTimeout() {
+	if e == nil {
+		return
+	}
+	drainDone := make(chan struct{})
+	go func() {
+		e.wg.Wait()
+		close(drainDone)
+	}()
+	releaseDone := make(chan struct{})
+	if e.pool != nil {
+		go func() {
+			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
+			close(releaseDone)
+		}()
+	} else {
+		close(releaseDone)
+	}
+	timer := time.NewTimer(e.releaseTimeout)
+	defer timer.Stop()
+	for drainDone != nil || releaseDone != nil {
+		select {
+		case <-drainDone:
+			drainDone = nil
+		case <-releaseDone:
+			releaseDone = nil
+		case <-timer.C:
+			return
+		}
+	}
 }
 
 func (e *sendExecutor) drainClosedShard(shard *asyncSendShard) {
