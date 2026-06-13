@@ -34,6 +34,8 @@ type sendExecutor struct {
 	releaseTimeout time.Duration
 	// stopOnce makes executor shutdown idempotent.
 	stopOnce sync.Once
+	// wg tracks scheduled shard drains that must complete before pool release.
+	wg sync.WaitGroup
 	// panicC records worker panics for package tests and diagnostics.
 	panicC chan any
 }
@@ -69,7 +71,7 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 
 	pool, err := ants.NewPoolWithFuncGeneric[*asyncSendShard](
 		e.workers,
-		e.drainShard,
+		e.drainScheduledShard,
 		ants.WithNonblocking(true),
 		ants.WithDisablePurge(true),
 		ants.WithPanicHandler(func(v any) {
@@ -105,9 +107,13 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	if e == nil || send == nil || e.closed.Load() || len(e.shards) == 0 {
 		return false
 	}
+	if !e.reserve() {
+		return false
+	}
 
 	shard := e.shardForSend(state, send)
 	if shard == nil {
+		e.consume(1)
 		return false
 	}
 
@@ -115,6 +121,7 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 	shard.mu.Lock()
 	if shard.closed || len(shard.tasks) >= cap(shard.tasks) {
 		shard.mu.Unlock()
+		e.consume(1)
 		return false
 	}
 	task := asyncDispatchTask{
@@ -125,7 +132,6 @@ func (e *sendExecutor) submit(state *sessionState, replyToken string, send *fram
 		queue:      e,
 	}
 	shard.tasks <- task
-	e.queued.Add(1)
 	if !shard.scheduled && e.server != nil {
 		shard.scheduled = true
 		shouldSchedule = true
@@ -155,8 +161,18 @@ func (e *sendExecutor) stop() {
 			}
 			shard.mu.Unlock()
 		}
-		for _, shard := range e.shards {
-			e.drainClosedShard(shard)
+		if e.server != nil {
+			for _, shard := range e.shards {
+				if e.shardIsScheduled(shard) {
+					continue
+				}
+				e.drainShard(shard)
+			}
+			e.wg.Wait()
+		} else {
+			for _, shard := range e.shards {
+				e.drainClosedShard(shard)
+			}
 		}
 		if e.pool != nil {
 			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
@@ -178,28 +194,51 @@ func (e *sendExecutor) totalCapacity() int {
 	return e.capacity
 }
 
+func (e *sendExecutor) reserve() bool {
+	if e == nil {
+		return false
+	}
+	for {
+		queued := e.queued.Load()
+		if queued < 0 || queued >= int64(e.capacity) {
+			return false
+		}
+		if e.queued.CompareAndSwap(queued, queued+1) {
+			return true
+		}
+	}
+}
+
 func (e *sendExecutor) schedule(shard *asyncSendShard) {
 	if e == nil || shard == nil {
 		return
 	}
-	if e.closed.Load() {
-		e.markShardUnscheduled(shard)
-		return
-	}
+	e.wg.Add(1)
+	e.invokeScheduledShard(shard)
+}
+
+func (e *sendExecutor) invokeScheduledShard(shard *asyncSendShard) {
 	err := e.pool.Invoke(shard)
 	switch {
 	case err == nil:
 		return
 	case isAntsBusy(err):
 		time.AfterFunc(time.Millisecond, func() {
-			e.schedule(shard)
+			e.invokeScheduledShard(shard)
 		})
 	case isAntsStopped(err):
 		e.markShardUnscheduled(shard)
+		e.wg.Done()
 	default:
 		e.recordPanic(err, asyncDispatchTask{})
 		e.markShardUnscheduled(shard)
+		e.wg.Done()
 	}
+}
+
+func (e *sendExecutor) drainScheduledShard(shard *asyncSendShard) {
+	defer e.wg.Done()
+	e.drainShard(shard)
 }
 
 func (e *sendExecutor) drainShard(shard *asyncSendShard) {
@@ -219,7 +258,7 @@ func (e *sendExecutor) drainShard(shard *asyncSendShard) {
 		if !ok {
 			return
 		}
-		e.dispatchBatch(batch)
+		e.dispatchBatchSafely(batch)
 	}
 }
 
@@ -258,11 +297,31 @@ func (e *sendExecutor) nextShardBatch(collector *asyncSendBatchCollector, shard 
 	return nil, true
 }
 
+func (e *sendExecutor) dispatchBatchSafely(batch []asyncDispatchTask) {
+	if e == nil || len(batch) == 0 {
+		return
+	}
+	consumed := false
+	defer func() {
+		if v := recover(); v != nil {
+			if !consumed {
+				e.consume(len(batch))
+				if e.server != nil {
+					e.server.observeAsyncSendQueue(e)
+				}
+			}
+			e.recordPanic(v, firstAsyncDispatchTask(batch))
+		}
+	}()
+	e.consume(len(batch))
+	consumed = true
+	e.dispatchBatch(batch)
+}
+
 func (e *sendExecutor) dispatchBatch(batch []asyncDispatchTask) {
 	if e == nil || len(batch) == 0 {
 		return
 	}
-	e.consume(len(batch))
 	if e.server == nil {
 		return
 	}
@@ -277,6 +336,13 @@ func (e *sendExecutor) dispatchBatch(batch []asyncDispatchTask) {
 			e.server.handleHandlerError(task.state, err)
 		}
 	}
+}
+
+func firstAsyncDispatchTask(batch []asyncDispatchTask) asyncDispatchTask {
+	if len(batch) == 0 {
+		return asyncDispatchTask{}
+	}
+	return batch[0]
 }
 
 func (e *sendExecutor) consume(count int) {
@@ -304,6 +370,15 @@ func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
 	shard.mu.Lock()
 	shard.scheduled = false
 	shard.mu.Unlock()
+}
+
+func (e *sendExecutor) shardIsScheduled(shard *asyncSendShard) bool {
+	if shard == nil {
+		return false
+	}
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	return shard.scheduled
 }
 
 func (e *sendExecutor) drainClosedShard(shard *asyncSendShard) {

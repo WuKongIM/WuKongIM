@@ -236,6 +236,44 @@ func TestSendExecutorRejectsWhenShardMailboxFullBeforePayloadClone(t *testing.T)
 	}
 }
 
+func TestSendExecutorRejectsWhenGlobalCapacityFullAcrossShards(t *testing.T) {
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        2,
+		AsyncSendQueueCapacity:  3,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	states := []*sessionState{
+		{key: connKey{connID: 1}},
+		{key: connKey{connID: 2}},
+		{key: connKey{connID: 3}},
+	}
+	for i, state := range states {
+		if !executor.submit(state, "", &frame.SendPacket{Payload: []byte{byte(i)}}) {
+			t.Fatalf("submit %d rejected before global capacity was full", i+1)
+		}
+	}
+
+	targetWithShardSpace := &sessionState{key: connKey{connID: 4}}
+	payload := make([]byte, 64*1024)
+	baseline := testing.AllocsPerRun(1000, func() {})
+	actual := testing.AllocsPerRun(1000, func() {
+		if executor.submit(targetWithShardSpace, "", &frame.SendPacket{Payload: payload}) {
+			t.Fatal("submit accepted after global capacity was full")
+		}
+	})
+	if actual > baseline+0.5 {
+		t.Fatalf("allocs = %.2f, want near baseline %.2f; global capacity rejection should not clone payload", actual, baseline)
+	}
+	if got, want := executor.depth(), 3; got != want {
+		t.Fatalf("send executor depth = %d, want %d", got, want)
+	}
+}
+
 func TestAsyncSendBatchOptionsUseDefaults(t *testing.T) {
 	opt := gatewaytypes.NormalizeSessionOptions(gatewaytypes.SessionOptions{})
 	if got, want := opt.AsyncSendBatchMaxWait, time.Millisecond; got != want {
@@ -746,6 +784,102 @@ func TestSendExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
 	}
 }
 
+func TestSendExecutorStopDispatchesBufferedTasks(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  2,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.submit(state, "r1", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1", Payload: []byte("one")}) {
+		t.Fatal("first submit rejected")
+	}
+	if !executor.submit(state, "r2", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2", Payload: []byte("two")}) {
+		t.Fatal("second submit rejected")
+	}
+	executor.server = srv
+
+	executor.stop()
+	executor.stop()
+
+	batches := handler.snapshotBatches()
+	if len(batches) != 1 {
+		t.Fatalf("batch calls = %d, want 1", len(batches))
+	}
+	if got, want := []string{batches[0][0].Frame.ClientMsgNo, batches[0][1].Frame.ClientMsgNo}, []string{"m1", "m2"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 after stop dispatches buffered tasks", got)
+	}
+}
+
+func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
+	handler := newPanicThenRecordingFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers:        1,
+				AsyncSendQueueCapacity:  2,
+				AsyncPoolReleaseTimeout: time.Second,
+			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "panic-first"}) {
+		t.Fatal("first submit rejected")
+	}
+	select {
+	case <-handler.firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first SEND task did not start")
+	}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "after-panic"}) {
+		t.Fatal("second submit rejected")
+	}
+	close(handler.releaseFirst)
+
+	select {
+	case panicValue := <-executor.panicC:
+		if panicValue == nil {
+			t.Fatal("panicC delivered nil panic value")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("send executor did not record handler panic")
+	}
+	eventually(t, time.Second, func() bool {
+		return equalStrings(handler.clientMsgNos(), []string{"after-panic"})
+	}, "send executor did not rearm shard backlog after panic")
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 after panic backlog drains", got)
+	}
+}
+
 func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchTask {
 	return asyncDispatchTask{
 		frame: &frame.SendPacket{
@@ -912,6 +1046,22 @@ type countingAsyncFrameHandler struct {
 	closeLog    []gatewaytypes.CloseReason
 }
 
+type panicThenRecordingFrameHandler struct {
+	firstStarted chan struct{}
+	releaseFirst chan struct{}
+
+	panicOnce sync.Once
+	mu        sync.Mutex
+	seen      []string
+}
+
+func newPanicThenRecordingFrameHandler() *panicThenRecordingFrameHandler {
+	return &panicThenRecordingFrameHandler{
+		firstStarted: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+}
+
 type recordingSendTraceSink struct {
 	mu     sync.Mutex
 	events []sendtrace.Event
@@ -1029,6 +1179,42 @@ func (h *countingAsyncFrameHandler) OnSessionError(ctx gatewaytypes.Context, err
 	if ctx.CloseReason != "" {
 		h.closeLog = append(h.closeLog, ctx.CloseReason)
 	}
+}
+
+func (h *panicThenRecordingFrameHandler) OnListenerError(string, error) {}
+func (h *panicThenRecordingFrameHandler) OnSessionOpen(gatewaytypes.Context) error {
+	return nil
+}
+func (h *panicThenRecordingFrameHandler) OnFrame(_ gatewaytypes.Context, f frame.Frame) error {
+	didPanic := false
+	h.panicOnce.Do(func() {
+		didPanic = true
+		close(h.firstStarted)
+		<-h.releaseFirst
+		panic("send frame panic")
+	})
+	if didPanic {
+		return nil
+	}
+	send, _ := f.(*frame.SendPacket)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if send == nil {
+		h.seen = append(h.seen, "")
+		return nil
+	}
+	h.seen = append(h.seen, send.ClientMsgNo)
+	return nil
+}
+func (h *panicThenRecordingFrameHandler) OnSessionClose(gatewaytypes.Context) error {
+	return nil
+}
+func (h *panicThenRecordingFrameHandler) OnSessionError(gatewaytypes.Context, error) {}
+
+func (h *panicThenRecordingFrameHandler) clientMsgNos() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.seen...)
 }
 
 func (h *countingAsyncFrameHandler) sessionErrors() []error {
