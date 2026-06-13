@@ -1,0 +1,158 @@
+package client
+
+import (
+	"sync"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+type pendingKey struct {
+	// ClientSeq is the client sequence used as the primary SENDACK match key.
+	ClientSeq uint64
+	// ClientMsgNo is the optional client message number used to disambiguate retries.
+	ClientMsgNo string
+}
+
+// pendingEntry tracks one SEND awaiting a matching SENDACK.
+type pendingEntry struct {
+	// key is the map key used to remove this entry on timeout.
+	key pendingKey
+	// done receives exactly one terminal send outcome.
+	done chan sendOutcome
+	// timeoutDone cancels the timeout waiter when the entry finishes first.
+	timeoutDone chan struct{}
+	// once guards completion against SENDACK, timeout, and close races.
+	once sync.Once
+}
+
+// pendingTracker indexes SEND futures until SENDACK, timeout, or close.
+type pendingTracker struct {
+	// mu protects closed and entries.
+	mu sync.Mutex
+	// closed prevents new pending entries after shutdown begins.
+	closed bool
+	// entries stores unresolved SENDs by client sequence and optional message number.
+	entries map[pendingKey]*pendingEntry
+}
+
+func newPendingTracker() *pendingTracker {
+	return &pendingTracker{
+		entries: make(map[pendingKey]*pendingEntry),
+	}
+}
+
+func (t *pendingTracker) add(key pendingKey, timeout time.Duration) (*pendingEntry, error) {
+	entry := &pendingEntry{
+		key:  key,
+		done: make(chan sendOutcome, 1),
+	}
+	if timeout > 0 {
+		entry.timeoutDone = make(chan struct{})
+	}
+
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return nil, ErrClosed
+	}
+	t.entries[key] = entry
+	t.mu.Unlock()
+
+	if timeout > 0 {
+		go t.expireAfter(entry, timeout)
+	}
+	return entry, nil
+}
+
+func (t *pendingTracker) resolve(ack *frame.SendackPacket) {
+	if ack == nil {
+		return
+	}
+
+	key := pendingKey{ClientSeq: ack.ClientSeq, ClientMsgNo: ack.ClientMsgNo}
+	entry := t.remove(key)
+	if entry == nil && ack.ClientMsgNo != "" {
+		key = pendingKey{ClientSeq: ack.ClientSeq}
+		entry = t.remove(key)
+	}
+	if entry == nil {
+		return
+	}
+
+	result := SendResult{
+		ClientSeq:   ack.ClientSeq,
+		ClientMsgNo: ack.ClientMsgNo,
+		MessageID:   ack.MessageID,
+		MessageSeq:  ack.MessageSeq,
+		ReasonCode:  ack.ReasonCode,
+	}
+	var err error
+	if ack.ReasonCode != frame.ReasonSuccess {
+		err = SendError{
+			ClientSeq:   ack.ClientSeq,
+			ClientMsgNo: ack.ClientMsgNo,
+			ReasonCode:  ack.ReasonCode,
+		}
+	}
+	entry.finish(sendOutcome{result: result, err: err})
+}
+
+func (t *pendingTracker) close(err error) {
+	if err == nil {
+		err = ErrClosed
+	}
+
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return
+	}
+	t.closed = true
+	entries := t.entries
+	t.entries = make(map[pendingKey]*pendingEntry)
+	t.mu.Unlock()
+
+	for _, entry := range entries {
+		entry.finish(sendOutcome{err: err})
+	}
+}
+
+func (t *pendingTracker) fail(key pendingKey, err error) {
+	entry := t.remove(key)
+	if entry == nil {
+		return
+	}
+	entry.finish(sendOutcome{err: err})
+}
+
+func (t *pendingTracker) remove(key pendingKey) *pendingEntry {
+	t.mu.Lock()
+	entry := t.entries[key]
+	if entry != nil {
+		delete(t.entries, key)
+	}
+	t.mu.Unlock()
+	return entry
+}
+
+func (t *pendingTracker) expireAfter(entry *pendingEntry, timeout time.Duration) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		t.fail(entry.key, ErrAckTimeout)
+	case <-entry.timeoutDone:
+	}
+}
+
+func (e *pendingEntry) finish(out sendOutcome) {
+	e.once.Do(func() {
+		if e.timeoutDone != nil {
+			close(e.timeoutDone)
+		}
+		e.done <- out
+		close(e.done)
+	})
+}
