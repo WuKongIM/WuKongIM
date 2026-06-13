@@ -15,6 +15,10 @@
 - `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internalv2/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 
+## Gateway Runtime
+
+- `pkg/gateway/core` async CONNECT auth and SEND dispatch are owned by `RuntimeOptions` and ants-backed executors; do not reintroduce session-scoped async worker config compatibility.
+
 ## Channel Runtime
 
 - ChannelV2 data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.

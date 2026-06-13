@@ -28,7 +28,7 @@
 |------|--------------|------|
 | `.` | `gateway.New` → `Gateway` | 对外门面：注册内置 transport/protocol，创建 `core.Server`，暴露启停、监听地址、drain admission 和 session summary |
 | `binding/` | `TCPWKProto` / `WSJSONRPC` / `WSMux` | 内置 listener preset，统一生成 `ListenerOptions` |
-| `core/` | `core.NewServer` → `Server` | 网关核心：listener runtime、session state、CONNECT 异步认证流程、decode/dispatch/write loop、idle tracker、async worker pool |
+| `core/` | `core.NewServer` → `Server` | 网关核心：listener runtime、session state、CONNECT 异步认证流程、decode/dispatch/write loop、idle tracker、ants-backed async runtime |
 | `protocol/` | `Adapter` | 协议适配接口：Decode/Encode/OnOpen/OnClose |
 | `protocol/wkproto/` | `wkproto.New` | WuKong 二进制协议适配，支持粘包拆包、版本协商和加密 RecvPacket 出站封装 |
 | `protocol/jsonrpc/` | `jsonrpc.New` | JSON-RPC 与 `frame.Frame` 互转，并保存 request id 作为 reply token |
@@ -64,6 +64,7 @@ type Options struct {
     Authenticator  Authenticator
     Observer       Observer
     DefaultSession SessionOptions
+    Runtime        RuntimeOptions
     Transport      TransportOptions
     Listeners      []ListenerOptions
     Logger         wklog.Logger
@@ -79,7 +80,7 @@ type ListenerOptions struct {
 }
 ```
 
-`Options.Validate` 会修剪 listener 字段、校验 listener name/address 不重复、补齐 `DefaultSession` 默认值，并要求 `Handler` 非空。
+`Options.Validate` 会修剪 listener 字段、校验 listener name/address 不重复、补齐 `DefaultSession` 和 `Runtime` 默认值，并要求 `Handler` 非空。
 
 ### 4.3 Handler / Context
 
@@ -167,8 +168,9 @@ Build([]transport.ListenerSpec) ([]transport.Listener, error)
 | `sessionState` | `core/server.go` | 单连接运行时状态：transport conn、session、inbound buffer、认证状态、认证 pending 状态、open lifecycle gate、close reason、request context |
 | `dispatcher` | `core/dispatcher.go` | 把 session state 转为 `types.Context` 并调用业务 handler |
 | `idleTracker` | `core/idle_tracker.go` | 基于最小堆和 session 索引的读空闲 deadline 调度，刷新时原地更新 deadline，避免按 tick 全量扫描 session |
-| `asyncAuthQueue` | `core/server.go` | WKProto CONNECT 异步认证与激活队列，容量有界，满队列时写出 SystemError CONNACK 后关闭当前 session |
-| `asyncDispatchQueue` | `core/server.go` | SEND 帧异步分发队列，容量有界，满队列时关闭当前 session 形成背压 |
+| `asyncRuntime` | `core/async_runtime.go` | Server 持有的异步运行时，统一管理 CONNECT auth 和 SEND dispatch 两类 ants executor 的创建、提交和关闭 |
+| `authExecutor` | `core/async_auth.go` | WKProto CONNECT 异步认证与激活执行器，使用 gateway-owned 有界 admission queue 和 ants worker pool，满队列时写出 SystemError CONNACK 后关闭当前 session |
+| `sendExecutor` | `core/async_send.go` | SEND 帧异步分发执行器，使用全局有界 backlog、按 gateway session 分片的 mailbox 和 ants worker pool，满队列时关闭当前 session 形成背压 |
 | `asyncSendBatchCollector` | `core/server.go` | 单个 SEND shard 内的有界微批收集器，按等待时间、条数和 payload 字节数 flush，并用 pending slot 保留超限帧 |
 | `session.Session` | `session/session.go` | 会话抽象，持有 values，并通过 WriteFrameFn 直接写 transport |
 | `transport.Conn` | `transport/transport.go` | 底层连接抽象；gnet Conn.Write 使用 transport 管理的异步写与出站字节限制 |
@@ -193,10 +195,9 @@ app build:
 Gateway.Start:
   ④ buildListeners 按 transport factory 分组
   ⑤ 每个 factory.Build(specs) 必须按 spec 顺序返回 listener
-  ⑥ 配置 Authenticator 时启动有界 CONNECT 认证 worker pool
-  ⑦ 启动有界 SEND worker pool
-  ⑧ 逐个 listener.Start，失败时反向 Stop 已启动 listener，并关闭已启动的 worker pool
-  ⑨ 启动共享 idle monitor
+  ⑥ 创建 `asyncRuntime`，其中 `authExecutor` 和 `sendExecutor` 使用 `RuntimeOptions` 控制队列容量、worker 数和关闭等待时间
+  ⑦ 逐个 listener.Start，失败时反向 Stop 已启动 listener，并关闭已启动的 asyncRuntime
+  ⑧ 启动共享 idle monitor
 ```
 
 默认配置来自 `cmd/wukongim/config.go`:
@@ -242,16 +243,16 @@ OnData:
      - 非认证协议在首次成功 decode 后补发 OnSessionOpen
   ⑤ 从 ReplyTokenTracker 取 JSON-RPC reply token
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
-     - 未认证且无认证 pending 时，只接受独占当前 decode batch 的第一帧 ConnectPacket，并入 asyncAuthQueue
-     - ConnectPacket 同一 decode batch 后仍有 frame 时，直接按 policy_violation 关闭连接，不进入 asyncAuthQueue
+     - 未认证且无认证 pending 时，只接受独占当前 decode batch 的第一帧 ConnectPacket，并提交到 `asyncRuntime.auth`
+     - ConnectPacket 同一 decode batch 后仍有 frame 时，直接按 policy_violation 关闭连接，不进入 auth executor
      - 认证 pending 时再次收到任何 frame，直接按 policy_violation 关闭连接
      - 首帧不是 ConnectPacket 时，直接按 policy_violation 关闭连接
-     - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭连接
+     - auth executor 队列满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭连接
   ⑦ 认证完成后的业务 frame:
      - 若 OnSessionOpen 已开始但尚未返回，先等待 open lifecycle gate，保证 OnSessionOpen 先于 OnFrame
      - 记录 OnFrameIn
-     - SEND: 浅拷贝 packet 元数据后按 gateway session 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
-       - shard 较多时按总缓冲槽位上限动态降低单 shard 容量，避免 worker 数扩张导致启动期常驻内存线性放大
+     - SEND: 浅拷贝 packet 元数据后提交到 `asyncRuntime.send`；`sendExecutor` 先占用全局有界 backlog，再按 gateway session 选择 shard mailbox。若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；ants worker 在 shard 内收集微批，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
+       - 每个 shard mailbox 容量由 `AsyncSendQueueCapacity` 按 worker/shard 数切分，避免 worker 数扩张导致启动期常驻内存线性放大
      - SEND 微批只作为入口批处理 hint；gateway 不按业务 channel 分组。个人频道归一化、权限检查、按 canonical channel 分组和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
      - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`
      - 其他 frame: 同步调用 dispatchFrame
@@ -262,16 +263,16 @@ OnData:
 
 ### 6.4 WKProto 认证与激活
 
-入口: `core.Server.handleAuthFrame` → `asyncAuthQueue` worker
+入口: `core.Server.handleAuthFrame` → `asyncRuntime.auth` → `authExecutor` / ants worker
 
 ```text
 WKProto CONNECT:
   ① 未认证且未 pending 时只接受独占当前 decode batch 的第一帧 ConnectPacket；其他 frame 按 policy_violation 关闭
-  ② ConnectPacket 入有界 asyncAuthQueue，Authenticator 与 SessionActivator 不在 transport event loop 上执行
+  ② ConnectPacket 入 `authExecutor` 有界 admission queue，Authenticator 与 SessionActivator 不在 transport event loop 上执行
      - ConnectPacket 同批后仍有 frame 时，直接按 policy_violation 关闭，不调用 Authenticator
      - 认证 pending 期间再收到 CONNECT 或业务 frame，直接按 policy_violation 关闭
-     - asyncAuthQueue 满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭
-  ③ worker 调用 Authenticator.Authenticate:
+     - auth executor 队列满时，尽量写出 SystemError CONNACK，然后按 async_auth_queue_full 关闭
+  ③ ants worker 调用 Authenticator.Authenticate:
      - tokenAuthOn 且非 visitor 时校验 token
      - 可选 IsBanned
      - 协商 server protocol version
@@ -386,7 +387,7 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 - 不要在 `pkg/gateway` 内写消息发送、频道路由、在线注册等业务规则。
 - 不要新增“单机直写”或“非集群模式”分支；单节点部署仍是单节点集群。
 - 不要让 protocol adapter 持有业务状态；adapter 只处理 wire format 和协议级临时状态。
-- 不要在 transport event loop 上执行长耗时业务；CONNECT 认证和 SEND 热路径分别进入有界 async worker pool，SEND worker 在 shard 内微批处理。
+- 不要在 transport event loop 上执行长耗时业务；CONNECT 认证和 SEND 热路径必须通过 `asyncRuntime` 进入有界 ants executor，SEND worker 在 shard 内微批处理。
 - 不要让出站写入刷新 idle timeout；idle 语义以客户端入站活跃为准。
 - 不要绕过 session encoded queue 直接并发写 conn，除认证 CONNACK 这类必须立即响应的握手帧外都走 `WriteFrame`。
 - 新增 listener preset 时保持 `Name`、`Network`、`Address`、`Transport`、`Protocol` 字段完整，并补 `options_test`。
