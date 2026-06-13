@@ -129,9 +129,8 @@ func (t *pendingTracker) close(err error) {
 	}
 }
 
-func (t *pendingTracker) fail(key pendingKey, err error) {
-	entry := t.take(key)
-	if entry == nil {
+func (t *pendingTracker) fail(entry *pendingEntry, err error) {
+	if entry == nil || !t.takeEntry(entry) {
 		return
 	}
 	entry.finish(sendOutcome{err: err})
@@ -147,6 +146,17 @@ func (t *pendingTracker) take(key pendingKey) *pendingEntry {
 	return entry
 }
 
+func (t *pendingTracker) takeEntry(entry *pendingEntry) bool {
+	t.mu.Lock()
+	if t.entries[entry.key] != entry {
+		t.mu.Unlock()
+		return false
+	}
+	delete(t.entries, entry.key)
+	t.mu.Unlock()
+	return true
+}
+
 func (t *pendingTracker) expire(entry *pendingEntry) {
 	if entry.timer == nil {
 		return
@@ -154,7 +164,7 @@ func (t *pendingTracker) expire(entry *pendingEntry) {
 
 	select {
 	case <-entry.timer.C:
-		t.fail(entry.key, ErrAckTimeout)
+		t.fail(entry, ErrAckTimeout)
 	case <-entry.timeoutDone:
 	}
 }

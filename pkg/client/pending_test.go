@@ -171,6 +171,44 @@ func TestPendingTrackerAddTimeoutFailsWithErrAckTimeout(t *testing.T) {
 	}
 }
 
+func TestPendingTrackerStaleTimeoutDoesNotFailNewEntryWithSameKey(t *testing.T) {
+	tracker := newPendingTracker()
+	key := pendingKey{ClientSeq: 18, ClientMsgNo: "msg-18"}
+	staleTimer := time.NewTimer(0)
+	staleEntry := &pendingEntry{
+		key:         key,
+		done:        make(chan sendOutcome, 1),
+		timer:       staleTimer,
+		startedAt:   time.Now(),
+		timeoutDone: make(chan struct{}),
+	}
+
+	current, err := tracker.add(key, time.Second)
+	if err != nil {
+		t.Fatalf("add(current) error = %v", err)
+	}
+
+	tracker.expire(staleEntry)
+	resolved := tracker.resolve(&frame.SendackPacket{
+		ClientSeq:   18,
+		ClientMsgNo: "msg-18",
+		MessageID:   181,
+		MessageSeq:  281,
+		ReasonCode:  frame.ReasonSuccess,
+	})
+	if !resolved {
+		t.Fatal("resolve(current) = false, want true")
+	}
+
+	result, err := waitPendingEntry(t, current)
+	if err != nil {
+		t.Fatalf("current pending result error = %v", err)
+	}
+	if result.MessageID != 181 {
+		t.Fatalf("current pending result MessageID = %d, want 181", result.MessageID)
+	}
+}
+
 func TestPendingTrackerResolveReturnsFalseForNilAndUnmatchedAck(t *testing.T) {
 	tracker := newPendingTracker()
 
