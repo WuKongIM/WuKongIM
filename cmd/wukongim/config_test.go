@@ -1451,7 +1451,7 @@ func TestLoadConfigParsesHashSlotMigrationGate(t *testing.T) {
 	require.True(t, cfg.Cluster.EnableHashSlotMigration)
 }
 
-func TestLoadConfigParsesGatewayRuntimeAsyncSendWorkersFromConf(t *testing.T) {
+func TestLoadConfigParsesGatewayRuntimeOptionsFromConf(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
 		"WK_NODE_ID=1",
@@ -1459,12 +1459,20 @@ func TestLoadConfigParsesGatewayRuntimeAsyncSendWorkersFromConf(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=64",
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY=4096",
+		"WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS=8",
+		"WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY=512",
+		"WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT=250ms",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 	)
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 	require.Equal(t, 64, cfg.Gateway.Runtime.AsyncSendWorkers)
+	require.Equal(t, 4096, cfg.Gateway.Runtime.AsyncSendQueueCapacity)
+	require.Equal(t, 8, cfg.Gateway.Runtime.AsyncAuthWorkers)
+	require.Equal(t, 512, cfg.Gateway.Runtime.AsyncAuthQueueCapacity)
+	require.Equal(t, 250*time.Millisecond, cfg.Gateway.Runtime.AsyncPoolReleaseTimeout)
 }
 
 func TestLoadConfigParsesGatewayAsyncSendBatchOptionsFromConf(t *testing.T) {

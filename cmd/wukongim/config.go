@@ -406,6 +406,22 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	asyncSendQueueCapacity, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY")
+	if err != nil {
+		return app.Config{}, err
+	}
+	asyncAuthWorkers, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	asyncAuthQueueCapacity, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY")
+	if err != nil {
+		return app.Config{}, err
+	}
+	asyncPoolReleaseTimeout, err := parseDuration(v, "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT")
+	if err != nil {
+		return app.Config{}, err
+	}
 	asyncSendBatchMaxWait, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT")
 	if err != nil {
 		return app.Config{}, err
@@ -855,7 +871,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 				CloseOnHandlerError:      closeOnHandlerError,
 			},
 			Runtime: gateway.RuntimeOptions{
-				AsyncSendWorkers: asyncSendWorkers,
+				AsyncSendWorkers:        asyncSendWorkers,
+				AsyncSendQueueCapacity:  asyncSendQueueCapacity,
+				AsyncAuthWorkers:        asyncAuthWorkers,
+				AsyncAuthQueueCapacity:  asyncAuthQueueCapacity,
+				AsyncPoolReleaseTimeout: asyncPoolReleaseTimeout,
 			},
 			Transport: gateway.TransportOptions{
 				Gnet: gateway.GnetTransportOptions{

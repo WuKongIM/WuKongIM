@@ -81,6 +81,10 @@ var supportedConfigKeys = []string{
 	"WK_GATEWAY_GNET_MULTICORE",
 	"WK_GATEWAY_GNET_NUM_EVENT_LOOP",
 	"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
+	"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY",
+	"WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS",
+	"WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY",
+	"WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
@@ -655,6 +659,34 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Gateway.Runtime.AsyncSendWorkers = workers
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY"); raw != "" {
+		capacity, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncSendQueueCapacity = capacity
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncAuthWorkers = workers
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY"); raw != "" {
+		capacity, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncAuthQueueCapacity = capacity
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncPoolReleaseTimeout = timeout
 	}
 	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"); raw != "" {
 		maxWait, err := parseDuration("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", raw)

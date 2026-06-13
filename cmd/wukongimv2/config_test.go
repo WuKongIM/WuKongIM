@@ -592,6 +592,10 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", "8")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
 	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", "256")
+	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY", "8192")
+	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS", "12")
+	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY", "1024")
+	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT", "250ms")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", "96")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", "131072")
@@ -708,6 +712,18 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Gateway.Runtime.AsyncSendWorkers != 256 {
 		t.Fatalf("AsyncSendWorkers = %d, want 256", cfg.Gateway.Runtime.AsyncSendWorkers)
+	}
+	if cfg.Gateway.Runtime.AsyncSendQueueCapacity != 8192 {
+		t.Fatalf("AsyncSendQueueCapacity = %d, want 8192", cfg.Gateway.Runtime.AsyncSendQueueCapacity)
+	}
+	if cfg.Gateway.Runtime.AsyncAuthWorkers != 12 {
+		t.Fatalf("AsyncAuthWorkers = %d, want 12", cfg.Gateway.Runtime.AsyncAuthWorkers)
+	}
+	if cfg.Gateway.Runtime.AsyncAuthQueueCapacity != 1024 {
+		t.Fatalf("AsyncAuthQueueCapacity = %d, want 1024", cfg.Gateway.Runtime.AsyncAuthQueueCapacity)
+	}
+	if cfg.Gateway.Runtime.AsyncPoolReleaseTimeout != 250*time.Millisecond {
+		t.Fatalf("AsyncPoolReleaseTimeout = %s, want 250ms", cfg.Gateway.Runtime.AsyncPoolReleaseTimeout)
 	}
 	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
@@ -961,6 +977,10 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},
 		{name: "async send workers", line: "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=many", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS"},
+		{name: "async send queue capacity", line: "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY=many", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY"},
+		{name: "async auth workers", line: "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS=many", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS"},
+		{name: "async auth queue capacity", line: "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY=many", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY"},
+		{name: "async pool release timeout", line: "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT=soon", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT"},
 		{name: "async batch wait", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=soon", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"},
 		{name: "async batch records", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS"},
 		{name: "async batch bytes", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=large", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES"},
