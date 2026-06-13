@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type asyncAuthNoopHandler struct{}
@@ -135,6 +136,90 @@ func TestAuthExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
 		connect: &frame.ConnectPacket{UID: "u1"},
 	}) {
 		t.Fatal("auth submit accepted after stop")
+	}
+}
+
+func TestAuthExecutorStopDrainsBufferedDepth(t *testing.T) {
+	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  2,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+
+	state := &sessionState{}
+	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
+		t.Fatal("first auth submit rejected")
+	}
+	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u2"}}) {
+		t.Fatal("second auth submit rejected")
+	}
+	if got := executor.depth(); got != 2 {
+		t.Fatalf("executor depth before stop = %d, want 2", got)
+	}
+
+	executor.stop()
+	executor.stop()
+
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("executor depth after stop = %d, want 0", got)
+	}
+}
+
+func TestAuthExecutorPanicClearsAuthPending(t *testing.T) {
+	logger := newAsyncAuthRecordingLogger()
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler:  handler,
+			Observer: asyncAuthPanicObserver{},
+			Logger:   logger,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	executor, err := newAuthExecutor(srv, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{
+		server:   srv,
+		closedCh: make(chan struct{}),
+	}
+	state.setAuthPending(true)
+
+	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
+		t.Fatal("auth submit rejected")
+	}
+
+	select {
+	case <-executor.panicC:
+	case <-time.After(time.Second):
+		t.Fatal("auth executor panic was not observed")
+	}
+	if state.isAuthPending() {
+		t.Fatal("auth pending remained true after executor panic")
+	}
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("executor depth after panic = %d, want 0", got)
+	}
+	select {
+	case msg := <-logger.warnC:
+		if msg != "gateway async auth task panic" {
+			t.Fatalf("warning message = %q, want gateway async auth task panic", msg)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("panic warning was not logged")
 	}
 }
 
@@ -464,6 +549,44 @@ func eventually(t *testing.T, timeout time.Duration, condition func() bool, msg 
 		t.Fatal(msg)
 	}
 }
+
+type asyncAuthPanicObserver struct{}
+
+func (asyncAuthPanicObserver) OnConnectionOpen(gatewaytypes.ConnectionEvent)  {}
+func (asyncAuthPanicObserver) OnConnectionClose(gatewaytypes.ConnectionEvent) {}
+func (asyncAuthPanicObserver) OnAuth(gatewaytypes.AuthEvent)                  {}
+func (asyncAuthPanicObserver) OnFrameIn(gatewaytypes.FrameEvent)              {}
+func (asyncAuthPanicObserver) OnFrameOut(gatewaytypes.FrameEvent)             {}
+func (asyncAuthPanicObserver) OnFrameHandled(gatewaytypes.FrameHandleEvent)   {}
+func (asyncAuthPanicObserver) OnAsyncAuthQueue(gatewaytypes.AsyncAuthQueueEvent) {
+	panic("async auth queue observer panic")
+}
+func (asyncAuthPanicObserver) OnAsyncAuthAdmission(gatewaytypes.AsyncAuthAdmissionEvent) {}
+func (asyncAuthPanicObserver) OnAsyncAuthWait(gatewaytypes.AsyncAuthWaitEvent)           {}
+
+type asyncAuthRecordingLogger struct {
+	warnC chan string
+}
+
+func newAsyncAuthRecordingLogger() *asyncAuthRecordingLogger {
+	return &asyncAuthRecordingLogger{warnC: make(chan string, 4)}
+}
+
+func (l *asyncAuthRecordingLogger) Debug(string, ...wklog.Field) {}
+func (l *asyncAuthRecordingLogger) Info(string, ...wklog.Field)  {}
+func (l *asyncAuthRecordingLogger) Warn(msg string, _ ...wklog.Field) {
+	select {
+	case l.warnC <- msg:
+	default:
+	}
+}
+func (l *asyncAuthRecordingLogger) Error(string, ...wklog.Field) {}
+func (l *asyncAuthRecordingLogger) Fatal(string, ...wklog.Field) {}
+func (l *asyncAuthRecordingLogger) Named(string) wklog.Logger    { return l }
+func (l *asyncAuthRecordingLogger) With(...wklog.Field) wklog.Logger {
+	return l
+}
+func (l *asyncAuthRecordingLogger) Sync() error { return nil }
 
 type asyncAuthActivatingHandler struct {
 	rollbackCalled atomic.Bool

@@ -1,13 +1,17 @@
 package core
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/panjf2000/ants/v2"
 )
+
+const asyncAuthPanicValueMaxLen = 256
 
 // authExecutor admits and executes bounded async CONNECT authentication work.
 type authExecutor struct {
@@ -58,10 +62,7 @@ func newAuthExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*authExecutor
 		ants.WithNonblocking(true),
 		ants.WithDisablePurge(true),
 		ants.WithPanicHandler(func(v any) {
-			select {
-			case e.panicC <- v:
-			default:
-			}
+			e.recordPanic(v, asyncAuthTask{})
 		}),
 	)
 	if err != nil {
@@ -115,6 +116,7 @@ func (e *authExecutor) stop() {
 		e.notify()
 		e.mu.Unlock()
 
+		e.drain()
 		<-e.done
 		if e.pool != nil {
 			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
@@ -172,9 +174,11 @@ func (e *authExecutor) run() {
 		select {
 		case task, ok := <-e.tasks:
 			if !ok {
+				e.drain()
 				return
 			}
 			if !e.invoke(task) {
+				e.drain()
 				return
 			}
 		case <-e.wake:
@@ -215,15 +219,80 @@ func (e *authExecutor) waitForWorker() {
 }
 
 func (e *authExecutor) handle(task asyncAuthTask) {
+	consumed := false
 	defer e.notify()
+	defer func() {
+		if v := recover(); v != nil {
+			if !consumed {
+				e.consume(1)
+			}
+			if task.state != nil {
+				task.state.setAuthPending(false)
+			}
+			e.recordPanic(v, task)
+		}
+	}()
 
 	e.consume(1)
+	consumed = true
 	if e.server == nil {
 		return
 	}
 	e.server.observeAsyncAuthQueue(e)
 	e.server.observeAsyncAuthWait(task)
 	e.server.runAuthTask(task)
+}
+
+func (e *authExecutor) drain() {
+	if e == nil {
+		return
+	}
+	for {
+		select {
+		case _, ok := <-e.tasks:
+			if !ok {
+				return
+			}
+			e.consume(1)
+		default:
+			return
+		}
+	}
+}
+
+func (e *authExecutor) recordPanic(v any, task asyncAuthTask) {
+	if e == nil {
+		return
+	}
+	select {
+	case e.panicC <- v:
+	default:
+	}
+	e.logPanic(v, task)
+}
+
+func (e *authExecutor) logPanic(v any, task asyncAuthTask) {
+	if e == nil || e.server == nil || e.server.options.Logger == nil {
+		return
+	}
+	fields := []wklog.Field{
+		wklog.String("panic", boundedAsyncAuthPanicValue(v)),
+	}
+	if task.state != nil && task.state.listener != nil {
+		fields = append(fields, wklog.String("listener", task.state.listener.options.Name))
+	}
+	if task.connect != nil {
+		fields = append(fields, wklog.String("uid", task.connect.UID), wklog.String("device_id", task.connect.DeviceID))
+	}
+	e.server.options.Logger.Warn("gateway async auth task panic", fields...)
+}
+
+func boundedAsyncAuthPanicValue(v any) string {
+	text := fmt.Sprint(v)
+	if len(text) <= asyncAuthPanicValueMaxLen {
+		return text
+	}
+	return text[:asyncAuthPanicValueMaxLen]
 }
 
 func (e *authExecutor) notify() {
