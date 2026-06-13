@@ -21,6 +21,7 @@ func BenchmarkSubmitLocalHotChannel(b *testing.B) {
 		AuthorityShardCount:       1,
 		EffectPoolSize:            4,
 		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
 	})
 	target := benchmarkAuthorityTarget("bench-hot")
 	item := benchmarkSendItem("bench-hot")
@@ -47,6 +48,7 @@ func BenchmarkSubmitLocalHotChannelWriterPressureObserver(b *testing.B) {
 		AuthorityShardCount:       1,
 		EffectPoolSize:            4,
 		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
 		Observer:                  &benchmarkWriterPressureObserver{},
 	})
 	target := benchmarkAuthorityTarget("bench-hot-pressure")
@@ -75,6 +77,7 @@ func BenchmarkSubmitLocalHotChannelBatch16(b *testing.B) {
 		AuthorityShardCount:       1,
 		EffectPoolSize:            4,
 		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
 	})
 	target := benchmarkAuthorityTarget("bench-hot-batch")
 	items := benchmarkSendItems("bench-hot-batch", batchSize)
@@ -100,6 +103,46 @@ func BenchmarkSubmitLocalHotChannelBatch16(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func BenchmarkSubmitLocalHotChannelCoalescedBurst(b *testing.B) {
+	const burstSize = 16
+	group := newBenchmarkChannelAppendGroup(b, Options{
+		LocalNodeID:               1,
+		AuthorityShardCount:       1,
+		EffectPoolSize:            4,
+		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       250 * time.Microsecond,
+		InboxCoalesceMaxItems:     burstSize,
+	})
+	target := benchmarkAuthorityTarget("bench-hot-coalesced")
+	items := benchmarkSendItems("bench-hot-coalesced", burstSize)
+	startGoroutines := runtime.NumGoroutine()
+	futures := make([]*Future, burstSize)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < burstSize; j++ {
+			future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{items[j]})
+			if err != nil {
+				b.Fatalf("submit %d error = %v", j, err)
+			}
+			futures[j] = future
+		}
+		for j, future := range futures {
+			results, err := future.Wait(context.Background())
+			if err != nil {
+				b.Fatalf("wait %d error = %v", j, err)
+			}
+			if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+				b.Fatalf("results %d = %#v, want one successful result", j, results)
+			}
+			futures[j] = nil
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
+}
+
 func BenchmarkSubmitLocalManyChannelsParallel(b *testing.B) {
 	const channelCount = 1024
 	group := newBenchmarkChannelAppendGroup(b, Options{
@@ -107,6 +150,7 @@ func BenchmarkSubmitLocalManyChannelsParallel(b *testing.B) {
 		AuthorityShardCount:       maxBenchmarkInt(4, runtime.GOMAXPROCS(0)),
 		EffectPoolSize:            4,
 		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
 	})
 	targets := make([]AuthorityTarget, channelCount)
 	items := make([]SendBatchItem, channelCount)
@@ -153,6 +197,7 @@ func BenchmarkSubmitLocalManyChannelsParallelWriterPressureObserver(b *testing.B
 		AuthorityShardCount:       maxBenchmarkInt(4, runtime.GOMAXPROCS(0)),
 		EffectPoolSize:            4,
 		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
 		Observer:                  &benchmarkWriterPressureObserver{},
 	})
 	targets := make([]AuthorityTarget, channelCount)
@@ -425,6 +470,7 @@ func BenchmarkSubmitLocalHotChannelPostCommit(b *testing.B) {
 		AuthorityShardCount:        1,
 		EffectPoolSize:             4,
 		AdmissionCapacityPerShard:  4096,
+		InboxCoalesceWindow:        -time.Nanosecond,
 		ConversationActiveAdmitter: benchmarkNoopActiveAdmitter{},
 	})
 	target := benchmarkAuthorityTarget("bench-postcommit")
