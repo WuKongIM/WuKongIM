@@ -97,10 +97,36 @@ func (c *Client) decryptRecv(pkt *frame.RecvPacket, session *wkprotoenc.SessionC
 	}
 	payload, err := wkprotoenc.DecryptPayloadWithCrypto(pkt.Payload, session)
 	if err != nil {
-		return err
+		return recvDecryptError(pkt, err)
 	}
 	pkt.Payload = payload
 	return nil
+}
+
+func recvDecryptError(pkt *frame.RecvPacket, err error) error {
+	if pkt == nil {
+		return fmt.Errorf("client: decrypt recv payload: packet is nil: %w", err)
+	}
+	const maxPrefix = 32
+	prefix := pkt.Payload
+	if len(prefix) > maxPrefix {
+		prefix = prefix[:maxPrefix]
+	}
+	return fmt.Errorf(
+		"client: decrypt recv payload: channel_id=%q channel_type=%d from_uid=%q client_msg_no=%q message_id=%d message_seq=%d setting=%d msg_key_empty=%t payload_len=%d payload_prefix=%q payload_prefix_hex=%x: %w",
+		pkt.ChannelID,
+		pkt.ChannelType,
+		pkt.FromUID,
+		pkt.ClientMsgNo,
+		pkt.MessageID,
+		pkt.MessageSeq,
+		pkt.Setting.Uint8(),
+		pkt.MsgKey == "",
+		len(pkt.Payload),
+		string(prefix),
+		prefix,
+		err,
+	)
 }
 
 // enqueueRecv appends a RECV packet, dropping the oldest queued packet when full.

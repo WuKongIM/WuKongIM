@@ -17,12 +17,12 @@
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
 
-The WKProto bench client keeps a per-connection decode buffer so socket read
-timeouts never discard a partial frame. Decoded payload slices are detached
-before the buffer is compacted, because codec `BinaryAll` payloads point into
-the shared read buffer. After connect, the client starts a bounded background
-reader that continuously decodes the socket into an inbound frame queue, so
-sendack waiters do not perform socket reads on the hot path. Worker clients are
+The WKProto bench client is a thin adapter over `pkg/client`. The shared client
+owns CONNECT/CONNACK, optional payload encryption, socket decoding, SENDACK
+matching, RECV decryption, and the single writer/reader pumps. The bench adapter
+keeps the existing workload-facing `Send` / `ReadFrame` contract by converting
+`pkg/client` SEND futures back into local SENDACK frames and forwarding RECV
+frames from the shared reader into the same bounded queue. Worker clients are
 additionally wrapped by a matching reader that buffers unmatched frames for
 foreground waiters and applies the recv-ack policy selected by the scenario.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
