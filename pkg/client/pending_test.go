@@ -18,13 +18,16 @@ func TestPendingTrackerMatchingSendackResolvesPendingEntry(t *testing.T) {
 		t.Fatalf("add() error = %v", err)
 	}
 
-	tracker.resolve(&frame.SendackPacket{
+	resolved := tracker.resolve(&frame.SendackPacket{
 		ClientSeq:   10,
 		ClientMsgNo: "msg-10",
 		MessageID:   101,
 		MessageSeq:  202,
 		ReasonCode:  frame.ReasonSuccess,
 	})
+	if !resolved {
+		t.Fatal("resolve() = false, want true")
+	}
 
 	result, err := waitPendingEntry(t, entry)
 	if err != nil {
@@ -56,13 +59,16 @@ func TestPendingTrackerMatchingSendackFallsBackToClientSeq(t *testing.T) {
 		t.Fatalf("add() error = %v", err)
 	}
 
-	tracker.resolve(&frame.SendackPacket{
+	resolved := tracker.resolve(&frame.SendackPacket{
 		ClientSeq:   11,
 		ClientMsgNo: "server-msg-11",
 		MessageID:   111,
 		MessageSeq:  222,
 		ReasonCode:  frame.ReasonSuccess,
 	})
+	if !resolved {
+		t.Fatal("resolve() = false, want true")
+	}
 
 	result, err := waitPendingEntry(t, entry)
 	if err != nil {
@@ -85,13 +91,16 @@ func TestPendingTrackerNonSuccessSendackReturnsSendError(t *testing.T) {
 		t.Fatalf("add() error = %v", err)
 	}
 
-	tracker.resolve(&frame.SendackPacket{
+	resolved := tracker.resolve(&frame.SendackPacket{
 		ClientSeq:   12,
 		ClientMsgNo: "msg-12",
 		MessageID:   121,
 		MessageSeq:  212,
 		ReasonCode:  frame.ReasonAuthFail,
 	})
+	if !resolved {
+		t.Fatal("resolve() = false, want true")
+	}
 
 	result, err := waitPendingEntry(t, entry)
 	var sendErr SendError
@@ -162,6 +171,21 @@ func TestPendingTrackerAddTimeoutFailsWithErrAckTimeout(t *testing.T) {
 	}
 }
 
+func TestPendingTrackerResolveReturnsFalseForNilAndUnmatchedAck(t *testing.T) {
+	tracker := newPendingTracker()
+
+	if tracker.resolve(nil) {
+		t.Fatal("resolve(nil) = true, want false")
+	}
+	if tracker.resolve(&frame.SendackPacket{
+		ClientSeq:   404,
+		ClientMsgNo: "missing",
+		ReasonCode:  frame.ReasonSuccess,
+	}) {
+		t.Fatal("resolve(unmatched) = true, want false")
+	}
+}
+
 func TestPendingTrackerDuplicateAddRejectsWithoutOrphaningOriginal(t *testing.T) {
 	tracker := newPendingTracker()
 	key := pendingKey{ClientSeq: 17, ClientMsgNo: "msg-17"}
@@ -178,13 +202,16 @@ func TestPendingTrackerDuplicateAddRejectsWithoutOrphaningOriginal(t *testing.T)
 		t.Fatalf("add(second) entry = %v, want nil", second)
 	}
 
-	tracker.resolve(&frame.SendackPacket{
+	resolved := tracker.resolve(&frame.SendackPacket{
 		ClientSeq:   17,
 		ClientMsgNo: "msg-17",
 		MessageID:   171,
 		MessageSeq:  271,
 		ReasonCode:  frame.ReasonSuccess,
 	})
+	if !resolved {
+		t.Fatal("resolve() = false, want true")
+	}
 
 	result, err := waitPendingEntry(t, first)
 	if err != nil {
