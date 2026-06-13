@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -167,6 +168,8 @@ type RuntimeConfig struct {
 	SyncPeers PeerPicker
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
+	// Goroutines is the optional goroutine registry for lifecycle tracking.
+	Goroutines *goroutine.Registry
 }
 
 // StateEvent notifies consumers that cluster-state.json changed locally.

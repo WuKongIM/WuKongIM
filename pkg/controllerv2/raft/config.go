@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -87,6 +88,8 @@ type Config struct {
 	SnapshotCatchUpEntries uint64
 	// SnapshotMinInterval prevents repeated snapshots more frequently than this interval.
 	SnapshotMinInterval time.Duration
+	// Goroutines is the optional goroutine registry for lifecycle tracking.
+	Goroutines *goroutine.Registry
 }
 
 func (c Config) normalized() Config {

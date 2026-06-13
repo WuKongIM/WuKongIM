@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -37,10 +39,11 @@ type RecipientDeliveryWorkerOptions struct {
 
 // RecipientDeliveryWorker owns bounded async delivery admission for recipient-authority batches.
 type RecipientDeliveryWorker struct {
-	processor *RecipientProcessor
-	queue     chan recipientDeliveryCommand
-	workers   int
-	observer  AppendObserver
+	processor  *RecipientProcessor
+	queue      chan recipientDeliveryCommand
+	workers    int
+	observer   AppendObserver
+	goroutines *goroutine.Registry
 
 	mu sync.Mutex
 	// state gates admission and lifecycle transitions.
@@ -96,15 +99,15 @@ func (w *RecipientDeliveryWorker) Start(context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(w.workers)
 	for i := 0; i < w.workers; i++ {
-		go func() {
+		goroutine.SafeGo(w.goroutines, "channelappend", "delivery_worker", func() {
 			defer wg.Done()
 			w.runWorker(acceptDone)
-		}()
+		})
 	}
-	go func() {
+	goroutine.SafeGo(w.goroutines, "channelappend", "delivery_done_wait", func() {
 		wg.Wait()
 		close(done)
-	}()
+	})
 	w.acceptDone = acceptDone
 	w.done = done
 	w.state = recipientDeliveryWorkerOpen

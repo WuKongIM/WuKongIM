@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -56,6 +57,8 @@ type applyScheduler struct {
 	done   chan struct{}
 	errMu  sync.Mutex
 	err    error
+
+	goroutines *goroutine.Registry
 }
 
 func newApplyScheduler(cfg applySchedulerConfig, applier batchApplier, marker appliedMarker, complete applyCompletion) *applyScheduler {
@@ -76,7 +79,7 @@ func (s *applyScheduler) start(ctx context.Context) {
 		ctx = context.Background()
 	}
 	s.ctx, s.cancel = context.WithCancel(ctx)
-	go s.run()
+	goroutine.SafeGo(s.goroutines, "controller", "raft_apply_scheduler", s.run)
 }
 
 func (s *applyScheduler) stop() error {

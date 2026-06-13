@@ -2,18 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TIMESTAMP="${WK_BENCH_THREE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
+TIMESTAMP="${WK_BENCH_SINGLE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
-QPS_LIST="${WK_BENCH_THREE_NODE_QPS:-1000,2000,2400,2490,2500,2600,2800,3000}"
-OUT_DIR="${WK_BENCH_THREE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-1000ch}"
+QPS_LIST="${WK_BENCH_SINGLE_NODE_QPS:-1000,2000,2400,2490,2500,2600,2800,3000}"
+OUT_DIR="${WK_BENCH_SINGLE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-single-node-1000ch}"
 WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19130}"
 WORKER_LISTEN="${WK_BENCH_WORKER_LISTEN:-127.0.0.1:19130}"
 START_WORKER=1
 START_CLUSTER=1
 CLEAN_CLUSTER=1
-START_SCRIPT="${WK_BENCH_THREE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongimv2-three-nodes.sh}"
-READY_TIMEOUT="${WK_BENCH_THREE_NODE_READY_TIMEOUT:-90}"
+START_SCRIPT="${WK_BENCH_SINGLE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongimv2-single-node.sh}"
+READY_TIMEOUT="${WK_BENCH_SINGLE_NODE_READY_TIMEOUT:-90}"
 
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-4096}"
@@ -34,15 +34,15 @@ PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
 
-API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
-GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
+API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5001}"
+GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5100}"
 METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/bench-wukongimv2-three-nodes-1000ch.sh [options]
+Usage: scripts/bench-wukongimv2-single-node-1000ch.sh [options]
 
-Starts a local cmd/wukongimv2 three-node cluster, then runs fixed multi-channel
+Starts a local cmd/wukongimv2 single-node cluster, then runs fixed multi-channel
 wkbench traffic against it.
 
 Options:
@@ -52,9 +52,9 @@ Options:
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
   --worker-listen ADDR   Temporary worker listen address. Default: 127.0.0.1:19130.
   --no-worker            Do not start a temporary worker; require --worker-addr to be reachable.
-  --no-start             Do not start or stop the three-node cluster; use an already-running cluster.
+  --no-start             Do not start or stop the single-node cluster; use an already-running cluster.
   --no-clean             When starting the cluster, keep existing node data.
-  --start-script PATH    Three-node startup script. Default: scripts/start-wukongimv2-three-nodes.sh.
+  --start-script PATH    Single-node startup script. Default: scripts/start-wukongimv2-single-node.sh.
   --ready-timeout SECS   Cluster ready wait timeout. Default: 90.
   --channels N           Fixed group channel count. Default: 1000.
   --users N              Online user pool. Default: 4096.
@@ -72,18 +72,18 @@ Options:
   --recv-ack BOOL        Whether drained group recv frames are acknowledged. Default: true.
   --heartbeat BOOL       Whether benchmark clients send heartbeat pings. Default: true.
   --sender-pick MODE     Group sender selection: round_robin or first_online. Default: round_robin.
-  --api LIST             Comma-separated API base URLs. Default: node 5011/5012/5013.
-  --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
+  --api LIST             Comma-separated API base URLs. Default: node 5001.
+  --gateway LIST         Comma-separated WKProto gateway addresses. Default: 5100.
   --metrics LIST         Comma-separated metrics base URLs. Default: same as --api.
   --resource-interval SECS
                          Server process CPU/memory sample interval. 0 disables periodic sampling. Default: 1.
   -h, --help             Show this help.
 
 Example:
-  scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 2000,2400,2500
+  scripts/bench-wukongimv2-single-node-1000ch.sh --qps 2000,2400,2500
 
   # Reuse an already-running cluster:
-  scripts/bench-wukongimv2-three-nodes-1000ch.sh --no-start --qps 2000,2500
+  scripts/bench-wukongimv2-single-node-1000ch.sh --no-start --qps 2000,2500
 USAGE
 }
 
@@ -104,11 +104,11 @@ else
 fi
 
 log() {
-  printf '%s[bench-three-%sch]%s %s\n' "$C_CYAN" "$CHANNELS" "$C_RESET" "$*"
+  printf '%s[bench-single-%sch]%s %s\n' "$C_CYAN" "$CHANNELS" "$C_RESET" "$*"
 }
 
 die() {
-  printf '%s[bench-three-%sch] ERROR:%s %s\n' "$C_RED" "$CHANNELS" "$C_RESET" "$*" >&2
+  printf '%s[bench-single-%sch] ERROR:%s %s\n' "$C_RED" "$CHANNELS" "$C_RESET" "$*" >&2
   exit 1
 }
 
@@ -335,7 +335,7 @@ cleanup() {
     wait "$WORKER_PID" 2>/dev/null || true
   fi
   if [[ -n "$CLUSTER_PID" ]]; then
-    log "stopping three-node cluster pid=$CLUSTER_PID"
+    log "stopping single-node cluster pid=$CLUSTER_PID"
     kill "$CLUSTER_PID" >/dev/null 2>&1 || true
     wait "$CLUSTER_PID" 2>/dev/null || true
   fi
@@ -354,12 +354,12 @@ start_cluster() {
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     clean_arg=(--clean)
   fi
-  log "starting three-node cluster with $START_SCRIPT"
+  log "starting single-node cluster with $START_SCRIPT"
   # Preserve synchronous commits; the wider window only improves durable group-commit batching.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
   WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
-  WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
-  WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
+  WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-1}" \
+  WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-16}" \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
   WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
@@ -447,7 +447,7 @@ check_cluster_ready() {
   while (( SECONDS <= deadline )); do
     if [[ -n "$CLUSTER_PID" ]] && ! kill -0 "$CLUSTER_PID" 2>/dev/null; then
       tail -n 120 "$OUT_DIR/cluster-start.log" >&2 || true
-      die "three-node cluster exited before becoming ready"
+      die "single-node cluster exited before becoming ready"
     fi
     all_ready=1
     for api in "${API_VALUES[@]}"; do
@@ -487,7 +487,7 @@ write_target_and_workers() {
   mkdir -p "$OUT_DIR"
   {
     cat <<'YAML'
-name: local-three-node-cluster
+name: local-single-node-cluster
 api:
   addrs:
 YAML
@@ -546,7 +546,7 @@ write_scenario() {
   cat >"$OUT_DIR/scenario-${tag}.yaml" <<YAML
 version: wkbench/v1
 run:
-  id: three-node-fixed-${CHANNELS}ch-${tag}-qps
+  id: single-node-fixed-${CHANNELS}ch-${tag}-qps
   duration: $DURATION
   warmup: $WARMUP
   cooldown: $COOLDOWN
@@ -662,7 +662,7 @@ collect_node_logs() {
   local phase="$1"
   local dest="$OUT_DIR/logs/$phase"
   mkdir -p "$dest"
-  cp "$ROOT_DIR"/data/wukongimv2-three-node-logs/node*.log "$dest/" 2>/dev/null || true
+  cp "$ROOT_DIR"/data/wukongimv2-single-node-logs/node1.log "$dest/" 2>/dev/null || true
   if [[ -f "$OUT_DIR/cluster-start.log" ]]; then
     cp "$OUT_DIR/cluster-start.log" "$dest/cluster-start.log" 2>/dev/null || true
   fi
@@ -708,6 +708,14 @@ server_pid_from_log() {
         }
       }
     }
+    index($0, "node pid=") {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^pid=/) {
+          sub(/^pid=/, "", $i)
+          pid = $i
+        }
+      }
+    }
     END {
       if (pid != "") {
         print pid
@@ -718,7 +726,7 @@ server_pid_from_log() {
 
 server_pid_from_process_table() {
   local node="$1"
-  local config="$ROOT_DIR/scripts/wukongimv2/wukongimv2-node${node}.conf"
+  local config="$ROOT_DIR/scripts/wukongimv2/wukongimv2.conf"
   pgrep -f "$config" 2>/dev/null | head -n 1 || true
 }
 
@@ -766,7 +774,7 @@ sample_server_resources() {
   local ts node node_name pid line cpu mem rss vsz elapsed command goroutines
   ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   mkdir -p "$OUT_DIR/resources"
-  for node in 1 2 3; do
+  for node in 1; do
     node_name="node${node}"
     pid="$(server_pid_for_node "$node")"
     if [[ -z "$pid" ]]; then
@@ -876,7 +884,7 @@ write_server_resource_summary() {
       }
     }
     END {
-      for (i = 1; i <= 3; i++) {
+      for (i = 1; i <= 1; i++) {
         node = "node" i
         if (samples[node] == 0) continue
         printf "%s\t%s\t%d\t%.3f\t%.3f\t%.3f\t%.3f\t%.0f\t%.0f\t%.0f\n",
@@ -1189,7 +1197,7 @@ RUNTIME_POOL_SAMPLE_INTERVAL=$RUNTIME_POOL_SAMPLE_INTERVAL
 RESOURCE_SAMPLE_INTERVAL=$RESOURCE_SAMPLE_INTERVAL
 EOF
   mkdir -p "$OUT_DIR/config"
-  cp "$ROOT_DIR"/scripts/wukongimv2/wukongimv2-node*.conf "$OUT_DIR/config/" 2>/dev/null || true
+  cp "$ROOT_DIR"/scripts/wukongimv2/wukongimv2.conf "$OUT_DIR/config/" 2>/dev/null || true
   if [[ -x "$START_SCRIPT" ]]; then
     "$START_SCRIPT" --dry-run >"$OUT_DIR/start-plan.txt" 2>&1 || true
   fi
@@ -2055,10 +2063,10 @@ write_evidence_summary() {
   cluster_transport_peak="$(cluster_transport_peak_markdown "$OUT_DIR/cluster_transport_peak_summary.tsv")"
   ants_pool_usage="$(ants_pool_usage_markdown "$OUT_DIR/ants_pool_usage_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
-# Three-Node Bench Evidence
+# Single-Node Bench Evidence
 
 ## Scenario
-- workload: local wukongimv2 three-node wkbench group channels
+- workload: local wukongimv2 single-node cluster wkbench group channels
 - channels: $CHANNELS
 - users: $USERS
 - group_members: $GROUP_MEMBERS

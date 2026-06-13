@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
@@ -35,6 +36,8 @@ type Config struct {
 	Transport TransportConfig
 	// Timeouts contains lifecycle timeout budgets.
 	Timeouts TimeoutConfig
+	// Goroutines is the optional goroutine registry for lifecycle tracking across all cluster subsystems.
+	Goroutines *gorutine.Registry
 }
 
 // ControlConfig contains ControllerV2 adapter configuration.

@@ -2,17 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TIMESTAMP="${WK_BENCH_REAL_QPS_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
+TIMESTAMP="${WK_BENCH_SINGLE_REAL_QPS_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
-QPS_LIST="${WK_BENCH_REAL_QPS_LIST:-2000,2400,2600,2800,3000}"
-OUT_DIR="${WK_BENCH_REAL_QPS_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-three-node-real-qps}"
-BASE_SCRIPT="${WK_BENCH_REAL_QPS_BASE_SCRIPT:-$ROOT_DIR/scripts/bench-wukongimv2-three-nodes-1000ch.sh}"
+QPS_LIST="${WK_BENCH_SINGLE_REAL_QPS_LIST:-2000,2400,2600,2800,3000}"
+OUT_DIR="${WK_BENCH_SINGLE_REAL_QPS_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-single-node-real-qps}"
+BASE_SCRIPT="${WK_BENCH_SINGLE_REAL_QPS_BASE_SCRIPT:-$ROOT_DIR/scripts/bench-wukongimv2-single-node-1000ch.sh}"
 MIN_ACTUAL_RATIO="${WK_BENCH_MIN_ACTUAL_RATIO:-0.95}"
 SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 
 WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
-START_SCRIPT="${WK_BENCH_THREE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongimv2-three-nodes.sh}"
-READY_TIMEOUT="${WK_BENCH_THREE_NODE_READY_TIMEOUT:-90}"
+START_SCRIPT="${WK_BENCH_SINGLE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongimv2-single-node.sh}"
+READY_TIMEOUT="${WK_BENCH_SINGLE_NODE_READY_TIMEOUT:-90}"
 
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
 USERS="${WK_BENCH_USERS:-4096}"
@@ -29,15 +29,15 @@ HEARTBEAT_ENABLED="${WK_BENCH_HEARTBEAT_ENABLED:-true}"
 PROFILE_SECONDS="${WK_BENCH_PROFILE_SECONDS:-0}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 
-API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013}"
-GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113}"
+API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5001}"
+GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5100}"
 METRICS_ADDRS="${WK_BENCH_METRICS_ADDRS:-$API_ADDRS}"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/bench-wukongimv2-three-nodes-real-qps.sh [options]
+Usage: scripts/bench-wukongimv2-single-node-real-qps.sh [options]
 
-Runs a true QPS search shape for local cmd/wukongimv2 three-node group traffic.
+Runs a true QPS search shape for local cmd/wukongimv2 single-node cluster group-channel QPS runs.
 Each offered QPS value is measured as an independent clean single-attempt run,
 then summarized into one parent evidence directory.
 
@@ -63,15 +63,15 @@ Options:
   --heartbeat BOOL           Whether benchmark clients send heartbeat pings. Default: true.
   --profile-seconds N        Capture final CPU pprof for each node when N > 0. Default: 0.
   --wkbench-bin PATH         wkbench binary path. Default: data/wkbench-test.
-  --start-script PATH        Three-node startup script. Default: scripts/start-wukongimv2-three-nodes.sh.
+  --start-script PATH        Single-node startup script. Default: scripts/start-wukongimv2-single-node.sh.
   --ready-timeout SECS       Cluster ready wait timeout. Default: 90.
-  --api LIST                 Comma-separated API base URLs. Default: node 5011/5012/5013.
-  --gateway LIST             Comma-separated WKProto gateway addresses. Default: 5111/5112/5113.
+  --api LIST                 Comma-separated API base URLs. Default: node 5001.
+  --gateway LIST             Comma-separated WKProto gateway addresses. Default: 5100.
   --metrics LIST             Comma-separated metrics base URLs. Default: same as --api.
   -h, --help                 Show this help.
 
 Example:
-  GOWORK=off scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 2400,2600,2800
+  GOWORK=off scripts/bench-wukongimv2-single-node-real-qps.sh --qps 2400,2600,2800
 
 Notes:
   - The child runner cleans and restarts the cluster for every QPS value.
@@ -97,11 +97,11 @@ else
 fi
 
 log() {
-  printf '%s[bench-real-qps]%s %s\n' "$C_CYAN" "$C_RESET" "$*"
+  printf '%s[bench-single-real-qps]%s %s\n' "$C_CYAN" "$C_RESET" "$*"
 }
 
 die() {
-  printf '%s[bench-real-qps] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2
+  printf '%s[bench-single-real-qps] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2
   exit 1
 }
 
@@ -982,10 +982,10 @@ write_markdown_summary() {
   result_summary="$(result_display_markdown "$OUT_DIR/summary.txt")"
   ants_pool_usage="$(ants_pool_usage_markdown "$OUT_DIR/ants_pool_usage_summary.tsv")"
   cat >"$OUT_DIR/summary.md" <<EOF
-# Three-Node Real QPS Evidence
+# Single-Node Real QPS Evidence
 
 ## Scenario
-- workload: clean single-attempt local wukongimv2 three-node group-channel QPS runs
+- workload: clean single-attempt local wukongimv2 single-node cluster group-channel QPS runs
 - qps_list: $QPS_LIST
 - channels: $CHANNELS
 - users: $USERS

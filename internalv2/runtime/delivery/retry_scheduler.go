@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const (
@@ -51,6 +53,7 @@ type RetryScheduler struct {
 	backoff     time.Duration
 	workers     int
 	observer    RetryObserver
+	goroutines  *goroutine.Registry
 
 	mu      sync.Mutex
 	started bool
@@ -129,15 +132,15 @@ func (s *RetryScheduler) Start(context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(s.workers)
 	for i := 0; i < s.workers; i++ {
-		go func() {
+		goroutine.SafeGo(s.goroutines, "delivery", "retry_worker", func() {
 			defer wg.Done()
 			s.runWorker(ctx)
-		}()
+		})
 	}
-	go func() {
+	goroutine.SafeGo(s.goroutines, "delivery", "retry_done_wait", func() {
 		wg.Wait()
 		close(done)
-	}()
+	})
 	s.cancel = cancel
 	s.done = done
 	s.started = true

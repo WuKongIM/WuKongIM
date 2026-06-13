@@ -5,6 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 type Runtime struct {
@@ -50,16 +52,20 @@ func New(opts Options) (*Runtime, error) {
 func (r *Runtime) start() {
 	for i := 0; i < r.opts.Workers; i++ {
 		r.wg.Add(1)
-		go r.runWorker()
+		goroutine.SafeGo(r.opts.Goroutines, "slot", "raft_worker", func() {
+			defer r.wg.Done()
+			r.runWorker()
+		})
 	}
 
 	r.wg.Add(1)
-	go r.runTicker()
+	goroutine.SafeGo(r.opts.Goroutines, "slot", "raft_ticker", func() {
+		defer r.wg.Done()
+		r.runTicker()
+	})
 }
 
 func (r *Runtime) runWorker() {
-	defer r.wg.Done()
-
 	for {
 		select {
 		case <-r.stopCh:
@@ -79,8 +85,6 @@ func (r *Runtime) runWorker() {
 }
 
 func (r *Runtime) runTicker() {
-	defer r.wg.Done()
-
 	ticker := time.NewTicker(r.opts.TickInterval)
 	defer ticker.Stop()
 

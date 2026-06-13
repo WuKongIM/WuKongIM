@@ -49,6 +49,14 @@ func (s *Server) handleDebugGoroutines(c *gin.Context) {
 	writeDebugJSONError(c, http.StatusInternalServerError, "goroutine profile unavailable")
 }
 
+func (s *Server) handleDebugGoroutinesSummary(c *gin.Context) {
+	if s.goroutineSnapshot == nil {
+		writeDebugJSONError(c, http.StatusNotFound, "goroutine registry not configured")
+		return
+	}
+	c.JSON(http.StatusOK, s.goroutineSnapshot())
+}
+
 func (s *Server) handleDiagnosticsTrace(c *gin.Context) {
 	limit, ok := diagnosticsLimit(c)
 	if !ok {

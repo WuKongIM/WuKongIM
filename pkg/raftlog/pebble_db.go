@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
 )
@@ -21,6 +22,8 @@ type Options struct {
 	SnapshotChunkSize uint64
 	// SnapshotGCGrace is how long orphan snapshot directories remain before GC can remove them.
 	SnapshotGCGrace time.Duration
+	// Goroutines is the optional goroutine registry for lifecycle tracking.
+	Goroutines *goroutine.Registry
 }
 
 type DB struct {
@@ -96,7 +99,7 @@ func Open(path string, opts Options) (*DB, error) {
 	}
 
 	db.workerWG.Add(1)
-	go db.runWriteWorker()
+	goroutine.SafeGo(db.options.Goroutines, "raftlog", "write_worker", db.runWriteWorker)
 	return db, nil
 }
 
@@ -185,10 +188,10 @@ func (db *DB) startSnapshotGC() bool {
 	db.gcWG.Add(1)
 	db.mu.Unlock()
 
-	go func() {
+	goroutine.SafeGo(db.options.Goroutines, "raftlog", "snapshot_gc", func() {
 		defer db.gcWG.Done()
 		_ = db.runSnapshotGC(ctx)
-	}()
+	})
 	return true
 }
 

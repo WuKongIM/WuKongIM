@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -20,6 +21,8 @@ type Options struct {
 	Raft         RaftOptions
 	// Observer receives low-cardinality scheduler pressure observations.
 	Observer SchedulerObserver
+	// Goroutines is the optional goroutine registry for lifecycle tracking.
+	Goroutines *goroutine.Registry
 }
 
 // SchedulerObserver receives low-cardinality Slot scheduler pressure observations.

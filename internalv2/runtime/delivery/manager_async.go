@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const defaultManagerAsyncWorkers = 1
@@ -36,6 +38,8 @@ type managerAsync struct {
 	workers int
 	// observer receives admission decisions and later terminal outcomes.
 	observer ManagerObserver
+	// goroutines is the optional goroutine lifecycle registry.
+	goroutines *goroutine.Registry
 
 	mu sync.Mutex
 	// state gates admission and lifecycle transitions.
@@ -90,15 +94,15 @@ func (a *managerAsync) start(context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(a.workers)
 	for i := 0; i < a.workers; i++ {
-		go func() {
+		goroutine.SafeGo(a.goroutines, "delivery", "manager_worker", func() {
 			defer wg.Done()
 			a.runWorker(ctx)
-		}()
+		})
 	}
-	go func() {
+	goroutine.SafeGo(a.goroutines, "delivery", "manager_done_wait", func() {
 		wg.Wait()
 		close(done)
-	}()
+	})
 
 	a.cancel = cancel
 	a.acceptDone = ctx.Done()

@@ -220,6 +220,8 @@ type Options struct {
 	DebugCluster func() any
 	// Diagnostics reads the node-local diagnostics store for debug query endpoints.
 	Diagnostics DiagnosticsReader
+	// GoroutineSnapshot returns the current goroutine registry snapshot. Nil disables the endpoint.
+	GoroutineSnapshot func() any
 	// Logger records HTTP API failures that are not otherwise visible to callers.
 	Logger wklog.Logger
 }
@@ -252,6 +254,7 @@ type Server struct {
 	debugAPIEnabled      bool
 	debugConfig          func() any
 	debugCluster         func() any
+	goroutineSnapshot    func() any
 	diagnostics          DiagnosticsReader
 	logger               wklog.Logger
 	counts               map[string]int
@@ -289,6 +292,7 @@ func New(opts Options) *Server {
 		debugAPIEnabled:      opts.DebugAPIEnabled,
 		debugConfig:          opts.DebugConfig,
 		debugCluster:         opts.DebugCluster,
+		goroutineSnapshot:    opts.GoroutineSnapshot,
 		diagnostics:          opts.Diagnostics,
 		logger:               opts.Logger,
 		counts:               map[string]int{},
@@ -444,6 +448,7 @@ func (s *Server) registerRoutes() {
 
 func (s *Server) registerPProfRoutes() {
 	s.engine.GET("/debug/goroutines", s.handleDebugGoroutines)
+	s.engine.GET("/debug/goroutines/summary", s.handleDebugGoroutinesSummary)
 	s.engine.Any("/debug/pprof", handlePProf)
 	s.engine.Any("/debug/pprof/*name", handlePProf)
 }

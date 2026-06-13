@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -121,7 +122,9 @@ func (s *Service) Start(ctx context.Context) error {
 	stepCh := make(chan raftpb.Message, 1024)
 	proposalCh := make(chan proposalRequest)
 	initCh := make(chan error, 1)
-	go s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, initCh)
+	goroutine.SafeGo(s.cfg.Goroutines, "controller", "raft_run", func() {
+		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, initCh)
+	})
 	if err := <-initCh; err != nil {
 		close(stopCh)
 		<-doneCh

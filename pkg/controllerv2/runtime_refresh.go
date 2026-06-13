@@ -6,6 +6,7 @@ import (
 	"time"
 
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 func (r *Runtime) startRefreshLoop() {
@@ -15,7 +16,7 @@ func (r *Runtime) startRefreshLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.refreshCancel = cancel
 	r.refreshWG.Add(1)
-	go func() {
+	goroutine.SafeGo(r.cfg.Goroutines, "controller", "refresh_loop", func() {
 		defer r.refreshWG.Done()
 		interval := r.cfg.TickInterval * 5
 		if interval <= 0 {
@@ -31,7 +32,7 @@ func (r *Runtime) startRefreshLoop() {
 				_ = r.controlTick(ctx)
 			}
 		}
-	}()
+	})
 }
 
 // controlTick keeps bootstrap progress and local watcher state moving without bypassing Raft semantics.

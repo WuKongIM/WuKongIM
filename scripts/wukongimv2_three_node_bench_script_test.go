@@ -411,7 +411,8 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
 		"BENCH RESULT",
-		"p99 gate: <= 400 ms | send_errors: 0",
+		"p99 gate: <= 400 ms",
+		"send_errors: 0",
 		"actual/offered gate: >= 0.95",
 		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
 		"# ants pool usage",
@@ -462,7 +463,8 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"## Result",
-		"p99 gate: <= 400 ms | send_errors: 0",
+		"p99 gate: <= 400 ms",
+		"send_errors: 0",
 		"actual/offered gate: >= 0.95",
 		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
 		"- ants_pool_usage: ants_pool_usage_summary.tsv",
@@ -490,6 +492,162 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	}
 	if strings.Contains(topSummary, "component\tpool\tqueue\tpriority") {
 		t.Fatalf("real-qps markdown summary should not print every pressure row:\n%s", topSummary)
+	}
+}
+
+func TestWukongIMV2RealQPSScriptsForwardDefaultAndExplicitChannelCount(t *testing.T) {
+	root := repoRoot(t)
+	cases := []struct {
+		name       string
+		scriptPath string
+		baseEnv    string
+	}{
+		{
+			name:       "single-node",
+			scriptPath: "scripts/bench-wukongimv2-single-node-real-qps.sh",
+			baseEnv:    "WK_BENCH_SINGLE_REAL_QPS_BASE_SCRIPT",
+		},
+		{
+			name:       "three-node",
+			scriptPath: "scripts/bench-wukongimv2-three-nodes-real-qps.sh",
+			baseEnv:    "WK_BENCH_REAL_QPS_BASE_SCRIPT",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name+"/default", func(t *testing.T) {
+			outDir := t.TempDir()
+			baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+			writeFakeRealQPSBenchBase(t, baseScript)
+
+			cmd := exec.Command("bash", tc.scriptPath,
+				"--qps", "100",
+				"--out-dir", outDir,
+				"--duration", "1s",
+				"--warmup", "0s",
+				"--cooldown", "0s",
+			)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				tc.baseEnv+"="+baseScript,
+				"GOWORK=off",
+			)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("real-qps script failed: %v\n%s", err, output)
+			}
+
+			args := readFile(t, filepath.Join(outDir, "000100-qps", "base.args"))
+			if !strings.Contains(args, "--channels 1000") {
+				t.Fatalf("default channel count should be forwarded as 1000, args:\n%s", args)
+			}
+			envText := readFile(t, filepath.Join(outDir, "env.txt"))
+			if !strings.Contains(envText, "CHANNELS=1000") {
+				t.Fatalf("env metadata should record default channel count 1000:\n%s", envText)
+			}
+		})
+
+		t.Run(tc.name+"/channel-count", func(t *testing.T) {
+			outDir := t.TempDir()
+			baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+			writeFakeRealQPSBenchBase(t, baseScript)
+
+			cmd := exec.Command("bash", tc.scriptPath,
+				"--qps", "100",
+				"--out-dir", outDir,
+				"--channel-count", "123",
+				"--duration", "1s",
+				"--warmup", "0s",
+				"--cooldown", "0s",
+			)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				tc.baseEnv+"="+baseScript,
+				"GOWORK=off",
+			)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("real-qps script failed: %v\n%s", err, output)
+			}
+
+			args := readFile(t, filepath.Join(outDir, "000100-qps", "base.args"))
+			if !strings.Contains(args, "--channels 123") {
+				t.Fatalf("explicit channel count should be forwarded as 123, args:\n%s", args)
+			}
+			envText := readFile(t, filepath.Join(outDir, "env.txt"))
+			if !strings.Contains(envText, "CHANNELS=123") {
+				t.Fatalf("env metadata should record explicit channel count 123:\n%s", envText)
+			}
+		})
+	}
+}
+
+func TestWukongIMV2BenchScriptsLogActualChannelCount(t *testing.T) {
+	root := repoRoot(t)
+	cases := []struct {
+		name       string
+		scriptPath string
+		prefix     string
+		oldPrefix  string
+	}{
+		{
+			name:       "single-node",
+			scriptPath: "scripts/bench-wukongimv2-single-node-1000ch.sh",
+			prefix:     "[bench-single-10ch]",
+			oldPrefix:  "[bench-single-1000ch]",
+		},
+		{
+			name:       "three-node",
+			scriptPath: "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+			prefix:     "[bench-three-10ch]",
+			oldPrefix:  "[bench-three-1000ch]",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			callsDir := t.TempDir()
+			outDir := t.TempDir()
+			writeFakeThreeNode1000Wkbench(t, filepath.Join(binDir, "wkbench"), callsDir, "fake")
+			writeFakeThreeNode1000Curl(t, filepath.Join(binDir, "curl"), callsDir)
+			writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
+			writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
+			gatewayAddr := listenLocalTCP(t)
+
+			cmd := exec.Command("bash", tc.scriptPath,
+				"--no-start",
+				"--no-worker",
+				"--out-dir", outDir,
+				"--wkbench-bin", filepath.Join(binDir, "wkbench"),
+				"--qps", "100",
+				"--channels", "10",
+				"--users", "20",
+				"--members", "2",
+				"--duration", "1s",
+				"--warmup", "0s",
+				"--cooldown", "0s",
+				"--resource-interval", "0",
+				"--api", "http://127.0.0.1:5011",
+				"--metrics", "http://127.0.0.1:5011",
+				"--gateway", gatewayAddr,
+			)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+			)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("script failed: %v\n%s", err, output)
+			}
+			text := string(output)
+			if !strings.Contains(text, tc.prefix) {
+				t.Fatalf("script output should include dynamic prefix %q:\n%s", tc.prefix, text)
+			}
+			if strings.Contains(text, tc.oldPrefix) {
+				t.Fatalf("script output should not include stale prefix %q:\n%s", tc.oldPrefix, text)
+			}
+		})
 	}
 }
 
@@ -574,7 +732,8 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
 		"BENCH RESULT",
-		"p99 gate: <= 400 ms | send_errors: 0",
+		"p99 gate: <= 400 ms",
+		"send_errors: 0",
 		"actual/offered gate: >= 0.90",
 		"best pass: none",
 		"SERVER PROCESS PEAKS",
@@ -632,7 +791,8 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"## Result",
-		"p99 gate: <= 400 ms | send_errors: 0",
+		"p99 gate: <= 400 ms",
+		"send_errors: 0",
 		"actual/offered gate: >= 0.90",
 		"best pass: none",
 		"- server_process: resources/server-process-summary.tsv",
@@ -761,7 +921,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"evidence: " + outDir,
+		"[bench-three-10ch] evidence:",
 		"summary                 summary.tsv",
 		"server_process          resources/server-process-summary.tsv",
 		"cluster_transport       cluster_transport_peak_summary.tsv",
@@ -1920,6 +2080,7 @@ func writeFakeRealQPSBenchBase(t *testing.T, path string) {
 set -euo pipefail
 out_dir=""
 qps=""
+all_args="$*"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out-dir)
@@ -1940,6 +2101,7 @@ if [[ -z "$out_dir" || -z "$qps" ]]; then
   exit 2
 fi
 mkdir -p "$out_dir"
+printf '%s\n' "$all_args" > "$out_dir/base.args"
 echo 'BENCH RESULT'
 echo 'child summary should stay in attempt console'
 cat >"$out_dir/summary.tsv" <<'OUT'

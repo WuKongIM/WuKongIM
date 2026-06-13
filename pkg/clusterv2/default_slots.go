@@ -22,7 +22,7 @@ const (
 	defaultSlotLeaderPollInterval = 10 * time.Millisecond
 	defaultSlotElectionTick       = 10
 	defaultSlotHeartbeatTick      = 1
-	defaultSlotRuntimeWorkerCount = 1
+	defaultSlotRuntimeWorkerCount = 20
 	defaultSlotRaftDirName        = "slotraft"
 	defaultSlotMetaDirName        = "slotmeta"
 )
@@ -47,6 +47,7 @@ func (n *Node) ensureDefaultSlots() error {
 		Workers:      defaultSlotRuntimeWorkerCount,
 		Transport:    n.defaultSlotTransport(),
 		Observer:     n.cfg.Slots.Observer,
+		Goroutines:   n.cfg.Goroutines,
 		Raft: multiraft.RaftOptions{
 			ElectionTick:  defaultSlotElectionTick,
 			HeartbeatTick: defaultSlotHeartbeatTick,

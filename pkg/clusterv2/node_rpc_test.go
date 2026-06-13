@@ -58,7 +58,7 @@ func TestNodeDefaultTransportUsesClusterSizedClientPool(t *testing.T) {
 	if err := node.ensureDefaultTransport(); err != nil {
 		t.Fatalf("ensureDefaultTransport() error = %v", err)
 	}
-	if got := node.transportClient.PoolSize(); got != 16 {
-		t.Fatalf("default transport pool size = %d, want 16", got)
+	if got := node.transportClient.PoolSize(); got != 1000 {
+		t.Fatalf("default transport pool size = %d, want 1000", got)
 	}
 }
