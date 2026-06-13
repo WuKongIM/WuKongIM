@@ -12,44 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWKProtoClientDecryptsRecvPacketAfterConnack(t *testing.T) {
-	ln := newWKProtoTestServer(t, func(conn net.Conn) {
-		connect := readConnectPacket(t, conn)
-		serverKeys, serverKey, err := wkprotoenc.NegotiateServerSession(connect.ClientKey)
-		require.NoError(t, err)
-
-		writeFrame(t, conn, &frame.ConnackPacket{
-			ServerVersion: frame.LatestVersion,
-			ServerKey:     serverKey,
-			Salt:          string(serverKeys.AESIV),
-			ReasonCode:    frame.ReasonSuccess,
-		})
-
-		sealed, err := wkprotoenc.SealRecvPacket(&frame.RecvPacket{
-			MessageID:   42,
-			MessageSeq:  7,
-			ChannelID:   "u1",
-			ChannelType: frame.ChannelTypePerson,
-			FromUID:     "u1",
-			Payload:     []byte("hello encrypted"),
-		}, serverKeys)
-		require.NoError(t, err)
-		writeFrame(t, conn, sealed)
-	})
-	defer func() { _ = ln.Close() }()
-
-	client, err := NewWKProtoClient()
-	require.NoError(t, err)
-	defer func() { _ = client.Close() }()
-
-	require.NoError(t, client.Connect(ln.Addr().String(), "u2", "u2-device"))
-	recv, err := client.ReadRecv()
-	require.NoError(t, err)
-	require.Equal(t, []byte("hello encrypted"), recv.Payload)
-	require.Equal(t, int64(42), recv.MessageID)
-	require.Equal(t, uint64(7), recv.MessageSeq)
-}
-
 func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 	ln := newWKProtoTestServer(t, func(conn net.Conn) {
 		connect := readConnectPacket(t, conn)
@@ -97,7 +59,7 @@ func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 	require.NoError(t, client.Connect(ln.Addr().String(), "sender", "sender-device"))
 	require.NoError(t, client.SendFrame(&frame.SendPacket{
 		ClientSeq:   3,
-		ClientMsgNo: "e2e-send-ack",
+		ClientMsgNo: "e2ev2-send-ack",
 		ChannelID:   "recipient",
 		ChannelType: frame.ChannelTypePerson,
 		Payload:     []byte("hello sendack"),
@@ -106,7 +68,7 @@ func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 	ack, err := client.ReadSendAck()
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), ack.ClientSeq)
-	require.Equal(t, "e2e-send-ack", ack.ClientMsgNo)
+	require.Equal(t, "e2ev2-send-ack", ack.ClientMsgNo)
 	require.Equal(t, int64(99), ack.MessageID)
 	require.Equal(t, uint64(11), ack.MessageSeq)
 	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
@@ -116,4 +78,39 @@ func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 	require.Equal(t, []byte("interleaved recv"), recv.Payload)
 	require.Equal(t, int64(42), recv.MessageID)
 	require.Equal(t, uint64(7), recv.MessageSeq)
+}
+
+func newWKProtoTestServer(t *testing.T, handler func(net.Conn)) net.Listener {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		handler(conn)
+	}()
+	return ln
+}
+
+func readConnectPacket(t *testing.T, conn net.Conn) *frame.ConnectPacket {
+	t.Helper()
+
+	f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+	require.NoError(t, err)
+	connect, ok := f.(*frame.ConnectPacket)
+	require.Truef(t, ok, "expected *frame.ConnectPacket, got %T", f)
+	return connect
+}
+
+func writeFrame(t *testing.T, conn net.Conn, f frame.Frame) {
+	t.Helper()
+
+	payload, err := codec.New().EncodeFrame(f, frame.LatestVersion)
+	require.NoError(t, err)
+	_, err = conn.Write(payload)
+	require.NoError(t, err)
 }

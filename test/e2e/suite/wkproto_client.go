@@ -4,12 +4,12 @@ package suite
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net"
+	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/gateway/testkit"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -17,17 +17,21 @@ const defaultWKProtoTimeout = 5 * time.Second
 
 // WKProtoClient is a black-box test client for the public WKProto transport.
 type WKProtoClient struct {
-	conn   net.Conn
-	crypto *testkit.WKProtoClient
+	// mu protects the active pkg/client session and bridge channels.
+	mu sync.Mutex
+	// inner owns the WKProto TCP session, crypto state, writer, and reader.
+	inner *wkclient.Client
+	// ackCh receives synthetic SENDACK packets resolved by pkg/client futures.
+	ackCh chan sendAckResult
+	// recvCh receives decrypted RECV packets forwarded from pkg/client.
+	recvCh chan recvResult
+	// closeCh stops per-connection forwarding goroutines.
+	closeCh chan struct{}
 }
 
 // NewWKProtoClient creates a client with fresh WKProto session keys.
 func NewWKProtoClient() (*WKProtoClient, error) {
-	crypto, err := testkit.NewWKProtoClient()
-	if err != nil {
-		return nil, err
-	}
-	return &WKProtoClient{crypto: crypto}, nil
+	return &WKProtoClient{}, nil
 }
 
 // Connect opens the TCP connection and completes the WKProto handshake.
@@ -38,126 +42,158 @@ func (c *WKProtoClient) Connect(addr, uid, deviceID string) error {
 
 // ConnectContext opens the TCP connection and returns the successful Connack.
 func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID string) (*frame.ConnackPacket, error) {
-	dialer := net.Dialer{Timeout: defaultWKProtoTimeout}
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if c == nil {
+		return nil, fmt.Errorf("wkproto client: nil client")
+	}
+	_ = c.Close()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	inner, err := wkclient.New(wkclient.Config{
+		Addr:                   addr,
+		OperationTimeout:       defaultWKProtoTimeout,
+		AckTimeout:             defaultWKProtoTimeout,
+		InboundFrameBufferSize: 1024,
+	})
 	if err != nil {
 		return nil, err
 	}
-	c.conn = conn
-
-	if deadline, ok := ctx.Deadline(); ok {
-		if err := c.conn.SetDeadline(deadline); err != nil {
-			return nil, err
-		}
-		defer func() { _ = c.conn.SetDeadline(time.Time{}) }()
-	}
-
-	connect := &frame.ConnectPacket{
-		Version:         frame.LatestVersion,
-		UID:             uid,
-		DeviceID:        deviceID,
-		DeviceFlag:      frame.APP,
-		ClientTimestamp: time.Now().UnixMilli(),
-	}
-	if err := c.SendFrame(connect); err != nil {
-		return nil, err
-	}
-
-	f, err := c.ReadFrame()
+	connack, err := inner.Connect(ctx, wkclient.ConnectOptions{
+		UID:        uid,
+		DeviceID:   deviceID,
+		DeviceFlag: frame.APP,
+	})
 	if err != nil {
+		_ = inner.Close()
 		return nil, err
 	}
-	connack, ok := f.(*frame.ConnackPacket)
-	if !ok {
-		return nil, fmt.Errorf("wkproto connect: expected *frame.ConnackPacket, got %T", f)
-	}
-	if connack.ReasonCode != frame.ReasonSuccess {
-		return nil, fmt.Errorf("wkproto connect: unexpected reason code %s", connack.ReasonCode)
-	}
+
+	ackCh := make(chan sendAckResult, 1024)
+	recvCh := make(chan recvResult, 1024)
+	closeCh := make(chan struct{})
+
+	c.mu.Lock()
+	c.inner = inner
+	c.ackCh = ackCh
+	c.recvCh = recvCh
+	c.closeCh = closeCh
+	c.mu.Unlock()
+
+	go c.forwardRecv(inner, recvCh, closeCh)
 	return connack, nil
 }
 
-// SendFrame encodes and writes one frame to the connection.
+// SendFrame writes one supported test frame through the shared pkg/client session.
 func (c *WKProtoClient) SendFrame(f frame.Frame) error {
-	if c == nil || c.conn == nil {
-		return fmt.Errorf("wkproto client: not connected")
-	}
-
-	switch pkt := f.(type) {
-	case *frame.ConnectPacket:
-		cloned, err := c.crypto.UseClientKey(pkt)
-		if err != nil {
-			return err
-		}
-		f = cloned
-	case *frame.SendPacket:
-		cloned := *pkt
-		if err := c.crypto.EncryptSendPacket(&cloned); err != nil {
-			return err
-		}
-		f = &cloned
-	}
-
-	payload, err := codec.New().EncodeFrame(f, frame.LatestVersion)
+	inner, ackCh, _, closeCh, err := c.session()
 	if err != nil {
 		return err
 	}
-	_, err = c.conn.Write(payload)
-	return err
+	switch pkt := f.(type) {
+	case *frame.ConnectPacket:
+		return fmt.Errorf("wkproto client: CONNECT is handled by ConnectContext")
+	case *frame.SendPacket:
+		future, err := inner.SendAsync(context.Background(), messageFromSendPacket(pkt))
+		if err != nil {
+			return err
+		}
+		go publishSendAck(future, ackCh, closeCh)
+		return nil
+	case *frame.PingPacket:
+		ctx, cancel := context.WithTimeout(context.Background(), defaultWKProtoTimeout)
+		defer cancel()
+		return inner.Ping(ctx)
+	case *frame.RecvackPacket:
+		ctx, cancel := context.WithTimeout(context.Background(), defaultWKProtoTimeout)
+		defer cancel()
+		return inner.RecvAck(ctx, pkt.MessageID, pkt.MessageSeq)
+	default:
+		return fmt.Errorf("wkproto client: unsupported frame %T", f)
+	}
 }
 
-// ReadFrame reads one frame and applies client-side crypto when needed.
+// ReadFrame reads one SENDACK or RECV packet exposed by this test client.
 func (c *WKProtoClient) ReadFrame() (frame.Frame, error) {
-	if c == nil || c.conn == nil {
-		return nil, fmt.Errorf("wkproto client: not connected")
-	}
-	if err := c.conn.SetReadDeadline(time.Now().Add(defaultWKProtoTimeout)); err != nil {
-		return nil, err
-	}
-	defer func() { _ = c.conn.SetReadDeadline(time.Time{}) }()
-
-	f, err := codec.New().DecodePacketWithConn(c.conn, frame.LatestVersion)
+	_, ackCh, recvCh, closeCh, err := c.session()
 	if err != nil {
 		return nil, err
 	}
+	timer := time.NewTimer(defaultWKProtoTimeout)
+	defer timer.Stop()
 
-	switch pkt := f.(type) {
-	case *frame.ConnackPacket:
-		if err := c.crypto.ApplyConnack(pkt); err != nil {
-			return nil, err
+	select {
+	case result := <-ackCh:
+		if result.err != nil {
+			return nil, result.err
 		}
-	case *frame.RecvPacket:
-		if err := c.crypto.DecryptRecvPacket(pkt); err != nil {
-			return nil, err
+		if result.ack == nil {
+			return nil, fmt.Errorf("wkproto client: sendack result is empty")
 		}
+		return result.ack, nil
+	case result := <-recvCh:
+		if result.err != nil {
+			return nil, result.err
+		}
+		if result.recv == nil {
+			return nil, fmt.Errorf("wkproto client: recv result is empty")
+		}
+		return result.recv, nil
+	case <-closeCh:
+		return nil, fmt.Errorf("wkproto client: not connected")
+	case <-timer.C:
+		return nil, context.DeadlineExceeded
 	}
-	return f, nil
 }
 
 // ReadSendAck reads one send-ack packet.
 func (c *WKProtoClient) ReadSendAck() (*frame.SendackPacket, error) {
-	f, err := c.ReadFrame()
+	_, ackCh, _, closeCh, err := c.session()
 	if err != nil {
 		return nil, err
 	}
-	ack, ok := f.(*frame.SendackPacket)
-	if !ok {
-		return nil, fmt.Errorf("wkproto client: expected *frame.SendackPacket, got %T", f)
+	timer := time.NewTimer(defaultWKProtoTimeout)
+	defer timer.Stop()
+
+	select {
+	case result := <-ackCh:
+		if result.err != nil {
+			return nil, result.err
+		}
+		if result.ack == nil {
+			return nil, fmt.Errorf("wkproto client: sendack result is empty")
+		}
+		return result.ack, nil
+	case <-closeCh:
+		return nil, fmt.Errorf("wkproto client: not connected")
+	case <-timer.C:
+		return nil, context.DeadlineExceeded
 	}
-	return ack, nil
 }
 
 // ReadRecv reads one recv packet.
 func (c *WKProtoClient) ReadRecv() (*frame.RecvPacket, error) {
-	f, err := c.ReadFrame()
+	_, _, recvCh, closeCh, err := c.session()
 	if err != nil {
 		return nil, err
 	}
-	recv, ok := f.(*frame.RecvPacket)
-	if !ok {
-		return nil, fmt.Errorf("wkproto client: expected *frame.RecvPacket, got %T", f)
+	timer := time.NewTimer(defaultWKProtoTimeout)
+	defer timer.Stop()
+
+	select {
+	case result := <-recvCh:
+		if result.err != nil {
+			return nil, result.err
+		}
+		if result.recv == nil {
+			return nil, fmt.Errorf("wkproto client: recv result is empty")
+		}
+		return result.recv, nil
+	case <-closeCh:
+		return nil, fmt.Errorf("wkproto client: not connected")
+	case <-timer.C:
+		return nil, context.DeadlineExceeded
 	}
-	return recv, nil
 }
 
 // RecvAck sends one recv-ack packet for an already received message.
@@ -170,10 +206,104 @@ func (c *WKProtoClient) RecvAck(messageID int64, messageSeq uint64) error {
 
 // Close closes the underlying TCP connection.
 func (c *WKProtoClient) Close() error {
-	if c == nil || c.conn == nil {
+	if c == nil {
 		return nil
 	}
-	err := c.conn.Close()
-	c.conn = nil
+	c.mu.Lock()
+	inner := c.inner
+	closeCh := c.closeCh
+	c.inner = nil
+	c.ackCh = nil
+	c.recvCh = nil
+	c.closeCh = nil
+	if closeCh != nil {
+		close(closeCh)
+	}
+	c.mu.Unlock()
+	if inner == nil {
+		return nil
+	}
+	err := inner.Close()
+	if errors.Is(err, wkclient.ErrClosed) {
+		return nil
+	}
 	return err
+}
+
+func (c *WKProtoClient) session() (*wkclient.Client, chan sendAckResult, chan recvResult, <-chan struct{}, error) {
+	if c == nil {
+		return nil, nil, nil, nil, fmt.Errorf("wkproto client: nil client")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.inner == nil {
+		return nil, nil, nil, nil, fmt.Errorf("wkproto client: not connected")
+	}
+	return c.inner, c.ackCh, c.recvCh, c.closeCh, nil
+}
+
+func (c *WKProtoClient) forwardRecv(inner *wkclient.Client, recvCh chan<- recvResult, closeCh <-chan struct{}) {
+	for {
+		recv, err := inner.Recv(context.Background())
+		result := recvResult{recv: recv, err: err}
+		select {
+		case recvCh <- result:
+		case <-closeCh:
+			return
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func publishSendAck(future *wkclient.SendFuture, ackCh chan<- sendAckResult, closeCh <-chan struct{}) {
+	result, err := future.Wait(context.Background())
+	ack := sendResultToPacket(result)
+	if ack != nil {
+		err = nil
+	}
+	select {
+	case ackCh <- sendAckResult{ack: ack, err: err}:
+	case <-closeCh:
+	}
+}
+
+func messageFromSendPacket(pkt *frame.SendPacket) wkclient.Message {
+	if pkt == nil {
+		return wkclient.Message{}
+	}
+	return wkclient.Message{
+		Setting:     pkt.Setting,
+		Expire:      pkt.Expire,
+		ClientSeq:   pkt.ClientSeq,
+		ClientMsgNo: pkt.ClientMsgNo,
+		ChannelID:   pkt.ChannelID,
+		ChannelType: pkt.ChannelType,
+		Topic:       pkt.Topic,
+		Payload:     append([]byte(nil), pkt.Payload...),
+	}
+}
+
+func sendResultToPacket(result wkclient.SendResult) *frame.SendackPacket {
+	if result.ClientSeq == 0 && result.ClientMsgNo == "" && result.MessageID == 0 && result.MessageSeq == 0 && result.ReasonCode == 0 {
+		return nil
+	}
+	return &frame.SendackPacket{
+		ClientSeq:   result.ClientSeq,
+		ClientMsgNo: result.ClientMsgNo,
+		MessageID:   result.MessageID,
+		MessageSeq:  result.MessageSeq,
+		ReasonCode:  result.ReasonCode,
+	}
+}
+
+type sendAckResult struct {
+	ack *frame.SendackPacket
+	err error
+}
+
+type recvResult struct {
+	recv *frame.RecvPacket
+	err  error
 }
