@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"net"
 
@@ -32,7 +31,7 @@ func (c *Client) readerLoop(conn net.Conn, pending *pendingTracker, session *wkp
 					break
 				}
 				detachPayload(f)
-				if err := c.routeInboundFrameWithPending(f, pending, session); err != nil {
+				if err := c.routeInboundFrameWithPending(f, pending, session, conn); err != nil {
 					c.failRead(conn, pending, err)
 					return
 				}
@@ -61,11 +60,12 @@ func (c *Client) routeInboundFrame(f frame.Frame) error {
 	c.mu.Lock()
 	pending := c.pending
 	session := c.crypto.currentSession()
+	conn := c.conn
 	c.mu.Unlock()
-	return c.routeInboundFrameWithPending(f, pending, session)
+	return c.routeInboundFrameWithPending(f, pending, session, conn)
 }
 
-func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker, session *wkprotoenc.SessionCrypto) error {
+func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker, session *wkprotoenc.SessionCrypto, conn net.Conn) error {
 	switch pkt := f.(type) {
 	case *frame.SendackPacket:
 		if pending != nil {
@@ -78,7 +78,7 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 		}
 		c.enqueueRecv(pkt)
 		if c.cfg.AutoRecvAck {
-			_ = c.RecvAck(context.Background(), pkt.MessageID, pkt.MessageSeq)
+			_ = c.writeControlToConn(nil, &frame.RecvackPacket{MessageID: pkt.MessageID, MessageSeq: pkt.MessageSeq}, conn, false)
 		}
 		return nil
 	case *frame.PongPacket:
@@ -141,6 +141,7 @@ func (c *Client) failRead(conn net.Conn, pending *pendingTracker, err error) {
 		if c.pending == pending {
 			c.pending = newPendingTracker()
 		}
+		c.signalRecvUnavailableLocked(err)
 		closePending = true
 	}
 	c.mu.Unlock()

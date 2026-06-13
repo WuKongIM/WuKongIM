@@ -951,6 +951,113 @@ func TestClientPingWritesControlFrame(t *testing.T) {
 	}
 }
 
+func TestAutoRecvAckDoesNotBlockWhenWriteQueueFull(t *testing.T) {
+	c, clientConn, serverConn := newClientWithManualConnectionOrFatal(t, Config{
+		AutoRecvAck:       true,
+		SendQueueCapacity: 1,
+	})
+
+	c.mu.Lock()
+	c.conn = clientConn
+	c.mu.Unlock()
+	c.writeCh <- writeRequest{kind: writeKindFrame}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- c.routeInboundFrame(&frame.RecvPacket{
+			Setting:    frame.SettingNoEncrypt,
+			MessageID:  71,
+			MessageSeq: 7,
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("routeInboundFrame(RECV) error = %v", err)
+		}
+	case <-time.After(time.Second):
+		_ = serverConn.Close()
+		t.Fatal("AutoRecvAck blocked RECV routing when write queue was full")
+	}
+}
+
+func TestAutoRecvAckUsesReaderConnectionSnapshot(t *testing.T) {
+	c, err := New(Config{
+		Addr:        "pipe",
+		AutoRecvAck: true,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	oldClientConn, oldServerConn := net.Pipe()
+	newClientConn, newServerConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = oldServerConn.Close()
+		_ = newServerConn.Close()
+	})
+
+	c.mu.Lock()
+	c.conn = oldClientConn
+	c.startLoops(oldClientConn, c.pending, nil)
+	c.conn = newClientConn
+	c.mu.Unlock()
+
+	if err := writeTestFrame(oldServerConn, &frame.RecvPacket{
+		Setting:    frame.SettingNoEncrypt,
+		MessageID:  81,
+		MessageSeq: 8,
+	}); err != nil {
+		t.Fatalf("old server Write(RECV) error = %v", err)
+	}
+	ackFrame, err := readTestFrame(oldServerConn)
+	if err != nil {
+		t.Fatalf("old connection did not receive RECVACK: %v", err)
+	}
+	ack, ok := ackFrame.(*frame.RecvackPacket)
+	if !ok {
+		t.Fatalf("old connection frame = %T, want RECVACK", ackFrame)
+	}
+	if ack.MessageID != 81 || ack.MessageSeq != 8 {
+		t.Fatalf("recvack = (%d,%d), want (81,8)", ack.MessageID, ack.MessageSeq)
+	}
+
+	if err := newServerConn.SetReadDeadline(time.Now().Add(30 * time.Millisecond)); err != nil {
+		t.Fatalf("new server SetReadDeadline() error = %v", err)
+	}
+	if f, err := codec.New().DecodePacketWithConn(newServerConn, frame.LatestVersion); err == nil {
+		t.Fatalf("new connection received unexpected frame %T", f)
+	}
+}
+
+func TestClientRecvReturnsOnConnectionReadFailure(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := c.Recv(context.Background())
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("Recv() returned before connection failure: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	_ = serverConn.Close()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("Recv() error = nil, want connection failure")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Recv() did not return after connection read failure")
+	}
+}
+
 func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
 	c, err := New(Config{
 		Addr:                   "pipe",
@@ -1239,6 +1346,25 @@ func newConnectedPipeClientOrFatal(t *testing.T, cfg Config) (*Client, net.Conn)
 		_ = serverConn.Close()
 	})
 	return c, serverConn
+}
+
+func newClientWithManualConnectionOrFatal(t *testing.T, cfg Config) (*Client, net.Conn, net.Conn) {
+	t.Helper()
+
+	cfg.Addr = "pipe"
+	clientConn, serverConn := net.Pipe()
+	c, err := New(cfg)
+	if err != nil {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+	})
+	return c, clientConn, serverConn
 }
 
 func encodeClientTestFrameOrFatal(t *testing.T, f frame.Frame) []byte {

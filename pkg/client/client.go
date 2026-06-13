@@ -40,7 +40,11 @@ type Client struct {
 	// recvMu protects bounded overwrite semantics for recvCh.
 	recvMu sync.Mutex
 	// recvCh buffers inbound RECV frames for future public receive APIs.
-	recvCh     chan *frame.RecvPacket
+	recvCh chan *frame.RecvPacket
+	// recvNotify closes when the current receive session becomes unavailable.
+	recvNotify chan struct{}
+	// recvErr records why Recv waiters should stop waiting for the current session.
+	recvErr    error
 	readerDone chan struct{}
 	writerDone chan struct{}
 }
@@ -55,7 +59,7 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
+	c := &Client{
 		cfg:      cfg,
 		proto:    codec.New(),
 		crypto:   crypto,
@@ -64,7 +68,10 @@ func New(cfg Config) (*Client, error) {
 		inflight: make(chan struct{}, cfg.MaxInflight),
 		pending:  newPendingTracker(),
 		recvCh:   make(chan *frame.RecvPacket, cfg.InboundFrameBufferSize),
-	}, nil
+	}
+	c.recvNotify = closedNotify()
+	c.recvErr = ErrNotConnected
+	return c, nil
 }
 
 // Connect opens a TCP session and completes the WKProto CONNECT handshake.
@@ -147,6 +154,10 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	c.conn = conn
 	c.session = c.crypto.currentSession()
 	c.pending = newPendingTracker()
+	if c.recvErr != nil {
+		c.recvNotify = make(chan struct{})
+		c.recvErr = nil
+	}
 	c.startLoops(conn, c.pending, c.session)
 	c.mu.Unlock()
 
@@ -173,6 +184,7 @@ func (c *Client) Close() error {
 	c.conn = nil
 	c.session = nil
 	pending := c.pending
+	c.signalRecvUnavailableLocked(ErrClosed)
 	c.mu.Unlock()
 
 	c.closeOnce.Do(func() {
@@ -289,16 +301,45 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	select {
-	case pkt := <-c.recvCh:
-		if pkt == nil {
+
+	for {
+		select {
+		case pkt := <-c.recvCh:
+			if pkt == nil {
+				return nil, ErrClosed
+			}
+			return pkt, nil
+		default:
+		}
+
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
 			return nil, ErrClosed
 		}
-		return pkt, nil
-	case <-c.closeCh:
-		return nil, ErrClosed
-	case <-ctx.Done():
-		return nil, ctx.Err()
+		if c.conn == nil {
+			err := c.recvErr
+			if err == nil {
+				err = ErrNotConnected
+			}
+			c.mu.Unlock()
+			return nil, err
+		}
+		recvNotify := c.recvNotify
+		c.mu.Unlock()
+
+		select {
+		case pkt := <-c.recvCh:
+			if pkt == nil {
+				return nil, ErrClosed
+			}
+			return pkt, nil
+		case <-recvNotify:
+		case <-c.closeCh:
+			return nil, ErrClosed
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }
 
@@ -348,7 +389,24 @@ func (c *Client) writeControl(ctx context.Context, f frame.Frame) error {
 	}
 	c.mu.Unlock()
 
-	result := make(chan error, 1)
+	return c.writeControlToConn(ctx, f, conn, true)
+}
+
+func (c *Client) writeControlToConn(ctx context.Context, f frame.Frame, conn net.Conn, wait bool) error {
+	if conn == nil {
+		return ErrNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	var result chan error
+	if wait {
+		result = make(chan error, 1)
+	}
 	req := writeRequest{
 		kind:   writeKindFrame,
 		frame:  f,
@@ -356,6 +414,19 @@ func (c *Client) writeControl(ctx context.Context, f frame.Frame) error {
 		ctx:    ctx,
 		conn:   conn,
 	}
+	if !wait {
+		select {
+		case c.writeCh <- req:
+			return nil
+		case <-c.closeCh:
+			return ErrClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return ErrSendQueueFull
+		}
+	}
+
 	select {
 	case c.writeCh <- req:
 	case <-c.closeCh:
@@ -371,6 +442,23 @@ func (c *Client) writeControl(ctx context.Context, f frame.Frame) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func closedNotify() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
+func (c *Client) signalRecvUnavailableLocked(err error) {
+	if err == nil {
+		err = net.ErrClosed
+	}
+	if c.recvErr != nil {
+		return
+	}
+	c.recvErr = err
+	close(c.recvNotify)
 }
 
 type preparedSend struct {
