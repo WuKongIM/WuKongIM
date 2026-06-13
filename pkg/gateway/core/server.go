@@ -1410,6 +1410,12 @@ type asyncAuthTask struct {
 	queue      *asyncAuthQueue
 }
 
+type asyncAuthStats interface {
+	depth() int
+	totalCapacity() int
+	workerCount() int
+}
+
 type asyncAuthQueue struct {
 	mu       sync.RWMutex
 	tasks    chan asyncAuthTask
@@ -1517,6 +1523,13 @@ func (q *asyncAuthQueue) totalCapacity() int {
 		return 0
 	}
 	return q.capacity
+}
+
+func (q *asyncAuthQueue) workerCount() int {
+	if q == nil {
+		return 0
+	}
+	return q.workers
 }
 
 func (q *asyncAuthQueue) close() {
@@ -2007,7 +2020,7 @@ func (s *Server) observeAsyncSendQueue(queue *asyncDispatchQueue) {
 	})
 }
 
-func (s *Server) observeAsyncAuthQueue(queue *asyncAuthQueue) {
+func (s *Server) observeAsyncAuthQueue(queue asyncAuthStats) {
 	observer := s.asyncAuthObserver()
 	if observer == nil || queue == nil {
 		return
@@ -2015,11 +2028,11 @@ func (s *Server) observeAsyncAuthQueue(queue *asyncAuthQueue) {
 	observer.OnAsyncAuthQueue(gatewaytypes.AsyncAuthQueueEvent{
 		Depth:    queue.depth(),
 		Capacity: queue.totalCapacity(),
-		Workers:  queue.workers,
+		Workers:  queue.workerCount(),
 	})
 }
 
-func (s *Server) observeAsyncAuthAdmission(_ *asyncAuthQueue, accepted bool) {
+func (s *Server) observeAsyncAuthAdmission(_ asyncAuthStats, accepted bool) {
 	observer := s.asyncAuthObserver()
 	if observer == nil {
 		return

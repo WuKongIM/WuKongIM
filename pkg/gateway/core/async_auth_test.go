@@ -20,6 +20,124 @@ func (asyncAuthNoopHandler) OnFrame(gatewaytypes.Context, frame.Frame) error { r
 func (asyncAuthNoopHandler) OnSessionClose(gatewaytypes.Context) error       { return nil }
 func (asyncAuthNoopHandler) OnSessionError(gatewaytypes.Context, error)      {}
 
+func TestAuthExecutorSubmitRejectsWhenFull(t *testing.T) {
+	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{}
+	if !executor.submit(asyncAuthTask{
+		state:   state,
+		connect: &frame.ConnectPacket{UID: "u1"},
+	}) {
+		t.Fatal("first auth submit rejected")
+	}
+	if executor.submit(asyncAuthTask{
+		state:   state,
+		connect: &frame.ConnectPacket{UID: "u2"},
+	}) {
+		t.Fatal("second auth submit accepted when executor queue is full")
+	}
+	if got := executor.depth(); got != 1 {
+		t.Fatalf("executor depth = %d, want 1", got)
+	}
+	if got := executor.totalCapacity(); got != 1 {
+		t.Fatalf("executor capacity = %d, want 1", got)
+	}
+}
+
+func TestAuthExecutorRunsQueuedTaskOnAnts(t *testing.T) {
+	authCalled := make(chan struct{}, 1)
+	handler := asyncAuthNoopHandler{}
+	srv := &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				authCalled <- struct{}{}
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	executor, err := newAuthExecutor(srv, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+
+	state := &sessionState{
+		server:   srv,
+		listener: &listenerRuntime{adapter: asyncAuthEncodeOnlyProtocol{}},
+		session:  session.New(session.Config{ID: 1}),
+		closedCh: make(chan struct{}),
+	}
+	conn := &asyncAuthRecordingConn{}
+	state.conn = conn
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.setAuthPending(true)
+
+	if !executor.submit(asyncAuthTask{
+		state:   state,
+		connect: &frame.ConnectPacket{UID: "u1", DeviceID: "d-1", DeviceFlag: frame.APP},
+	}) {
+		t.Fatal("auth submit rejected")
+	}
+
+	select {
+	case <-authCalled:
+	case panicValue := <-executor.panicC:
+		t.Fatalf("auth executor worker panicked: %v", panicValue)
+	case <-time.After(time.Second):
+		t.Fatal("authenticator was not called")
+	}
+
+	eventually(t, time.Second, func() bool {
+		return executor.depth() == 0
+	}, "auth executor depth returned to zero")
+	eventually(t, time.Second, func() bool {
+		return conn.writes.Load() > 0 && state.openWasDispatched()
+	}, "auth task completed success path")
+	select {
+	case panicValue := <-executor.panicC:
+		t.Fatalf("auth executor worker panicked: %v", panicValue)
+	default:
+	}
+	if state.session.Value(gatewaytypes.SessionValueDeviceID) != "d-1" {
+		t.Fatalf("session device id = %v, want d-1", state.session.Value(gatewaytypes.SessionValueDeviceID))
+	}
+}
+
+func TestAuthExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
+	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+
+	executor.stop()
+	executor.stop()
+
+	if executor.submit(asyncAuthTask{
+		state:   &sessionState{},
+		connect: &frame.ConnectPacket{UID: "u1"},
+	}) {
+		t.Fatal("auth submit accepted after stop")
+	}
+}
+
 func TestAsyncAuthQueueSubmitRejectsWhenFull(t *testing.T) {
 	queue := newAsyncAuthQueueWithCapacity(1)
 	state := &sessionState{}
@@ -316,6 +434,36 @@ func (c asyncAuthCloseOnWriteConn) Write([]byte) error {
 func (c asyncAuthCloseOnWriteConn) Close() error       { return nil }
 func (c asyncAuthCloseOnWriteConn) LocalAddr() string  { return "local" }
 func (c asyncAuthCloseOnWriteConn) RemoteAddr() string { return "remote" }
+
+type asyncAuthRecordingConn struct {
+	writes atomic.Uint64
+}
+
+func (c *asyncAuthRecordingConn) ID() uint64 { return 1 }
+
+func (c *asyncAuthRecordingConn) Write([]byte) error {
+	c.writes.Add(1)
+	return nil
+}
+
+func (c *asyncAuthRecordingConn) Close() error       { return nil }
+func (c *asyncAuthRecordingConn) LocalAddr() string  { return "local" }
+func (c *asyncAuthRecordingConn) RemoteAddr() string { return "remote" }
+
+func eventually(t *testing.T, timeout time.Duration, condition func() bool, msg string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !condition() {
+		t.Fatal(msg)
+	}
+}
 
 type asyncAuthActivatingHandler struct {
 	rollbackCalled atomic.Bool
