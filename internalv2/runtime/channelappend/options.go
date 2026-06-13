@@ -19,6 +19,8 @@ const (
 	// so this value affects submit concurrency and batching efficiency, never
 	// durable ordering or MessageSeq assignment.
 	defaultAppendInflightBatchesPerChannel       = 10
+	defaultInboxCoalesceWindow                   = 250 * time.Microsecond
+	defaultInboxCoalesceMaxItems                 = 16
 	defaultWriterIdleRetention                   = 10 * time.Minute
 	defaultEffectPoolSize                        = 2
 	defaultSubscriberScanPageSize                = 256
@@ -350,6 +352,10 @@ type Options struct {
 	ChannelBacklogHighWatermark int
 	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
 	AppendInflightBatchesPerChannel int
+	// InboxCoalesceWindow is the bounded delay a scheduled writer may wait to merge near-simultaneous same-channel submissions. A negative value disables coalescing; zero uses the runtime default.
+	InboxCoalesceWindow time.Duration
+	// InboxCoalesceMaxItems bounds logical send items collected during one coalescing wait. A negative value disables coalescing; zero uses the runtime default.
+	InboxCoalesceMaxItems int
 	// WriterIdleRetention keeps drained channel writers available for reuse before shard cleanup may reclaim them. Values <= 0 use a conservative default.
 	WriterIdleRetention time.Duration
 	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Values <= 0 use a conservative default.
@@ -395,6 +401,17 @@ func applyDefaults(opts Options) Options {
 	}
 	if opts.AppendInflightBatchesPerChannel <= 0 {
 		opts.AppendInflightBatchesPerChannel = defaultAppendInflightBatchesPerChannel
+	}
+	if opts.InboxCoalesceWindow < 0 || opts.InboxCoalesceMaxItems < 0 {
+		opts.InboxCoalesceWindow = 0
+		opts.InboxCoalesceMaxItems = 0
+	} else {
+		if opts.InboxCoalesceWindow == 0 {
+			opts.InboxCoalesceWindow = defaultInboxCoalesceWindow
+		}
+		if opts.InboxCoalesceMaxItems == 0 {
+			opts.InboxCoalesceMaxItems = defaultInboxCoalesceMaxItems
+		}
 	}
 	if opts.WriterIdleRetention <= 0 {
 		opts.WriterIdleRetention = defaultWriterIdleRetention

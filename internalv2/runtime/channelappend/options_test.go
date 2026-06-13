@@ -1,11 +1,44 @@
 package channelappend
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestDefaultAppendInflightBatchesPerChannelIsTen(t *testing.T) {
 	opts := applyDefaults(Options{})
 
 	if opts.AppendInflightBatchesPerChannel != 10 {
 		t.Fatalf("AppendInflightBatchesPerChannel = %d, want 10", opts.AppendInflightBatchesPerChannel)
+	}
+}
+
+func TestDefaultInboxCoalesceOptionsAreConservative(t *testing.T) {
+	opts := applyDefaults(Options{})
+
+	if opts.InboxCoalesceWindow != 250*time.Microsecond {
+		t.Fatalf("InboxCoalesceWindow = %s, want 250µs", opts.InboxCoalesceWindow)
+	}
+	if opts.InboxCoalesceMaxItems != 16 {
+		t.Fatalf("InboxCoalesceMaxItems = %d, want 16", opts.InboxCoalesceMaxItems)
+	}
+}
+
+func TestNegativeInboxCoalesceOptionsDisableCoalescing(t *testing.T) {
+	opts := applyDefaults(Options{InboxCoalesceWindow: -time.Nanosecond})
+
+	if opts.InboxCoalesceWindow != 0 {
+		t.Fatalf("InboxCoalesceWindow = %s, want disabled zero", opts.InboxCoalesceWindow)
+	}
+	if opts.InboxCoalesceMaxItems != 0 {
+		t.Fatalf("InboxCoalesceMaxItems = %d, want disabled zero", opts.InboxCoalesceMaxItems)
+	}
+
+	opts = applyDefaults(Options{InboxCoalesceMaxItems: -1})
+	if opts.InboxCoalesceWindow != 0 {
+		t.Fatalf("InboxCoalesceWindow with negative max = %s, want disabled zero", opts.InboxCoalesceWindow)
+	}
+	if opts.InboxCoalesceMaxItems != 0 {
+		t.Fatalf("InboxCoalesceMaxItems with negative max = %d, want disabled zero", opts.InboxCoalesceMaxItems)
 	}
 }
