@@ -18,9 +18,19 @@ import (
 func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch.Store(queue)
-	queue.shards[0].tasks <- asyncDispatchTask{}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+	srv.async.Store(&asyncRuntime{send: executor})
+	if !executor.submit(&sessionState{}, "", &frame.SendPacket{}) {
+		t.Fatal("prefill send executor failed")
+	}
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),
@@ -38,7 +48,6 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(20 * time.Millisecond):
-		<-queue.shards[0].tasks
 		<-done
 		t.Fatal("dispatchSendFrameAsync blocked when async queue was full")
 	}
@@ -61,9 +70,19 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 
 func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T) {
 	srv := &Server{dispatcher: newDispatcher(&countingAsyncFrameHandler{})}
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch.Store(queue)
-	queue.shards[0].tasks <- asyncDispatchTask{}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+	srv.async.Store(&asyncRuntime{send: executor})
+	if !executor.submit(&sessionState{}, "", &frame.SendPacket{}) {
+		t.Fatal("prefill send executor failed")
+	}
 
 	payload := make([]byte, 64*1024)
 	packet := &frame.SendPacket{Payload: payload}
@@ -1392,9 +1411,19 @@ func (h *countingAsyncFrameHandler) closeReasons() []gatewaytypes.CloseReason {
 func BenchmarkServerAsyncSendDispatchQueueFullReject(b *testing.B) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
-	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch.Store(queue)
-	queue.shards[0].tasks <- asyncDispatchTask{}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		b.Fatalf("new send executor: %v", err)
+	}
+	defer executor.stop()
+	srv.async.Store(&asyncRuntime{send: executor})
+	if !executor.submit(&sessionState{}, "", &frame.SendPacket{}) {
+		b.Fatal("prefill send executor failed")
+	}
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),

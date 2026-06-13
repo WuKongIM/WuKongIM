@@ -85,11 +85,9 @@ type Server struct {
 	idleTracker *idleTracker
 	// idleMonitorStop stops the shared idle monitor when idle timeouts are enabled.
 	idleMonitorStop chan struct{}
-	// asyncDispatch bounds SEND frame concurrency off the transport event loop.
-	asyncDispatch atomic.Pointer[asyncDispatchQueue]
-	// asyncAuth bounds CONNECT authentication and activation off the transport event loop.
-	asyncAuth atomic.Pointer[asyncAuthQueue]
-	workerWG  sync.WaitGroup
+	// async owns gateway auth and SEND executors backed by the shared async runtime.
+	async    atomic.Pointer[asyncRuntime]
+	workerWG sync.WaitGroup
 }
 
 type listenerRuntime struct {
@@ -246,13 +244,22 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	s.startAsyncAuthenticator()
-	s.startAsyncDispatcher()
+	async, err := newAsyncRuntime(s)
+	if err != nil {
+		s.rollbackRuntimeListeners(runtimes)
+		s.mu.Lock()
+		s.started = false
+		s.mu.Unlock()
+		return err
+	}
+	s.async.Store(async)
 	for _, runtime := range runtimes {
 		if err := runtime.listener.Start(); err != nil {
 			s.dispatcher.listenerError(runtime.options.Name, err)
 			s.rollbackRuntimeListeners(runtimes)
-			s.stopAsyncWorkers()
+			if stopped := s.async.Swap(nil); stopped != nil {
+				stopped.stop()
+			}
 			s.mu.Lock()
 			s.started = false
 			s.mu.Unlock()
@@ -348,8 +355,7 @@ func (s *Server) Stop() error {
 	}
 	idleMonitorStop := s.idleMonitorStop
 	s.idleMonitorStop = nil
-	asyncAuth := s.asyncAuth.Swap(nil)
-	asyncDispatch := s.asyncDispatch.Swap(nil)
+	async := s.async.Swap(nil)
 	s.mu.Unlock()
 
 	if idleMonitorStop != nil {
@@ -366,34 +372,19 @@ func (s *Server) Stop() error {
 	for _, state := range states {
 		state.close(gatewaytypes.CloseReasonServerStop, nil)
 	}
-	s.closeAsyncWorkers(asyncAuth, asyncDispatch)
+	if async != nil {
+		async.stop()
+	}
+	s.workerWG.Wait()
 
 	return firstErr
 }
 
-func (s *Server) stopAsyncWorkers() {
+func (s *Server) asyncRuntime() *asyncRuntime {
 	if s == nil {
-		return
+		return nil
 	}
-
-	asyncAuth := s.asyncAuth.Swap(nil)
-	asyncDispatch := s.asyncDispatch.Swap(nil)
-	s.closeAsyncWorkers(asyncAuth, asyncDispatch)
-}
-
-func (s *Server) closeAsyncWorkers(asyncAuth *asyncAuthQueue, asyncDispatch *asyncDispatchQueue) {
-	if s == nil {
-		return
-	}
-
-	if asyncAuth != nil {
-		asyncAuth.close()
-	}
-	if asyncDispatch != nil {
-		asyncDispatch.close()
-	}
-
-	s.workerWG.Wait()
+	return s.async.Load()
 }
 
 type connHandler struct {
@@ -642,8 +633,12 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 		return
 	}
 
-	queue := s.asyncDispatcher()
-	accepted := queue != nil && queue.submitSend(state, replyToken, send)
+	runtime := s.asyncRuntime()
+	var queue asyncSendStats
+	if runtime != nil {
+		queue = runtime.send
+	}
+	accepted := runtime != nil && runtime.submitSend(state, replyToken, send)
 	s.observeAsyncSendAdmission(queue, accepted)
 	if accepted {
 		s.observeAsyncSendQueue(queue)
@@ -691,8 +686,12 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 		return true, nil
 	}
 
-	queue := s.asyncAuthenticator()
-	accepted := queue != nil && queue.submit(asyncAuthTask{state: state, replyToken: replyToken, connect: connect})
+	runtime := s.asyncRuntime()
+	var queue asyncAuthStats
+	if runtime != nil {
+		queue = runtime.auth
+	}
+	accepted := runtime != nil && runtime.submitAuth(asyncAuthTask{state: state, replyToken: replyToken, connect: connect})
 	s.observeAsyncAuthAdmission(queue, accepted)
 	s.observeAsyncAuthQueue(queue)
 	if accepted {
@@ -1054,30 +1053,6 @@ func (s *Server) closeIdleSessions(now time.Time) {
 	}
 }
 
-// startAsyncAuthenticator starts a bounded worker pool for CONNECT authentication.
-func (s *Server) startAsyncAuthenticator() {
-	if s == nil || s.options.Authenticator == nil {
-		return
-	}
-
-	workers := asyncAuthWorkerCount()
-	queue := newAsyncAuthQueue(workers)
-
-	s.mu.Lock()
-	if s.stopped || s.asyncAuth.Load() != nil {
-		s.mu.Unlock()
-		return
-	}
-	s.asyncAuth.Store(queue)
-	s.workerWG.Add(workers)
-	s.mu.Unlock()
-
-	for i := 0; i < workers; i++ {
-		go s.runAsyncAuthWorker(queue)
-	}
-	s.observeAsyncAuthQueue(queue)
-}
-
 func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
 	defer s.workerWG.Done()
 	if queue == nil {
@@ -1089,37 +1064,6 @@ func (s *Server) runAsyncAuthWorker(queue *asyncAuthQueue) {
 		s.observeAsyncAuthWait(task)
 		s.runAuthTask(task)
 	}
-}
-
-func (s *Server) asyncAuthenticator() *asyncAuthQueue {
-	if s == nil {
-		return nil
-	}
-	return s.asyncAuth.Load()
-}
-
-// startAsyncDispatcher starts a bounded worker pool for SEND dispatch.
-func (s *Server) startAsyncDispatcher() {
-	if s == nil {
-		return
-	}
-
-	workers := asyncDispatchWorkerCount(s.options.Runtime)
-	queue := newAsyncDispatchQueue(workers)
-
-	s.mu.Lock()
-	if s.stopped || s.asyncDispatch.Load() != nil {
-		s.mu.Unlock()
-		return
-	}
-	s.asyncDispatch.Store(queue)
-	s.workerWG.Add(len(queue.shards))
-	s.mu.Unlock()
-
-	for i := range queue.shards {
-		go s.runAsyncDispatchWorker(queue.shards[i].tasks)
-	}
-	s.observeAsyncSendQueue(queue)
 }
 
 func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
@@ -1235,13 +1179,6 @@ func adaptiveAsyncDispatchWorkerCount(gomaxprocs int) int {
 		return maxAsyncDispatchWorkers
 	}
 	return workers
-}
-
-func (s *Server) asyncDispatcher() *asyncDispatchQueue {
-	if s == nil {
-		return nil
-	}
-	return s.asyncDispatch.Load()
 }
 
 type asyncDispatchTask struct {

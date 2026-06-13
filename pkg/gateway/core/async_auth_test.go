@@ -343,10 +343,19 @@ func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
 		},
 		dispatcher: newDispatcher(handler),
 	}
-	queue := newAsyncAuthQueueWithCapacity(1)
-	srv.asyncAuth.Store(queue)
-	queue.tasks <- asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}
-	queue.queued.Add(1)
+	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+	srv.async.Store(&asyncRuntime{auth: executor})
+	if !executor.submit(asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}) {
+		t.Fatal("prefill auth executor failed")
+	}
 
 	state := &sessionState{
 		server:   srv,
@@ -366,7 +375,6 @@ func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
 	if got := state.closeReason(); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
 		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
 	}
-	queue.close()
 }
 
 func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testing.T) {
@@ -380,10 +388,19 @@ func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testin
 		},
 		dispatcher: newDispatcher(handler),
 	}
-	queue := newAsyncAuthQueueWithCapacity(1)
-	srv.asyncAuth.Store(queue)
-	queue.tasks <- asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}
-	queue.queued.Add(1)
+	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	defer executor.stop()
+	srv.async.Store(&asyncRuntime{auth: executor})
+	if !executor.submit(asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}) {
+		t.Fatal("prefill auth executor failed")
+	}
 
 	state := &sessionState{
 		server:   srv,
@@ -399,7 +416,6 @@ func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testin
 	if got := state.closeReason(); got != gatewaytypes.CloseReasonAsyncAuthQueueFull {
 		t.Fatalf("close reason = %q, want %q", got, gatewaytypes.CloseReasonAsyncAuthQueueFull)
 	}
-	queue.close()
 }
 
 func TestServerAsyncAuthRollsBackWhenConnackWriteSucceedsButSessionClosesBeforeOpen(t *testing.T) {
@@ -464,7 +480,6 @@ func TestAsyncAuthReportsQueueAndAdmission(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
 	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
 	queue := newAsyncAuthQueueWithCapacity(1)
-	srv.asyncAuth.Store(queue)
 	state := &sessionState{}
 
 	if !queue.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {

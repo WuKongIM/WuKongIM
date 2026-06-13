@@ -1511,6 +1511,29 @@ func TestServer(t *testing.T) {
 	})
 }
 
+func TestServerStartCreatesAsyncRuntimeFromRuntimeOptions(t *testing.T) {
+	handler := newTestHandler()
+	proto := newScriptedProtocol("fake-proto")
+	srv, _ := newTestServerWithRuntime(t, handler, proto, gateway.SessionOptions{}, gateway.RuntimeOptions{
+		AsyncSendWorkers:        2,
+		AsyncSendQueueCapacity:  8,
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  4,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	require.True(t, srv.TestAsyncRuntimeActive())
+	require.Equal(t, 2, srv.TestAsyncRuntimeSendWorkers())
+	require.Equal(t, 8, srv.TestAsyncRuntimeSendCapacity())
+	require.Equal(t, 1, srv.TestAsyncRuntimeAuthWorkers())
+	require.Equal(t, 4, srv.TestAsyncRuntimeAuthCapacity())
+}
+
 func TestServerStart(t *testing.T) {
 	t.Run("groups listener construction by transport and assigns listeners in input order", func(t *testing.T) {
 		handler := newTestHandler()
@@ -1644,6 +1667,9 @@ func TestServerStart(t *testing.T) {
 		if !third.Stopped() {
 			t.Fatal("expected built but unstarted third listener to be stopped during rollback")
 		}
+		if srv.TestAsyncRuntimeActive() {
+			t.Fatal("expected async runtime to stop after listener start rollback")
+		}
 	})
 
 	t.Run("stops already built listeners when a later transport build fails", func(t *testing.T) {
@@ -1706,6 +1732,33 @@ func TestServerStart(t *testing.T) {
 			t.Fatal("expected already built listener to be stopped after later build failure")
 		}
 	})
+}
+
+func TestServerStopReleasesAsyncRuntime(t *testing.T) {
+	handler := newTestHandler()
+	proto := newScriptedProtocol("fake-proto")
+	srv, _ := newTestServerWithRuntime(t, handler, proto, gateway.SessionOptions{}, gateway.RuntimeOptions{
+		AsyncSendWorkers:        2,
+		AsyncSendQueueCapacity:  8,
+		AsyncAuthWorkers:        1,
+		AsyncAuthQueueCapacity:  4,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+
+	if err := srv.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	require.True(t, srv.TestAsyncRuntimeActive())
+
+	if err := srv.Stop(); err != nil {
+		t.Fatalf("stop failed: %v", err)
+	}
+	require.False(t, srv.TestAsyncRuntimeActive())
+
+	if err := srv.Stop(); err != nil {
+		t.Fatalf("second stop failed: %v", err)
+	}
+	require.False(t, srv.TestAsyncRuntimeActive())
 }
 
 func TestServerStop(t *testing.T) {
