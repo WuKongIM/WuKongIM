@@ -43,13 +43,13 @@ func New(cfg Config) (*Client, error) {
 }
 
 // Connect opens a TCP session and completes the WKProto CONNECT handshake.
-func (c *Client) Connect(opts ConnectOptions) error {
+func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.ConnackPacket, error) {
 	started := time.Now()
 	if opts.Token == "" {
 		opts.Token = c.cfg.Token
 	}
 
-	ctx, cancel := c.withDefaultTimeout(context.Background())
+	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
 
 	c.mu.Lock()
@@ -57,46 +57,51 @@ func (c *Client) Connect(opts ConnectOptions) error {
 		c.mu.Unlock()
 		err := ErrClosed
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 	c.mu.Unlock()
 
 	conn, err := c.cfg.Dialer.DialContext(ctx, "tcp", c.cfg.Addr)
 	if err != nil {
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
+	}
+	if err = ctx.Err(); err != nil {
+		_ = conn.Close()
+		c.observeConnect(opts, time.Since(started), err)
+		return nil, err
 	}
 
 	packet := c.crypto.connectPacket(opts)
-	if err = c.writeFrameSync(conn, packet); err != nil {
+	if err = c.writeFrameSync(ctx, conn, packet); err != nil {
 		_ = conn.Close()
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 
-	f, err := c.readFrameSync(conn)
+	f, err := c.readFrameSync(ctx, conn)
 	if err != nil {
 		_ = conn.Close()
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 	ack, ok := f.(*frame.ConnackPacket)
 	if !ok {
 		_ = conn.Close()
 		err = fmt.Errorf("client: expected CONNACK, got %s", f.GetFrameType())
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		_ = conn.Close()
 		err = fmt.Errorf("client: connack reason=%s", ack.ReasonCode)
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 	if err = c.crypto.applyConnack(ack); err != nil {
 		_ = conn.Close()
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 
 	c.mu.Lock()
@@ -105,7 +110,7 @@ func (c *Client) Connect(opts ConnectOptions) error {
 		_ = conn.Close()
 		err = ErrClosed
 		c.observeConnect(opts, time.Since(started), err)
-		return err
+		return nil, err
 	}
 	if c.conn != nil {
 		_ = c.conn.Close()
@@ -115,7 +120,7 @@ func (c *Client) Connect(opts ConnectOptions) error {
 	c.mu.Unlock()
 
 	c.observeConnect(opts, time.Since(started), nil)
-	return nil
+	return ack, nil
 }
 
 // Close closes the client connection.
@@ -162,8 +167,11 @@ func (c *Client) currentConn() (net.Conn, error) {
 	return c.conn, nil
 }
 
-func (c *Client) writeFrameSync(conn net.Conn, f frame.Frame) error {
-	if err := conn.SetWriteDeadline(time.Now().Add(c.cfg.OperationTimeout)); err != nil {
+func (c *Client) writeFrameSync(ctx context.Context, conn net.Conn, f frame.Frame) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := conn.SetWriteDeadline(c.operationDeadline(ctx)); err != nil {
 		return err
 	}
 	data, err := c.proto.EncodeFrame(f, frame.LatestVersion)
@@ -183,11 +191,22 @@ func (c *Client) writeFrameSync(conn net.Conn, f frame.Frame) error {
 	return nil
 }
 
-func (c *Client) readFrameSync(conn net.Conn) (frame.Frame, error) {
-	if err := conn.SetReadDeadline(time.Now().Add(c.cfg.OperationTimeout)); err != nil {
+func (c *Client) readFrameSync(ctx context.Context, conn net.Conn) (frame.Frame, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := conn.SetReadDeadline(c.operationDeadline(ctx)); err != nil {
 		return nil, err
 	}
 	return codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+}
+
+func (c *Client) operationDeadline(ctx context.Context) time.Time {
+	deadline := time.Now().Add(c.cfg.OperationTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		return ctxDeadline
+	}
+	return deadline
 }
 
 func (c *Client) observeConnect(opts ConnectOptions, elapsed time.Duration, err error) {

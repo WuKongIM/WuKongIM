@@ -35,6 +35,11 @@ func (s *cryptoState) connectPacket(opts ConnectOptions) *frame.ConnectPacket {
 }
 
 func (s *cryptoState) applyConnack(ack *frame.ConnackPacket) error {
+	if ack.ServerKey == "" || ack.Salt == "" {
+		s.keys = wkprotoenc.SessionKeys{}
+		s.session = nil
+		return nil
+	}
 	keys, err := wkprotoenc.DeriveClientSession(s.private, ack.ServerKey, ack.Salt)
 	if err != nil {
 		return err

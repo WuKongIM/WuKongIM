@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"net"
-	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
@@ -18,9 +17,7 @@ func (d fakeDialer) DialContext(context.Context, string, string) (net.Conn, erro
 	return d.conn, nil
 }
 
-func newPipeClientServer(t *testing.T, cfg Config) (*Client, net.Conn) {
-	t.Helper()
-
+func newPipeClientServer(cfg Config) (*Client, net.Conn, error) {
 	clientConn, serverConn := net.Pipe()
 	cfg.Addr = "pipe"
 	cfg.Dialer = fakeDialer{conn: clientConn}
@@ -28,39 +25,34 @@ func newPipeClientServer(t *testing.T, cfg Config) (*Client, net.Conn) {
 
 	c, err := New(cfg)
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = c.Close()
+		_ = clientConn.Close()
 		_ = serverConn.Close()
-	})
-	return c, serverConn
+		return nil, nil, err
+	}
+	return c, serverConn, nil
 }
 
-func readTestFrame(t *testing.T, conn net.Conn) frame.Frame {
-	t.Helper()
-
+func readTestFrame(conn net.Conn) (frame.Frame, error) {
 	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline() error = %v", err)
+		return nil, err
 	}
 	f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
 	if err != nil {
-		t.Fatalf("DecodePacketWithConn() error = %v", err)
+		return nil, err
 	}
-	return f
+	return f, nil
 }
 
-func writeTestFrame(t *testing.T, conn net.Conn, f frame.Frame) {
-	t.Helper()
-
+func writeTestFrame(conn net.Conn, f frame.Frame) error {
 	if err := conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetWriteDeadline() error = %v", err)
+		return err
 	}
 	data, err := codec.New().EncodeFrame(f, frame.LatestVersion)
 	if err != nil {
-		t.Fatalf("EncodeFrame() error = %v", err)
+		return err
 	}
 	if _, err := conn.Write(data); err != nil {
-		t.Fatalf("Write() error = %v", err)
+		return err
 	}
+	return nil
 }

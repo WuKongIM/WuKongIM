@@ -1,7 +1,10 @@
 package client
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -11,38 +14,34 @@ import (
 )
 
 func TestClientConnectSendsConnectPacketAndStartsLoops(t *testing.T) {
-	c, serverConn := newPipeClientServer(t, Config{Token: "cfg-token"})
+	c, serverConn := newPipeClientServerOrFatal(t, Config{Token: "cfg-token"})
 
-	serverErr := make(chan error, 1)
-	go func() {
-		f := readTestFrame(t, serverConn)
+	serverErr := runTestServer(func() error {
+		f, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
 		connect, ok := f.(*frame.ConnectPacket)
 		if !ok {
-			serverErr <- errors.New("server read non-CONNECT frame")
-			return
+			return errors.New("server read non-CONNECT frame")
 		}
 		if connect.UID != "uid-1" {
-			serverErr <- errors.New("CONNECT UID mismatch")
-			return
+			return errors.New("CONNECT UID mismatch")
 		}
 		if connect.DeviceID != "device-1" {
-			serverErr <- errors.New("CONNECT DeviceID mismatch")
-			return
+			return errors.New("CONNECT DeviceID mismatch")
 		}
 		if connect.Token != "cfg-token" {
-			serverErr <- errors.New("CONNECT Token mismatch")
-			return
+			return errors.New("CONNECT Token mismatch")
 		}
 		if connect.ClientKey == "" {
-			serverErr <- errors.New("CONNECT ClientKey is empty")
-			return
+			return errors.New("CONNECT ClientKey is empty")
 		}
 		keys, serverKey, err := wkprotoenc.NegotiateServerSession(connect.ClientKey)
 		if err != nil {
-			serverErr <- err
-			return
+			return err
 		}
-		writeTestFrame(t, serverConn, &frame.ConnackPacket{
+		if err := writeTestFrame(serverConn, &frame.ConnackPacket{
 			Framer: frame.Framer{
 				FrameType:        frame.CONNACK,
 				HasServerVersion: true,
@@ -51,16 +50,60 @@ func TestClientConnectSendsConnectPacketAndStartsLoops(t *testing.T) {
 			ReasonCode:    frame.ReasonSuccess,
 			ServerKey:     serverKey,
 			Salt:          string(keys.AESIV),
-		})
-		serverErr <- nil
-	}()
+			NodeId:        101,
+		}); err != nil {
+			return err
+		}
+		return nil
+	})
 
-	if err := c.Connect(ConnectOptions{
+	ack, err := c.Connect(context.Background(), ConnectOptions{
 		UID:        "uid-1",
 		DeviceID:   "device-1",
 		DeviceFlag: frame.APP,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("Connect() error = %v", err)
+	}
+	if ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("Connect() ack reason = %s, want %s", ack.ReasonCode, frame.ReasonSuccess)
+	}
+	if ack.NodeId != 101 {
+		t.Fatalf("Connect() ack node id = %d, want 101", ack.NodeId)
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientConnectAcceptsUnencryptedSuccessConnack(t *testing.T) {
+	c, serverConn := newPipeClientServerOrFatal(t, Config{Token: "cfg-token"})
+
+	serverErr := runTestServer(func() error {
+		if _, err := readTestFrame(serverConn); err != nil {
+			return err
+		}
+		return writeTestFrame(serverConn, &frame.ConnackPacket{
+			Framer: frame.Framer{
+				FrameType:        frame.CONNACK,
+				HasServerVersion: true,
+			},
+			ServerVersion: frame.LatestVersion,
+			ReasonCode:    frame.ReasonSuccess,
+			NodeId:        202,
+		})
+	})
+
+	ack, err := c.Connect(context.Background(), ConnectOptions{
+		UID:        "uid-1",
+		DeviceID:   "device-1",
+		DeviceFlag: frame.APP,
+	})
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if ack.NodeId != 202 {
+		t.Fatalf("Connect() ack node id = %d, want 202", ack.NodeId)
 	}
 	if err := <-serverErr; err != nil {
 		t.Fatalf("server error = %v", err)
@@ -68,11 +111,13 @@ func TestClientConnectSendsConnectPacketAndStartsLoops(t *testing.T) {
 }
 
 func TestClientConnectRejectsNonSuccessConnack(t *testing.T) {
-	c, serverConn := newPipeClientServer(t, Config{Token: "cfg-token"})
+	c, serverConn := newPipeClientServerOrFatal(t, Config{Token: "cfg-token"})
 
-	go func() {
-		_ = readTestFrame(t, serverConn)
-		writeTestFrame(t, serverConn, &frame.ConnackPacket{
+	serverErr := runTestServer(func() error {
+		if _, err := readTestFrame(serverConn); err != nil {
+			return err
+		}
+		return writeTestFrame(serverConn, &frame.ConnackPacket{
 			Framer: frame.Framer{
 				FrameType:        frame.CONNACK,
 				HasServerVersion: true,
@@ -80,9 +125,9 @@ func TestClientConnectRejectsNonSuccessConnack(t *testing.T) {
 			ServerVersion: frame.LatestVersion,
 			ReasonCode:    frame.ReasonAuthFail,
 		})
-	}()
+	})
 
-	err := c.Connect(ConnectOptions{
+	_, err := c.Connect(context.Background(), ConnectOptions{
 		UID:        "uid-1",
 		DeviceID:   "device-1",
 		DeviceFlag: frame.APP,
@@ -93,6 +138,68 @@ func TestClientConnectRejectsNonSuccessConnack(t *testing.T) {
 	if !strings.Contains(err.Error(), frame.ReasonAuthFail.String()) {
 		t.Fatalf("Connect() error = %v, want %s", err, frame.ReasonAuthFail)
 	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientConnectHonorsCallerContext(t *testing.T) {
+	c, err := New(Config{
+		Addr:   "pipe",
+		Token:  "cfg-token",
+		Dialer: contextErrDialer{},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = c.Connect(ctx, ConnectOptions{
+		UID:        "uid-1",
+		DeviceID:   "device-1",
+		DeviceFlag: frame.APP,
+	})
+	if err == nil {
+		t.Fatal("Connect() error = nil, want context cancellation")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Connect() error = %v, want %v", err, context.Canceled)
+	}
+}
+
+type contextErrDialer struct{}
+
+func (contextErrDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
+	return nil, ctx.Err()
+}
+
+func runTestServer(fn func() error) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				done <- fmt.Errorf("server panic: %v", recovered)
+			}
+		}()
+		done <- fn()
+	}()
+	return done
+}
+
+func newPipeClientServerOrFatal(t *testing.T, cfg Config) (*Client, net.Conn) {
+	t.Helper()
+
+	c, serverConn, err := newPipeClientServer(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = serverConn.Close()
+	})
+	return c, serverConn
 }
 
 func TestNormalizeConfigAppliesToolingDefaults(t *testing.T) {
