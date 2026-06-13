@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -260,6 +261,105 @@ func TestPendingTrackerDuplicateAddRejectsWithoutOrphaningOriginal(t *testing.T)
 	}
 	if result.MessageSeq != 271 {
 		t.Fatalf("first pending result MessageSeq = %d, want 271", result.MessageSeq)
+	}
+}
+
+func TestSendFutureWaitCanBeCalledRepeatedly(t *testing.T) {
+	done := make(chan sendOutcome, 1)
+	future := &SendFuture{done: done}
+	want := SendResult{
+		ClientSeq:   21,
+		ClientMsgNo: "msg-21",
+		MessageID:   211,
+		MessageSeq:  311,
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	done <- sendOutcome{result: want}
+	close(done)
+
+	for i := 0; i < 2; i++ {
+		got, err := future.Wait(context.Background())
+		if err != nil {
+			t.Fatalf("Wait(%d) error = %v", i, err)
+		}
+		if got != want {
+			t.Fatalf("Wait(%d) result = %+v, want %+v", i, got, want)
+		}
+	}
+}
+
+func TestSendFutureWaitContextTimeoutDoesNotPoisonFuture(t *testing.T) {
+	done := make(chan sendOutcome, 1)
+	future := &SendFuture{done: done}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	if _, err := future.Wait(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Wait(timeout) error = %v, want %v", err, context.DeadlineExceeded)
+	}
+
+	want := SendResult{
+		ClientSeq:   22,
+		ClientMsgNo: "msg-22",
+		MessageID:   222,
+		MessageSeq:  322,
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	done <- sendOutcome{result: want}
+	close(done)
+
+	got, err := future.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("Wait(success) error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("Wait(success) result = %+v, want %+v", got, want)
+	}
+}
+
+func TestSendFutureWaitConcurrentCallersReceiveSameResult(t *testing.T) {
+	done := make(chan sendOutcome, 1)
+	future := &SendFuture{done: done}
+	want := SendResult{
+		ClientSeq:   23,
+		ClientMsgNo: "msg-23",
+		MessageID:   233,
+		MessageSeq:  333,
+		ReasonCode:  frame.ReasonSuccess,
+	}
+
+	const waiters = 8
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	results := make(chan SendResult, waiters)
+	errs := make(chan error, waiters)
+	for i := 0; i < waiters; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			result, err := future.Wait(context.Background())
+			results <- result
+			errs <- err
+		}()
+	}
+
+	close(start)
+	done <- sendOutcome{result: want}
+	close(done)
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Wait() error = %v", err)
+		}
+	}
+	for got := range results {
+		if got != want {
+			t.Fatalf("Wait() result = %+v, want %+v", got, want)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -60,7 +61,14 @@ type SendResult struct {
 
 // SendFuture resolves when the matching SENDACK arrives or the send fails.
 type SendFuture struct {
+	// done receives the pending tracker's single terminal outcome.
 	done <-chan sendOutcome
+	// once starts the watcher that caches the terminal outcome.
+	once sync.Once
+	// ready closes after outcome has been cached.
+	ready chan struct{}
+	// outcome stores the terminal result reused by all Wait callers.
+	outcome sendOutcome
 }
 
 type sendOutcome struct {
@@ -76,10 +84,22 @@ func (f *SendFuture) Wait(ctx context.Context) (SendResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ready := f.waitReady()
 	select {
-	case out := <-f.done:
-		return out.result, out.err
+	case <-ready:
+		return f.outcome.result, f.outcome.err
 	case <-ctx.Done():
 		return SendResult{}, ctx.Err()
 	}
+}
+
+func (f *SendFuture) waitReady() <-chan struct{} {
+	f.once.Do(func() {
+		f.ready = make(chan struct{})
+		go func() {
+			f.outcome = <-f.done
+			close(f.ready)
+		}()
+	})
+	return f.ready
 }
