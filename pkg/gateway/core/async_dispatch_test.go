@@ -917,6 +917,48 @@ func TestSendExecutorStopDuringSubmitDoesNotLeakDepth(t *testing.T) {
 	}
 }
 
+func TestSendExecutorStopDrainsRetryOwnedShard(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
+		AsyncSendQueueCapacity:  1,
+		AsyncPoolReleaseTimeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("new send executor: %v", err)
+	}
+
+	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
+	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "retry-owned"}) {
+		t.Fatal("submit rejected")
+	}
+	executor.server = srv
+	executor.wg.Add(1)
+	executor.shards[0].mu.Lock()
+	executor.shards[0].scheduled = true
+	executor.shards[0].drainOwned = true
+	executor.shards[0].mu.Unlock()
+
+	executor.stop()
+
+	if got := executor.depth(); got != 0 {
+		t.Fatalf("send executor depth = %d, want 0 after stop drains retry-owned shard", got)
+	}
+	batches := handler.snapshotBatches()
+	if len(batches) != 1 || len(batches[0]) != 1 || batches[0][0].Frame.ClientMsgNo != "retry-owned" {
+		t.Fatalf("batches = %#v, want retry-owned task dispatched during stop", batches)
+	}
+}
+
 func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
 	handler := newPanicThenRecordingFrameHandler()
 	srv := &Server{

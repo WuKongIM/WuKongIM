@@ -48,6 +48,7 @@ type asyncSendShard struct {
 	mu         sync.Mutex
 	scheduled  bool
 	drainOwned bool
+	draining   bool
 	closed     bool
 }
 
@@ -166,10 +167,10 @@ func (e *sendExecutor) stop() {
 		}
 		if e.server != nil {
 			for _, shard := range e.shards {
-				if e.shardHasDrainOwner(shard) {
+				if e.claimShardDrainForStop(shard) {
+					e.drainShard(shard)
 					continue
 				}
-				e.drainShard(shard)
 			}
 			e.waitForDrainOrTimeout()
 		} else {
@@ -229,17 +230,23 @@ func (e *sendExecutor) invokeScheduledShard(shard *asyncSendShard) {
 			e.invokeScheduledShard(shard)
 		})
 	case isAntsStopped(err):
-		e.markShardUnscheduled(shard)
-		e.wg.Done()
+		if e.releaseDrainOwnership(shard) {
+			e.drainOrDiscardShard(shard)
+			e.wg.Done()
+		}
 	default:
 		e.recordPanic(err, asyncDispatchTask{})
-		e.markShardUnscheduled(shard)
-		e.wg.Done()
+		if e.releaseDrainOwnership(shard) {
+			e.wg.Done()
+		}
 	}
 }
 
 func (e *sendExecutor) drainScheduledShard(shard *asyncSendShard) {
-	defer e.wg.Done()
+	if !e.beginShardDrain(shard) {
+		return
+	}
+	defer e.finishShardDrain(shard)
 	e.drainShard(shard)
 }
 
@@ -366,6 +373,31 @@ func (e *sendExecutor) shardForSend(state *sessionState, send *frame.SendPacket)
 	return e.shards[asyncDispatchShardIndex(state, send, len(e.shards))]
 }
 
+func (e *sendExecutor) beginShardDrain(shard *asyncSendShard) bool {
+	if shard == nil {
+		return false
+	}
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	if !shard.drainOwned {
+		return false
+	}
+	shard.draining = true
+	return true
+}
+
+func (e *sendExecutor) finishShardDrain(shard *asyncSendShard) {
+	if shard == nil {
+		return
+	}
+	shard.mu.Lock()
+	shard.draining = false
+	shard.scheduled = false
+	shard.drainOwned = false
+	shard.mu.Unlock()
+	e.wg.Done()
+}
+
 func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
 	if shard == nil {
 		return
@@ -373,16 +405,52 @@ func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
 	shard.mu.Lock()
 	shard.scheduled = false
 	shard.drainOwned = false
+	shard.draining = false
 	shard.mu.Unlock()
 }
 
-func (e *sendExecutor) shardHasDrainOwner(shard *asyncSendShard) bool {
+func (e *sendExecutor) claimShardDrainForStop(shard *asyncSendShard) bool {
 	if shard == nil {
 		return false
 	}
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
-	return shard.scheduled && shard.drainOwned
+	if shard.drainOwned {
+		if shard.draining {
+			return false
+		}
+		shard.scheduled = false
+		shard.drainOwned = false
+		e.wg.Done()
+		return true
+	}
+	return true
+}
+
+func (e *sendExecutor) releaseDrainOwnership(shard *asyncSendShard) bool {
+	if shard == nil {
+		return false
+	}
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	if !shard.drainOwned {
+		return false
+	}
+	shard.scheduled = false
+	shard.drainOwned = false
+	shard.draining = false
+	return true
+}
+
+func (e *sendExecutor) drainOrDiscardShard(shard *asyncSendShard) {
+	if e == nil || shard == nil {
+		return
+	}
+	if e.server != nil {
+		e.drainShard(shard)
+		return
+	}
+	e.drainClosedShard(shard)
 }
 
 func (e *sendExecutor) waitForDrainOrTimeout() {
