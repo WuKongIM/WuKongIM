@@ -43,18 +43,22 @@ func newPendingTracker() *pendingTracker {
 }
 
 func (t *pendingTracker) add(key pendingKey, timeout time.Duration) (*pendingEntry, error) {
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return nil, ErrClosed
+	}
+	if _, exists := t.entries[key]; exists {
+		t.mu.Unlock()
+		return nil, ErrDuplicatePendingSend
+	}
+
 	entry := &pendingEntry{
 		key:  key,
 		done: make(chan sendOutcome, 1),
 	}
 	if timeout > 0 {
 		entry.timeoutDone = make(chan struct{})
-	}
-
-	t.mu.Lock()
-	if t.closed {
-		t.mu.Unlock()
-		return nil, ErrClosed
 	}
 	t.entries[key] = entry
 	t.mu.Unlock()

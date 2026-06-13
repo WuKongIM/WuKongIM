@@ -162,6 +162,42 @@ func TestPendingTrackerAddTimeoutFailsWithErrAckTimeout(t *testing.T) {
 	}
 }
 
+func TestPendingTrackerDuplicateAddRejectsWithoutOrphaningOriginal(t *testing.T) {
+	tracker := newPendingTracker()
+	key := pendingKey{ClientSeq: 17, ClientMsgNo: "msg-17"}
+
+	first, err := tracker.add(key, time.Second)
+	if err != nil {
+		t.Fatalf("add(first) error = %v", err)
+	}
+	second, err := tracker.add(key, 10*time.Millisecond)
+	if !errors.Is(err, ErrDuplicatePendingSend) {
+		t.Fatalf("add(second) error = %v, want %v", err, ErrDuplicatePendingSend)
+	}
+	if second != nil {
+		t.Fatalf("add(second) entry = %v, want nil", second)
+	}
+
+	tracker.resolve(&frame.SendackPacket{
+		ClientSeq:   17,
+		ClientMsgNo: "msg-17",
+		MessageID:   171,
+		MessageSeq:  271,
+		ReasonCode:  frame.ReasonSuccess,
+	})
+
+	result, err := waitPendingEntry(t, first)
+	if err != nil {
+		t.Fatalf("first pending result error = %v", err)
+	}
+	if result.MessageID != 171 {
+		t.Fatalf("first pending result MessageID = %d, want 171", result.MessageID)
+	}
+	if result.MessageSeq != 271 {
+		t.Fatalf("first pending result MessageSeq = %d, want 271", result.MessageSeq)
+	}
+}
+
 func waitPendingEntry(t *testing.T, entry *pendingEntry) (SendResult, error) {
 	t.Helper()
 

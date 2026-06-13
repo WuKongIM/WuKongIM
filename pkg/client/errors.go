@@ -20,6 +20,8 @@ var (
 	ErrSendQueueFull = errors.New("client: send queue full")
 	// ErrAckTimeout reports a SEND that did not receive SENDACK before its deadline.
 	ErrAckTimeout = errors.New("client: sendack timeout")
+	// ErrDuplicatePendingSend reports a SEND admitted with an already pending key.
+	ErrDuplicatePendingSend = errors.New("client: duplicate pending send")
 	// ErrClientSeqExhausted reports that the client sequence generator has no values left.
 	ErrClientSeqExhausted = errors.New("client: client sequence exhausted")
 	// ErrInvalidMessage reports an outbound message that cannot be encoded as WKProto SEND.
