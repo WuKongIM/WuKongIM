@@ -271,8 +271,8 @@ WK_HEALTH_DETAIL_ENABLE=true
 # Controls all /debug endpoints on the API listener, including pprof, config, cluster, and diagnostics query routes.
 WK_DEBUG_API_ENABLE=false
 
-# Optional: SEND worker count; non-positive uses a CPU-scaled adaptive default.
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
+# Optional: SEND worker count; non-positive values use the runtime default.
+# WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=128
 # Optional: SEND micro-batch collection. Negative wait disables waiting; non-positive bounds use defaults.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=512

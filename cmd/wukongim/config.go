@@ -402,7 +402,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	asyncSendDispatchWorkers, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS")
+	asyncSendWorkers, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -849,11 +849,13 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 				MaxInboundBytes:          maxInboundBytes,
 				MaxOutboundBytes:         maxOutboundBytes,
 				IdleTimeout:              idleTimeout,
-				AsyncSendDispatchWorkers: asyncSendDispatchWorkers,
 				AsyncSendBatchMaxWait:    asyncSendBatchMaxWait,
 				AsyncSendBatchMaxRecords: asyncSendBatchMaxRecords,
 				AsyncSendBatchMaxBytes:   asyncSendBatchMaxBytes,
 				CloseOnHandlerError:      closeOnHandlerError,
+			},
+			Runtime: gateway.RuntimeOptions{
+				AsyncSendWorkers: asyncSendWorkers,
 			},
 			Transport: gateway.TransportOptions{
 				Gnet: gateway.GnetTransportOptions{

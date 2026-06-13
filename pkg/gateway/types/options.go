@@ -13,6 +13,7 @@ type Options struct {
 	Authenticator  Authenticator
 	Observer       Observer
 	DefaultSession SessionOptions
+	Runtime        RuntimeOptions
 	Transport      TransportOptions
 	Listeners      []ListenerOptions
 	Logger         wklog.Logger
@@ -51,8 +52,6 @@ type SessionOptions struct {
 	MaxInboundBytes  int
 	MaxOutboundBytes int
 	IdleTimeout      time.Duration
-	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use a CPU-scaled adaptive default.
-	AsyncSendDispatchWorkers int
 	// AsyncSendBatchMaxWait bounds how long a SEND shard waits to collect adjacent frames.
 	AsyncSendBatchMaxWait time.Duration
 	// AsyncSendBatchMaxRecords caps SEND frames in one gateway micro-batch.
@@ -62,7 +61,27 @@ type SessionOptions struct {
 	CloseOnHandlerError    *bool
 }
 
+// RuntimeOptions controls async gateway runtime capacity and pool tuning.
+type RuntimeOptions struct {
+	// AsyncSendWorkers sets the worker count used to dispatch SEND frames asynchronously.
+	AsyncSendWorkers int
+	// AsyncSendQueueCapacity sets the maximum queued SEND frame count before admission fails.
+	AsyncSendQueueCapacity int
+	// AsyncAuthWorkers sets the worker count used to process CONNECT authentication asynchronously.
+	AsyncAuthWorkers int
+	// AsyncAuthQueueCapacity sets the maximum queued CONNECT authentication count before admission fails.
+	AsyncAuthQueueCapacity int
+	// AsyncPoolReleaseTimeout bounds how long async worker pools wait for graceful release.
+	AsyncPoolReleaseTimeout time.Duration
+}
+
 const (
+	defaultAsyncSendWorkers        = 128
+	defaultAsyncSendQueueCapacity  = 128 * 1024
+	defaultAsyncAuthWorkers        = 16
+	defaultAsyncAuthQueueCapacity  = 8 * 1024
+	defaultAsyncPoolReleaseTimeout = 100 * time.Millisecond
+
 	defaultAsyncSendBatchMaxWait    = time.Millisecond
 	defaultAsyncSendBatchMaxRecords = 512
 	defaultAsyncSendBatchMaxBytes   = 512 * 1024
@@ -80,11 +99,22 @@ func DefaultSessionOptions() SessionOptions {
 	}
 }
 
+func DefaultRuntimeOptions() RuntimeOptions {
+	return RuntimeOptions{
+		AsyncSendWorkers:        defaultAsyncSendWorkers,
+		AsyncSendQueueCapacity:  defaultAsyncSendQueueCapacity,
+		AsyncAuthWorkers:        defaultAsyncAuthWorkers,
+		AsyncAuthQueueCapacity:  defaultAsyncAuthQueueCapacity,
+		AsyncPoolReleaseTimeout: defaultAsyncPoolReleaseTimeout,
+	}
+}
+
 func (o *Options) Validate() error {
 	if o == nil {
 		return fmt.Errorf("gateway: nil options")
 	}
 	o.DefaultSession = NormalizeSessionOptions(o.DefaultSession)
+	o.Runtime = NormalizeRuntimeOptions(o.Runtime)
 	seenNames := make(map[string]struct{}, len(o.Listeners))
 	seenAddresses := make(map[string]struct{}, len(o.Listeners))
 	for i := range o.Listeners {
@@ -158,6 +188,29 @@ func NormalizeSessionOptions(opt SessionOptions) SessionOptions {
 	}
 	if opt.CloseOnHandlerError == nil {
 		opt.CloseOnHandlerError = def.CloseOnHandlerError
+	}
+	return opt
+}
+
+func NormalizeRuntimeOptions(opt RuntimeOptions) RuntimeOptions {
+	def := DefaultRuntimeOptions()
+	if opt == (RuntimeOptions{}) {
+		return def
+	}
+	if opt.AsyncSendWorkers <= 0 {
+		opt.AsyncSendWorkers = def.AsyncSendWorkers
+	}
+	if opt.AsyncSendQueueCapacity <= 0 {
+		opt.AsyncSendQueueCapacity = def.AsyncSendQueueCapacity
+	}
+	if opt.AsyncAuthWorkers <= 0 {
+		opt.AsyncAuthWorkers = def.AsyncAuthWorkers
+	}
+	if opt.AsyncAuthQueueCapacity <= 0 {
+		opt.AsyncAuthQueueCapacity = def.AsyncAuthQueueCapacity
+	}
+	if opt.AsyncPoolReleaseTimeout <= 0 {
+		opt.AsyncPoolReleaseTimeout = def.AsyncPoolReleaseTimeout
 	}
 	return opt
 }

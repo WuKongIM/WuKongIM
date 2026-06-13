@@ -74,6 +74,8 @@ type GatewayConfig struct {
 	Listeners []gateway.ListenerOptions
 	// Session configures gateway session limits and batching.
 	Session gateway.SessionOptions
+	// Runtime configures async gateway worker and queue tuning.
+	Runtime gateway.RuntimeOptions
 	// Transport configures gateway transport runtime tuning.
 	Transport gateway.TransportOptions
 	// SendTimeout bounds each gateway-origin message send.

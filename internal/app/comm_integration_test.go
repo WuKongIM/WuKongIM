@@ -403,7 +403,7 @@ func TestThreeNodeAppHarnessUsesSendPathTuning(t *testing.T) {
 		require.Equal(t, preset.CommitCoordinatorMaxRecords, commitCfg.MaxRecords, "node %d commit coordinator max records", nodeID)
 		require.Equal(t, preset.CommitCoordinatorMaxBytes, commitCfg.MaxBytes, "node %d commit coordinator max bytes", nodeID)
 		require.Equal(t, preset.GatewaySendTimeout, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"), "node %d gateway send timeout", nodeID)
-		require.Zero(t, app.cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers, "node %d should use adaptive async send workers", nodeID)
+		require.Equal(t, gateway.DefaultRuntimeOptions().AsyncSendWorkers, app.cfg.Gateway.Runtime.AsyncSendWorkers, "node %d gateway async send workers", nodeID)
 	}
 }
 

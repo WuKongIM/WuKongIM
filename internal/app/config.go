@@ -684,6 +684,8 @@ type GatewayConfig struct {
 	SendTimeout time.Duration
 	// DefaultSession defines default session buffering and timeout behavior.
 	DefaultSession gateway.SessionOptions
+	// Runtime defines async gateway worker and queue tuning.
+	Runtime gateway.RuntimeOptions
 	// Transport defines transport-specific runtime tuning for gateway listeners.
 	Transport gateway.TransportOptions
 	// Listeners lists gateway listener bindings.
@@ -1309,6 +1311,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 		return fmt.Errorf("%w: gateway send batch max bytes must be non-negative", ErrInvalidConfig)
 	}
 	c.Gateway.DefaultSession = gateway.NormalizeSessionOptions(c.Gateway.DefaultSession)
+	c.Gateway.Runtime = gateway.NormalizeRuntimeOptions(c.Gateway.Runtime)
 	if c.Gateway.Transport.Gnet.NumEventLoop < 0 {
 		return fmt.Errorf("%w: gateway gnet num event loop must be non-negative", ErrInvalidConfig)
 	}

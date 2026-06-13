@@ -1451,20 +1451,20 @@ func TestLoadConfigParsesHashSlotMigrationGate(t *testing.T) {
 	require.True(t, cfg.Cluster.EnableHashSlotMigration)
 }
 
-func TestLoadConfigParsesGatewayAsyncSendDispatchWorkersFromConf(t *testing.T) {
+func TestLoadConfigParsesGatewayRuntimeAsyncSendWorkersFromConf(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
 		"WK_NODE_ID=1",
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
-		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=64",
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=64",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 	)
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
-	require.Equal(t, 64, cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers)
+	require.Equal(t, 64, cfg.Gateway.Runtime.AsyncSendWorkers)
 }
 
 func TestLoadConfigParsesGatewayAsyncSendBatchOptionsFromConf(t *testing.T) {

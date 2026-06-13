@@ -165,6 +165,7 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		Authenticator:  opts.Authenticator,
 		Observer:       opts.Observer,
 		DefaultSession: opts.DefaultSession,
+		Runtime:        opts.Runtime,
 		Transport:      opts.Transport,
 		Listeners:      append([]gatewaytypes.ListenerOptions(nil), opts.Listeners...),
 		Logger:         opts.Logger,
@@ -1103,7 +1104,7 @@ func (s *Server) startAsyncDispatcher() {
 		return
 	}
 
-	workers := asyncDispatchWorkerCount(s.options.DefaultSession)
+	workers := asyncDispatchWorkerCount(s.options.Runtime)
 	queue := newAsyncDispatchQueue(workers)
 
 	s.mu.Lock()
@@ -1218,11 +1219,8 @@ func (s *Server) sendBatchItems(batch []asyncDispatchTask) []gatewaytypes.SendBa
 	return items
 }
 
-func asyncDispatchWorkerCount(opt gatewaytypes.SessionOptions) int {
-	if opt.AsyncSendDispatchWorkers > 0 {
-		return opt.AsyncSendDispatchWorkers
-	}
-	return adaptiveAsyncDispatchWorkerCount(runtime.GOMAXPROCS(0))
+func asyncDispatchWorkerCount(opt gatewaytypes.RuntimeOptions) int {
+	return gatewaytypes.NormalizeRuntimeOptions(opt).AsyncSendWorkers
 }
 
 func adaptiveAsyncDispatchWorkerCount(gomaxprocs int) int {

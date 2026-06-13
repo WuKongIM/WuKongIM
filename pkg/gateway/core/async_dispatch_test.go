@@ -141,8 +141,8 @@ func TestAsyncDispatchQueueAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.
 func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv := &Server{
 		options: gatewaytypes.Options{
-			DefaultSession: gatewaytypes.SessionOptions{
-				AsyncSendDispatchWorkers: 4,
+			Runtime: gatewaytypes.RuntimeOptions{
+				AsyncSendWorkers: 4,
 			},
 		},
 	}
@@ -215,7 +215,7 @@ func TestAsyncSendBatchOptionsCanDisableWaitButNotBounds(t *testing.T) {
 }
 
 func TestAsyncDispatchWorkerCountUsesExplicitOverride(t *testing.T) {
-	got := asyncDispatchWorkerCount(gatewaytypes.SessionOptions{AsyncSendDispatchWorkers: 7})
+	got := asyncDispatchWorkerCount(gatewaytypes.RuntimeOptions{AsyncSendWorkers: 7})
 	if got != 7 {
 		t.Fatalf("worker count = %d, want explicit override 7", got)
 	}

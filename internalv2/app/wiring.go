@@ -547,6 +547,7 @@ func (a *App) wireGateway(nodeID uint64) error {
 			Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{NodeID: nodeID}),
 			Listeners:      a.cfg.Gateway.Listeners,
 			DefaultSession: a.cfg.Gateway.Session,
+			Runtime:        a.cfg.Gateway.Runtime,
 			Transport:      a.cfg.Gateway.Transport,
 			Observer:       a.gatewayObserver(),
 			Logger:         a.logger.Named("gateway"),

@@ -149,7 +149,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_EXTERNAL_WSSADDR=wss://127.0.0.1:5342",
 		"WK_GATEWAY_GNET_MULTICORE=true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP=4",
-		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=128",
+		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=128",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=750us",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=64",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=262144",
@@ -380,8 +380,8 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Gateway.Transport.Gnet.NumEventLoop != 4 {
 		t.Fatalf("Gnet.NumEventLoop = %d, want 4", cfg.Gateway.Transport.Gnet.NumEventLoop)
 	}
-	if cfg.Gateway.Session.AsyncSendDispatchWorkers != 128 {
-		t.Fatalf("AsyncSendDispatchWorkers = %d, want 128", cfg.Gateway.Session.AsyncSendDispatchWorkers)
+	if cfg.Gateway.Runtime.AsyncSendWorkers != 128 {
+		t.Fatalf("AsyncSendWorkers = %d, want 128", cfg.Gateway.Runtime.AsyncSendWorkers)
 	}
 	if cfg.Gateway.Session.AsyncSendBatchMaxWait != 750*time.Microsecond {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 750us", cfg.Gateway.Session.AsyncSendBatchMaxWait)
@@ -591,7 +591,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "262144")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", "8")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
-	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", "256")
+	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", "256")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", "1ms")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", "96")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", "131072")
@@ -706,8 +706,8 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Gateway.Transport.Gnet.NumEventLoop != 5 {
 		t.Fatalf("Gnet.NumEventLoop = %d, want 5", cfg.Gateway.Transport.Gnet.NumEventLoop)
 	}
-	if cfg.Gateway.Session.AsyncSendDispatchWorkers != 256 {
-		t.Fatalf("AsyncSendDispatchWorkers = %d, want 256", cfg.Gateway.Session.AsyncSendDispatchWorkers)
+	if cfg.Gateway.Runtime.AsyncSendWorkers != 256 {
+		t.Fatalf("AsyncSendWorkers = %d, want 256", cfg.Gateway.Runtime.AsyncSendWorkers)
 	}
 	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
@@ -960,7 +960,7 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},
-		{name: "async dispatch workers", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS"},
+		{name: "async send workers", line: "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=many", wantKey: "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS"},
 		{name: "async batch wait", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=soon", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"},
 		{name: "async batch records", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=many", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS"},
 		{name: "async batch bytes", line: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=large", wantKey: "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES"},

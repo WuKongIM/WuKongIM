@@ -80,7 +80,7 @@ var supportedConfigKeys = []string{
 	"WK_EXTERNAL_WSSADDR",
 	"WK_GATEWAY_GNET_MULTICORE",
 	"WK_GATEWAY_GNET_NUM_EVENT_LOOP",
-	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS",
+	"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS",
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
@@ -228,6 +228,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Gateway: app.GatewayConfig{
 			Listeners: defaultGatewayListeners(),
 			Session:   gateway.DefaultSessionOptions(),
+			Runtime:   gateway.DefaultRuntimeOptions(),
 			Transport: gateway.TransportOptions{
 				Gnet: defaultGatewayGnetOptions(),
 			},
@@ -648,12 +649,12 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			cfg.Gateway.Transport.Gnet.NumEventLoop = numEventLoop
 		}
 	}
-	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS"); raw != "" {
-		workers, err := parseInt("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS", raw)
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", raw)
 		if err != nil {
 			return app.Config{}, err
 		}
-		cfg.Gateway.Session.AsyncSendDispatchWorkers = workers
+		cfg.Gateway.Runtime.AsyncSendWorkers = workers
 	}
 	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"); raw != "" {
 		maxWait, err := parseDuration("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", raw)

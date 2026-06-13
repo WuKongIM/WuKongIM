@@ -105,6 +105,70 @@ func TestDefaultSessionOptions(t *testing.T) {
 	}
 }
 
+func TestDefaultRuntimeOptions(t *testing.T) {
+	opts := gateway.DefaultRuntimeOptions()
+	if opts.AsyncSendWorkers <= 0 {
+		t.Fatalf("AsyncSendWorkers = %d, want > 0", opts.AsyncSendWorkers)
+	}
+	if opts.AsyncSendQueueCapacity <= 0 {
+		t.Fatalf("AsyncSendQueueCapacity = %d, want > 0", opts.AsyncSendQueueCapacity)
+	}
+	if opts.AsyncAuthWorkers <= 0 {
+		t.Fatalf("AsyncAuthWorkers = %d, want > 0", opts.AsyncAuthWorkers)
+	}
+	if opts.AsyncAuthQueueCapacity <= 0 {
+		t.Fatalf("AsyncAuthQueueCapacity = %d, want > 0", opts.AsyncAuthQueueCapacity)
+	}
+	if opts.AsyncPoolReleaseTimeout != 100*time.Millisecond {
+		t.Fatalf("AsyncPoolReleaseTimeout = %s, want 100ms", opts.AsyncPoolReleaseTimeout)
+	}
+}
+
+func TestOptionsValidateNormalizesRuntimeOptions(t *testing.T) {
+	opts := gateway.Options{
+		Handler: noopHandler{},
+		Runtime: gateway.RuntimeOptions{
+			AsyncSendWorkers:        7,
+			AsyncSendQueueCapacity:  17,
+			AsyncAuthWorkers:        3,
+			AsyncAuthQueueCapacity:  11,
+			AsyncPoolReleaseTimeout: 250 * time.Millisecond,
+		},
+	}
+	if err := opts.Validate(); err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+	if opts.Runtime.AsyncSendWorkers != 7 {
+		t.Fatalf("AsyncSendWorkers = %d, want 7", opts.Runtime.AsyncSendWorkers)
+	}
+	if opts.Runtime.AsyncSendQueueCapacity != 17 {
+		t.Fatalf("AsyncSendQueueCapacity = %d, want 17", opts.Runtime.AsyncSendQueueCapacity)
+	}
+	if opts.Runtime.AsyncAuthWorkers != 3 {
+		t.Fatalf("AsyncAuthWorkers = %d, want 3", opts.Runtime.AsyncAuthWorkers)
+	}
+	if opts.Runtime.AsyncAuthQueueCapacity != 11 {
+		t.Fatalf("AsyncAuthQueueCapacity = %d, want 11", opts.Runtime.AsyncAuthQueueCapacity)
+	}
+	if opts.Runtime.AsyncPoolReleaseTimeout != 250*time.Millisecond {
+		t.Fatalf("AsyncPoolReleaseTimeout = %s, want 250ms", opts.Runtime.AsyncPoolReleaseTimeout)
+	}
+}
+
+func TestNormalizeRuntimeOptionsUsesDefaultsForInvalidValues(t *testing.T) {
+	opts := gateway.NormalizeRuntimeOptions(gateway.RuntimeOptions{
+		AsyncSendWorkers:        -1,
+		AsyncSendQueueCapacity:  -1,
+		AsyncAuthWorkers:        -1,
+		AsyncAuthQueueCapacity:  -1,
+		AsyncPoolReleaseTimeout: -1,
+	})
+	def := gateway.DefaultRuntimeOptions()
+	if opts != def {
+		t.Fatalf("normalized runtime options = %+v, want %+v", opts, def)
+	}
+}
+
 func TestOptionsValidateNormalizesPartialSessionOverrides(t *testing.T) {
 	opts := gateway.Options{
 		Handler: noopHandler{},

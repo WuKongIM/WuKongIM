@@ -1094,8 +1094,8 @@ func TestServer(t *testing.T) {
 			consumed: 1,
 		})
 
-		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
-			AsyncSendDispatchWorkers: 2,
+		srv, transportFactory := newTestServerWithRuntime(t, handler, proto, gateway.SessionOptions{}, gateway.RuntimeOptions{
+			AsyncSendWorkers: 2,
 		})
 		if err := srv.Start(); err != nil {
 			t.Fatalf("start failed: %v", err)
@@ -2123,6 +2123,22 @@ func newTestServer(t *testing.T, handler gateway.Handler, proto *scriptedProtoco
 	return newTestServerWithAuthenticator(t, handler, proto, sessOpts, nil)
 }
 
+func newTestServerWithRuntime(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, runtimeOpts gateway.RuntimeOptions) (*core.Server, *testkit.FakeTransportFactory) {
+	t.Helper()
+
+	transportFactory := testkit.NewFakeTransportFactory("fake-transport")
+	srv := newServerWithRuntimeAndListeners(t, handler, proto, transportFactory, sessOpts, runtimeOpts, nil, nil, []gateway.ListenerOptions{
+		{
+			Name:      "listener-a",
+			Network:   "tcp",
+			Address:   "127.0.0.1:9000",
+			Transport: transportFactory.Name(),
+			Protocol:  proto.Name(),
+		},
+	})
+	return srv, transportFactory
+}
+
 func newTestServerWithAuthenticator(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator) (*core.Server, *testkit.FakeTransportFactory) {
 	t.Helper()
 
@@ -2157,6 +2173,11 @@ func newTestServerWithObserver(t *testing.T, handler gateway.Handler, proto *scr
 
 func newServerWithListeners(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, transportFactory transport.Factory, sessOpts gateway.SessionOptions, authenticator gateway.Authenticator, observer gateway.Observer, listeners []gateway.ListenerOptions) *core.Server {
 	t.Helper()
+	return newServerWithRuntimeAndListeners(t, handler, proto, transportFactory, sessOpts, gateway.RuntimeOptions{}, authenticator, observer, listeners)
+}
+
+func newServerWithRuntimeAndListeners(t *testing.T, handler gateway.Handler, proto *scriptedProtocol, transportFactory transport.Factory, sessOpts gateway.SessionOptions, runtimeOpts gateway.RuntimeOptions, authenticator gateway.Authenticator, observer gateway.Observer, listeners []gateway.ListenerOptions) *core.Server {
+	t.Helper()
 
 	registry := core.NewRegistry()
 	if err := registry.RegisterTransport(transportFactory); err != nil {
@@ -2170,6 +2191,7 @@ func newServerWithListeners(t *testing.T, handler gateway.Handler, proto *script
 		Handler:        handler,
 		Authenticator:  authenticator,
 		DefaultSession: sessOpts,
+		Runtime:        runtimeOpts,
 		Observer:       observer,
 		Listeners:      append([]gateway.ListenerOptions(nil), listeners...),
 	})
