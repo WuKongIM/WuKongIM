@@ -88,6 +88,7 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 func (c *Client) Send(ctx context.Context, msg Message) (SendResult, error)
 func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, error)
 func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error)
+func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error)
 func (c *Client) Recv(ctx context.Context) (*frame.RecvPacket, error)
 func (c *Client) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error
 func (c *Client) Ping(ctx context.Context) error
@@ -98,6 +99,10 @@ func (c *Client) Close() error
 enqueues one SEND and returns a future that resolves when the matching SENDACK
 arrives. `SendBatch` returns a result slice aligned with the input slice even
 when SENDACK frames arrive out of order.
+
+`ReadFrame` is a tooling compatibility method for existing wkbench and e2e
+helpers. It returns non-SENDACK inbound frames from the reader-owned queue;
+SENDACK frames remain owned by the pending tracker.
 
 ### Config
 
@@ -258,7 +263,7 @@ detaches payload bytes from the shared read buffer, and then either:
 
 When the inbound queue is full, the default should favor SEND stability:
 increment a dropped-RECV counter and drop the oldest buffered RECV. This
-behavior is appropriate for benchmark traffic where SENDACK latency is often
+behavior fits benchmark traffic where SENDACK latency is often
 the primary measurement. Tests that need exact receive verification can use a
 larger queue or disable drop-prone scenarios.
 
