@@ -67,6 +67,9 @@ func New(opts Options) *Group {
 		runtimeCtx: runtimeCtx,
 		stopped:    &group.runtimeStopped,
 		metrics:    metrics,
+
+		inboxCoalesceWindow:   opts.InboxCoalesceWindow,
+		inboxCoalesceMaxItems: opts.InboxCoalesceMaxItems,
 	}
 	for i := range group.shards {
 		group.shards[i].ports = ports

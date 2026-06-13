@@ -101,6 +101,71 @@ func (w *channelWriter) hasRunnableWorkLocked() bool {
 	return len(w.inbox) > 0 || w.state.hasRunnableWork(w.ports.commit.hasPostCommitWork())
 }
 
+func (w *channelWriter) inboxItemCountLocked() int {
+	count := 0
+	for _, batch := range w.inbox {
+		count += len(batch.items)
+	}
+	return count
+}
+
+// waitForInboxCoalesce gives nearby same-channel submissions a tiny bounded
+// window to join the current writer pass. It never holds channelWriter.mu
+// while sleeping.
+func (w *channelWriter) waitForInboxCoalesce() {
+	window := w.ports.inboxCoalesceWindow
+	maxItems := w.ports.inboxCoalesceMaxItems
+	if window <= 0 || maxItems <= 1 {
+		return
+	}
+	w.mu.Lock()
+	shouldWait := len(w.inbox) > 0 && w.inboxItemCountLocked() < maxItems
+	w.mu.Unlock()
+	if !shouldWait {
+		return
+	}
+
+	timer := time.NewTimer(window)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+
+	interval := window / 4
+	if interval <= 0 {
+		interval = window
+	}
+	if interval > 50*time.Microsecond {
+		interval = 50 * time.Microsecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var done <-chan struct{}
+	if w.ports.runtimeCtx != nil {
+		done = w.ports.runtimeCtx.Done()
+	}
+	for {
+		select {
+		case <-done:
+			return
+		case <-timer.C:
+			return
+		case <-ticker.C:
+			w.mu.Lock()
+			ready := len(w.inbox) == 0 || w.inboxItemCountLocked() >= maxItems
+			w.mu.Unlock()
+			if ready {
+				return
+			}
+		}
+	}
+}
+
 func (w *channelWriter) idleExpired(now time.Time, idleRetention time.Duration) bool {
 	if w == nil || idleRetention <= 0 || w.scheduled.Load() {
 		return false
@@ -129,6 +194,7 @@ func (w *channelWriter) advance() {
 	var appendEff appendEffect
 	var commitEff commitEffect
 	for {
+		w.waitForInboxCoalesce()
 		w.mu.Lock()
 		inbox := w.takeInboxLocked()
 		if len(inbox) > 0 {
@@ -161,6 +227,7 @@ func (w *channelWriter) advance() {
 func (w *channelWriter) advanceAppendOnly() {
 	var appendEff appendEffect
 	for {
+		w.waitForInboxCoalesce()
 		w.mu.Lock()
 		inbox := w.takeInboxLocked()
 		if len(inbox) > 0 {

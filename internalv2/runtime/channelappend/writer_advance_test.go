@@ -2,6 +2,7 @@ package channelappend
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -120,6 +121,247 @@ func (ids *blockingMessageIDsForWriterTest) Next() uint64 {
 		<-ids.release
 	})
 	return ids.next.Add(1)
+}
+
+func TestInboxCoalesceWaitsForLateInboxItems(t *testing.T) {
+	target := benchmarkAuthorityTarget("coalesce-wait")
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 4096, appendInflightLimit: 1})
+	w.ports = writerPorts{
+		runtimeCtx:            context.Background(),
+		inboxCoalesceWindow:   200 * time.Millisecond,
+		inboxCoalesceMaxItems: 3,
+	}
+	w.mu.Lock()
+	w.inbox = []submittedBatch{{
+		target: target,
+		items:  []SendBatchItem{benchmarkSendItem("coalesce-wait")},
+		future: newFuture(1),
+	}}
+	w.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		w.waitForInboxCoalesce()
+		close(done)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	select {
+	case <-done:
+		t.Fatalf("waitForInboxCoalesce returned before max items or timer expiry")
+	default:
+	}
+	w.mu.Lock()
+	w.inbox = append(w.inbox,
+		submittedBatch{target: target, items: []SendBatchItem{benchmarkSendItem("coalesce-wait")}, future: newFuture(1)},
+		submittedBatch{target: target, items: []SendBatchItem{benchmarkSendItem("coalesce-wait")}, future: newFuture(1)},
+	)
+	w.mu.Unlock()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("waitForInboxCoalesce did not return after inbox reached max items")
+	}
+
+	w.mu.Lock()
+	got := w.inboxItemCountLocked()
+	w.mu.Unlock()
+	if got != 3 {
+		t.Fatalf("inbox item count = %d, want 3", got)
+	}
+}
+
+func TestInboxCoalesceReturnsOnRuntimeCancel(t *testing.T) {
+	target := benchmarkAuthorityTarget("coalesce-runtime-cancel")
+	ctx, cancel := context.WithCancel(context.Background())
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 4096, appendInflightLimit: 1})
+	w.ports = writerPorts{
+		runtimeCtx:            ctx,
+		inboxCoalesceWindow:   time.Second,
+		inboxCoalesceMaxItems: 4,
+	}
+	w.mu.Lock()
+	w.inbox = []submittedBatch{{
+		target: target,
+		items:  []SendBatchItem{benchmarkSendItem("coalesce-runtime-cancel")},
+		future: newFuture(1),
+	}}
+	w.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		w.waitForInboxCoalesce()
+		close(done)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	select {
+	case <-done:
+		t.Fatalf("waitForInboxCoalesce returned before runtime cancellation")
+	default:
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("waitForInboxCoalesce did not return after runtime cancellation")
+	}
+}
+
+func TestInboxCoalesceReturnsOnWindowExpiry(t *testing.T) {
+	target := benchmarkAuthorityTarget("coalesce-expiry")
+	w := newChannelWriter(target, channelStateLimits{pendingItemHighWatermark: 4096, appendInflightLimit: 1})
+	w.ports = writerPorts{
+		runtimeCtx:            context.Background(),
+		inboxCoalesceWindow:   20 * time.Millisecond,
+		inboxCoalesceMaxItems: 4,
+	}
+	w.mu.Lock()
+	w.inbox = []submittedBatch{{
+		target: target,
+		items:  []SendBatchItem{benchmarkSendItem("coalesce-expiry")},
+		future: newFuture(1),
+	}}
+	w.mu.Unlock()
+
+	start := time.Now()
+	w.waitForInboxCoalesce()
+	if elapsed := time.Since(start); elapsed < 10*time.Millisecond {
+		t.Fatalf("waitForInboxCoalesce returned after %s, want it to wait for the coalescing window", elapsed)
+	}
+}
+
+func TestInboxCoalesceMergesSingleItemSubmissions(t *testing.T) {
+	appender := &recordingBatchAppenderForCoalesceTest{}
+	group := New(Options{
+		LocalNodeID:                1,
+		AuthorityShardCount:        1,
+		EffectPoolSize:             4,
+		AdmissionCapacityPerShard:  4096,
+		Appender:                   appender,
+		MessageID:                  newBenchmarkMessageIDs(1),
+		InboxCoalesceWindow:        20 * time.Millisecond,
+		InboxCoalesceMaxItems:      8,
+		ConversationActiveAdmitter: nil,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := group.Stop(ctx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+
+	target := benchmarkAuthorityTarget("coalesce-merge")
+	const submissions = 5
+	futures := make([]*Future, submissions)
+	for i := 0; i < submissions; i++ {
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{benchmarkSendItem("coalesce-merge")})
+		if err != nil {
+			t.Fatalf("submit %d error = %v", i, err)
+		}
+		futures[i] = future
+	}
+	for i, future := range futures {
+		results, err := future.Wait(context.Background())
+		if err != nil {
+			t.Fatalf("wait %d error = %v", i, err)
+		}
+		if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+			t.Fatalf("result %d = %#v, want one successful result", i, results)
+		}
+	}
+
+	sizes := appender.sizes()
+	if len(sizes) != 1 {
+		t.Fatalf("append call sizes = %v, want one coalesced append call", sizes)
+	}
+	if sizes[0] != submissions {
+		t.Fatalf("coalesced append size = %d, want %d", sizes[0], submissions)
+	}
+}
+
+func TestInboxCoalesceRespectsCanceledItem(t *testing.T) {
+	group := New(Options{
+		LocalNodeID:               1,
+		AuthorityShardCount:       1,
+		EffectPoolSize:            4,
+		AdmissionCapacityPerShard: 4096,
+		Appender:                  &orderedAppender{},
+		MessageID:                 newBenchmarkMessageIDs(1),
+		InboxCoalesceWindow:       20 * time.Millisecond,
+		InboxCoalesceMaxItems:     8,
+	})
+	if err := group.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := group.Stop(ctx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
+
+	target := benchmarkAuthorityTarget("coalesce-cancel")
+	itemCtx, cancelItem := context.WithCancel(context.Background())
+	canceledItem := benchmarkSendItem("coalesce-cancel")
+	canceledItem.Context = itemCtx
+	first, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{canceledItem})
+	if err != nil {
+		t.Fatalf("first submit error = %v", err)
+	}
+	cancelItem()
+
+	second, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{benchmarkSendItem("coalesce-cancel")})
+	if err != nil {
+		t.Fatalf("second submit error = %v", err)
+	}
+
+	firstResults, err := first.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("first wait error = %v", err)
+	}
+	if len(firstResults) != 1 || !errors.Is(firstResults[0].Err, context.Canceled) {
+		t.Fatalf("first result = %#v, want context.Canceled", firstResults)
+	}
+
+	secondResults, err := second.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("second wait error = %v", err)
+	}
+	if len(secondResults) != 1 || secondResults[0].Err != nil || secondResults[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("second result = %#v, want success", secondResults)
+	}
+}
+
+type recordingBatchAppenderForCoalesceTest struct {
+	mu        sync.Mutex
+	callSizes []int
+	seq       uint64
+}
+
+func (a *recordingBatchAppenderForCoalesceTest) AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.callSizes = append(a.callSizes, len(req.Messages))
+	out := AppendBatchResult{Items: make([]AppendBatchItemResult, len(req.Messages))}
+	for i, msg := range req.Messages {
+		a.seq++
+		out.Items[i] = AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: a.seq, Message: msg}
+	}
+	return out, nil
+}
+
+func (a *recordingBatchAppenderForCoalesceTest) sizes() []int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]int(nil), a.callSizes...)
 }
 
 func TestAdvancePostCommitReusesEffectWithoutBleed(t *testing.T) {
