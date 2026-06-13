@@ -335,6 +335,72 @@ func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
 	}
 }
 
+func TestClientReaderUsesSessionCryptoSnapshot(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	oldSession := newTestSessionCryptoOrFatal(t, "old-session-key1", "old-session-iv12")
+	newSession := newTestSessionCryptoOrFatal(t, "new-session-key1", "new-session-iv12")
+	encrypted, err := wkprotoenc.EncryptPayloadWithCrypto([]byte("old plaintext"), oldSession)
+	if err != nil {
+		t.Fatalf("EncryptPayloadWithCrypto() error = %v", err)
+	}
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = serverConn.Close()
+	})
+
+	c.crypto.mu.Lock()
+	c.crypto.session = oldSession
+	c.crypto.mu.Unlock()
+	c.mu.Lock()
+	c.conn = clientConn
+	c.startLoops()
+	c.mu.Unlock()
+
+	recvData := encodeClientTestFrameOrFatal(t, &frame.RecvPacket{
+		MessageID:   42,
+		MessageSeq:  7,
+		ChannelID:   "u1",
+		ChannelType: frame.ChannelTypePerson,
+		FromUID:     "u2",
+		Payload:     encrypted,
+	})
+	if len(recvData) < 2 {
+		t.Fatal("encoded RECV too short to split")
+	}
+	if err := serverConn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("server SetWriteDeadline() error = %v", err)
+	}
+	if _, err := serverConn.Write(recvData[:1]); err != nil {
+		t.Fatalf("server first Write() error = %v", err)
+	}
+
+	c.crypto.mu.Lock()
+	c.crypto.session = newSession
+	c.crypto.mu.Unlock()
+
+	if err := serverConn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("server SetWriteDeadline() error = %v", err)
+	}
+	if _, err := serverConn.Write(recvData[1:]); err != nil {
+		t.Fatalf("server second Write() error = %v", err)
+	}
+
+	select {
+	case pkt := <-c.recvCh:
+		if string(pkt.Payload) != "old plaintext" {
+			t.Fatalf("recv payload = %q, want old plaintext", pkt.Payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for RECV decrypted with reader session")
+	}
+}
+
 func TestRouteInboundDisconnectReturnsReadFailure(t *testing.T) {
 	c, err := New(Config{Addr: "pipe"})
 	if err != nil {
@@ -474,6 +540,19 @@ func encodeClientTestFrameOrFatal(t *testing.T, f frame.Frame) []byte {
 		t.Fatalf("EncodeFrame(%T) error = %v", f, err)
 	}
 	return data
+}
+
+func newTestSessionCryptoOrFatal(t *testing.T, key string, iv string) *wkprotoenc.SessionCrypto {
+	t.Helper()
+
+	session, err := wkprotoenc.NewSessionCrypto(wkprotoenc.SessionKeys{
+		AESKey: []byte(key),
+		AESIV:  []byte(iv),
+	})
+	if err != nil {
+		t.Fatalf("NewSessionCrypto() error = %v", err)
+	}
+	return session
 }
 
 func readPendingOutcomeOrFatal(t *testing.T, entry *pendingEntry) sendOutcome {

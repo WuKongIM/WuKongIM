@@ -10,7 +10,7 @@ import (
 
 // readerLoop reads WKProto frames from the active TCP stream and routes them.
 func (c *Client) readerLoop() {
-	conn, pending, err := c.currentSession()
+	conn, pending, session, err := c.currentSession()
 	if err != nil {
 		c.failRead(nil, nil, err)
 		return
@@ -32,7 +32,7 @@ func (c *Client) readerLoop() {
 					break
 				}
 				detachPayload(f)
-				if err := c.routeInboundFrameWithPending(f, pending); err != nil {
+				if err := c.routeInboundFrameWithPending(f, pending, session); err != nil {
 					c.failRead(conn, pending, err)
 					return
 				}
@@ -60,11 +60,12 @@ func detachPayload(f frame.Frame) {
 func (c *Client) routeInboundFrame(f frame.Frame) error {
 	c.mu.Lock()
 	pending := c.pending
+	session := c.crypto.currentSession()
 	c.mu.Unlock()
-	return c.routeInboundFrameWithPending(f, pending)
+	return c.routeInboundFrameWithPending(f, pending, session)
 }
 
-func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker) error {
+func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker, session *wkprotoenc.SessionCrypto) error {
 	switch pkt := f.(type) {
 	case *frame.SendackPacket:
 		if pending != nil {
@@ -72,7 +73,7 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 		}
 		return nil
 	case *frame.RecvPacket:
-		if err := c.decryptRecv(pkt); err != nil {
+		if err := c.decryptRecv(pkt, session); err != nil {
 			return err
 		}
 		c.enqueueRecv(pkt)
@@ -87,11 +88,11 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 }
 
 // decryptRecv decrypts encrypted RECV payloads when the negotiated session requires it.
-func (c *Client) decryptRecv(pkt *frame.RecvPacket) error {
-	if pkt == nil || pkt.Setting.IsSet(frame.SettingNoEncrypt) || c.crypto == nil || c.crypto.session == nil {
+func (c *Client) decryptRecv(pkt *frame.RecvPacket, session *wkprotoenc.SessionCrypto) error {
+	if pkt == nil || pkt.Setting.IsSet(frame.SettingNoEncrypt) || session == nil {
 		return nil
 	}
-	payload, err := wkprotoenc.DecryptPayloadWithCrypto(pkt.Payload, c.crypto.session)
+	payload, err := wkprotoenc.DecryptPayloadWithCrypto(pkt.Payload, session)
 	if err != nil {
 		return err
 	}

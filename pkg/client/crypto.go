@@ -1,6 +1,7 @@
 package client
 
 import (
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -8,6 +9,7 @@ import (
 )
 
 type cryptoState struct {
+	mu      sync.RWMutex
 	private [32]byte
 	public  [32]byte
 	keys    wkprotoenc.SessionKeys
@@ -35,6 +37,9 @@ func (s *cryptoState) connectPacket(opts ConnectOptions) *frame.ConnectPacket {
 }
 
 func (s *cryptoState) applyConnack(ack *frame.ConnackPacket) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if ack.ServerKey == "" || ack.Salt == "" {
 		s.keys = wkprotoenc.SessionKeys{}
 		s.session = nil
@@ -51,4 +56,13 @@ func (s *cryptoState) applyConnack(ack *frame.ConnackPacket) error {
 	s.keys = keys
 	s.session = session
 	return nil
+}
+
+func (s *cryptoState) currentSession() *wkprotoenc.SessionCrypto {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.session
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 // Client is one WKProto TCP session.
@@ -199,17 +200,17 @@ func (c *Client) currentConn() (net.Conn, error) {
 	return c.conn, nil
 }
 
-// currentSession returns the active connection and its SENDACK tracker.
-func (c *Client) currentSession() (net.Conn, *pendingTracker, error) {
+// currentSession returns the active connection, SENDACK tracker, and crypto snapshot.
+func (c *Client) currentSession() (net.Conn, *pendingTracker, *wkprotoenc.SessionCrypto, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
-		return nil, nil, ErrClosed
+		return nil, nil, nil, ErrClosed
 	}
 	if c.conn == nil {
-		return nil, nil, ErrNotConnected
+		return nil, nil, nil, ErrNotConnected
 	}
-	return c.conn, c.pending, nil
+	return c.conn, c.pending, c.crypto.currentSession(), nil
 }
 
 func (c *Client) writeFrameSync(ctx context.Context, conn net.Conn, f frame.Frame) error {
