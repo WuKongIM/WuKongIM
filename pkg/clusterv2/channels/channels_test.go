@@ -14,6 +14,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,12 +90,13 @@ func TestServicePassesAppendBatchTuningToRuntime(t *testing.T) {
 		Status:      ch.StatusActive,
 	}
 	service, err := NewService(Config{
-		LocalNode:             1,
-		Store:                 channelstore.NewMemoryFactory(),
-		MetaSource:            NewStaticMetaSource([]ch.Meta{meta}),
-		ReactorCount:          1,
-		AppendBatchMaxRecords: 10,
-		AppendBatchMaxWait:    time.Hour,
+		LocalNode:               1,
+		Store:                   channelstore.NewMemoryFactory(),
+		MetaSource:              NewStaticMetaSource([]ch.Meta{meta}),
+		ReactorCount:            1,
+		StoreAppendBatchMaxWait: 100 * time.Microsecond,
+		AppendBatchMaxRecords:   10,
+		AppendBatchMaxWait:      time.Hour,
 	})
 	require.NoError(t, err)
 	defer service.Close()
@@ -104,6 +106,40 @@ func TestServicePassesAppendBatchTuningToRuntime(t *testing.T) {
 	defer cancel()
 	_, err = service.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("wait-for-batch")}})
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestServicePassesAppendAdaptiveFlushTuningToRuntime(t *testing.T) {
+	id := ch.ChannelID{ID: "adaptive-batch-tuning", Type: 1}
+	meta := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+	}
+	service, err := NewService(Config{
+		LocalNode:                1,
+		Store:                    channelstore.NewMemoryFactory(),
+		MetaSource:               NewStaticMetaSource([]ch.Meta{meta}),
+		ReactorCount:             1,
+		AppendBatchMaxRecords:    10,
+		AppendBatchMaxWait:       time.Hour,
+		AppendBatchAdaptiveFlush: true,
+		AppendBatchColdMaxWait:   time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer service.Close()
+	require.NoError(t, service.ApplyMeta(meta))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	result, err := service.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("cold-flush")}})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), result.MessageSeq)
 }
 
 func TestSlotMetaSourceEnsuresExistingRuntimeMeta(t *testing.T) {
@@ -948,6 +984,22 @@ func TestTransportClientShardsForwardAppendBatchByChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, firstShard, caller.lastShardKey)
 	require.Zero(t, caller.unshardedCalls)
+}
+
+func TestTransportClientUsesOwnedShardCallerForForwardAppendBatch(t *testing.T) {
+	caller := &recordingOwnedShardCaller{
+		recordingShardCaller: recordingShardCaller{response: mustEncodeAppendBatchResponse(t, ch.AppendBatchResult{})},
+	}
+	client := NewTransportClient(caller)
+
+	_, err := client.ForwardAppendBatch(context.Background(), 2, ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room-a", Type: 2}})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, caller.ownedShardedCallCount)
+	require.Zero(t, caller.shardedCallCount)
+	require.Zero(t, caller.unshardedCalls)
+	require.Equal(t, clusternet.RPCChannelAppendBatch, caller.lastServiceID)
+	require.NotEmpty(t, caller.lastPayload)
 }
 
 func TestTransportClientDispatchesPull(t *testing.T) {
@@ -1895,6 +1947,21 @@ func (c *recordingShardCaller) CallShard(_ context.Context, _ uint64, serviceID 
 	c.shardedCallCount++
 	c.lastServiceID = serviceID
 	c.lastShardKey = shardKey
+	return append([]byte(nil), c.response...), nil
+}
+
+type recordingOwnedShardCaller struct {
+	recordingShardCaller
+	ownedShardedCallCount int
+	lastPayload           []byte
+}
+
+func (c *recordingOwnedShardCaller) CallShardOwned(_ context.Context, _ uint64, serviceID uint8, shardKey uint64, payload transportv2.OwnedBuffer) ([]byte, error) {
+	c.ownedShardedCallCount++
+	c.lastServiceID = serviceID
+	c.lastShardKey = shardKey
+	c.lastPayload = append([]byte(nil), payload.Bytes()...)
+	payload.Release()
 	return append([]byte(nil), c.response...), nil
 }
 

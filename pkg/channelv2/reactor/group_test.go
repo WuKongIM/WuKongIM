@@ -239,6 +239,16 @@ func TestDefaultWorkerPoolsPreserveExplicitStoreWorkers(t *testing.T) {
 	require.Equal(t, 11, pools.RPC.Workers)
 }
 
+func TestDefaultWorkerPoolsUseStoreAppendBatchMaxWait(t *testing.T) {
+	pools := defaultWorkerPools(Config{
+		ReactorCount:            32,
+		MailboxSize:             16,
+		StoreAppendBatchMaxWait: 100 * time.Microsecond,
+	})
+
+	require.Equal(t, 100*time.Microsecond, pools.StoreAppend.BatchMaxWait)
+}
+
 func TestGroupCompleteDoesNotDropWhenHighMailboxIsFull(t *testing.T) {
 	meta := testMeta("completion-backpressure", 1, 1)
 	g := newUnstartedTestGroup(t, 1, 1)

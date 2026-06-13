@@ -245,17 +245,20 @@ func (c *Conn) readLoop() {
 func (c *Conn) writeLoop() {
 	defer close(c.writeDone)
 	var (
+		batch     []sched.Item
 		outbounds []Outbound
 		frames    []wire.Frame
 		buffers   net.Buffers
 	)
 	for {
-		batch, err := c.scheduler.WaitBatch()
+		var err error
+		batch, err = c.scheduler.WaitBatchInto(batch)
 		if err != nil {
 			return
 		}
 		var werr error
 		outbounds, frames, werr = c.writeOutboundBatch(batch, outbounds, frames, &buffers)
+		clear(batch)
 		if werr != nil {
 			c.shutdown(werr)
 			return

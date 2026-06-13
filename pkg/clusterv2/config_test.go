@@ -93,6 +93,7 @@ func TestConfigRejectsNegativeChannelStoreWorkers(t *testing.T) {
 		{name: "append", config: ChannelConfig{StoreAppendWorkers: -1}},
 		{name: "apply", config: ChannelConfig{StoreApplyWorkers: -1}},
 		{name: "rpc", config: ChannelConfig{RPCWorkers: -1}},
+		{name: "append batch wait", config: ChannelConfig{StoreAppendBatchMaxWait: -1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
@@ -116,6 +117,7 @@ func TestConfigRejectsNegativeChannelAppendBatchTuning(t *testing.T) {
 	}{
 		{name: "records", config: ChannelConfig{AppendBatchMaxRecords: -1}},
 		{name: "wait", config: ChannelConfig{AppendBatchMaxWait: -1}},
+		{name: "cold wait", config: ChannelConfig{AppendBatchColdMaxWait: -1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{

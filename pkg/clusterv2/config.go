@@ -100,6 +100,8 @@ type ChannelConfig struct {
 	ReactorCount int
 	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
 	StoreAppendWorkers int
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the ChannelV2 worker default.
+	StoreAppendBatchMaxWait time.Duration
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
 	StoreApplyWorkers int
 	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
@@ -112,6 +114,10 @@ type ChannelConfig struct {
 	AppendBatchMaxRecords int
 	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing. Zero keeps the runtime default.
 	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal append batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled. Zero keeps the normal batch window.
+	AppendBatchColdMaxWait time.Duration
 	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the ChannelV2 runtime default.
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the ChannelV2 runtime default.
@@ -221,6 +227,9 @@ func (c Config) validate() error {
 	if c.Channel.StoreAppendWorkers < 0 {
 		return ErrInvalidConfig
 	}
+	if c.Channel.StoreAppendBatchMaxWait < 0 {
+		return ErrInvalidConfig
+	}
 	if c.Channel.StoreApplyWorkers < 0 {
 		return ErrInvalidConfig
 	}
@@ -240,6 +249,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.AppendBatchMaxWait < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchColdMaxWait < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.ReplicaCount == 0 {

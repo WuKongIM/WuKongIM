@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 func TestPayloadCodecRoundTripsHashSlotZero(t *testing.T) {
@@ -56,6 +58,30 @@ func TestServiceProposeRemoteLeader(t *testing.T) {
 	}
 	if forward.calls != 1 || forward.nodeID != 2 || forward.req.SlotID != 11 || forward.req.HashSlot != 3 {
 		t.Fatalf("forward = %#v, want one call to node 2 slot 11 hash 3", forward)
+	}
+}
+
+func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
+	caller := &recordingOwnedForwardCaller{}
+	client := NewNetworkForwardClient(caller)
+
+	err := client.ForwardPropose(context.Background(), 2, ForwardRequest{SlotID: 11, HashSlot: 3, Payload: EncodePayload(3, []byte("cmd"))})
+
+	if err != nil {
+		t.Fatalf("ForwardPropose() error = %v", err)
+	}
+	if caller.callOwnedCount != 1 || caller.callCount != 0 {
+		t.Fatalf("call counts owned=%d normal=%d, want owned only", caller.callOwnedCount, caller.callCount)
+	}
+	if caller.nodeID != 2 || caller.serviceID != clusternet.RPCSlotForwardPropose {
+		t.Fatalf("target=(%d,%d), want node=2 service=%d", caller.nodeID, caller.serviceID, clusternet.RPCSlotForwardPropose)
+	}
+	req, err := DecodeForwardRequest(caller.payload)
+	if err != nil {
+		t.Fatalf("DecodeForwardRequest() error = %v", err)
+	}
+	if req.SlotID != 11 || req.HashSlot != 3 {
+		t.Fatalf("decoded request = %#v, want slot=11 hash=3", req)
 	}
 }
 
@@ -137,6 +163,28 @@ func (f *fakeForward) ForwardPropose(_ context.Context, nodeID uint64, req Forwa
 	f.nodeID = nodeID
 	f.req = req
 	return f.err
+}
+
+type recordingOwnedForwardCaller struct {
+	nodeID         uint64
+	serviceID      uint8
+	payload        []byte
+	callCount      int
+	callOwnedCount int
+}
+
+func (c *recordingOwnedForwardCaller) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	c.callCount++
+	return nil, errors.New("normal call")
+}
+
+func (c *recordingOwnedForwardCaller) CallOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) ([]byte, error) {
+	c.callOwnedCount++
+	c.nodeID = nodeID
+	c.serviceID = serviceID
+	c.payload = append([]byte(nil), payload.Bytes()...)
+	payload.Release()
+	return nil, nil
 }
 
 type recordingStageObserver struct {

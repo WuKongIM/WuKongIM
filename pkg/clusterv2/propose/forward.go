@@ -22,7 +22,7 @@ func (c *NetworkForwardClient) ForwardPropose(ctx context.Context, nodeID uint64
 	if err != nil {
 		return err
 	}
-	_, err = c.caller.Call(ctx, nodeID, clusternet.RPCSlotForwardPropose, payload)
+	_, err = clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCSlotForwardPropose, payload)
 	return err
 }
 

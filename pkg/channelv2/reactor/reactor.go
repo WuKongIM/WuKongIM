@@ -41,6 +41,10 @@ type ReactorConfig struct {
 	AppendBatchMaxBytes int
 	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
 	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled.
+	AppendBatchColdMaxWait time.Duration
 	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
 	AppendQueueMaxRequests int
 	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.

@@ -42,6 +42,12 @@ type Config struct {
 	AppendBatchMaxBytes int
 	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
 	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled.
+	AppendBatchColdMaxWait time.Duration
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the worker default.
+	StoreAppendBatchMaxWait time.Duration
 	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
 	AppendQueueMaxRequests int
 	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
@@ -121,6 +127,8 @@ func NewGroup(cfg Config) (*Group, error) {
 			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
 			AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,
 			AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
+			AppendBatchAdaptiveFlush:      cfg.AppendBatchAdaptiveFlush,
+			AppendBatchColdMaxWait:        cfg.AppendBatchColdMaxWait,
 			AppendQueueMaxRequests:        cfg.AppendQueueMaxRequests,
 			AppendQueueMaxBytes:           cfg.AppendQueueMaxBytes,
 			AppendStoreRetryBackoff:       cfg.AppendStoreRetryBackoff,
@@ -395,6 +403,9 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	storeApplyWorkers := min(workers*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
 	queueSize := max(64, cfg.MailboxSize)
 	pools := cfg.WorkerPools
+	if cfg.StoreAppendBatchMaxWait > 0 {
+		pools.StoreAppend.BatchMaxWait = cfg.StoreAppendBatchMaxWait
+	}
 	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", storeAppendWorkers, queueSize)
 	pools.StoreRead = defaultPoolConfig(pools.StoreRead, "channelv2-store-read", workers, queueSize)
 	pools.StoreApply = defaultPoolConfig(pools.StoreApply, "channelv2-store-apply", storeApplyWorkers, queueSize)

@@ -151,14 +151,29 @@ func (c *TransportClient) Call(ctx context.Context, nodeID uint64, serviceID uin
 	return c.CallShard(ctx, nodeID, serviceID, serviceShardKey(serviceID), payload)
 }
 
+// CallOwned invokes serviceID on nodeID and transfers payload ownership.
+func (c *TransportClient) CallOwned(ctx context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) ([]byte, error) {
+	return c.CallShardOwned(ctx, nodeID, serviceID, serviceShardKey(serviceID), payload)
+}
+
 // CallShard invokes serviceID on nodeID using shardKey for connection selection.
 func (c *TransportClient) CallShard(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
 	return c.client.Call(ctx, transportv2.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
 }
 
+// CallShardOwned invokes serviceID on nodeID using shardKey and transfers payload ownership.
+func (c *TransportClient) CallShardOwned(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload transportv2.OwnedBuffer) ([]byte, error) {
+	return c.client.CallOwned(ctx, transportv2.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
+}
+
 // Send sends serviceID to nodeID without waiting for a response.
 func (c *TransportClient) Send(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) error {
 	return c.client.Notify(ctx, transportv2.NodeID(nodeID), serviceShardKey(serviceID), servicePriority(serviceID), uint16(serviceID), payload)
+}
+
+// SendOwned sends serviceID to nodeID and transfers payload ownership.
+func (c *TransportClient) SendOwned(ctx context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) error {
+	return c.client.NotifyOwned(ctx, transportv2.NodeID(nodeID), serviceShardKey(serviceID), servicePriority(serviceID), uint16(serviceID), payload)
 }
 
 // PoolSize returns the configured outbound connection count per peer.

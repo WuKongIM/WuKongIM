@@ -16,6 +16,10 @@ type appendQueueConfig struct {
 	MaxBytes int
 	// MaxWait is the maximum age of the oldest queued append before flushing.
 	MaxWait time.Duration
+	// AdaptiveFlush enables a shorter cold flush delay for the first queued append.
+	AdaptiveFlush bool
+	// ColdMaxWait is the cold-channel flush delay used when AdaptiveFlush is enabled.
+	ColdMaxWait time.Duration
 	// MaxPending bounds queued client append requests.
 	MaxPending int
 	// MaxPendingBytes bounds queued client append payload bytes.
@@ -115,9 +119,20 @@ func (q *appendQueue) push(req appendRequest) error {
 	q.records += len(req.records)
 	q.bytes += reqBytes
 	if len(q.pending) == 1 && q.cfg.MaxWait > 0 {
-		q.flushDue = req.enqueuedAt.Add(q.cfg.MaxWait)
+		q.flushDue = req.enqueuedAt.Add(q.effectiveMaxWait())
 	}
 	return nil
+}
+
+func (q *appendQueue) effectiveMaxWait() time.Duration {
+	if q == nil {
+		return 0
+	}
+	wait := q.cfg.MaxWait
+	if q.cfg.AdaptiveFlush && q.cfg.ColdMaxWait > 0 && (wait <= 0 || q.cfg.ColdMaxWait < wait) {
+		wait = q.cfg.ColdMaxWait
+	}
+	return wait
 }
 
 func (q *appendQueue) shouldFlush(now time.Time) bool {
@@ -227,7 +242,7 @@ func (q *appendQueue) recount() {
 		q.records += len(req.records)
 		q.bytes += recordsBytes(req.records)
 		if i == 0 && q.cfg.MaxWait > 0 {
-			q.flushDue = req.enqueuedAt.Add(q.cfg.MaxWait)
+			q.flushDue = req.enqueuedAt.Add(q.effectiveMaxWait())
 		}
 	}
 }

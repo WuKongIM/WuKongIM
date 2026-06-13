@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -40,6 +41,24 @@ func TestNewGroupPassesLeaderRecentRecordCacheConfig(t *testing.T) {
 	require.Equal(t, 4096, g.reactors[0].cfg.LeaderRecentRecordCacheBytes)
 }
 
+func TestNewGroupPassesAppendAdaptiveFlushConfig(t *testing.T) {
+	g, err := NewGroup(Config{
+		LocalNode:                1,
+		Store:                    store.NewMemoryFactory(),
+		ReactorCount:             1,
+		AppendBatchAdaptiveFlush: true,
+		AppendBatchColdMaxWait:   100 * time.Microsecond,
+	})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, g.Close())
+	}()
+
+	require.Len(t, g.reactors, 1)
+	require.True(t, g.reactors[0].cfg.AppendBatchAdaptiveFlush)
+	require.Equal(t, 100*time.Microsecond, g.reactors[0].cfg.AppendBatchColdMaxWait)
+}
+
 func TestDefaultConfigCapsLeaderRecentRecordCacheBytesAt256KiB(t *testing.T) {
 	cfg := defaultConfig(Config{LocalNode: 1, Store: store.NewMemoryFactory(), PullMaxBytes: 512 * 1024})
 
@@ -55,6 +74,16 @@ func TestPublicFacadeConfigExposesLeaderRecentRecordCacheKnobs(t *testing.T) {
 
 	require.Equal(t, 7, cfg.LeaderRecentRecordCacheSize)
 	require.Equal(t, 4096, cfg.LeaderRecentRecordCacheBytes)
+}
+
+func TestPublicFacadeConfigExposesAppendAdaptiveFlushKnobs(t *testing.T) {
+	cfg := ch.Config{
+		AppendBatchAdaptiveFlush: true,
+		AppendBatchColdMaxWait:   100 * time.Microsecond,
+	}
+
+	require.True(t, cfg.AppendBatchAdaptiveFlush)
+	require.Equal(t, 100*time.Microsecond, cfg.AppendBatchColdMaxWait)
 }
 
 func TestDefaultConfigPreservesDisabledLeaderRecentRecordCache(t *testing.T) {

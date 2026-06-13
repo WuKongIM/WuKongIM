@@ -8,6 +8,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -85,6 +86,40 @@ func TestRaftTransportUsesOneWaySend(t *testing.T) {
 	select {
 	case <-network.calls:
 		t.Fatal("RaftTransport called synchronous Call, want one-way Send")
+	default:
+	}
+}
+
+func TestRaftTransportUsesOwnedSendWhenAvailable(t *testing.T) {
+	network := &recordingOwnedRaftMessenger{
+		recordingRaftMessenger: recordingRaftMessenger{
+			sent:  make(chan sentControlMessage, 1),
+			calls: make(chan struct{}, 1),
+		},
+		ownedSent: make(chan sentControlMessage, 1),
+	}
+	transport := NewRaftTransport(network)
+	transport.Send([]raftpb.Message{{From: 1, To: 2, Type: raftpb.MsgHeartbeat, Term: 4}})
+
+	select {
+	case sent := <-network.ownedSent:
+		if sent.nodeID != 2 || sent.serviceID != clusternet.RPCControlRaft {
+			t.Fatalf("owned sent target=(%d,%d), want node=2 service=%d", sent.nodeID, sent.serviceID, clusternet.RPCControlRaft)
+		}
+		messages, err := DecodeRaftBatch(sent.payload)
+		if err != nil {
+			t.Fatalf("DecodeRaftBatch() error = %v", err)
+		}
+		if len(messages) != 1 || messages[0].Term != 4 {
+			t.Fatalf("messages = %#v, want one term=4 heartbeat", messages)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for owned one-way send")
+	}
+
+	select {
+	case <-network.sent:
+		t.Fatal("RaftTransport used normal Send, want SendOwned")
 	default:
 	}
 }
@@ -193,6 +228,17 @@ func (m *recordingRaftMessenger) Send(_ context.Context, nodeID uint64, serviceI
 func (m *recordingRaftMessenger) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
 	m.calls <- struct{}{}
 	return nil, nil
+}
+
+type recordingOwnedRaftMessenger struct {
+	recordingRaftMessenger
+	ownedSent chan sentControlMessage
+}
+
+func (m *recordingOwnedRaftMessenger) SendOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) error {
+	m.ownedSent <- sentControlMessage{nodeID: nodeID, serviceID: serviceID, payload: append([]byte(nil), payload.Bytes()...)}
+	payload.Release()
+	return nil
 }
 
 type blockingRaftMessenger struct {

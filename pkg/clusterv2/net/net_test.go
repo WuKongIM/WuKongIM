@@ -103,6 +103,43 @@ func TestTransportLoopbackRPC(t *testing.T) {
 	}
 }
 
+func TestTransportLoopbackCallOwnedReleasesPayload(t *testing.T) {
+	server := NewTransportServer(TransportServerConfig{})
+	server.Register(RPCSlotForwardPropose, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		return append([]byte("resp:"), payload...), nil
+	}))
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	released := make(chan []byte, 1)
+	payload := transportv2.NewOwnedBuffer([]byte("ping"), func(data []byte) {
+		released <- append([]byte(nil), data...)
+	})
+	got, err := client.CallOwned(context.Background(), 2, RPCSlotForwardPropose, payload)
+	if err != nil {
+		t.Fatalf("CallOwned() error = %v", err)
+	}
+	if string(got) != "resp:ping" {
+		t.Fatalf("CallOwned() = %q, want resp:ping", got)
+	}
+
+	select {
+	case got := <-released:
+		if string(got) != "ping" {
+			t.Fatalf("released payload = %q, want ping", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for owned payload release")
+	}
+}
+
 func TestTransportClientUsesClusterSizedQueuesByDefault(t *testing.T) {
 	client := NewTransportClient(TransportClientConfig{})
 	defer client.Stop()
@@ -119,6 +156,39 @@ func TestTransportClientUsesClusterPoolSizeByDefault(t *testing.T) {
 
 	if client.poolSize != defaultTransportPoolSize {
 		t.Fatalf("poolSize = %d, want %d", client.poolSize, defaultTransportPoolSize)
+	}
+}
+
+func TestCallOwnedPayloadUsesOwnedCaller(t *testing.T) {
+	caller := &recordingOwnedNetworkClient{response: []byte("ok")}
+
+	got, err := CallOwnedPayload(context.Background(), caller, 2, RPCSlotForwardPropose, []byte("ping"))
+
+	if err != nil {
+		t.Fatalf("CallOwnedPayload() error = %v", err)
+	}
+	if string(got) != "ok" {
+		t.Fatalf("CallOwnedPayload() = %q, want ok", got)
+	}
+	if caller.callOwnedCount != 1 || caller.callCount != 0 {
+		t.Fatalf("call counts owned=%d normal=%d, want owned only", caller.callOwnedCount, caller.callCount)
+	}
+	if string(caller.lastPayload) != "ping" {
+		t.Fatalf("payload = %q, want ping", caller.lastPayload)
+	}
+}
+
+func TestSendOwnedPayloadUsesOwnedSender(t *testing.T) {
+	sender := &recordingOwnedNetworkClient{}
+
+	if err := SendOwnedPayload(context.Background(), sender, 2, RPCControlRaft, []byte("raft")); err != nil {
+		t.Fatalf("SendOwnedPayload() error = %v", err)
+	}
+	if sender.sendOwnedCount != 1 || sender.sendCount != 0 {
+		t.Fatalf("send counts owned=%d normal=%d, want owned only", sender.sendOwnedCount, sender.sendCount)
+	}
+	if string(sender.lastPayload) != "raft" {
+		t.Fatalf("payload = %q, want raft", sender.lastPayload)
 	}
 }
 
@@ -294,9 +364,85 @@ func TestTransportLoopbackSendDoesNotWaitForResponse(t *testing.T) {
 	}
 }
 
+func TestTransportLoopbackSendOwnedReleasesPayload(t *testing.T) {
+	server := NewTransportServer(TransportServerConfig{})
+	received := make(chan []byte, 1)
+	server.Register(RPCControlRaft, HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		received <- append([]byte(nil), payload...)
+		return nil, nil
+	}))
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	discovery := NewDiscovery()
+	discovery.Update([]NodeAddress{{NodeID: 2, Addr: server.Addr()}})
+	client := NewTransportClient(TransportClientConfig{Discovery: discovery, PoolSize: 1})
+	defer client.Stop()
+
+	released := make(chan []byte, 1)
+	payload := transportv2.NewOwnedBuffer([]byte("raft"), func(data []byte) {
+		released <- append([]byte(nil), data...)
+	})
+	if err := client.SendOwned(context.Background(), 2, RPCControlRaft, payload); err != nil {
+		t.Fatalf("SendOwned() error = %v", err)
+	}
+
+	select {
+	case got := <-received:
+		if string(got) != "raft" {
+			t.Fatalf("payload = %q, want raft", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for one-way owned send")
+	}
+	select {
+	case got := <-released:
+		if string(got) != "raft" {
+			t.Fatalf("released payload = %q, want raft", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for owned payload release")
+	}
+}
+
 type recordingTransportObserver struct {
 	mu     sync.Mutex
 	events []transportv2.Event
+}
+
+type recordingOwnedNetworkClient struct {
+	response       []byte
+	lastPayload    []byte
+	callCount      int
+	callOwnedCount int
+	sendCount      int
+	sendOwnedCount int
+}
+
+func (c *recordingOwnedNetworkClient) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	c.callCount++
+	return nil, errors.New("normal call")
+}
+
+func (c *recordingOwnedNetworkClient) CallOwned(_ context.Context, _ uint64, _ uint8, payload transportv2.OwnedBuffer) ([]byte, error) {
+	c.callOwnedCount++
+	c.lastPayload = append([]byte(nil), payload.Bytes()...)
+	payload.Release()
+	return append([]byte(nil), c.response...), nil
+}
+
+func (c *recordingOwnedNetworkClient) Send(context.Context, uint64, uint8, []byte) error {
+	c.sendCount++
+	return errors.New("normal send")
+}
+
+func (c *recordingOwnedNetworkClient) SendOwned(_ context.Context, _ uint64, _ uint8, payload transportv2.OwnedBuffer) error {
+	c.sendOwnedCount++
+	c.lastPayload = append([]byte(nil), payload.Bytes()...)
+	payload.Release()
+	return nil
 }
 
 func (o *recordingTransportObserver) ObserveTransport(event transportv2.Event) {

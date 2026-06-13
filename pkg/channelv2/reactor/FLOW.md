@@ -67,6 +67,14 @@ each drained batch as well as while idle. This keeps append flushes, follower
 replication retries, lifecycle checks, and pending-meta deadlines from waiting
 for the mailbox to become completely empty during sustained load.
 
+Append queues flush by record count, payload bytes, or the oldest request's
+wait deadline. `AppendBatchAdaptiveFlush` keeps the default behavior off, but
+when enabled a cold queue's first request uses `AppendBatchColdMaxWait` if it is
+shorter than `AppendBatchMaxWait`, so low-volume channels can flush without
+waiting for the full batch window. After a reactor flushes, store-append worker
+coalescing can still add a short cross-channel batch wait; `StoreAppendBatchMaxWait`
+overrides that worker-side wait while zero keeps the worker default.
+
 ## Lifecycle Controller
 
 Each loaded runtime has exactly one `channelRuntimeLifecycle`, written by the

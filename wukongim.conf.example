@@ -36,6 +36,11 @@ WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 # Caps blocking ChannelV2 leader append and follower apply store workers. 0 keeps
 # the runtime default derived from the reactor count.
 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
+# Overrides how long the store-append worker waits to coalesce append tasks from
+# different channels before entering the message DB adapter. 0 keeps the
+# ChannelV2 worker default; lower positive values reduce low-volume append
+# latency at the cost of smaller cross-channel batches.
+WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
 # Caps blocking ChannelV2 replication RPC workers. 0 keeps the runtime default
 # derived from the reactor count.
@@ -44,9 +49,18 @@ WK_CLUSTER_CHANNEL_RPC_WORKERS=0
 # 0 preserves unlimited behavior; set a positive per-node budget to fail closed
 # before channel runtime goroutines grow unbounded.
 WK_CLUSTER_MAX_CHANNELS=0
-# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+# ChannelV2 append batch flush controls. MAX_RECORDS flushes a channel when enough
+# queued records accumulate, and MAX_WAIT bounds the oldest queued append. 0 keeps
+# the runtime default.
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
+# Optional low-traffic latency mode for ChannelV2 append batching. When enabled,
+# the first append in a cold per-channel queue may flush after COLD_MAX_WAIT if it
+# is shorter than MAX_WAIT; hot queues still use record/byte limits and MAX_WAIT.
+# Keep disabled unless low-volume channel latency is more important than maximizing
+# per-channel batching. COLD_MAX_WAIT=0 keeps the normal MAX_WAIT behavior.
+WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH=false
+WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=0
 # Evicts cold local channel runtimes after this idle duration. 0 disables eviction;
 # enable together with WK_CLUSTER_MAX_CHANNELS to keep long-lived working sets bounded.
 WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=0

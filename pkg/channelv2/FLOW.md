@@ -80,6 +80,14 @@ sequenceDiagram
     end
 ```
 
+Append flush waits are bounded by `AppendBatchMaxWait` by default. When
+`AppendBatchAdaptiveFlush` is enabled, the first request in a cold per-channel
+append queue uses `AppendBatchColdMaxWait` if it is shorter, while record and
+byte thresholds still trigger immediate flushes. Store-append workers may then
+coalesce flushed tasks across channels before entering the store adapter;
+`StoreAppendBatchMaxWait` can shorten that worker-side wait for low-latency
+profiles while zero keeps the default batching window.
+
 Leader reactors keep a configurable recent-record suffix cache for durable
 append records, defaulting to 128 records. Follower `Pull` requests that are
 covered by this suffix can complete from memory; older requests still use

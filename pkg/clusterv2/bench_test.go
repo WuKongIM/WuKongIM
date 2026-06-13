@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -76,6 +77,49 @@ func BenchmarkForwardPropose(b *testing.B) {
 }
 
 func BenchmarkChannelAppendLocal(b *testing.B) {
+	node, channelID := newBenchChannelAppendNode(b)
+	ctx := context.Background()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+			ChannelID:            channelID,
+			CommitMode:           channelv2.CommitModeLocal,
+			ExpectedChannelEpoch: 1,
+			ExpectedLeaderEpoch:  1,
+			Message:              channelv2.Message{MessageID: uint64(i + 1), Payload: clusterV2BenchPayload},
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkChannelAppendLocalParallel(b *testing.B) {
+	node, channelID := newBenchChannelAppendNode(b)
+	ctx := context.Background()
+	var nextMessageID atomic.Uint64
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			messageID := nextMessageID.Add(1)
+			_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+				ChannelID:            channelID,
+				CommitMode:           channelv2.CommitModeLocal,
+				ExpectedChannelEpoch: 1,
+				ExpectedLeaderEpoch:  1,
+				Message:              channelv2.Message{MessageID: messageID, Payload: clusterV2BenchPayload},
+			})
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func newBenchChannelAppendNode(b *testing.B) (*Node, channelv2.ChannelID) {
+	b.Helper()
 	channelID := channelv2.ChannelID{ID: "bench-local", Type: 1}
 	meta := channelv2.Meta{
 		Key:         channelv2.ChannelKeyForID(channelID),
@@ -100,21 +144,7 @@ func BenchmarkChannelAppendLocal(b *testing.B) {
 	if err := node.Start(context.Background()); err != nil {
 		b.Fatal(err)
 	}
-	ctx := context.Background()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
-			ChannelID:            channelID,
-			CommitMode:           channelv2.CommitModeLocal,
-			ExpectedChannelEpoch: 1,
-			ExpectedLeaderEpoch:  1,
-			Message:              channelv2.Message{MessageID: uint64(i + 1), Payload: clusterV2BenchPayload},
-		})
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
+	return node, channelID
 }
 
 func newBenchRouter(b *testing.B, leader uint64) *routing.Router {

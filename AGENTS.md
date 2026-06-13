@@ -50,6 +50,7 @@
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
   wukongimv2/            internalv2/app 迁移期独立验证入口，当前验证单节点集群 SEND -> SENDACK 骨架
+  wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 

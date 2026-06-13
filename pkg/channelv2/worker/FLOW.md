@@ -33,6 +33,10 @@ capacity.
 RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Store append and store apply tasks can batch across different
 channel keys when the store factory exposes the optional batch interface.
+`PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that
+pool; zero keeps the built-in default. This lets low-latency store-append
+deployments shorten the extra worker-side wait without removing batching from
+throughput-oriented configurations.
 
 Batching changes only the blocking dependency call. A collected execution
 window may split into multiple incompatible groups, but those groups still run

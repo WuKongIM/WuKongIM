@@ -40,12 +40,13 @@ func TestNewLimitsStoreAppendWorkersWhenConfigured(t *testing.T) {
 	factory := newServiceBlockingAppendFactory()
 	observer := &serviceWorkerInflightObserver{}
 	cluster, err := New(Config{
-		LocalNode:             1,
-		Store:                 factory,
-		ReactorCount:          4,
-		AppendBatchMaxRecords: 1,
-		StoreAppendWorkers:    1,
-		Observer:              observer,
+		LocalNode:               1,
+		Store:                   factory,
+		ReactorCount:            4,
+		AppendBatchMaxRecords:   1,
+		StoreAppendWorkers:      1,
+		StoreAppendBatchMaxWait: 100 * time.Microsecond,
+		Observer:                observer,
 	})
 	require.NoError(t, err)
 	defer cluster.Close()

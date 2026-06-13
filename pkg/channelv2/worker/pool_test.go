@@ -835,6 +835,25 @@ func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
 	require.ElementsMatch(t, []uint64{1, 1}, resultStoreAppendLastOffsets(sink.Results()))
 }
 
+func TestPoolUsesConfiguredStoreAppendBatchMaxWait(t *testing.T) {
+	pool := &Pool{
+		cfg:   PoolConfig{Name: "store-append", BatchMaxWait: time.Hour},
+		deps:  Deps{Stores: &batchAppendStoreFactory{}},
+		queue: make(chan queuedTask, 2),
+		stop:  make(chan struct{}),
+	}
+	first := queuedStoreAppendTask("a", 1)
+	go func() {
+		time.Sleep(2 * time.Millisecond)
+		pool.queue <- queuedStoreAppendTask("b", 2)
+	}()
+
+	groups := pool.taskGroups(first)
+
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0], 2)
+}
+
 func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	sink := &captureSink{}
 	pools, err := NewPools(PoolsConfig{
@@ -873,6 +892,14 @@ func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
 	require.Equal(t, 1, pools.QueueDepth(TaskStoreReadLog))
 	require.Equal(t, 0, pools.QueueDepth(TaskStoreAppend))
 	require.ErrorIs(t, pools.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence}), ch.ErrInvalidConfig)
+}
+
+func queuedStoreAppendTask(channel string, opID ch.OpID) queuedTask {
+	return queuedTask{enqueuedAt: time.Now(), task: Task{
+		Kind:        TaskStoreAppend,
+		Fence:       ch.Fence{ChannelKey: ch.ChannelKey("1:" + channel), OpID: opID},
+		StoreAppend: &StoreAppendTask{ChannelID: ch.ChannelID{ID: channel, Type: 1}, Records: []ch.Record{{ID: uint64(opID), Payload: []byte(channel)}}},
+	}}
 }
 
 type captureSink struct {

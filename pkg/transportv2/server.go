@@ -50,7 +50,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, err
 	}
 	observer := core.NewObserverDrain(normalized.Observer)
-	normalized.Observer = observer
+	if observer != nil {
+		normalized.Observer = observer
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		cfg:      normalized,

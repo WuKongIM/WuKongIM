@@ -39,6 +39,25 @@ func TestAppendQueueFlushesByMaxWait(t *testing.T) {
 	require.True(t, q.shouldFlush(now.Add(5*time.Millisecond)))
 }
 
+func TestAppendQueueAdaptiveFlushShortensColdWait(t *testing.T) {
+	now := time.Unix(1, 0)
+	q := newAppendQueue(appendQueueConfig{
+		MaxRecords:      10,
+		MaxBytes:        1024,
+		MaxWait:         time.Millisecond,
+		AdaptiveFlush:   true,
+		ColdMaxWait:     100 * time.Microsecond,
+		MaxPending:      10,
+		MaxPendingBytes: 1024,
+	})
+
+	require.NoError(t, q.push(appendRequest{opID: 1, enqueuedAt: now, records: []ch.Record{{SizeBytes: 1}}}))
+
+	require.Equal(t, now.Add(100*time.Microsecond), q.flushDue)
+	require.False(t, q.shouldFlush(now.Add(99*time.Microsecond)))
+	require.True(t, q.shouldFlush(now.Add(100*time.Microsecond)))
+}
+
 func TestAppendQueueRejectsPendingLimits(t *testing.T) {
 	q := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 1, MaxPendingBytes: 1})
 	require.NoError(t, q.push(appendRequest{opID: 1, records: []ch.Record{{SizeBytes: 1}}}))

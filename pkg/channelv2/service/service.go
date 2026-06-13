@@ -18,6 +18,8 @@ type Config struct {
 	MailboxSize  int
 	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the reactor default.
 	StoreAppendWorkers int
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the worker default.
+	StoreAppendBatchMaxWait time.Duration
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the reactor default.
 	StoreApplyWorkers int
 	// RPCWorkers caps blocking replication RPC workers. Zero keeps the reactor default.
@@ -62,6 +64,10 @@ type Config struct {
 	AppendBatchMaxBytes int
 	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
 	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled.
+	AppendBatchColdMaxWait time.Duration
 	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
 	AppendQueueMaxRequests int
 	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
@@ -85,7 +91,7 @@ func New(cfg Config) (ch.Cluster, error) {
 		return nil, ch.ErrInvalidConfig
 	}
 	workerPools := worker.PoolsConfig{
-		StoreAppend: worker.PoolConfig{Workers: cfg.StoreAppendWorkers},
+		StoreAppend: worker.PoolConfig{Workers: cfg.StoreAppendWorkers, BatchMaxWait: cfg.StoreAppendBatchMaxWait},
 		StoreApply:  worker.PoolConfig{Workers: cfg.StoreApplyWorkers},
 		RPC:         worker.PoolConfig{Workers: cfg.RPCWorkers},
 	}
@@ -95,6 +101,9 @@ func New(cfg Config) (ch.Cluster, error) {
 		AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
 		AppendBatchMaxBytes:           cfg.AppendBatchMaxBytes,
 		AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
+		AppendBatchAdaptiveFlush:      cfg.AppendBatchAdaptiveFlush,
+		AppendBatchColdMaxWait:        cfg.AppendBatchColdMaxWait,
+		StoreAppendBatchMaxWait:       cfg.StoreAppendBatchMaxWait,
 		AppendQueueMaxRequests:        cfg.AppendQueueMaxRequests,
 		AppendQueueMaxBytes:           cfg.AppendQueueMaxBytes,
 		AppendStoreRetryBackoff:       cfg.AppendStoreRetryBackoff,

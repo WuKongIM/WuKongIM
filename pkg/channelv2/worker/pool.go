@@ -84,9 +84,12 @@ func (noopQueueObserver) SetWorkerQueueDepth(pool string, depth int) {}
 
 // PoolConfig defines worker and queue limits for one bounded pool.
 type PoolConfig struct {
-	Name      string
-	Workers   int
+	Name    string
+	Workers int
+	// QueueSize bounds accepted tasks waiting for this worker pool.
 	QueueSize int
+	// BatchMaxWait overrides the pool's default batch coalescing wait. Zero keeps the task-class default.
+	BatchMaxWait time.Duration
 }
 
 // Pool runs blocking tasks with bounded admission and ants-backed execution.

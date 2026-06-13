@@ -228,10 +228,14 @@ type ownedState struct {
 // OwnedBuffer carries payload bytes plus explicit release ownership.
 type OwnedBuffer struct {
 	state *ownedState
+	data  []byte
 }
 
 // NewOwnedBuffer wraps caller-owned bytes with an optional release callback.
 func NewOwnedBuffer(data []byte, release func([]byte)) OwnedBuffer {
+	if release == nil {
+		return OwnedBuffer{data: data}
+	}
 	return OwnedBuffer{state: &ownedState{data: data, release: release}}
 }
 
@@ -244,7 +248,7 @@ func CopyOwnedBuffer(data []byte) OwnedBuffer {
 // Bytes returns the current payload bytes.
 func (b OwnedBuffer) Bytes() []byte {
 	if b.state == nil {
-		return nil
+		return b.data
 	}
 	if b.state.released.Load() {
 		return nil
@@ -258,16 +262,22 @@ func (b OwnedBuffer) Len() int {
 }
 
 // Release releases the payload at most once.
-func (b OwnedBuffer) Release() {
+func (b *OwnedBuffer) Release() {
 	if b.state == nil {
+		b.data = nil
 		return
 	}
 	if !b.state.released.CompareAndSwap(false, true) {
+		b.state = nil
+		b.data = nil
 		return
 	}
 	data := b.state.data
+	release := b.state.release
 	b.state.data = nil
-	if b.state.release != nil {
-		b.state.release(data)
+	b.state = nil
+	b.data = nil
+	if release != nil {
+		release(data)
 	}
 }

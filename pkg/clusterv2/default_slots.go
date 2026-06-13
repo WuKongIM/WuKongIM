@@ -114,7 +114,7 @@ func (t networkSlotTransport) Send(ctx context.Context, batch []multiraft.Envelo
 		if err != nil {
 			return err
 		}
-		if err := t.sender.Send(ctx, nodeID, clusternet.MsgSlotRaftBatch, payload); err != nil {
+		if err := clusternet.SendOwnedPayload(ctx, t.sender, nodeID, clusternet.MsgSlotRaftBatch, payload); err != nil {
 			return err
 		}
 	}

@@ -100,6 +100,33 @@ func TestClientCallHandlerErrorReturnsRemoteError(t *testing.T) {
 	}
 }
 
+func TestClientCallOwnedRoundTripReleasesPayload(t *testing.T) {
+	server, client := newClientServerPair(t, func(ctx context.Context, payload []byte) ([]byte, error) {
+		return append([]byte("owned:"), payload...), nil
+	})
+	defer server.Stop()
+	defer client.Stop()
+
+	released := make(chan []byte, 1)
+	got, err := client.CallOwned(context.Background(), 2, 42, PriorityRPC, 7, NewOwnedBuffer([]byte("hello"), func(data []byte) {
+		released <- data
+	}))
+	if err != nil {
+		t.Fatalf("CallOwned() error = %v", err)
+	}
+	if string(got) != "owned:hello" {
+		t.Fatalf("CallOwned() payload = %q, want owned:hello", got)
+	}
+	select {
+	case data := <-released:
+		if string(data) != "hello" {
+			t.Fatalf("released payload = %q, want hello", data)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for owned payload release")
+	}
+}
+
 func TestClientCallCopiesPayload(t *testing.T) {
 	writeStarted := make(chan struct{})
 	allowWrite := make(chan struct{})

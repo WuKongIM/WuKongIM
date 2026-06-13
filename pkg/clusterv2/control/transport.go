@@ -51,7 +51,7 @@ func (t *RaftTransport) Send(messages []raftpb.Message) {
 
 func (t *RaftTransport) sendBatch(nodeID uint64, payload []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), t.timeout)
-	err := t.sender.Send(ctx, nodeID, clusternet.RPCControlRaft, payload)
+	err := clusternet.SendOwnedPayload(ctx, t.sender, nodeID, clusternet.RPCControlRaft, payload)
 	if err != nil {
 		fmt.Printf("control raft send failed %v\n", err)
 	}
@@ -114,7 +114,7 @@ func (e *StateSyncEndpoint) GetState(ctx context.Context, req cv2.GetStateReques
 	if err != nil {
 		return cv2.GetStateResponse{}, err
 	}
-	resp, err := e.caller.Call(ctx, e.nodeID, clusternet.RPCControlStateSync, payload)
+	resp, err := clusternet.CallOwnedPayload(ctx, e.caller, e.nodeID, clusternet.RPCControlStateSync, payload)
 	if err != nil {
 		return cv2.GetStateResponse{}, err
 	}

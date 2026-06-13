@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+var ownedBufferSink OwnedBuffer
+
 func TestPriorityValidation(t *testing.T) {
 	for _, pri := range []Priority{PriorityRaft, PriorityControl, PriorityRPC, PriorityBulk} {
 		if !pri.Valid() {
@@ -86,5 +88,16 @@ func TestOwnedBufferCopyOwnsIndependentBytes(t *testing.T) {
 
 	if string(copied.Bytes()) != "payload" {
 		t.Fatalf("copied bytes = %q, want payload", copied.Bytes())
+	}
+}
+
+func TestCopyOwnedBufferAllocatesOnlyCopiedPayload(t *testing.T) {
+	src := []byte("payload")
+	allocs := testing.AllocsPerRun(1000, func() {
+		ownedBufferSink = CopyOwnedBuffer(src)
+		ownedBufferSink.Release()
+	})
+	if allocs > 1 {
+		t.Fatalf("CopyOwnedBuffer allocs = %.2f, want <= 1", allocs)
 	}
 }

@@ -33,7 +33,7 @@ func (c *TransportClient) Pull(ctx context.Context, node ch.NodeID, req channelt
 	if err != nil {
 		return channeltransport.PullResponse{}, err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPull, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelPull, payload)
 	if err != nil {
 		return channeltransport.PullResponse{}, err
 	}
@@ -46,7 +46,7 @@ func (c *TransportClient) PullBatch(ctx context.Context, node ch.NodeID, req cha
 	if err != nil {
 		return channeltransport.PullBatchResponse{}, err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullBatch, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelPullBatch, payload)
 	if err != nil {
 		return channeltransport.PullBatchResponse{}, err
 	}
@@ -66,7 +66,7 @@ func (c *TransportClient) Ack(ctx context.Context, node ch.NodeID, req channeltr
 	if err != nil {
 		return err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelAck, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelAck, payload)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (c *TransportClient) PullHint(ctx context.Context, node ch.NodeID, req chan
 	if err != nil {
 		return err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullHint, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelPullHint, payload)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (c *TransportClient) PullHintBatch(ctx context.Context, node ch.NodeID, req
 	if err != nil {
 		return channeltransport.PullHintBatchResponse{}, err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelPullHintBatch, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelPullHintBatch, payload)
 	if err != nil {
 		return channeltransport.PullHintBatchResponse{}, err
 	}
@@ -112,7 +112,7 @@ func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channe
 	if err != nil {
 		return err
 	}
-	resp, err := c.caller.Call(ctx, uint64(node), clusternet.RPCChannelNotify, payload)
+	resp, err := c.call(ctx, uint64(node), clusternet.RPCChannelNotify, payload)
 	if err != nil {
 		return err
 	}
@@ -158,11 +158,12 @@ func (c *TransportClient) ForwardLastVisible(ctx context.Context, node ch.NodeID
 	return decodeLastVisibleResponse(resp)
 }
 
+func (c *TransportClient) call(ctx context.Context, node uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	return clusternet.CallOwnedPayload(ctx, c.caller, node, serviceID, payload)
+}
+
 func (c *TransportClient) callShard(ctx context.Context, node uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
-	if caller, ok := c.caller.(clusternet.ShardCaller); ok {
-		return caller.CallShard(ctx, node, serviceID, shardKey, payload)
-	}
-	return c.caller.Call(ctx, node, serviceID, payload)
+	return clusternet.CallShardOwnedPayload(ctx, c.caller, node, serviceID, shardKey, payload)
 }
 
 func channelForwardShardKey(id ch.ChannelID) uint64 {

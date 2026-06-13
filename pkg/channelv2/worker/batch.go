@@ -14,17 +14,24 @@ func (p *Pool) taskGroups(first queuedTask) [][]queuedTask {
 	items := []queuedTask{first}
 	switch {
 	case p.canCollectRPCBatch(first.task):
-		p.collectBatchItems(&items, rpcBatchMaxItems, rpcBatchMaxWait)
+		p.collectBatchItems(&items, rpcBatchMaxItems, p.batchMaxWait(rpcBatchMaxWait))
 		return groupRPCBatchItems(items)
 	case p.canCollectStoreAppendBatch(first.task):
-		p.collectBatchItems(&items, storeAppendBatchMaxItems, storeAppendBatchMaxWait)
+		p.collectBatchItems(&items, storeAppendBatchMaxItems, p.batchMaxWait(storeAppendBatchMaxWait))
 		return groupStoreBatchItems(items, TaskStoreAppend)
 	case p.canCollectStoreApplyBatch(first.task):
-		p.collectBatchItems(&items, storeApplyBatchMaxItems, storeApplyBatchMaxWait)
+		p.collectBatchItems(&items, storeApplyBatchMaxItems, p.batchMaxWait(storeApplyBatchMaxWait))
 		return groupStoreBatchItems(items, TaskStoreApply)
 	default:
 		return [][]queuedTask{{first}}
 	}
+}
+
+func (p *Pool) batchMaxWait(defaultWait time.Duration) time.Duration {
+	if p != nil && p.cfg.BatchMaxWait > 0 {
+		return p.cfg.BatchMaxWait
+	}
+	return defaultWait
 }
 
 func (p *Pool) canCollectRPCBatch(task Task) bool {

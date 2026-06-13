@@ -230,9 +230,9 @@ func TestLaneCountersStayConsistent(t *testing.T) {
 		s.mu.Lock()
 		for li := range s.lanes {
 			l := &s.lanes[li]
-			wantItems := len(l.queue)
+			wantItems := len(l.queue[l.head:])
 			var wantBytes int64
-			for _, it := range l.queue {
+			for _, it := range l.queue[l.head:] {
 				wantBytes += queueBytes(it)
 			}
 			if l.items != wantItems {
@@ -245,6 +245,116 @@ func TestLaneCountersStayConsistent(t *testing.T) {
 			}
 		}
 		s.mu.Unlock()
+	}
+}
+
+func TestNextBatchWithoutObserverAvoidsEventAllocations(t *testing.T) {
+	s := New(Config{
+		MaxItems:       1,
+		MaxBytes:       1024,
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  1024,
+	})
+	item := Item{Priority: core.PriorityRPC, Bytes: 128, Value: 1}
+	allocs := testing.AllocsPerRun(1000, func() {
+		if err := s.Enqueue(context.Background(), item); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+		batch := s.NextBatch()
+		if len(batch) != 1 {
+			t.Fatalf("NextBatch() len = %d, want 1", len(batch))
+		}
+	})
+	if allocs > 1 {
+		t.Fatalf("allocs per Enqueue+NextBatch = %.2f, want <= 1", allocs)
+	}
+}
+
+func TestWaitBatchIntoReusesCallerStorage(t *testing.T) {
+	s := New(Config{
+		MaxItems:       1,
+		MaxBytes:       1024,
+		MaxBatchFrames: 1,
+		MaxBatchBytes:  1024,
+	})
+	item := Item{Priority: core.PriorityRPC, Bytes: 128, Value: 1}
+	dst := make([]Item, 0, 1)
+
+	if err := s.Enqueue(context.Background(), item); err != nil {
+		t.Fatalf("warm-up Enqueue() error = %v", err)
+	}
+	batch, err := s.WaitBatchInto(dst)
+	if err != nil {
+		t.Fatalf("warm-up WaitBatchInto() error = %v", err)
+	}
+	if len(batch) != 1 {
+		t.Fatalf("warm-up WaitBatchInto() len = %d, want 1", len(batch))
+	}
+	dst = batch[:0]
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		if err := s.Enqueue(context.Background(), item); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+		batch, err := s.WaitBatchInto(dst)
+		if err != nil {
+			t.Fatalf("WaitBatchInto() error = %v", err)
+		}
+		if len(batch) != 1 {
+			t.Fatalf("WaitBatchInto() len = %d, want 1", len(batch))
+		}
+		dst = batch[:0]
+	})
+	if allocs != 0 {
+		t.Fatalf("allocs per Enqueue+WaitBatchInto = %.2f, want 0", allocs)
+	}
+}
+
+func TestWaitBatchIntoPreservesLaneQueueStorage(t *testing.T) {
+	const batchSize = 64
+	s := New(Config{
+		MaxItems:       batchSize,
+		MaxBytes:       batchSize,
+		MaxBatchFrames: batchSize,
+		MaxBatchBytes:  batchSize,
+	})
+	items := make([]Item, batchSize)
+	for i := range items {
+		items[i] = Item{Priority: core.PriorityRaft, Bytes: 1, Value: i}
+	}
+	dst := make([]Item, 0, batchSize)
+
+	for _, item := range items {
+		if err := s.Enqueue(context.Background(), item); err != nil {
+			t.Fatalf("warm-up Enqueue() error = %v", err)
+		}
+	}
+	batch, err := s.WaitBatchInto(dst)
+	if err != nil {
+		t.Fatalf("warm-up WaitBatchInto() error = %v", err)
+	}
+	if len(batch) != batchSize {
+		t.Fatalf("warm-up WaitBatchInto() len = %d, want %d", len(batch), batchSize)
+	}
+	dst = batch[:0]
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		for _, item := range items {
+			if err := s.Enqueue(context.Background(), item); err != nil {
+				t.Fatalf("Enqueue() error = %v", err)
+			}
+		}
+		batch, err := s.WaitBatchInto(dst)
+		if err != nil {
+			t.Fatalf("WaitBatchInto() error = %v", err)
+		}
+		if len(batch) != batchSize {
+			t.Fatalf("WaitBatchInto() len = %d, want %d", len(batch), batchSize)
+		}
+		dst = batch[:0]
+	})
+	if allocs != 0 {
+		t.Fatalf("allocs per batched Enqueue+WaitBatchInto = %.2f, want 0", allocs)
 	}
 }
 

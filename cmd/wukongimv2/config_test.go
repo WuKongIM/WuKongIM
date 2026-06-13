@@ -120,9 +120,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=24",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=20",
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS=18",
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=150us",
 		"WK_CLUSTER_MAX_CHANNELS=10000",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=1",
 		"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=500us",
+		"WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH=true",
+		"WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=100us",
 		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s",
 		"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s",
 		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=750us",
@@ -223,6 +226,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Cluster.Channel.RPCWorkers != 18 {
 		t.Fatalf("Channel.RPCWorkers = %d, want 18", cfg.Cluster.Channel.RPCWorkers)
 	}
+	if cfg.Cluster.Channel.StoreAppendBatchMaxWait != 150*time.Microsecond {
+		t.Fatalf("Channel.StoreAppendBatchMaxWait = %s, want 150us", cfg.Cluster.Channel.StoreAppendBatchMaxWait)
+	}
 	if cfg.Cluster.Channel.MaxChannels != 10000 {
 		t.Fatalf("Channel.MaxChannels = %d, want 10000", cfg.Cluster.Channel.MaxChannels)
 	}
@@ -231,6 +237,12 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.AppendBatchMaxWait != 500*time.Microsecond {
 		t.Fatalf("Channel.AppendBatchMaxWait = %s, want 500us", cfg.Cluster.Channel.AppendBatchMaxWait)
+	}
+	if !cfg.Cluster.Channel.AppendBatchAdaptiveFlush {
+		t.Fatalf("Channel.AppendBatchAdaptiveFlush = false, want true")
+	}
+	if cfg.Cluster.Channel.AppendBatchColdMaxWait != 100*time.Microsecond {
+		t.Fatalf("Channel.AppendBatchColdMaxWait = %s, want 100us", cfg.Cluster.Channel.AppendBatchColdMaxWait)
 	}
 	if cfg.Cluster.Channel.FollowerRecoveryProbeInterval != 2*time.Second {
 		t.Fatalf("Channel.FollowerRecoveryProbeInterval = %s, want 2s", cfg.Cluster.Channel.FollowerRecoveryProbeInterval)
@@ -583,8 +595,11 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", "11")
 	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", "13")
 	t.Setenv("WK_CLUSTER_CHANNEL_RPC_WORKERS", "17")
+	t.Setenv("WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT", "175us")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", "2")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
+	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH", "true")
+	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT", "125us")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
@@ -658,11 +673,20 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	if cfg.Cluster.Channel.StoreAppendWorkers != 11 || cfg.Cluster.Channel.StoreApplyWorkers != 13 || cfg.Cluster.Channel.RPCWorkers != 17 {
 		t.Fatalf("Channel workers = append:%d apply:%d rpc:%d, want append:11 apply:13 rpc:17", cfg.Cluster.Channel.StoreAppendWorkers, cfg.Cluster.Channel.StoreApplyWorkers, cfg.Cluster.Channel.RPCWorkers)
 	}
+	if cfg.Cluster.Channel.StoreAppendBatchMaxWait != 175*time.Microsecond {
+		t.Fatalf("Channel.StoreAppendBatchMaxWait = %s, want 175us", cfg.Cluster.Channel.StoreAppendBatchMaxWait)
+	}
 	if cfg.Cluster.Channel.AppendBatchMaxRecords != 2 {
 		t.Fatalf("Channel.AppendBatchMaxRecords = %d, want 2", cfg.Cluster.Channel.AppendBatchMaxRecords)
 	}
 	if cfg.Cluster.Channel.AppendBatchMaxWait != 750*time.Microsecond {
 		t.Fatalf("Channel.AppendBatchMaxWait = %s, want 750us", cfg.Cluster.Channel.AppendBatchMaxWait)
+	}
+	if !cfg.Cluster.Channel.AppendBatchAdaptiveFlush {
+		t.Fatalf("Channel.AppendBatchAdaptiveFlush = false, want true")
+	}
+	if cfg.Cluster.Channel.AppendBatchColdMaxWait != 125*time.Microsecond {
+		t.Fatalf("Channel.AppendBatchColdMaxWait = %s, want 125us", cfg.Cluster.Channel.AppendBatchColdMaxWait)
 	}
 	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)
@@ -956,9 +980,12 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "store apply workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"},
 		{name: "rpc workers", line: "WK_CLUSTER_CHANNEL_RPC_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_RPC_WORKERS"},
 		{name: "rpc workers negative", line: "WK_CLUSTER_CHANNEL_RPC_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_RPC_WORKERS"},
+		{name: "store append batch max wait", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT"},
 		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=many", wantKey: "WK_CLUSTER_MAX_CHANNELS"},
 		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=many", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
 		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},
+		{name: "append batch adaptive flush", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH=maybe", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH"},
+		{name: "append batch cold max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT"},
 		{name: "follower recovery probe interval", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"},
 		{name: "follower recovery probe jitter", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"},
 		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
@@ -1105,8 +1132,10 @@ func TestLoadConfigRejectsNegativeChannelV2Limits(t *testing.T) {
 		key  string
 	}{
 		{name: "max channels", line: "WK_CLUSTER_MAX_CHANNELS=-1", key: "WK_CLUSTER_MAX_CHANNELS"},
+		{name: "store append batch max wait", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=-1ms", key: "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT"},
 		{name: "append batch max records", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=-1", key: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"},
 		{name: "append batch max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=-1ms", key: "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"},
+		{name: "append batch cold max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=-1ms", key: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			unsetLoadConfigEnv(t)

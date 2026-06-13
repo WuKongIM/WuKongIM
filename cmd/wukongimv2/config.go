@@ -39,11 +39,14 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_SLOT_REPLICA_N",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
 	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
+	"WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS",
 	"WK_CLUSTER_CHANNEL_RPC_WORKERS",
 	"WK_CLUSTER_MAX_CHANNELS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS",
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
 	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
@@ -333,6 +336,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Cluster.Channel.StoreAppendWorkers = workers
 	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreAppendBatchMaxWait = maxWait
+	}
 	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"); raw != "" {
 		workers, err := parseInt("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", raw)
 		if err != nil {
@@ -382,6 +395,23 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT: value must be >= 0")
 		}
 		cfg.Cluster.Channel.AppendBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH"); raw != "" {
+		adaptiveFlush, err := parseBool("WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Channel.AppendBatchAdaptiveFlush = adaptiveFlush
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT"); raw != "" {
+		coldMaxWait, err := parseDuration("WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if coldMaxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchColdMaxWait = coldMaxWait
 	}
 	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"); raw != "" {
 		interval, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL", raw)

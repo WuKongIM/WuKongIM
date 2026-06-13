@@ -554,6 +554,8 @@ func (r *Reactor) newAppendQueue() appendQueue {
 		MaxRecords:      r.cfg.AppendBatchMaxRecords,
 		MaxBytes:        r.cfg.AppendBatchMaxBytes,
 		MaxWait:         r.cfg.AppendBatchMaxWait,
+		AdaptiveFlush:   r.cfg.AppendBatchAdaptiveFlush,
+		ColdMaxWait:     r.cfg.AppendBatchColdMaxWait,
 		MaxPending:      r.cfg.AppendQueueMaxRequests,
 		MaxPendingBytes: r.cfg.AppendQueueMaxBytes,
 	})

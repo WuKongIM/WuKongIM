@@ -94,6 +94,29 @@ func TestServerConfigDefaultsLoggerAndLimits(t *testing.T) {
 	}
 }
 
+func TestNilObserverStaysNilAfterConfigNormalization(t *testing.T) {
+	client, err := NewClient(ClientConfig{
+		NodeID:    1,
+		Discovery: testDiscovery{2: "127.0.0.1:1"},
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Stop()
+	if client.cfg.Observer != nil {
+		t.Fatalf("client cfg observer = %#v, want nil", client.cfg.Observer)
+	}
+
+	server, err := NewServer(ServerConfig{NodeID: 1})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	defer server.Stop()
+	if server.cfg.Observer != nil {
+		t.Fatalf("server cfg observer = %#v, want nil", server.cfg.Observer)
+	}
+}
+
 func TestClientConfigPreservesExplicitTimeout(t *testing.T) {
 	client, err := NewClient(ClientConfig{
 		NodeID:      1,

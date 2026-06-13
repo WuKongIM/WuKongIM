@@ -29,6 +29,52 @@ func TestWorkerCommandRequiresControlToken(t *testing.T) {
 	}
 }
 
+func TestRootCommandHelpListsSubcommands(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"--help"}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
+	}
+	for _, want := range []string{"Usage:", "run", "worker", "validate", "doctor", "dev-sim", "capacity", "metrics"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected root help to contain %q, got %q", want, stderr.String())
+		}
+	}
+}
+
+func TestRootCommandUsesWkcliName(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"--help"}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "wkcli") {
+		t.Fatalf("expected root help to use wkcli name, got %q", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "wkbench") {
+		t.Fatalf("root help should not use old wkbench name, got %q", stderr.String())
+	}
+}
+
+func TestCapacityCommandHelpListsSubcommands(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity", "--help"}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
+	}
+	for _, want := range []string{"Usage:", "send", "hot-channel", "activate-channels"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected capacity help to contain %q, got %q", want, stderr.String())
+		}
+	}
+}
+
 func TestWorkerCommandAllowsExplicitInsecureControl(t *testing.T) {
 	t.Setenv("WK_BENCH_WORKER_TOKEN", "")
 	var stderr bytes.Buffer
@@ -68,8 +114,10 @@ func TestRunCapacityRequiresSubcommand(t *testing.T) {
 	if code != exitConfig {
 		t.Fatalf("expected config exit code, got %d", code)
 	}
-	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send|hot-channel|activate-channels>") {
-		t.Fatalf("expected capacity usage, got %q", stderr.String())
+	for _, want := range []string{"Usage:", "send", "hot-channel", "activate-channels"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected capacity help to contain %q, got %q", want, stderr.String())
+		}
 	}
 }
 

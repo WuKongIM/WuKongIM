@@ -10,10 +10,10 @@ import (
 
 func TestWkbenchDoesNotImportServerInternals(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	deps := listDeps(t, repoRoot, "./cmd/wkbench", "./internal/bench/...")
+	deps := listDeps(t, repoRoot, "./cmd/wkcli", "./internal/bench/...")
 	for _, dep := range deps {
 		if forbidden, ok := forbiddenBenchImport(dep); ok {
-			t.Fatalf("wkbench imports forbidden dependency %s via %s\n%s", forbidden, dep, strings.Join(deps, "\n"))
+			t.Fatalf("wkcli imports forbidden dependency %s via %s\n%s", forbidden, dep, strings.Join(deps, "\n"))
 		}
 	}
 }

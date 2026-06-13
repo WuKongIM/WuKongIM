@@ -75,6 +75,8 @@ type Config struct {
 	ReactorCount int
 	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
 	StoreAppendWorkers int
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the ChannelV2 worker default.
+	StoreAppendBatchMaxWait time.Duration
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
 	StoreApplyWorkers int
 	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
@@ -87,6 +89,10 @@ type Config struct {
 	AppendBatchMaxRecords int
 	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing.
 	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal append batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled.
+	AppendBatchColdMaxWait time.Duration
 	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero uses the runtime default.
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
@@ -128,12 +134,15 @@ func NewService(cfg Config) (*Service, error) {
 			LocalNode:                     cfg.LocalNode,
 			ReactorCount:                  cfg.ReactorCount,
 			StoreAppendWorkers:            cfg.StoreAppendWorkers,
+			StoreAppendBatchMaxWait:       cfg.StoreAppendBatchMaxWait,
 			StoreApplyWorkers:             cfg.StoreApplyWorkers,
 			RPCWorkers:                    cfg.RPCWorkers,
 			MailboxSize:                   cfg.MailboxSize,
 			MaxChannels:                   cfg.MaxChannels,
 			AppendBatchMaxRecords:         cfg.AppendBatchMaxRecords,
 			AppendBatchMaxWait:            cfg.AppendBatchMaxWait,
+			AppendBatchAdaptiveFlush:      cfg.AppendBatchAdaptiveFlush,
+			AppendBatchColdMaxWait:        cfg.AppendBatchColdMaxWait,
 			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
 			Store:                         cfg.Store,

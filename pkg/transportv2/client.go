@@ -23,7 +23,9 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		return nil, err
 	}
 	observer := core.NewObserverDrain(normalized.Observer)
-	normalized.Observer = observer
+	if observer != nil {
+		normalized.Observer = observer
+	}
 	return &Client{
 		cfg:      normalized,
 		observer: observer,
@@ -79,14 +81,21 @@ func (c *Client) NotifyOwned(ctx context.Context, nodeID NodeID, shardKey uint64
 
 // Call copies payload, sends it as an RPC request, and waits for the response.
 func (c *Client) Call(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload []byte) ([]byte, error) {
+	return c.CallOwned(ctx, nodeID, shardKey, pri, serviceID, CopyOwnedBuffer(payload))
+}
+
+// CallOwned sends payload as an RPC request, transfers ownership on successful
+// admission, and waits for the response.
+func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) ([]byte, error) {
 	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
 	if err != nil {
+		payload.Release()
 		return nil, err
 	}
 	return peerConn.Call(ctx, conn.Outbound{
 		Priority:  pri,
 		ServiceID: serviceID,
-		Payload:   CopyOwnedBuffer(payload),
+		Payload:   payload,
 	})
 }
 

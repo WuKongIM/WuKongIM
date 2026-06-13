@@ -18,6 +18,10 @@ func BenchmarkTransportV2RPC(b *testing.B) {
 	benchmarkTransportV2RPC(b, bytes.Repeat([]byte("r"), 64))
 }
 
+func BenchmarkTransportV2RPCOwned(b *testing.B) {
+	benchmarkTransportV2RPCOwned(b, bytes.Repeat([]byte("r"), 64))
+}
+
 func BenchmarkTransportV2RPCPayloadSizes(b *testing.B) {
 	cases := []struct {
 		name string
@@ -180,6 +184,26 @@ func BenchmarkTransportV2SendWithBackpressure(b *testing.B) {
 	}
 }
 
+func BenchmarkTransportV2SendOwnedWithBackpressure(b *testing.B) {
+	h := testkit.NewHarness(b, func(ctx context.Context, payload []byte) ([]byte, error) {
+		return nil, nil
+	})
+	defer h.Close()
+
+	payload := bytes.Repeat([]byte("s"), 256)
+	ctx := context.Background()
+	if err := h.Client.SendOwned(ctx, testkit.ServerNodeID, 0, transportv2.PriorityControl, testkit.ServiceID, transportv2.NewOwnedBuffer(payload, nil)); err != nil {
+		b.Fatalf("warm-up SendOwned() error = %v", err)
+	}
+
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sendOwnedWithBackpressure(b, h.Client, ctx, uint64(i), payload)
+	}
+}
+
 func BenchmarkTransportV2SendParallelWithBackpressure(b *testing.B) {
 	payload := bytes.Repeat([]byte("p"), 256)
 	var handled atomic.Int64
@@ -259,6 +283,28 @@ func benchmarkTransportV2RPC(b *testing.B, payload []byte) {
 	}
 }
 
+func benchmarkTransportV2RPCOwned(b *testing.B, payload []byte) {
+	b.Helper()
+	h := testkit.NewHarness(b, func(ctx context.Context, payload []byte) ([]byte, error) {
+		return payload, nil
+	})
+	defer h.Close()
+
+	ctx := context.Background()
+	if _, err := h.Client.CallOwned(ctx, testkit.ServerNodeID, 0, transportv2.PriorityRPC, testkit.ServiceID, transportv2.NewOwnedBuffer(payload, nil)); err != nil {
+		b.Fatalf("warm-up CallOwned() error = %v", err)
+	}
+
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := h.Client.CallOwned(ctx, testkit.ServerNodeID, uint64(i), transportv2.PriorityRPC, testkit.ServiceID, transportv2.NewOwnedBuffer(payload, nil)); err != nil {
+			b.Fatalf("CallOwned() error = %v", err)
+		}
+	}
+}
+
 func benchmarkTransportV2RPCWithHarness(b *testing.B, h *testkit.Harness, serviceID uint16, payload []byte) {
 	b.Helper()
 	ctx := context.Background()
@@ -280,6 +326,20 @@ func sendWithBackpressure(b *testing.B, client *transportv2.Client, ctx context.
 	b.Helper()
 	if err := sendWithBackpressureResult(client, ctx, shardKey, payload); err != nil {
 		b.Fatalf("Send() error = %v", err)
+	}
+}
+
+func sendOwnedWithBackpressure(b *testing.B, client *transportv2.Client, ctx context.Context, shardKey uint64, payload []byte) {
+	b.Helper()
+	for {
+		err := client.SendOwned(ctx, testkit.ServerNodeID, shardKey, transportv2.PriorityControl, testkit.ServiceID, transportv2.NewOwnedBuffer(payload, nil))
+		if err == nil {
+			return
+		}
+		if !errors.Is(err, transportv2.ErrQueueFull) {
+			b.Fatalf("SendOwned() error = %v", err)
+		}
+		runtime.Gosched()
 	}
 }
 

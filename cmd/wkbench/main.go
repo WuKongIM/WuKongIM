@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	benchmetrics "github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -40,68 +40,39 @@ func run(args []string) int {
 }
 
 func runWithStderr(args []string, stderr io.Writer) int {
-	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|capacity|metrics|report>")
-		return exitConfig
-	}
-	switch args[0] {
-	case "worker":
-		return runWorker(args[1:], stderr)
-	case "validate":
-		return runValidate(args[1:], stderr)
-	case "doctor":
-		return runDoctor(args[1:], stderr)
-	case "run":
-		return runBench(args[1:], stderr)
-	case "dev-sim":
-		return runDevSim(args[1:], stderr)
-	case "capacity":
-		return runCapacity(args[1:], stderr)
-	case "metrics":
-		return runMetrics(args[1:], stderr)
-	case "report":
-		fmt.Fprintf(stderr, "%s is not implemented yet\n", args[0])
-		return exitInternal
-	default:
-		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
-		return exitConfig
-	}
-}
-
-func runMetrics(args []string, stderr io.Writer) int {
-	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench metrics <classify>")
-		return exitConfig
-	}
-	switch args[0] {
-	case "classify":
-		return runMetricsClassify(args[1:], stderr)
-	default:
-		fmt.Fprintln(stderr, "usage: wkbench metrics <classify>")
-		return exitConfig
-	}
+	return executeRoot(args, stderr)
 }
 
 func runMetricsClassify(args []string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("metrics classify", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("metrics classify", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
-	var beforePath string
-	var afterPath string
-	fs.StringVar(&beforePath, "before", "", "Prometheus text snapshot before the measured window")
-	fs.StringVar(&afterPath, "after", "", "Prometheus text snapshot after the measured window")
+	var cfg metricsClassifyConfig
+	fs.StringVar(&cfg.beforePath, "before", "", "Prometheus text snapshot before the measured window")
+	fs.StringVar(&cfg.afterPath, "after", "", "Prometheus text snapshot after the measured window")
 	if err := fs.Parse(args); err != nil {
 		return exitConfig
 	}
-	if strings.TrimSpace(beforePath) == "" || strings.TrimSpace(afterPath) == "" {
-		fmt.Fprintln(stderr, "--before and --after are required")
+	if err := validateMetricsClassifyConfig(cfg); err != nil {
+		fmt.Fprintln(stderr, err)
 		return exitConfig
 	}
-	before, err := readPrometheusSnapshot(beforePath)
+	return runMetricsClassifyConfig(cfg, stderr)
+}
+
+func validateMetricsClassifyConfig(cfg metricsClassifyConfig) error {
+	if strings.TrimSpace(cfg.beforePath) == "" || strings.TrimSpace(cfg.afterPath) == "" {
+		return fmt.Errorf("--before and --after are required")
+	}
+	return nil
+}
+
+func runMetricsClassifyConfig(cfg metricsClassifyConfig, stderr io.Writer) int {
+	before, err := readPrometheusSnapshot(cfg.beforePath)
 	if err != nil {
 		fmt.Fprintf(stderr, "read before snapshot failed: %v\n", err)
 		return exitConfig
 	}
-	after, err := readPrometheusSnapshot(afterPath)
+	after, err := readPrometheusSnapshot(cfg.afterPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "read after snapshot failed: %v\n", err)
 		return exitConfig
@@ -291,24 +262,6 @@ func printLabeledFloatMap(w io.Writer, name string, label string, values map[str
 	}
 }
 
-func runCapacity(args []string, stderr io.Writer) int {
-	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel|activate-channels>")
-		return exitConfig
-	}
-	switch args[0] {
-	case "send":
-		return runCapacitySend(args[1:], stderr)
-	case "hot-channel":
-		return runCapacityHotChannel(args[1:], stderr)
-	case "activate-channels":
-		return runCapacityActivateChannels(args[1:], stderr)
-	default:
-		fmt.Fprintln(stderr, "usage: wkbench capacity <send|hot-channel|activate-channels>")
-		return exitConfig
-	}
-}
-
 type activateChannelsRunner interface {
 	Run(context.Context) (capacity.ActivateChannelsResult, error)
 }
@@ -321,11 +274,7 @@ var newActivateChannelsRunner = func(cfg capacity.ActivateChannelsConfig, discov
 	return capacity.NewActivateChannelsRunner(cfg, discovered)
 }
 
-func runCapacitySend(args []string, stderr io.Writer) int {
-	cfg, code := parseCapacitySendConfig(args, stderr)
-	if code != 0 {
-		return code
-	}
+func runCapacitySendConfig(cfg capacity.Config, stderr io.Writer) int {
 	discovered, err := capacity.DiscoverTarget(context.Background(), cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
@@ -344,11 +293,7 @@ func runCapacitySend(args []string, stderr io.Writer) int {
 	return result.ExitCode()
 }
 
-func runCapacityHotChannel(args []string, stderr io.Writer) int {
-	cfg, code := parseCapacityHotChannelConfig(args, stderr)
-	if code != 0 {
-		return code
-	}
+func runCapacityHotChannelConfig(cfg capacity.HotChannelConfig, stderr io.Writer) int {
 	discovered, err := capacity.DiscoverTarget(context.Background(), cfg.Config)
 	if err != nil {
 		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
@@ -367,11 +312,7 @@ func runCapacityHotChannel(args []string, stderr io.Writer) int {
 	return result.ExitCode()
 }
 
-func runCapacityActivateChannels(args []string, stderr io.Writer) int {
-	cfg, code := parseCapacityActivateChannelsConfig(args, stderr)
-	if code != 0 {
-		return code
-	}
+func runCapacityActivateChannelsConfig(cfg capacity.ActivateChannelsConfig, stderr io.Writer) int {
 	discovered, err := discoverActivateChannelsTarget(context.Background(), cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "activate-channels preflight failed: %v\n", err)
@@ -392,39 +333,16 @@ func runCapacityActivateChannels(args []string, stderr io.Writer) int {
 
 func parseCapacitySendConfig(args []string, stderr io.Writer) (capacity.Config, int) {
 	cfg := capacity.DefaultConfig()
-	fs := flag.NewFlagSet("capacity send", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("capacity send", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var apiCSV string
 	var gatewayCSV string
-	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
-	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
-	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
-	fs.StringVar(&cfg.Profile, "profile", cfg.Profile, "traffic profile: person, group, or mixed")
-	fs.Float64Var(&cfg.StartQPS, "start-qps", cfg.StartQPS, "first offered ingress QPS")
-	fs.Float64Var(&cfg.MaxQPS, "max-qps", cfg.MaxQPS, "maximum offered ingress QPS")
-	fs.Float64Var(&cfg.StepFactor, "step-factor", cfg.StepFactor, "ramp multiplier after passing attempts")
-	fs.DurationVar(&cfg.Duration, "duration", cfg.Duration, "measured run duration per attempt")
-	fs.DurationVar(&cfg.Warmup, "warmup", cfg.Warmup, "warmup duration per attempt")
-	fs.DurationVar(&cfg.Cooldown, "cooldown", cfg.Cooldown, "cooldown duration per attempt")
-	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
-	fs.Float64Var(&cfg.MinActualRatio, "min-actual-ratio", cfg.MinActualRatio, "minimum actual/offered QPS ratio")
-	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
-	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
-	fs.BoolVar(&cfg.BinarySearch, "binary-search", cfg.BinarySearch, "enable binary search after first failed ramp attempt")
-	fs.Float64Var(&cfg.BinarySearchMinDeltaRatio, "binary-search-min-delta-ratio", cfg.BinarySearchMinDeltaRatio, "binary search stop ratio")
-	fs.IntVar(&cfg.GroupMembers, "group-members", cfg.GroupMembers, "members per generated group channel")
-	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "capacity report output directory")
+	bindCapacitySendFlags(fs, &cfg, &apiCSV, &gatewayCSV)
 	if err := fs.Parse(args); err != nil {
 		return capacity.Config{}, exitConfig
 	}
-	cfg.APIAddrs = splitCSV(apiCSV)
-	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
-	if len(cfg.APIAddrs) == 0 {
-		fmt.Fprintln(stderr, "--api is required")
-		return capacity.Config{}, exitConfig
-	}
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+	if err := finalizeCapacitySendConfig(&cfg, apiCSV, gatewayCSV); err != nil {
+		fmt.Fprintln(stderr, err)
 		return capacity.Config{}, exitConfig
 	}
 	return cfg, 0
@@ -432,38 +350,16 @@ func parseCapacitySendConfig(args []string, stderr io.Writer) (capacity.Config, 
 
 func parseCapacityHotChannelConfig(args []string, stderr io.Writer) (capacity.HotChannelConfig, int) {
 	cfg := capacity.DefaultHotChannelConfig()
-	fs := flag.NewFlagSet("capacity hot-channel", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("capacity hot-channel", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var apiCSV string
 	var gatewayCSV string
-	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
-	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
-	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
-	fs.IntVar(&cfg.Senders, "senders", cfg.Senders, "number of online senders fanning into the one hot group channel")
-	fs.Float64Var(&cfg.StartQPS, "start-qps", cfg.StartQPS, "first offered ingress QPS")
-	fs.Float64Var(&cfg.MaxQPS, "max-qps", cfg.MaxQPS, "maximum offered ingress QPS")
-	fs.Float64Var(&cfg.StepFactor, "step-factor", cfg.StepFactor, "ramp multiplier after passing attempts")
-	fs.DurationVar(&cfg.Duration, "duration", cfg.Duration, "measured run duration per attempt")
-	fs.DurationVar(&cfg.Warmup, "warmup", cfg.Warmup, "warmup duration per attempt")
-	fs.DurationVar(&cfg.Cooldown, "cooldown", cfg.Cooldown, "cooldown duration per attempt")
-	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
-	fs.Float64Var(&cfg.MinActualRatio, "min-actual-ratio", cfg.MinActualRatio, "minimum actual/offered QPS ratio")
-	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
-	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
-	fs.BoolVar(&cfg.BinarySearch, "binary-search", cfg.BinarySearch, "enable binary search after first failed ramp attempt")
-	fs.Float64Var(&cfg.BinarySearchMinDeltaRatio, "binary-search-min-delta-ratio", cfg.BinarySearchMinDeltaRatio, "binary search stop ratio")
-	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "capacity report output directory")
+	bindCapacityHotChannelFlags(fs, &cfg, &apiCSV, &gatewayCSV)
 	if err := fs.Parse(args); err != nil {
 		return capacity.HotChannelConfig{}, exitConfig
 	}
-	cfg.APIAddrs = splitCSV(apiCSV)
-	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
-	if len(cfg.APIAddrs) == 0 {
-		fmt.Fprintln(stderr, "--api is required")
-		return capacity.HotChannelConfig{}, exitConfig
-	}
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+	if err := finalizeCapacityHotChannelConfig(&cfg, apiCSV, gatewayCSV); err != nil {
+		fmt.Fprintln(stderr, err)
 		return capacity.HotChannelConfig{}, exitConfig
 	}
 	return cfg, 0
@@ -471,43 +367,55 @@ func parseCapacityHotChannelConfig(args []string, stderr io.Writer) (capacity.Ho
 
 func parseCapacityActivateChannelsConfig(args []string, stderr io.Writer) (capacity.ActivateChannelsConfig, int) {
 	cfg := capacity.DefaultActivateChannelsConfig()
-	fs := flag.NewFlagSet("capacity activate-channels", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("capacity activate-channels", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var apiCSV string
 	var gatewayCSV string
-	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
-	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
-	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
-	fs.StringVar(&cfg.RunID, "run-id", cfg.RunID, "stable benchmark run identifier")
-	fs.IntVar(&cfg.Channels, "channels", cfg.Channels, "number of group channels to activate")
-	fs.IntVar(&cfg.Users, "users", cfg.Users, "number of online users prepared for activation")
-	fs.IntVar(&cfg.GroupMembers, "group-members", cfg.GroupMembers, "members per generated group channel")
-	fs.Float64Var(&cfg.PrepareRatePerSecond, "prepare-rate", cfg.PrepareRatePerSecond, "bench API preparation rate limit per second; 0 means unlimited")
-	fs.Float64Var(&cfg.ConnectRatePerSecond, "connect-rate", cfg.ConnectRatePerSecond, "gateway connect attempt rate limit per second; 0 means unlimited")
-	fs.IntVar(&cfg.ActivationConcurrency, "activation-concurrency", cfg.ActivationConcurrency, "maximum in-flight SEND operations during activation")
-	fs.DurationVar(&cfg.ActivationWindow, "activation-window", cfg.ActivationWindow, "active window used to schedule one SEND per channel")
-	fs.DurationVar(&cfg.Hold, "hold", cfg.Hold, "post-activation observation duration")
-	fs.DurationVar(&cfg.HoldProbeInterval, "hold-probe-interval", cfg.HoldProbeInterval, "interval between hold runtime snapshots")
-	fs.IntVar(&cfg.ProbeBatchSize, "probe-batch-size", cfg.ProbeBatchSize, "generated channels checked per runtime probe batch")
-	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
-	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
-	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
-	fs.BoolVar(&cfg.EvictAfter, "evict-after", cfg.EvictAfter, "evict generated channel runtime state after probing")
-	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "activation report output directory")
+	bindCapacityActivateChannelsFlags(fs, &cfg, &apiCSV, &gatewayCSV)
 	if err := fs.Parse(args); err != nil {
 		return capacity.ActivateChannelsConfig{}, exitConfig
 	}
-	cfg.APIAddrs = splitCSV(apiCSV)
-	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
-	if len(cfg.APIAddrs) == 0 {
-		fmt.Fprintln(stderr, "--api is required")
-		return capacity.ActivateChannelsConfig{}, exitConfig
-	}
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+	if err := finalizeCapacityActivateChannelsConfig(&cfg, apiCSV, gatewayCSV); err != nil {
+		fmt.Fprintln(stderr, err)
 		return capacity.ActivateChannelsConfig{}, exitConfig
 	}
 	return cfg, 0
+}
+
+func finalizeCapacitySendConfig(cfg *capacity.Config, apiCSV string, gatewayCSV string) error {
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		return fmt.Errorf("--api is required")
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+	return nil
+}
+
+func finalizeCapacityHotChannelConfig(cfg *capacity.HotChannelConfig, apiCSV string, gatewayCSV string) error {
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		return fmt.Errorf("--api is required")
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+	return nil
+}
+
+func finalizeCapacityActivateChannelsConfig(cfg *capacity.ActivateChannelsConfig, apiCSV string, gatewayCSV string) error {
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		return fmt.Errorf("--api is required")
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+	return nil
 }
 
 func activateChannelsDiscoveryConfig(cfg capacity.ActivateChannelsConfig) capacity.Config {
@@ -537,14 +445,7 @@ type devSimCLIConfig struct {
 	statusListen string
 }
 
-func runDevSim(args []string, stderr io.Writer) int {
-	cliCfg, code := parseDevSimConfig(args, stderr)
-	if code != 0 {
-		return code
-	}
-	if cliCfg.configPath == "" {
-		return 0
-	}
+func runDevSimConfig(cliCfg devSimCLIConfig, stderr io.Writer) int {
 	cfg, err := devsim.LoadConfig(cliCfg.configPath, envMap(os.Environ()))
 	if err != nil {
 		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
@@ -563,26 +464,25 @@ func runDevSim(args []string, stderr io.Writer) int {
 }
 
 func parseDevSimConfig(args []string, stderr io.Writer) (devSimCLIConfig, int) {
-	fs := flag.NewFlagSet("dev-sim", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("dev-sim", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: wkbench dev-sim --config <path> [--status-listen addr]")
-		fs.PrintDefaults()
-	}
 	var cfg devSimCLIConfig
-	fs.StringVar(&cfg.configPath, "config", "", "dev-sim YAML file")
-	fs.StringVar(&cfg.statusListen, "status-listen", "", "override status.listen")
+	bindDevSimFlags(fs, &cfg)
 	if err := fs.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			return devSimCLIConfig{}, 0
-		}
 		return devSimCLIConfig{}, exitConfig
 	}
-	if strings.TrimSpace(cfg.configPath) == "" {
-		fmt.Fprintln(stderr, "--config is required")
+	if err := finalizeDevSimConfig(cfg); err != nil {
+		fmt.Fprintln(stderr, err)
 		return devSimCLIConfig{}, exitConfig
 	}
 	return cfg, 0
+}
+
+func finalizeDevSimConfig(cfg devSimCLIConfig) error {
+	if strings.TrimSpace(cfg.configPath) == "" {
+		return fmt.Errorf("--config is required")
+	}
+	return nil
 }
 
 func envMap(items []string) map[string]string {
@@ -597,8 +497,8 @@ func envMap(items []string) map[string]string {
 	return env
 }
 
-func runBench(args []string, stderr io.Writer) int {
-	targetCfg, scenario, workers, phasePollTimeout, code := loadValidateRunInputs(args, stderr)
+func runBenchConfigCommand(runCfg runBenchConfig, stderr io.Writer) int {
+	targetCfg, scenario, workers, phasePollTimeout, code := loadValidateRunInputsFromConfig(runCfg, stderr)
 	if code != 0 {
 		return code
 	}
@@ -641,8 +541,8 @@ type runBenchConfig struct {
 	phasePollTimeout time.Duration
 }
 
-func runValidate(args []string, stderr io.Writer) int {
-	targetCfg, scenario, workers, code := loadValidateInputs("validate", args, stderr)
+func runValidateConfig(paths benchConfigPaths, stderr io.Writer) int {
+	targetCfg, scenario, workers, code := loadValidateInputsFromConfig(paths, stderr)
 	if code != 0 {
 		return code
 	}
@@ -654,8 +554,8 @@ func runValidate(args []string, stderr io.Writer) int {
 	return 0
 }
 
-func runDoctor(args []string, stderr io.Writer) int {
-	targetCfg, workers, scenario, hasScenario, code := loadDoctorInputs("doctor", args, stderr)
+func runDoctorConfig(paths benchConfigPaths, stderr io.Writer) int {
+	targetCfg, workers, scenario, hasScenario, code := loadDoctorInputsFromConfig(paths, stderr)
 	if code != 0 {
 		return code
 	}
@@ -677,6 +577,10 @@ func loadValidateRunInputs(args []string, stderr io.Writer) (config.Target, conf
 	if code != 0 {
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, code
 	}
+	return loadValidateRunInputsFromConfig(runCfg, stderr)
+}
+
+func loadValidateRunInputsFromConfig(runCfg runBenchConfig, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, time.Duration, int) {
 	targetCfg, workers, code := loadTargetAndWorkers(runCfg.paths, stderr)
 	if code != 0 {
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, 0, code
@@ -698,6 +602,10 @@ func loadValidateInputs(name string, args []string, stderr io.Writer) (config.Ta
 	if code != 0 {
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, code
 	}
+	return loadValidateInputsFromConfig(paths, stderr)
+}
+
+func loadValidateInputsFromConfig(paths benchConfigPaths, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, int) {
 	targetCfg, workers, code := loadTargetAndWorkers(paths, stderr)
 	if code != 0 {
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, code
@@ -719,6 +627,10 @@ func loadDoctorInputs(name string, args []string, stderr io.Writer) (config.Targ
 	if code != 0 {
 		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, code
 	}
+	return loadDoctorInputsFromConfig(paths, stderr)
+}
+
+func loadDoctorInputsFromConfig(paths benchConfigPaths, stderr io.Writer) (config.Target, config.WorkerSet, config.Scenario, bool, int) {
 	targetCfg, workers, code := loadTargetAndWorkers(paths, stderr)
 	if code != 0 {
 		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, code
@@ -757,54 +669,51 @@ func loadTargetAndWorkers(paths benchConfigPaths, stderr io.Writer) (config.Targ
 }
 
 func parseRunBenchConfig(args []string, stderr io.Writer) (runBenchConfig, int) {
-	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("run", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var cfg runBenchConfig
-	fs.StringVar(&cfg.paths.target, "target", "", "target YAML file")
-	fs.StringVar(&cfg.paths.scenario, "scenario", "", "scenario YAML file")
-	fs.StringVar(&cfg.paths.workers, "workers", "", "workers YAML file")
+	bindBenchConfigPathFlags(fs, &cfg.paths)
 	fs.DurationVar(&cfg.phasePollTimeout, "phase-poll-timeout", 0, "base worker phase poll timeout; connect/warmup/run/cooldown add their configured schedule duration; 0 uses the wkbench default")
 	if err := fs.Parse(args); err != nil {
 		return runBenchConfig{}, exitConfig
 	}
-	if cfg.paths.target == "" {
-		fmt.Fprintln(stderr, "--target is required")
-		return runBenchConfig{}, exitConfig
-	}
-	if cfg.paths.scenario == "" {
-		fmt.Fprintln(stderr, "--scenario is required")
-		return runBenchConfig{}, exitConfig
-	}
-	if cfg.paths.workers == "" {
-		fmt.Fprintln(stderr, "--workers is required")
+	if err := validateRunBenchConfig(cfg); err != nil {
+		fmt.Fprintln(stderr, err)
 		return runBenchConfig{}, exitConfig
 	}
 	return cfg, 0
 }
 
 func parseBenchConfigPaths(name string, args []string, stderr io.Writer, scenarioRequired bool) (benchConfigPaths, int) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var paths benchConfigPaths
-	fs.StringVar(&paths.target, "target", "", "target YAML file")
-	fs.StringVar(&paths.scenario, "scenario", "", "scenario YAML file")
-	fs.StringVar(&paths.workers, "workers", "", "workers YAML file")
+	bindBenchConfigPathFlags(fs, &paths)
 	if err := fs.Parse(args); err != nil {
 		return benchConfigPaths{}, exitConfig
 	}
-	if paths.target == "" {
-		fmt.Fprintln(stderr, "--target is required")
-		return benchConfigPaths{}, exitConfig
-	}
-	if scenarioRequired && paths.scenario == "" {
-		fmt.Fprintln(stderr, "--scenario is required")
-		return benchConfigPaths{}, exitConfig
-	}
-	if paths.workers == "" {
-		fmt.Fprintln(stderr, "--workers is required")
+	if err := validateBenchConfigPaths(paths, scenarioRequired); err != nil {
+		fmt.Fprintln(stderr, err)
 		return benchConfigPaths{}, exitConfig
 	}
 	return paths, 0
+}
+
+func validateRunBenchConfig(cfg runBenchConfig) error {
+	return validateBenchConfigPaths(cfg.paths, true)
+}
+
+func validateBenchConfigPaths(paths benchConfigPaths, scenarioRequired bool) error {
+	if paths.target == "" {
+		return fmt.Errorf("--target is required")
+	}
+	if scenarioRequired && paths.scenario == "" {
+		return fmt.Errorf("--scenario is required")
+	}
+	if paths.workers == "" {
+		return fmt.Errorf("--workers is required")
+	}
+	return nil
 }
 
 type workerCLIConfig struct {
@@ -812,11 +721,7 @@ type workerCLIConfig struct {
 	server worker.Config
 }
 
-func runWorker(args []string, stderr io.Writer) int {
-	cfg, code := parseWorkerConfig(args, stderr)
-	if code != 0 {
-		return code
-	}
+func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
 	if err := http.ListenAndServe(cfg.listen, worker.NewServer(cfg.server)); err != nil {
 		fmt.Fprintf(stderr, "worker server failed: %v\n", err)
 		return exitConfig
@@ -825,23 +730,27 @@ func runWorker(args []string, stderr io.Writer) int {
 }
 
 func parseWorkerConfig(args []string, stderr io.Writer) (workerCLIConfig, int) {
-	fs := flag.NewFlagSet("worker", flag.ContinueOnError)
+	fs := pflag.NewFlagSet("worker", pflag.ContinueOnError)
 	fs.SetOutput(stderr)
-	cfg := workerCLIConfig{listen: "127.0.0.1:19090"}
-	fs.StringVar(&cfg.listen, "listen", cfg.listen, "worker control listen address")
-	fs.StringVar(&cfg.server.WorkDir, "work-dir", "", "directory for worker control state")
-	fs.StringVar(&cfg.server.ControlToken, "control-token", os.Getenv("WK_BENCH_WORKER_TOKEN"), "bearer token for worker control API")
-	fs.BoolVar(&cfg.server.InsecureControl, "insecure-control", false, "allow unauthenticated worker control API")
+	cfg := defaultWorkerCLIConfig()
+	bindWorkerFlags(fs, &cfg)
 	if err := fs.Parse(args); err != nil {
 		return workerCLIConfig{}, exitConfig
 	}
-	if cfg.server.InsecureControl {
-		cfg.server.ControlToken = ""
-		return cfg, 0
-	}
-	if cfg.server.ControlToken == "" {
-		fmt.Fprintln(stderr, "--control-token is required unless --insecure-control=true")
+	if err := finalizeWorkerConfig(&cfg); err != nil {
+		fmt.Fprintln(stderr, err)
 		return workerCLIConfig{}, exitConfig
 	}
 	return cfg, 0
+}
+
+func finalizeWorkerConfig(cfg *workerCLIConfig) error {
+	if cfg.server.InsecureControl {
+		cfg.server.ControlToken = ""
+		return nil
+	}
+	if cfg.server.ControlToken == "" {
+		return fmt.Errorf("--control-token is required unless --insecure-control=true")
+	}
+	return nil
 }

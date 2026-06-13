@@ -48,6 +48,7 @@ type lane struct {
 	weight   int64
 	deficit  int64
 	queue    []Item
+	head     int
 	items    int
 	bytes    int64
 }
@@ -158,6 +159,7 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 
 	for i := range s.lanes {
 		if s.lanes[i].priority == item.Priority {
+			s.lanes[i].compactQueueIfFull()
 			item.enqueuedAt = time.Now()
 			s.lanes[i].queue = append(s.lanes[i].queue, item)
 			s.lanes[i].items++
@@ -187,7 +189,7 @@ func (s *Scheduler) NextBatch() []Item {
 		s.mu.Unlock()
 		return nil
 	}
-	batch, events := s.nextBatchLocked()
+	batch, events := s.nextBatchLocked(nil, s.observer != nil)
 	s.mu.Unlock()
 	s.observeAll(events)
 	return batch
@@ -204,7 +206,27 @@ func (s *Scheduler) WaitBatch() ([]Item, error) {
 		s.mu.Unlock()
 		return nil, s.stopErr
 	}
-	batch, events := s.nextBatchLocked()
+	batch, events := s.nextBatchLocked(nil, s.observer != nil)
+	s.mu.Unlock()
+	s.observeAll(events)
+	return batch, nil
+}
+
+// WaitBatchInto blocks until a batch is available or the scheduler is stopped.
+//
+// It appends the returned items into dst[:0], allowing hot callers to reuse
+// batch storage across write-loop iterations.
+func (s *Scheduler) WaitBatchInto(dst []Item) ([]Item, error) {
+	s.mu.Lock()
+
+	for s.queuedItems == 0 && !s.stopped {
+		s.cond.Wait()
+	}
+	if s.stopped {
+		s.mu.Unlock()
+		return nil, s.stopErr
+	}
+	batch, events := s.nextBatchLocked(dst, s.observer != nil)
 	s.mu.Unlock()
 	s.observeAll(events)
 	return batch, nil
@@ -225,7 +247,10 @@ func (s *Scheduler) Stop(err error) []Item {
 	s.stopped = true
 	s.stopErr = err
 	drained := s.drainLocked()
-	events := s.stoppedQueueEventsLocked()
+	var events []core.Event
+	if s.observer != nil {
+		events = s.stoppedQueueEventsLocked()
+	}
 	s.cond.Broadcast()
 	s.mu.Unlock()
 
@@ -233,22 +258,33 @@ func (s *Scheduler) Stop(err error) []Item {
 	return drained
 }
 
-func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
-	var batch []Item
+func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Event) {
+	batch := dst[:0]
+	if batch == nil {
+		batchCap := s.maxBatchFrames
+		if s.queuedItems < batchCap {
+			batchCap = s.queuedItems
+		}
+		batch = make([]Item, 0, batchCap)
+	}
 	var events []core.Event
+	if observe {
+		events = make([]core.Event, 0, cap(batch)+len(s.lanes))
+	}
 	var batchBytes int64
-	touched := make([]bool, len(s.lanes))
+	var touchedMask uint8
 
 	for len(batch) < s.maxBatchFrames && s.queuedItems > 0 {
 		s.openRoundLocked()
 
+		laneIndex := s.nextLane
 		l := &s.lanes[s.nextLane]
-		if len(l.queue) == 0 {
+		if l.items == 0 {
 			s.finishLaneLocked()
 			continue
 		}
 
-		item := l.queue[0]
+		item := l.front()
 		itemCost := scheduleCost(item)
 		itemBytes := queueBytes(item)
 		if itemCost > l.deficit {
@@ -259,29 +295,33 @@ func (s *Scheduler) nextBatchLocked() ([]Item, []core.Event) {
 			break
 		}
 
-		l.queue[0] = Item{}
-		l.queue = l.queue[1:]
+		l.popFront()
 		l.items--
 		l.bytes -= itemBytes
 		l.deficit -= itemCost
 		s.queuedItems--
 		s.queuedBytes -= itemBytes
 		batch = append(batch, item)
-		events = append(events, s.waitEventLocked(item, itemBytes))
-		touched[s.nextLane] = true
+		if observe {
+			events = append(events, s.waitEventLocked(item, itemBytes))
+			touchedMask |= 1 << uint(laneIndex)
+		}
 		batchBytes += itemBytes
 		s.roundOutput = true
 
 		if len(batch) >= s.maxBatchFrames || batchBytes >= s.maxBatchBytes {
 			break
 		}
-		if len(l.queue) == 0 {
+		if l.items == 0 {
 			s.finishLaneLocked()
 		}
 	}
 
-	for i := range s.lanes {
-		if touched[i] {
+	if observe {
+		for i := range s.lanes {
+			if touchedMask&(1<<uint(i)) == 0 {
+				continue
+			}
 			events = append(events, s.queueEventLocked(s.lanes[i].priority, "ok"))
 		}
 	}
@@ -294,7 +334,7 @@ func (s *Scheduler) openRoundLocked() {
 		return
 	}
 	for i := range s.lanes {
-		if len(s.lanes[i].queue) > 0 {
+		if s.lanes[i].items > 0 {
 			s.lanes[i].deficit += s.lanes[i].weight
 		}
 	}
@@ -322,10 +362,10 @@ func (s *Scheduler) fastForwardRoundLocked() {
 	rounds := int64(math.MaxInt64)
 	for i := range s.lanes {
 		l := &s.lanes[i]
-		if len(l.queue) == 0 {
+		if l.items == 0 {
 			continue
 		}
-		need := scheduleCost(l.queue[0]) - l.deficit
+		need := scheduleCost(l.front()) - l.deficit
 		if need <= 0 {
 			rounds = 0
 			break
@@ -339,11 +379,41 @@ func (s *Scheduler) fastForwardRoundLocked() {
 		return
 	}
 	for i := range s.lanes {
-		if len(s.lanes[i].queue) > 0 {
+		if s.lanes[i].items > 0 {
 			s.lanes[i].deficit += rounds * s.lanes[i].weight
 		}
 	}
 	s.roundOpen = true
+}
+
+func (l *lane) front() Item {
+	return l.queue[l.head]
+}
+
+func (l *lane) popFront() {
+	l.queue[l.head] = Item{}
+	l.head++
+	if l.head == len(l.queue) {
+		l.queue = l.queue[:0]
+		l.head = 0
+	}
+}
+
+func (l *lane) compactQueueIfFull() {
+	if l.items == 0 {
+		l.queue = l.queue[:0]
+		l.head = 0
+		return
+	}
+	if l.head == 0 || len(l.queue) < cap(l.queue) {
+		return
+	}
+	copy(l.queue, l.queue[l.head:])
+	for i := l.items; i < len(l.queue); i++ {
+		l.queue[i] = Item{}
+	}
+	l.queue = l.queue[:l.items]
+	l.head = 0
 }
 
 func queueBytes(item Item) int64 {
@@ -495,14 +565,16 @@ func (s *Scheduler) drainLocked() []Item {
 	}
 	drained := make([]Item, 0, s.queuedItems)
 	for i := range s.lanes {
-		drained = append(drained, s.lanes[i].queue...)
-		for j := range s.lanes[i].queue {
-			s.lanes[i].queue[j] = Item{}
+		lane := &s.lanes[i]
+		drained = append(drained, lane.queue[lane.head:]...)
+		for j := range lane.queue {
+			lane.queue[j] = Item{}
 		}
-		s.lanes[i].queue = nil
-		s.lanes[i].deficit = 0
-		s.lanes[i].items = 0
-		s.lanes[i].bytes = 0
+		lane.queue = nil
+		lane.head = 0
+		lane.deficit = 0
+		lane.items = 0
+		lane.bytes = 0
 	}
 	s.queuedItems = 0
 	s.queuedBytes = 0
