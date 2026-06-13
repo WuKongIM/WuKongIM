@@ -266,7 +266,9 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 	}
 
 	data := buf.Bytes()
-	err := c.withDeadline(context.Background(), conn.SetWriteDeadline, func() error {
+	writeCtx, cancel := writeContextForBatch(batch)
+	defer cancel()
+	err := c.withDeadline(writeCtx, conn.SetWriteDeadline, func() error {
 		for len(data) > 0 {
 			n, err := conn.Write(data)
 			if err != nil {
@@ -283,6 +285,41 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 		return buf.Len(), err
 	}
 	return buf.Len(), nil
+}
+
+func writeContextForBatch(batch []writeRequest) (context.Context, context.CancelFunc) {
+	var earliest time.Time
+	var hasDeadline bool
+	for _, req := range batch {
+		if req.ctx == nil {
+			continue
+		}
+		if deadline, ok := req.ctx.Deadline(); ok && (!hasDeadline || deadline.Before(earliest)) {
+			earliest = deadline
+			hasDeadline = true
+		}
+	}
+
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if hasDeadline {
+		ctx, cancel = context.WithDeadline(context.Background(), earliest)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	for _, req := range batch {
+		if req.ctx == nil {
+			continue
+		}
+		go func(reqCtx context.Context) {
+			select {
+			case <-reqCtx.Done():
+				cancel()
+			case <-ctx.Done():
+			}
+		}(req.ctx)
+	}
+	return ctx, cancel
 }
 
 func (c *Client) finishWriteBatch(batch []writeRequest, err error) {

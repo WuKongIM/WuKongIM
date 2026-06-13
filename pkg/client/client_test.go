@@ -482,6 +482,28 @@ func TestBuildSendPacketUsesAssignedSequenceWhenMessageSequenceIsZero(t *testing
 	}
 }
 
+func TestClientGenerateClientMsgNoFillsEmptyMessageNumber(t *testing.T) {
+	c, err := New(Config{Addr: "pipe", GenerateClientMsgNo: true})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	prepared, err := c.prepareSend(Message{
+		ChannelID:   "ch-generated",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("payload"),
+	})
+	if err != nil {
+		t.Fatalf("prepareSend() error = %v", err)
+	}
+	if prepared.pkt.ClientMsgNo == "" {
+		t.Fatal("ClientMsgNo was not generated")
+	}
+	if prepared.key.ClientMsgNo != prepared.pkt.ClientMsgNo {
+		t.Fatalf("pending key ClientMsgNo = %q, want %q", prepared.key.ClientMsgNo, prepared.pkt.ClientMsgNo)
+	}
+}
+
 func TestClientSendAsyncCopiesPayloadBeforeQueue(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{
 		BatchMaxWait: 50 * time.Millisecond,
@@ -989,6 +1011,73 @@ func TestClientRecvReturnsErrClosedOnClose(t *testing.T) {
 	}
 }
 
+func TestClientReadFrameDoesNotReturnQueuedRecvAfterClose(t *testing.T) {
+	c, clientConn, serverConn := newClientWithManualConnectionOrFatal(t, Config{})
+	c.mu.Lock()
+	c.conn = clientConn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
+	c.mu.Unlock()
+
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 91, Setting: frame.SettingNoEncrypt}, nil)
+	_ = c.Close()
+	_ = serverConn.Close()
+
+	_, err := c.ReadFrame(context.Background())
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("ReadFrame() error = %v, want %v", err, ErrClosed)
+	}
+}
+
+func TestClientDropsRecvFromStaleConnectionAfterReconnect(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	oldClientConn, oldServerConn := net.Pipe()
+	newClientConn, newServerConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = oldClientConn.Close()
+		_ = oldServerConn.Close()
+		_ = newClientConn.Close()
+		_ = newServerConn.Close()
+	})
+
+	c.mu.Lock()
+	c.conn = oldClientConn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
+	c.conn = newClientConn
+	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
+	c.mu.Unlock()
+
+	if err := c.routeInboundFrameWithPending(&frame.RecvPacket{
+		Setting:   frame.SettingNoEncrypt,
+		MessageID: 1,
+		Payload:   []byte("old"),
+	}, nil, nil, oldClientConn); err != nil {
+		t.Fatalf("route old RECV error = %v", err)
+	}
+	if err := c.routeInboundFrameWithPending(&frame.RecvPacket{
+		Setting:   frame.SettingNoEncrypt,
+		MessageID: 2,
+		Payload:   []byte("new"),
+	}, nil, nil, newClientConn); err != nil {
+		t.Fatalf("route new RECV error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	recv, err := c.Recv(ctx)
+	if err != nil {
+		t.Fatalf("Recv() error = %v", err)
+	}
+	if recv.MessageID != 2 {
+		t.Fatalf("Recv() MessageID = %d, want 2", recv.MessageID)
+	}
+}
+
 func TestClientPingWritesControlFrame(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 
@@ -1092,6 +1181,41 @@ func TestAutoRecvAckUsesReaderConnectionSnapshot(t *testing.T) {
 	}
 }
 
+func TestWriterReleasesSocketWriteWhenRequestContextCancels(t *testing.T) {
+	conn := newBlockingWriteConn()
+	c, err := New(Config{
+		Addr:             "blocking",
+		OperationTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = conn.Close()
+	})
+
+	c.mu.Lock()
+	c.conn = conn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
+	c.mu.Unlock()
+	go c.writerLoop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err = c.Ping(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Ping() error = %v, want context deadline exceeded", err)
+	}
+
+	select {
+	case <-conn.writeReleased:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("writer did not release blocked socket write after request context canceled")
+	}
+}
+
 func TestClientRecvReturnsOnConnectionReadFailure(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 
@@ -1126,7 +1250,7 @@ func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	c.enqueueRecv(&frame.RecvPacket{MessageID: 1})
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
 
 	var wg sync.WaitGroup
 	done := make(chan struct{})
@@ -1134,7 +1258,7 @@ func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
 		wg.Add(1)
 		go func(messageID int64) {
 			defer wg.Done()
-			c.enqueueRecv(&frame.RecvPacket{MessageID: messageID})
+			c.enqueueRecv(&frame.RecvPacket{MessageID: messageID}, nil)
 		}(i)
 	}
 	go func() {
@@ -1158,7 +1282,7 @@ func TestEnqueueRecvZeroCapacityDoesNotBlock(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		c.enqueueRecv(&frame.RecvPacket{MessageID: 1})
+		c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
 		close(done)
 	}()
 
@@ -1470,6 +1594,67 @@ func pendingEntryCount(p *pendingTracker) int {
 	defer p.mu.Unlock()
 	return len(p.entries)
 }
+
+type blockingWriteConn struct {
+	releaseOnce   sync.Once
+	writeReleased chan struct{}
+}
+
+func newBlockingWriteConn() *blockingWriteConn {
+	return &blockingWriteConn{writeReleased: make(chan struct{})}
+}
+
+func (c *blockingWriteConn) Read([]byte) (int, error) {
+	<-c.writeReleased
+	return 0, net.ErrClosed
+}
+
+func (c *blockingWriteConn) Write([]byte) (int, error) {
+	<-c.writeReleased
+	return 0, net.ErrClosed
+}
+
+func (c *blockingWriteConn) Close() error {
+	c.release()
+	return nil
+}
+
+func (c *blockingWriteConn) LocalAddr() net.Addr {
+	return dummyAddr("local")
+}
+
+func (c *blockingWriteConn) RemoteAddr() net.Addr {
+	return dummyAddr("remote")
+}
+
+func (c *blockingWriteConn) SetDeadline(t time.Time) error {
+	if !t.IsZero() && !t.After(time.Now()) {
+		c.release()
+	}
+	return nil
+}
+
+func (c *blockingWriteConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (c *blockingWriteConn) SetWriteDeadline(t time.Time) error {
+	if !t.IsZero() && !t.After(time.Now()) {
+		c.release()
+	}
+	return nil
+}
+
+func (c *blockingWriteConn) release() {
+	c.releaseOnce.Do(func() {
+		close(c.writeReleased)
+	})
+}
+
+type dummyAddr string
+
+func (a dummyAddr) Network() string { return string(a) }
+func (a dummyAddr) String() string  { return string(a) }
 
 func TestNormalizeConfigAppliesToolingDefaults(t *testing.T) {
 	cfg, err := normalizeConfig(Config{Addr: "127.0.0.1:5100"})

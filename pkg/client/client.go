@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,16 +152,20 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 	}
 	oldConn = c.conn
 	oldPending = c.pending
+	oldRecvNotify := c.recvNotify
+	oldRecvActive := c.recvErr == nil
 	c.conn = conn
 	c.session = c.crypto.currentSession()
 	c.pending = newPendingTracker()
-	if c.recvErr != nil {
-		c.recvNotify = make(chan struct{})
-		c.recvErr = nil
-	}
+	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
 	c.startLoops(conn, c.pending, c.session)
 	c.mu.Unlock()
 
+	if oldRecvActive && oldRecvNotify != nil {
+		close(oldRecvNotify)
+	}
 	if oldPending != nil {
 		oldPending.close(ErrClosed)
 	}
@@ -183,6 +188,7 @@ func (c *Client) Close() error {
 	conn := c.conn
 	c.conn = nil
 	c.session = nil
+	c.recvCh = make(chan *frame.RecvPacket, c.cfg.InboundFrameBufferSize)
 	pending := c.pending
 	c.signalRecvUnavailableLocked(ErrClosed)
 	c.mu.Unlock()
@@ -303,15 +309,6 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	}
 
 	for {
-		select {
-		case pkt := <-c.recvCh:
-			if pkt == nil {
-				return nil, ErrClosed
-			}
-			return pkt, nil
-		default:
-		}
-
 		c.mu.Lock()
 		if c.closed {
 			c.mu.Unlock()
@@ -325,11 +322,21 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 			c.mu.Unlock()
 			return nil, err
 		}
+		recvCh := c.recvCh
 		recvNotify := c.recvNotify
 		c.mu.Unlock()
 
 		select {
-		case pkt := <-c.recvCh:
+		case pkt := <-recvCh:
+			if pkt == nil {
+				return nil, ErrClosed
+			}
+			return pkt, nil
+		default:
+		}
+
+		select {
+		case pkt := <-recvCh:
 			if pkt == nil {
 				return nil, ErrClosed
 			}
@@ -473,6 +480,9 @@ func (c *Client) prepareSend(msg Message) (preparedSend, error) {
 		return preparedSend{}, err
 	}
 	msg.ClientSeq = assignedSeq
+	if c.cfg.GenerateClientMsgNo && msg.ClientMsgNo == "" {
+		msg.ClientMsgNo = generatedClientMsgNo(assignedSeq)
+	}
 	pkt, err := buildSendPacket(msg, assignedSeq)
 	if err != nil {
 		return preparedSend{}, err
@@ -562,6 +572,11 @@ func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend
 				pending.fail(failed.entry, ErrClosed)
 			}
 			return nil, ErrClosed
+		case <-ctx.Done():
+			for _, failed := range reqs {
+				pending.fail(failed.entry, ctx.Err())
+			}
+			return nil, ctx.Err()
 		}
 	}
 	for range reqs {
@@ -617,6 +632,10 @@ func (c *Client) nextClientSeq(explicit uint64) (uint64, error) {
 		return 0, ErrClientSeqExhausted
 	}
 	return next, nil
+}
+
+func generatedClientMsgNo(seq uint64) string {
+	return "wkclient-" + strconv.FormatUint(seq, 10)
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

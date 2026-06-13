@@ -76,7 +76,7 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 		if err := c.decryptRecv(pkt, session); err != nil {
 			return err
 		}
-		c.enqueueRecv(pkt)
+		c.enqueueRecv(pkt, conn)
 		if c.cfg.AutoRecvAck {
 			_ = c.writeControlToConn(nil, &frame.RecvackPacket{MessageID: pkt.MessageID, MessageSeq: pkt.MessageSeq}, conn, false)
 		}
@@ -129,24 +129,34 @@ func recvDecryptError(pkt *frame.RecvPacket, err error) error {
 	)
 }
 
-// enqueueRecv appends a RECV packet, dropping the oldest queued packet when full.
-func (c *Client) enqueueRecv(pkt *frame.RecvPacket) {
-	if pkt == nil || c.recvCh == nil || cap(c.recvCh) == 0 {
+// enqueueRecv appends a current-session RECV packet, dropping the oldest queued packet when full.
+func (c *Client) enqueueRecv(pkt *frame.RecvPacket, conn net.Conn) {
+	if pkt == nil {
 		return
 	}
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
+	c.mu.Lock()
+	if c.closed || (conn != nil && c.conn != conn) {
+		c.mu.Unlock()
+		return
+	}
+	recvCh := c.recvCh
+	c.mu.Unlock()
+	if recvCh == nil || cap(recvCh) == 0 {
+		return
+	}
 	select {
-	case c.recvCh <- pkt:
+	case recvCh <- pkt:
 		return
 	default:
 	}
 	select {
-	case <-c.recvCh:
+	case <-recvCh:
 	default:
 	}
 	select {
-	case c.recvCh <- pkt:
+	case recvCh <- pkt:
 	default:
 	}
 }
