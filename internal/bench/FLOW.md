@@ -277,13 +277,12 @@ The client wrapper serializes access to each underlying queued `ReadFrame` call 
 
 When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
 
-The WKProto benchmark client keeps a per-connection decode buffer and only
-discards bytes after `DecodeFrame` returns a complete frame. Read-deadline
-timeouts may therefore return an error while retaining partial frame bytes for
-the next read when tests or pre-connect handshakes use direct reads. Connected
-sessions use the client's background reader and bounded frame queue; the
-receive-ack drainer consumes that queue and briefly yields to foreground
-sendack/recv matchers when they are queued.
+The shared `pkg/client` session owns WKProto CONNECT reads, socket decoding,
+crypto, pending SENDACK matching, and the bounded RECV queue. The benchmark
+adapter preserves the old workload-facing frame API by converting send futures
+back into local `SendackPacket` frames and forwarding decrypted RECV packets
+through the wrapper queue. The receive-ack drainer consumes that wrapper queue
+and briefly yields to foreground sendack/recv matchers when they are queued.
 
 ### Warmup, Run, Cooldown
 

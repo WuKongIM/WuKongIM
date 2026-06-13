@@ -2,6 +2,7 @@ package wkproto
 
 import (
 	"context"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -372,6 +373,109 @@ func TestClientReadFrameReportsRecvDecryptContext(t *testing.T) {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("ReadFrame() error %q missing %q", msg, want)
 		}
+	}
+}
+
+func TestClientReconnectDoesNotLetOldReaderConsumeNewSessionFrames(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	releaseFirst := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+
+		first, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer first.Close()
+		if _, err := codec.New().DecodePacketWithConn(first, frame.LatestVersion); err != nil {
+			t.Errorf("decode first connect: %v", err)
+			return
+		}
+		writeFrame(t, first, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+
+		second, err := ln.Accept()
+		if err != nil {
+			t.Errorf("accept second connection: %v", err)
+			return
+		}
+		defer second.Close()
+		if _, err := codec.New().DecodePacketWithConn(second, frame.LatestVersion); err != nil {
+			t.Errorf("decode second connect: %v", err)
+			return
+		}
+		writeFrame(t, second, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+		writeFrame(t, second, &frame.RecvPacket{
+			MessageID:   31,
+			MessageSeq:  32,
+			ChannelID:   "u1",
+			ChannelType: frame.ChannelTypePerson,
+			FromUID:     "u2",
+			Payload:     []byte("second session"),
+		})
+		<-releaseFirst
+	}()
+
+	client, err := NewClient(ClientConfig{Addr: ln.Addr().String(), OperationTimeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+	defer func() { <-serverDone }()
+	defer close(releaseFirst)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("first Connect() error = %v", err)
+	}
+	if err := client.Connect(ctx, "u1", "d1-reconnect"); err != nil {
+		t.Fatalf("second Connect() error = %v", err)
+	}
+
+	f, err := client.ReadFrame(ctx)
+	if err != nil {
+		t.Fatalf("ReadFrame() error = %v", err)
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		t.Fatalf("ReadFrame() = %T, want *frame.RecvPacket", f)
+	}
+	if got, want := string(recv.Payload), "second session"; got != want {
+		t.Fatalf("recv payload = %q, want %q", got, want)
+	}
+}
+
+func TestClientPublishFrameResultDoesNotBlockWhenQueueFull(t *testing.T) {
+	client := &Client{}
+	frameCh := make(chan frameResult, 1)
+	frameCh <- frameResult{frame: &frame.RecvPacket{MessageID: 1}}
+	stopCh := make(chan struct{})
+
+	done := make(chan struct{})
+	go func() {
+		client.publishFrameResult(frameCh, stopCh, frameResult{err: io.EOF})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("publishFrameResult blocked behind a full queue")
+	}
+
+	select {
+	case result := <-frameCh:
+		if result.err != io.EOF {
+			t.Fatalf("published result error = %v, want %v", result.err, io.EOF)
+		}
+	default:
+		t.Fatal("frameCh is empty after publish")
 	}
 }
 

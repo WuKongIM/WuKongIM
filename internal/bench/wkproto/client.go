@@ -35,17 +35,31 @@ type ClientConfig struct {
 	FrameBufferSize int
 }
 
+type tcpDialer interface {
+	DialContext(context.Context, string, string) (net.Conn, error)
+}
+
 // Client is a black-box WKProto client used by wkbench workers.
 type Client struct {
-	inner            *wkclient.Client
+	addr             string
 	token            string
+	dialer           tcpDialer
 	operationTimeout time.Duration
 	frameBufferSize  int
 
 	mu      sync.Mutex
-	frameCh chan frameResult
-	stopCh  chan struct{}
+	session *clientSession
+}
 
+type clientSession struct {
+	// inner owns the TCP session, WKProto crypto, reader, writer, and SENDACK matching.
+	inner *wkclient.Client
+	// frameCh is the bench-facing queue of synthetic SENDACKs and forwarded RECVs.
+	frameCh chan frameResult
+	// stopCh closes when this session is no longer active.
+	stopCh chan struct{}
+	// closeOnce makes session shutdown idempotent.
+	closeOnce sync.Once
 	// pendingMu protects pendingSendacks and pendingDone.
 	pendingMu sync.Mutex
 	// pendingSendacks counts SEND futures that still need to publish a SENDACK frame.
@@ -73,20 +87,10 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if cfg.FrameBufferSize <= 0 {
 		cfg.FrameBufferSize = defaultFrameBufferSize
 	}
-	inner, err := wkclient.New(wkclient.Config{
-		Addr:                   cfg.Addr,
-		Token:                  cfg.Token,
-		Dialer:                 cfg.Dialer,
-		OperationTimeout:       cfg.OperationTimeout,
-		AckTimeout:             cfg.OperationTimeout,
-		InboundFrameBufferSize: cfg.FrameBufferSize,
-	})
-	if err != nil {
-		return nil, err
-	}
 	return &Client{
-		inner:            inner,
+		addr:             cfg.Addr,
 		token:            cfg.Token,
+		dialer:           cfg.Dialer,
 		operationTimeout: cfg.OperationTimeout,
 		frameBufferSize:  cfg.FrameBufferSize,
 	}, nil
@@ -94,49 +98,53 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 
 // Connect opens the TCP connection and completes the WKProto connect/connack handshake.
 func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
-	if c == nil || c.inner == nil {
+	if c == nil {
 		return errClientNotConnected
 	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
 
-	if _, err := c.inner.Connect(ctx, wkclient.ConnectOptions{
+	inner, err := c.newInner()
+	if err != nil {
+		return err
+	}
+	if _, err := inner.Connect(ctx, wkclient.ConnectOptions{
 		UID:        uid,
 		DeviceID:   deviceID,
 		DeviceFlag: frame.APP,
 		Token:      c.token,
 	}); err != nil {
+		_ = inner.Close()
 		return err
 	}
 
-	frameCh := make(chan frameResult, c.frameBufferSize)
-	stopCh := make(chan struct{})
+	session := newClientSession(inner, c.frameBufferSize)
 	c.mu.Lock()
-	oldStop := c.stopCh
-	c.frameCh = frameCh
-	c.stopCh = stopCh
+	oldSession := c.session
+	c.session = session
 	c.mu.Unlock()
-	if oldStop != nil {
-		close(oldStop)
+	if oldSession != nil {
+		_ = oldSession.close()
 	}
-	go c.forwardReadFrames(frameCh, stopCh)
+	go c.forwardReadFrames(session)
 	return nil
 }
 
 // Send writes one send packet for the connected client.
 func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
-	if c == nil || c.inner == nil {
-		return errClientNotConnected
-	}
 	if pkt == nil {
 		return fmt.Errorf("wkproto client: send packet is nil")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
 
-	c.beginPendingSendack()
-	future, err := c.inner.SendAsync(ctx, wkclient.Message{
+	session.beginPendingSendack()
+	future, err := session.inner.SendAsync(ctx, wkclient.Message{
 		Setting:     pkt.Setting,
 		Expire:      pkt.Expire,
 		ClientSeq:   pkt.ClientSeq,
@@ -147,15 +155,10 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 		Payload:     pkt.Payload,
 	})
 	if err != nil {
-		c.finishPendingSendack()
+		session.finishPendingSendack()
 		return err
 	}
-	frameCh, stopCh, err := c.currentFrameQueue()
-	if err != nil {
-		c.finishPendingSendack()
-		return err
-	}
-	go c.forwardSendack(future, frameCh, stopCh)
+	go c.forwardSendack(session, future)
 	return nil
 }
 
@@ -166,17 +169,17 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
-	frameCh, stopCh, err := c.currentFrameQueue()
+	session, err := c.currentSession()
 	if err != nil {
 		return nil, err
 	}
 	select {
-	case result := <-frameCh:
+	case result := <-session.frameCh:
 		if result.err != nil {
 			return nil, result.err
 		}
 		return result.frame, nil
-	case <-stopCh:
+	case <-session.stopCh:
 		return nil, errClientNotConnected
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -185,22 +188,24 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 
 // RecvAck sends one receive acknowledgment for a delivered message.
 func (c *Client) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
-	if c == nil || c.inner == nil {
-		return errClientNotConnected
+	session, err := c.currentSession()
+	if err != nil {
+		return err
 	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
-	return c.inner.RecvAck(ctx, messageID, messageSeq)
+	return session.inner.RecvAck(ctx, messageID, messageSeq)
 }
 
 // Ping sends a WKProto heartbeat ping frame on the active connection.
 func (c *Client) Ping(ctx context.Context) error {
-	if c == nil || c.inner == nil {
-		return errClientNotConnected
+	session, err := c.currentSession()
+	if err != nil {
+		return err
 	}
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
-	return c.inner.Ping(ctx)
+	return session.inner.Ping(ctx)
 }
 
 // Close closes the active TCP connection, if any.
@@ -209,38 +214,34 @@ func (c *Client) Close() error {
 		return nil
 	}
 	c.mu.Lock()
-	stopCh := c.stopCh
-	c.stopCh = nil
-	c.frameCh = nil
+	session := c.session
+	c.session = nil
 	c.mu.Unlock()
-	if stopCh != nil {
-		close(stopCh)
-	}
-	if c.inner == nil {
+	if session == nil {
 		return nil
 	}
-	return c.inner.Close()
+	return session.close()
 }
 
-func (c *Client) forwardReadFrames(frameCh chan<- frameResult, stopCh <-chan struct{}) {
+func (c *Client) forwardReadFrames(session *clientSession) {
 	for {
-		f, err := c.inner.ReadFrame(context.Background())
+		f, err := session.inner.ReadFrame(context.Background())
 		if err != nil {
-			if !c.waitPendingSendacks(stopCh) {
+			if !session.waitPendingSendacks() {
 				return
 			}
-			c.publishFrameResult(frameCh, stopCh, frameResult{err: err})
+			session.publishFrameResult(frameResult{err: err})
 			return
 		}
-		c.publishFrameResult(frameCh, stopCh, frameResult{frame: f})
+		session.publishFrameResult(frameResult{frame: f})
 	}
 }
 
-func (c *Client) forwardSendack(future *wkclient.SendFuture, frameCh chan<- frameResult, stopCh <-chan struct{}) {
-	defer c.finishPendingSendack()
+func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture) {
 	result, err := future.Wait(context.Background())
 	if err != nil && result.ClientSeq == 0 && result.ClientMsgNo == "" {
-		c.publishFrameResult(frameCh, stopCh, frameResult{err: err})
+		session.finishPendingSendack()
+		session.publishFrameResult(frameResult{err: err})
 		return
 	}
 	ack := &frame.SendackPacket{
@@ -250,64 +251,118 @@ func (c *Client) forwardSendack(future *wkclient.SendFuture, frameCh chan<- fram
 		MessageSeq:  result.MessageSeq,
 		ReasonCode:  result.ReasonCode,
 	}
-	c.publishFrameResult(frameCh, stopCh, frameResult{frame: ack})
+	session.finishPendingSendack()
+	session.publishFrameResult(frameResult{frame: ack})
 }
 
-func (c *Client) publishFrameResult(frameCh chan<- frameResult, stopCh <-chan struct{}, result frameResult) {
+func (c *Client) publishFrameResult(frameCh chan frameResult, stopCh <-chan struct{}, result frameResult) {
+	publishFrameResult(frameCh, stopCh, result)
+}
+
+func (s *clientSession) publishFrameResult(result frameResult) {
+	publishFrameResult(s.frameCh, s.stopCh, result)
+}
+
+func publishFrameResult(frameCh chan frameResult, stopCh <-chan struct{}, result frameResult) {
+	select {
+	case frameCh <- result:
+		return
+	case <-stopCh:
+		return
+	default:
+	}
+	select {
+	case <-frameCh:
+	default:
+	}
 	select {
 	case frameCh <- result:
 	case <-stopCh:
+	default:
 	}
 }
 
-func (c *Client) beginPendingSendack() {
-	c.pendingMu.Lock()
-	if c.pendingSendacks == 0 {
-		c.pendingDone = make(chan struct{})
+func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
+	return &clientSession{
+		inner:   inner,
+		frameCh: make(chan frameResult, frameBufferSize),
+		stopCh:  make(chan struct{}),
 	}
-	c.pendingSendacks++
-	c.pendingMu.Unlock()
 }
 
-func (c *Client) finishPendingSendack() {
-	c.pendingMu.Lock()
-	if c.pendingSendacks > 0 {
-		c.pendingSendacks--
-		if c.pendingSendacks == 0 {
-			close(c.pendingDone)
+func (s *clientSession) close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		close(s.stopCh)
+		if s.inner != nil {
+			err = s.inner.Close()
+			if errors.Is(err, wkclient.ErrClosed) {
+				err = nil
+			}
+		}
+	})
+	return err
+}
+
+func (s *clientSession) beginPendingSendack() {
+	s.pendingMu.Lock()
+	if s.pendingSendacks == 0 {
+		s.pendingDone = make(chan struct{})
+	}
+	s.pendingSendacks++
+	s.pendingMu.Unlock()
+}
+
+func (s *clientSession) finishPendingSendack() {
+	s.pendingMu.Lock()
+	if s.pendingSendacks > 0 {
+		s.pendingSendacks--
+		if s.pendingSendacks == 0 {
+			close(s.pendingDone)
 		}
 	}
-	c.pendingMu.Unlock()
+	s.pendingMu.Unlock()
 }
 
-func (c *Client) waitPendingSendacks(stopCh <-chan struct{}) bool {
+func (s *clientSession) waitPendingSendacks() bool {
 	for {
-		c.pendingMu.Lock()
-		if c.pendingSendacks == 0 {
-			c.pendingMu.Unlock()
+		s.pendingMu.Lock()
+		if s.pendingSendacks == 0 {
+			s.pendingMu.Unlock()
 			return true
 		}
-		done := c.pendingDone
-		c.pendingMu.Unlock()
+		done := s.pendingDone
+		s.pendingMu.Unlock()
 
 		select {
 		case <-done:
-		case <-stopCh:
+		case <-s.stopCh:
 			return false
 		}
 	}
 }
 
-func (c *Client) currentFrameQueue() (chan frameResult, <-chan struct{}, error) {
+func (c *Client) currentSession() (*clientSession, error) {
 	if c == nil {
-		return nil, nil, errClientNotConnected
+		return nil, errClientNotConnected
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.frameCh == nil || c.stopCh == nil {
-		return nil, nil, errClientNotConnected
+	if c.session == nil {
+		return nil, errClientNotConnected
 	}
-	return c.frameCh, c.stopCh, nil
+	return c.session, nil
+}
+
+func (c *Client) newInner() (*wkclient.Client, error) {
+	return wkclient.New(wkclient.Config{
+		Addr:                   c.addr,
+		Token:                  c.token,
+		Dialer:                 c.dialer,
+		OperationTimeout:       c.operationTimeout,
+		AckTimeout:             c.operationTimeout,
+		InboundFrameBufferSize: c.frameBufferSize,
+	})
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
