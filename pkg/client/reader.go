@@ -10,9 +10,9 @@ import (
 
 // readerLoop reads WKProto frames from the active TCP stream and routes them.
 func (c *Client) readerLoop() {
-	conn, err := c.currentConn()
+	conn, pending, err := c.currentSession()
 	if err != nil {
-		c.failRead(err)
+		c.failRead(nil, nil, err)
 		return
 	}
 
@@ -25,22 +25,22 @@ func (c *Client) readerLoop() {
 			for len(buf) > 0 {
 				f, consumed, decodeErr := c.proto.DecodeFrame(buf, frame.LatestVersion)
 				if decodeErr != nil {
-					c.failRead(decodeErr)
+					c.failRead(conn, pending, decodeErr)
 					return
 				}
 				if f == nil || consumed == 0 {
 					break
 				}
 				detachPayload(f)
-				if err := c.routeInboundFrame(f); err != nil {
-					c.failRead(err)
+				if err := c.routeInboundFrameWithPending(f, pending); err != nil {
+					c.failRead(conn, pending, err)
 					return
 				}
 				buf = buf[consumed:]
 			}
 		}
 		if readErr != nil {
-			c.failRead(readErr)
+			c.failRead(conn, pending, readErr)
 			return
 		}
 	}
@@ -58,10 +58,17 @@ func detachPayload(f frame.Frame) {
 
 // routeInboundFrame dispatches decoded inbound frames to pending sends or receive buffers.
 func (c *Client) routeInboundFrame(f frame.Frame) error {
+	c.mu.Lock()
+	pending := c.pending
+	c.mu.Unlock()
+	return c.routeInboundFrameWithPending(f, pending)
+}
+
+func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTracker) error {
 	switch pkt := f.(type) {
 	case *frame.SendackPacket:
-		if c.pending != nil {
-			c.pending.resolve(pkt)
+		if pending != nil {
+			pending.resolve(pkt)
 		}
 		return nil
 	case *frame.RecvPacket:
@@ -109,13 +116,29 @@ func (c *Client) enqueueRecv(pkt *frame.RecvPacket) {
 	c.recvCh <- pkt
 }
 
-// failRead terminates pending sends and closes the client after a reader failure.
-func (c *Client) failRead(err error) {
+// failRead terminates the failed reader session without closing newer sessions.
+func (c *Client) failRead(conn net.Conn, pending *pendingTracker, err error) {
 	if err == nil {
 		err = net.ErrClosed
 	}
-	if c.pending != nil {
-		c.pending.close(err)
+	var closePending bool
+	c.mu.Lock()
+	if conn != nil {
+		if c.conn != conn {
+			c.mu.Unlock()
+			return
+		}
+		c.conn = nil
+		if c.pending == pending {
+			c.pending = newPendingTracker()
+		}
+		closePending = true
 	}
-	_ = c.Close()
+	c.mu.Unlock()
+	if closePending && pending != nil {
+		pending.close(err)
+	}
+	if conn != nil {
+		_ = conn.Close()
+	}
 }

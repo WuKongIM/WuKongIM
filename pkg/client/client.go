@@ -112,6 +112,8 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 		return nil, err
 	}
 
+	var oldConn net.Conn
+	var oldPending *pendingTracker
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -120,12 +122,19 @@ func (c *Client) Connect(ctx context.Context, opts ConnectOptions) (*frame.Conna
 		c.observeConnect(opts, time.Since(started), err)
 		return nil, err
 	}
-	if c.conn != nil {
-		_ = c.conn.Close()
-	}
+	oldConn = c.conn
+	oldPending = c.pending
 	c.conn = conn
+	c.pending = newPendingTracker()
 	c.startLoops()
 	c.mu.Unlock()
+
+	if oldPending != nil {
+		oldPending.close(ErrClosed)
+	}
+	if oldConn != nil {
+		_ = oldConn.Close()
+	}
 
 	c.observeConnect(opts, time.Since(started), nil)
 	return ack, nil
@@ -188,6 +197,19 @@ func (c *Client) currentConn() (net.Conn, error) {
 		return nil, ErrNotConnected
 	}
 	return c.conn, nil
+}
+
+// currentSession returns the active connection and its SENDACK tracker.
+func (c *Client) currentSession() (net.Conn, *pendingTracker, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil, nil, ErrClosed
+	}
+	if c.conn == nil {
+		return nil, nil, ErrNotConnected
+	}
+	return c.conn, c.pending, nil
 }
 
 func (c *Client) writeFrameSync(ctx context.Context, conn net.Conn, f frame.Frame) error {

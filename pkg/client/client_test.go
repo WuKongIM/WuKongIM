@@ -353,6 +353,63 @@ func TestRouteInboundDisconnectReturnsReadFailure(t *testing.T) {
 	}
 }
 
+func TestClientReaderFailureDoesNotCloseReplacedConnection(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	oldClientConn, oldServerConn := net.Pipe()
+	newClientConn, newServerConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = oldServerConn.Close()
+		_ = newServerConn.Close()
+	})
+
+	c.mu.Lock()
+	c.conn = oldClientConn
+	c.startLoops()
+	oldReaderDone := c.readerDone
+	c.mu.Unlock()
+
+	ack := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+		ClientSeq:  101,
+		MessageID:  1001,
+		ReasonCode: frame.ReasonSuccess,
+	})
+	if _, err := oldServerConn.Write(ack[:1]); err != nil {
+		t.Fatalf("old server partial Write() error = %v", err)
+	}
+
+	c.mu.Lock()
+	c.conn = newClientConn
+	c.mu.Unlock()
+
+	if err := oldServerConn.Close(); err != nil {
+		t.Fatalf("old server Close() error = %v", err)
+	}
+	select {
+	case <-oldReaderDone:
+	case <-time.After(time.Second):
+		t.Fatal("old reader did not stop")
+	}
+
+	conn, err := c.currentConn()
+	if err != nil {
+		t.Fatalf("currentConn() error = %v, want replaced connection active", err)
+	}
+	if conn != newClientConn {
+		t.Fatalf("currentConn() = %p, want new connection %p", conn, newClientConn)
+	}
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		t.Fatal("client closed after old reader failure")
+	}
+}
+
 type contextErrDialer struct{}
 
 func (contextErrDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
