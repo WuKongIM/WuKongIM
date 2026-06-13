@@ -1,9 +1,11 @@
 package client
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
@@ -65,4 +67,59 @@ func (s *cryptoState) currentSession() *wkprotoenc.SessionCrypto {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.session
+}
+
+func buildSendPacket(msg Message, assignedSeq uint64) (*frame.SendPacket, error) {
+	if len(msg.Payload) > codec.PayloadMaxSize {
+		return nil, ErrPayloadTooLarge
+	}
+	if msg.ChannelID == "" {
+		return nil, fmt.Errorf("%w: channel id is required", ErrInvalidMessage)
+	}
+	if msg.ChannelType == 0 {
+		return nil, fmt.Errorf("%w: channel type is required", ErrInvalidMessage)
+	}
+	if assignedSeq == 0 {
+		return nil, fmt.Errorf("%w: client sequence is required", ErrInvalidMessage)
+	}
+	if assignedSeq > uint64(^uint32(0)) {
+		return nil, ErrClientSeqExhausted
+	}
+
+	return &frame.SendPacket{
+		Setting:     msg.Setting,
+		Expire:      msg.Expire,
+		ClientSeq:   assignedSeq,
+		ClientMsgNo: msg.ClientMsgNo,
+		ChannelID:   msg.ChannelID,
+		ChannelType: msg.ChannelType,
+		Topic:       msg.Topic,
+		Payload:     append([]byte(nil), msg.Payload...),
+	}, nil
+}
+
+func (s *cryptoState) sealSend(pkt *frame.SendPacket) (*frame.SendPacket, error) {
+	if pkt == nil || pkt.Setting.IsSet(frame.SettingNoEncrypt) || s == nil {
+		return pkt, nil
+	}
+
+	s.mu.RLock()
+	session := s.session
+	if session == nil {
+		s.mu.RUnlock()
+		return pkt, nil
+	}
+	sealed := *pkt
+	encrypted, err := wkprotoenc.EncryptPayloadWithCrypto(pkt.Payload, session)
+	if err != nil {
+		s.mu.RUnlock()
+		return nil, err
+	}
+	sealed.Payload = encrypted
+	sealed.MsgKey, err = wkprotoenc.SendMsgKeyWithCrypto(&sealed, session)
+	s.mu.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	return &sealed, nil
 }

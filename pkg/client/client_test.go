@@ -381,6 +381,130 @@ func TestClientReaderDecodesConcatenatedSendacksOutOfOrder(t *testing.T) {
 	}
 }
 
+func TestClientSendRejectsOversizedPayload(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{})
+
+	_, err := c.Send(context.Background(), Message{
+		ChannelID:   "ch-oversized",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     make([]byte, codec.PayloadMaxSize+1),
+	})
+	if !errors.Is(err, ErrPayloadTooLarge) {
+		t.Fatalf("Send() error = %v, want %v", err, ErrPayloadTooLarge)
+	}
+}
+
+func TestClientSendBeforeConnectRejectsQuickly(t *testing.T) {
+	c, err := New(Config{Addr: "pipe"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = c.SendAsync(ctx, Message{
+		ChannelID:   "ch-before-connect",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("payload"),
+	})
+	if !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("SendAsync() error = %v, want %v", err, ErrNotConnected)
+	}
+}
+
+func TestBuildSendPacketUsesAssignedSequenceWhenMessageSequenceIsZero(t *testing.T) {
+	payload := []byte("payload")
+	pkt, err := buildSendPacket(Message{
+		ChannelID:   "ch-seq",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     payload,
+	}, 42)
+	if err != nil {
+		t.Fatalf("buildSendPacket() error = %v", err)
+	}
+	if pkt.ClientSeq != 42 {
+		t.Fatalf("ClientSeq = %d, want 42", pkt.ClientSeq)
+	}
+	payload[0] = 'P'
+	if string(pkt.Payload) != "payload" {
+		t.Fatalf("Payload = %q, want copied payload", pkt.Payload)
+	}
+}
+
+func TestClientSendBatchReturnsResultsInInputOrderWithOutOfOrderSendacks(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{
+		BatchMaxWait: 5 * time.Millisecond,
+	})
+
+	readDone := make(chan []uint64, 1)
+	serverErr := runTestServer(func() error {
+		first, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		second, err := readTestFrame(serverConn)
+		if err != nil {
+			return err
+		}
+		firstSend, ok := first.(*frame.SendPacket)
+		if !ok {
+			return fmt.Errorf("first frame = %T, want SEND", first)
+		}
+		secondSend, ok := second.(*frame.SendPacket)
+		if !ok {
+			return fmt.Errorf("second frame = %T, want SEND", second)
+		}
+		readDone <- []uint64{firstSend.ClientSeq, secondSend.ClientSeq}
+
+		secondAck := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+			ClientSeq:   secondSend.ClientSeq,
+			ClientMsgNo: secondSend.ClientMsgNo,
+			MessageID:   2002,
+			MessageSeq:  22,
+			ReasonCode:  frame.ReasonSuccess,
+		})
+		firstAck := encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+			ClientSeq:   firstSend.ClientSeq,
+			ClientMsgNo: firstSend.ClientMsgNo,
+			MessageID:   1001,
+			MessageSeq:  11,
+			ReasonCode:  frame.ReasonSuccess,
+		})
+		_, err = serverConn.Write(append(secondAck, firstAck...))
+		return err
+	})
+
+	results, err := c.SendBatch(context.Background(), []Message{
+		{
+			ClientMsgNo: "first",
+			ChannelID:   "ch-order",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("first"),
+		},
+		{
+			ClientMsgNo: "second",
+			ChannelID:   "ch-order",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("second"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("SendBatch() error = %v", err)
+	}
+	if got := <-readDone; len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("server read client seqs = %v, want [1 2]", got)
+	}
+	if results[0].MessageID != 1001 || results[0].ClientMsgNo != "first" {
+		t.Fatalf("first result = %+v, want first ack", results[0])
+	}
+	if results[1].MessageID != 2002 || results[1].ClientMsgNo != "second" {
+		t.Fatalf("second result = %+v, want second ack", results[1])
+	}
+	if err := <-serverErr; err != nil {
+		t.Fatalf("server error = %v", err)
+	}
+}
+
 func TestClientReaderPreservesPartialFrameBytes(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
@@ -18,13 +20,15 @@ type Client struct {
 	cfg    Config
 	proto  codec.Protocol
 	crypto *cryptoState
+	seq    atomic.Uint64
 
 	// connectMu serializes CONNECT handshakes so session state is published atomically.
-	connectMu sync.Mutex
-	mu        sync.Mutex
-	conn      net.Conn
-	closed    bool
-	writeCh   chan writeRequest
+	connectMu  sync.Mutex
+	writerOnce sync.Once
+	mu         sync.Mutex
+	conn       net.Conn
+	closed     bool
+	writeCh    chan writeRequest
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
 	pending *pendingTracker
 	// recvMu protects bounded overwrite semantics for recvCh.
@@ -164,6 +168,10 @@ func (c *Client) Close() error {
 	if pending != nil {
 		pending.close(ErrClosed)
 	}
+	select {
+	case c.writeCh <- writeRequest{kind: writeKindClose}:
+	default:
+	}
 	if conn != nil {
 		return conn.Close()
 	}
@@ -174,11 +182,13 @@ func (c *Client) startLoops(conn net.Conn, pending *pendingTracker, session *wkp
 	readerDone := make(chan struct{})
 	writerDone := make(chan struct{})
 	c.readerDone = readerDone
-	c.writerDone = writerDone
-	go func() {
-		defer close(writerDone)
-		c.writerLoop()
-	}()
+	c.writerOnce.Do(func() {
+		c.writerDone = writerDone
+		go func() {
+			defer close(writerDone)
+			c.writerLoop()
+		}()
+	})
 	go func() {
 		defer close(readerDone)
 		c.readerLoop(conn, pending, session)
@@ -186,6 +196,127 @@ func (c *Client) startLoops(conn net.Conn, pending *pendingTracker, session *wkp
 }
 
 func (c *Client) writerLoop() {
+	c.runWriterLoop()
+}
+
+// Send sends one message and waits for its SENDACK.
+func (c *Client) Send(ctx context.Context, msg Message) (SendResult, error) {
+	results, err := c.SendBatch(ctx, []Message{msg})
+	if err != nil {
+		if len(results) > 0 {
+			return results[0], err
+		}
+		return SendResult{}, err
+	}
+	if len(results) == 0 {
+		return SendResult{}, nil
+	}
+	return results[0], nil
+}
+
+// SendBatch sends messages and returns SENDACK results in input order.
+func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	futures := make([]*SendFuture, len(msgs))
+	for i := range msgs {
+		future, err := c.SendAsync(ctx, msgs[i])
+		if err != nil {
+			return nil, err
+		}
+		futures[i] = future
+	}
+
+	results := make([]SendResult, len(futures))
+	for i, future := range futures {
+		result, err := future.Wait(ctx)
+		results[i] = result
+		if err != nil {
+			return results, err
+		}
+	}
+	return results, nil
+}
+
+// SendAsync queues one message and returns a future resolved by the matching SENDACK.
+func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error) {
+	if c == nil {
+		return nil, ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	assignedSeq, err := c.nextClientSeq(msg.ClientSeq)
+	if err != nil {
+		return nil, err
+	}
+	msg.ClientSeq = assignedSeq
+	if _, err = buildSendPacket(msg, assignedSeq); err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, ErrClosed
+	}
+	conn := c.conn
+	pending := c.pending
+	if conn == nil || pending == nil {
+		c.mu.Unlock()
+		return nil, ErrNotConnected
+	}
+	c.mu.Unlock()
+
+	entry, err := pending.add(pendingKey{ClientSeq: assignedSeq, ClientMsgNo: msg.ClientMsgNo}, c.cfg.AckTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	req := writeRequest{
+		kind:    writeKindSend,
+		msg:     msg,
+		entry:   entry,
+		ctx:     ctx,
+		conn:    conn,
+		pending: pending,
+	}
+	select {
+	case c.writeCh <- req:
+		c.observeSendQueue("accepted")
+		return &SendFuture{done: entry.done}, nil
+	case <-ctx.Done():
+		pending.fail(entry, ctx.Err())
+		c.observeSendQueue("canceled")
+		return nil, ctx.Err()
+	default:
+		pending.fail(entry, ErrSendQueueFull)
+		c.observeSendQueue("full")
+		return nil, ErrSendQueueFull
+	}
+}
+
+func (c *Client) nextClientSeq(explicit uint64) (uint64, error) {
+	if explicit != 0 {
+		if explicit > math.MaxUint32 {
+			return 0, ErrClientSeqExhausted
+		}
+		return explicit, nil
+	}
+	next := c.seq.Add(1)
+	if next > math.MaxUint32 {
+		return 0, ErrClientSeqExhausted
+	}
+	return next, nil
 }
 
 func (c *Client) withDefaultTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -282,6 +413,29 @@ func (c *Client) observeConnect(opts ConnectOptions, elapsed time.Duration, err 
 	c.cfg.Observer.OnConnect(ConnectEvent{
 		Addr:    c.cfg.Addr,
 		UID:     opts.UID,
+		Elapsed: elapsed,
+		Err:     err,
+	})
+}
+
+func (c *Client) observeSendQueue(result string) {
+	if c.cfg.Observer == nil {
+		return
+	}
+	c.cfg.Observer.OnSendQueue(SendQueueEvent{
+		Depth:    len(c.writeCh),
+		Capacity: cap(c.writeCh),
+		Result:   result,
+	})
+}
+
+func (c *Client) observeSendBatch(records int, bytes int, elapsed time.Duration, err error) {
+	if c.cfg.Observer == nil {
+		return
+	}
+	c.cfg.Observer.OnSendBatch(SendBatchEvent{
+		Records: records,
+		Bytes:   bytes,
 		Elapsed: elapsed,
 		Err:     err,
 	})
