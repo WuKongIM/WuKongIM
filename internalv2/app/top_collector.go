@@ -23,6 +23,7 @@ const (
 	topCounterDeliveryPushErr = "delivery.push.err"
 
 	topGaugeStorageCommitDepth         = "storage.commit.message.depth"
+	topGaugeStorageCommitCapacity      = "storage.commit.message.capacity"
 	topGaugeDeliveryRetryQueueDepth    = "delivery.retry.depth"
 	topGaugeDeliveryAckBindings        = "delivery.ack.bindings"
 	topGaugeDeliveryRecipientQueue     = "delivery.recipient.queue.depth"
@@ -289,7 +290,7 @@ func (c *topCollector) SetStorageCommitQueue(depth, capacity int64) {
 		return
 	}
 	c.setGauge(topGaugeStorageCommitDepth, depth)
-	c.setGauge("storage.commit.message.capacity", capacity)
+	c.setGauge(topGaugeStorageCommitCapacity, capacity)
 	c.SetQueue(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, depth, capacity)
 }
 
@@ -561,10 +562,12 @@ func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
 func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
 	last := window[len(window)-1]
 	out := &accessapi.TopChannelV2{
-		WorkerQueueDepthByPool: make(map[string]int64),
-		WorkerInflightByPool:   make(map[string]int64),
-		StageP99MS:             make(map[string]float64),
-		AppendP99MS:            percentile(histogramValues(window, topHistogramChannelV2Append), 0.99),
+		WorkerQueueDepthByPool:    make(map[string]int64),
+		WorkerQueueCapacityByPool: make(map[string]int64),
+		WorkerInflightByPool:      make(map[string]int64),
+		WorkerCapacityByPool:      make(map[string]int64),
+		StageP99MS:                make(map[string]float64),
+		AppendP99MS:               percentile(histogramValues(window, topHistogramChannelV2Append), 0.99),
 	}
 	for key, value := range last.gauges {
 		switch {
@@ -584,12 +587,22 @@ func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
 			if value > out.ReactorMailboxDepthMax {
 				out.ReactorMailboxDepthMax = value
 			}
+		case strings.HasPrefix(key, "channelv2.reactor_mailbox.") && strings.HasSuffix(key, ".capacity"):
+			if value > out.ReactorMailboxCapacityMax {
+				out.ReactorMailboxCapacityMax = value
+			}
 		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".queue_depth"):
 			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".queue_depth")
 			out.WorkerQueueDepthByPool[pool] = value
+		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".queue_capacity"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".queue_capacity")
+			out.WorkerQueueCapacityByPool[pool] = value
 		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".inflight"):
 			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".inflight")
 			out.WorkerInflightByPool[pool] = value
+		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".workers"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".workers")
+			out.WorkerCapacityByPool[pool] = value
 		}
 	}
 	out.ActiveTotal = out.ActiveLeader + out.ActiveFollower
@@ -605,8 +618,14 @@ func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
 	if len(out.WorkerQueueDepthByPool) == 0 {
 		out.WorkerQueueDepthByPool = nil
 	}
+	if len(out.WorkerQueueCapacityByPool) == 0 {
+		out.WorkerQueueCapacityByPool = nil
+	}
 	if len(out.WorkerInflightByPool) == 0 {
 		out.WorkerInflightByPool = nil
+	}
+	if len(out.WorkerCapacityByPool) == 0 {
+		out.WorkerCapacityByPool = nil
 	}
 	if len(out.StageP99MS) == 0 {
 		out.StageP99MS = nil
@@ -619,6 +638,7 @@ func buildStorage(window []topSample) *accessapi.TopStorage {
 	queue := accessapi.TopStorageCommitQueue{
 		Store:              "message",
 		Depth:              last.gauges[topGaugeStorageCommitDepth],
+		Capacity:           last.gauges[topGaugeStorageCommitCapacity],
 		RequestP99MSByLane: make(map[string]float64),
 		BatchRecordsP50:    percentile(histogramValues(window, topHistogramStorageCommitBatchRows), 0.50),
 		BatchCommitP99MS:   percentile(histogramValues(window, topHistogramStorageCommitBatchMS), 0.99),
@@ -780,7 +800,10 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 		if items[i].Pool != items[j].Pool {
 			return items[i].Pool < items[j].Pool
 		}
-		return items[i].Queue < items[j].Queue
+		if items[i].Queue != items[j].Queue {
+			return items[i].Queue < items[j].Queue
+		}
+		return items[i].Priority < items[j].Priority
 	})
 	if len(items) > limit {
 		items = items[:limit]

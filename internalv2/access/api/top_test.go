@@ -32,10 +32,19 @@ func TestTopSnapshotRouteReturnsProviderSnapshot(t *testing.T) {
 		WindowSeconds: 10,
 		Node:          TopNodeSnapshot{ID: 2, Name: "node-2", Ready: true},
 		Verdict:       TopVerdict{Level: "ok", Summary: "ok"},
-		Sources:       TopSources{Collector: TopSourceStatus{Available: true, SampleCount: 11}},
+		ChannelV2: &TopChannelV2{
+			ReactorMailboxCapacityMax: 10,
+			WorkerQueueCapacityByPool: map[string]int64{"store_append": 8},
+			WorkerCapacityByPool:      map[string]int64{"store_append": 6},
+		},
+		Storage: &TopStorage{CommitQueues: []TopStorageCommitQueue{{
+			Store:    "message",
+			Capacity: 10,
+		}}},
+		Sources: TopSources{Collector: TopSourceStatus{Available: true, SampleCount: 11}},
 	}}
 	s := New(Options{ListenAddr: "127.0.0.1:0", Top: provider})
-	req := httptest.NewRequest(http.MethodGet, "/top/v1/snapshot?window=10s&view=overview&limit=7", nil)
+	req := httptest.NewRequest(http.MethodGet, "/top/v1/snapshot?window=10s&view=all&limit=7", nil)
 	rec := httptest.NewRecorder()
 
 	s.Handler().ServeHTTP(rec, req)
@@ -43,10 +52,18 @@ func TestTopSnapshotRouteReturnsProviderSnapshot(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
-	if provider.query.Window != 10*time.Second || provider.query.View != TopViewOverview || provider.query.Limit != 7 {
+	if provider.query.Window != 10*time.Second || provider.query.View != TopViewAll || provider.query.Limit != 7 {
 		t.Fatalf("query = %#v", provider.query)
 	}
-	for _, want := range []string{`"version":"top/v1"`, `"scope":"local_node"`, `"name":"node-2"`} {
+	for _, want := range []string{
+		`"version":"top/v1"`,
+		`"scope":"local_node"`,
+		`"name":"node-2"`,
+		`"reactor_mailbox_capacity_max":10`,
+		`"worker_queue_capacity_by_pool":{"store_append":8}`,
+		`"worker_capacity_by_pool":{"store_append":6}`,
+		`"capacity":10`,
+	} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Fatalf("response missing %s: %s", want, rec.Body.String())
 		}

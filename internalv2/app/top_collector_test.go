@@ -132,11 +132,19 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 	if snapshot.ChannelV2.ActiveLeader != 2 || snapshot.ChannelV2.ActiveFollower != 3 || snapshot.ChannelV2.ActiveTotal != 5 {
 		t.Fatalf("ChannelV2 active counts = %#v, want leader 2 follower 3 total 5", snapshot.ChannelV2)
 	}
-	if snapshot.ChannelV2.FollowerParked != 1 || snapshot.ChannelV2.ReactorMailboxDepthMax != 7 {
-		t.Fatalf("ChannelV2 pressure gauges = %#v, want parked 1 mailbox 7", snapshot.ChannelV2)
+	if snapshot.ChannelV2.FollowerParked != 1 || snapshot.ChannelV2.ReactorMailboxDepthMax != 7 || snapshot.ChannelV2.ReactorMailboxCapacityMax != 10 {
+		t.Fatalf("ChannelV2 pressure gauges = %#v, want parked 1 mailbox 7 capacity 10", snapshot.ChannelV2)
 	}
-	if snapshot.ChannelV2.WorkerQueueDepthByPool["store_append"] != 4 || snapshot.ChannelV2.WorkerInflightByPool["store_append"] != 3 {
-		t.Fatalf("ChannelV2 worker maps = %#v/%#v", snapshot.ChannelV2.WorkerQueueDepthByPool, snapshot.ChannelV2.WorkerInflightByPool)
+	if snapshot.ChannelV2.WorkerQueueDepthByPool["store_append"] != 4 ||
+		snapshot.ChannelV2.WorkerQueueCapacityByPool["store_append"] != 8 ||
+		snapshot.ChannelV2.WorkerInflightByPool["store_append"] != 3 ||
+		snapshot.ChannelV2.WorkerCapacityByPool["store_append"] != 6 {
+		t.Fatalf("ChannelV2 worker maps = queue:%#v queueCap:%#v inflight:%#v workerCap:%#v",
+			snapshot.ChannelV2.WorkerQueueDepthByPool,
+			snapshot.ChannelV2.WorkerQueueCapacityByPool,
+			snapshot.ChannelV2.WorkerInflightByPool,
+			snapshot.ChannelV2.WorkerCapacityByPool,
+		)
 	}
 	if snapshot.ChannelV2.AppendP99MS != 12 || snapshot.ChannelV2.HotStage != "store_append" || snapshot.ChannelV2.StageP99MS["store_append"] != 15 {
 		t.Fatalf("ChannelV2 latency section = %#v", snapshot.ChannelV2)
@@ -146,7 +154,7 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 		t.Fatalf("Storage = %#v, want one commit queue", snapshot.Storage)
 	}
 	queue := snapshot.Storage.CommitQueues[0]
-	if queue.Store != "message" || queue.Depth != 5 || queue.RequestP99MSByLane["message_append/ok"] != 6 || queue.BatchRecordsP50 != 4 || queue.BatchCommitP99MS != 11 {
+	if queue.Store != "message" || queue.Depth != 5 || queue.Capacity != 10 || queue.RequestP99MSByLane["message_append/ok"] != 6 || queue.BatchRecordsP50 != 4 || queue.BatchCommitP99MS != 11 {
 		t.Fatalf("storage queue = %#v", queue)
 	}
 
@@ -249,6 +257,29 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 	}
 	if len(snapshot.Verdict.Reasons) == 0 || snapshot.Verdict.Reasons[0] != "channelv2/store_append pressure" {
 		t.Fatalf("Verdict.Reasons = %#v, want channelv2/store_append pressure", snapshot.Verdict.Reasons)
+	}
+}
+
+func TestTopCollectorPressureSortsPriorityDeterministically(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{})
+	collector.SetQueue("transportv2", "scheduler", "scheduler", "rpc", 8, 10)
+	collector.SetQueue("transportv2", "scheduler", "scheduler", "bulk", 8, 10)
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewAll,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) < 2 {
+		t.Fatalf("Pressure = %#v, want two tied pressure items", snapshot.Pressure)
+	}
+	if snapshot.Pressure.Top[0].Priority != "bulk" || snapshot.Pressure.Top[1].Priority != "rpc" {
+		t.Fatalf("pressure priorities = %q, %q; want bulk, rpc", snapshot.Pressure.Top[0].Priority, snapshot.Pressure.Top[1].Priority)
 	}
 }
 

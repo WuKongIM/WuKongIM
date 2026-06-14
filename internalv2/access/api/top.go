@@ -208,10 +208,16 @@ type TopChannelV2 struct {
 	FollowerParked int64 `json:"follower_parked"`
 	// ReactorMailboxDepthMax is the maximum observed reactor mailbox depth.
 	ReactorMailboxDepthMax int64 `json:"reactor_mailbox_depth_max"`
+	// ReactorMailboxCapacityMax is the maximum configured reactor mailbox capacity.
+	ReactorMailboxCapacityMax int64 `json:"reactor_mailbox_capacity_max"`
 	// WorkerQueueDepthByPool reports queue depth by ChannelV2 worker pool.
 	WorkerQueueDepthByPool map[string]int64 `json:"worker_queue_depth_by_pool,omitempty"`
+	// WorkerQueueCapacityByPool reports queue capacity by ChannelV2 worker pool.
+	WorkerQueueCapacityByPool map[string]int64 `json:"worker_queue_capacity_by_pool,omitempty"`
 	// WorkerInflightByPool reports in-flight tasks by ChannelV2 worker pool.
 	WorkerInflightByPool map[string]int64 `json:"worker_inflight_by_pool,omitempty"`
+	// WorkerCapacityByPool reports worker capacity by ChannelV2 worker pool.
+	WorkerCapacityByPool map[string]int64 `json:"worker_capacity_by_pool,omitempty"`
 	// AppendP99MS is p99 ChannelV2 append latency in milliseconds.
 	AppendP99MS float64 `json:"append_p99_ms"`
 	// HotStage is the append stage with the largest p99 latency.
@@ -232,6 +238,8 @@ type TopStorageCommitQueue struct {
 	Store string `json:"store"`
 	// Depth is the current commit queue depth.
 	Depth int64 `json:"depth"`
+	// Capacity is the configured commit queue capacity used for pressure scoring.
+	Capacity int64 `json:"capacity"`
 	// RequestP99MSByLane maps request lanes to p99 wait latency in milliseconds.
 	RequestP99MSByLane map[string]float64 `json:"request_p99_ms_by_lane,omitempty"`
 	// BatchRecordsP50 is the p50 number of records per commit batch.
