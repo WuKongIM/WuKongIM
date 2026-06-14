@@ -517,6 +517,7 @@ func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic,
 		}
 	}
 	level := "ok"
+	summary := "runtime healthy"
 	reasons := make([]string, 0, 2)
 	if pressure != nil && severityRank(pressure.OverallLevel) > severityRank(level) {
 		level = pressure.OverallLevel
@@ -524,14 +525,14 @@ func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic,
 			top := pressure.Top[0]
 			reasons = append(reasons, top.Component+"/"+top.Pool+" pressure")
 		}
+		if level != "ok" {
+			summary = "runtime pressure detected"
+		}
 	}
 	if traffic != nil && traffic.SendackErrorRate >= 0.05 && severityRank(level) < severityRank("degraded") {
 		level = "degraded"
 		reasons = append(reasons, "sendack error rate >= 5%")
-	}
-	summary := "runtime healthy"
-	if level != "ok" {
-		summary = "node requires attention"
+		summary = "sendack error rate is high"
 	}
 	return accessapi.TopVerdict{Level: level, Summary: summary, Reasons: reasons}
 }

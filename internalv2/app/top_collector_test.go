@@ -96,6 +96,9 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 	if snapshot.Verdict.Level != "degraded" {
 		t.Fatalf("Verdict.Level = %q, want degraded", snapshot.Verdict.Level)
 	}
+	if snapshot.Verdict.Summary != "runtime pressure detected" {
+		t.Fatalf("Verdict.Summary = %q, want runtime pressure detected", snapshot.Verdict.Summary)
+	}
 	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) == 0 {
 		t.Fatalf("Pressure = %#v, want top pressure item", snapshot.Pressure)
 	}
@@ -142,6 +145,9 @@ func TestTopCollectorVerdictStrings(t *testing.T) {
 	)
 	if len(sendack.Reasons) != 1 || sendack.Reasons[0] != "sendack error rate >= 5%" {
 		t.Fatalf("sendack reasons = %#v, want sendack error rate >= 5%%", sendack.Reasons)
+	}
+	if sendack.Summary != "sendack error rate is high" {
+		t.Fatalf("sendack summary = %q, want sendack error rate is high", sendack.Summary)
 	}
 }
 
