@@ -509,6 +509,54 @@ func TestLoadConfigExplicitDiagnosticsConfigFile(t *testing.T) {
 	}
 }
 
+func TestLoadConfigParsesTopConfig(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_API_LISTEN_ADDR=127.0.0.1:5001",
+		"WK_TOP_API_ENABLE=true",
+		"WK_TOP_COLLECT_INTERVAL=2s",
+		"WK_TOP_HISTORY_WINDOW=30s",
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if !cfg.Top.APIEnabled {
+		t.Fatalf("Top.APIEnabled = false, want true")
+	}
+	if cfg.Top.CollectInterval != 2*time.Second {
+		t.Fatalf("Top.CollectInterval = %s, want 2s", cfg.Top.CollectInterval)
+	}
+	if cfg.Top.HistoryWindow != 30*time.Second {
+		t.Fatalf("Top.HistoryWindow = %s, want 30s", cfg.Top.HistoryWindow)
+	}
+}
+
+func TestLoadConfigRejectsInvalidTopWindow(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_TOP_API_ENABLE=true",
+		"WK_TOP_COLLECT_INTERVAL=5s",
+		"WK_TOP_HISTORY_WINDOW=5s",
+	)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil || !strings.Contains(err.Error(), "top history window") {
+		t.Fatalf("loadConfig() error = %v, want top history window error", err)
+	}
+}
+
 func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()

@@ -284,6 +284,12 @@ WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
 # Controls all /debug endpoints on the API listener, including pprof, config, cluster, and diagnostics query routes.
 WK_DEBUG_API_ENABLE=false
+# Read-only node-local operations snapshot used by wkcli top. This does not require WK_METRICS_ENABLE.
+WK_TOP_API_ENABLE=true
+# Sampling cadence for the top collector.
+WK_TOP_COLLECT_INTERVAL=1s
+# In-memory history retained for top window queries.
+WK_TOP_HISTORY_WINDOW=5m
 
 # Optional: gateway async runtime controls. Non-positive values use runtime defaults.
 # WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=128

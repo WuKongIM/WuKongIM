@@ -40,6 +40,8 @@ type Config struct {
 	Bench BenchConfig
 	// Observability configures metrics and diagnostics surfaces.
 	Observability ObservabilityConfig
+	// Top configures the lightweight node-local operations snapshot API used by wkcli top.
+	Top TopConfig
 	// Log configures application logging output.
 	Log LogConfig
 	// Message configures message send behavior.
@@ -90,6 +92,16 @@ type BenchConfig struct {
 	APIMaxBatchSize int
 	// APIMaxPayloadBytes limits JSON request body bytes accepted by bench API mutations.
 	APIMaxPayloadBytes int64
+}
+
+// TopConfig controls the node-local top snapshot collector and read-only HTTP API.
+type TopConfig struct {
+	// APIEnabled exposes the read-only /top/v1/snapshot operations endpoint.
+	APIEnabled bool
+	// CollectInterval controls how frequently the top collector samples local runtime state.
+	CollectInterval time.Duration
+	// HistoryWindow bounds the in-memory sample window retained for top queries.
+	HistoryWindow time.Duration
 }
 
 // ObservabilityConfig contains optional observability runtime settings.
@@ -411,6 +423,16 @@ func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
 	return cfg
 }
 
+func defaultTopConfig(cfg TopConfig) TopConfig {
+	if cfg.CollectInterval == 0 {
+		cfg.CollectInterval = time.Second
+	}
+	if cfg.HistoryWindow == 0 {
+		cfg.HistoryWindow = 5 * time.Minute
+	}
+	return cfg
+}
+
 func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = "127.0.0.1:9090"
@@ -622,6 +644,19 @@ func validateObservabilityConfig(cfg ObservabilityConfig) error {
 		if match.TTLSeconds < 0 {
 			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
 		}
+	}
+	return nil
+}
+
+func validateTopConfig(cfg TopConfig) error {
+	if !cfg.APIEnabled {
+		return nil
+	}
+	if cfg.CollectInterval <= 0 {
+		return fmt.Errorf("%w: top collect interval must be positive", ErrInvalidConfig)
+	}
+	if cfg.HistoryWindow < 2*cfg.CollectInterval {
+		return fmt.Errorf("%w: top history window must be at least twice the collect interval", ErrInvalidConfig)
 	}
 	return nil
 }

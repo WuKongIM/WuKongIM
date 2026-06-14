@@ -79,6 +79,12 @@ WK_PROMETHEUS_SCRAPE_INTERVAL=15s
 WK_PROMETHEUS_SCRAPE_TARGETS=[]
 # WK_DEBUG_API_ENABLE exposes all local /debug endpoints, including pprof, config, cluster, and diagnostics query routes.
 WK_DEBUG_API_ENABLE=false
+# Read-only node-local operations snapshot used by wkcli top. This does not require WK_METRICS_ENABLE.
+WK_TOP_API_ENABLE=true
+# Sampling cadence for the top collector.
+WK_TOP_COLLECT_INTERVAL=1s
+# In-memory history retained for top window queries.
+WK_TOP_HISTORY_WINDOW=5m
 
 # Local SEND diagnostics. Sampling keeps the hot path bounded; disable in ultra-low overhead runs.
 WK_DIAGNOSTICS_ENABLE=true

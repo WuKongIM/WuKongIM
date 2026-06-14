@@ -69,6 +69,9 @@ var supportedConfigKeys = []string{
 	"WK_PROMETHEUS_SCRAPE_INTERVAL",
 	"WK_PROMETHEUS_SCRAPE_TARGETS",
 	"WK_DEBUG_API_ENABLE",
+	"WK_TOP_API_ENABLE",
+	"WK_TOP_COLLECT_INTERVAL",
+	"WK_TOP_HISTORY_WINDOW",
 	"WK_DIAGNOSTICS_ENABLE",
 	"WK_DIAGNOSTICS_BUFFER_SIZE",
 	"WK_DIAGNOSTICS_SAMPLE_RATE",
@@ -568,6 +571,43 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Observability.DebugAPIEnabled = debugAPIEnable
+	}
+	if raw := configValue(values, "WK_TOP_API_ENABLE"); raw != "" {
+		topAPIEnable, err := parseBool("WK_TOP_API_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.APIEnabled = topAPIEnable
+	}
+	if raw := configValue(values, "WK_TOP_COLLECT_INTERVAL"); raw != "" {
+		collectInterval, err := parseDuration("WK_TOP_COLLECT_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.CollectInterval = collectInterval
+	}
+	if raw := configValue(values, "WK_TOP_HISTORY_WINDOW"); raw != "" {
+		historyWindow, err := parseDuration("WK_TOP_HISTORY_WINDOW", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.HistoryWindow = historyWindow
+	}
+	if cfg.Top.APIEnabled {
+		collectInterval := cfg.Top.CollectInterval
+		if collectInterval == 0 {
+			collectInterval = time.Second
+		}
+		historyWindow := cfg.Top.HistoryWindow
+		if historyWindow == 0 {
+			historyWindow = 5 * time.Minute
+		}
+		if collectInterval <= 0 {
+			return app.Config{}, fmt.Errorf("%w: top collect interval must be positive", app.ErrInvalidConfig)
+		}
+		if historyWindow < 2*collectInterval {
+			return app.Config{}, fmt.Errorf("%w: top history window must be at least twice the collect interval", app.ErrInvalidConfig)
+		}
 	}
 	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
 	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""
