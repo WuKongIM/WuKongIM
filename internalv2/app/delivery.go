@@ -214,24 +214,41 @@ func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event cha
 }
 
 func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {
-	if o.app == nil || o.app.metrics == nil {
+	if o.app == nil {
 		return
 	}
-	o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.SetDeliveryRecipientQueue(int64(event.QueueDepth), int64(event.QueueCapacity))
+	}
 }
 
 func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
-	if o.app == nil || o.app.metrics == nil {
+	if o.app == nil {
 		return
 	}
-	o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		if event.Result != "accepted" && event.Result != "ok" {
+			collector.addCounter(topCounterDeliveryPushErr, 1)
+		}
+	}
 }
 
 func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryProcess(event channelappend.RecipientDeliveryProcessObservation) {
-	if o.app == nil || o.app.metrics == nil {
+	if o.app == nil {
 		return
 	}
-	o.app.metrics.Delivery.ObserveRecipientWorkerProcess(event.Result, event.Recipients, event.Duration)
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.ObserveRecipientWorkerProcess(event.Result, event.Recipients, event.Duration)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok && event.Result != "ok" {
+		collector.addCounter(topCounterDeliveryPushErr, 1)
+	}
 }
 
 func appendFailureLogLine(path string, err error) string {
@@ -311,6 +328,8 @@ type localOwnerPusher struct {
 	online *online.Registry
 	// delivery tracks pending recvacks after successful local writes.
 	delivery *runtimedelivery.Manager
+	// top records owner-local pending ack gauges when the top collector is enabled.
+	top *topCollector
 	// pendingAckTTL bounds stale pending recvack cleanup during delivery activity.
 	pendingAckTTL time.Duration
 	// logger records owner-local delivery failures before they become retryable or dropped results.
@@ -320,6 +339,7 @@ type localOwnerPusher struct {
 func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
 	if p.pendingAckTTL > 0 && p.delivery != nil {
 		p.delivery.ExpirePendingAcks(p.pendingAckTTL)
+		p.observePendingAcks()
 	}
 	payload := append([]byte(nil), cmd.Envelope.Payload...)
 	timestamp := int32(time.Now().Unix())
@@ -354,6 +374,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			ChannelType: cmd.Envelope.ChannelType,
 		}
 		if p.delivery != nil && !p.delivery.BindPendingAck(pending) {
+			p.observePendingAcks()
 			p.loggerOrNop().Warn("delivery pending ack limit reached",
 				wklog.Event("internalv2.app.delivery.pending_ack_limit_reached"),
 				wklog.UID(route.UID),
@@ -366,6 +387,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			result.Dropped = append(result.Dropped, route)
 			continue
 		}
+		p.observePendingAcks()
 		if err := session.Session.WriteDelivery(packet); err != nil {
 			if p.delivery != nil {
 				if ackErr := p.delivery.Recvack(context.Background(), runtimedelivery.Recvack{
@@ -381,6 +403,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 						wklog.Error(ackErr),
 					)
 				}
+				p.observePendingAcks()
 			}
 			terminal := terminalLocalDeliveryWriteError(err)
 			p.loggerOrNop().Warn("delivery write failed",
@@ -404,6 +427,12 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 		result.Accepted = append(result.Accepted, route)
 	}
 	return result, nil
+}
+
+func (p localOwnerPusher) observePendingAcks() {
+	if p.top != nil && p.delivery != nil {
+		p.top.SetDeliveryAckBindings(int64(p.delivery.PendingAckCount()))
+	}
 }
 
 func (p localOwnerPusher) loggerOrNop() wklog.Logger {

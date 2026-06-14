@@ -548,6 +548,45 @@ func TestNewWiresTopAPIWithoutMetrics(t *testing.T) {
 	}
 }
 
+func TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled(t *testing.T) {
+	app := &App{cfg: Config{
+		Top: TopConfig{
+			APIEnabled:      true,
+			CollectInterval: time.Second,
+			HistoryWindow:   time.Minute,
+		},
+		Observability: ObservabilityConfig{MetricsEnabled: false},
+	}}
+	clusterCfg := clusterv2.Config{NodeID: 4}
+
+	app.configureObservability(&clusterCfg)
+
+	if app.metrics != nil {
+		t.Fatal("metrics were wired when MetricsEnabled is false")
+	}
+	if app.topProvider == nil {
+		t.Fatal("top provider was not wired")
+	}
+	if clusterCfg.Channel.Observer == nil {
+		t.Fatal("channel top observer was not wired")
+	}
+	if clusterCfg.Storage.CommitObserver == nil {
+		t.Fatal("storage top observer was not wired")
+	}
+	if clusterCfg.Slots.Observer == nil {
+		t.Fatal("slot top observer was not wired")
+	}
+	if clusterCfg.Control.RaftObserver == nil {
+		t.Fatal("controller raft top observer was not wired")
+	}
+	if clusterCfg.Transport.Observer == nil {
+		t.Fatal("transport top observer was not wired")
+	}
+	if app.deliveryObserver() == nil {
+		t.Fatal("delivery top observer was not wired")
+	}
+}
+
 func TestStopSyncsLogger(t *testing.T) {
 	calls := make([]string, 0, 4)
 	logger := &recordingAppLogger{}

@@ -94,6 +94,10 @@ func (a *App) ensureLogger() error {
 }
 
 func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
+	var top *topCollector
+	if a.cfg.Top.APIEnabled {
+		top = a.ensureTopCollector(clusterCfg.NodeID)
+	}
 	if a.cfg.Observability.MetricsEnabled {
 		a.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: a.metrics})
@@ -105,8 +109,12 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 		})
 		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: a.metrics})
 	}
-	if a.cfg.Top.APIEnabled {
-		a.ensureTopCollector(clusterCfg.NodeID)
+	if top != nil {
+		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, topChannelV2Observer{top: top})
+		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
+		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, topControllerRaftObserver{top: top})
+		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, topStorageObserver{top: top})
+		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &topTransportV2Observer{top: top})
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
@@ -325,7 +333,11 @@ func (a *App) wireUsers() {
 
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
-		localPusher := &localOwnerPusher{online: a.online, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
+		var top *topCollector
+		if collector, ok := a.topProvider.(*topCollector); ok {
+			top = collector
+		}
+		localPusher := &localOwnerPusher{online: a.online, top: top, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
 		a.localOwnerPusher = localPusher
 		deliveryObserver := a.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher

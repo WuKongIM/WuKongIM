@@ -85,6 +85,7 @@ type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
+type multiDeliveryObserver []runtimedelivery.Observer
 
 const (
 	dbRuntimeComponent       = "db"
@@ -993,14 +994,21 @@ func (o deliveryMetricsObserver) observeError(class string) {
 }
 
 func (a *App) deliveryObserver() runtimedelivery.Observer {
-	if a == nil || (a.metrics == nil && a.logger == nil) {
+	if a == nil {
 		return nil
 	}
-	var logger wklog.Logger
-	if a.logger != nil {
-		logger = a.logger.Named("delivery")
+	var observers []runtimedelivery.Observer
+	if a.metrics != nil || a.logger != nil {
+		var logger wklog.Logger
+		if a.logger != nil {
+			logger = a.logger.Named("delivery")
+		}
+		observers = append(observers, deliveryMetricsObserver{metrics: a.metrics, logger: logger})
 	}
-	return deliveryMetricsObserver{metrics: a.metrics, logger: logger}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topDeliveryObserver{top: collector})
+	}
+	return combineDeliveryObservers(observers...)
 }
 
 func (o deliveryMetricsObserver) loggerOrNop() wklog.Logger {
@@ -1058,6 +1066,23 @@ func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinator
 		return first
 	}
 	return multiCommitCoordinatorObserver{first, second}
+}
+
+func combineDeliveryObservers(observers ...runtimedelivery.Observer) runtimedelivery.Observer {
+	filtered := make([]runtimedelivery.Observer, 0, len(observers))
+	for _, observer := range observers {
+		if observer != nil {
+			filtered = append(filtered, observer)
+		}
+	}
+	switch len(filtered) {
+	case 0:
+		return nil
+	case 1:
+		return filtered[0]
+	default:
+		return multiDeliveryObserver(filtered)
+	}
 }
 
 func deliveryNodeLabel(nodeID uint64) string {
@@ -1490,6 +1515,51 @@ func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorRequest(event me
 	}
 }
 
+func (o multiDeliveryObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutTask(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutResolve(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutPush(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
+	for _, observer := range o {
+		retryObserver, ok := observer.(runtimedelivery.RetryObserver)
+		if ok {
+			retryObserver.ObserveRetry(event)
+		}
+	}
+}
+
+func (o multiDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
+	for _, observer := range o {
+		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
+		if ok {
+			managerObserver.ObserveManagerAdmission(event)
+		}
+	}
+}
+
+func (o multiDeliveryObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
+	for _, observer := range o {
+		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
+		if ok {
+			managerObserver.ObserveManagerTerminal(event)
+		}
+	}
+}
+
 func channelV2CommitModeLabel(mode ch.CommitMode) string {
 	switch mode {
 	case ch.CommitModeLocal:
@@ -1677,3 +1747,6 @@ var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}
+var _ runtimedelivery.Observer = multiDeliveryObserver{}
+var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
+var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

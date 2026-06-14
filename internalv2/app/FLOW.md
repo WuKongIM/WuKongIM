@@ -33,6 +33,11 @@ New(Config)
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
      counters, and recipient delivery worker queue/admission/process metrics
+  -> create the top collector when Top.APIEnabled=true and attach node-local
+     runtime observers for ChannelV2, storage commit, delivery, Slot scheduler,
+     ControllerV2 Raft, and transport pressure independently of Prometheus
+     metrics; top remains an in-memory collector and still runs when
+     Observability.MetricsEnabled=false
   -> when Observability.Prometheus.Enabled=true:
        validate that the API metrics endpoint is enabled and create a child
        Prometheus runtime that writes prometheus.yml under the configured

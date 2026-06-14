@@ -18,6 +18,20 @@ const (
 	topCounterMessageAppendOK    = "message.append.ok"
 	topHistogramMessageAppend    = "message.append"
 
+	topCounterDeliveryRoutes  = "delivery.routes"
+	topCounterDeliveryPushOK  = "delivery.push.ok"
+	topCounterDeliveryPushErr = "delivery.push.err"
+
+	topGaugeStorageCommitDepth         = "storage.commit.message.depth"
+	topGaugeDeliveryRetryQueueDepth    = "delivery.retry.depth"
+	topGaugeDeliveryAckBindings        = "delivery.ack.bindings"
+	topGaugeDeliveryRecipientQueue     = "delivery.recipient.queue.depth"
+	topGaugeDeliveryRecipientQueueCap  = "delivery.recipient.queue.capacity"
+	topHistogramChannelV2Append        = "channelv2.append"
+	topHistogramStorageCommitBatchRows = "storage.commit.batch.records"
+	topHistogramStorageCommitBatchMS   = "storage.commit.batch.commit"
+	topHistogramDeliveryPush           = "delivery.push"
+
 	topMaxHistogramValuesPerSample = 2048
 )
 
@@ -201,6 +215,147 @@ func (c *topCollector) SetQueue(component, pool, queue, priority string, depth, 
 	c.setGauge(key+".capacity", capacity)
 }
 
+func (c *topCollector) SetInflight(component, pool string, inflight, workers int64) {
+	if c == nil {
+		return
+	}
+	key := topPressureKey(component, pool, "inflight", "none")
+	c.setGauge(key+".inflight", inflight)
+	c.setGauge(key+".workers", workers)
+}
+
+func (c *topCollector) SetChannelV2RuntimeCount(reactorID int, role string, count int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge("channelv2.runtime."+safeTopLabel(channelV2ReactorPoolLabel(reactorID))+"."+safeTopLabel(role), count)
+}
+
+func (c *topCollector) SetChannelV2FollowerParked(reactorID int, count int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge("channelv2.follower_parked."+safeTopLabel(channelV2ReactorPoolLabel(reactorID)), count)
+}
+
+func (c *topCollector) SetChannelV2ReactorMailbox(reactorID int, priority string, depth, capacity int64) {
+	if c == nil {
+		return
+	}
+	pool := channelV2ReactorPoolLabel(reactorID)
+	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
+	c.setGauge(key+".depth", depth)
+	c.setGauge(key+".capacity", capacity)
+	c.SetQueue("channelv2", pool, "mailbox", priority, depth, capacity)
+}
+
+func (c *topCollector) SetChannelV2WorkerQueue(pool string, depth, capacity int64) {
+	if c == nil {
+		return
+	}
+	key := "channelv2.worker." + safeTopLabel(pool)
+	c.setGauge(key+".queue_depth", depth)
+	c.setGauge(key+".queue_capacity", capacity)
+	c.SetQueue("channelv2", pool, "worker", "none", depth, capacity)
+}
+
+func (c *topCollector) SetChannelV2WorkerInflight(pool string, inflight, workers int64) {
+	if c == nil {
+		return
+	}
+	key := "channelv2.worker." + safeTopLabel(pool)
+	c.setGauge(key+".inflight", inflight)
+	c.setGauge(key+".workers", workers)
+	c.SetInflight("channelv2", pool, inflight, workers)
+}
+
+func (c *topCollector) ObserveChannelV2AppendLatency(mode string, d time.Duration) {
+	if c == nil {
+		return
+	}
+	c.observeDurationMS(topHistogramChannelV2Append, d)
+	c.observeDurationMS("channelv2.append.mode."+safeTopLabel(mode), d)
+}
+
+func (c *topCollector) ObserveChannelV2AppendStage(stage, result string, d time.Duration) {
+	if c == nil || !strings.EqualFold(strings.TrimSpace(result), "ok") {
+		return
+	}
+	c.observeDurationMS("channelv2.stage."+safeTopLabel(stage), d)
+}
+
+func (c *topCollector) SetStorageCommitQueue(depth, capacity int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge(topGaugeStorageCommitDepth, depth)
+	c.setGauge("storage.commit.message.capacity", capacity)
+	c.SetQueue(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, depth, capacity)
+}
+
+func (c *topCollector) ObserveStorageCommitRequest(lane, result string, d time.Duration) {
+	if c == nil {
+		return
+	}
+	c.observeDurationMS("storage.commit.request."+safeTopLabel(lane)+"/"+safeTopLabel(result), d)
+	if !strings.EqualFold(strings.TrimSpace(result), "ok") {
+		c.addCounter("storage.commit.request.err", 1)
+	}
+}
+
+func (c *topCollector) ObserveStorageCommitBatch(records int, commitDuration time.Duration) {
+	if c == nil {
+		return
+	}
+	c.observeValue(topHistogramStorageCommitBatchRows, float64(records))
+	c.observeDurationMS(topHistogramStorageCommitBatchMS, commitDuration)
+}
+
+func (c *topCollector) SetDeliveryRetryQueueDepth(depth int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge(topGaugeDeliveryRetryQueueDepth, depth)
+}
+
+func (c *topCollector) SetDeliveryAckBindings(count int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge(topGaugeDeliveryAckBindings, count)
+}
+
+func (c *topCollector) SetDeliveryRecipientQueue(depth, capacity int64) {
+	if c == nil {
+		return
+	}
+	c.setGauge(topGaugeDeliveryRecipientQueue, depth)
+	c.setGauge(topGaugeDeliveryRecipientQueueCap, capacity)
+	c.SetQueue("delivery", "recipient", "queue", "none", depth, capacity)
+}
+
+func (c *topCollector) ObserveDeliveryRoutes(routes int) {
+	if c == nil || routes <= 0 {
+		return
+	}
+	c.addCounter(topCounterDeliveryRoutes, uint64(routes))
+}
+
+func (c *topCollector) ObserveDeliveryPush(result string, accepted int, d time.Duration) {
+	if c == nil {
+		return
+	}
+	if strings.EqualFold(strings.TrimSpace(result), "ok") {
+		if accepted <= 0 {
+			accepted = 1
+		}
+		c.addCounter(topCounterDeliveryPushOK, uint64(accepted))
+	} else {
+		c.addCounter(topCounterDeliveryPushErr, 1)
+	}
+	c.observeDurationMS(topHistogramDeliveryPush, d)
+}
+
 func topPressureKey(component, pool, queue, priority string) string {
 	return "pressure." + safeTopLabel(component) + "." + safeTopLabel(pool) + "." + safeTopLabel(queue) + "." + safeTopLabel(priority)
 }
@@ -226,12 +381,16 @@ func (c *topCollector) setGauge(key string, value int64) {
 }
 
 func (c *topCollector) observeDurationMS(key string, d time.Duration) {
+	c.observeValue(key, float64(d)/float64(time.Millisecond))
+}
+
+func (c *topCollector) observeValue(key string, value float64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.histos[key]) >= topMaxHistogramValuesPerSample {
 		return
 	}
-	c.histos[key] = append(c.histos[key], float64(d)/float64(time.Millisecond))
+	c.histos[key] = append(c.histos[key], value)
 }
 
 func (c *topCollector) recordSampleAt(at time.Time) {
@@ -329,6 +488,15 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	if includePressure(query.View) {
 		snapshot.Pressure = pressure
 	}
+	if includeChannelV2(query.View) {
+		snapshot.ChannelV2 = buildChannelV2(window)
+	}
+	if includeStorage(query.View) {
+		snapshot.Storage = buildStorage(window)
+	}
+	if includeDelivery(query.View) {
+		snapshot.Delivery = buildDelivery(window, seconds)
+	}
 	return snapshot, nil
 }
 
@@ -375,7 +543,7 @@ func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
 	values := histogramValues(window, topHistogramMessageAppend)
 	fanoutRate := 0.0
 	if send > 0 {
-		fanoutRate = rate(first.counters, last.counters, "delivery.routes", seconds) / send
+		fanoutRate = rate(first.counters, last.counters, topCounterDeliveryRoutes, seconds) / send
 	}
 	return &accessapi.TopTraffic{
 		SendPerSec:         send,
@@ -385,8 +553,104 @@ func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
 		AppendPerSec:       appendOK,
 		AppendP50MS:        percentile(values, 0.50),
 		AppendP99MS:        percentile(values, 0.99),
-		DeliverPerSec:      rate(first.counters, last.counters, "delivery.push.ok", seconds),
+		DeliverPerSec:      rate(first.counters, last.counters, topCounterDeliveryPushOK, seconds),
 		FanoutRate:         fanoutRate,
+	}
+}
+
+func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
+	last := window[len(window)-1]
+	out := &accessapi.TopChannelV2{
+		WorkerQueueDepthByPool: make(map[string]int64),
+		WorkerInflightByPool:   make(map[string]int64),
+		StageP99MS:             make(map[string]float64),
+		AppendP99MS:            percentile(histogramValues(window, topHistogramChannelV2Append), 0.99),
+	}
+	for key, value := range last.gauges {
+		switch {
+		case strings.HasPrefix(key, "channelv2.runtime."):
+			parts := strings.Split(key, ".")
+			if len(parts) == 4 {
+				switch parts[3] {
+				case "leader":
+					out.ActiveLeader += value
+				case "follower":
+					out.ActiveFollower += value
+				}
+			}
+		case strings.HasPrefix(key, "channelv2.follower_parked."):
+			out.FollowerParked += value
+		case strings.HasPrefix(key, "channelv2.reactor_mailbox.") && strings.HasSuffix(key, ".depth"):
+			if value > out.ReactorMailboxDepthMax {
+				out.ReactorMailboxDepthMax = value
+			}
+		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".queue_depth"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".queue_depth")
+			out.WorkerQueueDepthByPool[pool] = value
+		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".inflight"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".inflight")
+			out.WorkerInflightByPool[pool] = value
+		}
+	}
+	out.ActiveTotal = out.ActiveLeader + out.ActiveFollower
+	stageKeys := histogramKeys(window, "channelv2.stage.")
+	for _, key := range stageKeys {
+		stage := strings.TrimPrefix(key, "channelv2.stage.")
+		p99 := percentile(histogramValues(window, key), 0.99)
+		out.StageP99MS[stage] = p99
+		if p99 > out.StageP99MS[out.HotStage] || out.HotStage == "" {
+			out.HotStage = stage
+		}
+	}
+	if len(out.WorkerQueueDepthByPool) == 0 {
+		out.WorkerQueueDepthByPool = nil
+	}
+	if len(out.WorkerInflightByPool) == 0 {
+		out.WorkerInflightByPool = nil
+	}
+	if len(out.StageP99MS) == 0 {
+		out.StageP99MS = nil
+	}
+	return out
+}
+
+func buildStorage(window []topSample) *accessapi.TopStorage {
+	last := window[len(window)-1]
+	queue := accessapi.TopStorageCommitQueue{
+		Store:              "message",
+		Depth:              last.gauges[topGaugeStorageCommitDepth],
+		RequestP99MSByLane: make(map[string]float64),
+		BatchRecordsP50:    percentile(histogramValues(window, topHistogramStorageCommitBatchRows), 0.50),
+		BatchCommitP99MS:   percentile(histogramValues(window, topHistogramStorageCommitBatchMS), 0.99),
+	}
+	for _, key := range histogramKeys(window, "storage.commit.request.") {
+		lane := strings.TrimPrefix(key, "storage.commit.request.")
+		queue.RequestP99MSByLane[lane] = percentile(histogramValues(window, key), 0.99)
+	}
+	if len(queue.RequestP99MSByLane) == 0 {
+		queue.RequestP99MSByLane = nil
+	}
+	return &accessapi.TopStorage{CommitQueues: []accessapi.TopStorageCommitQueue{queue}}
+}
+
+func buildDelivery(window []topSample, seconds float64) *accessapi.TopDelivery {
+	first := window[0]
+	last := window[len(window)-1]
+	ok := rate(first.counters, last.counters, topCounterDeliveryPushOK, seconds)
+	errs := rate(first.counters, last.counters, topCounterDeliveryPushErr, seconds)
+	errorRate := 0.0
+	if ok+errs > 0 {
+		errorRate = errs / (ok + errs)
+	}
+	return &accessapi.TopDelivery{
+		PushPerSec:             ok,
+		RoutesPerSec:           rate(first.counters, last.counters, topCounterDeliveryRoutes, seconds),
+		PushP99MS:              percentile(histogramValues(window, topHistogramDeliveryPush), 0.99),
+		RetryQueueDepth:        last.gauges[topGaugeDeliveryRetryQueueDepth],
+		AckBindings:            last.gauges[topGaugeDeliveryAckBindings],
+		RecipientQueueDepth:    last.gauges[topGaugeDeliveryRecipientQueue],
+		RecipientQueueCapacity: last.gauges[topGaugeDeliveryRecipientQueueCap],
+		ErrorRate:              errorRate,
 	}
 }
 
@@ -396,6 +660,23 @@ func histogramValues(window []topSample, key string) []float64 {
 		out = append(out, window[i].histos[key]...)
 	}
 	return out
+}
+
+func histogramKeys(window []topSample, prefix string) []string {
+	seen := make(map[string]struct{})
+	for _, sample := range window {
+		for key := range sample.histos {
+			if strings.HasPrefix(key, prefix) {
+				seen[key] = struct{}{}
+			}
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func percentile(values []float64, p float64) float64 {
@@ -464,6 +745,10 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 			item.Depth = value
 		case "capacity":
 			item.Capacity = value
+		case "inflight":
+			item.Inflight = value
+		case "workers":
+			item.Workers = value
 		}
 	}
 
@@ -472,6 +757,9 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 	overall := "ok"
 	for _, item := range byKey {
 		item.Score = pressureScore(item.Depth, item.Capacity)
+		if inflightScore := pressureScore(item.Inflight, item.Workers); inflightScore > item.Score {
+			item.Score = inflightScore
+		}
 		item.Level = pressureLevel(item.Score)
 		item.Hint = pressureHint(*item)
 		items = append(items, *item)
@@ -530,6 +818,9 @@ func pressureLevel(score float64) string {
 func pressureHint(item accessapi.TopPressureItem) string {
 	if item.Level == "ok" {
 		return ""
+	}
+	if item.Workers > 0 && item.Inflight >= item.Workers {
+		return "inflight work is at worker capacity"
 	}
 	if item.Capacity <= 0 && item.Depth > 0 {
 		return "queue has depth but no capacity"
@@ -599,6 +890,18 @@ func includeTraffic(view accessapi.TopView) bool {
 
 func includePressure(view accessapi.TopView) bool {
 	return view == accessapi.TopViewOverview || view == accessapi.TopViewRuntime || view == accessapi.TopViewAll
+}
+
+func includeChannelV2(view accessapi.TopView) bool {
+	return view == accessapi.TopViewChannel || view == accessapi.TopViewAll
+}
+
+func includeStorage(view accessapi.TopView) bool {
+	return view == accessapi.TopViewStorage || view == accessapi.TopViewAll
+}
+
+func includeDelivery(view accessapi.TopView) bool {
+	return view == accessapi.TopViewDelivery || view == accessapi.TopViewAll
 }
 
 func cloneTopSample(sample topSample) topSample {
