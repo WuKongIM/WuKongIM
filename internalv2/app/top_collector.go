@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	topCounterGatewaySendTotal   = "gateway.send.total"
 	topCounterGatewaySendWKProto = "gateway.send.wkproto"
 	topCounterSendackSuccess     = "gateway.sendack.success"
 	topCounterSendackError       = "gateway.sendack.error"
@@ -180,6 +181,7 @@ func (c *topCollector) ObserveGatewaySend(protocol string, bytes int) {
 	if protocol == "" {
 		protocol = "unknown"
 	}
+	c.addCounter(topCounterGatewaySendTotal, 1)
 	c.addCounter("gateway.send."+protocol, 1)
 	_ = bytes
 }
@@ -467,6 +469,7 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	last := window[len(window)-1]
 	seconds := last.at.Sub(first.at).Seconds()
 	traffic := buildTraffic(window, seconds)
+	clients := buildClients(window, seconds)
 	pressure := c.buildPressureLocked(last, query.Limit)
 	verdict := buildTopVerdict(last.cluster, traffic, pressure)
 
@@ -485,6 +488,9 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	}
 	if includeTraffic(query.View) {
 		snapshot.Traffic = traffic
+	}
+	if includeClients(query.View) {
+		snapshot.Clients = clients
 	}
 	if includePressure(query.View) {
 		snapshot.Pressure = pressure
@@ -526,13 +532,56 @@ func rate(first, last map[string]uint64, key string, seconds float64) float64 {
 	if seconds <= 0 {
 		return 0
 	}
-	return float64(last[key]-first[key]) / seconds
+	return float64(counterDelta(first, last, key)) / seconds
+}
+
+func counterDelta(first, last map[string]uint64, key string) uint64 {
+	if last[key] < first[key] {
+		return 0
+	}
+	return last[key] - first[key]
+}
+
+func counterTotalByPrefix(counters map[string]uint64, prefix string) uint64 {
+	var total uint64
+	for key, value := range counters {
+		if strings.HasPrefix(key, prefix) {
+			total += value
+		}
+	}
+	return total
+}
+
+func counterDeltaByPrefix(first, last map[string]uint64, prefix string) uint64 {
+	var total uint64
+	seen := make(map[string]struct{})
+	for key := range first {
+		if strings.HasPrefix(key, prefix) {
+			total += counterDelta(first, last, key)
+			seen[key] = struct{}{}
+		}
+	}
+	for key := range last {
+		if strings.HasPrefix(key, prefix) {
+			if _, ok := seen[key]; !ok {
+				total += counterDelta(first, last, key)
+			}
+		}
+	}
+	return total
+}
+
+func rateByPrefix(first, last map[string]uint64, prefix string, seconds float64) float64 {
+	if seconds <= 0 {
+		return 0
+	}
+	return float64(counterDeltaByPrefix(first, last, prefix)) / seconds
 }
 
 func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
 	first := window[0]
 	last := window[len(window)-1]
-	send := rate(first.counters, last.counters, topCounterGatewaySendWKProto, seconds)
+	send := rate(first.counters, last.counters, topCounterGatewaySendTotal, seconds)
 	success := rate(first.counters, last.counters, topCounterSendackSuccess, seconds)
 	errors := rate(first.counters, last.counters, topCounterSendackError, seconds)
 	appendOK := rate(first.counters, last.counters, topCounterMessageAppendOK, seconds)
@@ -557,6 +606,58 @@ func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
 		DeliverPerSec:      rate(first.counters, last.counters, topCounterDeliveryPushOK, seconds),
 		FanoutRate:         fanoutRate,
 	}
+}
+
+func buildClients(window []topSample, seconds float64) *accessapi.TopClients {
+	first := window[0]
+	last := window[len(window)-1]
+	const openPrefix = "gateway.connection.open."
+	const closePrefix = "gateway.connection.close."
+
+	opens := counterTotalByPrefix(last.counters, openPrefix)
+	closes := counterTotalByPrefix(last.counters, closePrefix)
+	connections := int64(0)
+	if opens > closes {
+		connections = int64(opens - closes)
+	}
+	byProtocol := make(map[string]int64)
+	protocols := connectionProtocols(last.counters, openPrefix, closePrefix)
+	for _, protocol := range protocols {
+		open := last.counters[openPrefix+protocol]
+		close := last.counters[closePrefix+protocol]
+		if open > close {
+			byProtocol[protocol] = int64(open - close)
+		}
+	}
+	if len(byProtocol) == 0 {
+		byProtocol = nil
+	}
+	return &accessapi.TopClients{
+		Connections:           connections,
+		ConnectionsByProtocol: byProtocol,
+		AuthFailPerSec:        rate(first.counters, last.counters, "gateway.auth.fail", seconds),
+		ClosePerSec:           rateByPrefix(first.counters, last.counters, closePrefix, seconds),
+	}
+}
+
+func connectionProtocols(counters map[string]uint64, prefixes ...string) []string {
+	seen := make(map[string]struct{})
+	for key := range counters {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(key, prefix) {
+				protocol := strings.TrimPrefix(key, prefix)
+				if protocol != "" {
+					seen[protocol] = struct{}{}
+				}
+			}
+		}
+	}
+	protocols := make([]string, 0, len(seen))
+	for protocol := range seen {
+		protocols = append(protocols, protocol)
+	}
+	sort.Strings(protocols)
+	return protocols
 }
 
 func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
@@ -909,6 +1010,10 @@ func severityRank(level string) int {
 
 func includeTraffic(view accessapi.TopView) bool {
 	return view == accessapi.TopViewOverview || view == accessapi.TopViewTraffic || view == accessapi.TopViewAll
+}
+
+func includeClients(view accessapi.TopView) bool {
+	return view == accessapi.TopViewOverview || view == accessapi.TopViewRuntime || view == accessapi.TopViewAll
 }
 
 func includePressure(view accessapi.TopView) bool {

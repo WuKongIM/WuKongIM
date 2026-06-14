@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
 func TestTopCollectorSnapshotDoesNotRequireMetrics(t *testing.T) {
@@ -61,6 +62,74 @@ func TestTopCollectorSnapshotDoesNotRequireMetrics(t *testing.T) {
 	}
 	if math.Abs(snapshot.Traffic.AppendP50MS-10) > 0.000001 {
 		t.Fatalf("AppendP50MS = %v, want 10", snapshot.Traffic.AppendP50MS)
+	}
+}
+
+func TestTopCollectorTrafficUsesTotalGatewaySendCounter(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{})
+
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.ObserveGatewaySend("tcp", 128)
+	collector.ObserveGatewaySend("ws", 256)
+	collector.ObserveDeliveryRoutes(6)
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewOverview,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Traffic == nil {
+		t.Fatalf("Traffic = nil")
+	}
+	if math.Abs(snapshot.Traffic.SendPerSec-0.2) > 0.000001 {
+		t.Fatalf("SendPerSec = %v, want 0.2", snapshot.Traffic.SendPerSec)
+	}
+	if math.Abs(snapshot.Traffic.FanoutRate-3) > 0.000001 {
+		t.Fatalf("FanoutRate = %v, want 3", snapshot.Traffic.FanoutRate)
+	}
+}
+
+func TestTopCollectorClientsUseGatewayCounters(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{})
+	observer := topGatewayObserver{top: collector}
+
+	collector.recordSampleAt(time.Unix(100, 0))
+	observer.OnConnectionOpen(gatewaypkg.ConnectionEvent{Protocol: "tcp"})
+	observer.OnConnectionOpen(gatewaypkg.ConnectionEvent{Protocol: "tcp"})
+	observer.OnConnectionOpen(gatewaypkg.ConnectionEvent{Protocol: "ws"})
+	observer.OnConnectionClose(gatewaypkg.ConnectionEvent{Protocol: "tcp"})
+	observer.OnAuth(gatewaypkg.AuthEvent{ConnectionEvent: gatewaypkg.ConnectionEvent{Protocol: "tcp"}, Status: "error"})
+	observer.OnAuth(gatewaypkg.AuthEvent{ConnectionEvent: gatewaypkg.ConnectionEvent{Protocol: "ws"}, Status: "error"})
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	for _, view := range []accessapi.TopView{accessapi.TopViewOverview, accessapi.TopViewAll} {
+		snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+			Window: 10 * time.Second,
+			View:   view,
+			Limit:  10,
+		})
+		if err != nil {
+			t.Fatalf("SnapshotTop(%s) error = %v", view, err)
+		}
+		if snapshot.Clients == nil {
+			t.Fatalf("Clients for view %s = nil", view)
+		}
+		if snapshot.Clients.Connections != 2 {
+			t.Fatalf("Connections for view %s = %d, want 2", view, snapshot.Clients.Connections)
+		}
+		if snapshot.Clients.ConnectionsByProtocol["tcp"] != 1 || snapshot.Clients.ConnectionsByProtocol["ws"] != 1 {
+			t.Fatalf("ConnectionsByProtocol for view %s = %#v, want tcp=1 ws=1", view, snapshot.Clients.ConnectionsByProtocol)
+		}
+		if math.Abs(snapshot.Clients.AuthFailPerSec-0.2) > 0.000001 {
+			t.Fatalf("AuthFailPerSec for view %s = %v, want 0.2", view, snapshot.Clients.AuthFailPerSec)
+		}
+		if math.Abs(snapshot.Clients.ClosePerSec-0.1) > 0.000001 {
+			t.Fatalf("ClosePerSec for view %s = %v, want 0.1", view, snapshot.Clients.ClosePerSec)
+		}
 	}
 }
 
