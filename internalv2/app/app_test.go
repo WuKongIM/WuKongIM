@@ -722,6 +722,69 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	t.Fatal("message append metric for successful channelplane append was not observed")
 }
 
+func TestNewWiresTopMessageAppendWhenMetricsDisabled(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
+	app, err := newTestApp(t,
+		Config{
+			Cluster: clusterv2.Config{NodeID: 3},
+			Top: TopConfig{
+				APIEnabled:      true,
+				CollectInterval: time.Second,
+				HistoryWindow:   time.Minute,
+			},
+			Observability: ObservabilityConfig{MetricsEnabled: false},
+			Delivery:      DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	collector, ok := app.topProvider.(*topCollector)
+	if !ok {
+		t.Fatalf("top provider = %T, want *topCollector", app.topProvider)
+	}
+	if app.channelAppends == nil || app.channelAppendRouter == nil {
+		t.Fatalf("channel append runtime = (%T, %T), want group and router", app.channelAppends, app.channelAppendRouter)
+	}
+	startTestApp(t, app)
+
+	collector.recordSampleAt(time.Now().Add(-time.Second))
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room-top",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hello"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonSuccess {
+		t.Fatalf("send reason = %v, want success", result.Reason)
+	}
+	collector.recordSampleAt(time.Now())
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 2 * time.Second,
+		View:   accessapi.TopViewTraffic,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Traffic == nil {
+		t.Fatal("traffic snapshot is nil")
+	}
+	if snapshot.Traffic.AppendPerSec <= 0 {
+		t.Fatalf("append rate = %f, want > 0", snapshot.Traffic.AppendPerSec)
+	}
+	if snapshot.Traffic.AppendP50MS <= 0 {
+		t.Fatalf("append p50 = %f, want > 0", snapshot.Traffic.AppendP50MS)
+	}
+}
+
 func TestNewWiresChannelAppendCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)

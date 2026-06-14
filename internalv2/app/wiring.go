@@ -437,7 +437,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
 			}
 			var observer deliveryMessageObserver
-			if a.cfg.Delivery.Enabled || a.metrics != nil {
+			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
 				observer = deliveryMessageObserver{app: a}
 				opts.Observer = observer
 			}

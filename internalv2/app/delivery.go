@@ -123,6 +123,9 @@ func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time
 	if o.app.metrics != nil {
 		o.app.metrics.Message.ObserveAppend(path, result, dur)
 	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.ObserveMessageAppend(path, result, dur)
+	}
 }
 
 func (o deliveryMessageObserver) ObserveChannelAppendRouter(event channelappend.RouterObservation) {
