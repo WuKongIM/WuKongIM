@@ -175,7 +175,7 @@ func pressureSummary(node accessapi.TopSnapshot) string {
 	component := ""
 	score := 0.0
 	for name, value := range node.Pressure.ComponentScores {
-		if value > score {
+		if value > score || (value == score && (component == "" || name < component)) {
 			component = name
 			score = value
 		}

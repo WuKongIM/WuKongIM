@@ -105,7 +105,7 @@ func splitValues(values []string) []string {
 	var split []string
 	for _, value := range values {
 		for _, part := range strings.Split(value, ",") {
-			part = strings.TrimRight(strings.TrimSpace(part), "/")
+			part = strings.TrimSpace(part)
 			if part != "" {
 				split = append(split, part)
 			}

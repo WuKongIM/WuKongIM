@@ -48,7 +48,7 @@ func normalizeConfig(cfg config) (config, error) {
 	}
 	servers := make([]string, 0, len(cfg.Servers))
 	for _, server := range cfg.Servers {
-		server = strings.TrimRight(strings.TrimSpace(server), "/")
+		server = strings.TrimSpace(server)
 		if server != "" {
 			servers = append(servers, server)
 		}

@@ -64,6 +64,33 @@ func TestTopOnceRendersJSON(t *testing.T) {
 	}
 }
 
+func TestTopOncePreservesServerQueryEndingSlashAndBasePath(t *testing.T) {
+	var requestedPath string
+	var token string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.Path
+		token = r.URL.Query().Get("token")
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL + "/api?token=abc/", "--once"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected top once to run, got %v stderr %q", err, stderr.String())
+	}
+	if requestedPath != "/api/top/v1/snapshot" {
+		t.Fatalf("expected base path to be preserved, got %q", requestedPath)
+	}
+	if token != "abc/" {
+		t.Fatalf("expected query value ending slash to be preserved, got %q", token)
+	}
+}
+
 func TestTopWithoutOnceReturnsInteractiveMessageBeforeServerResolution(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
@@ -111,6 +138,26 @@ func TestTopContextDirIsResolvedAtExecution(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "node-1") {
 		t.Fatalf("expected context-backed snapshot output, got %q", stdout.String())
+	}
+}
+
+func TestPressureSummaryBreaksComponentScoreTiesByName(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		node := accessapi.TopSnapshot{
+			Pressure: &accessapi.TopPressure{
+				OverallLevel: "degraded",
+				ComponentScores: map[string]float64{
+					"delivery":  0.91,
+					"channelv2": 0.91,
+				},
+			},
+		}
+
+		got := pressureSummary(node)
+
+		if got != "channelv2 degraded 0.91" {
+			t.Fatalf("expected lexical tie-breaker to choose channelv2, got %q", got)
+		}
 	}
 }
 
