@@ -93,6 +93,10 @@ type App struct {
 	presenceDirectory   *authoritypresence.Directory
 	presenceWorker      WorkerRuntime
 	metrics             *obsmetrics.Registry
+	// top is the optional node-local collector used by /top/v1/snapshot.
+	top         WorkerRuntime
+	topProvider accessapi.TopSnapshotProvider
+	topStarted  bool
 	// prometheus is the optional child Prometheus process managed by the app lifecycle.
 	prometheus WorkerRuntime
 	// diagnostics stores sampled send-path trace events for app-local queries.
@@ -278,17 +282,45 @@ func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 }
 
 func (a *App) gatewayObserver() gateway.Observer {
-	if a == nil || a.metrics == nil {
+	if a == nil {
 		return nil
 	}
-	return gatewayMetricsObserver{metrics: a.metrics}
+	observers := make([]gateway.Observer, 0, 2)
+	if a.metrics != nil {
+		observers = append(observers, gatewayMetricsObserver{metrics: a.metrics})
+	}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topGatewayObserver{top: collector})
+	}
+	switch len(observers) {
+	case 0:
+		return nil
+	case 1:
+		return observers[0]
+	default:
+		return multiGatewayObserver(observers)
+	}
 }
 
 func (a *App) sendackObserver() accessgateway.SendackObserver {
-	if a == nil || a.metrics == nil {
+	if a == nil {
 		return nil
 	}
-	return gatewayMetricsObserver{metrics: a.metrics}
+	observers := make([]accessgateway.SendackObserver, 0, 2)
+	if a.metrics != nil {
+		observers = append(observers, gatewayMetricsObserver{metrics: a.metrics})
+	}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topSendackObserver{top: collector})
+	}
+	switch len(observers) {
+	case 0:
+		return nil
+	case 1:
+		return observers[0]
+	default:
+		return multiSendackObserver(observers)
+	}
 }
 
 func (a *App) benchRuntimeController() accessapi.ChannelRuntimeBenchController {

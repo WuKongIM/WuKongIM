@@ -105,6 +105,9 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 		})
 		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: a.metrics})
 	}
+	if a.cfg.Top.APIEnabled {
+		a.ensureTopCollector(clusterCfg.NodeID)
+	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))
 		a.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
@@ -116,6 +119,28 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 		}
 		a.diagnosticsRestore = sendtrace.SetSink(sink)
 	}
+}
+
+func (a *App) ensureTopCollector(nodeID uint64) *topCollector {
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		return collector
+	}
+	collector := newTopCollector(topCollectorOptions{
+		NodeID:          nodeID,
+		NodeName:        fmt.Sprintf("node-%d", nodeID),
+		CollectInterval: a.cfg.Top.CollectInterval,
+		HistoryWindow:   a.cfg.Top.HistoryWindow,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			if runtime, ok := a.cluster.(interface{ Snapshot() clusterv2.Snapshot }); ok {
+				return runtime.Snapshot()
+			}
+			return clusterv2.Snapshot{NodeID: nodeID}
+		},
+		MetricsEnabled: a.cfg.Observability.MetricsEnabled,
+	})
+	a.top = collector
+	a.topProvider = collector
+	return collector
 }
 
 func (a *App) ensureCluster(clusterCfg clusterv2.Config) error {
@@ -540,6 +565,7 @@ func (a *App) wireAPI() {
 			DebugConfig:              a.debugConfigSnapshot,
 			DebugCluster:             a.debugClusterSnapshot,
 			Diagnostics:              a,
+			Top:                      a.topProvider,
 			Logger:                   a.logger.Named("access.api"),
 		})
 	}

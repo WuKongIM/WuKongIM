@@ -103,6 +103,15 @@ wkbench traffic
 path so gateway micro-batching and future send runtimes do not grow separate
 behavior.
 
+## Top Snapshot Flow
+
+```text
+runtime observer events
+  -> internalv2/app top collector
+  -> internalv2/access/api /top/v1/snapshot
+  -> wkcli top client-side multi-node aggregation
+```
+
 ## Legacy Channel Management Flow
 
 ```text

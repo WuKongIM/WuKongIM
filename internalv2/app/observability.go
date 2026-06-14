@@ -83,6 +83,8 @@ type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
 type multiControllerRaftObserver []cv2raft.Observer
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
+type multiGatewayObserver []accessgateway.Observer
+type multiSendackObserver []gatewayadapter.SendackObserver
 
 const (
 	dbRuntimeComponent       = "db"
@@ -215,6 +217,112 @@ func (o gatewayMetricsObserver) SendackWritten(event gatewayadapter.SendackEvent
 		return
 	}
 	o.metrics.Gateway.Sendack(gatewaySendackReasonLabel(event.Reason), event.Source, event.ErrorClass)
+}
+
+func (o multiGatewayObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
+	for _, observer := range o {
+		observer.OnConnectionOpen(event)
+	}
+}
+
+func (o multiGatewayObserver) OnConnectionClose(event accessgateway.ConnectionEvent) {
+	for _, observer := range o {
+		observer.OnConnectionClose(event)
+	}
+}
+
+func (o multiGatewayObserver) OnAuth(event accessgateway.AuthEvent) {
+	for _, observer := range o {
+		observer.OnAuth(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameIn(event accessgateway.FrameEvent) {
+	for _, observer := range o {
+		observer.OnFrameIn(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameOut(event accessgateway.FrameEvent) {
+	for _, observer := range o {
+		observer.OnFrameOut(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameHandled(event accessgateway.FrameHandleEvent) {
+	for _, observer := range o {
+		observer.OnFrameHandled(event)
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendQueue(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendAdmission(event accessgateway.AsyncSendAdmissionEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendAdmissionObserver); ok {
+			optional.OnAsyncSendAdmission(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendBatch(event accessgateway.AsyncSendBatchEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendBatch(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendDispatchWait(event accessgateway.AsyncSendDispatchWaitEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendDispatchWait(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthQueue(event accessgateway.AsyncAuthQueueEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthQueue(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthAdmission(event accessgateway.AsyncAuthAdmissionEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthAdmission(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthWait(event accessgateway.AsyncAuthWaitEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthWait(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnTransportPressure(event accessgateway.TransportPressureEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.TransportPressureObserver); ok {
+			optional.OnTransportPressure(event)
+		}
+	}
+}
+
+func (o multiSendackObserver) SendackWritten(event gatewayadapter.SendackEvent) {
+	for _, observer := range o {
+		observer.SendackWritten(event)
+	}
 }
 
 func gatewaySendackReasonLabel(reason messageusecase.Reason) string {

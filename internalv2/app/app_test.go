@@ -205,6 +205,31 @@ func TestStartStopOrderIncludesPrometheusBetweenAPIAndGateway(t *testing.T) {
 	}
 }
 
+func TestStartStopOrderIncludesTopBeforeAPI(t *testing.T) {
+	calls := make([]string, 0, 8)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	gateway := &fakeGateway{calls: &calls}
+	top := &recordingWorkerRuntime{calls: &calls, name: "top"}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.top = top
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	want := "cluster.start,top.start,api.start,gateway.start,gateway.stop,api.stop,top.stop,cluster.stop"
+	if got := joinCalls(calls); got != want {
+		t.Fatalf("calls = %s, want %s", got, want)
+	}
+}
+
 func TestGatewayStartFailureStopsPrometheusBeforeAPI(t *testing.T) {
 	gatewayErr := errors.New("gateway start failed")
 	calls := make([]string, 0, 7)
@@ -482,6 +507,44 @@ func TestNewBuildsRootLogger(t *testing.T) {
 	}
 	if app.logger.Named("internalv2") == nil {
 		t.Fatal("named logger is nil")
+	}
+}
+
+func TestNewWiresTopAPIWithoutMetrics(t *testing.T) {
+	calls := make([]string, 0, 1)
+	cluster := &fakeWriteReadyCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		snapshots: []clusterv2.Snapshot{
+			{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {Leader: 1, Peers: []uint64{1}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 1,
+		API:    APIConfig{ListenAddr: "127.0.0.1:0"},
+		Top: TopConfig{
+			APIEnabled:      true,
+			CollectInterval: time.Second,
+			HistoryWindow:   time.Minute,
+		},
+		Observability: ObservabilityConfig{MetricsEnabled: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.metrics != nil {
+		t.Fatal("metrics were wired when MetricsEnabled is false")
+	}
+	if app.top == nil {
+		t.Fatal("top collector was not wired")
+	}
+	if app.topProvider == nil {
+		t.Fatal("top provider was not wired")
+	}
+	if _, ok := app.api.(*accessapi.Server); !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
 	}
 }
 

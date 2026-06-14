@@ -102,6 +102,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.channelAppendStarted = true
 	}
+	if a.top != nil {
+		if err := a.top.Start(ctx); err != nil {
+			a.logLifecycleError("top", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.topStarted = true
+	}
 	if a.api != nil {
 		if err := a.api.Start(); err != nil {
 			a.logLifecycleError("api", "start", err)
@@ -167,6 +175,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.apiStarted = false
 		}
 	}
+	if a.topStarted && a.top != nil {
+		if stopErr := a.top.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("top", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.topStarted = false
+		}
+	}
 	if a.channelAppendStarted && a.channelAppends != nil {
 		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("channel_append", "stop", stopErr)
@@ -215,7 +231,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.apiStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -245,6 +261,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.apiStarted = false
+		}
+	}
+	if a.topStarted && a.top != nil {
+		if stopErr := a.top.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("top", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.topStarted = false
 		}
 	}
 	if a.channelAppendStarted && a.channelAppends != nil {
