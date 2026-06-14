@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,6 +54,9 @@ func TestTopCollectorSnapshotDoesNotRequireMetrics(t *testing.T) {
 	}
 	if math.Abs(snapshot.Traffic.SendPerSec-0.1) > 0.000001 {
 		t.Fatalf("SendPerSec = %v, want 0.1", snapshot.Traffic.SendPerSec)
+	}
+	if math.Abs(snapshot.Traffic.AppendP50MS-10) > 0.000001 {
+		t.Fatalf("AppendP50MS = %v, want 10", snapshot.Traffic.AppendP50MS)
 	}
 }
 
@@ -193,5 +197,89 @@ func TestTopCollectorRingWindowIteratesOldestToNewest(t *testing.T) {
 		if !sample.at.Equal(want) {
 			t.Fatalf("window[%d] = %s, want %s", i, sample.at, want)
 		}
+	}
+}
+
+func TestTopCollectorHistogramSamplesAreBoundedAndReset(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{})
+	collector.recordSampleAt(time.Unix(100, 0))
+
+	for i := 0; i < topMaxHistogramValuesPerSample+500; i++ {
+		collector.observeDurationMS(topHistogramMessageAppend, 10*time.Millisecond)
+	}
+	if got := len(collector.histos[topHistogramMessageAppend]); got != topMaxHistogramValuesPerSample {
+		t.Fatalf("current histogram len = %d, want cap %d", got, topMaxHistogramValuesPerSample)
+	}
+
+	collector.recordSampleAt(time.Unix(110, 0))
+	if got := len(collector.histos[topHistogramMessageAppend]); got != 0 {
+		t.Fatalf("current histogram len after sample = %d, want reset", got)
+	}
+	window := collector.windowLocked(10 * time.Second)
+	if len(window) != 2 {
+		t.Fatalf("window len = %d, want 2", len(window))
+	}
+	if got := len(window[1].histos[topHistogramMessageAppend]); got != topMaxHistogramValuesPerSample {
+		t.Fatalf("sample histogram len = %d, want cap %d", got, topMaxHistogramValuesPerSample)
+	}
+
+	for i := 0; i < 20; i++ {
+		collector.observeDurationMS(topHistogramMessageAppend, time.Duration(i)*time.Millisecond)
+		collector.recordSampleAt(time.Unix(int64(111+i), 0))
+	}
+	if got := len(collector.histos[topHistogramMessageAppend]); got != 0 {
+		t.Fatalf("current histogram len after many samples = %d, want reset", got)
+	}
+	for i, sample := range collector.windowLocked(time.Minute) {
+		if got := len(sample.histos[topHistogramMessageAppend]); got > topMaxHistogramValuesPerSample {
+			t.Fatalf("window[%d] histogram len = %d, want <= %d", i, got, topMaxHistogramValuesPerSample)
+		}
+	}
+}
+
+func TestTopCollectorStopHonorsContextWhenSnapshotBlocks(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	collector := newTopCollector(topCollectorOptions{
+		CollectInterval: time.Hour,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			once.Do(func() { close(entered) })
+			<-release
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	if err := collector.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		close(release)
+		t.Fatalf("collector did not enter ClusterSnapshot")
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- collector.Stop(stopCtx)
+	}()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			close(release)
+			t.Fatalf("Stop() error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		err := <-errCh
+		t.Fatalf("Stop() did not honor context before unblock; returned %v after release", err)
+	}
+
+	close(release)
+	if err := collector.Stop(context.Background()); err != nil {
+		t.Fatalf("final Stop() error = %v", err)
 	}
 }

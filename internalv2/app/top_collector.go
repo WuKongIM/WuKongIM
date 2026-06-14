@@ -17,6 +17,8 @@ const (
 	topCounterSendackError       = "gateway.sendack.error"
 	topCounterMessageAppendOK    = "message.append.ok"
 	topHistogramMessageAppend    = "message.append"
+
+	topMaxHistogramValuesPerSample = 2048
 )
 
 // topCollectorOptions configures the node-local wkcli top collector.
@@ -92,6 +94,9 @@ func (c *topCollector) Start(ctx context.Context) error {
 	if c == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	c.mu.Lock()
 	if c.cancel != nil {
 		c.mu.Unlock()
@@ -108,23 +113,33 @@ func (c *topCollector) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *topCollector) Stop(context.Context) error {
+func (c *topCollector) Stop(ctx context.Context) error {
 	if c == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	c.mu.Lock()
 	cancel := c.cancel
 	done := c.done
-	c.cancel = nil
-	c.done = nil
 	c.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if cancel == nil || done == nil {
+		return nil
 	}
-	if done != nil {
-		<-done
+	cancel()
+	select {
+	case <-done:
+		c.mu.Lock()
+		if c.done == done {
+			c.cancel = nil
+			c.done = nil
+		}
+		c.mu.Unlock()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	return nil
 }
 
 func (c *topCollector) run(ctx context.Context, interval time.Duration, done chan<- struct{}) {
@@ -213,6 +228,9 @@ func (c *topCollector) setGauge(key string, value int64) {
 func (c *topCollector) observeDurationMS(key string, d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.histos[key]) >= topMaxHistogramValuesPerSample {
+		return
+	}
 	c.histos[key] = append(c.histos[key], float64(d)/float64(time.Millisecond))
 }
 
@@ -221,13 +239,22 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 		return
 	}
 	c.mu.Lock()
+	counters := cloneUint64Map(c.counters)
+	gauges := cloneInt64Map(c.gauges)
+	histos := cloneHistos(c.histos)
+	c.histos = make(map[string][]float64)
+	c.mu.Unlock()
+
+	cluster := c.clusterSnapshot()
+
+	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ring[c.head] = topSample{
 		at:       at.UTC(),
-		counters: cloneUint64Map(c.counters),
-		gauges:   cloneInt64Map(c.gauges),
-		histos:   cloneHistos(c.histos),
-		cluster:  c.clusterSnapshotLocked(),
+		counters: counters,
+		gauges:   gauges,
+		histos:   histos,
+		cluster:  cluster,
 	}
 	c.head = (c.head + 1) % len(c.ring)
 	if c.count < len(c.ring) {
@@ -235,7 +262,7 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	}
 }
 
-func (c *topCollector) clusterSnapshotLocked() clusterv2.Snapshot {
+func (c *topCollector) clusterSnapshot() clusterv2.Snapshot {
 	if c.options.ClusterSnapshot == nil {
 		return clusterv2.Snapshot{NodeID: c.options.NodeID}
 	}
@@ -279,7 +306,7 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	first := window[0]
 	last := window[len(window)-1]
 	seconds := last.at.Sub(first.at).Seconds()
-	traffic := buildTraffic(first, last, seconds)
+	traffic := buildTraffic(window, seconds)
 	pressure := c.buildPressureLocked(last, query.Limit)
 	verdict := buildTopVerdict(last.cluster, traffic, pressure)
 
@@ -333,7 +360,9 @@ func rate(first, last map[string]uint64, key string, seconds float64) float64 {
 	return float64(last[key]-first[key]) / seconds
 }
 
-func buildTraffic(first, last topSample, seconds float64) *accessapi.TopTraffic {
+func buildTraffic(window []topSample, seconds float64) *accessapi.TopTraffic {
+	first := window[0]
+	last := window[len(window)-1]
 	send := rate(first.counters, last.counters, topCounterGatewaySendWKProto, seconds)
 	success := rate(first.counters, last.counters, topCounterSendackSuccess, seconds)
 	errors := rate(first.counters, last.counters, topCounterSendackError, seconds)
@@ -343,7 +372,7 @@ func buildTraffic(first, last topSample, seconds float64) *accessapi.TopTraffic 
 	if totalSendack > 0 {
 		errorRate = errors / totalSendack
 	}
-	values := histogramWindow(first.histos[topHistogramMessageAppend], last.histos[topHistogramMessageAppend])
+	values := histogramValues(window, topHistogramMessageAppend)
 	fanoutRate := 0.0
 	if send > 0 {
 		fanoutRate = rate(first.counters, last.counters, "delivery.routes", seconds) / send
@@ -361,11 +390,11 @@ func buildTraffic(first, last topSample, seconds float64) *accessapi.TopTraffic 
 	}
 }
 
-func histogramWindow(first, last []float64) []float64 {
-	if len(last) <= len(first) {
-		return nil
+func histogramValues(window []topSample, key string) []float64 {
+	var out []float64
+	for i := 1; i < len(window); i++ {
+		out = append(out, window[i].histos[key]...)
 	}
-	out := append([]float64(nil), last[len(first):]...)
 	return out
 }
 
