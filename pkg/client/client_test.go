@@ -413,6 +413,23 @@ func TestClientSendBeforeConnectRejectsQuickly(t *testing.T) {
 	}
 }
 
+func TestPrepareSendAllocationBudget(t *testing.T) {
+	c, err := New(Config{Addr: "bench"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	msg := benchmarkMessage(benchmarkPayload(256))
+
+	allocs := testing.AllocsPerRun(100, func() {
+		if _, err := c.prepareSend(msg); err != nil {
+			t.Fatalf("prepareSend() error = %v", err)
+		}
+	})
+	if allocs > 2 {
+		t.Fatalf("prepareSend allocations = %.0f, want <= 2", allocs)
+	}
+}
+
 func TestClientSendBatchValidationFailureDoesNotLeavePending(t *testing.T) {
 	c, _ := newConnectedPipeClientOrFatal(t, Config{
 		AckTimeout: time.Second,

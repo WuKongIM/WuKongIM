@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -156,6 +157,64 @@ func TestWriterBatchCollectorEmptyInput(t *testing.T) {
 	}
 	if rest != nil {
 		t.Fatalf("rest = %#v, want nil", rest)
+	}
+}
+
+func TestFilterCanceledBatchReusesStorage(t *testing.T) {
+	c, err := New(Config{Addr: "bench"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	batch := []writeRequest{
+		testSendWriteRequest(1),
+		testSendWriteRequest(1),
+	}
+
+	ready := c.filterCanceledBatch(batch)
+
+	if len(ready) != len(batch) {
+		t.Fatalf("ready len = %d, want %d", len(ready), len(batch))
+	}
+	if &ready[0] != &batch[0] {
+		t.Fatal("filterCanceledBatch did not reuse the input slice storage")
+	}
+}
+
+func TestWriteBatchEncodeAllocationBudget(t *testing.T) {
+	c, err := New(Config{
+		Addr:            "discard",
+		BatchMaxRecords: 64,
+		BatchMaxBytes:   32 << 20,
+		BatchMaxWait:    -1,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	payload := benchmarkPayload(256)
+	batch := make([]writeRequest, 64)
+	conn := discardConn{}
+	for i := range batch {
+		seq := uint64(i + 1)
+		pkt, err := buildSendPacket(benchmarkMessageWithSeq(payload, seq), seq)
+		if err != nil {
+			t.Fatalf("buildSendPacket() error = %v", err)
+		}
+		batch[i] = writeRequest{
+			kind: writeKindSend,
+			pkt:  pkt,
+			ctx:  context.Background(),
+			conn: conn,
+		}
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		if _, err := c.writeBatch(batch); err != nil {
+			t.Fatalf("writeBatch() error = %v", err)
+		}
+	})
+	if allocs > 500 {
+		t.Fatalf("writeBatch allocations = %.0f, want <= 500", allocs)
 	}
 }
 

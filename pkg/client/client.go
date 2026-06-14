@@ -542,7 +542,6 @@ func (c *Client) prepareSend(msg Message) (preparedSend, error) {
 	if err != nil {
 		return preparedSend{}, err
 	}
-	msg.Payload = append([]byte(nil), pkt.Payload...)
 	return preparedSend{
 		msg: msg,
 		pkt: pkt,

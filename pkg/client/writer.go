@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"net"
+	"reflect"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -18,6 +20,14 @@ const (
 	writeKindFrame
 	writeKindClose
 )
+
+const maxPooledWriteBufferCapacity = 1 << 20
+
+var writeBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
 
 // writeRequest is one item accepted by the single socket writer pump.
 type writeRequest struct {
@@ -230,7 +240,8 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 		}
 	}
 
-	var buf bytes.Buffer
+	buf := acquireWriteBuffer(writeBatchSizeHint(batch))
+	defer releaseWriteBuffer(buf)
 	for _, req := range batch {
 		switch req.kind {
 		case writeKindSend:
@@ -246,26 +257,23 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 			if err != nil {
 				return buf.Len(), err
 			}
-			data, err := c.proto.EncodeFrame(sealed, frame.LatestVersion)
-			if err != nil {
+			if err := c.proto.WriteFrame(buf, sealed, frame.LatestVersion); err != nil {
 				return buf.Len(), err
 			}
-			buf.Write(data)
 		case writeKindFrame:
 			if req.frame == nil {
 				return buf.Len(), ErrInvalidMessage
 			}
-			data, err := c.proto.EncodeFrame(req.frame, frame.LatestVersion)
-			if err != nil {
+			if err := c.proto.WriteFrame(buf, req.frame, frame.LatestVersion); err != nil {
 				return buf.Len(), err
 			}
-			buf.Write(data)
 		case writeKindClose:
 			return buf.Len(), ErrClosed
 		}
 	}
 
 	data := buf.Bytes()
+	bytesWritten := buf.Len()
 	writeCtx, cancel := writeContextForBatch(batch)
 	defer cancel()
 	err := c.withDeadline(writeCtx, conn.SetWriteDeadline, func() error {
@@ -282,14 +290,15 @@ func (c *Client) writeBatch(batch []writeRequest) (int, error) {
 		return nil
 	})
 	if err != nil {
-		return buf.Len(), err
+		return bytesWritten, err
 	}
-	return buf.Len(), nil
+	return bytesWritten, nil
 }
 
 func writeContextForBatch(batch []writeRequest) (context.Context, context.CancelFunc) {
 	var earliest time.Time
 	var hasDeadline bool
+	var doneChans []<-chan struct{}
 	for _, req := range batch {
 		if req.ctx == nil {
 			continue
@@ -298,6 +307,13 @@ func writeContextForBatch(batch []writeRequest) (context.Context, context.Cancel
 			earliest = deadline
 			hasDeadline = true
 		}
+		done := req.ctx.Done()
+		if done != nil {
+			doneChans = appendUniqueDone(doneChans, done)
+		}
+	}
+	if !hasDeadline && len(doneChans) == 0 {
+		return context.Background(), func() {}
 	}
 
 	var ctx context.Context
@@ -307,17 +323,22 @@ func writeContextForBatch(batch []writeRequest) (context.Context, context.Cancel
 	} else {
 		ctx, cancel = context.WithCancel(context.Background())
 	}
-	for _, req := range batch {
-		if req.ctx == nil {
-			continue
-		}
-		go func(reqCtx context.Context) {
+	switch len(doneChans) {
+	case 0:
+	case 1:
+		done := doneChans[0]
+		go func() {
 			select {
-			case <-reqCtx.Done():
+			case <-done:
 				cancel()
 			case <-ctx.Done():
 			}
-		}(req.ctx)
+		}()
+	default:
+		go func() {
+			waitAnyDone(doneChans, ctx.Done())
+			cancel()
+		}()
 	}
 	return ctx, cancel
 }
@@ -343,7 +364,7 @@ func (c *Client) finishWriteRequest(req writeRequest, err error) {
 }
 
 func (c *Client) filterCanceledBatch(batch []writeRequest) []writeRequest {
-	ready := make([]writeRequest, 0, len(batch))
+	ready := batch[:0]
 	for _, req := range batch {
 		if req.ctx != nil {
 			if err := req.ctx.Err(); err != nil {
@@ -354,6 +375,67 @@ func (c *Client) filterCanceledBatch(batch []writeRequest) []writeRequest {
 		ready = append(ready, req)
 	}
 	return ready
+}
+
+func acquireWriteBuffer(hint int) *bytes.Buffer {
+	buf := writeBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	if hint > 0 {
+		buf.Grow(hint)
+	}
+	return buf
+}
+
+func releaseWriteBuffer(buf *bytes.Buffer) {
+	if buf == nil {
+		return
+	}
+	if buf.Cap() > maxPooledWriteBufferCapacity {
+		return
+	}
+	buf.Reset()
+	writeBufferPool.Put(buf)
+}
+
+func writeBatchSizeHint(batch []writeRequest) int {
+	var total int
+	for _, req := range batch {
+		total += writeRequestEncodedSizeHint(req)
+	}
+	return total
+}
+
+func writeRequestEncodedSizeHint(req writeRequest) int {
+	switch req.kind {
+	case writeKindSend:
+		pkt := req.pkt
+		if pkt == nil {
+			return 64 + len(req.msg.Payload) + len(req.msg.ClientMsgNo) + len(req.msg.ChannelID) + len(req.msg.Topic)
+		}
+		return 64 + len(pkt.Payload) + len(pkt.ClientMsgNo) + len(pkt.ChannelID) + len(pkt.MsgKey) + len(pkt.Topic) + len(pkt.StreamNo)
+	case writeKindFrame:
+		return 64
+	default:
+		return 0
+	}
+}
+
+func appendUniqueDone(doneChans []<-chan struct{}, done <-chan struct{}) []<-chan struct{} {
+	for _, existing := range doneChans {
+		if existing == done {
+			return doneChans
+		}
+	}
+	return append(doneChans, done)
+}
+
+func waitAnyDone(doneChans []<-chan struct{}, stop <-chan struct{}) {
+	cases := make([]reflect.SelectCase, 0, len(doneChans)+1)
+	for _, done := range doneChans {
+		cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(done)})
+	}
+	cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(stop)})
+	reflect.Select(cases)
 }
 
 func countSendRequests(batch []writeRequest) int {
