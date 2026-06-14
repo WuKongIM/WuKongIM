@@ -439,6 +439,36 @@ func TestSendFutureWaitOnceAllocationBudget(t *testing.T) {
 	}
 }
 
+func TestSendBatchWaiterReturnsFirstInputOrderError(t *testing.T) {
+	waiter := newSendBatchWaiter(2)
+	laterErr := SendError{ClientSeq: 2, ReasonCode: frame.ReasonAuthFail}
+
+	waiter.complete(1, sendOutcome{
+		result: SendResult{ClientSeq: 2, ReasonCode: frame.ReasonAuthFail},
+		err:    laterErr,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := waiter.wait(ctx)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("wait returned before earlier result completed: %v", err)
+	case <-time.After(5 * time.Millisecond):
+	}
+
+	waiter.complete(0, sendOutcome{
+		result: SendResult{ClientSeq: 1, ReasonCode: frame.ReasonSuccess},
+	})
+	if err := <-done; !errors.Is(err, laterErr) {
+		t.Fatalf("wait error = %v, want %v", err, laterErr)
+	}
+}
+
 func waitPendingEntry(t *testing.T, entry *pendingEntry) (SendResult, error) {
 	t.Helper()
 

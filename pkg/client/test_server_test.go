@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -55,4 +56,47 @@ func writeTestFrame(conn net.Conn, f frame.Frame) error {
 		return err
 	}
 	return nil
+}
+
+func serveSendacksUntilClose(conn net.Conn) error {
+	defer conn.Close()
+	proto := codec.New()
+	f, err := proto.DecodePacketWithConn(conn, frame.LatestVersion)
+	if err != nil {
+		return err
+	}
+	if _, ok := f.(*frame.ConnectPacket); !ok {
+		return fmt.Errorf("test server got %T, want *frame.ConnectPacket", f)
+	}
+	if err := writeBenchmarkFrame(proto, conn, &frame.ConnackPacket{
+		Framer: frame.Framer{
+			FrameType:        frame.CONNACK,
+			HasServerVersion: true,
+		},
+		ServerVersion: frame.LatestVersion,
+		ReasonCode:    frame.ReasonSuccess,
+		NodeId:        1,
+	}); err != nil {
+		return err
+	}
+	for {
+		f, err := proto.DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			return err
+		}
+		send, ok := f.(*frame.SendPacket)
+		if !ok {
+			return fmt.Errorf("test server got %T, want *frame.SendPacket", f)
+		}
+		if err := writeBenchmarkFrame(proto, conn, &frame.SendackPacket{
+			Framer:      frame.Framer{FrameType: frame.SENDACK},
+			ClientSeq:   send.ClientSeq,
+			ClientMsgNo: send.ClientMsgNo,
+			MessageID:   int64(send.ClientSeq),
+			MessageSeq:  send.ClientSeq,
+			ReasonCode:  frame.ReasonSuccess,
+		}); err != nil {
+			return err
+		}
+	}
 }

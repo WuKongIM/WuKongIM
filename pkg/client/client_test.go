@@ -775,6 +775,62 @@ func TestClientSendBatchReturnsResultsInInputOrderWithOutOfOrderSendacks(t *test
 	}
 }
 
+func TestClientSendBatchRoundTripAllocationBudget(t *testing.T) {
+	const (
+		batchSize = 64
+		runs      = 20
+	)
+	clientConn, serverConn := net.Pipe()
+	c, err := New(Config{
+		Addr:                   "pipe",
+		Dialer:                 fakeDialer{conn: clientConn},
+		OperationTimeout:       10 * time.Second,
+		AckTimeout:             10 * time.Second,
+		SendQueueCapacity:      4096,
+		MaxInflight:            4096,
+		BatchMaxRecords:        batchSize,
+		BatchMaxBytes:          32 << 20,
+		BatchMaxWait:           -1,
+		InboundFrameBufferSize: 1024,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- serveSendacksUntilClose(serverConn)
+	}()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = serverConn.Close()
+		if err := <-serverErr; err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) {
+			t.Fatalf("benchmark server error = %v", err)
+		}
+	})
+
+	if _, err := c.Connect(context.Background(), ConnectOptions{
+		UID:        "alloc-uid",
+		DeviceID:   "alloc-device",
+		DeviceFlag: frame.APP,
+	}); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	msgs := make([]Message, batchSize)
+	payload := benchmarkPayload(256)
+	for i := range msgs {
+		msgs[i] = benchmarkMessage(payload)
+	}
+
+	allocs := testing.AllocsPerRun(runs, func() {
+		if _, err := c.SendBatch(context.Background(), msgs); err != nil {
+			t.Fatalf("SendBatch() error = %v", err)
+		}
+	})
+	if allocs > 1800 {
+		t.Fatalf("SendBatch allocations = %.0f, want <= 1800", allocs)
+	}
+}
+
 func TestClientReaderPreservesPartialFrameBytes(t *testing.T) {
 	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
 

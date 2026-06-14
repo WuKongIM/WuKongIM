@@ -20,6 +20,10 @@ type pendingEntry struct {
 	key pendingKey
 	// done receives exactly one terminal send outcome.
 	done chan sendOutcome
+	// batch receives the terminal outcome for SendBatch entries.
+	batch *sendBatchWaiter
+	// batchIndex is this entry's input index inside batch.
+	batchIndex int
 	// timer fails the entry when a SENDACK is not received before the deadline.
 	timer *time.Timer
 	// startedAt records when the entry was admitted to the pending tracker.
@@ -51,6 +55,14 @@ func (t *pendingTracker) add(key pendingKey, timeout time.Duration) (*pendingEnt
 }
 
 func (t *pendingTracker) addWithFinish(key pendingKey, timeout time.Duration, onFinish func()) (*pendingEntry, error) {
+	return t.addWithTarget(key, timeout, make(chan sendOutcome, 1), nil, 0, onFinish)
+}
+
+func (t *pendingTracker) addBatch(key pendingKey, timeout time.Duration, batch *sendBatchWaiter, index int, onFinish func()) (*pendingEntry, error) {
+	return t.addWithTarget(key, timeout, nil, batch, index, onFinish)
+}
+
+func (t *pendingTracker) addWithTarget(key pendingKey, timeout time.Duration, done chan sendOutcome, batch *sendBatchWaiter, index int, onFinish func()) (*pendingEntry, error) {
 	t.mu.Lock()
 	if t.closed {
 		t.mu.Unlock()
@@ -62,10 +74,12 @@ func (t *pendingTracker) addWithFinish(key pendingKey, timeout time.Duration, on
 	}
 
 	entry := &pendingEntry{
-		key:       key,
-		done:      make(chan sendOutcome, 1),
-		startedAt: time.Now(),
-		onFinish:  onFinish,
+		key:        key,
+		done:       done,
+		batch:      batch,
+		batchIndex: index,
+		startedAt:  time.Now(),
+		onFinish:   onFinish,
 	}
 	if timeout > 0 {
 		entry.timer = time.AfterFunc(timeout, func() {
@@ -169,8 +183,13 @@ func (e *pendingEntry) finish(out sendOutcome) {
 		if e.timer != nil {
 			e.timer.Stop()
 		}
-		e.done <- out
-		close(e.done)
+		if e.batch != nil {
+			e.batch.complete(e.batchIndex, out)
+		}
+		if e.done != nil {
+			e.done <- out
+			close(e.done)
+		}
 		if e.onFinish != nil {
 			e.onFinish()
 		}

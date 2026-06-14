@@ -253,7 +253,6 @@ func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, e
 		return nil, nil
 	}
 
-	futures := make([]*SendFuture, len(msgs))
 	prepared := make([]preparedSend, len(msgs))
 	for i := range msgs {
 		item, err := c.prepareSend(msgs[i])
@@ -262,21 +261,11 @@ func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, e
 		}
 		prepared[i] = item
 	}
-	var err error
-	futures, err = c.admitPreparedSends(ctx, prepared)
-	if err != nil {
+	waiter := newSendBatchWaiter(len(prepared))
+	if err := c.admitPreparedBatch(ctx, prepared, waiter); err != nil {
 		return nil, err
 	}
-
-	results := make([]SendResult, len(futures))
-	for i, future := range futures {
-		result, err := future.waitOnce(ctx)
-		results[i] = result
-		if err != nil {
-			return results, err
-		}
-	}
-	return results, nil
+	return waiter.wait(ctx)
 }
 
 // SendAsync queues one message and returns a future resolved by the matching SENDACK.
@@ -637,6 +626,94 @@ func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend
 		c.observeSendQueue("accepted")
 	}
 	return futures, nil
+}
+
+func (c *Client) admitPreparedBatch(ctx context.Context, prepared []preparedSend, waiter *sendBatchWaiter) error {
+	if len(prepared) == 0 {
+		return nil
+	}
+
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrClosed
+	}
+	conn := c.conn
+	pending := c.pending
+	session := c.session
+	if conn == nil || pending == nil {
+		c.mu.Unlock()
+		return ErrNotConnected
+	}
+	c.mu.Unlock()
+
+	if len(c.writeCh)+len(prepared) > cap(c.writeCh) {
+		c.observeSendQueue("full")
+		return ErrSendQueueFull
+	}
+	reserved, err := c.reserveInflight(ctx, len(prepared))
+	if err != nil {
+		c.releaseInflightN(reserved)
+		if err == ErrSendQueueFull {
+			c.observeSendQueue("full")
+		}
+		return err
+	}
+
+	reqs := make([]writeRequest, len(prepared))
+	for i, item := range prepared {
+		entry, err := pending.addBatch(item.key, c.cfg.AckTimeout, waiter, i, c.releaseInflight)
+		if err != nil {
+			for _, req := range reqs[:i] {
+				pending.fail(req.entry, err)
+			}
+			c.releaseInflightN(len(prepared) - i)
+			return err
+		}
+		reqs[i] = writeRequest{
+			kind:    writeKindSend,
+			msg:     item.msg,
+			pkt:     item.pkt,
+			entry:   entry,
+			ctx:     ctx,
+			conn:    conn,
+			pending: pending,
+			session: session,
+		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		for _, req := range reqs {
+			pending.fail(req.entry, err)
+		}
+		return err
+	}
+
+	for _, req := range reqs {
+		select {
+		case c.writeCh <- req:
+		case <-c.closeCh:
+			for _, failed := range reqs {
+				pending.fail(failed.entry, ErrClosed)
+			}
+			return ErrClosed
+		case <-ctx.Done():
+			for _, failed := range reqs {
+				pending.fail(failed.entry, ctx.Err())
+			}
+			return ctx.Err()
+		}
+	}
+	for range reqs {
+		c.observeSendQueue("accepted")
+	}
+	return nil
 }
 
 func (c *Client) reserveInflight(ctx context.Context, n int) (int, error) {
