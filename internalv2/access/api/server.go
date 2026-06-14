@@ -194,6 +194,8 @@ type Options struct {
 	BenchPresence PresenceBenchController
 	// BenchData stores benchmark channel/subscriber setup when configured.
 	BenchData BenchData
+	// Top provides the node-local read-only operations snapshot for wkcli top.
+	Top TopSnapshotProvider
 	// Channels handles compatible channel metadata and member-list routes.
 	Channels ChannelUsecase
 	// Users handles compatible user token, device, online-status, and system UID routes.
@@ -242,6 +244,7 @@ type Server struct {
 	benchRuntime         ChannelRuntimeBenchController
 	benchPresence        PresenceBenchController
 	benchData            BenchData
+	top                  TopSnapshotProvider
 	channels             ChannelUsecase
 	users                UserUsecase
 	messages             MessageUsecase
@@ -280,6 +283,7 @@ func New(opts Options) *Server {
 		benchRuntime:         opts.BenchRuntime,
 		benchPresence:        opts.BenchPresence,
 		benchData:            opts.BenchData,
+		top:                  opts.Top,
 		channels:             opts.Channels,
 		users:                opts.Users,
 		messages:             opts.Messages,
@@ -431,6 +435,7 @@ func (s *Server) registerRoutes() {
 	s.registerUserRoutes()
 	s.registerMessageRoutes()
 	s.registerConversationRoutes()
+	s.engine.GET("/top/v1/snapshot", s.handleTopSnapshot)
 	if !s.benchEnabled {
 		return
 	}

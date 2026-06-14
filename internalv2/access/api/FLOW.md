@@ -32,6 +32,7 @@ GET  /debug/diagnostics/message       (optional, when DebugAPIEnabled and Diagno
 GET  /debug/diagnostics/events        (optional, when DebugAPIEnabled and Diagnostics are configured)
 GET  /route
 POST /route/batch
+GET  /top/v1/snapshot
 GET  /bench/v1/capabilities
 GET  /bench/v1/capacity-target
 GET  /bench/v1/snapshot
@@ -75,6 +76,11 @@ POST /user/systemuids_remove_from_cache
 The `/bench/v1/*` routes are enabled only when the composition root passes
 `BenchEnabled=true`. They are unauthenticated and must be used only in controlled
 benchmark environments.
+
+`GET /top/v1/snapshot` is a read-only, node-local operations snapshot used by
+`wkcli top`. It is independent of Prometheus metrics and remains disabled unless
+the composition root passes a Top provider; without that provider the route
+returns `404`.
 
 All `/debug...` routes are enabled only when the composition root passes
 `DebugAPIEnabled=true`. In `cmd/wukongimv2`, that switch is
