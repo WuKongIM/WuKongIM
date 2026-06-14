@@ -42,7 +42,12 @@ type topCollector struct {
 	counters map[string]uint64
 	gauges   map[string]int64
 	histos   map[string][]float64
-	samples  []topSample
+	// ring stores fixed-capacity samples ordered by head/count.
+	ring []topSample
+	// head is the next ring slot written by recordSampleAt.
+	head int
+	// count is the number of valid samples currently retained.
+	count int
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -68,7 +73,7 @@ func newTopCollector(options topCollectorOptions) *topCollector {
 		counters: make(map[string]uint64),
 		gauges:   make(map[string]int64),
 		histos:   make(map[string][]float64),
-		samples:  make([]topSample, 0, topRingCapacity(options.CollectInterval, options.HistoryWindow)),
+		ring:     make([]topSample, topRingCapacity(options.CollectInterval, options.HistoryWindow)),
 	}
 }
 
@@ -217,31 +222,16 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.samples = append(c.samples, topSample{
+	c.ring[c.head] = topSample{
 		at:       at.UTC(),
 		counters: cloneUint64Map(c.counters),
 		gauges:   cloneInt64Map(c.gauges),
 		histos:   cloneHistos(c.histos),
 		cluster:  c.clusterSnapshotLocked(),
-	})
-	c.trimSamplesLocked()
-}
-
-func (c *topCollector) trimSamplesLocked() {
-	if len(c.samples) == 0 {
-		return
 	}
-	cutoff := c.samples[len(c.samples)-1].at.Add(-c.options.HistoryWindow)
-	first := 0
-	for first < len(c.samples) && c.samples[first].at.Before(cutoff) {
-		first++
-	}
-	if first > 0 {
-		c.samples = append(c.samples[:0], c.samples[first:]...)
-	}
-	capacity := topRingCapacity(c.options.CollectInterval, c.options.HistoryWindow)
-	if len(c.samples) > capacity {
-		c.samples = append(c.samples[:0], c.samples[len(c.samples)-capacity:]...)
+	c.head = (c.head + 1) % len(c.ring)
+	if c.count < len(c.ring) {
+		c.count++
 	}
 }
 
@@ -266,10 +256,12 @@ func (c *topCollector) clone() *topCollector {
 	out.counters = cloneUint64Map(c.counters)
 	out.gauges = cloneInt64Map(c.gauges)
 	out.histos = cloneHistos(c.histos)
-	out.samples = make([]topSample, len(c.samples))
-	for i := range c.samples {
-		out.samples[i] = cloneTopSample(c.samples[i])
+	out.ring = make([]topSample, len(c.ring))
+	for i := range c.ring {
+		out.ring[i] = cloneTopSample(c.ring[i])
 	}
+	out.head = c.head
+	out.count = c.count
 	return out
 }
 
@@ -314,16 +306,19 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 }
 
 func (c *topCollector) windowLocked(window time.Duration) []topSample {
-	if len(c.samples) == 0 {
+	if c.count == 0 || len(c.ring) == 0 {
 		return nil
 	}
 	if window <= 0 {
 		window = 10 * time.Second
 	}
-	last := c.samples[len(c.samples)-1].at
+	lastIndex := (c.head - 1 + len(c.ring)) % len(c.ring)
+	last := c.ring[lastIndex].at
 	cutoff := last.Add(-window)
-	out := make([]topSample, 0, len(c.samples))
-	for _, sample := range c.samples {
+	out := make([]topSample, 0, c.count)
+	oldest := (c.head - c.count + len(c.ring)) % len(c.ring)
+	for i := 0; i < c.count; i++ {
+		sample := c.ring[(oldest+i)%len(c.ring)]
 		if !sample.at.Before(cutoff) && !sample.at.After(last) {
 			out = append(out, cloneTopSample(sample))
 		}
@@ -517,7 +512,7 @@ func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic,
 	if !snapshot.RoutesReady || !snapshot.SlotsReady || !snapshot.ChannelsReady {
 		return accessapi.TopVerdict{
 			Level:   "critical",
-			Summary: "cluster readiness is incomplete",
+			Summary: "cluster runtime is not ready",
 			Reasons: readinessReasons(snapshot),
 		}
 	}
@@ -525,15 +520,16 @@ func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic,
 	reasons := make([]string, 0, 2)
 	if pressure != nil && severityRank(pressure.OverallLevel) > severityRank(level) {
 		level = pressure.OverallLevel
-		if level != "ok" {
-			reasons = append(reasons, "runtime pressure is "+level)
+		if level != "ok" && len(pressure.Top) > 0 {
+			top := pressure.Top[0]
+			reasons = append(reasons, top.Component+"/"+top.Pool+" pressure")
 		}
 	}
 	if traffic != nil && traffic.SendackErrorRate >= 0.05 && severityRank(level) < severityRank("degraded") {
 		level = "degraded"
-		reasons = append(reasons, "sendack error rate is elevated")
+		reasons = append(reasons, "sendack error rate >= 5%")
 	}
-	summary := "node is operating normally"
+	summary := "runtime healthy"
 	if level != "ok" {
 		summary = "node requires attention"
 	}
@@ -549,7 +545,7 @@ func readinessReasons(snapshot clusterv2.Snapshot) []string {
 		reasons = append(reasons, "slots not ready")
 	}
 	if !snapshot.ChannelsReady {
-		reasons = append(reasons, "channels not ready")
+		reasons = append(reasons, "channelv2 not ready")
 	}
 	return reasons
 }
@@ -568,11 +564,11 @@ func severityRank(level string) int {
 }
 
 func includeTraffic(view accessapi.TopView) bool {
-	return view == accessapi.TopViewOverview || view == accessapi.TopViewTraffic || view == accessapi.TopViewAll || view == ""
+	return view == accessapi.TopViewOverview || view == accessapi.TopViewTraffic || view == accessapi.TopViewAll
 }
 
 func includePressure(view accessapi.TopView) bool {
-	return view == accessapi.TopViewOverview || view == accessapi.TopViewRuntime || view == accessapi.TopViewAll || view == ""
+	return view == accessapi.TopViewOverview || view == accessapi.TopViewRuntime || view == accessapi.TopViewAll
 }
 
 func cloneTopSample(sample topSample) topSample {

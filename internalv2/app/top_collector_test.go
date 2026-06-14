@@ -102,4 +102,90 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 	if snapshot.Pressure.Top[0].Component != "channelv2" {
 		t.Fatalf("top pressure component = %q, want channelv2", snapshot.Pressure.Top[0].Component)
 	}
+	if len(snapshot.Verdict.Reasons) == 0 || snapshot.Verdict.Reasons[0] != "channelv2/store_append pressure" {
+		t.Fatalf("Verdict.Reasons = %#v, want channelv2/store_append pressure", snapshot.Verdict.Reasons)
+	}
+}
+
+func TestTopCollectorVerdictStrings(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewOverview,
+		Limit:  5,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Verdict.Summary != "runtime healthy" {
+		t.Fatalf("ok summary = %q, want runtime healthy", snapshot.Verdict.Summary)
+	}
+
+	notReady := buildTopVerdict(clusterv2.Snapshot{RoutesReady: true, SlotsReady: true}, nil, nil)
+	if notReady.Summary != "cluster runtime is not ready" {
+		t.Fatalf("not-ready summary = %q, want cluster runtime is not ready", notReady.Summary)
+	}
+	if len(notReady.Reasons) != 1 || notReady.Reasons[0] != "channelv2 not ready" {
+		t.Fatalf("not-ready reasons = %#v, want channelv2 not ready", notReady.Reasons)
+	}
+	sendack := buildTopVerdict(
+		clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true},
+		&accessapi.TopTraffic{SendackErrorRate: 0.05},
+		nil,
+	)
+	if len(sendack.Reasons) != 1 || sendack.Reasons[0] != "sendack error rate >= 5%" {
+		t.Fatalf("sendack reasons = %#v, want sendack error rate >= 5%%", sendack.Reasons)
+	}
+}
+
+func TestTopCollectorEmptyViewDoesNotIncludeOptionalSections(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		Limit:  5,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Traffic != nil || snapshot.Pressure != nil {
+		t.Fatalf("Traffic/Pressure = %#v/%#v, want nil for empty view", snapshot.Traffic, snapshot.Pressure)
+	}
+}
+
+func TestTopCollectorRingWindowIteratesOldestToNewest(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		CollectInterval: time.Second,
+		HistoryWindow:   2 * time.Second,
+	})
+	for i := 0; i < 5; i++ {
+		collector.recordSampleAt(time.Unix(int64(100+i), 0))
+	}
+
+	window := collector.windowLocked(10 * time.Second)
+	if collector.count != len(collector.ring) {
+		t.Fatalf("count = %d, want ring capacity %d", collector.count, len(collector.ring))
+	}
+	if len(window) != len(collector.ring) {
+		t.Fatalf("window len = %d, want %d", len(window), len(collector.ring))
+	}
+	for i, sample := range window {
+		want := time.Unix(int64(101+i), 0).UTC()
+		if !sample.at.Equal(want) {
+			t.Fatalf("window[%d] = %s, want %s", i, sample.at, want)
+		}
+	}
 }
