@@ -593,21 +593,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Top.HistoryWindow = historyWindow
 	}
-	if cfg.Top.APIEnabled {
-		collectInterval := cfg.Top.CollectInterval
-		if collectInterval == 0 {
-			collectInterval = time.Second
-		}
-		historyWindow := cfg.Top.HistoryWindow
-		if historyWindow == 0 {
-			historyWindow = 5 * time.Minute
-		}
-		if collectInterval <= 0 {
-			return app.Config{}, fmt.Errorf("%w: top collect interval must be positive", app.ErrInvalidConfig)
-		}
-		if historyWindow < 2*collectInterval {
-			return app.Config{}, fmt.Errorf("%w: top history window must be at least twice the collect interval", app.ErrInvalidConfig)
-		}
+	cfg.Top, err = app.NormalizeTopConfig(cfg.Top)
+	if err != nil {
+		return app.Config{}, err
 	}
 	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
 	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""

@@ -56,8 +56,9 @@ func (a *App) applyConfigDefaults() error {
 	if err := validatePrometheusConfig(a.cfg); err != nil {
 		return err
 	}
-	a.cfg.Top = defaultTopConfig(a.cfg.Top)
-	if err := validateTopConfig(a.cfg.Top); err != nil {
+	var err error
+	a.cfg.Top, err = NormalizeTopConfig(a.cfg.Top)
+	if err != nil {
 		return err
 	}
 	a.cfg.Log = defaultLogConfig(a.cfg.Log)

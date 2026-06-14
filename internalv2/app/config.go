@@ -433,6 +433,15 @@ func defaultTopConfig(cfg TopConfig) TopConfig {
 	return cfg
 }
 
+// NormalizeTopConfig applies defaults and validates the wkcli top snapshot settings.
+func NormalizeTopConfig(cfg TopConfig) (TopConfig, error) {
+	cfg = defaultTopConfig(cfg)
+	if err := validateTopConfig(cfg); err != nil {
+		return TopConfig{}, err
+	}
+	return cfg, nil
+}
+
 func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = "127.0.0.1:9090"
