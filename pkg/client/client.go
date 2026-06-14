@@ -270,7 +270,7 @@ func (c *Client) SendBatch(ctx context.Context, msgs []Message) ([]SendResult, e
 
 	results := make([]SendResult, len(futures))
 	for i, future := range futures {
-		result, err := future.Wait(ctx)
+		result, err := future.waitOnce(ctx)
 		results[i] = result
 		if err != nil {
 			return results, err

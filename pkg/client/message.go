@@ -63,10 +63,14 @@ type SendResult struct {
 type SendFuture struct {
 	// done receives the pending tracker's single terminal outcome.
 	done <-chan sendOutcome
-	// once starts the watcher that caches the terminal outcome.
-	once sync.Once
-	// ready closes after outcome has been cached.
+	// mu protects waiting, ready, completed, and outcome.
+	mu sync.Mutex
+	// waiting marks that one Wait caller is currently consuming done.
+	waiting bool
+	// ready closes when the active waiter completes or gives up.
 	ready chan struct{}
+	// completed marks that outcome has been cached.
+	completed bool
 	// outcome stores the terminal result reused by all Wait callers.
 	outcome sendOutcome
 }
@@ -84,22 +88,73 @@ func (f *SendFuture) Wait(ctx context.Context) (SendResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ready := f.waitReady()
-	select {
-	case <-ready:
-		return f.outcome.result, f.outcome.err
-	case <-ctx.Done():
-		return SendResult{}, ctx.Err()
+	for {
+		f.mu.Lock()
+		if f.completed {
+			out := f.outcome
+			f.mu.Unlock()
+			return out.result, out.err
+		}
+		if !f.waiting {
+			select {
+			case out := <-f.done:
+				f.outcome = out
+				f.completed = true
+				f.mu.Unlock()
+				return out.result, out.err
+			default:
+			}
+
+			ready := make(chan struct{})
+			f.waiting = true
+			f.ready = ready
+			f.mu.Unlock()
+
+			select {
+			case out := <-f.done:
+				f.mu.Lock()
+				if !f.completed {
+					f.outcome = out
+					f.completed = true
+				}
+				if f.ready == ready {
+					f.waiting = false
+					close(ready)
+				}
+				f.mu.Unlock()
+				return out.result, out.err
+			case <-ctx.Done():
+				f.mu.Lock()
+				if !f.completed && f.ready == ready {
+					f.waiting = false
+					close(ready)
+				}
+				f.mu.Unlock()
+				return SendResult{}, ctx.Err()
+			}
+		}
+		ready := f.ready
+		f.mu.Unlock()
+
+		select {
+		case <-ready:
+		case <-ctx.Done():
+			return SendResult{}, ctx.Err()
+		}
 	}
 }
 
-func (f *SendFuture) waitReady() <-chan struct{} {
-	f.once.Do(func() {
-		f.ready = make(chan struct{})
-		go func() {
-			f.outcome = <-f.done
-			close(f.ready)
-		}()
-	})
-	return f.ready
+func (f *SendFuture) waitOnce(ctx context.Context) (SendResult, error) {
+	if f == nil || f.done == nil {
+		return SendResult{}, ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case out := <-f.done:
+		return out.result, out.err
+	case <-ctx.Done():
+		return SendResult{}, ctx.Err()
+	}
 }

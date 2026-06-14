@@ -172,16 +172,38 @@ func TestPendingTrackerAddTimeoutFailsWithErrAckTimeout(t *testing.T) {
 	}
 }
 
+func TestPendingTrackerTimeoutAllocationBudget(t *testing.T) {
+	tracker := &pendingTracker{
+		entries: make(map[pendingKey]*pendingEntry, 1024),
+	}
+	ack := &frame.SendackPacket{ReasonCode: frame.ReasonSuccess}
+	var seq uint64
+
+	allocs := testing.AllocsPerRun(100, func() {
+		seq++
+		key := pendingKey{ClientSeq: seq}
+		entry, err := tracker.add(key, time.Hour)
+		if err != nil {
+			t.Fatalf("add() error = %v", err)
+		}
+		ack.ClientSeq = seq
+		if !tracker.resolve(ack) {
+			t.Fatal("resolve() = false, want true")
+		}
+		<-entry.done
+	})
+	if allocs > 5 {
+		t.Fatalf("pending timeout add/resolve allocations = %.0f, want <= 5", allocs)
+	}
+}
+
 func TestPendingTrackerStaleTimeoutDoesNotFailNewEntryWithSameKey(t *testing.T) {
 	tracker := newPendingTracker()
 	key := pendingKey{ClientSeq: 18, ClientMsgNo: "msg-18"}
-	staleTimer := time.NewTimer(0)
 	staleEntry := &pendingEntry{
-		key:         key,
-		done:        make(chan sendOutcome, 1),
-		timer:       staleTimer,
-		startedAt:   time.Now(),
-		timeoutDone: make(chan struct{}),
+		key:       key,
+		done:      make(chan sendOutcome, 1),
+		startedAt: time.Now(),
 	}
 
 	current, err := tracker.add(key, time.Second)
@@ -360,6 +382,60 @@ func TestSendFutureWaitConcurrentCallersReceiveSameResult(t *testing.T) {
 		if got != want {
 			t.Fatalf("Wait() result = %+v, want %+v", got, want)
 		}
+	}
+}
+
+func TestSendFutureWaitAllocationBudget(t *testing.T) {
+	want := SendResult{
+		ClientSeq:   25,
+		ClientMsgNo: "msg-25",
+		MessageID:   255,
+		MessageSeq:  355,
+		ReasonCode:  frame.ReasonSuccess,
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		done := make(chan sendOutcome, 1)
+		done <- sendOutcome{result: want}
+		close(done)
+		future := &SendFuture{done: done}
+		got, err := future.Wait(context.Background())
+		if err != nil {
+			t.Fatalf("Wait() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("Wait() result = %+v, want %+v", got, want)
+		}
+	})
+	if allocs > 3 {
+		t.Fatalf("Wait allocations = %.0f, want <= 3", allocs)
+	}
+}
+
+func TestSendFutureWaitOnceAllocationBudget(t *testing.T) {
+	want := SendResult{
+		ClientSeq:   24,
+		ClientMsgNo: "msg-24",
+		MessageID:   244,
+		MessageSeq:  344,
+		ReasonCode:  frame.ReasonSuccess,
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		done := make(chan sendOutcome, 1)
+		done <- sendOutcome{result: want}
+		close(done)
+		future := &SendFuture{done: done}
+		got, err := future.waitOnce(context.Background())
+		if err != nil {
+			t.Fatalf("waitOnce() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("waitOnce() result = %+v, want %+v", got, want)
+		}
+	})
+	if allocs > 2 {
+		t.Fatalf("waitOnce allocations = %.0f, want <= 2", allocs)
 	}
 }
 

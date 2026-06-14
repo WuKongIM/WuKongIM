@@ -51,6 +51,76 @@ func BenchmarkPendingTrackerResolve(b *testing.B) {
 	}
 }
 
+func BenchmarkPendingTrackerResolveWithTimeout(b *testing.B) {
+	tracker := &pendingTracker{entries: make(map[pendingKey]*pendingEntry, 1024)}
+	ack := &frame.SendackPacket{ReasonCode: frame.ReasonSuccess}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		seq := uint64(i + 1)
+		entry, err := tracker.add(pendingKey{ClientSeq: seq}, time.Hour)
+		if err != nil {
+			b.Fatalf("pending add error = %v", err)
+		}
+		ack.ClientSeq = seq
+		ack.MessageID = int64(seq)
+		ack.MessageSeq = seq
+		if !tracker.resolve(ack) {
+			b.Fatal("pending resolve returned false")
+		}
+		<-entry.done
+	}
+}
+
+func BenchmarkSendFutureWaitOnceReady(b *testing.B) {
+	result := SendResult{
+		ClientSeq:  1,
+		MessageID:  2,
+		MessageSeq: 3,
+		ReasonCode: frame.ReasonSuccess,
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		done := make(chan sendOutcome, 1)
+		done <- sendOutcome{result: result}
+		close(done)
+		future := &SendFuture{done: done}
+		got, err := future.waitOnce(context.Background())
+		if err != nil {
+			b.Fatalf("waitOnce() error = %v", err)
+		}
+		if got != result {
+			b.Fatalf("waitOnce() result = %+v, want %+v", got, result)
+		}
+	}
+}
+
+func BenchmarkSendFutureWaitReady(b *testing.B) {
+	result := SendResult{
+		ClientSeq:  1,
+		MessageID:  2,
+		MessageSeq: 3,
+		ReasonCode: frame.ReasonSuccess,
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		done := make(chan sendOutcome, 1)
+		done <- sendOutcome{result: result}
+		close(done)
+		future := &SendFuture{done: done}
+		got, err := future.Wait(context.Background())
+		if err != nil {
+			b.Fatalf("Wait() error = %v", err)
+		}
+		if got != result {
+			b.Fatalf("Wait() result = %+v, want %+v", got, result)
+		}
+	}
+}
+
 func BenchmarkWriteBatchEncode(b *testing.B) {
 	for _, batchSize := range []int{1, 64, 512} {
 		b.Run(fmt.Sprintf("batch_%d", batchSize), func(b *testing.B) {

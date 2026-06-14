@@ -24,8 +24,6 @@ type pendingEntry struct {
 	timer *time.Timer
 	// startedAt records when the entry was admitted to the pending tracker.
 	startedAt time.Time
-	// timeoutDone cancels the timeout waiter when the entry finishes first.
-	timeoutDone chan struct{}
 	// once guards completion against SENDACK, timeout, and close races.
 	once sync.Once
 	// onFinish runs after the entry reaches its terminal outcome.
@@ -70,15 +68,13 @@ func (t *pendingTracker) addWithFinish(key pendingKey, timeout time.Duration, on
 		onFinish:  onFinish,
 	}
 	if timeout > 0 {
-		entry.timer = time.NewTimer(timeout)
-		entry.timeoutDone = make(chan struct{})
+		entry.timer = time.AfterFunc(timeout, func() {
+			t.fail(entry, ErrAckTimeout)
+		})
 	}
 	t.entries[key] = entry
 	t.mu.Unlock()
 
-	if timeout > 0 {
-		go t.expire(entry)
-	}
 	return entry, nil
 }
 
@@ -165,24 +161,13 @@ func (t *pendingTracker) takeEntry(entry *pendingEntry) bool {
 }
 
 func (t *pendingTracker) expire(entry *pendingEntry) {
-	if entry.timer == nil {
-		return
-	}
-
-	select {
-	case <-entry.timer.C:
-		t.fail(entry, ErrAckTimeout)
-	case <-entry.timeoutDone:
-	}
+	t.fail(entry, ErrAckTimeout)
 }
 
 func (e *pendingEntry) finish(out sendOutcome) {
 	e.once.Do(func() {
 		if e.timer != nil {
 			e.timer.Stop()
-		}
-		if e.timeoutDone != nil {
-			close(e.timeoutDone)
 		}
 		e.done <- out
 		close(e.done)
