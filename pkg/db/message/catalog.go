@@ -51,7 +51,8 @@ func (db *MessageDB) ListChannels(ctx context.Context) ([]ChannelCatalogEntry, e
 }
 
 func (l *ChannelLog) stageCatalog(batch *engine.Batch) error {
-	return batch.Set(encodeCatalogKey(l.key), encodeCatalogValue(l.id))
+	cache := l.ensureAppendKeyCache()
+	return batch.Set(cache.catalogKey, cache.catalogValue)
 }
 
 func encodeCatalogValue(id ChannelID) []byte {

@@ -21,14 +21,11 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
 
-	rows, result, err := l.prepareAppendRowsLocked(ctx, records, opts)
-	if err != nil || len(rows) == 0 {
-		return AppendResult{}, err
-	}
-
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
-	if err := l.stageMessageRows(batch, rows); err != nil {
+
+	result, err := l.prepareAndStageAppendLocked(ctx, batch, records, opts)
+	if err != nil || result.Count == 0 {
 		return AppendResult{}, err
 	}
 	if err := l.stageCatalog(batch); err != nil {
@@ -41,43 +38,68 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 	return result, nil
 }
 
+func (l *ChannelLog) prepareAndStageAppendLocked(ctx context.Context, batch *engine.Batch, records []Record, opts AppendOptions) (AppendResult, error) {
+	return l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, cache appendKeyCache) error {
+		return l.stageMessageRow(batch, row, cache)
+	})
+}
+
 func (l *ChannelLog) prepareAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions) ([]messageRow, AppendResult, error) {
-	if opts.Mode != AppendStrict && opts.Mode != AppendTrustedContiguous {
-		return nil, AppendResult{}, dberrors.ErrInvalidArgument
-	}
-	leo, err := l.loadLEOLocked(ctx)
+	var rows []messageRow
+	result, err := l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, _ appendKeyCache) error {
+		if rows == nil {
+			rows = make([]messageRow, 0, len(records))
+		}
+		rows = append(rows, row)
+		return nil
+	})
 	if err != nil {
 		return nil, AppendResult{}, err
 	}
+	return rows, result, nil
+}
+
+func (l *ChannelLog) walkAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions, onRow func(messageRow, appendKeyCache) error) (AppendResult, error) {
+	if opts.Mode != AppendStrict && opts.Mode != AppendTrustedContiguous {
+		return AppendResult{}, dberrors.ErrInvalidArgument
+	}
+	leo, err := l.loadLEOLocked(ctx)
+	if err != nil {
+		return AppendResult{}, err
+	}
 	expectedBaseSeq := leo + 1
 	if opts.BaseSeq != 0 && opts.BaseSeq != expectedBaseSeq {
-		return nil, AppendResult{}, fmt.Errorf("%w: base seq %d does not match leo %d", dberrors.ErrConflict, opts.BaseSeq, leo)
+		return AppendResult{}, fmt.Errorf("%w: base seq %d does not match leo %d", dberrors.ErrConflict, opts.BaseSeq, leo)
 	}
 	if len(records) == 0 {
-		return nil, AppendResult{}, nil
+		return AppendResult{}, nil
 	}
 	baseSeq := expectedBaseSeq
 	if opts.BaseSeq != 0 {
 		baseSeq = opts.BaseSeq
 	}
-	rows := make([]messageRow, 0, len(records))
-	seenMessageIDs := make(map[uint64]struct{}, len(records))
-	seenIdempotencyKeys := make(map[IdempotencyKey]struct{}, len(records))
+	seen := newAppendValidationSeen(len(records))
+	cache := l.ensureAppendKeyCache()
+	scratch := appendValidationScratch{}
 	lastSeq := baseSeq - 1
 	defaultServerTimestampMS := time.Now().UnixMilli()
 	for i, record := range records {
 		if err := ctx.Err(); err != nil {
-			return nil, AppendResult{}, err
+			return AppendResult{}, err
 		}
 		seq := baseSeq + uint64(i)
 		row := normalizeMessageRow(l.recordToRow(seq, record, defaultServerTimestampMS))
-		if err := l.validateAppendRow(ctx, row, seenMessageIDs, seenIdempotencyKeys, opts.Mode); err != nil {
-			return nil, AppendResult{}, err
+		if err := l.validateAppendRow(ctx, row, &seen, opts.Mode, cache, &scratch); err != nil {
+			return AppendResult{}, err
 		}
-		rows = append(rows, row)
+		if onRow != nil {
+			if err := onRow(row, cache); err != nil {
+				return AppendResult{}, err
+			}
+		}
 		lastSeq = seq
 	}
-	return rows, AppendResult{
+	return AppendResult{
 		BaseSeq: baseSeq,
 		LastSeq: lastSeq,
 		Count:   len(records),
@@ -93,62 +115,134 @@ func (l *ChannelLog) publishAppendLocked(result AppendResult) {
 }
 
 func (l *ChannelLog) stageMessageRows(batch *engine.Batch, rows []messageRow) error {
+	cache := l.ensureAppendKeyCache()
 	for _, row := range rows {
-		if err := l.stageMessageRow(batch, row); err != nil {
+		if err := l.stageMessageRow(batch, row, cache); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (l *ChannelLog) stageMessageRow(batch *engine.Batch, row messageRow) error {
-	seq := row.MessageSeq
-	headerKey := encodeMessageRowKey(l.key, seq, messageHeaderFamilyID)
-	headerValue, err := encodeMessageHeader(headerKey, row)
-	if err != nil {
+func (l *ChannelLog) stageMessageRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	if err := l.stageMessageHeaderRow(batch, row, cache); err != nil {
 		return err
 	}
-	payloadKey := encodeMessageRowKey(l.key, seq, messagePayloadFamilyID)
-	payloadValue, err := encodeMessagePayload(payloadKey, row)
-	if err != nil {
+	if err := l.stageMessagePayloadRow(batch, row, cache); err != nil {
 		return err
 	}
-	if err := batch.Set(headerKey, headerValue); err != nil {
-		return err
-	}
-	if err := batch.Set(payloadKey, payloadValue); err != nil {
-		return err
-	}
-	if err := batch.Set(encodeMessageIDIndexKey(l.key, row.MessageID), encodeMessageIDIndexValue(row.MessageSeq)); err != nil {
+	if err := l.stageMessageIDIndexRow(batch, row, cache); err != nil {
 		return err
 	}
 	if row.ClientMsgNo != "" {
-		if err := batch.Set(encodeMessageClientMsgNoIndexKey(l.key, row.ClientMsgNo, row.MessageSeq), encodeMessageIDIndexValue(row.MessageSeq)); err != nil {
+		if err := l.stageClientMsgNoIndexRow(batch, row, cache); err != nil {
 			return err
 		}
 	}
 	if row.FromUID != "" && row.ClientMsgNo != "" {
-		value, err := encodeIdempotencyIndexValue(row)
-		if err != nil {
-			return err
-		}
-		if err := batch.Set(encodeMessageIdempotencyIndexKey(l.key, row.FromUID, row.ClientMsgNo), value); err != nil {
+		if err := l.stageIdempotencyIndexRow(batch, row, cache); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seenMessageIDs map[uint64]struct{}, seenIdempotencyKeys map[IdempotencyKey]struct{}, mode AppendMode) error {
+func (l *ChannelLog) stageMessageHeaderRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.messageRowKeyLen(), encodedMessageHeaderLen(row), func(key, value []byte) error {
+		cache.writeMessageRowKey(key, row.MessageSeq, messageHeaderFamilyID)
+		return encodeMessageHeaderTo(value, key, row)
+	})
+}
+
+func (l *ChannelLog) stageMessagePayloadRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.messageRowKeyLen(), encodedMessagePayloadLen(row), func(key, value []byte) error {
+		cache.writeMessageRowKey(key, row.MessageSeq, messagePayloadFamilyID)
+		return encodeMessagePayloadTo(value, key, row)
+	})
+}
+
+func (l *ChannelLog) stageMessageIDIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.messageIDIndexKeyLen(), messageIDIndexValueLen, func(key, value []byte) error {
+		cache.writeMessageIDIndexKey(key, row.MessageID)
+		writeMessageIDIndexValue(value, row.MessageSeq)
+		return nil
+	})
+}
+
+func (l *ChannelLog) stageClientMsgNoIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.clientMsgNoIndexKeyLen(row.ClientMsgNo), messageIDIndexValueLen, func(key, value []byte) error {
+		cache.writeClientMsgNoIndexKey(key, row.ClientMsgNo, row.MessageSeq)
+		writeMessageIDIndexValue(value, row.MessageSeq)
+		return nil
+	})
+}
+
+func (l *ChannelLog) stageIdempotencyIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.idempotencyIndexKeyLen(row.FromUID, row.ClientMsgNo), idempotencyIndexValueLen, func(key, value []byte) error {
+		cache.writeIdempotencyIndexKey(key, row.FromUID, row.ClientMsgNo)
+		return writeIdempotencyIndexValue(value, row)
+	})
+}
+
+// appendValidationSeen tracks in-batch duplicate keys during one append.
+type appendValidationSeen struct {
+	messageIDs          map[uint64]struct{}
+	idempotencyKeys     map[IdempotencyKey]struct{}
+	firstIdempotencyKey IdempotencyKey
+	hasIdempotencyKey   bool
+	idempotencyCapacity int
+}
+
+func newAppendValidationSeen(recordCount int) appendValidationSeen {
+	return appendValidationSeen{
+		messageIDs:          make(map[uint64]struct{}, recordCount),
+		idempotencyCapacity: recordCount,
+	}
+}
+
+func (s *appendValidationSeen) rememberMessageID(messageID uint64) bool {
+	if _, ok := s.messageIDs[messageID]; ok {
+		return true
+	}
+	s.messageIDs[messageID] = struct{}{}
+	return false
+}
+
+func (s *appendValidationSeen) rememberIdempotencyKey(key IdempotencyKey) bool {
+	if !s.hasIdempotencyKey {
+		s.firstIdempotencyKey = key
+		s.hasIdempotencyKey = true
+		return false
+	}
+	if s.firstIdempotencyKey == key {
+		return true
+	}
+	if s.idempotencyKeys == nil {
+		s.idempotencyKeys = make(map[IdempotencyKey]struct{}, s.idempotencyCapacity)
+		s.idempotencyKeys[s.firstIdempotencyKey] = struct{}{}
+	}
+	if _, ok := s.idempotencyKeys[key]; ok {
+		return true
+	}
+	s.idempotencyKeys[key] = struct{}{}
+	return false
+}
+
+type appendValidationScratch struct {
+	messageIDIndexKey   []byte
+	idempotencyIndexKey []byte
+}
+
+func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen *appendValidationSeen, mode AppendMode, cache appendKeyCache, scratch *appendValidationScratch) error {
 	if err := row.validate(); err != nil {
 		return err
 	}
-	if _, ok := seenMessageIDs[row.MessageID]; ok {
+	if seen.rememberMessageID(row.MessageID) {
 		return fmt.Errorf("%w: duplicate message id %d", dberrors.ErrConflict, row.MessageID)
 	}
-	seenMessageIDs[row.MessageID] = struct{}{}
 	if mode == AppendStrict {
-		existingSeq, ok, err := l.lookupMessageIDSeq(ctx, row.MessageID)
+		scratch.messageIDIndexKey = cache.messageIDIndexKeyTo(scratch.messageIDIndexKey, row.MessageID)
+		existingSeq, ok, err := l.lookupMessageIDSeqByKey(ctx, scratch.messageIDIndexKey)
 		if err != nil {
 			return err
 		}
@@ -160,14 +254,14 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 		return nil
 	}
 	key := IdempotencyKey{FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo}
-	if _, ok := seenIdempotencyKeys[key]; ok {
+	if seen.rememberIdempotencyKey(key) {
 		return fmt.Errorf("%w: duplicate idempotency key", dberrors.ErrConflict)
 	}
-	seenIdempotencyKeys[key] = struct{}{}
 	if mode == AppendTrustedContiguous {
 		return nil
 	}
-	hit, ok, err := l.lookupIdempotency(ctx, key)
+	scratch.idempotencyIndexKey = cache.idempotencyIndexKeyTo(scratch.idempotencyIndexKey, key.FromUID, key.ClientMsgNo)
+	hit, ok, err := l.lookupIdempotencyByKey(ctx, key, scratch.idempotencyIndexKey)
 	if err != nil {
 		return err
 	}
@@ -189,7 +283,7 @@ func (l *ChannelLog) recordToRow(seq uint64, record Record, defaultServerTimesta
 		FromUID:           record.FromUID,
 		ChannelID:         l.id.ID,
 		ChannelType:       l.id.Type,
-		Payload:           append([]byte(nil), record.Payload...),
+		Payload:           record.Payload,
 		ServerTimestampMS: serverTimestampMS,
 	}
 	if record.SizeBytes > 0 {

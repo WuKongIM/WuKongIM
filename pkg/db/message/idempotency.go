@@ -23,7 +23,15 @@ func (l *ChannelLog) lookupIdempotency(ctx context.Context, key IdempotencyKey) 
 	if key.FromUID == "" || key.ClientMsgNo == "" {
 		return IdempotencyHit{}, false, dberrors.ErrInvalidArgument
 	}
-	value, ok, err := l.db.engine.Get(encodeMessageIdempotencyIndexKey(l.key, key.FromUID, key.ClientMsgNo))
+	cache := l.ensureAppendKeyCache()
+	return l.lookupIdempotencyByKey(ctx, key, cache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo))
+}
+
+func (l *ChannelLog) lookupIdempotencyByKey(ctx context.Context, key IdempotencyKey, storageKey []byte) (IdempotencyHit, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	value, ok, err := l.db.engine.Get(storageKey)
 	if err != nil || !ok {
 		return IdempotencyHit{}, ok, err
 	}
@@ -41,20 +49,32 @@ func (l *ChannelLog) lookupIdempotency(ctx context.Context, key IdempotencyKey) 
 	return hit, true, nil
 }
 
+const idempotencyIndexValueLen = 24
+
 func encodeIdempotencyIndexValue(row messageRow) ([]byte, error) {
-	row = normalizeMessageRow(row)
-	if err := row.validate(); err != nil {
+	value := make([]byte, idempotencyIndexValueLen)
+	if err := writeIdempotencyIndexValue(value, row); err != nil {
 		return nil, err
 	}
-	value := make([]byte, 0, 24)
-	value = binary.BigEndian.AppendUint64(value, row.MessageSeq)
-	value = binary.BigEndian.AppendUint64(value, row.MessageID)
-	value = binary.BigEndian.AppendUint64(value, row.PayloadHash)
 	return value, nil
 }
 
+func writeIdempotencyIndexValue(dst []byte, row messageRow) error {
+	row = normalizeMessageRow(row)
+	if err := row.validate(); err != nil {
+		return err
+	}
+	if len(dst) != idempotencyIndexValueLen {
+		return dberrors.ErrInvalidArgument
+	}
+	binary.BigEndian.PutUint64(dst[0:8], row.MessageSeq)
+	binary.BigEndian.PutUint64(dst[8:16], row.MessageID)
+	binary.BigEndian.PutUint64(dst[16:24], row.PayloadHash)
+	return nil
+}
+
 func decodeIdempotencyIndexValue(value []byte) (IdempotencyHit, error) {
-	if len(value) != 24 {
+	if len(value) != idempotencyIndexValueLen {
 		return IdempotencyHit{}, dberrors.ErrCorruptValue
 	}
 	seq := binary.BigEndian.Uint64(value[0:8])

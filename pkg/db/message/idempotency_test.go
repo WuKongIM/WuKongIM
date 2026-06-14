@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -35,6 +36,31 @@ func TestIdempotencyLookup(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("LookupIdempotency() missing ok = true, want false")
+	}
+}
+
+func TestIdempotencyIndexValueDirectCodecMatchesEncoder(t *testing.T) {
+	row := normalizeMessageRow(messageRow{
+		MessageSeq:        3,
+		MessageID:         73,
+		ClientMsgNo:       "same",
+		FromUID:           "u1",
+		ChannelID:         "ch",
+		ChannelType:       1,
+		Payload:           []byte("payload"),
+		ServerTimestampMS: 99,
+	})
+	value := make([]byte, idempotencyIndexValueLen)
+	if err := writeIdempotencyIndexValue(value, row); err != nil {
+		t.Fatalf("writeIdempotencyIndexValue(): %v", err)
+	}
+
+	want, err := encodeIdempotencyIndexValue(row)
+	if err != nil {
+		t.Fatalf("encodeIdempotencyIndexValue(): %v", err)
+	}
+	if !bytes.Equal(value, want) {
+		t.Fatalf("direct idempotency index value = %x, want %x", value, want)
 	}
 }
 

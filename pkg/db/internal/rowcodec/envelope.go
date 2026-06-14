@@ -38,18 +38,37 @@ type Envelope struct {
 	Payload []byte
 }
 
+// EnvelopeLen returns the encoded envelope length for a payload of payloadLen bytes.
+func EnvelopeLen(payloadLen int) int {
+	return envelopeHeaderLen + payloadLen
+}
+
 // Wrap builds a value envelope for key and payload.
 func Wrap(key []byte, version byte, codec byte, flags byte, payload []byte) []byte {
-	value := make([]byte, envelopeHeaderLen+len(payload))
-	value[0] = version
-	value[1] = codec
-	value[2] = flags
-	copy(value[envelopeHeaderLen:], payload)
-	if flags&FlagChecksum != 0 {
-		sum := envelopeChecksum(key, value)
-		binary.BigEndian.PutUint32(value[3:7], sum)
+	value := make([]byte, EnvelopeLen(len(payload)))
+	if err := WrapTo(value, key, version, codec, flags, payload); err != nil {
+		panic(err)
 	}
 	return value
+}
+
+// WrapTo builds a value envelope in dst for key and payload.
+func WrapTo(dst []byte, key []byte, version byte, codec byte, flags byte, payload []byte) error {
+	if len(dst) != EnvelopeLen(len(payload)) {
+		return dberrors.ErrInvalidArgument
+	}
+	dst[0] = version
+	dst[1] = codec
+	dst[2] = flags
+	for i := 3; i < envelopeHeaderLen; i++ {
+		dst[i] = 0
+	}
+	copy(dst[envelopeHeaderLen:], payload)
+	if flags&FlagChecksum != 0 {
+		sum := envelopeChecksum(key, dst)
+		binary.BigEndian.PutUint32(dst[3:7], sum)
+	}
+	return nil
 }
 
 // Unwrap verifies and decodes a value envelope.

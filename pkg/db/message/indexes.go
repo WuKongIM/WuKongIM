@@ -89,7 +89,15 @@ func (l *ChannelLog) lookupMessageIDSeq(ctx context.Context, messageID uint64) (
 	if messageID == 0 {
 		return 0, false, dberrors.ErrInvalidArgument
 	}
-	value, ok, err := l.db.engine.Get(encodeMessageIDIndexKey(l.key, messageID))
+	cache := l.ensureAppendKeyCache()
+	return l.lookupMessageIDSeqByKey(ctx, cache.messageIDIndexKey(messageID))
+}
+
+func (l *ChannelLog) lookupMessageIDSeqByKey(ctx context.Context, storageKey []byte) (uint64, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
+	value, ok, err := l.db.engine.Get(storageKey)
 	if err != nil || !ok {
 		return 0, ok, err
 	}
@@ -100,12 +108,20 @@ func (l *ChannelLog) lookupMessageIDSeq(ctx context.Context, messageID uint64) (
 	return seq, true, nil
 }
 
+const messageIDIndexValueLen = 8
+
 func encodeMessageIDIndexValue(seq uint64) []byte {
-	return binary.BigEndian.AppendUint64(nil, seq)
+	value := make([]byte, messageIDIndexValueLen)
+	writeMessageIDIndexValue(value, seq)
+	return value
+}
+
+func writeMessageIDIndexValue(dst []byte, seq uint64) {
+	binary.BigEndian.PutUint64(dst, seq)
 }
 
 func decodeMessageIDIndexValue(value []byte) (uint64, error) {
-	if len(value) != 8 {
+	if len(value) != messageIDIndexValueLen {
 		return 0, dberrors.ErrCorruptValue
 	}
 	return binary.BigEndian.Uint64(value), nil

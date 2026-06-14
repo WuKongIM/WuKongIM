@@ -27,6 +27,30 @@ func TestMessageHeaderCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMessageHeaderDirectCodecMatchesEncoder(t *testing.T) {
+	row := testMessageRow()
+	key := encodeMessageRowKey(ChannelKey("ch-1"), row.MessageSeq, messageHeaderFamilyID)
+	want, err := encodeMessageHeader(key, row)
+	if err != nil {
+		t.Fatalf("encodeMessageHeader(): %v", err)
+	}
+	got := make([]byte, encodedMessageHeaderLen(row))
+	if err := encodeMessageHeaderTo(got, key, row); err != nil {
+		t.Fatalf("encodeMessageHeaderTo(): %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("encodeMessageHeaderTo() = %x, want %x", got, want)
+	}
+	var decoded messageRow
+	decoded.MessageSeq = row.MessageSeq
+	if err := decodeMessageHeader(key, got, &decoded); err != nil {
+		t.Fatalf("decodeMessageHeader(): %v", err)
+	}
+	if decoded.MessageID != row.MessageID || decoded.ClientMsgNo != row.ClientMsgNo || decoded.PayloadHash != row.PayloadHash || decoded.PayloadSize != row.PayloadSize || decoded.ServerTimestampMS != row.ServerTimestampMS {
+		t.Fatalf("decoded row = %#v, want %#v", decoded, row)
+	}
+}
+
 func TestMessagePayloadCodecRoundTrip(t *testing.T) {
 	row := testMessageRow()
 	key := encodeMessageRowKey(ChannelKey("ch-1"), row.MessageSeq, messagePayloadFamilyID)
@@ -40,6 +64,29 @@ func TestMessagePayloadCodecRoundTrip(t *testing.T) {
 	}
 	if string(got.Payload) != string(row.Payload) {
 		t.Fatalf("payload = %q, want %q", got.Payload, row.Payload)
+	}
+}
+
+func TestMessagePayloadDirectCodecMatchesEncoder(t *testing.T) {
+	row := testMessageRow()
+	key := encodeMessageRowKey(ChannelKey("ch-1"), row.MessageSeq, messagePayloadFamilyID)
+	want, err := encodeMessagePayload(key, row)
+	if err != nil {
+		t.Fatalf("encodeMessagePayload(): %v", err)
+	}
+	got := make([]byte, encodedMessagePayloadLen(row))
+	if err := encodeMessagePayloadTo(got, key, row); err != nil {
+		t.Fatalf("encodeMessagePayloadTo(): %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("encodeMessagePayloadTo() = %x, want %x", got, want)
+	}
+	var decoded messageRow
+	if err := decodeMessagePayload(key, got, &decoded); err != nil {
+		t.Fatalf("decodeMessagePayload(): %v", err)
+	}
+	if string(decoded.Payload) != string(row.Payload) {
+		t.Fatalf("payload = %q, want %q", decoded.Payload, row.Payload)
 	}
 }
 

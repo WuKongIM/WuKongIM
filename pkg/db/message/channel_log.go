@@ -16,9 +16,10 @@ type ChannelLog struct {
 	key ChannelKey
 	id  ChannelID
 
-	appendMu sync.Mutex
-	leo      atomic.Uint64
-	loaded   atomic.Bool
+	appendKeyCache appendKeyCache
+	appendMu       sync.Mutex
+	leo            atomic.Uint64
+	loaded         atomic.Bool
 }
 
 // LEO returns the next append base minus one for this channel log.
@@ -48,6 +49,14 @@ func (l *ChannelLog) loadLEOLocked(ctx context.Context) (uint64, error) {
 	l.leo.Store(leo)
 	l.loaded.Store(true)
 	return leo, nil
+}
+
+func (l *ChannelLog) ensureAppendKeyCache() appendKeyCache {
+	if l.appendKeyCache.initialized() {
+		return l.appendKeyCache
+	}
+	l.appendKeyCache = newAppendKeyCache(l.key, l.id)
+	return l.appendKeyCache
 }
 
 func (l *ChannelLog) recoverLEO(ctx context.Context) (uint64, error) {

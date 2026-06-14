@@ -34,7 +34,7 @@ func (db *MessageDB) Channel(key ChannelKey, id ChannelID) *ChannelLog {
 	if log := db.logs[key]; log != nil {
 		return log
 	}
-	log := &ChannelLog{db: db, key: key, id: id}
+	log := &ChannelLog{db: db, key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
 	db.logs[key] = log
 	return log
 }

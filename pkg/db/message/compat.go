@@ -1489,10 +1489,11 @@ func (s *ChannelStore) storeCommittedDispatchCursor(name string, seq uint64, syn
 }
 
 func (s *ChannelStore) validateRowsForAppend(ctx context.Context, rows []messageRow, mode AppendMode) error {
-	seenMessageIDs := make(map[uint64]struct{}, len(rows))
-	seenIdempotencyKeys := make(map[IdempotencyKey]struct{}, len(rows))
+	seen := newAppendValidationSeen(len(rows))
+	cache := s.log.ensureAppendKeyCache()
+	scratch := appendValidationScratch{}
 	for _, row := range rows {
-		if err := s.log.validateAppendRow(ctx, row, seenMessageIDs, seenIdempotencyKeys, mode); err != nil {
+		if err := s.log.validateAppendRow(ctx, row, &seen, mode, cache, &scratch); err != nil {
 			return toChannelError(err)
 		}
 	}

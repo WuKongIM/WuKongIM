@@ -32,6 +32,33 @@ func TestEnvelopeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEnvelopeWrapToMatchesWrap(t *testing.T) {
+	key := []byte("row-key")
+	payload := []byte("payload")
+	want := rowcodec.Wrap(key, 7, rowcodec.CodecRaw, rowcodec.FlagChecksum, payload)
+	got := make([]byte, rowcodec.EnvelopeLen(len(payload)))
+	if err := rowcodec.WrapTo(got, key, 7, rowcodec.CodecRaw, rowcodec.FlagChecksum, payload); err != nil {
+		t.Fatalf("WrapTo(): %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("WrapTo() = %x, want %x", got, want)
+	}
+	env, err := rowcodec.Unwrap(key, got)
+	if err != nil {
+		t.Fatalf("Unwrap(WrapTo()): %v", err)
+	}
+	if env.Version != 7 || env.Codec != rowcodec.CodecRaw || !bytes.Equal(env.Payload, payload) {
+		t.Fatalf("env = %#v", env)
+	}
+}
+
+func TestEnvelopeWrapToRejectsWrongLength(t *testing.T) {
+	err := rowcodec.WrapTo(make([]byte, rowcodec.EnvelopeLen(3)-1), []byte("key"), 1, rowcodec.CodecRaw, 0, []byte("abc"))
+	if !errors.Is(err, db.ErrInvalidArgument) {
+		t.Fatalf("err = %v, want invalid argument", err)
+	}
+}
+
 func TestColumnWriterAndScannerRoundTrip(t *testing.T) {
 	var w rowcodec.Writer
 	if err := w.String(1, "uid-1"); err != nil {
