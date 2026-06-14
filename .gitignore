@@ -3,6 +3,7 @@
 *.dll
 *.so
 *.dylib
+/wukongimv2
 
 # Test binary, build with `go test -c`
 *.test
