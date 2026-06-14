@@ -10,16 +10,16 @@ registration; each feature command lives in its own directory.
 go run ./cmd/wkcli <command> [flags]
 ```
 
-Current placeholders:
+Current commands:
 
 | Command | Purpose |
 | --- | --- |
 | `context` | Manages named WuKongIM server API contexts. |
+| `bench send` | Runs a lightweight WKProto SEND/SENDACK benchmark using `pkg/client`. |
 | `top` | Reserved for live WuKongIM runtime pressure inspection. |
-| `bench` | Reserved for WuKongIM benchmark helpers. |
 
-The `top` and `bench` placeholders are visible in help output and return a
-stable `exitUnavailable` code until implemented.
+The `top` placeholder is visible in help output and returns a stable
+`exitUnavailable` code until implemented.
 
 ## Contexts
 
@@ -54,6 +54,45 @@ By default, contexts are stored under the user config directory:
 ```
 
 Use `--context-dir` to point tests or local experiments at an isolated store.
+
+## Bench Send
+
+`bench send` is a lightweight direct WKProto benchmark. It is intended for quick
+client-side SEND/SENDACK throughput checks and does not replace the full
+black-box `cmd/wkbench` scenario runner.
+
+```bash
+go run ./cmd/wkcli bench send \
+  --gateway 127.0.0.1:5100 \
+  --clients 8 \
+  --msgs 100000 \
+  --channels 100 \
+  --channel-prefix bench-g \
+  --channel-type group \
+  --size 128B
+```
+
+Target selection order:
+
+1. `--gateway` uses explicit WKProto TCP gateway addresses.
+2. `--server` uses HTTP API addresses and discovers gateways through
+   `/bench/v1/capacity-target`.
+3. `--context` or the selected current context supplies HTTP API addresses for
+   discovery.
+
+`--msgs` is the total message count across all clients and channels. When
+`--channels > 1`, channel IDs are generated as
+`<channel-prefix>-000001`, `<channel-prefix>-000002`, and so on. Channel
+selection defaults to `round_robin`; `random` is also available through
+`--channel-pick`.
+
+Useful output flags:
+
+```bash
+go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --json
+go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --csv ./bench.csv
+go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --no-progress
+```
 
 ## Extending
 

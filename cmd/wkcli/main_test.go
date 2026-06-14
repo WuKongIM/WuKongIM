@@ -39,7 +39,7 @@ func TestRootCommandRequiresSubcommand(t *testing.T) {
 }
 
 func TestPlaceholderSubcommandsReturnNotImplemented(t *testing.T) {
-	for _, name := range []string{"top", "bench"} {
+	for _, name := range []string{"top"} {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
@@ -53,6 +53,19 @@ func TestPlaceholderSubcommandsReturnNotImplemented(t *testing.T) {
 				t.Fatalf("expected %q, got %q", want, stderr.String())
 			}
 		})
+	}
+}
+
+func TestBenchCommandRequiresSubcommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := runWithIO([]string{"bench"}, &stdout, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code %d, got %d stdout %q stderr %q", exitConfig, code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "send") {
+		t.Fatalf("expected bench help to list send command, got stdout %q stderr %q", stdout.String(), stderr.String())
 	}
 }
 
