@@ -3,6 +3,7 @@ package top
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
+	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 )
 
@@ -59,6 +61,56 @@ func TestTopOnceRendersJSON(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected JSON output to contain %q, got %q", want, stdout.String())
 		}
+	}
+}
+
+func TestTopWithoutOnceReturnsInteractiveMessageBeforeServerResolution(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs(nil)
+
+	err := cmd.Execute()
+
+	var exit command.Exit
+	if !errors.As(err, &exit) {
+		t.Fatalf("expected command exit, got %v", err)
+	}
+	if exit.Code != command.ExitConfig {
+		t.Fatalf("expected config exit code %d, got %d", command.ExitConfig, exit.Code)
+	}
+	if exit.Message != "interactive top is not available yet; use --once" {
+		t.Fatalf("expected interactive message, got %q", exit.Message)
+	}
+}
+
+func TestTopContextDirIsResolvedAtExecution(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	staleDir := t.TempDir()
+	parsedDir := t.TempDir()
+	if err := contextcmd.NewStore(parsedDir).Save(contextcmd.Context{
+		Name:    "dev",
+		Servers: []string{server.URL},
+	}); err != nil {
+		t.Fatalf("save context: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	contextDir := staleDir
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr, ContextDir: &contextDir})
+	contextDir = parsedDir
+	cmd.SetArgs([]string{"--context", "dev", "--once"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected top once to use parsed context dir, got %v stderr %q", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "node-1") {
+		t.Fatalf("expected context-backed snapshot output, got %q", stdout.String())
 	}
 }
 

@@ -15,24 +15,22 @@ import (
 // NewCommand builds the top subcommand.
 func NewCommand(deps command.Deps) *cobra.Command {
 	cfg := config{}
-	if deps.ContextDir != nil {
-		cfg.ContextDir = *deps.ContextDir
-	}
 	cmd := &cobra.Command{
 		Use:   "top",
 		Short: "Inspect live WuKongIM runtime pressure",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg.ContextDir = contextDirFromDeps(deps)
 			normalized, err := normalizeConfig(cfg)
-			if err != nil {
-				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
-			}
-			normalized.Servers, err = resolveServers(normalized)
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
 			if !normalized.Once {
 				return command.Exit{Code: command.ExitConfig, Message: "interactive top is not available yet; use --once"}
+			}
+			normalized.Servers, err = resolveServers(normalized)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
 			if err := runOnce(cmd.Context(), deps.Stdout, normalized); err != nil {
 				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
@@ -51,6 +49,13 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.Flags().BoolVar(&cfg.Once, "once", false, "Fetch and render one snapshot")
 	cmd.Flags().BoolVar(&cfg.JSON, "json", false, "Render JSON output")
 	return cmd
+}
+
+func contextDirFromDeps(deps command.Deps) string {
+	if deps.ContextDir == nil {
+		return ""
+	}
+	return *deps.ContextDir
 }
 
 func resolveServers(cfg config) ([]string, error) {
