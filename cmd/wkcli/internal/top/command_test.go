@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,9 +92,32 @@ func TestTopOncePreservesServerQueryEndingSlashAndBasePath(t *testing.T) {
 	}
 }
 
-func TestTopWithoutOnceReturnsInteractiveMessageBeforeServerResolution(t *testing.T) {
+func TestTopInteractiveMaxRefreshRunsRepeatedSnapshots(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
 	var stdout, stderr bytes.Buffer
 	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL, "--max-refresh", "2", "--interval", "1ms"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected bounded interactive top to run, got %v stderr %q", err, stderr.String())
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 snapshot calls, got %d output %q", got, stdout.String())
+	}
+}
+
+func TestTopInteractiveWithoutServerReturnsConfigError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	contextDir := t.TempDir()
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr, ContextDir: &contextDir})
 	cmd.SetArgs(nil)
 
 	err := cmd.Execute()
@@ -105,8 +129,8 @@ func TestTopWithoutOnceReturnsInteractiveMessageBeforeServerResolution(t *testin
 	if exit.Code != command.ExitConfig {
 		t.Fatalf("expected config exit code %d, got %d", command.ExitConfig, exit.Code)
 	}
-	if exit.Message != "interactive top is not available yet; use --once" {
-		t.Fatalf("expected interactive message, got %q", exit.Message)
+	if exit.Message != "no server or current context selected" {
+		t.Fatalf("expected missing server message, got %q", exit.Message)
 	}
 }
 

@@ -25,14 +25,16 @@ func NewCommand(deps command.Deps) *cobra.Command {
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
-			if !normalized.Once {
-				return command.Exit{Code: command.ExitConfig, Message: "interactive top is not available yet; use --once"}
-			}
 			normalized.Servers, err = resolveServers(normalized)
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
-			if err := runOnce(cmd.Context(), deps.Stdout, normalized); err != nil {
+			if normalized.Once {
+				err = runOnce(cmd.Context(), deps.Stdout, normalized)
+			} else {
+				err = runInteractive(cmd.Context(), deps.Stdout, normalized)
+			}
+			if err != nil {
 				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
 			}
 			return nil
@@ -48,6 +50,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.Flags().DurationVar(&cfg.Interval, "interval", 0, "Interactive refresh interval")
 	cmd.Flags().BoolVar(&cfg.Once, "once", false, "Fetch and render one snapshot")
 	cmd.Flags().BoolVar(&cfg.JSON, "json", false, "Render JSON output")
+	cmd.Flags().IntVar(&cfg.MaxRefresh, "max-refresh", 0, "Maximum refreshes before exiting; 0 refreshes until interrupted")
 	return cmd
 }
 

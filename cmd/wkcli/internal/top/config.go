@@ -24,6 +24,7 @@ type config struct {
 	Once        bool
 	JSON        bool
 	Interval    time.Duration
+	MaxRefresh  int
 }
 
 func normalizeConfig(cfg config) (config, error) {
@@ -45,6 +46,9 @@ func normalizeConfig(cfg config) (config, error) {
 	}
 	if cfg.Limit <= 0 {
 		return cfg, fmt.Errorf("limit must be positive")
+	}
+	if cfg.MaxRefresh < 0 {
+		return cfg, fmt.Errorf("max-refresh must be non-negative")
 	}
 	servers := make([]string, 0, len(cfg.Servers))
 	for _, server := range cfg.Servers {

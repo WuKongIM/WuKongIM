@@ -20,19 +20,21 @@ Current commands:
 
 ## Top
 
-`top --once` reads the internalv2 `/top/v1/snapshot` HTTP endpoint from one or
-more WuKongIM nodes, aggregates the node-local snapshots, and renders either a
-human overview or pretty JSON. It does not query Prometheus; the endpoint
-reports whether metrics are enabled, but metrics are not required for this view.
+`top` reads the internalv2 `/top/v1/snapshot` HTTP endpoint from one or more
+WuKongIM nodes, aggregates the node-local snapshots, and renders either a human
+overview or pretty JSON. It does not query Prometheus; the endpoint reports
+whether metrics are enabled, but metrics are not required for this view.
 
 ```bash
-go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once
+go run ./cmd/wkcli top --server http://127.0.0.1:5001
 go run ./cmd/wkcli top --context dev --once --json
+go run ./cmd/wkcli top --context dev --interval 2s --max-refresh 5
 ```
 
 Without `--server`, `top` reads servers from `--context` or the selected current
-context. Interactive refresh mode is reserved for a later implementation; use
-`--once` for the current snapshot view.
+context. By default it refreshes until interrupted. Use `--once` for a single
+snapshot, or `--max-refresh` to stop after a bounded number of refreshes for
+tests and scripted checks.
 
 ## Contexts
 
