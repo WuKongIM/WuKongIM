@@ -38,21 +38,16 @@ func TestRootCommandRequiresSubcommand(t *testing.T) {
 	}
 }
 
-func TestPlaceholderSubcommandsReturnNotImplemented(t *testing.T) {
-	for _, name := range []string{"top"} {
-		t.Run(name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
+func TestTopCommandHelpListsOnceFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
 
-			code := runWithIO([]string{name}, &stdout, &stderr)
+	code := runWithIO([]string{"top", "--help"}, &stdout, &stderr)
 
-			if code != exitUnavailable {
-				t.Fatalf("expected unavailable exit code %d, got %d", exitUnavailable, code)
-			}
-			want := fmt.Sprintf("wkcli %s is not implemented yet", name)
-			if !strings.Contains(stderr.String(), want) {
-				t.Fatalf("expected %q, got %q", want, stderr.String())
-			}
-		})
+	if code != exitOK {
+		t.Fatalf("expected help exit code %d, got %d stderr %q", exitOK, code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "--once") {
+		t.Fatalf("expected top help to list --once, got %q", stdout.String())
 	}
 }
 

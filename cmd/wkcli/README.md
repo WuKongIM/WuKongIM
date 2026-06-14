@@ -16,10 +16,23 @@ Current commands:
 | --- | --- |
 | `context` | Manages named WuKongIM server API contexts. |
 | `bench send` | Runs a lightweight WKProto SEND/SENDACK benchmark using `pkg/client`. |
-| `top` | Reserved for live WuKongIM runtime pressure inspection. |
+| `top` | Reads live internalv2 runtime pressure snapshots. |
 
-The `top` placeholder is visible in help output and returns a stable
-`exitUnavailable` code until implemented.
+## Top
+
+`top --once` reads the internalv2 `/top/v1/snapshot` HTTP endpoint from one or
+more WuKongIM nodes, aggregates the node-local snapshots, and renders either a
+human overview or pretty JSON. It does not query Prometheus; the endpoint
+reports whether metrics are enabled, but metrics are not required for this view.
+
+```bash
+go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once
+go run ./cmd/wkcli top --context dev --once --json
+```
+
+Without `--server`, `top` reads servers from `--context` or the selected current
+context. Interactive refresh mode is reserved for a later implementation; use
+`--once` for the current snapshot view.
 
 ## Contexts
 
