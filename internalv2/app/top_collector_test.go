@@ -352,6 +352,42 @@ func TestTopCollectorPressureSortsPriorityDeterministically(t *testing.T) {
 	}
 }
 
+func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	collector.SetInflight("transportv2", "rpc", 3, 0)
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewAll,
+		Limit:  5,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) == 0 {
+		t.Fatalf("Pressure = %#v, want transportv2 item", snapshot.Pressure)
+	}
+	if snapshot.Pressure.OverallLevel != "ok" {
+		t.Fatalf("Pressure.OverallLevel = %q, want ok", snapshot.Pressure.OverallLevel)
+	}
+	if snapshot.Verdict.Level != "ok" {
+		t.Fatalf("Verdict.Level = %q, want ok", snapshot.Verdict.Level)
+	}
+	item := snapshot.Pressure.Top[0]
+	if item.Component != "transportv2" || item.Pool != "rpc" || item.Inflight != 3 || item.Workers != 0 {
+		t.Fatalf("top pressure item = %#v, want transportv2 rpc inflight=3 workers=0", item)
+	}
+	if item.Score != 0 {
+		t.Fatalf("top pressure score = %v, want 0 for unknown worker capacity", item.Score)
+	}
+}
+
 func TestTopCollectorVerdictStrings(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		ClusterSnapshot: func() clusterv2.Snapshot {

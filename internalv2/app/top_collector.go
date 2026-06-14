@@ -878,7 +878,7 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 	overall := "ok"
 	for _, item := range byKey {
 		item.Score = pressureScore(item.Depth, item.Capacity)
-		if inflightScore := pressureScore(item.Inflight, item.Workers); inflightScore > item.Score {
+		if inflightScore := inflightPressureScore(item.Inflight, item.Workers); inflightScore > item.Score {
 			item.Score = inflightScore
 		}
 		item.Level = pressureLevel(item.Score)
@@ -924,6 +924,13 @@ func pressureScore(depth, capacity int64) float64 {
 		return 1
 	}
 	return 0
+}
+
+func inflightPressureScore(inflight, workers int64) float64 {
+	if workers <= 0 {
+		return 0
+	}
+	return pressureScore(inflight, workers)
 }
 
 func pressureLevel(score float64) string {
