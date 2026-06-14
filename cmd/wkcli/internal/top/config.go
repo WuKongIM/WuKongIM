@@ -44,6 +44,9 @@ func normalizeConfig(cfg config) (config, error) {
 	if cfg.Window < minWindow {
 		return cfg, fmt.Errorf("window must be at least %s", minWindow)
 	}
+	if cfg.Interval <= 0 {
+		return cfg, fmt.Errorf("interval must be positive")
+	}
 	if cfg.Limit <= 0 {
 		return cfg, fmt.Errorf("limit must be positive")
 	}

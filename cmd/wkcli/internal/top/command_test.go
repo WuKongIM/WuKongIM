@@ -114,6 +114,25 @@ func TestTopInteractiveMaxRefreshRunsRepeatedSnapshots(t *testing.T) {
 	}
 }
 
+func TestTopInteractiveRejectsNegativeIntervalBeforeNetwork(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", "http://127.0.0.1:1", "--interval", "-1s", "--max-refresh", "1"})
+
+	err := cmd.Execute()
+
+	var exit command.Exit
+	if !errors.As(err, &exit) {
+		t.Fatalf("expected command exit, got %v", err)
+	}
+	if exit.Code != command.ExitConfig {
+		t.Fatalf("expected config exit code %d, got %d", command.ExitConfig, exit.Code)
+	}
+	if !strings.Contains(exit.Message, "interval") {
+		t.Fatalf("expected interval message, got %q", exit.Message)
+	}
+}
+
 func TestTopInteractiveWithoutServerReturnsConfigError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	contextDir := t.TempDir()
