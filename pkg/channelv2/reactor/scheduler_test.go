@@ -119,10 +119,10 @@ func TestReactorProcessesDueAppendFlushWhileMailboxBusy(t *testing.T) {
 	appendFuture, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "payload"))
 	require.NoError(t, err)
 	reactor := g.reactors[0]
-	require.Eventually(t, func() bool {
-		rc := reactor.channels[meta.Key]
-		return rc != nil && len(rc.appendQ.pending) == 1 && !rc.appendQ.flushDue.IsZero()
-	}, time.Second, time.Millisecond)
+	queuedFuture := NewFuture()
+	require.NoError(t, reactor.Submit(PriorityNormal, Event{Kind: EventCheckState, Key: meta.Key, Future: queuedFuture}))
+	_, err = queuedFuture.Await(context.Background())
+	require.NoError(t, err)
 
 	var stop atomic.Bool
 	done := make(chan struct{})
