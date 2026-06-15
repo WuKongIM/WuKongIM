@@ -101,6 +101,47 @@ func BenchmarkBoundedPoolFullReject(b *testing.B) {
 	}
 }
 
+func BenchmarkBoundedBatchPoolFullReject(b *testing.B) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	pool, err := NewBoundedBatchPool[int](BoundedBatchPoolConfig[int]{
+		Name:      "bench-batch",
+		Workers:   1,
+		QueueSize: 1,
+		Policy:    func(int) BatchOptions { return BatchOptions{MaxItems: 1} },
+	}, func(ctx context.Context, items []int) error {
+		if items[0] == 1 {
+			close(entered)
+			<-release
+		}
+		return nil
+	})
+	if err != nil {
+		b.Fatalf("NewBoundedBatchPool() error = %v", err)
+	}
+	ctx := context.Background()
+	if err := pool.Submit(ctx, 1); err != nil {
+		b.Fatalf("Submit(blocking) error = %v", err)
+	}
+	<-entered
+	if err := pool.Submit(ctx, 2); err != nil {
+		b.Fatalf("Submit(queued) error = %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := pool.Submit(ctx, 3); !errors.Is(err, ErrFull) {
+			b.Fatalf("Submit(full) error = %v, want ErrFull", err)
+		}
+	}
+	b.StopTimer()
+	close(release)
+	if err := pool.Close(context.Background()); err != nil {
+		b.Fatalf("Close() error = %v", err)
+	}
+}
+
 func BenchmarkBoundedPoolObserverOverhead(b *testing.B) {
 	b.Run("none", func(b *testing.B) {
 		benchmarkBoundedPoolSubmitAndRun(b, 16, nil)

@@ -154,6 +154,10 @@ func (p *Pool) runQueuedBatch(ctx context.Context, items []queuedTask) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if len(items) == 1 {
+		p.runTaskGroup(ctx, items)
+		return nil
+	}
 	for _, group := range p.taskGroups(items) {
 		p.runTaskGroup(ctx, group)
 	}

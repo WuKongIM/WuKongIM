@@ -17,6 +17,7 @@ grouping, and worker-level observations.
 ```text
 Submit(ctx, Task)
   -> validate pool open and caller context
+  -> reject obviously full admission before stamping enqueue time
   -> submit queuedTask to workqueue bounded admission
   -> workqueue collects adjacent peers according to task-kind policy
   -> workqueue submits the collected execution window to ants

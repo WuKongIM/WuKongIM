@@ -64,10 +64,10 @@ type BoundedBatchPool[T any] struct {
 	running atomic.Int64
 
 	admissionMu sync.RWMutex
-	closeOnce  sync.Once
-	closeErr   error
-	dispatchWG sync.WaitGroup
-	taskWG     sync.WaitGroup
+	closeOnce   sync.Once
+	closeErr    error
+	dispatchWG  sync.WaitGroup
+	taskWG      sync.WaitGroup
 }
 
 type boundedBatchPoolTask[T any] struct {
@@ -125,9 +125,6 @@ func (p *BoundedBatchPool[T]) Submit(ctx context.Context, item T) error {
 		ctx = context.Background()
 	}
 
-	p.admissionMu.RLock()
-	defer p.admissionMu.RUnlock()
-
 	if p.closed.Load() {
 		p.observeAdmission(resultClosed)
 		return ErrClosed
@@ -138,6 +135,22 @@ func (p *BoundedBatchPool[T]) Submit(ctx context.Context, item T) error {
 	}
 	if err := p.acquireSlot(ctx); err != nil {
 		p.observeAdmission(errorResult(err))
+		return err
+	}
+
+	p.admissionMu.RLock()
+	defer p.admissionMu.RUnlock()
+
+	if p.closed.Load() {
+		p.releaseSlots(1)
+		p.observeAdmission(resultClosed)
+		p.observeDepth()
+		return ErrClosed
+	}
+	if err := ctx.Err(); err != nil {
+		p.releaseSlots(1)
+		p.observeAdmission(contextResult(err))
+		p.observeDepth()
 		return err
 	}
 	task := boundedBatchPoolTask[T]{item: item, enqueuedAt: time.Now()}
@@ -236,6 +249,14 @@ func (p *BoundedBatchPool[T]) QueueCapacity() int {
 	return p.cfg.QueueSize
 }
 
+// Closed reports whether admission has been closed.
+func (p *BoundedBatchPool[T]) Closed() bool {
+	if p == nil {
+		return true
+	}
+	return p.closed.Load()
+}
+
 func (p *BoundedBatchPool[T]) dispatch() {
 	defer p.dispatchWG.Done()
 	for {
@@ -316,6 +337,7 @@ func (p *BoundedBatchPool[T]) collectBatch(first boundedBatchPoolTask[T]) []boun
 	case <-p.stop:
 	case <-p.ctx.Done():
 	}
+	p.drainReadyInto(&batch, maxItems)
 	return batch
 }
 
@@ -340,6 +362,7 @@ func (p *BoundedBatchPool[T]) submitToExecutor(batch []boundedBatchPoolTask[T]) 
 			p.cancelTasks(batch)
 			return false
 		}
+		p.extendBatchReady(&batch)
 		p.taskWG.Add(1)
 		err := p.pool.Invoke(batch)
 		if err == nil {
@@ -366,6 +389,21 @@ func (p *BoundedBatchPool[T]) submitToExecutor(batch []boundedBatchPoolTask[T]) 
 			return false
 		}
 	}
+}
+
+func (p *BoundedBatchPool[T]) extendBatchReady(batch *[]boundedBatchPoolTask[T]) {
+	if len(*batch) == 0 {
+		return
+	}
+	opts := p.cfg.Policy((*batch)[0].item)
+	maxItems := opts.MaxItems
+	if maxItems <= len(*batch) {
+		return
+	}
+	if maxItems > p.cfg.QueueSize {
+		maxItems = p.cfg.QueueSize
+	}
+	p.drainReadyInto(batch, maxItems)
 }
 
 func (p *BoundedBatchPool[T]) retryExecutor(batch []boundedBatchPoolTask[T]) bool {

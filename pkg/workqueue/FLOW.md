@@ -49,6 +49,7 @@ Submit
   -> policy chooses MaxItems / MaxWait
   -> dispatcher drains immediately ready adjacent items
   -> dispatcher optionally waits for one adjacent peer, then drains ready peers
+  -> dispatcher extends the batch with ready adjacent items before executor retries
   -> dispatcher submits the batch to the ants executor
   -> handler runs with the pool runtime context
   -> item slots are released when ants accepts the batch

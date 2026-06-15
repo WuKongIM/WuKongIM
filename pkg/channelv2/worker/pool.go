@@ -180,6 +180,21 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	if p.runtime == nil {
 		return ch.ErrClosed
 	}
+	if p.runtime.Closed() {
+		p.observeAdmission("closed")
+		p.observeQueueDepth()
+		return ch.ErrClosed
+	}
+	if err := ctx.Err(); err != nil {
+		p.observeAdmission(workerAdmissionResult(err))
+		p.observeQueueDepth()
+		return err
+	}
+	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() {
+		p.observeAdmission("full")
+		p.observeQueueDepth()
+		return ch.ErrBackpressured
+	}
 	queued := queuedTask{task: task, enqueuedAt: time.Now()}
 	err := p.runtime.Submit(ctx, queued)
 	switch {
