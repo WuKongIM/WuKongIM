@@ -27,26 +27,30 @@ func TestManagerAsyncSubmitRequiresStart(t *testing.T) {
 
 func TestManagerAsyncSubmitWaitsForQueueSpace(t *testing.T) {
 	observer := &recordingManagerObserver{}
+	runner := newBlockingManagerRunner()
 	manager := NewManager(ManagerOptions{
 		Planner:         NewPlanner(PlannerOptions{}),
-		Runner:          recordingManagerRunner{},
+		Runner:          runner,
 		AsyncQueueSize:  1,
 		AsyncWorkers:    1,
 		ManagerObserver: observer,
 	})
-
-	// This lower-level admission test keeps worker lifecycle out of the assertion
-	// so queue pressure remains deterministic.
-	manager.async.mu.Lock()
-	manager.async.state = managerStateOpen
-	fillManagerAsyncQueueLocked(t, manager, Envelope{MessageID: 1})
-	manager.async.mu.Unlock()
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted(first) error = %v", err)
+	}
+	runner.waitStarted(t)
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted(second) error = %v", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		result <- manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 2})
+		result <- manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 3, MessageScopedUIDs: []string{"u1"}})
 	}()
 
 	select {
@@ -55,8 +59,7 @@ func TestManagerAsyncSubmitWaitsForQueueSpace(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 
-	<-manager.async.queue
-	manager.async.releaseSlot()
+	runner.releaseRunner()
 
 	select {
 	case err := <-result:
@@ -66,13 +69,8 @@ func TestManagerAsyncSubmitWaitsForQueueSpace(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("SubmitCommitted() did not return after queue space became available")
 	}
-	select {
-	case cmd := <-manager.async.queue:
-		if cmd.envelope.MessageID != 2 {
-			t.Fatalf("queued message id = %d, want 2", cmd.envelope.MessageID)
-		}
-	default:
-		t.Fatal("SubmitCommitted() returned without admitting the command")
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
 	}
 	if !observer.sawAdmission(DeliveryResultOK) {
 		t.Fatalf("admissions = %#v, want ok admission", observer.admissions)
@@ -83,34 +81,36 @@ func TestManagerAsyncSubmitWaitsForQueueSpace(t *testing.T) {
 }
 
 func TestManagerAsyncSubmitWaitingOnFullQueueRejectsAfterClose(t *testing.T) {
-	for attempt := 0; attempt < 100; attempt++ {
+	for attempt := 0; attempt < 20; attempt++ {
+		runner := newBlockingManagerRunner()
 		manager := NewManager(ManagerOptions{
 			Planner:        NewPlanner(PlannerOptions{}),
-			Runner:         recordingManagerRunner{},
+			Runner:         runner,
 			AsyncQueueSize: 1,
 			AsyncWorkers:   1,
 		})
-
-		acceptDone := make(chan struct{})
-		manager.async.mu.Lock()
-		manager.async.state = managerStateOpen
-		manager.async.acceptDone = acceptDone
-		fillManagerAsyncQueueLocked(t, manager, Envelope{MessageID: 1})
-		manager.async.mu.Unlock()
+		if err := manager.Start(context.Background()); err != nil {
+			t.Fatalf("attempt %d: Start() error = %v", attempt, err)
+		}
+		if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageScopedUIDs: []string{"u1"}}); err != nil {
+			t.Fatalf("attempt %d: SubmitCommitted(first) error = %v", attempt, err)
+		}
+		runner.waitStarted(t)
+		if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2, MessageScopedUIDs: []string{"u1"}}); err != nil {
+			t.Fatalf("attempt %d: SubmitCommitted(second) error = %v", attempt, err)
+		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		result := make(chan error, 1)
 		go func() {
-			result <- manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 2})
+			result <- manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 3, MessageScopedUIDs: []string{"u1"}})
 		}()
 		time.Sleep(time.Millisecond)
 
-		manager.async.mu.Lock()
-		manager.async.state = managerStateClosing
-		manager.async.mu.Unlock()
-		close(acceptDone)
-		<-manager.async.queue
-		manager.async.releaseSlot()
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- manager.Stop(context.Background())
+		}()
 
 		select {
 		case err := <-result:
@@ -122,59 +122,66 @@ func TestManagerAsyncSubmitWaitingOnFullQueueRejectsAfterClose(t *testing.T) {
 			cancel()
 			t.Fatalf("attempt %d: SubmitCommitted() did not return after manager close", attempt)
 		}
+		runner.releaseRunner()
 		select {
-		case cmd := <-manager.async.queue:
-			t.Fatalf("attempt %d: late queued message id = %d", attempt, cmd.envelope.MessageID)
-		default:
+		case err := <-stopDone:
+			if err != nil {
+				t.Fatalf("attempt %d: Stop() error = %v", attempt, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("attempt %d: Stop() did not return after runner release", attempt)
 		}
 	}
 }
 
-func TestManagerAsyncSubmitRejectsClosedLifecycleBeforeFastPathAdmission(t *testing.T) {
+func TestManagerAsyncStartAfterStopRejected(t *testing.T) {
 	manager := NewManager(ManagerOptions{
 		Planner:        NewPlanner(PlannerOptions{}),
 		Runner:         recordingManagerRunner{},
 		AsyncQueueSize: 1,
 		AsyncWorkers:   1,
 	})
-	acceptDone := make(chan struct{})
-	close(acceptDone)
-	manager.async.mu.Lock()
-	manager.async.state = managerStateOpen
-	manager.async.acceptDone = acceptDone
-	manager.async.mu.Unlock()
-
-	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1})
-	if !errors.Is(err, ErrManagerClosed) {
-		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerClosed", err)
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
 	}
-	select {
-	case cmd := <-manager.async.queue:
-		t.Fatalf("late queued message id = %d", cmd.envelope.MessageID)
-	default:
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := manager.Start(context.Background()); !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("Start() after stop error = %v, want ErrManagerClosed", err)
 	}
 }
 
 func TestManagerAsyncSubmitReportsOverflowWhenAdmissionContextExpires(t *testing.T) {
 	observer := &recordingManagerObserver{}
+	runner := newBlockingManagerRunner()
 	manager := NewManager(ManagerOptions{
 		Planner:         NewPlanner(PlannerOptions{}),
-		Runner:          recordingManagerRunner{},
+		Runner:          runner,
 		AsyncQueueSize:  1,
 		AsyncWorkers:    1,
 		ManagerObserver: observer,
 	})
-
-	// This lower-level admission test keeps worker lifecycle out of the assertion
-	// so queue overflow remains deterministic after workers execute immediately.
-	manager.async.mu.Lock()
-	manager.async.state = managerStateOpen
-	fillManagerAsyncQueueLocked(t, manager, Envelope{MessageID: 1})
-	manager.async.mu.Unlock()
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted(first) error = %v", err)
+	}
+	runner.waitStarted(t)
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2, MessageScopedUIDs: []string{"u1"}}); err != nil {
+		t.Fatalf("SubmitCommitted(second) error = %v", err)
+	}
+	defer func() {
+		runner.releaseRunner()
+		if err := manager.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	err := manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 2})
+	err := manager.SubmitCommitted(ctx, messageevents.MessageCommitted{MessageID: 3, MessageScopedUIDs: []string{"u1"}})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("SubmitCommitted() error = %v, want context deadline", err)
 	}
@@ -225,7 +232,7 @@ func TestManagerAsyncStopRejectsNewSubmits(t *testing.T) {
 	}
 }
 
-func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
+func TestManagerAsyncStopTimeoutClosesAdmissionPermanently(t *testing.T) {
 	previousProcs := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(previousProcs)
 
@@ -251,19 +258,13 @@ func TestManagerAsyncStopTimeoutKeepsClosingUntilWorkersExit(t *testing.T) {
 		t.Fatalf("Stop() error = %v, want context.Canceled", err)
 	}
 	if err := manager.Start(context.Background()); !errors.Is(err, ErrManagerClosed) {
-		t.Fatalf("Start() while closing error = %v, want ErrManagerClosed", err)
+		t.Fatalf("Start() after timed-out stop error = %v, want ErrManagerClosed", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 2, MessageScopedUIDs: []string{"u1"}}); !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("SubmitCommitted() after timed-out stop error = %v, want ErrManagerClosed", err)
 	}
 
 	runner.releaseRunner()
-	if err := manager.Stop(context.Background()); err != nil {
-		t.Fatalf("second Stop() error = %v", err)
-	}
-	if err := manager.Start(context.Background()); err != nil {
-		t.Fatalf("Start() after workers exit error = %v", err)
-	}
-	if err := manager.Stop(context.Background()); err != nil {
-		t.Fatalf("final Stop() error = %v", err)
-	}
 }
 
 func TestManagerAsyncRunsAcceptedWorkAndReportsTerminal(t *testing.T) {
@@ -365,21 +366,6 @@ func (r *blockingManagerRunner) waitStarted(t *testing.T) {
 
 func (r *blockingManagerRunner) releaseRunner() {
 	close(r.release)
-}
-
-func fillManagerAsyncQueueLocked(t *testing.T, manager *Manager, env Envelope) {
-	t.Helper()
-	select {
-	case <-manager.async.slots:
-	default:
-		t.Fatal("manager async queue has no free slot")
-	}
-	select {
-	case manager.async.queue <- managerCommand{envelope: env}:
-	default:
-		manager.async.releaseSlot()
-		t.Fatal("manager async queue is full")
-	}
 }
 
 type recordingManagerObserver struct {

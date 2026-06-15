@@ -6,8 +6,8 @@ The package is independent from gateway, app, and concrete cluster runtimes. It 
 
 `AckTracker` keeps owner-local recvack state and can enforce a per UID/session
 pending limit. `Manager`, `Planner`, and `FanoutWorker` form the runtime facade
-used by app adapters. `Manager` owns bounded async admission when fanout ports
-are configured. Runtime `Observer` and
+used by app adapters. `Manager` owns bounded async admission through
+`pkg/workqueue.BoundedWorkerQueue` when fanout ports are configured. Runtime `Observer` and
 `ManagerObserver` events describe fanout routing, UID route resolution, owner
 push attempts, manager admission, and terminal async outcomes with bounded
 result and error-class labels; concrete metrics and logging remain app
@@ -61,6 +61,8 @@ Async manager flow:
 6. Every accepted command emits exactly one terminal observation.
 7. `Manager.Stop` rejects new admission and drains accepted work until the
    caller context expires.
+8. Stop is terminal for the manager lifecycle; app composition should create a
+   new `Manager` for a new lifecycle instead of restarting a stopped instance.
 
 Retry scheduler lifecycle:
 

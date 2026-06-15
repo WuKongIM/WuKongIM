@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
 const defaultManagerAsyncWorkers = 1
@@ -19,37 +19,29 @@ type managerState uint8
 const (
 	managerStateClosed managerState = iota
 	managerStateOpen
-	managerStateClosing
+	managerStateStopped
 )
 
 type managerCommand struct {
 	envelope Envelope
 }
 
-// managerAsync owns bounded async admission and worker lifecycle for Manager.
+// managerAsync owns bounded async admission for Manager.
 type managerAsync struct {
 	// manager is the parent runtime facade used by later execution slices.
 	manager *Manager
-	// queue stores accepted committed-message commands until workers consume them.
-	queue chan managerCommand
-	// slots tracks free queue slots so submitters can re-check lifecycle state before enqueueing.
-	slots chan struct{}
+	// queueSize bounds accepted commands that have not entered the executor.
+	queueSize int
 	// workers is the fixed number of async manager workers.
 	workers int
 	// observer receives admission decisions and later terminal outcomes.
 	observer ManagerObserver
-	// goroutines is the optional goroutine lifecycle registry.
-	goroutines *goroutine.Registry
 
 	mu sync.Mutex
 	// state gates admission and lifecycle transitions.
 	state managerState
-	// cancel stops workers during Stop.
-	cancel context.CancelFunc
-	// acceptDone closes when the current manager lifecycle stops accepting waiters.
-	acceptDone <-chan struct{}
-	// done closes after all workers exit.
-	done <-chan struct{}
+	// queue owns bounded admission and direct worker execution while started.
+	queue *workqueue.BoundedWorkerQueue[managerCommand]
 }
 
 func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerObserver) *managerAsync {
@@ -59,17 +51,12 @@ func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerO
 	if workers <= 0 {
 		workers = defaultManagerAsyncWorkers
 	}
-	slots := make(chan struct{}, queueSize)
-	for i := 0; i < queueSize; i++ {
-		slots <- struct{}{}
-	}
 	return &managerAsync{
-		manager:  manager,
-		queue:    make(chan managerCommand, queueSize),
-		slots:    slots,
-		workers:  workers,
-		observer: observer,
-		state:    managerStateClosed,
+		manager:   manager,
+		queueSize: queueSize,
+		workers:   workers,
+		observer:  observer,
+		state:     managerStateClosed,
 	}
 }
 
@@ -83,30 +70,19 @@ func (a *managerAsync) start(context.Context) error {
 	switch a.state {
 	case managerStateOpen:
 		return nil
-	case managerStateClosing:
-		if !a.finishClosedIfDoneLocked() {
-			return ErrManagerClosed
-		}
+	case managerStateStopped:
+		return ErrManagerClosed
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(a.workers)
-	for i := 0; i < a.workers; i++ {
-		goroutine.SafeGo(a.goroutines, "delivery", "manager_worker", func() {
-			defer wg.Done()
-			a.runWorker(ctx)
-		})
+	queue, err := workqueue.NewBoundedWorkerQueue[managerCommand](workqueue.BoundedWorkerQueueConfig{
+		Name:      "delivery_manager",
+		Workers:   a.workers,
+		QueueSize: a.queueSize,
+	}, a.runCommand)
+	if err != nil {
+		return err
 	}
-	goroutine.SafeGo(a.goroutines, "delivery", "manager_done_wait", func() {
-		wg.Wait()
-		close(done)
-	})
-
-	a.cancel = cancel
-	a.acceptDone = ctx.Done()
-	a.done = done
+	a.queue = queue
 	a.state = managerStateOpen
 	return nil
 }
@@ -124,65 +100,19 @@ func (a *managerAsync) stop(ctx context.Context) error {
 	case managerStateClosed:
 		a.mu.Unlock()
 		return nil
-	case managerStateClosing:
-		done := a.done
+	case managerStateStopped:
 		a.mu.Unlock()
-		return a.waitClosed(ctx, done)
-	}
-	cancel := a.cancel
-	done := a.done
-	a.state = managerStateClosing
-	a.mu.Unlock()
-
-	if cancel != nil {
-		cancel()
-	}
-	return a.waitClosed(ctx, done)
-}
-
-func (a *managerAsync) waitClosed(ctx context.Context, done <-chan struct{}) error {
-	if done == nil {
-		a.finishClosedForDone(done)
 		return nil
 	}
-	select {
-	case <-done:
-		a.finishClosedForDone(done)
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (a *managerAsync) finishClosedForDone(done <-chan struct{}) {
-	a.mu.Lock()
-	if a.state == managerStateClosing && a.done == done {
-		a.state = managerStateClosed
-		a.cancel = nil
-		a.acceptDone = nil
-		a.done = nil
-	}
+	queue := a.queue
+	a.queue = nil
+	a.state = managerStateStopped
 	a.mu.Unlock()
-}
 
-func (a *managerAsync) finishClosedIfDoneLocked() bool {
-	done := a.done
-	if done == nil {
-		a.state = managerStateClosed
-		a.cancel = nil
-		a.acceptDone = nil
-		return true
+	if queue == nil {
+		return nil
 	}
-	select {
-	case <-done:
-		a.state = managerStateClosed
-		a.cancel = nil
-		a.acceptDone = nil
-		a.done = nil
-		return true
-	default:
-		return false
-	}
+	return queue.Close(ctx)
 }
 
 func (a *managerAsync) submit(ctx context.Context, env Envelope) error {
@@ -198,103 +128,35 @@ func (a *managerAsync) submit(ctx context.Context, env Envelope) error {
 
 	cmd := managerCommand{envelope: cloneEnvelope(env)}
 
-	for {
-		a.mu.Lock()
-		if a.state != managerStateOpen {
-			depth := len(a.queue)
-			a.mu.Unlock()
-			a.observeAdmission(DeliveryResultError, depth)
-			return ErrManagerClosed
-		}
-		queue := a.queue
-		slots := a.slots
-		acceptDone := a.acceptDone
-		select {
-		case <-acceptDone:
-			depth := len(queue)
-			a.mu.Unlock()
-			a.observeAdmission(DeliveryResultError, depth)
-			return ErrManagerClosed
-		default:
-		}
-		select {
-		case <-slots:
-			if err := a.enqueueWithSlotLocked(queue, acceptDone, cmd); err != nil {
-				depth := len(queue)
-				a.mu.Unlock()
-				a.releaseSlot()
-				if errors.Is(err, ErrManagerClosed) {
-					a.observeAdmission(DeliveryResultError, depth)
-					return err
-				}
-				continue
-			}
-			depth := len(queue)
-			a.mu.Unlock()
-			a.observeAdmission(DeliveryResultOK, depth)
-			return nil
-		default:
+	a.mu.Lock()
+	queue := a.queue
+	if a.state != managerStateOpen || queue == nil {
+		depth := 0
+		if queue != nil {
+			depth = queue.QueueDepth()
 		}
 		a.mu.Unlock()
-
-		select {
-		case <-slots:
-			a.mu.Lock()
-			if a.state != managerStateOpen || a.acceptDone != acceptDone {
-				depth := len(a.queue)
-				a.mu.Unlock()
-				a.releaseSlot()
-				a.observeAdmission(DeliveryResultError, depth)
-				return ErrManagerClosed
-			}
-			if err := a.enqueueWithSlotLocked(a.queue, acceptDone, cmd); err != nil {
-				depth := len(a.queue)
-				a.mu.Unlock()
-				a.releaseSlot()
-				if errors.Is(err, ErrManagerClosed) {
-					a.observeAdmission(DeliveryResultError, depth)
-					return err
-				}
-				continue
-			}
-			depth := len(a.queue)
-			a.mu.Unlock()
-			a.observeAdmission(DeliveryResultOK, depth)
-			return nil
-		case <-acceptDone:
-			a.observeAdmission(DeliveryResultError, len(queue))
-			return ErrManagerClosed
-		case <-ctx.Done():
-			a.observeAdmission(DeliveryResultOverflow, len(queue))
-			return ctx.Err()
-		}
-	}
-}
-
-// enqueueWithSlotLocked writes a command after the caller has acquired one queue slot.
-// The caller must hold a.mu so Stop cannot close the lifecycle between validation and enqueue.
-func (a *managerAsync) enqueueWithSlotLocked(queue chan managerCommand, acceptDone <-chan struct{}, cmd managerCommand) error {
-	select {
-	case <-acceptDone:
+		a.observeAdmission(DeliveryResultError, depth)
 		return ErrManagerClosed
-	default:
 	}
-	select {
-	case queue <- cmd:
+	a.mu.Unlock()
+
+	err := queue.SubmitWait(ctx, cmd)
+	depth := queue.QueueDepth()
+	if err == nil {
+		a.observeAdmission(DeliveryResultOK, depth)
 		return nil
-	default:
-		return errManagerSlotMismatch
 	}
-}
-
-var errManagerSlotMismatch = errors.New("internalv2/runtime/delivery: manager slot mismatch")
-
-// releaseSlot returns one queue slot after a worker removes an accepted command.
-func (a *managerAsync) releaseSlot() {
-	select {
-	case a.slots <- struct{}{}:
-	default:
+	if errors.Is(err, workqueue.ErrClosed) {
+		a.observeAdmission(DeliveryResultError, depth)
+		return ErrManagerClosed
 	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, workqueue.ErrFull) {
+		a.observeAdmission(DeliveryResultOverflow, depth)
+		return err
+	}
+	a.observeAdmission(DeliveryResultError, depth)
+	return err
 }
 
 func (a *managerAsync) observeAdmission(result string, queueDepth int) {
@@ -307,36 +169,12 @@ func (a *managerAsync) observeAdmission(result string, queueDepth int) {
 	})
 }
 
-func (a *managerAsync) runWorker(ctx context.Context) {
-	for {
-		select {
-		case cmd := <-a.queue:
-			a.releaseSlot()
-			a.runCommand(cmd)
-		case <-ctx.Done():
-			a.drain()
-			return
-		}
-	}
-}
-
-func (a *managerAsync) drain() {
-	for {
-		select {
-		case cmd := <-a.queue:
-			a.releaseSlot()
-			a.runCommand(cmd)
-		default:
-			return
-		}
-	}
-}
-
-func (a *managerAsync) runCommand(cmd managerCommand) {
+func (a *managerAsync) runCommand(_ context.Context, cmd managerCommand) error {
 	err := a.manager.runEnvelope(context.Background(), cmd.envelope)
 	result := deliveryResultForError(err)
 	class := DeliveryErrorClass(err)
 	a.observeTerminal(result, class)
+	return err
 }
 
 func (a *managerAsync) observeTerminal(result, class string) {
@@ -346,6 +184,16 @@ func (a *managerAsync) observeTerminal(result, class string) {
 	a.observer.ObserveManagerTerminal(ManagerTerminalEvent{
 		Result:     result,
 		ErrorClass: class,
-		QueueDepth: len(a.queue),
+		QueueDepth: a.queueDepth(),
 	})
+}
+
+func (a *managerAsync) queueDepth() int {
+	a.mu.Lock()
+	queue := a.queue
+	a.mu.Unlock()
+	if queue == nil {
+		return 0
+	}
+	return queue.QueueDepth()
 }

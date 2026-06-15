@@ -61,6 +61,40 @@ func BenchmarkBoundedPoolSubmitWaitParallel(b *testing.B) {
 	}
 }
 
+func BenchmarkBoundedWorkerQueueSubmitWaitParallel(b *testing.B) {
+	var processed atomic.Uint64
+	queue, err := NewBoundedWorkerQueue[int](BoundedWorkerQueueConfig{
+		Name:      "bench-direct",
+		Workers:   maxBenchmarkInt(4, runtime.GOMAXPROCS(0)),
+		QueueSize: 64 * 1024,
+	}, func(context.Context, int) error {
+		processed.Add(1)
+		return nil
+	})
+	if err != nil {
+		b.Fatalf("NewBoundedWorkerQueue() error = %v", err)
+	}
+	ctx := context.Background()
+	startGoroutines := runtime.NumGoroutine()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if err := queue.SubmitWait(ctx, 1); err != nil {
+				b.Errorf("SubmitWait() error = %v", err)
+				return
+			}
+		}
+	})
+	benchmarkWaitUntil(b, func() bool { return processed.Load() >= uint64(b.N) })
+	b.StopTimer()
+	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
+	if err := queue.Close(context.Background()); err != nil {
+		b.Fatalf("Close() error = %v", err)
+	}
+}
+
 func BenchmarkBoundedPoolFullReject(b *testing.B) {
 	entered := make(chan struct{})
 	release := make(chan struct{})

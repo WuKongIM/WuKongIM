@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
@@ -168,6 +169,46 @@ func BenchmarkRetrySchedulerEnqueue(b *testing.B) {
 	}
 }
 
+func BenchmarkManagerAsyncSubmitCommitted(b *testing.B) {
+	runner := &benchmarkCountingFanoutTaskRunner{}
+	manager := NewManager(ManagerOptions{
+		Planner:        NewPlanner(PlannerOptions{}),
+		Runner:         runner,
+		AsyncQueueSize: defaultManagerAsyncQueueSize,
+		AsyncWorkers:   defaultManagerAsyncWorkers,
+	})
+	if err := manager.Start(context.Background()); err != nil {
+		b.Fatalf("Start() error = %v", err)
+	}
+	event := messageevents.MessageCommitted{
+		MessageID:         1,
+		MessageSeq:        1,
+		ChannelID:         "g1",
+		ChannelType:       2,
+		FromUID:           "sender",
+		MessageScopedUIDs: []string{"u1"},
+		Payload:           []byte("payload"),
+	}
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		event.MessageID = uint64(i + 1)
+		event.MessageSeq = uint64(i + 1)
+		if err := manager.SubmitCommitted(ctx, event); err != nil {
+			b.Fatalf("SubmitCommitted() error = %v", err)
+		}
+	}
+	b.StopTimer()
+	if err := manager.Stop(context.Background()); err != nil {
+		b.Fatalf("Stop() error = %v", err)
+	}
+	if got := runner.count.Load(); got != uint64(b.N) {
+		b.Fatalf("runner count = %d, want %d", got, b.N)
+	}
+}
+
 func BenchmarkDeliveryEndToEndNoCluster(b *testing.B) {
 	uids := benchmarkUIDs(256)
 	manager := NewManager(ManagerOptions{
@@ -270,6 +311,15 @@ type benchmarkRetryableFanoutTaskRunner struct{}
 
 func (benchmarkRetryableFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {
 	return ErrRetryableFanoutTask
+}
+
+type benchmarkCountingFanoutTaskRunner struct {
+	count atomic.Uint64
+}
+
+func (r *benchmarkCountingFanoutTaskRunner) RunTask(context.Context, FanoutTask) error {
+	r.count.Add(1)
+	return nil
 }
 
 type benchmarkFanoutForwarder struct{}

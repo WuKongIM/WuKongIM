@@ -14,6 +14,7 @@ metrics names.
 |------|----------------|
 | `BoundedPool[T]` | Admit generic work into a bounded queue and execute it on an ants-backed worker pool. |
 | `BoundedBatchPool[T]` | Admit generic work into a bounded queue, collect adjacent items into policy-driven batches, and execute those batches on an ants-backed worker pool. |
+| `BoundedWorkerQueue[T]` | Admit generic work into a bounded queue and execute it on direct worker goroutines for very hot, low-latency paths. |
 | `ShardedMailbox[T]` | Hash work into bounded shard queues and run at most one drain per shard at a time. |
 
 Runtime packages should keep typed adapters around these primitives. For
@@ -37,6 +38,25 @@ Submit / SubmitWait
 available. `SubmitWait` waits for admission until the caller context expires.
 `Close` closes admission and drains already accepted work until its context
 expires.
+
+## Bounded Worker Queue Flow
+
+```text
+Submit / SubmitWait
+  -> check caller context
+  -> reserve one free queue slot
+  -> re-check closed state under admission lock
+  -> enqueue item
+  -> direct worker receives the item
+  -> slot is released when the worker receives the item
+  -> handler runs with the queue runtime context
+```
+
+`BoundedWorkerQueue` is for hot paths where the ants executor handoff is too
+expensive and fixed direct workers are enough. `Submit` is non-blocking and
+returns `ErrFull` when no free queue slot is available. `SubmitWait` waits for
+capacity, caller context expiry, or close. `Close` closes admission, drains
+accepted work, and waits for workers until its context expires.
 
 ## Bounded Batch Pool Flow
 
