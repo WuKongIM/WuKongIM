@@ -104,11 +104,13 @@ func BenchmarkWorkerPoolFullReject(b *testing.B) {
 	if err := pool.Submit(context.Background(), benchmarkWorkerTask(2, nil)); err != nil {
 		b.Fatalf("Submit(queued) error = %v", err)
 	}
+	ctx := context.Background()
+	rejectedTask := benchmarkWorkerTask(3, nil)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := pool.Submit(context.Background(), benchmarkWorkerTask(3, nil)); !errors.Is(err, ch.ErrBackpressured) {
+		if err := pool.Submit(ctx, rejectedTask); !errors.Is(err, ch.ErrBackpressured) {
 			b.Fatalf("Submit(full) error = %v, want ErrBackpressured", err)
 		}
 	}
@@ -130,6 +132,8 @@ func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 	}
 	defer pool.Close()
 
+	ctx := context.Background()
+	tasks := benchmarkStoreAppendTasks(benchmarkWorkerBurst)
 	startGoroutines := runtime.NumGoroutine()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -138,7 +142,7 @@ func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 		sink.expect(burst)
 		for i := 0; i < burst; i++ {
 			idx := submitted + i
-			if err := pool.Submit(context.Background(), benchmarkStoreAppendTask(idx)); err != nil {
+			if err := pool.Submit(ctx, tasks[i]); err != nil {
 				b.Fatalf("Submit(%d) error = %v", idx, err)
 			}
 		}
@@ -169,6 +173,8 @@ func benchmarkWorkerPoolSubmitAndRun(b *testing.B, workers int, observer QueueOb
 	}
 	defer pool.Close()
 
+	ctx := context.Background()
+	tasks := benchmarkWorkerTasks(benchmarkWorkerBurst)
 	startGoroutines := runtime.NumGoroutine()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -176,7 +182,7 @@ func benchmarkWorkerPoolSubmitAndRun(b *testing.B, workers int, observer QueueOb
 		burst := benchmarkWorkerMin(benchmarkWorkerBurst, b.N-submitted)
 		sink.expect(burst)
 		for i := 0; i < burst; i++ {
-			if err := pool.Submit(context.Background(), benchmarkWorkerTask(submitted+i, nil)); err != nil {
+			if err := pool.Submit(ctx, tasks[i]); err != nil {
 				b.Fatalf("Submit(%d) error = %v", submitted+i, err)
 			}
 		}
@@ -187,12 +193,28 @@ func benchmarkWorkerPoolSubmitAndRun(b *testing.B, workers int, observer QueueOb
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func benchmarkWorkerTasks(count int) []Task {
+	tasks := make([]Task, count)
+	for i := range tasks {
+		tasks[i] = benchmarkWorkerTask(i, nil)
+	}
+	return tasks
+}
+
 func benchmarkWorkerTask(i int, run func(context.Context) Result) Task {
 	fence := ch.Fence{ChannelKey: ch.ChannelKey("bench:" + strconv.Itoa(i+1)), OpID: ch.OpID(i + 1)}
 	if run == nil {
 		run = func(context.Context) Result { return Result{Kind: TaskFunc, Fence: fence} }
 	}
 	return Task{Kind: TaskFunc, Fence: fence, RunFunc: run}
+}
+
+func benchmarkStoreAppendTasks(count int) []Task {
+	tasks := make([]Task, count)
+	for i := range tasks {
+		tasks[i] = benchmarkStoreAppendTask(i)
+	}
+	return tasks
 }
 
 func benchmarkStoreAppendTask(i int) Task {
