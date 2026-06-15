@@ -492,9 +492,62 @@ func BenchmarkSubmitLocalHotChannelPostCommit(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func BenchmarkRecipientDeliveryWorkerEnqueue(b *testing.B) {
+	observer := &benchmarkRecipientDeliveryWorkerObserver{}
+	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
+		QueueSize: defaultRecipientDeliveryQueueSize,
+		Workers:   defaultRecipientDeliveryWorkers,
+		Observer:  observer,
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		b.Fatalf("Start() error = %v", err)
+	}
+	batch := RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 1, MessageSeq: 1, ChannelID: "bench-delivery", ChannelType: 2},
+		Recipients: []Recipient{{UID: "u1"}},
+	}
+	target := RecipientAuthorityTarget{
+		HashSlot:       1,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		RouteRevision:  1,
+		AuthorityEpoch: 1,
+	}
+	startGoroutines := runtime.NumGoroutine()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		batch.Event.MessageID = uint64(i + 1)
+		batch.Event.MessageSeq = uint64(i + 1)
+		if err := worker.EnqueueRecipientBatch(context.Background(), target, batch); err != nil {
+			b.Fatalf("EnqueueRecipientBatch() error = %v", err)
+		}
+	}
+	b.StopTimer()
+	if err := worker.Stop(context.Background()); err != nil {
+		b.Fatalf("Stop() error = %v", err)
+	}
+	if got := observer.processed.Load(); got != uint64(b.N) {
+		b.Fatalf("processed = %d, want %d", got, b.N)
+	}
+	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
+}
+
 func maxBenchmarkInt(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
+}
+
+type benchmarkRecipientDeliveryWorkerObserver struct {
+	processed atomic.Uint64
+}
+
+func (o *benchmarkRecipientDeliveryWorkerObserver) AppendFinished(string, error, time.Duration) {
+}
+
+func (o *benchmarkRecipientDeliveryWorkerObserver) ObserveChannelAppendRecipientDeliveryProcess(RecipientDeliveryProcessObservation) {
+	o.processed.Add(1)
 }
