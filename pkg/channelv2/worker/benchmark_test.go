@@ -82,7 +82,7 @@ func BenchmarkWorkerPoolFullReject(b *testing.B) {
 func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 	stores := &batchAppendStoreFactory{}
 	sink := &benchmarkWorkerSink{}
-	pool, err := NewPool(PoolConfig{Name: "bench-store-append", Workers: 1, QueueSize: 64 * 1024, BatchMaxWait: -time.Nanosecond}, Deps{Stores: stores}, sink)
+	pool, err := NewPool(PoolConfig{Name: "bench-store-append", Workers: 1, QueueSize: 64 * 1024, BatchMaxWait: time.Nanosecond}, Deps{Stores: stores}, sink)
 	if err != nil {
 		b.Fatalf("NewPool() error = %v", err)
 	}
@@ -103,6 +103,14 @@ func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 		submitted += burst
 	}
 	b.StopTimer()
+	batchCalls := stores.BatchCalls()
+	singleAppendCalls := stores.SingleAppendCalls()
+	b.ReportMetric(float64(batchCalls)/float64(b.N), "batch-calls/op")
+	b.ReportMetric(float64(singleAppendCalls)/float64(b.N), "single-append-calls/op")
+	// Go benchmark calibration may run with b.N == 1, which cannot form a multi-item batch.
+	if b.N > 1 && batchCalls == 0 {
+		b.Fatalf("StoreAppend benchmark did not exercise batch path: batch calls = %d, single append calls = %d", batchCalls, singleAppendCalls)
+	}
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 

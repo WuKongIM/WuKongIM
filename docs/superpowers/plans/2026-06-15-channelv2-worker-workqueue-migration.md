@@ -123,7 +123,7 @@ func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 		Name:         "bench-store-append",
 		Workers:      1,
 		QueueSize:    64 * 1024,
-		BatchMaxWait: -time.Nanosecond,
+		BatchMaxWait: time.Nanosecond,
 	}, Deps{Stores: stores}, sink)
 	if err != nil {
 		b.Fatalf("NewPool() error = %v", err)
@@ -146,6 +146,14 @@ func BenchmarkWorkerPoolStoreAppendBatch(b *testing.B) {
 		submitted += burst
 	}
 	b.StopTimer()
+	batchCalls := stores.BatchCalls()
+	singleAppendCalls := stores.SingleAppendCalls()
+	b.ReportMetric(float64(batchCalls)/float64(b.N), "batch-calls/op")
+	b.ReportMetric(float64(singleAppendCalls)/float64(b.N), "single-append-calls/op")
+	// Go benchmark calibration may run with b.N == 1, which cannot form a multi-item batch.
+	if b.N > 1 && batchCalls == 0 {
+		b.Fatalf("StoreAppend benchmark did not exercise batch path: batch calls = %d, single append calls = %d", batchCalls, singleAppendCalls)
+	}
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
@@ -247,7 +255,7 @@ Run:
 go test -run '^$' -bench 'BenchmarkWorkerPool' -benchmem -benchtime=100ms -count=1 ./pkg/channelv2/worker
 ```
 
-Expected: benchmark command exits 0 and reports the worker benchmarks.
+Expected: benchmark command exits 0 and reports the worker benchmarks. The StoreAppend benchmark must use a positive `BatchMaxWait` override, report `batch-calls/op` and `single-append-calls/op`, and fail when multi-item runs do not exercise the batch path.
 
 - [ ] **Step 3: Commit benchmark-only baseline code**
 
