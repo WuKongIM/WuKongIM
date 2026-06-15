@@ -10,20 +10,20 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
-func (p *Pool) taskGroups(first queuedTask) [][]queuedTask {
-	items := []queuedTask{first}
+func (p *Pool) taskGroups(items []queuedTask) [][]queuedTask {
+	if len(items) == 0 {
+		return nil
+	}
+	first := items[0]
 	switch {
 	case p.canCollectRPCBatch(first.task):
-		p.collectBatchItems(&items, rpcBatchMaxItems, p.batchMaxWait(rpcBatchMaxWait))
 		return groupRPCBatchItems(items)
 	case p.canCollectStoreAppendBatch(first.task):
-		p.collectBatchItems(&items, storeAppendBatchMaxItems, p.batchMaxWait(storeAppendBatchMaxWait))
 		return groupStoreBatchItems(items, TaskStoreAppend)
 	case p.canCollectStoreApplyBatch(first.task):
-		p.collectBatchItems(&items, storeApplyBatchMaxItems, p.batchMaxWait(storeApplyBatchMaxWait))
 		return groupStoreBatchItems(items, TaskStoreApply)
 	default:
-		return [][]queuedTask{{first}}
+		return singleTaskGroups(items)
 	}
 }
 
@@ -54,35 +54,6 @@ func (p *Pool) canCollectStoreApplyBatch(task Task) bool {
 		return false
 	}
 	return task.Kind == TaskStoreApply
-}
-
-func (p *Pool) collectBatchItems(items *[]queuedTask, maxItems int, maxWait time.Duration) {
-	p.drainReadyBatchItems(items, maxItems)
-	if len(*items) > 1 || len(*items) >= maxItems {
-		return
-	}
-	timer := time.NewTimer(maxWait)
-	defer timer.Stop()
-	select {
-	case queued := <-p.queue:
-		*items = append(*items, queued)
-		p.observeQueueDepth()
-		p.drainReadyBatchItems(items, maxItems)
-	case <-timer.C:
-	case <-p.stop:
-	}
-}
-
-func (p *Pool) drainReadyBatchItems(items *[]queuedTask, maxItems int) {
-	for len(*items) < maxItems {
-		select {
-		case queued := <-p.queue:
-			*items = append(*items, queued)
-			p.observeQueueDepth()
-		default:
-			return
-		}
-	}
 }
 
 func groupRPCBatchItems(items []queuedTask) [][]queuedTask {
@@ -154,6 +125,14 @@ func groupStoreBatchItems(items []queuedTask, kind TaskKind) [][]queuedTask {
 	return groups
 }
 
+func singleTaskGroups(items []queuedTask) [][]queuedTask {
+	groups := make([][]queuedTask, 0, len(items))
+	for _, item := range items {
+		groups = append(groups, []queuedTask{item})
+	}
+	return groups
+}
+
 func rpcBatchKeyFor(task Task) (rpcBatchKey, bool) {
 	switch task.Kind {
 	case TaskRPCPull:
@@ -171,7 +150,17 @@ func rpcBatchKeyFor(task Task) (rpcBatchKey, bool) {
 	}
 }
 
-func (p *Pool) runTaskGroup(group []queuedTask) {
+func (p *Pool) runQueuedBatch(ctx context.Context, items []queuedTask) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for _, group := range p.taskGroups(items) {
+		p.runTaskGroup(ctx, group)
+	}
+	return nil
+}
+
+func (p *Pool) runTaskGroup(ctx context.Context, group []queuedTask) {
 	if len(group) == 0 {
 		return
 	}
@@ -180,9 +169,8 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	}
 	running := int(p.inflight.Add(1))
 	p.observeInflight(running)
-	p.observeAntsPool()
 	started := time.Now()
-	results, _ := p.runQueuedGroupSafely(group)
+	results, _ := p.runQueuedGroupSafely(ctx, group)
 	duration := nonNegativeDuration(time.Since(started))
 	for i := range results {
 		results[i].Duration = duration
@@ -190,13 +178,12 @@ func (p *Pool) runTaskGroup(group []queuedTask) {
 	}
 	running = int(p.inflight.Add(-1))
 	p.observeInflight(running)
-	p.observeAntsPool()
 	for _, result := range results {
 		p.sink.Complete(result)
 	}
 }
 
-func (p *Pool) runQueuedGroupSafely(group []queuedTask) (results []Result, recovered bool) {
+func (p *Pool) runQueuedGroupSafely(ctx context.Context, group []queuedTask) (results []Result, recovered bool) {
 	defer func() {
 		if value := recover(); value != nil {
 			recovered = true
@@ -207,40 +194,43 @@ func (p *Pool) runQueuedGroupSafely(group []queuedTask) (results []Result, recov
 			}
 		}
 	}()
-	return p.runQueuedGroup(group), false
+	return p.runQueuedGroup(ctx, group), false
 }
 
-func (p *Pool) runQueuedGroup(group []queuedTask) []Result {
+func (p *Pool) runQueuedGroup(ctx context.Context, group []queuedTask) []Result {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if len(group) > 1 {
 		key, ok := rpcBatchKeyFor(group[0].task)
 		batchClient, batchOK := p.deps.Transport.(transport.BatchClient)
 		if ok && batchOK {
 			switch key.kind {
 			case TaskRPCPull:
-				return p.runRPCPullBatch(group, batchClient, key.node)
+				return p.runRPCPullBatch(ctx, group, batchClient, key.node)
 			case TaskRPCPullHint:
-				return p.runRPCPullHintBatch(group, batchClient, key.node)
+				return p.runRPCPullHintBatch(ctx, group, batchClient, key.node)
 			}
 		}
 		if group[0].task.Kind == TaskStoreAppend {
 			if batcher, ok := p.deps.Stores.(store.LeaderAppendBatcher); ok {
-				return p.runStoreAppendBatch(group, batcher)
+				return p.runStoreAppendBatch(ctx, group, batcher)
 			}
 		}
 		if group[0].task.Kind == TaskStoreApply {
 			if batcher, ok := p.deps.Stores.(store.FollowerApplyBatcher); ok {
-				return p.runStoreApplyBatch(group, batcher)
+				return p.runStoreApplyBatch(ctx, group, batcher)
 			}
 		}
 	}
 	results := make([]Result, 0, len(group))
 	for _, queued := range group {
-		results = append(results, queued.task.Run(p.ctx, p.deps))
+		results = append(results, queued.task.Run(ctx, p.deps))
 	}
 	return results
 }
 
-func (p *Pool) runStoreAppendBatch(group []queuedTask, batcher store.LeaderAppendBatcher) []Result {
+func (p *Pool) runStoreAppendBatch(ctx context.Context, group []queuedTask, batcher store.LeaderAppendBatcher) []Result {
 	results := make([]Result, len(group))
 	items := make([]store.AppendLeaderBatchItem, 0, len(group))
 	active := make([]int, 0, len(group))
@@ -267,10 +257,10 @@ func (p *Pool) runStoreAppendBatch(group []queuedTask, batcher store.LeaderAppen
 	}
 	if len(active) == 1 {
 		index := active[0]
-		results[index] = group[index].task.Run(p.ctx, p.deps)
+		results[index] = group[index].task.Run(ctx, p.deps)
 		return results
 	}
-	ctx, cancel := batchTaskContext(p.ctx, group, active)
+	ctx, cancel := batchTaskContext(ctx, group, active)
 	defer cancel()
 	batchResults := batcher.AppendLeaderBatch(ctx, items)
 	if len(batchResults) != len(active) {
@@ -290,7 +280,7 @@ func (p *Pool) runStoreAppendBatch(group []queuedTask, batcher store.LeaderAppen
 	return results
 }
 
-func (p *Pool) runStoreApplyBatch(group []queuedTask, batcher store.FollowerApplyBatcher) []Result {
+func (p *Pool) runStoreApplyBatch(ctx context.Context, group []queuedTask, batcher store.FollowerApplyBatcher) []Result {
 	results := make([]Result, len(group))
 	items := make([]store.ApplyFollowerBatchItem, 0, len(group))
 	active := make([]int, 0, len(group))
@@ -317,10 +307,10 @@ func (p *Pool) runStoreApplyBatch(group []queuedTask, batcher store.FollowerAppl
 	}
 	if len(active) == 1 {
 		index := active[0]
-		results[index] = group[index].task.Run(p.ctx, p.deps)
+		results[index] = group[index].task.Run(ctx, p.deps)
 		return results
 	}
-	ctx, cancel := batchTaskContext(p.ctx, group, active)
+	ctx, cancel := batchTaskContext(ctx, group, active)
 	defer cancel()
 	batchResults := batcher.ApplyFollowerBatch(ctx, items)
 	if len(batchResults) != len(active) {
@@ -340,7 +330,7 @@ func (p *Pool) runStoreApplyBatch(group []queuedTask, batcher store.FollowerAppl
 	return results
 }
 
-func (p *Pool) runRPCPullBatch(group []queuedTask, batchClient transport.BatchClient, node ch.NodeID) []Result {
+func (p *Pool) runRPCPullBatch(ctx context.Context, group []queuedTask, batchClient transport.BatchClient, node ch.NodeID) []Result {
 	results := make([]Result, len(group))
 	requests := make([]transport.PullRequest, 0, len(group))
 	active := make([]int, 0, len(group))
@@ -362,10 +352,10 @@ func (p *Pool) runRPCPullBatch(group []queuedTask, batchClient transport.BatchCl
 	}
 	if len(active) == 1 {
 		index := active[0]
-		results[index] = group[index].task.Run(p.ctx, p.deps)
+		results[index] = group[index].task.Run(ctx, p.deps)
 		return results
 	}
-	ctx, cancel := batchTaskContext(p.ctx, group, active)
+	ctx, cancel := batchTaskContext(ctx, group, active)
 	defer cancel()
 	resp, err := batchClient.PullBatch(ctx, node, transport.PullBatchRequest{Items: requests})
 	if err != nil {
@@ -391,7 +381,7 @@ func (p *Pool) runRPCPullBatch(group []queuedTask, batchClient transport.BatchCl
 	return results
 }
 
-func (p *Pool) runRPCPullHintBatch(group []queuedTask, batchClient transport.BatchClient, node ch.NodeID) []Result {
+func (p *Pool) runRPCPullHintBatch(ctx context.Context, group []queuedTask, batchClient transport.BatchClient, node ch.NodeID) []Result {
 	results := make([]Result, len(group))
 	requests := make([]transport.PullHintRequest, 0, len(group))
 	active := make([]int, 0, len(group))
@@ -413,10 +403,10 @@ func (p *Pool) runRPCPullHintBatch(group []queuedTask, batchClient transport.Bat
 	}
 	if len(active) == 1 {
 		index := active[0]
-		results[index] = group[index].task.Run(p.ctx, p.deps)
+		results[index] = group[index].task.Run(ctx, p.deps)
 		return results
 	}
-	ctx, cancel := batchTaskContext(p.ctx, group, active)
+	ctx, cancel := batchTaskContext(ctx, group, active)
 	defer cancel()
 	resp, err := batchClient.PullHintBatch(ctx, node, transport.PullHintBatchRequest{Items: requests})
 	if err != nil {

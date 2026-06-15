@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 	storeAppendBatchMaxWait  = 250 * time.Microsecond
 	storeApplyBatchMaxItems  = 64
 	storeApplyBatchMaxWait   = 250 * time.Microsecond
+	workerExecutorStopGrace  = 100 * time.Millisecond
 )
 
 // QueueObserver receives bounded worker queue depth samples.
@@ -61,7 +63,7 @@ type BatchObserver interface {
 	ObserveWorkerBatch(pool string, kind TaskKind, items int, err error)
 }
 
-// AntsPoolObserver receives direct ants/v2 executor occupancy samples.
+// AntsPoolObserver receives workqueue-backed ants/v2 occupancy samples.
 // Implementations are called synchronously from pool paths and should be concurrency-safe and non-blocking.
 type AntsPoolObserver interface {
 	SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int)
@@ -94,26 +96,16 @@ type PoolConfig struct {
 
 // Pool runs blocking tasks with bounded admission and ants-backed execution.
 type Pool struct {
-	cfg    PoolConfig
-	deps   Deps
-	sink   CompletionSink
-	queue  chan queuedTask
-	slots  chan struct{}
-	stop   chan struct{}
-	ctx    context.Context
-	cancel context.CancelFunc
-	exec   *executor
+	cfg     PoolConfig
+	deps    Deps
+	sink    CompletionSink
+	runtime *workqueue.BoundedBatchPool[queuedTask]
 
 	obsMu sync.RWMutex
 	obs   QueueObserver
 
-	admissionMu  sync.RWMutex
 	inflight     atomic.Int64
 	inflightPeak atomic.Int64
-	once         sync.Once
-	closeErr     error
-	dispatchWG   sync.WaitGroup
-	taskWG       sync.WaitGroup
 }
 
 // NewPool starts a bounded worker pool.
@@ -121,25 +113,29 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 	if cfg.Workers <= 0 || cfg.QueueSize <= 0 || sink == nil {
 		return nil, ch.ErrInvalidConfig
 	}
-	exec, err := newExecutor(cfg.Workers)
+	p := &Pool{
+		cfg:  cfg,
+		deps: deps,
+		sink: sink,
+		obs:  noopQueueObserver{},
+	}
+	runtime, err := workqueue.NewBoundedBatchPool[queuedTask](workqueue.BoundedBatchPoolConfig[queuedTask]{
+		Name:                  cfg.Name,
+		Workers:               cfg.Workers,
+		QueueSize:             cfg.QueueSize,
+		ReleaseTimeout:        workerExecutorStopGrace,
+		Observer:              workerWorkqueueObserver{pool: p},
+		Policy:                p.batchPolicy,
+		CancelAcceptedOnClose: true,
+		CancelAccepted:        p.completeQueuedClosed,
+	}, p.runQueuedBatch)
+	if errors.Is(err, workqueue.ErrInvalidConfig) {
+		return nil, ch.ErrInvalidConfig
+	}
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	p := &Pool{
-		cfg:    cfg,
-		deps:   deps,
-		sink:   sink,
-		queue:  make(chan queuedTask, cfg.QueueSize),
-		slots:  make(chan struct{}, cfg.QueueSize),
-		stop:   make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
-		exec:   exec,
-		obs:    noopQueueObserver{},
-	}
-	p.dispatchWG.Add(1)
-	go p.dispatch()
+	p.runtime = runtime
 	return p, nil
 }
 
@@ -178,75 +174,35 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	if p == nil {
 		return ch.ErrClosed
 	}
-	result := "ok"
-	defer func() {
-		p.observeAdmission(result)
-		p.observeQueueDepth()
-	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	select {
-	case <-p.stop:
-		result = "closed"
+	if p.runtime == nil {
 		return ch.ErrClosed
-	default:
-	}
-	select {
-	case <-ctx.Done():
-		result = workerAdmissionResult(ctx.Err())
-		return ctx.Err()
-	default:
-	}
-	p.admissionMu.RLock()
-	defer p.admissionMu.RUnlock()
-	select {
-	case p.slots <- struct{}{}:
-	case <-p.stop:
-		result = "closed"
-		return ch.ErrClosed
-	case <-ctx.Done():
-		result = workerAdmissionResult(ctx.Err())
-		return ctx.Err()
-	default:
-		result = "full"
-		return ch.ErrBackpressured
 	}
 	queued := queuedTask{task: task, enqueuedAt: time.Now()}
-	select {
-	case p.queue <- queued:
+	err := p.runtime.Submit(ctx, queued)
+	switch {
+	case err == nil:
 		return nil
-	case <-p.stop:
-		p.releaseQueuedSlots(1)
-		result = "closed"
-		return ch.ErrClosed
-	case <-ctx.Done():
-		p.releaseQueuedSlots(1)
-		result = workerAdmissionResult(ctx.Err())
-		return ctx.Err()
-	default:
-		p.releaseQueuedSlots(1)
-		result = "full"
+	case errors.Is(err, workqueue.ErrFull):
 		return ch.ErrBackpressured
+	case errors.Is(err, workqueue.ErrClosed):
+		return ch.ErrClosed
+	default:
+		return err
 	}
 }
 
-// Close cancels running tasks, completes queued tasks as closed, and releases the executor.
+// Close closes admission, completes queued accepted tasks, and waits for running handlers.
 func (p *Pool) Close() error {
 	if p == nil {
 		return nil
 	}
-	p.once.Do(func() {
-		p.cancel()
-		close(p.stop)
-		p.dispatchWG.Wait()
-		p.admissionMu.Lock()
-		p.completeQueuedClosed()
-		p.admissionMu.Unlock()
-		p.taskWG.Wait()
-		p.closeErr = p.exec.close()
-	})
-	return p.closeErr
+	if p.runtime == nil {
+		return nil
+	}
+	return p.runtime.Close(context.Background())
 }
 
 // Name returns the configured pool name.
@@ -259,29 +215,14 @@ func (p *Pool) Name() string {
 
 // QueueDepth returns the number of tasks waiting in the pool queue.
 func (p *Pool) QueueDepth() int {
-	if p == nil {
+	if p == nil || p.runtime == nil {
 		return 0
 	}
-	return len(p.slots)
+	return p.runtime.QueueDepth()
 }
 
 func (p *Pool) observeQueueDepth() {
 	p.observer().SetWorkerQueueDepth(p.cfg.Name, p.QueueDepth())
-}
-
-func (p *Pool) releaseQueuedSlots(count int) {
-	for i := 0; i < count; i++ {
-		select {
-		case <-p.slots:
-		default:
-			return
-		}
-	}
-}
-
-func (p *Pool) releaseQueuedSlotsAndObserve(count int) {
-	p.releaseQueuedSlots(count)
-	p.observeQueueDepth()
 }
 
 func (p *Pool) observeQueueCapacity() {
@@ -301,19 +242,19 @@ func (p *Pool) observeWorkers() {
 }
 
 func (p *Pool) observeAntsPool() {
+	capacity := 0
+	if p != nil && p.runtime != nil {
+		capacity = p.runtime.Workers()
+	}
+	p.observeAntsPoolUsage(int(p.inflight.Load()), capacity, 0)
+}
+
+func (p *Pool) observeAntsPoolUsage(running int, capacity int, waiting int) {
 	obs, ok := p.observer().(AntsPoolObserver)
 	if !ok {
 		return
 	}
-	capacity := 0
-	waiting := 0
-	if p.exec != nil {
-		capacity = p.exec.capacity()
-		waiting = p.exec.waiting()
-	}
-	// Inflight mirrors occupied execution windows and lets completion samples
-	// publish zero before the ants worker goroutine returns to the pool.
-	obs.SetWorkerAntsPoolUsage(p.cfg.Name, int(p.inflight.Load()), capacity, waiting)
+	obs.SetWorkerAntsPoolUsage(p.cfg.Name, running, capacity, waiting)
 }
 
 func (p *Pool) observeAdmission(result string) {
@@ -368,6 +309,65 @@ func (p *Pool) updateInflightPeak(inflight int) int {
 		if p.inflightPeak.CompareAndSwap(peak, value) {
 			return inflight
 		}
+	}
+}
+
+func (p *Pool) batchPolicy(first queuedTask) workqueue.BatchOptions {
+	if p == nil {
+		return workqueue.BatchOptions{MaxItems: 1}
+	}
+	switch {
+	case p.canCollectRPCBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: rpcBatchMaxItems, MaxWait: p.batchMaxWait(rpcBatchMaxWait)}
+	case p.canCollectStoreAppendBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: storeAppendBatchMaxItems, MaxWait: p.batchMaxWait(storeAppendBatchMaxWait)}
+	case p.canCollectStoreApplyBatch(first.task):
+		return workqueue.BatchOptions{MaxItems: storeApplyBatchMaxItems, MaxWait: p.batchMaxWait(storeApplyBatchMaxWait)}
+	default:
+		return workqueue.BatchOptions{MaxItems: 1}
+	}
+}
+
+func (p *Pool) completeQueuedClosed(queued queuedTask, err error) {
+	if p == nil || p.sink == nil {
+		return
+	}
+	if err == nil || errors.Is(err, workqueue.ErrClosed) {
+		err = ch.ErrClosed
+	}
+	p.observeWait(queued.task.Kind, time.Since(queued.enqueuedAt))
+	p.observeTask(queued.task.Kind, err, 0)
+	p.sink.Complete(Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err})
+}
+
+type workerWorkqueueObserver struct {
+	pool *Pool
+}
+
+func (o workerWorkqueueObserver) ObserveBoundedPool(obs workqueue.BoundedPoolObservation) {
+	p := o.pool
+	if p == nil {
+		return
+	}
+	switch obs.Kind {
+	case "capacity":
+		p.observeQueueCapacity()
+		p.observeWorkers()
+	case "depth":
+		p.observer().SetWorkerQueueDepth(p.cfg.Name, obs.QueueDepth)
+	case "admission":
+		p.observeAdmission(workerAdmissionResultFromWorkqueue(obs.Result))
+	case "worker":
+		p.observeAntsPoolUsage(obs.Running, obs.Workers, obs.Waiting)
+	}
+}
+
+func workerAdmissionResultFromWorkqueue(result string) string {
+	switch result {
+	case "ok", "full", "closed", "canceled", "timeout":
+		return result
+	default:
+		return "other"
 	}
 }
 

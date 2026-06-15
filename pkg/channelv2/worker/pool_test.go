@@ -349,19 +349,27 @@ func TestPoolReportsAdmissionResultLabels(t *testing.T) {
 	}
 }
 
-func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
-	sink := &captureSink{}
+func TestPoolCloseCompletesQueuedTaskWithoutCancelingRunningContext(t *testing.T) {
+	sink := &captureSink{ch: make(chan Result, 2)}
 	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 1}, Deps{}, sink)
 	require.NoError(t, err)
 
 	started := make(chan struct{})
-	cancelled := make(chan struct{})
-	fence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
-	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: fence, RunFunc: func(ctx context.Context) Result {
+	release := make(chan struct{})
+	runningErr := make(chan error, 1)
+	closeDone := make(chan error, 1)
+	runningFence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
+	queuedFence := ch.Fence{ChannelKey: ch.ChannelKey("1:b"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 2}
+	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: runningFence, RunFunc: func(ctx context.Context) Result {
 		close(started)
-		<-ctx.Done()
-		close(cancelled)
-		return Result{Fence: fence, Err: ctx.Err()}
+		select {
+		case <-release:
+			runningErr <- ctx.Err()
+			return Result{Fence: runningFence, Err: ctx.Err()}
+		case <-ctx.Done():
+			runningErr <- ctx.Err()
+			return Result{Fence: runningFence, Err: ctx.Err()}
+		}
 	}}))
 	require.Eventually(t, func() bool {
 		select {
@@ -371,22 +379,45 @@ func TestPoolCloseCancelsDequeuedTaskContext(t *testing.T) {
 			return false
 		}
 	}, time.Second, time.Millisecond)
+	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: queuedFence, RunFunc: func(context.Context) Result {
+		return Result{Fence: queuedFence, Err: errors.New("queued task ran")}
+	}}))
 
-	closed := make(chan struct{})
 	go func() {
-		_ = pool.Close()
-		close(closed)
+		closeDone <- pool.Close()
 	}()
 
+	var queuedResult Result
 	select {
-	case <-closed:
+	case queuedResult = <-sink.ch:
+		require.Equal(t, queuedFence.OpID, queuedResult.Fence.OpID)
+		require.ErrorIs(t, queuedResult.Err, ch.ErrClosed)
+	case err := <-runningErr:
+		t.Fatalf("Close canceled running context before release: %v", err)
+	case err := <-closeDone:
+		t.Fatalf("Close returned before running task was released: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("queued task was not completed as closed")
+	}
+
+	select {
+	case err := <-runningErr:
+		t.Fatalf("running task observed context cancellation before release: %v", err)
 	case <-time.After(200 * time.Millisecond):
-		t.Fatal("pool Close did not cancel a dequeued task context")
+	}
+
+	close(release)
+	select {
+	case err := <-closeDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("pool Close did not return after running task release")
 	}
 	select {
-	case <-cancelled:
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("task did not observe pool cancellation")
+	case err := <-runningErr:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("running task did not report context state")
 	}
 }
 
@@ -684,28 +715,14 @@ func TestPoolRPCPullTimeoutAppliesDuringTransportCall(t *testing.T) {
 func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	tr := newBlockingPullTransport(1)
-	exec, err := newExecutor(2)
-	require.NoError(t, err)
-	defer exec.close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	pool := &Pool{
-		cfg:    PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2},
-		deps:   Deps{Transport: tr},
-		sink:   sink,
-		queue:  make(chan queuedTask, 2),
-		slots:  make(chan struct{}, 2),
-		stop:   make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
-		exec:   exec,
-		obs:    noopQueueObserver{},
+		cfg:  PoolConfig{Name: "rpc", Workers: 2, QueueSize: 2},
+		deps: Deps{Transport: tr},
+		sink: sink,
+		obs:  noopQueueObserver{},
 	}
 	defer func() {
 		tr.Release()
-		close(pool.stop)
-		pool.dispatchWG.Wait()
 	}()
 
 	first := queuedTask{enqueuedAt: time.Now(), task: Task{
@@ -718,13 +735,11 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 		Fence:   ch.Fence{ChannelKey: "1:b", OpID: 2},
 		RPCPull: &RPCPullTask{Node: 2, Request: transport.PullRequest{ChannelKey: "1:b", NextOffset: 2}},
 	}}
-	pool.slots <- struct{}{}
-	pool.slots <- struct{}{}
-	pool.queue <- first
-	pool.queue <- second
 
-	pool.dispatchWG.Add(1)
-	go pool.dispatch()
+	done := make(chan error, 1)
+	go func() {
+		done <- pool.runQueuedBatch(context.Background(), []queuedTask{first, second})
+	}()
 
 	select {
 	case <-tr.Started():
@@ -738,6 +753,7 @@ func TestPoolRunsCollectedRPCSubgroupsSerially(t *testing.T) {
 	}
 
 	tr.Release()
+	require.NoError(t, <-done)
 	require.Eventually(t, func() bool { return sink.Len() == 2 }, time.Second, time.Millisecond)
 	require.Equal(t, []ch.OpID{1, 2}, resultOpIDs(sink.Results()))
 }
@@ -837,21 +853,14 @@ func TestPoolBatchesStoreAppendTasksWhenFactorySupportsBatch(t *testing.T) {
 
 func TestPoolUsesConfiguredStoreAppendBatchMaxWait(t *testing.T) {
 	pool := &Pool{
-		cfg:   PoolConfig{Name: "store-append", BatchMaxWait: time.Hour},
-		deps:  Deps{Stores: &batchAppendStoreFactory{}},
-		queue: make(chan queuedTask, 2),
-		stop:  make(chan struct{}),
+		cfg:  PoolConfig{Name: "store-append", BatchMaxWait: time.Hour},
+		deps: Deps{Stores: &batchAppendStoreFactory{}},
 	}
-	first := queuedStoreAppendTask("a", 1)
-	go func() {
-		time.Sleep(2 * time.Millisecond)
-		pool.queue <- queuedStoreAppendTask("b", 2)
-	}()
 
-	groups := pool.taskGroups(first)
+	opts := pool.batchPolicy(queuedStoreAppendTask("a", 1))
 
-	require.Len(t, groups, 1)
-	require.Len(t, groups[0], 2)
+	require.Equal(t, storeAppendBatchMaxItems, opts.MaxItems)
+	require.Equal(t, time.Hour, opts.MaxWait)
 }
 
 func TestPoolsRouteTasksByKindAndReportDepth(t *testing.T) {
