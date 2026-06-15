@@ -256,6 +256,14 @@ func (o multiGatewayObserver) OnFrameHandled(event accessgateway.FrameHandleEven
 	}
 }
 
+func (o multiGatewayObserver) OnSessionError(event accessgateway.SessionErrorEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.SessionErrorObserver); ok {
+			optional.OnSessionError(event)
+		}
+	}
+}
+
 func (o multiGatewayObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
 	for _, observer := range o {
 		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
@@ -1731,6 +1739,7 @@ var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
 var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
 var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
 var _ transportv2.Observer = multiTransportV2Observer{}
+var _ accessgateway.SessionErrorObserver = multiGatewayObserver{}
 var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
 var _ worker.InflightObserver = multiChannelV2Observer{}
 var _ worker.QueueCapacityObserver = multiChannelV2Observer{}

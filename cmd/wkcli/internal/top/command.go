@@ -16,9 +16,10 @@ import (
 func NewCommand(deps command.Deps) *cobra.Command {
 	cfg := config{}
 	cmd := &cobra.Command{
-		Use:   "top",
-		Short: "Inspect live WuKongIM runtime pressure",
-		Args:  cobra.NoArgs,
+		Use:          "top",
+		Short:        "Inspect live WuKongIM runtime pressure",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg.ContextDir = contextDirFromDeps(deps)
 			normalized, err := normalizeConfig(cfg)
@@ -29,7 +30,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
-			if normalized.Once {
+			if normalized.Once || normalized.Alerts || normalized.AlertFilter != "" {
 				err = runOnce(cmd.Context(), deps.Stdout, normalized)
 			} else {
 				err = runInteractive(cmd.Context(), deps.Stdout, normalized)
@@ -50,6 +51,8 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.Flags().DurationVar(&cfg.Interval, "interval", 0, "Interactive refresh interval")
 	cmd.Flags().BoolVar(&cfg.Once, "once", false, "Fetch and render one snapshot")
 	cmd.Flags().BoolVar(&cfg.JSON, "json", false, "Render JSON output")
+	cmd.Flags().BoolVar(&cfg.Alerts, "alerts", false, "Fetch and render detailed top alerts")
+	cmd.Flags().StringVar(&cfg.AlertFilter, "alert", "", "Fetch and render one alert by id, fingerprint, or component/kind")
 	cmd.Flags().IntVar(&cfg.MaxRefresh, "max-refresh", 0, "Maximum refreshes before exiting; 0 refreshes until interrupted")
 	return cmd
 }
@@ -85,23 +88,36 @@ func resolveServers(cfg config) ([]string, error) {
 }
 
 func runOnce(ctx context.Context, w io.Writer, cfg config) error {
+	agg, err := fetchAggregate(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if cfg.Alerts || cfg.AlertFilter != "" {
+		if cfg.JSON {
+			return renderAlertsJSON(w, agg, cfg.AlertFilter)
+		}
+		return renderAlerts(w, agg, cfg.AlertFilter)
+	}
+	if cfg.JSON {
+		return renderJSON(w, agg)
+	}
+	return renderHuman(w, agg)
+}
+
+func fetchAggregate(ctx context.Context, cfg config) (aggregateSnapshot, error) {
 	if len(cfg.Servers) == 0 {
-		return fmt.Errorf("at least one --server or context server is required")
+		return aggregateSnapshot{}, fmt.Errorf("at least one --server or context server is required")
 	}
 	c := newClient()
 	snapshots := make([]accessapi.TopSnapshot, 0, len(cfg.Servers))
 	for _, server := range cfg.Servers {
 		snapshot, err := c.snapshot(ctx, server, cfg)
 		if err != nil {
-			return err
+			return aggregateSnapshot{}, err
 		}
 		snapshots = append(snapshots, snapshot)
 	}
-	agg := aggregate(snapshots)
-	if cfg.JSON {
-		return renderJSON(w, agg)
-	}
-	return renderHuman(w, agg)
+	return aggregate(snapshots), nil
 }
 
 func splitValues(values []string) []string {

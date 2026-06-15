@@ -23,6 +23,8 @@ type config struct {
 	Limit       int
 	Once        bool
 	JSON        bool
+	Alerts      bool
+	AlertFilter string
 	Interval    time.Duration
 	MaxRefresh  int
 }
@@ -38,6 +40,7 @@ func normalizeConfig(cfg config) (config, error) {
 		cfg.View = defaultView
 	}
 	cfg.View = strings.TrimSpace(cfg.View)
+	cfg.AlertFilter = strings.TrimSpace(cfg.AlertFilter)
 	if cfg.Limit == 0 {
 		cfg.Limit = defaultLimit
 	}

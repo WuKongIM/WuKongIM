@@ -36,8 +36,12 @@ New(Config)
   -> create the top collector when Top.APIEnabled=true and attach node-local
      runtime observers for ChannelV2, storage commit, delivery, Slot scheduler,
      ControllerV2 Raft, and transport pressure independently of Prometheus
-     metrics; top remains an in-memory collector and still runs when
-     Observability.MetricsEnabled=false
+     metrics; the collector also samples local process CPU, RSS/VMS memory,
+     goroutine count, and thread count via gopsutil; it keeps a bounded
+     in-memory sticky alert window for readiness, pressure, sendack-error, and
+     gateway session-error signals with compact evidence facts so `wkcli top`
+     can show why active or recently resolved warnings fired; top remains an
+     in-memory collector and still runs when Observability.MetricsEnabled=false
   -> when Observability.Prometheus.Enabled=true:
        validate that the API metrics endpoint is enabled and create a child
        Prometheus runtime that writes prometheus.yml under the configured

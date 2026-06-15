@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -940,7 +941,7 @@ func (s *Server) onClose(listener *listenerRuntime, conn transport.Conn, err err
 		return
 	}
 
-	if err != nil {
+	if err != nil && !isBenignPeerCloseError(err) {
 		state.close(gatewaytypes.CloseReasonPeerClosed, err)
 		return
 	}
@@ -1352,7 +1353,7 @@ func (s *Server) handleHandlerError(state *sessionState, err error) {
 		state.close(reason, err)
 		return
 	}
-	s.dispatcher.sessionError(state, reason, err)
+	s.dispatchSessionError(state, reason, err)
 }
 
 func (s *Server) writePayloadDirect(state *sessionState, payload []byte) error {
@@ -1399,6 +1400,17 @@ func closeReasonForError(err error, fallback gatewaytypes.CloseReason) gatewayty
 	default:
 		return fallback
 	}
+}
+
+func isBenignPeerCloseError(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func sessionErrorClass(reason gatewaytypes.CloseReason) string {
+	if reason == "" {
+		return "unknown"
+	}
+	return string(reason)
 }
 
 func (s *Server) registerState(state *sessionState) {
@@ -1599,6 +1611,30 @@ func (s *Server) observeFrameHandled(state *sessionState, f frame.Frame, dur tim
 		Duration:        dur,
 		Err:             err,
 	})
+}
+
+func (s *Server) observeSessionError(state *sessionState, reason gatewaytypes.CloseReason, err error) {
+	if s == nil || s.options.Observer == nil || err == nil || isBenignPeerCloseError(err) {
+		return
+	}
+	observer, ok := s.options.Observer.(gatewaytypes.SessionErrorObserver)
+	if !ok {
+		return
+	}
+	event := connectionEventForState(state)
+	event.CloseReason = reason
+	observer.OnSessionError(gatewaytypes.SessionErrorEvent{
+		ConnectionEvent: event,
+		Class:           sessionErrorClass(reason),
+	})
+}
+
+func (s *Server) dispatchSessionError(state *sessionState, reason gatewaytypes.CloseReason, err error) {
+	if s == nil || err == nil || isBenignPeerCloseError(err) {
+		return
+	}
+	s.observeSessionError(state, reason, err)
+	s.dispatcher.sessionError(state, reason, err)
 }
 
 func (s *Server) recordAsyncDispatchWait(task asyncDispatchTask) {
@@ -2039,9 +2075,9 @@ func (st *sessionState) dispatchCloseNotificationIfReady() {
 	st.metaMu.Unlock()
 
 	for _, closeErr := range closeErrs {
-		st.server.dispatcher.sessionError(st, reason, closeErr)
+		st.server.dispatchSessionError(st, reason, closeErr)
 	}
 	if err := st.server.dispatcher.sessionClose(st); err != nil {
-		st.server.dispatcher.sessionError(st, reason, err)
+		st.server.dispatchSessionError(st, reason, err)
 	}
 }

@@ -80,7 +80,15 @@ benchmark environments.
 `GET /top/v1/snapshot` is a read-only, node-local operations snapshot used by
 `wkcli top`. It is independent of Prometheus metrics and remains disabled unless
 the composition root passes a Top provider; without that provider the route
-returns `404`.
+returns `404`. Each node reports its own process CPU, RSS/VMS memory,
+goroutine, and thread usage through gopsutil in this snapshot so multi-node
+`wkcli top` can compare node-local resource pressure without requiring SSH or
+Prometheus. The response also includes sticky node-local `alerts` for active
+and recently resolved readiness, pressure, and sendack-error signals so
+operators do not miss short-lived warnings between CLI refreshes. Alert entries
+carry low-cardinality `evidence` key/value facts, such as pressure score,
+queue depth/capacity, thresholds, ready part, or sendack error rate, so detail
+views can explain why the alert fired without scraping Prometheus metrics.
 
 All `/debug...` routes are enabled only when the composition root passes
 `DebugAPIEnabled=true`. In `cmd/wukongimv2`, that switch is

@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -9,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 const (
@@ -16,6 +20,7 @@ const (
 	topCounterGatewaySendWKProto = "gateway.send.wkproto"
 	topCounterSendackSuccess     = "gateway.sendack.success"
 	topCounterSendackError       = "gateway.sendack.error"
+	topCounterGatewaySessionErr  = "gateway.session_error"
 	topCounterMessageAppendOK    = "message.append.ok"
 	topHistogramMessageAppend    = "message.append"
 
@@ -35,6 +40,9 @@ const (
 	topHistogramDeliveryPush           = "delivery.push"
 
 	topMaxHistogramValuesPerSample = 2048
+	topAlertSignalWindow           = 10 * time.Second
+	topAlertRetention              = 10 * time.Minute
+	topMaxRetainedAlerts           = 200
 )
 
 // topCollectorOptions configures the node-local wkcli top collector.
@@ -51,6 +59,8 @@ type topCollectorOptions struct {
 	ClusterSnapshot func() clusterv2.Snapshot
 	// MetricsEnabled reports whether the optional Prometheus endpoint is enabled.
 	MetricsEnabled bool
+	// ResourceSampler returns local process CPU and memory usage for top snapshots.
+	ResourceSampler func() topResourceSample
 }
 
 type topCollector struct {
@@ -60,6 +70,10 @@ type topCollector struct {
 	counters map[string]uint64
 	gauges   map[string]int64
 	histos   map[string][]float64
+	alerts   map[string]*topAlertState
+	// alertOrder stores alert fingerprints in creation order for bounded retention.
+	alertOrder []string
+	alertSeq   uint64
 	// ring stores fixed-capacity samples ordered by head/count.
 	ring []topSample
 	// head is the next ring slot written by recordSampleAt.
@@ -77,6 +91,45 @@ type topSample struct {
 	gauges   map[string]int64
 	histos   map[string][]float64
 	cluster  clusterv2.Snapshot
+	resource topResourceSample
+}
+
+// topResourceSample captures local process resource counters for one top sample.
+type topResourceSample struct {
+	// CPUPercent is process CPU usage since the previous sample.
+	CPUPercent float64
+	// MemoryRSSBytes is resident process memory in bytes.
+	MemoryRSSBytes uint64
+	// MemoryVMSBytes is virtual process memory in bytes.
+	MemoryVMSBytes uint64
+	// Goroutines is the current goroutine count.
+	Goroutines int
+	// Threads is the current OS thread count when available.
+	Threads int
+}
+
+type topAlertSignal struct {
+	severity  string
+	component string
+	kind      string
+	message   string
+	hint      string
+	evidence  map[string]string
+}
+
+type topAlertState struct {
+	alert accessapi.TopAlert
+}
+
+type topProcessStats interface {
+	Percent(time.Duration) (float64, error)
+	MemoryInfo() (*process.MemoryInfoStat, error)
+	NumThreads() (int32, error)
+}
+
+type topGopsutilResourceSampler struct {
+	process    topProcessStats
+	goroutines func() int
 }
 
 func newTopCollector(options topCollectorOptions) *topCollector {
@@ -86,11 +139,16 @@ func newTopCollector(options topCollectorOptions) *topCollector {
 	if options.HistoryWindow <= 0 {
 		options.HistoryWindow = 5 * time.Minute
 	}
+	if options.ResourceSampler == nil {
+		sampler := defaultTopGopsutilResourceSampler()
+		options.ResourceSampler = sampler.sample
+	}
 	return &topCollector{
 		options:  options,
 		counters: make(map[string]uint64),
 		gauges:   make(map[string]int64),
 		histos:   make(map[string][]float64),
+		alerts:   make(map[string]*topAlertState),
 		ring:     make([]topSample, topRingCapacity(options.CollectInterval, options.HistoryWindow)),
 	}
 }
@@ -196,6 +254,23 @@ func (c *topCollector) ObserveGatewaySendack(reason, source, class string) {
 	}
 	c.addCounter(topCounterSendackError, 1)
 	_, _ = source, class
+}
+
+func (c *topCollector) ObserveGatewaySessionError(protocol, closeReason, class string) {
+	if c == nil {
+		return
+	}
+	protocol = safeTopLabel(protocol)
+	closeReason = safeTopLabel(closeReason)
+	class = safeTopLabel(class)
+	if class == "none" {
+		class = closeReason
+	}
+	if closeReason == "none" {
+		closeReason = class
+	}
+	c.addCounter(topCounterGatewaySessionErr, 1)
+	c.addCounter(strings.Join([]string{topCounterGatewaySessionErr, protocol, closeReason, class}, "."), 1)
 }
 
 func (c *topCollector) ObserveMessageAppend(path, result string, d time.Duration) {
@@ -408,20 +483,24 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	c.mu.Unlock()
 
 	cluster := c.clusterSnapshot()
+	resource := c.resourceSample()
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.ring[c.head] = topSample{
 		at:       at.UTC(),
 		counters: counters,
 		gauges:   gauges,
 		histos:   histos,
 		cluster:  cluster,
+		resource: resource,
 	}
 	c.head = (c.head + 1) % len(c.ring)
 	if c.count < len(c.ring) {
 		c.count++
 	}
+	c.updateAlertsLocked(at.UTC(), c.alertSignalsLocked())
+	c.pruneAlertsLocked(at.UTC())
+	c.mu.Unlock()
 }
 
 func (c *topCollector) clusterSnapshot() clusterv2.Snapshot {
@@ -445,6 +524,9 @@ func (c *topCollector) clone() *topCollector {
 	out.counters = cloneUint64Map(c.counters)
 	out.gauges = cloneInt64Map(c.gauges)
 	out.histos = cloneHistos(c.histos)
+	out.alerts = cloneTopAlertStates(c.alerts)
+	out.alertOrder = append([]string(nil), c.alertOrder...)
+	out.alertSeq = c.alertSeq
 	out.ring = make([]topSample, len(c.ring))
 	for i := range c.ring {
 		out.ring[i] = cloneTopSample(c.ring[i])
@@ -452,6 +534,13 @@ func (c *topCollector) clone() *topCollector {
 	out.head = c.head
 	out.count = c.count
 	return out
+}
+
+func (c *topCollector) resourceSample() topResourceSample {
+	if c.options.ResourceSampler != nil {
+		return c.options.ResourceSampler()
+	}
+	return collectTopResourceSample()
 }
 
 func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
@@ -470,8 +559,10 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	seconds := last.at.Sub(first.at).Seconds()
 	traffic := buildTraffic(window, seconds)
 	clients := buildClients(window, seconds)
+	resources := buildResources(window)
 	pressure := c.buildPressureLocked(last, query.Limit)
 	verdict := buildTopVerdict(last.cluster, traffic, pressure)
+	alerts := c.snapshotAlertsLocked(query.Limit)
 
 	snapshot := accessapi.TopSnapshot{
 		Version:       "top/v1",
@@ -480,6 +571,8 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 		WindowSeconds: int(last.at.Sub(first.at).Seconds()),
 		Node:          c.topNodeSnapshot(last.cluster),
 		Verdict:       verdict,
+		Resources:     resources,
+		Alerts:        alerts,
 		Sources: accessapi.TopSources{
 			Collector:       accessapi.TopSourceStatus{Available: true, SampleCount: len(window)},
 			ClusterSnapshot: accessapi.TopSourceStatus{Available: true, SampleCount: 1},
@@ -505,6 +598,42 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 		snapshot.Delivery = buildDelivery(window, seconds)
 	}
 	return snapshot, nil
+}
+
+func collectTopResourceSample() topResourceSample {
+	return defaultTopGopsutilResourceSampler().sample()
+}
+
+func defaultTopGopsutilResourceSampler() topGopsutilResourceSampler {
+	proc, err := process.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		proc = nil
+	}
+	return topGopsutilResourceSampler{
+		process:    proc,
+		goroutines: runtime.NumGoroutine,
+	}
+}
+
+func (s topGopsutilResourceSampler) sample() topResourceSample {
+	out := topResourceSample{}
+	if s.goroutines != nil {
+		out.Goroutines = s.goroutines()
+	}
+	if s.process == nil {
+		return out
+	}
+	if cpuPercent, err := s.process.Percent(0); err == nil && cpuPercent > 0 {
+		out.CPUPercent = cpuPercent
+	}
+	if memoryInfo, err := s.process.MemoryInfo(); err == nil && memoryInfo != nil {
+		out.MemoryRSSBytes = memoryInfo.RSS
+		out.MemoryVMSBytes = memoryInfo.VMS
+	}
+	if threads, err := s.process.NumThreads(); err == nil && threads > 0 {
+		out.Threads = int(threads)
+	}
+	return out
 }
 
 func (c *topCollector) windowLocked(window time.Duration) []topSample {
@@ -637,6 +766,20 @@ func buildClients(window []topSample, seconds float64) *accessapi.TopClients {
 		ConnectionsByProtocol: byProtocol,
 		AuthFailPerSec:        rate(first.counters, last.counters, "gateway.auth.fail", seconds),
 		ClosePerSec:           rateByPrefix(first.counters, last.counters, closePrefix, seconds),
+	}
+}
+
+func buildResources(window []topSample) *accessapi.TopResources {
+	if len(window) == 0 {
+		return nil
+	}
+	last := window[len(window)-1]
+	return &accessapi.TopResources{
+		CPUPercent:     last.resource.CPUPercent,
+		MemoryRSSBytes: last.resource.MemoryRSSBytes,
+		MemoryVMSBytes: last.resource.MemoryVMSBytes,
+		Goroutines:     last.resource.Goroutines,
+		Threads:        last.resource.Threads,
 	}
 }
 
@@ -1002,6 +1145,419 @@ func readinessReasons(snapshot clusterv2.Snapshot) []string {
 	return reasons
 }
 
+func (c *topCollector) alertSignalsLocked() []topAlertSignal {
+	if c.count == 0 || len(c.ring) == 0 {
+		return nil
+	}
+	lastIndex := (c.head - 1 + len(c.ring)) % len(c.ring)
+	last := c.ring[lastIndex]
+	signals := readinessAlertSignals(last.cluster)
+
+	window := c.windowLocked(topAlertSignalWindow)
+	if len(window) >= 2 {
+		first := window[0]
+		seconds := last.at.Sub(first.at).Seconds()
+		traffic := buildTraffic(window, seconds)
+		if traffic.SendackErrorRate >= 0.05 && traffic.SendackErrorPerSec > 0 {
+			signals = append(signals, topAlertSignal{
+				severity:  "error",
+				component: "gateway",
+				kind:      "sendack_error_rate_high",
+				message:   "sendack error rate is high",
+				hint:      "inspect gateway sendack failures and append errors",
+				evidence: map[string]string{
+					"window":                topAlertSignalWindow.String(),
+					"sendack_error_rate":    topAlertEvidenceFloat(traffic.SendackErrorRate),
+					"sendack_error_per_sec": topAlertEvidenceFloat(traffic.SendackErrorPerSec),
+					"threshold.degraded":    "0.05",
+				},
+			})
+		}
+		if signal, ok := gatewaySessionErrorAlertSignal(first, last); ok {
+			signals = append(signals, signal)
+		}
+	}
+
+	pressure := c.buildPressureLocked(last, topMaxRetainedAlerts)
+	if pressure != nil {
+		for _, item := range pressure.Top {
+			if item.Level == "ok" {
+				continue
+			}
+			signals = append(signals, topAlertSignal{
+				severity:  topAlertSeverityFromLevel(item.Level),
+				component: item.Component,
+				kind:      "pressure_high",
+				message:   pressureAlertMessage(item),
+				hint:      item.Hint,
+				evidence:  pressureAlertEvidence(item),
+			})
+		}
+	}
+	return signals
+}
+
+func gatewaySessionErrorAlertSignal(first, last topSample) (topAlertSignal, bool) {
+	prefix := topCounterGatewaySessionErr + "."
+	bestKey := ""
+	var bestCount uint64
+	seen := make(map[string]struct{})
+	for key := range first.counters {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		seen[key] = struct{}{}
+		count := counterDelta(first.counters, last.counters, key)
+		if count > bestCount || count == bestCount && count > 0 && key < bestKey {
+			bestKey = key
+			bestCount = count
+		}
+	}
+	for key := range last.counters {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		count := counterDelta(first.counters, last.counters, key)
+		if count > bestCount || count == bestCount && count > 0 && (bestKey == "" || key < bestKey) {
+			bestKey = key
+			bestCount = count
+		}
+	}
+	if bestCount == 0 || bestKey == "" {
+		return topAlertSignal{}, false
+	}
+	labels := strings.Split(strings.TrimPrefix(bestKey, prefix), ".")
+	if len(labels) != 3 {
+		return topAlertSignal{}, false
+	}
+	window := last.at.Sub(first.at)
+	if window < 0 {
+		window = 0
+	}
+	return topAlertSignal{
+		severity:  "error",
+		component: "gateway",
+		kind:      "session_error",
+		message:   "gateway session errors observed",
+		hint:      "inspect gateway close reason and protocol error handling",
+		evidence: map[string]string{
+			"protocol":     labels[0],
+			"close_reason": labels[1],
+			"class":        labels[2],
+			"count":        fmt.Sprintf("%d", bestCount),
+			"window":       window.String(),
+		},
+	}, true
+}
+
+func readinessAlertSignals(snapshot clusterv2.Snapshot) []topAlertSignal {
+	signals := make([]topAlertSignal, 0, 3)
+	if !snapshot.RoutesReady {
+		signals = append(signals, topAlertSignal{
+			severity:  "critical",
+			component: "cluster",
+			kind:      "ready_part_down",
+			message:   "routes not ready",
+			hint:      "check clusterv2 routing state and node links",
+			evidence:  map[string]string{"ready_part": "routes", "ready": "false"},
+		})
+	}
+	if !snapshot.SlotsReady {
+		signals = append(signals, topAlertSignal{
+			severity:  "critical",
+			component: "cluster",
+			kind:      "ready_part_down",
+			message:   "slots not ready",
+			hint:      "check slot raft leaders and metadata readiness",
+			evidence:  map[string]string{"ready_part": "slots", "ready": "false"},
+		})
+	}
+	if !snapshot.ChannelsReady {
+		signals = append(signals, topAlertSignal{
+			severity:  "critical",
+			component: "channelv2",
+			kind:      "ready_part_down",
+			message:   "channelv2 not ready",
+			hint:      "check channel runtime bootstrap and replication readiness",
+			evidence:  map[string]string{"ready_part": "channels", "ready": "false"},
+		})
+	}
+	return signals
+}
+
+func (c *topCollector) updateAlertsLocked(at time.Time, signals []topAlertSignal) {
+	if c.alerts == nil {
+		c.alerts = make(map[string]*topAlertState)
+	}
+	nodeID, nodeName := c.alertNodeIdentityLocked()
+	active := make(map[string]struct{}, len(signals))
+	for _, signal := range signals {
+		signal = normalizeTopAlertSignal(signal)
+		fingerprint := topAlertFingerprint(signal)
+		if _, ok := active[fingerprint]; ok {
+			continue
+		}
+		active[fingerprint] = struct{}{}
+		state := c.alerts[fingerprint]
+		if state == nil {
+			c.alertSeq++
+			state = &topAlertState{alert: accessapi.TopAlert{
+				ID:          fmt.Sprintf("top-alert-%d", c.alertSeq),
+				Fingerprint: fingerprint,
+				FirstSeen:   at,
+			}}
+			c.alerts[fingerprint] = state
+			c.alertOrder = append(c.alertOrder, fingerprint)
+		}
+		state.alert.NodeID = nodeID
+		state.alert.NodeName = nodeName
+		state.alert.Severity = signal.severity
+		state.alert.Component = signal.component
+		state.alert.Kind = signal.kind
+		state.alert.Message = signal.message
+		state.alert.Hint = signal.hint
+		state.alert.Evidence = cloneStringMap(signal.evidence)
+		state.alert.LastSeen = at
+		state.alert.Count++
+		state.alert.Active = true
+		state.alert.ResolvedAt = nil
+	}
+	for fingerprint, state := range c.alerts {
+		if _, ok := active[fingerprint]; ok || !state.alert.Active {
+			continue
+		}
+		resolvedAt := at
+		state.alert.Active = false
+		state.alert.ResolvedAt = &resolvedAt
+	}
+}
+
+func (c *topCollector) alertNodeIdentityLocked() (uint64, string) {
+	if c.count == 0 || len(c.ring) == 0 {
+		return c.options.NodeID, c.options.NodeName
+	}
+	lastIndex := (c.head - 1 + len(c.ring)) % len(c.ring)
+	nodeID := c.ring[lastIndex].cluster.NodeID
+	if nodeID == 0 {
+		nodeID = c.options.NodeID
+	}
+	return nodeID, c.options.NodeName
+}
+
+func (c *topCollector) pruneAlertsLocked(now time.Time) {
+	if len(c.alertOrder) == 0 {
+		return
+	}
+	retained := c.alertOrder[:0]
+	for _, fingerprint := range c.alertOrder {
+		state := c.alerts[fingerprint]
+		if state == nil {
+			continue
+		}
+		if !state.alert.Active && now.Sub(state.alert.LastSeen) > topAlertRetention {
+			delete(c.alerts, fingerprint)
+			continue
+		}
+		retained = append(retained, fingerprint)
+	}
+	for len(retained) > topMaxRetainedAlerts {
+		delete(c.alerts, retained[0])
+		retained = retained[1:]
+	}
+	c.alertOrder = retained
+}
+
+func (c *topCollector) snapshotAlertsLocked(limit int) *accessapi.TopAlerts {
+	if len(c.alerts) == 0 {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	active := make([]accessapi.TopAlert, 0, len(c.alerts))
+	recent := make([]accessapi.TopAlert, 0, len(c.alerts))
+	counts := accessapi.TopAlertCounts{}
+	for _, state := range c.alerts {
+		if state == nil {
+			continue
+		}
+		alert := cloneTopAlert(state.alert)
+		recent = append(recent, alert)
+		counts.Recent++
+		if !alert.Active {
+			continue
+		}
+		active = append(active, alert)
+		counts.Active++
+		switch alert.Severity {
+		case "critical":
+			counts.Critical++
+		case "error":
+			counts.Error++
+		case "warn":
+			counts.Warning++
+		}
+	}
+	sort.Slice(active, func(i, j int) bool { return topAlertLess(active[i], active[j]) })
+	sort.Slice(recent, func(i, j int) bool { return topAlertLess(recent[i], recent[j]) })
+	if len(active) > limit {
+		active = active[:limit]
+	}
+	if len(recent) > limit {
+		recent = recent[:limit]
+	}
+	return &accessapi.TopAlerts{
+		Counts: counts,
+		Active: active,
+		Recent: recent,
+	}
+}
+
+func normalizeTopAlertSignal(signal topAlertSignal) topAlertSignal {
+	signal.severity = strings.TrimSpace(signal.severity)
+	signal.component = safeTopLabel(signal.component)
+	signal.kind = safeTopLabel(signal.kind)
+	signal.message = strings.TrimSpace(signal.message)
+	signal.hint = strings.TrimSpace(signal.hint)
+	if signal.severity == "" {
+		signal.severity = "warn"
+	}
+	if signal.component == "none" {
+		signal.component = "runtime"
+	}
+	if signal.kind == "none" {
+		signal.kind = "status"
+	}
+	if signal.message == "" {
+		signal.message = signal.component + " " + signal.kind
+	}
+	return signal
+}
+
+func topAlertFingerprint(signal topAlertSignal) string {
+	return strings.Join([]string{signal.component, signal.kind, signal.message}, "|")
+}
+
+func topAlertSeverityFromLevel(level string) string {
+	switch level {
+	case "critical":
+		return "critical"
+	case "degraded":
+		return "error"
+	default:
+		return "warn"
+	}
+}
+
+func pressureAlertMessage(item accessapi.TopPressureItem) string {
+	signal := pressureSignalLabel(item.Component, item.Pool, item.Queue, item.Priority)
+	if signal == "" {
+		signal = item.Component
+	}
+	return signal + " pressure is " + item.Level
+}
+
+func pressureAlertEvidence(item accessapi.TopPressureItem) map[string]string {
+	evidence := map[string]string{
+		"component":          item.Component,
+		"level":              item.Level,
+		"score":              topAlertEvidenceFloat(item.Score),
+		"threshold.busy":     "0.60",
+		"threshold.degraded": "0.80",
+		"threshold.critical": "0.95",
+	}
+	if item.Pool != "" && item.Pool != "none" {
+		evidence["pool"] = item.Pool
+	}
+	if item.Queue != "" && item.Queue != "none" {
+		evidence["queue"] = item.Queue
+	}
+	if item.Priority != "" && item.Priority != "none" {
+		evidence["priority"] = item.Priority
+	}
+	if item.Depth > 0 || item.Capacity > 0 {
+		evidence["depth"] = topAlertEvidenceInt(item.Depth)
+		evidence["capacity"] = topAlertEvidenceInt(item.Capacity)
+	}
+	if item.Inflight > 0 || item.Workers > 0 {
+		evidence["inflight"] = topAlertEvidenceInt(item.Inflight)
+		evidence["workers"] = topAlertEvidenceInt(item.Workers)
+	}
+	if item.WaitP99MS > 0 {
+		evidence["wait_p99_ms"] = topAlertEvidenceFloat(item.WaitP99MS)
+	}
+	if item.TaskP99MS > 0 {
+		evidence["task_p99_ms"] = topAlertEvidenceFloat(item.TaskP99MS)
+	}
+	if item.AdmissionErrorPerSec > 0 {
+		evidence["admission_error_per_sec"] = topAlertEvidenceFloat(item.AdmissionErrorPerSec)
+	}
+	return evidence
+}
+
+func topAlertEvidenceFloat(value float64) string {
+	return fmt.Sprintf("%.2f", value)
+}
+
+func topAlertEvidenceInt(value int64) string {
+	return fmt.Sprintf("%d", value)
+}
+
+func pressureSignalLabel(component, pool, queue, priority string) string {
+	var parts []string
+	if component != "" {
+		parts = append(parts, component)
+	}
+	var details []string
+	for _, value := range []string{pool, queue} {
+		if value != "" && value != "none" {
+			details = append(details, value)
+		}
+	}
+	if priority != "" && priority != "none" {
+		details = append(details, priority)
+	}
+	if len(details) > 0 {
+		parts = append(parts, strings.Join(details, "/"))
+	}
+	return strings.Join(parts, " ")
+}
+
+func topAlertLess(a, b accessapi.TopAlert) bool {
+	if a.Active != b.Active {
+		return a.Active
+	}
+	if topAlertSeverityRank(a.Severity) != topAlertSeverityRank(b.Severity) {
+		return topAlertSeverityRank(a.Severity) > topAlertSeverityRank(b.Severity)
+	}
+	if !a.LastSeen.Equal(b.LastSeen) {
+		return a.LastSeen.After(b.LastSeen)
+	}
+	if a.NodeName != b.NodeName {
+		return a.NodeName < b.NodeName
+	}
+	if a.Component != b.Component {
+		return a.Component < b.Component
+	}
+	return a.Message < b.Message
+}
+
+func topAlertSeverityRank(severity string) int {
+	switch severity {
+	case "critical":
+		return 3
+	case "error":
+		return 2
+	case "warn":
+		return 1
+	default:
+		return 0
+	}
+}
+
 func severityRank(level string) int {
 	switch level {
 	case "critical":
@@ -1046,7 +1602,40 @@ func cloneTopSample(sample topSample) topSample {
 		gauges:   cloneInt64Map(sample.gauges),
 		histos:   cloneHistos(sample.histos),
 		cluster:  sample.cluster,
+		resource: sample.resource,
 	}
+}
+
+func cloneTopAlertStates(in map[string]*topAlertState) map[string]*topAlertState {
+	out := make(map[string]*topAlertState, len(in))
+	for fingerprint, state := range in {
+		if state == nil {
+			continue
+		}
+		out[fingerprint] = &topAlertState{alert: cloneTopAlert(state.alert)}
+	}
+	return out
+}
+
+func cloneTopAlert(in accessapi.TopAlert) accessapi.TopAlert {
+	out := in
+	if in.ResolvedAt != nil {
+		resolvedAt := *in.ResolvedAt
+		out.ResolvedAt = &resolvedAt
+	}
+	out.Evidence = cloneStringMap(in.Evidence)
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func cloneUint64Map(in map[string]uint64) map[string]uint64 {

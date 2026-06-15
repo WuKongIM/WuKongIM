@@ -9,6 +9,17 @@ import (
 
 // runInteractive refreshes top snapshots until bounded by config or context.
 func runInteractive(ctx context.Context, w io.Writer, cfg config) error {
+	if shouldRunTermUI(cfg) {
+		return runTermUI(ctx, cfg)
+	}
+	return runTextInteractive(ctx, w, cfg)
+}
+
+func shouldRunTermUI(cfg config) bool {
+	return !cfg.JSON && cfg.MaxRefresh == 0
+}
+
+func runTextInteractive(ctx context.Context, w io.Writer, cfg config) error {
 	refreshes := 0
 	for {
 		if refreshes > 0 && !cfg.JSON {

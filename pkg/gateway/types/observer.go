@@ -11,6 +11,11 @@ type Observer interface {
 	OnFrameHandled(event FrameHandleEvent)
 }
 
+// SessionErrorObserver receives optional low-cardinality session error observations.
+type SessionErrorObserver interface {
+	OnSessionError(event SessionErrorEvent)
+}
+
 // AsyncSendObserver receives optional observations from the asynchronous SEND dispatch path.
 type AsyncSendObserver interface {
 	OnAsyncSendQueue(event AsyncSendQueueEvent)
@@ -66,6 +71,13 @@ type FrameHandleEvent struct {
 	FrameType string
 	Duration  time.Duration
 	Err       error
+}
+
+// SessionErrorEvent reports a non-benign session error without high-cardinality raw error text.
+type SessionErrorEvent struct {
+	ConnectionEvent
+	// Class is a bounded error class, usually derived from CloseReason.
+	Class string
 }
 
 // AsyncSendQueueEvent reports aggregate asynchronous SEND queue occupancy.

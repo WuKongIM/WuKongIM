@@ -78,6 +78,10 @@ type TopSnapshot struct {
 	Traffic *TopTraffic `json:"traffic,omitempty"`
 	// Clients contains gateway connection and churn data when requested.
 	Clients *TopClients `json:"clients,omitempty"`
+	// Resources contains local process CPU and memory usage for the node.
+	Resources *TopResources `json:"resources,omitempty"`
+	// Alerts contains sticky node-local warnings and errors retained across refreshes.
+	Alerts *TopAlerts `json:"alerts,omitempty"`
 	// Pressure contains scored runtime bottlenecks when available.
 	Pressure *TopPressure `json:"pressure,omitempty"`
 	// ChannelV2 contains channel runtime gauges and latency summaries.
@@ -152,6 +156,78 @@ type TopClients struct {
 	AuthFailPerSec float64 `json:"auth_fail_per_sec"`
 	// ClosePerSec is gateway session closes per second.
 	ClosePerSec float64 `json:"close_per_sec"`
+}
+
+// TopResources contains process-level resource usage for one node.
+type TopResources struct {
+	// CPUPercent is process CPU usage for the latest sampling interval; one full core is 100%.
+	CPUPercent float64 `json:"cpu_percent"`
+	// MemoryRSSBytes is resident process memory in bytes.
+	MemoryRSSBytes uint64 `json:"memory_rss_bytes"`
+	// MemoryVMSBytes is virtual process memory in bytes.
+	MemoryVMSBytes uint64 `json:"memory_vms_bytes"`
+	// Goroutines is the current number of goroutines in the process.
+	Goroutines int `json:"goroutines"`
+	// Threads is the current number of OS threads in the process when available.
+	Threads int `json:"threads"`
+}
+
+// TopAlerts contains active and recently resolved operational alerts.
+type TopAlerts struct {
+	// Counts summarizes active and recent alert severities.
+	Counts TopAlertCounts `json:"counts"`
+	// Active lists alerts that are still present in the latest collector sample.
+	Active []TopAlert `json:"active,omitempty"`
+	// Recent lists active and recently resolved alerts retained by the top collector.
+	Recent []TopAlert `json:"recent,omitempty"`
+}
+
+// TopAlertCounts summarizes alert counts for a node-local top snapshot.
+type TopAlertCounts struct {
+	// Active is the number of currently active alerts.
+	Active int `json:"active"`
+	// Recent is the number of retained active or recently resolved alerts.
+	Recent int `json:"recent"`
+	// Warning is the number of active warning alerts.
+	Warning int `json:"warning"`
+	// Error is the number of active error alerts.
+	Error int `json:"error"`
+	// Critical is the number of active critical alerts.
+	Critical int `json:"critical"`
+}
+
+// TopAlert describes one sticky warning or error surfaced by wkcli top.
+type TopAlert struct {
+	// ID is a stable node-local alert identity for this collector process.
+	ID string `json:"id"`
+	// Fingerprint is the stable de-duplication key for the alert kind and message.
+	Fingerprint string `json:"fingerprint,omitempty"`
+	// NodeID is the numeric cluster node ID that observed the alert.
+	NodeID uint64 `json:"node_id,omitempty"`
+	// NodeName is the operator-facing node name that observed the alert.
+	NodeName string `json:"node_name,omitempty"`
+	// Severity is one of warn, error, or critical.
+	Severity string `json:"severity"`
+	// Component is the subsystem that produced the alert.
+	Component string `json:"component"`
+	// Kind is a stable low-cardinality alert category.
+	Kind string `json:"kind"`
+	// Message is the concise operator-facing alert text.
+	Message string `json:"message"`
+	// Hint is an optional short remediation clue.
+	Hint string `json:"hint,omitempty"`
+	// Evidence contains stable key/value facts that explain why the alert fired.
+	Evidence map[string]string `json:"evidence,omitempty"`
+	// FirstSeen is the first time this alert fingerprint was observed.
+	FirstSeen time.Time `json:"first_seen"`
+	// LastSeen is the most recent time this alert fingerprint was observed.
+	LastSeen time.Time `json:"last_seen"`
+	// ResolvedAt is set when the latest collector sample no longer contains the alert.
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	// Count is the number of collector samples that observed this alert fingerprint.
+	Count uint64 `json:"count"`
+	// Active reports whether the latest collector sample still contains the alert.
+	Active bool `json:"active"`
 }
 
 // TopPressure contains scored runtime pressure signals.

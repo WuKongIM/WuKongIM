@@ -133,7 +133,7 @@ failure class 记录认证失败指标；未知或未分类激活错误仍归为
 
 `AsyncSendObserver` 是可选观测扩展。实现方可以在不改变 `Observer` 基础接口的情况下接收 SEND async 队列深度、批处理大小/等待时间、以及单帧入队到分发的等待时间；这些事件用于 Prometheus 指标，不承载业务逻辑。
 
-Gateway pressure observers are optional extensions on top of the base Observer. They report async auth queue pressure, SEND admission outcomes, and gnet aggregate actor/inbound/outbound pressure without per-connection labels or behavior changes.
+Gateway pressure and session-error observers are optional extensions on top of the base Observer. They report async auth queue pressure, SEND admission outcomes, gnet aggregate actor/inbound/outbound pressure, and non-benign session error classes without per-connection labels or behavior changes.
 
 ### 4.4 扩展接口
 
@@ -321,7 +321,8 @@ sessionState.close:
   ② cancel requestContext
   ③ 记录 OnConnectionClose
   ④ 从 idleTracker、states、session.Manager 删除
-  ⑤ 如 close 原因错误、adapter.OnClose 错误或底层 conn.Close 错误非空，且 OnSessionOpen 已完成，调用 OnSessionError(err)
+  ⑤ 如 close 原因错误、adapter.OnClose 错误或底层 conn.Close 错误非空，且 OnSessionOpen 已完成，先向可选 SessionErrorObserver 记录低基数错误分类，再调用 OnSessionError(err)
+     - transport close 中的 `io.EOF` / `io.ErrUnexpectedEOF` 视为普通 peer close，不触发 OnSessionError，避免正常客户端断开产生运维 WARN 噪声。
   ⑥ 关闭 session 元数据对象
   ⑦ adapter.OnClose，清理 jsonrpc reply token 等协议状态
   ⑧ 关闭底层 conn

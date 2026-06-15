@@ -54,6 +54,13 @@ func (o topGatewayObserver) OnFrameOut(gatewaypkg.FrameEvent) {}
 
 func (o topGatewayObserver) OnFrameHandled(gatewaypkg.FrameHandleEvent) {}
 
+func (o topGatewayObserver) OnSessionError(event gatewaypkg.SessionErrorEvent) {
+	if o.top == nil {
+		return
+	}
+	o.top.ObserveGatewaySessionError(event.Protocol, string(event.CloseReason), event.Class)
+}
+
 func (o topGatewayObserver) OnAsyncSendQueue(event gatewaypkg.AsyncSendQueueEvent) {
 	if o.top == nil {
 		return
@@ -538,6 +545,7 @@ func (o topSendackObserver) SendackWritten(event accessgateway.SendackEvent) {
 }
 
 var _ gatewaypkg.Observer = topGatewayObserver{}
+var _ gatewaypkg.SessionErrorObserver = topGatewayObserver{}
 var _ gatewaypkg.AsyncSendObserver = topGatewayObserver{}
 var _ gatewaypkg.AsyncSendAdmissionObserver = topGatewayObserver{}
 var _ gatewaypkg.AsyncAuthObserver = topGatewayObserver{}

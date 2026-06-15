@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"errors"
+	"io"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -1374,10 +1375,11 @@ func TestServer(t *testing.T) {
 
 	t.Run("OnSessionError fires before close on protocol decode failure", func(t *testing.T) {
 		handler := newTestHandler()
+		observer := &recordingObserver{}
 		proto := newScriptedProtocol("fake-proto")
 		proto.pushDecode(decodeResult{err: errors.New("decode boom")})
 
-		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, nil, observer)
 		if err := srv.Start(); err != nil {
 			t.Fatalf("start failed: %v", err)
 		}
@@ -1389,6 +1391,13 @@ func TestServer(t *testing.T) {
 		waitFor(t, func() bool { return handler.closeCount() == 1 })
 		if !reflect.DeepEqual(handler.callOrder(), []string{"open", "error", "close"}) {
 			t.Fatalf("unexpected call order: %v", handler.callOrder())
+		}
+		events := observer.sessionErrors()
+		if len(events) != 1 {
+			t.Fatalf("session error observer events = %#v, want one", events)
+		}
+		if events[0].CloseReason != gateway.CloseReasonProtocolError || events[0].Class != "protocol_error" {
+			t.Fatalf("session error observer event = %#v, want protocol_error", events[0])
 		}
 	})
 
@@ -1443,6 +1452,31 @@ func TestServer(t *testing.T) {
 		waitFor(t, func() bool { return handler.closeCount() == 1 })
 		if got := handler.closeReasons()[0]; got != gateway.CloseReasonPeerClosed {
 			t.Fatalf("expected %q, got %q", gateway.CloseReasonPeerClosed, got)
+		}
+	})
+
+	t.Run("peer EOF close does not fire session error", func(t *testing.T) {
+		handler := newTestHandler()
+		observer := &recordingObserver{}
+		proto := newScriptedProtocol("fake-proto")
+		srv, transportFactory := newTestServerWithObserver(t, handler, proto, gateway.SessionOptions{}, nil, observer)
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		transportFactory.MustOpen("listener-a", 1)
+		transportFactory.MustClose("listener-a", 1, io.EOF)
+
+		waitFor(t, func() bool { return handler.closeCount() == 1 })
+		if got := handler.closeReasons()[0]; got != gateway.CloseReasonPeerClosed {
+			t.Fatalf("expected %q, got %q", gateway.CloseReasonPeerClosed, got)
+		}
+		if got := handler.sessionErrors(); len(got) != 0 {
+			t.Fatalf("session errors = %v, want none for EOF peer close", got)
+		}
+		if got := observer.sessionErrors(); len(got) != 0 {
+			t.Fatalf("session error observer events = %#v, want none for EOF peer close", got)
 		}
 	})
 
@@ -2262,6 +2296,7 @@ type recordingObserver struct {
 	inbound  []gateway.FrameEvent
 	outbound []gateway.FrameEvent
 	handled  []gateway.FrameHandleEvent
+	errors   []gateway.SessionErrorEvent
 }
 
 func (r *recordingObserver) OnConnectionOpen(event gateway.ConnectionEvent) {
@@ -2298,6 +2333,12 @@ func (r *recordingObserver) OnFrameHandled(event gateway.FrameHandleEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.handled = append(r.handled, event)
+}
+
+func (r *recordingObserver) OnSessionError(event gateway.SessionErrorEvent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.errors = append(r.errors, event)
 }
 
 func (r *recordingObserver) openCount() int {
@@ -2345,6 +2386,12 @@ func (r *recordingObserver) handledCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.handled)
+}
+
+func (r *recordingObserver) sessionErrors() []gateway.SessionErrorEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]gateway.SessionErrorEvent(nil), r.errors...)
 }
 
 type decodeResult struct {

@@ -29,12 +29,18 @@ whether metrics are enabled, but metrics are not required for this view.
 go run ./cmd/wkcli top --server http://127.0.0.1:5001
 go run ./cmd/wkcli top --context dev --once --json
 go run ./cmd/wkcli top --context dev --interval 2s --max-refresh 5
+go run ./cmd/wkcli top --context dev --alerts
+go run ./cmd/wkcli top --context dev --alert gateway/session_error
 ```
 
 Without `--server`, `top` reads servers from `--context` or the selected current
 context. By default it refreshes until interrupted. Use `--once` for a single
 snapshot, or `--max-refresh` to stop after a bounded number of refreshes for
 tests and scripted checks.
+
+Use `--alerts` for a one-shot detailed sticky alert view. Use `--alert` with an
+alert id, fingerprint, or `component/kind` such as `gateway/session_error` to
+print one alert and its evidence fields.
 
 ## Contexts
 

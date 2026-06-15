@@ -36,7 +36,7 @@ func TestTopOnceRendersHumanSnapshot(t *testing.T) {
 	if requestedPath != "/top/v1/snapshot" {
 		t.Fatalf("expected snapshot path, got %q", requestedPath)
 	}
-	for _, want := range []string{"WuKongIM top", "VERDICT", "node-1", "channelv2"} {
+	for _, want := range []string{"WuKongIM top", "VERDICT", "ALERTS", "critical", "append worker queue saturated", "CPU%", "MEM", "node-1", "12.50", "128MiB", "channelv2"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected output to contain %q, got %q", want, stdout.String())
 		}
@@ -62,6 +62,90 @@ func TestTopOnceRendersJSON(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected JSON output to contain %q, got %q", want, stdout.String())
 		}
+	}
+}
+
+func TestTopAlertsRendersDetailedAlertEvidence(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL, "--alerts"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected top alerts to run, got %v stderr %q", err, stderr.String())
+	}
+	for _, want := range []string{
+		"WuKongIM top alerts",
+		"id: alert-1",
+		"severity: critical",
+		"component: channelv2",
+		"kind: pressure_high",
+		"evidence:",
+		"capacity=100",
+		"depth=91",
+		"threshold.critical=0.95",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("expected alert detail output to contain %q, got %q", want, stdout.String())
+		}
+	}
+	if strings.Contains(stdout.String(), "HOT PRESSURE") {
+		t.Fatalf("alert detail output should not render full overview, got %q", stdout.String())
+	}
+}
+
+func TestTopAlertFilterRendersOneAlertByComponentKind(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL, "--alert", "channelv2/pressure_high"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected top alert detail to run, got %v stderr %q", err, stderr.String())
+	}
+	for _, want := range []string{"WuKongIM top alerts", "id: alert-1", "message: append worker queue saturated"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("expected filtered alert output to contain %q, got %q", want, stdout.String())
+		}
+	}
+}
+
+func TestTopAlertFilterReturnsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL, "--alert", "gateway/session_error"})
+
+	err := cmd.Execute()
+
+	var exit command.Exit
+	if !errors.As(err, &exit) {
+		t.Fatalf("expected command exit, got %v", err)
+	}
+	if exit.Code != command.ExitInternal {
+		t.Fatalf("exit code = %d, want %d", exit.Code, command.ExitInternal)
+	}
+	if !strings.Contains(exit.Message, "top alert not found") {
+		t.Fatalf("expected not found message, got %q", exit.Message)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for missing alert, got %q", stdout.String())
 	}
 }
 
@@ -239,6 +323,13 @@ func sampleSnapshot() accessapi.TopSnapshot {
 			ConnectionsByProtocol: map[string]int64{"tcp": 40, "ws": 2},
 			ClosePerSec:           0.5,
 		},
+		Resources: &accessapi.TopResources{
+			CPUPercent:     12.5,
+			MemoryRSSBytes: 128 << 20,
+			MemoryVMSBytes: 256 << 20,
+			Goroutines:     99,
+			Threads:        8,
+		},
 		Pressure: &accessapi.TopPressure{
 			OverallLevel:    "degraded",
 			ComponentScores: map[string]float64{"channelv2": 0.91, "delivery": 0.35},
@@ -252,6 +343,57 @@ func sampleSnapshot() accessapi.TopSnapshot {
 				Capacity:  100,
 				WaitP99MS: 77,
 				Hint:      "scale append workers",
+			}},
+		},
+		Alerts: &accessapi.TopAlerts{
+			Counts: accessapi.TopAlertCounts{
+				Active:   1,
+				Recent:   1,
+				Critical: 1,
+			},
+			Active: []accessapi.TopAlert{{
+				ID:          "alert-1",
+				Fingerprint: "critical|channelv2|pressure_high|append",
+				NodeID:      1,
+				NodeName:    "node-1",
+				Severity:    "critical",
+				Component:   "channelv2",
+				Kind:        "pressure_high",
+				Message:     "append worker queue saturated",
+				Hint:        "scale append workers",
+				Evidence: map[string]string{
+					"score":              "0.91",
+					"depth":              "91",
+					"capacity":           "100",
+					"threshold.degraded": "0.80",
+					"threshold.critical": "0.95",
+				},
+				FirstSeen: time.Date(2026, 6, 14, 9, 59, 56, 0, time.UTC),
+				LastSeen:  time.Date(2026, 6, 14, 10, 0, 0, 0, time.UTC),
+				Count:     4,
+				Active:    true,
+			}},
+			Recent: []accessapi.TopAlert{{
+				ID:          "alert-1",
+				Fingerprint: "critical|channelv2|pressure_high|append",
+				NodeID:      1,
+				NodeName:    "node-1",
+				Severity:    "critical",
+				Component:   "channelv2",
+				Kind:        "pressure_high",
+				Message:     "append worker queue saturated",
+				Hint:        "scale append workers",
+				Evidence: map[string]string{
+					"score":              "0.91",
+					"depth":              "91",
+					"capacity":           "100",
+					"threshold.degraded": "0.80",
+					"threshold.critical": "0.95",
+				},
+				FirstSeen: time.Date(2026, 6, 14, 9, 59, 56, 0, time.UTC),
+				LastSeen:  time.Date(2026, 6, 14, 10, 0, 0, 0, time.UTC),
+				Count:     4,
+				Active:    true,
 			}},
 		},
 		ChannelV2: &accessapi.TopChannelV2{
