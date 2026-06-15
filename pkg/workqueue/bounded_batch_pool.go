@@ -41,7 +41,7 @@ type BoundedBatchPoolConfig[T any] struct {
 	Observer BoundedPoolObserver
 	// Policy chooses batch limits from the first item. Nil means single-item batches.
 	Policy BoundedBatchPolicy[T]
-	// CancelAcceptedOnClose cancels accepted-but-not-running items instead of draining them.
+	// CancelAcceptedOnClose cancels accepted items before executor entry instead of draining them.
 	CancelAcceptedOnClose bool
 	// CancelAccepted is called for each item canceled by CancelAcceptedOnClose.
 	CancelAccepted CancelAcceptedFunc[T]
@@ -63,6 +63,7 @@ type BoundedBatchPool[T any] struct {
 	closed  atomic.Bool
 	running atomic.Int64
 
+	admissionMu sync.RWMutex
 	closeOnce  sync.Once
 	closeErr   error
 	dispatchWG sync.WaitGroup
@@ -124,6 +125,9 @@ func (p *BoundedBatchPool[T]) Submit(ctx context.Context, item T) error {
 		ctx = context.Background()
 	}
 
+	p.admissionMu.RLock()
+	defer p.admissionMu.RUnlock()
+
 	if p.closed.Load() {
 		p.observeAdmission(resultClosed)
 		return ErrClosed
@@ -182,8 +186,10 @@ func (p *BoundedBatchPool[T]) Close(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	p.closeOnce.Do(func() {
+		p.admissionMu.Lock()
 		p.closed.Store(true)
 		close(p.stop)
+		p.admissionMu.Unlock()
 
 		done := make(chan struct{})
 		go func() {

@@ -58,8 +58,8 @@ Default `Close` closes admission, skips outstanding batch waits, drains all
 accepted items into the executor, and waits for running handlers. With
 `CancelAcceptedOnClose`, `Close` instead cancels accepted items that have not
 entered the executor, calls the configured cancellation hook, and still waits
-for already running handlers without canceling their runtime context unless the
-close context expires.
+for executor-accepted or already running handlers without canceling their
+runtime context unless the close context expires.
 
 ## Sharded Mailbox Flow
 
