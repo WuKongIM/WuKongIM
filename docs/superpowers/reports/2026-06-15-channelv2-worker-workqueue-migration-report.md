@@ -2,6 +2,10 @@
 
 ## Baseline
 
+Captured on: 2026-06-15
+
+Baseline code commit: `6e64fe537904`
+
 Command:
 
 ```sh
@@ -22,6 +26,25 @@ Notes:
 - `goroutine-delta` is the live pool footprint while the benchmark pool is running, not a post-close leak metric.
 - StoreAppend baseline must be evaluated with `batch-calls/op` and `single-append-calls/op`, not only `ns/op`.
 - `benchstat` was not available in this environment when this baseline was captured.
+- Post-migration benchmarks must use the same command, machine, and Go version unless the report explicitly calls out the reason.
+
+Baseline summary:
+
+| Benchmark | Median ns/op | Median B/op | Median allocs/op | Extra median metrics |
+| --- | ---: | ---: | ---: | --- |
+| `BenchmarkWorkerPoolSubmitAndRun/workers1-10` | 15728 | 943 | 8 | `goroutine-delta=1` |
+| `BenchmarkWorkerPoolSubmitAndRun/workers16-10` | 1109 | 657 | 5 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolObserverOverhead/none-10` | 1024 | 657 | 5 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolObserverOverhead/recording-10` | 1075 | 655 | 5 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolFullReject-10` | 84.39 | 1 | 0 | none |
+| `BenchmarkWorkerPoolStoreAppendBatch-10` | 532.5 | 1503 | 2 | `batch-calls/op=0.01660`, `single-append-calls/op=0.0000300`, `goroutine-delta=1` |
+
+Comparison method:
+
+- Compare every benchmark/sub-benchmark name independently.
+- Prefer `benchstat` when it is available, using the full `-count=5` baseline and post-migration output.
+- If `benchstat` is not available, compare the median of each metric from the five baseline samples to the median of the five post-migration samples.
+- Do not choose the best individual sample from either side.
 
 Raw output:
 
@@ -70,7 +93,8 @@ The post-migration benchmark output will be added after implementation.
 
 ## Gate
 
-- `ns/op` regression must be no more than 5%.
-- `allocs/op` must not increase.
-- Any material `B/op` increase requires explanation before proceeding.
-- StoreAppend batching must retain a non-zero `batch-calls/op` and must not materially increase `single-append-calls/op`.
+- For every benchmark/sub-benchmark, `ns/op` regression must be no more than 5% by the comparison method above.
+- For every benchmark/sub-benchmark, `allocs/op` must not increase.
+- For every benchmark/sub-benchmark, `B/op` must not increase by more than 5% or more than 16 bytes/op, whichever is larger, without a written explanation.
+- `BenchmarkWorkerPoolStoreAppendBatch-10` must keep median `batch-calls/op >= 0.01577` (95% of the baseline median `0.01660`).
+- `BenchmarkWorkerPoolStoreAppendBatch-10` must keep median `single-append-calls/op <= 0.00005`.
