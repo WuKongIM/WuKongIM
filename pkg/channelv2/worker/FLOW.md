@@ -49,12 +49,10 @@ so reactors observe one fenced completion per original task.
 ## Shutdown
 
 `Close` closes admission to new submissions, completes accepted items that have
-not entered the executor with `ErrClosed`, waits for running handlers, and
-releases the workqueue ants pool.
-
-Running handlers are not actively canceled by `Close`. They continue with the
-handler context supplied by workqueue and exit when their dependency call
-returns or their task-owned context is canceled.
+not entered the executor with `ErrClosed`, cancels the worker runtime context
+for running handlers, waits for them to exit, and releases the workqueue ants
+pool. Running handlers must rely on their task-owned context or the worker
+runtime context when blocking in dependency calls.
 
 ## Observability
 

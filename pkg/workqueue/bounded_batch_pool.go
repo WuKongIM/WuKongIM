@@ -45,6 +45,8 @@ type BoundedBatchPoolConfig[T any] struct {
 	CancelAcceptedOnClose bool
 	// CancelAccepted is called for each item canceled by CancelAcceptedOnClose.
 	CancelAccepted CancelAcceptedFunc[T]
+	// CancelRunningOnClose cancels the pool runtime context as soon as Close starts.
+	CancelRunningOnClose bool
 }
 
 // BoundedBatchPool admits work into a bounded queue and executes adjacent batches on an ants pool.
@@ -203,6 +205,9 @@ func (p *BoundedBatchPool[T]) Close(ctx context.Context) error {
 		p.closed.Store(true)
 		close(p.stop)
 		p.admissionMu.Unlock()
+		if p.cfg.CancelRunningOnClose {
+			p.cancel()
+		}
 
 		done := make(chan struct{})
 		go func() {

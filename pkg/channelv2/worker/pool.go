@@ -128,6 +128,7 @@ func NewPool(cfg PoolConfig, deps Deps, sink CompletionSink) (*Pool, error) {
 		Policy:                p.batchPolicy,
 		CancelAcceptedOnClose: true,
 		CancelAccepted:        p.completeQueuedClosed,
+		CancelRunningOnClose:  true,
 	}, p.runQueuedBatch)
 	if errors.Is(err, workqueue.ErrInvalidConfig) {
 		return nil, ch.ErrInvalidConfig
@@ -209,7 +210,7 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	}
 }
 
-// Close closes admission, completes queued accepted tasks, and waits for running handlers.
+// Close closes admission, completes queued accepted tasks, cancels running handlers, and waits for exit.
 func (p *Pool) Close() error {
 	if p == nil {
 		return nil

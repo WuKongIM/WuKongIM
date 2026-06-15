@@ -349,27 +349,21 @@ func TestPoolReportsAdmissionResultLabels(t *testing.T) {
 	}
 }
 
-func TestPoolCloseCompletesQueuedTaskWithoutCancelingRunningContext(t *testing.T) {
+func TestPoolCloseCompletesQueuedTaskAndCancelsRunningContext(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	pool, err := NewPool(PoolConfig{Name: "test", Workers: 1, QueueSize: 1}, Deps{}, sink)
 	require.NoError(t, err)
 
 	started := make(chan struct{})
-	release := make(chan struct{})
 	runningErr := make(chan error, 1)
 	closeDone := make(chan error, 1)
 	runningFence := ch.Fence{ChannelKey: ch.ChannelKey("1:a"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 1}
 	queuedFence := ch.Fence{ChannelKey: ch.ChannelKey("1:b"), Generation: 1, Epoch: 1, LeaderEpoch: 1, OpID: 2}
 	require.NoError(t, pool.Submit(context.Background(), Task{Kind: TaskFunc, Fence: runningFence, RunFunc: func(ctx context.Context) Result {
 		close(started)
-		select {
-		case <-release:
-			runningErr <- ctx.Err()
-			return Result{Fence: runningFence, Err: ctx.Err()}
-		case <-ctx.Done():
-			runningErr <- ctx.Err()
-			return Result{Fence: runningFence, Err: ctx.Err()}
-		}
+		<-ctx.Done()
+		runningErr <- ctx.Err()
+		return Result{Fence: runningFence, Err: ctx.Err()}
 	}}))
 	require.Eventually(t, func() bool {
 		select {
@@ -387,38 +381,23 @@ func TestPoolCloseCompletesQueuedTaskWithoutCancelingRunningContext(t *testing.T
 		closeDone <- pool.Close()
 	}()
 
-	var queuedResult Result
 	select {
-	case queuedResult = <-sink.ch:
-		require.Equal(t, queuedFence.OpID, queuedResult.Fence.OpID)
-		require.ErrorIs(t, queuedResult.Err, ch.ErrClosed)
 	case err := <-runningErr:
-		t.Fatalf("Close canceled running context before release: %v", err)
-	case err := <-closeDone:
-		t.Fatalf("Close returned before running task was released: %v", err)
+		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(time.Second):
-		t.Fatal("queued task was not completed as closed")
+		t.Fatal("running task did not observe context cancellation")
 	}
-
-	select {
-	case err := <-runningErr:
-		t.Fatalf("running task observed context cancellation before release: %v", err)
-	case <-time.After(200 * time.Millisecond):
-	}
-
-	close(release)
 	select {
 	case err := <-closeDone:
 		require.NoError(t, err)
 	case <-time.After(time.Second):
-		t.Fatal("pool Close did not return after running task release")
+		t.Fatal("pool Close did not return after running task cancellation")
 	}
-	select {
-	case err := <-runningErr:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("running task did not report context state")
-	}
+	results := sink.Results()
+	require.True(t, resultContainsOpID(results, queuedFence.OpID), "missing queued result in %#v", results)
+	require.ErrorIs(t, resultByOpID(t, results, queuedFence.OpID).Err, ch.ErrClosed)
+	require.True(t, resultContainsOpID(results, runningFence.OpID), "missing running result in %#v", results)
+	require.ErrorIs(t, resultByOpID(t, results, runningFence.OpID).Err, context.Canceled)
 }
 
 func TestPoolCloseCompletesQueuedTaskAsClosed(t *testing.T) {

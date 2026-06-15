@@ -60,7 +60,9 @@ accepted items into the executor, and waits for running handlers. With
 `CancelAcceptedOnClose`, `Close` instead cancels accepted items that have not
 entered the executor, calls the configured cancellation hook, and still waits
 for executor-accepted or already running handlers without canceling their
-runtime context unless the close context expires.
+runtime context unless the close context expires. With `CancelRunningOnClose`,
+`Close` cancels the runtime context as soon as shutdown starts so running
+handlers can exit through their own context-aware dependency calls.
 
 ## Sharded Mailbox Flow
 

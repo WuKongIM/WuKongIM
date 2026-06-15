@@ -206,6 +206,48 @@ func TestBoundedBatchPoolCancelAcceptedOnCloseCancelsQueuedItemsWithoutCanceling
 	}
 }
 
+func TestBoundedBatchPoolCancelRunningOnCloseCancelsRunningBatch(t *testing.T) {
+	started := make(chan struct{})
+	runningErr := make(chan error, 1)
+	pool, err := NewBoundedBatchPool[int](BoundedBatchPoolConfig[int]{
+		Name:                 "batch",
+		Workers:              1,
+		QueueSize:            1,
+		CancelRunningOnClose: true,
+		Policy:               func(int) BatchOptions { return BatchOptions{MaxItems: 1} },
+	}, func(ctx context.Context, items []int) error {
+		close(started)
+		<-ctx.Done()
+		runningErr <- ctx.Err()
+		return ctx.Err()
+	})
+	if err != nil {
+		t.Fatalf("NewBoundedBatchPool() error = %v", err)
+	}
+
+	if err := pool.Submit(context.Background(), 1); err != nil {
+		t.Fatalf("Submit(first) error = %v", err)
+	}
+	waitForBatchPoolSignal(t, started, "first batch start")
+
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- pool.Close(context.Background())
+	}()
+
+	select {
+	case err := <-runningErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("running batch context error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for running batch context cancellation")
+	}
+	if err := waitForBatchPoolClose(t, closeDone); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestBoundedBatchPoolCloseDrainsAcceptedWorkAndRejectsNewSubmissions(t *testing.T) {
 	var processed atomic.Int64
 	var releaseOnce sync.Once

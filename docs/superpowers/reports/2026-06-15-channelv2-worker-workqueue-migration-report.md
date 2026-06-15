@@ -90,7 +90,7 @@ ok  	github.com/WuKongIM/WuKongIM/pkg/channelv2/worker	20.431s
 
 ## Post-Migration
 
-Post-migration code state: final working tree before the migration commit
+Post-migration code state: local `main` after the close-cancellation follow-up
 
 Same command:
 
@@ -123,13 +123,14 @@ Post-migration summary:
 | Benchmark | Median ns/op | vs same-host baseline | Median B/op | Median allocs/op | Extra median metrics |
 | --- | ---: | ---: | ---: | ---: | --- |
 | `BenchmarkWorkerPoolSubmitAndRun/workers1-10` | 17202 | +0.37% | 855 | 5 | `goroutine-delta=1` |
-| `BenchmarkWorkerPoolSubmitAndRun/workers16-10` | 1103 | -10.18% | 614 | 3 | `goroutine-delta=16` |
-| `BenchmarkWorkerPoolObserverOverhead/none-10` | 1171 | +2.09% | 615 | 3 | `goroutine-delta=16` |
-| `BenchmarkWorkerPoolObserverOverhead/recording-10` | 1203 | +3.71% | 614 | 3 | `goroutine-delta=16` |
-| `BenchmarkWorkerPoolFullReject-10` | 15.28 | -81.00% | 0 | 0 | none |
-| `BenchmarkWorkerPoolStoreAppendBatch-10` | 444.2 | -20.42% | 1454 | 2 | `batch-calls/op=0.01683`, `single-append-calls/op=0.0000396`, `goroutine-delta=1` |
+| `BenchmarkWorkerPoolSubmitAndRun/workers16-10` | 1168 | -4.89% | 614 | 3 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolObserverOverhead/none-10` | 1111 | -3.14% | 613 | 3 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolObserverOverhead/recording-10` | 1201 | +3.53% | 613 | 3 | `goroutine-delta=16` |
+| `BenchmarkWorkerPoolFullReject-10` | 15.52 | -80.70% | 0 | 0 | none |
+| `BenchmarkWorkerPoolStoreAppendBatch-10` | 443.6 | -20.53% | 1456 | 2 | `batch-calls/op=0.01691`, `single-append-calls/op=0.0000406`, `goroutine-delta=1` |
 
-Post-migration raw output:
+Representative post-migration raw output from the migration commit before the
+close-cancellation follow-up:
 
 ```text
 goos: darwin
@@ -183,5 +184,5 @@ Gate result: pass against the same-host baseline rerun.
 - All `ns/op` medians are within the 5% regression threshold; most hot paths are faster.
 - `allocs/op` does not increase; submit/run and observer paths drop from 5-8 allocs/op to 3-5 allocs/op.
 - `B/op` does not increase; every benchmark is lower.
-- StoreAppend post median `batch-calls/op=0.01683`, below the `0.01743` gate.
-- StoreAppend post median `single-append-calls/op=0.0000396`, below the `0.00005` gate.
+- StoreAppend post median `batch-calls/op=0.01691`, below the `0.01743` gate.
+- StoreAppend post median `single-append-calls/op=0.0000406`, below the `0.00005` gate.
