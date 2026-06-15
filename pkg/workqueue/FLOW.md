@@ -13,6 +13,7 @@ metrics names.
 | Type | Responsibility |
 |------|----------------|
 | `BoundedPool[T]` | Admit generic work into a bounded queue and execute it on an ants-backed worker pool. |
+| `BoundedBatchPool[T]` | Admit generic work into a bounded queue, collect adjacent items into policy-driven batches, and execute those batches on an ants-backed worker pool. |
 | `ShardedMailbox[T]` | Hash work into bounded shard queues and run at most one drain per shard at a time. |
 
 Runtime packages should keep typed adapters around these primitives. For
@@ -37,6 +38,29 @@ available. `SubmitWait` waits for admission until the caller context expires.
 `Close` closes admission and drains already accepted work until its context
 expires.
 
+## Bounded Batch Pool Flow
+
+```text
+Submit
+  -> check closed and caller context
+  -> reserve one bounded admission slot
+  -> enqueue item
+  -> dispatcher starts from the first accepted item
+  -> policy chooses MaxItems / MaxWait
+  -> dispatcher drains immediately ready adjacent items
+  -> dispatcher optionally waits for one adjacent peer, then drains ready peers
+  -> dispatcher submits the batch to the ants executor
+  -> handler runs with the pool runtime context
+  -> item slots are released when ants accepts the batch
+```
+
+Default `Close` closes admission, skips outstanding batch waits, drains all
+accepted items into the executor, and waits for running handlers. With
+`CancelAcceptedOnClose`, `Close` instead cancels accepted items that have not
+entered the executor, calls the configured cancellation hook, and still waits
+for already running handlers without canceling their runtime context unless the
+close context expires.
+
 ## Sharded Mailbox Flow
 
 ```text
@@ -52,4 +76,3 @@ Submit(key, item)
 The mailbox guarantees one active drain per shard. It does not guarantee
 per-business-key isolation beyond stable hash placement; callers that need
 per-key state machines should keep that logic above this package.
-
