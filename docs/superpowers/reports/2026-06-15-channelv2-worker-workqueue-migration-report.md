@@ -45,6 +45,7 @@ Comparison method:
 - Prefer `benchstat` when it is available, using the full `-count=5` baseline and post-migration output.
 - If `benchstat` is not available, compare the median of each metric from the five baseline samples to the median of the five post-migration samples.
 - Do not choose the best individual sample from either side.
+- Post-migration output must keep every baseline benchmark/sub-benchmark name and must include five samples per name. Missing, renamed, or undersampled benchmarks make the gate result not comparable.
 
 Raw output:
 
@@ -95,6 +96,6 @@ The post-migration benchmark output will be added after implementation.
 
 - For every benchmark/sub-benchmark, `ns/op` regression must be no more than 5% by the comparison method above.
 - For every benchmark/sub-benchmark, `allocs/op` must not increase.
-- For every benchmark/sub-benchmark, `B/op` must not increase by more than 5% or more than 16 bytes/op, whichever is larger, without a written explanation.
-- `BenchmarkWorkerPoolStoreAppendBatch-10` must keep median `batch-calls/op >= 0.01577` (95% of the baseline median `0.01660`).
+- For every benchmark/sub-benchmark, `B/op` must not increase by more than 5% or more than 16 bytes/op, whichever is larger. If this threshold is exceeded, the report must mark the gate as failed unless a follow-up code change removes the regression.
+- `BenchmarkWorkerPoolStoreAppendBatch-10` must keep median `batch-calls/op <= 0.01743` (105% of the baseline median `0.01660`). Higher values mean smaller batches or more store calls per item.
 - `BenchmarkWorkerPoolStoreAppendBatch-10` must keep median `single-append-calls/op <= 0.00005`.
