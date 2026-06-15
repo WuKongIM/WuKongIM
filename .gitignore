@@ -4,6 +4,7 @@
 *.so
 *.dylib
 /wukongimv2
+/wkcli
 
 # Test binary, build with `go test -c`
 *.test

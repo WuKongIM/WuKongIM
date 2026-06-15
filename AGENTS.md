@@ -153,6 +153,7 @@ pkg/
     proxy/               基于 cluster 的分布式存储 / RPC facade
   transport/             节点间 transport / RPC 抽象与实现
   transportv2/           新版节点间 transport / RPC 基础库，含 wire/conn/peer/rpc/sched/buffer/testkit
+  workqueue/             通用有界 worker pool 与分片 mailbox 底层运行时原语
   wklog/                 通用日志接口与字段封装
 
 docs/
