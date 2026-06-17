@@ -395,6 +395,11 @@ func parseConsoleAppLogEntry(entry *AppLogEntry, raw string) {
 	if len(parts) > 1 {
 		entry.Level = strings.TrimSpace(parts[1])
 	}
+	if len(parts) == 4 && isConsoleCallerField(parts[2]) {
+		entry.Caller = strings.TrimSpace(parts[2])
+		entry.Message = strings.TrimSpace(parts[3])
+		return
+	}
 	if len(parts) > 2 {
 		entry.Module = strings.Trim(strings.TrimSpace(parts[2]), "[]")
 	}
@@ -407,6 +412,20 @@ func parseConsoleAppLogEntry(entry *AppLogEntry, raw string) {
 	if len(parts) > 5 {
 		entry.Fields["extra"] = strings.Join(parts[5:], "\t")
 	}
+}
+
+func isConsoleCallerField(value string) bool {
+	value = strings.TrimSpace(value)
+	colon := strings.LastIndex(value, ":")
+	if colon <= 0 || colon == len(value)-1 {
+		return false
+	}
+	for _, ch := range value[colon+1:] {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func appLogStringField(fields map[string]any, key string) string {

@@ -209,6 +209,28 @@ func TestAppLogReaderParsesOversizedJSONBeforeTruncatingRaw(t *testing.T) {
 	}
 }
 
+func TestAppLogReaderParsesConsoleEntryWithoutModule(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "2026-06-17 12:00:00.000\tINFO\tapp/server.go:10\tstarted\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+
+	entry := resp.Items[0]
+	if entry.Level != "INFO" ||
+		entry.Module != "" ||
+		entry.Caller != "app/server.go:10" ||
+		entry.Message != "started" {
+		t.Fatalf("parsed console entry = %+v, want empty module with caller and message", entry)
+	}
+}
+
 func writeAppLogTestFile(t *testing.T, dir, filename, contents string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, filename), []byte(contents), 0o644); err != nil {
