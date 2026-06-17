@@ -226,11 +226,11 @@ remote manager application log reader
 ```
 
 Manager Application Log RPC transports ordinary application log source and
-entry page requests to the selected node. It is separate from Manager Log RPC,
-which reads distributed Controller and Slot Raft logs. The server calls only the
-configured management application log reader port; it does not inspect
-filesystem paths, discover files, merge logs across nodes, or decide which
-manager HTTP request should target a remote node.
+entry page requests to the selected node. It is separate from Manager Log RPC
+and does not read Controller, Slot, Channel, Raft, or other distributed logs.
+The server calls only the configured management application log reader port; it
+does not inspect filesystem paths, discover files, merge logs across nodes, or
+decide which manager HTTP request should target a remote node.
 
 ## Codec Rules
 
