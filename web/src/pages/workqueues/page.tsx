@@ -157,52 +157,35 @@ export function WorkqueuesPage() {
     return true
   }), [abnormalOnly, allItems, component])
 
-  const abnormalCount = (response?.summary.degraded ?? 0) + (response?.summary.critical ?? 0)
+  const abnormalCount = (response?.summary.busy ?? 0) + (response?.summary.degraded ?? 0) + (response?.summary.critical ?? 0)
   const sampleCount = response?.sources.collector.sample_count ?? 0
   const nodeLabel = response ? `${response.scope.node_name || response.scope.node_id} (#${response.scope.node_id})` : "-"
   const emptyDescription = allItems.length > 0
     ? intl.formatMessage({ id: "workqueues.filteredEmpty" })
     : intl.formatMessage({ id: "workqueues.empty" })
 
-  if (state.loading) {
-    return (
-      <PageContainer>
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          {intl.formatMessage({ id: "common.loading" })}
-        </div>
-      </PageContainer>
-    )
-  }
-
-  if (state.error) {
-    return (
-      <PageContainer>
-        <PageHeader
-          description={intl.formatMessage({ id: "workqueues.description" })}
-          title={title}
-        />
-        <ResourceState
-          kind={mapErrorKind(state.error)}
-          onRetry={() => void loadWorkqueues(false)}
-          title={title}
-        />
-      </PageContainer>
-    )
-  }
-
   return (
     <PageContainer>
       <PageHeader
-        actions={(
+        actions={!state.loading && !state.error ? (
           <Button disabled={state.refreshing} onClick={() => void loadWorkqueues(true)} size="sm" type="button" variant="outline">
             {state.refreshing ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
           </Button>
-        )}
+        ) : undefined}
         description={intl.formatMessage({ id: "workqueues.description" })}
         eyebrow={intl.formatMessage({ id: "nav.group.globalCluster" })}
         title={title}
       />
 
+      {state.loading ? (
+        <ResourceState kind="loading" title={title} />
+      ) : state.error ? (
+        <ResourceState
+          kind={mapErrorKind(state.error)}
+          onRetry={() => void loadWorkqueues(false)}
+          title={title}
+        />
+      ) : (
       <div className="space-y-4">
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3 md:flex-row md:items-end md:justify-between">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -226,7 +209,7 @@ export function WorkqueuesPage() {
                 value={component}
               >
                 <option value="">{intl.formatMessage({ id: "workqueues.controls.allComponents" })}</option>
-                {components.map((option) => <option key={option} value={option}>{`${option} component`}</option>)}
+                {components.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
             <label className="flex items-center gap-2 self-end text-sm font-medium text-foreground">
@@ -282,12 +265,10 @@ export function WorkqueuesPage() {
           </div>
         ) : null}
 
-        <section className="rounded-lg border border-border bg-card">
-          {filteredItems.length === 0 ? (
-            <div className="p-4">
-              <ResourceState kind="empty" title={title} description={emptyDescription} />
-            </div>
-          ) : (
+        {filteredItems.length === 0 ? (
+          <ResourceState kind="empty" title={title} description={emptyDescription} />
+        ) : (
+          <section className="rounded-lg border border-border bg-card">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1180px] border-collapse text-left">
                 <thead className="text-xs uppercase text-muted-foreground">
@@ -326,9 +307,10 @@ export function WorkqueuesPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
+      )}
     </PageContainer>
   )
 }

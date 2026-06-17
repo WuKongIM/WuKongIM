@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { resetLocale } from "@/i18n/locale-store"
@@ -93,11 +93,37 @@ test("renders summary and pressure rows", async () => {
   renderPage()
   expect(await screen.findByRole("heading", { name: "Workqueue Monitor" })).toBeInTheDocument()
   expect(screen.getByText("degraded")).toBeInTheDocument()
-  expect(screen.getByText("gateway")).toBeInTheDocument()
+  expect(screen.getAllByText("gateway").length).toBeGreaterThan(0)
   expect(screen.getByText("async_send")).toBeInTheDocument()
   expect(screen.getByText("82 / 100")).toBeInTheDocument()
   expect(screen.getByText("12.4 ms")).toBeInTheDocument()
   expect(screen.getByText("0.30/s")).toBeInTheDocument()
+})
+
+test("keeps the page heading visible while workqueues are loading", () => {
+  getRuntimeWorkqueuesMock.mockReturnValue(new Promise(() => undefined))
+  renderPage()
+  expect(screen.getByRole("heading", { name: "Workqueue Monitor" })).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveAttribute("data-kind", "loading")
+})
+
+test("counts busy queues as abnormal in the summary", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue({
+    ...workqueueResponse,
+    summary: { ...workqueueResponse.summary, busy: 1, degraded: 1, critical: 0 },
+  })
+  renderPage()
+  const abnormalCard = (await screen.findByText("Abnormal")).parentElement
+  expect(abnormalCard).not.toBeNull()
+  expect(within(abnormalCard as HTMLElement).getByText("2")).toBeInTheDocument()
+})
+
+test("renders component option labels without a hard-coded suffix", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
+  renderPage()
+  const component = await screen.findByLabelText("Component")
+  expect(within(component).getByRole("option", { name: "db" })).toBeInTheDocument()
+  expect(within(component).queryByRole("option", { name: "db component" })).not.toBeInTheDocument()
 })
 
 test("filters ok rows when abnormal only is enabled", async () => {
@@ -127,7 +153,9 @@ test("shows warming state for service unavailable responses", async () => {
 test("shows empty state when no pressure items are returned", async () => {
   getRuntimeWorkqueuesMock.mockResolvedValue({ ...workqueueResponse, summary: { ...workqueueResponse.summary, total: 0 }, items: [] })
   renderPage()
-  expect(await screen.findByRole("status")).toHaveAttribute("data-kind", "empty")
+  await waitFor(() => {
+    expect(screen.getByRole("status")).toHaveAttribute("data-kind", "empty")
+  })
 })
 
 test("refreshes with the selected window", async () => {
