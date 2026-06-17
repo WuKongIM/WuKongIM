@@ -5,21 +5,24 @@ import (
 	"time"
 )
 
+// State is a simulation lifecycle state exposed by the status API.
+type State string
+
 const (
-	stateStarting     = "starting"
-	statePreflighting = "preflighting"
-	stateSettingUp    = "setting_up"
-	stateConnecting   = "connecting"
-	stateRunning      = "running"
-	stateRetrying     = "retrying"
-	stateStopping     = "stopping"
-	stateStopped      = "stopped"
+	stateStarting     State = "starting"
+	statePreflighting State = "preflighting"
+	stateSettingUp    State = "setting_up"
+	stateConnecting   State = "connecting"
+	stateRunning      State = "running"
+	stateRetrying     State = "retrying"
+	stateStopping     State = "stopping"
+	stateStopped      State = "stopped"
 )
 
 // Snapshot describes the current wkcli simulation status.
 type Snapshot struct {
 	// State is the current simulation lifecycle state.
-	State string `json:"state"`
+	State State `json:"state"`
 	// RunID identifies the simulation run.
 	RunID string `json:"run_id"`
 	// TargetServers are normalized HTTP API targets.
@@ -77,7 +80,7 @@ func (m *statusModel) snapshot() Snapshot {
 }
 
 // setState records a lifecycle state transition.
-func (m *statusModel) setState(state string) {
+func (m *statusModel) setState(state State) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.data.State == state {
@@ -95,12 +98,12 @@ func (m *statusModel) setTarget(servers []string, gateways []string) {
 	m.data.GatewayTCPAddrs = append([]string(nil), gateways...)
 }
 
-// setTopology records configured and active simulation topology counts.
-func (m *statusModel) setTopology(users int, activeUsers int, groups int, groupMembers int) {
+// setTopology records configured simulation topology counts.
+func (m *statusModel) setTopology(users int, groups int, groupMembers int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.data.Users = users
-	m.data.ActiveUsers = activeUsers
+	m.data.ActiveUsers = users
 	m.data.Groups = groups
 	m.data.GroupMembers = groupMembers
 }
@@ -128,11 +131,14 @@ func (m *statusModel) addRecv(messages uint64, dropped uint64) {
 	m.data.RecvDropped += dropped
 }
 
-// addReconnect increments the reconnect counter.
-func (m *statusModel) addReconnect() {
+// addReconnect increments reconnect accounting and records the latest error when present.
+func (m *statusModel) addReconnect(lastError string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.data.Reconnects++
+	if lastError != "" {
+		m.data.LastError = lastError
+	}
 }
 
 // cloneSnapshot copies slice fields so callers cannot mutate model state.

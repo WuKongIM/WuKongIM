@@ -25,6 +25,16 @@ func TestStatusServerHealthStatusAndShutdown(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /healthz status = %s", resp.Status)
 	}
+	if got := resp.Header.Get("Content-Type"); got != "application/json" {
+		t.Fatalf("GET /healthz Content-Type = %q, want application/json", got)
+	}
+	var health map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&health); err != nil {
+		t.Fatalf("decode /healthz error = %v", err)
+	}
+	if health["status"] != "ok" {
+		t.Fatalf("health status = %q, want ok", health["status"])
+	}
 	resp.Body.Close()
 
 	resp, err = http.Get(baseURL + "/status")
