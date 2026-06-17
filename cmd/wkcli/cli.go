@@ -9,6 +9,7 @@ import (
 	benchcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/bench"
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
 	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
+	simcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/sim"
 	topcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top"
 	"github.com/spf13/cobra"
 )
@@ -76,5 +77,6 @@ func defaultCommandFactories() []command.Factory {
 		contextcmd.NewCommand,
 		topcmd.NewCommand,
 		benchcmd.NewCommand,
+		simcmd.NewCommand,
 	}
 }
