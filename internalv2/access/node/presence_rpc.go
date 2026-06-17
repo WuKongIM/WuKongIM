@@ -92,6 +92,11 @@ type ManagerChannelReader interface {
 	ListBusinessChannels(context.Context, managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 }
 
+// ManagerDBInspectReader handles node-local manager DB inspect requests.
+type ManagerDBInspectReader interface {
+	QueryDBInspect(context.Context, managementusecase.DBInspectQueryRequest) (managementusecase.DBInspectQueryResponse, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -110,6 +115,8 @@ type Options struct {
 	ManagerLogs ManagerLogReader
 	// ManagerChannels handles node-local manager channel list requests.
 	ManagerChannels ManagerChannelReader
+	// ManagerDBInspect handles node-local manager DB inspect requests.
+	ManagerDBInspect ManagerDBInspectReader
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -132,6 +139,8 @@ type Adapter struct {
 	managerLogs ManagerLogReader
 	// managerChannels reads node-local channel metadata for manager pages.
 	managerChannels ManagerChannelReader
+	// managerDBInspect reads node-local DB inspect results for manager pages.
+	managerDBInspect ManagerDBInspectReader
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -150,6 +159,7 @@ func New(opts Options) *Adapter {
 		managerConnections: opts.ManagerConnections,
 		managerLogs:        opts.ManagerLogs,
 		managerChannels:    opts.ManagerChannels,
+		managerDBInspect:   opts.ManagerDBInspect,
 		logger:             opts.Logger,
 	}
 }

@@ -24,6 +24,10 @@ import type {
   ManagerControllerRaftCompactResponse,
   ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
+  ManagerDBInspectDescribeResponse,
+  ManagerDBInspectQueryInput,
+  ManagerDBInspectQueryResponse,
+  ManagerDBInspectTablesResponse,
   ManagerDiagnosticsTrackingDeleteResponse,
   ManagerDiagnosticsTrackingListResponse,
   ManagerDiagnosticsTrackingMutationResponse,
@@ -227,6 +231,15 @@ function buildConnectionDetailPath(sessionId: number, params?: ConnectionDetailP
 
   const query = search.toString()
   return query ? `/manager/connections/${sessionId}?${query}` : `/manager/connections/${sessionId}`
+}
+
+function buildDBInspectNodeSearch(params?: { nodeId?: number }) {
+  const search = new URLSearchParams()
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+  const query = search.toString()
+  return query ? `?${query}` : ""
 }
 
 function buildPluginBindingsPath(params?: PluginBindingListParams) {
@@ -438,6 +451,25 @@ export function getOverview() {
 
 export function getPermissions() {
   return jsonManagerFetch<ManagerPermissionsResponse>("/manager/permissions")
+}
+
+export function getDBInspectTables(params?: { nodeId?: number }) {
+  return jsonManagerFetch<ManagerDBInspectTablesResponse>(
+    `/manager/db/inspect/tables${buildDBInspectNodeSearch(params)}`,
+  )
+}
+
+export function getDBInspectTable(domain: string, table: string, params?: { nodeId?: number }) {
+  return jsonManagerFetch<ManagerDBInspectDescribeResponse>(
+    `/manager/db/inspect/tables/${encodeURIComponent(domain)}/${encodeURIComponent(table)}${buildDBInspectNodeSearch(params)}`,
+  )
+}
+
+export function queryDBInspect(input: ManagerDBInspectQueryInput) {
+  return jsonManagerFetch<ManagerDBInspectQueryResponse>("/manager/db/inspect/query", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
 }
 
 export function getNetworkSummary() {

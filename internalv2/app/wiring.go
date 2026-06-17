@@ -363,6 +363,16 @@ func (a *App) wireManagerChannelRPC() {
 	registrar.RegisterRPC(accessnode.ManagerChannelRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerChannelRPC))
 }
 
+func (a *App) wireManagerDBInspectRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar {
+		return
+	}
+	reader := a.newDBInspectReader()
+	adapter := accessnode.New(accessnode.Options{ManagerDBInspect: reader, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerDBInspectRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDBInspectRPC))
+}
+
 func (a *App) wireUsers() {
 	if a.users == nil {
 		if node, ok := a.cluster.(clusterinfra.UserMetadataNode); ok {
@@ -668,6 +678,10 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
 			Conversations: a.conversations,
 		}
+		opts.DBInspect = a.newDBInspectReader()
+		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDBInspectNode); ok {
+			opts.RemoteDBInspect = clusterinfra.NewManagementDBInspectReader(rpcNode)
+		}
 		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaScanNode); ok {
 			opts.ChannelRuntimeMeta = clusterinfra.NewChannelRuntimeMetaReader(runtimeNode)
 		}
@@ -705,6 +719,21 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		return managementusecase.New(opts)
 	}
 	return nil
+}
+
+func (a *App) newDBInspectReader() *dbInspectReader {
+	if a == nil || strings.TrimSpace(a.cfg.DataDir) == "" {
+		return nil
+	}
+	hashSlotCount := a.cfg.Cluster.Slots.HashSlotCount
+	if hashSlotCount == 0 {
+		hashSlotCount = 16
+	}
+	return newDBInspectReader(dbInspectReaderOptions{
+		NodeID:        a.cfg.NodeID,
+		DataDir:       a.cfg.DataDir,
+		HashSlotCount: hashSlotCount,
+	})
 }
 
 func managerUserConfigs(users []ManagerUserConfig) []accessmanager.UserConfig {

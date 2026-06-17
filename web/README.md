@@ -46,6 +46,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/system/permissions` | `GET /manager/permissions` | Implemented |
 | `/system/webhooks` | Requires follow-up read/write API design | Placeholder |
 | `/system/connections` | `GET /manager/connections`, `GET /manager/connections/:session_id` | Implemented |
+| `/system/db` | `GET /manager/db/inspect/tables`, `GET /manager/db/inspect/tables/:domain/:table`, `POST /manager/db/inspect/query` | Implemented |
 
 ## Legacy Redirects
 
@@ -55,7 +56,15 @@ Old bookmarks are kept as `replace` redirects into the redesigned sections:
 - Cluster routes: `/nodes`, `/onboarding`, `/slots`, `/tasks`, `/topology`, `/channel-cluster`, `/channel-cluster/list`, `/channel-cluster/unhealthy`, `/channels`.
 - Diagnostics routes: `/diagnostics`, `/network`, `/controller`, `/slot-logs`; log redirects preserve existing query parameters such as `node_id` and `slot_id`.
 - Business routes: `/users`, `/channels-biz`, `/messages`, `/system-users`.
-- System routes: `/settings/permissions`, `/settings/webhooks`, `/connections`.
+- System routes: `/settings/permissions`, `/settings/webhooks`, `/connections`, `/db-inspect` -> `/system/db`.
+
+## DB Inspect Notes
+
+- `/system/db` is a read-only node-local diagnostics console; it does not expose storage mutation actions.
+- Empty `node_id` requests inspect the local manager node.
+- Selecting a non-local `node_id` routes through manager DB inspect node RPC to that selected node.
+- Results are not merged across cluster nodes, and filesystem paths are not shown or accepted by the web route.
+- Manager APIs for this page require `cluster.db:r` when authentication is enabled.
 
 ## Channel Cluster Notes
 

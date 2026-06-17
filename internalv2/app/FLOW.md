@@ -87,6 +87,10 @@ New(Config)
   -> register the manager channel RPC handler when node RPC and channel metadata
      scans are available, exposing this node's channel list pages to peer
      manager readers
+  -> create the app-level DB Inspect reader from derived node-local storage
+     roots when message and Slot metadata DB paths are available; register the
+     manager DB inspect RPC handler when node RPC is available so peer manager
+     readers can inspect this node's local DB diagnostics
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the
@@ -131,12 +135,21 @@ New(Config)
      remote `node_id` connection reads route through the manager connection
      node RPC reader, remote channel list reads route through the manager
      channel RPC reader, Controller/Slot log pages route through the manager
-     log reader, user writes reuse the internalv2 user usecase and optional
-     presence owner-action routing, and message retention requests use an
-     optional management retention port and return unavailable when that port
-     is not configured
+     log reader, DB Inspect reads use the local app inspect reader for empty or
+     local `node_id` and route non-local `node_id` through the manager DB
+     inspect node RPC reader, user writes reuse the internalv2 user usecase and
+     optional presence owner-action routing, and message retention requests use
+     an optional management retention port and return unavailable when that
+     port is not configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
+
+The DB Inspect reader is app-owned because only the composition root derives
+the node-local storage locations for `pkg/db/inspect`. It is exposed to manager
+usecases as a read-only diagnostics port and never accepts filesystem paths
+from HTTP, web, or node RPC callers. The manager page can inspect the local
+manager node by omitting `node_id`; selecting another node uses the manager DB
+inspect RPC path to that node and does not combine rows from multiple nodes.
 
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
 `wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With

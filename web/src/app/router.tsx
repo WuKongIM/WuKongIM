@@ -9,6 +9,7 @@ import { ClusterDiagnosticsPage } from "@/pages/cluster/diagnostics/page"
 import { ConnectionsPage } from "@/pages/connections/page"
 import { ConversationsPage } from "@/pages/conversations/page"
 import { ClusterDashboardPage } from "@/pages/cluster-dashboard/page"
+import { DBInspectPage } from "@/pages/db-inspect/page"
 import { LoginPage } from "@/pages/login/page"
 import { MessagesPage } from "@/pages/messages/page"
 import { MonitorPage } from "@/pages/monitor/page"
@@ -70,6 +71,7 @@ export const routes: RouteObject[] = [
       { path: "business/connections", element: <ConnectionsPage /> },
       // System
       { path: "system/permissions", element: <PermissionsPage /> },
+      { path: "system/db", element: <DBInspectPage /> },
       { path: "system/webhooks", element: <WebhooksPage /> },
       { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
       // Legacy redirects
@@ -93,6 +95,7 @@ export const routes: RouteObject[] = [
       { path: "messages", element: <Navigate replace to="/business/messages" /> },
       { path: "conversations", element: <Navigate replace to="/business/conversations" /> },
       { path: "system-users", element: <Navigate replace to="/business/system-users" /> },
+      { path: "db-inspect", element: <Navigate replace to="/system/db" /> },
       { path: "settings/permissions", element: <Navigate replace to="/system/permissions" /> },
       { path: "settings/webhooks", element: <Navigate replace to="/system/webhooks" /> },
       { path: "connections", element: <RedirectWithSearch to="/business/connections" /> },

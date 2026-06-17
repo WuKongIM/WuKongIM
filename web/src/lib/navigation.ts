@@ -190,6 +190,14 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/settings/permissions"],
       },
       {
+        href: "/system/db",
+        titleMessageId: "nav.dbInspect.title",
+        descriptionMessageId: "nav.dbInspect.description",
+        pathLabelMessageId: "nav.path.system.dbInspect",
+        icon: Database,
+        aliases: ["/db-inspect"],
+      },
+      {
         href: "/system/webhooks",
         titleMessageId: "nav.webhooks.title",
         descriptionMessageId: "nav.webhooks.description",
@@ -228,6 +236,7 @@ export const legacyRouteRedirects: Record<string, string> = {
   "/messages": "/business/messages",
   "/conversations": "/business/conversations",
   "/system-users": "/business/system-users",
+  "/db-inspect": "/system/db",
   "/settings/permissions": "/system/permissions",
   "/settings/webhooks": "/system/webhooks",
   "/connections": "/business/connections",

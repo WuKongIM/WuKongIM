@@ -89,6 +89,7 @@ test.each([
   ["/network", "/cluster/diagnostics?tab=network"],
   ["/connections", "/business/connections"],
   ["/system/connections", "/business/connections"],
+  ["/db-inspect", "/system/db"],
 ])("redirects legacy %s to %s", async (from, to) => {
   useAuthStore.setState(authenticatedState())
   const router = createMemoryRouter(routes, { initialEntries: [from] })
@@ -101,6 +102,11 @@ test.each([
 
   await screen.findByRole("main")
   expect(router.state.location.pathname + router.state.location.search).toBe(to)
+})
+
+test("redirects legacy DB inspect route to system DB page", () => {
+  const route = routes[1].children?.find((item) => item.path === "db-inspect")
+  expect(route).toBeTruthy()
 })
 
 test("preserves controller log search params when redirecting to diagnostics", async () => {

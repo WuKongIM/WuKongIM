@@ -11,6 +11,8 @@ import {
   getChannelRuntimeMetaDetail,
   getConnection,
   getConnections,
+  getDBInspectTable,
+  getDBInspectTables,
   getControllerLogs,
   getControllerRaftStatus,
   compactControllerRaftLogOnNode,
@@ -79,6 +81,7 @@ import {
   resetUserToken,
   removeBusinessChannelMembers,
   transferChannelClusterLeader,
+  queryDBInspect,
   updateNodePluginConfig,
   upsertBusinessChannel,
 } from "@/lib/manager-api"
@@ -231,6 +234,32 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/permissions",
       expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("builds DB inspect table and query requests", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [], stats: {} }), { status: 200 }))
+    await getDBInspectTables({ nodeId: 2 })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/manager/db/inspect/tables?node_id=2",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [], stats: {} }), { status: 200 }))
+    await getDBInspectTable("meta", "user", { nodeId: 2 })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/manager/db/inspect/tables/meta/user?node_id=2",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ rows: [], stats: {} }), { status: 200 }))
+    await queryDBInspect({ node_id: 2, query: "show tables" })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/manager/db/inspect/query",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ node_id: 2, query: "show tables" }),
+      }),
     )
   })
 

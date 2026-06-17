@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -34,6 +36,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
@@ -343,6 +346,153 @@ func TestNewRegistersManagerChannelRPCWhenClusterSupportsChannelScans(t *testing
 
 	if _, ok := cluster.registeredHandlers[accessnode.ManagerChannelRPCServiceID]; !ok {
 		t.Fatalf("manager channel rpc handler not registered")
+	}
+}
+
+func TestDBInspectReaderQueriesDerivedNodeStorage(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := metadb.Open(filepath.Join(dataDir, "slotmeta"))
+	if err != nil {
+		t.Fatalf("open meta store: %v", err)
+	}
+	if err := store.ForHashSlot(metadb.HashSlot(routing.HashSlotForKey("u1", 16))).CreateUser(context.Background(), metadb.User{UID: "u1", Token: "t1"}); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close meta store: %v", err)
+	}
+	messageStore, err := messagedb.Open(filepath.Join(dataDir, "messages"))
+	if err != nil {
+		t.Fatalf("open message store: %v", err)
+	}
+	if err := messageStore.Close(); err != nil {
+		t.Fatalf("close message store: %v", err)
+	}
+
+	reader := newDBInspectReader(dbInspectReaderOptions{
+		NodeID:        1,
+		DataDir:       dataDir,
+		HashSlotCount: 16,
+		Now:           func() time.Time { return time.Unix(100, 0) },
+	})
+
+	resp, err := reader.QueryDBInspect(context.Background(), managementusecase.DBInspectQueryRequest{
+		NodeID: 1,
+		Query:  "select uid, token from meta.user where uid='u1' limit 10",
+	})
+	if err != nil {
+		t.Fatalf("QueryDBInspect() error = %v", err)
+	}
+	if resp.NodeID != 1 || !resp.GeneratedAt.Equal(time.Unix(100, 0)) {
+		t.Fatalf("response metadata = node:%d at:%s, want node 1 at 100", resp.NodeID, resp.GeneratedAt)
+	}
+	if len(resp.Rows) != 1 || resp.Rows[0]["uid"] != "u1" || resp.Rows[0]["token"] != "t1" {
+		t.Fatalf("rows = %#v, want seeded user", resp.Rows)
+	}
+	if resp.Stats.ScanMode != "point-partition" || resp.Stats.ReturnedRows != 1 {
+		t.Fatalf("stats = %#v, want point partition one row", resp.Stats)
+	}
+}
+
+func TestDBInspectReaderRequiresDataDir(t *testing.T) {
+	reader := newDBInspectReader(dbInspectReaderOptions{NodeID: 1, HashSlotCount: 16})
+	_, err := reader.QueryDBInspect(context.Background(), managementusecase.DBInspectQueryRequest{
+		NodeID: 1,
+		Query:  "show tables",
+	})
+	if !errors.Is(err, managementusecase.ErrDBInspectUnavailable) {
+		t.Fatalf("QueryDBInspect() err = %v, want ErrDBInspectUnavailable", err)
+	}
+}
+
+func TestAppWiresManagerDBInspectRoute(t *testing.T) {
+	dir := t.TempDir()
+	store, err := metadb.Open(filepath.Join(dir, "slotmeta"))
+	if err != nil {
+		t.Fatalf("open meta store: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close meta store: %v", err)
+	}
+	messageStore, err := messagedb.Open(filepath.Join(dir, "messages"))
+	if err != nil {
+		t.Fatalf("open message store: %v", err)
+	}
+	if err := messageStore.Close(); err != nil {
+		t.Fatalf("close message store: %v", err)
+	}
+	cfg := Config{
+		NodeID:  1,
+		DataDir: dir,
+		Cluster: clusterv2.Config{
+			NodeID:     1,
+			ListenAddr: "127.0.0.1:0",
+			DataDir:    dir,
+			Slots:      clusterv2.SlotConfig{HashSlotCount: 16},
+		},
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username:    "admin",
+				Password:    "secret",
+				Permissions: []ManagerPermissionConfig{{Resource: "cluster.db", Actions: []string{"r"}}},
+			}},
+		},
+	}
+	cluster := &fakeManagerCluster{nodeID: 1}
+	app, err := newTestApp(t, cfg, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("newTestApp() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginRec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d body=%s", loginRec.Code, loginRec.Body.String())
+	}
+	var login struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &login); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/manager/db/inspect/query", strings.NewReader(`{"query":"show tables"}`))
+	req.Header.Set("Authorization", "Bearer "+login.AccessToken)
+	rec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("db inspect status = %d body=%s, want 200", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAppRegistersManagerDBInspectRPC(t *testing.T) {
+	dir := t.TempDir()
+	cluster := &fakeManagerCluster{nodeID: 1}
+	cfg := Config{
+		NodeID:  1,
+		DataDir: dir,
+		Cluster: clusterv2.Config{
+			NodeID:     1,
+			ListenAddr: "127.0.0.1:0",
+			DataDir:    dir,
+			Slots:      clusterv2.SlotConfig{HashSlotCount: 16},
+		},
+		Manager: ManagerConfig{ListenAddr: ":0"},
+	}
+	if _, err := newTestApp(t, cfg, WithCluster(cluster)); err != nil {
+		t.Fatalf("newTestApp() error = %v", err)
+	}
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerDBInspectRPCServiceID]; !ok {
+		t.Fatal("manager db inspect rpc handler not registered")
 	}
 }
 

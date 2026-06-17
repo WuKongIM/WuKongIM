@@ -195,6 +195,25 @@ manager usecase errors. The RPC payload preserves node, filter, cursor,
 `has_more`, and next-cursor state, but it does not implement channel mutations
 or decide which HTTP request targets a remote node.
 
+## Manager DB Inspect RPC
+
+```text
+remote manager DB inspect reader
+  -> encode W K V B 1 request
+  -> clusterv2 RPCManagerDBInspect
+  -> Adapter.HandleManagerDBInspectRPC
+  -> Management DB inspect reader port
+  -> encode W K V b 1 response
+```
+
+Manager DB Inspect RPC transports read-only DB Inspect table list, table
+description, and query requests to the selected node. The server reads only the
+target node's local inspect surface; empty `node_id` normalization and
+local-vs-remote targeting are decided above this package by the management
+usecase and infra/cluster adapter. The payload preserves JSON-friendly dynamic
+rows and stats, but it does not merge rows across nodes, expose filesystem
+paths, or mutate storage.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -237,6 +256,11 @@ Manager Log RPC uses fixed magic headers:
 
 - Request: `W K V L 1`
 - Response: `W K V l 1`
+
+Manager DB Inspect RPC uses fixed magic headers:
+
+- Request: `W K V B 1`
+- Response: `W K V b 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject

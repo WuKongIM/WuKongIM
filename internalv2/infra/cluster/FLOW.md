@@ -12,7 +12,8 @@ channel runtime metadata scans to clusterv2 Slot metadata reads, adapts conversa
 mutations to UID-owned conversation rows plus channel-owned committed message
 logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
-distributed log reads to node-local clusterv2 log storage or peer RPC, and
+distributed log reads to node-local clusterv2 log storage or peer RPC, routes
+manager DB Inspect reads to node-local inspect readers or peer RPC, and
 adapts presence/delivery ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
@@ -148,6 +149,24 @@ summaries across the infra boundary. It only chooses local versus remote
 execution for the requested `node_id`; log pagination, Raft payload decoding,
 and storage watermarks live in `pkg/clusterv2`, while HTTP parsing and manager
 response shaping stay above this package.
+
+## Management DB Inspect Flow
+
+```text
+management.DBInspectReader
+  -> local node_id: app-wired pkg/db/inspect reader for node-local storage
+  -> remote node_id: access/node Manager DB Inspect RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerDBInspect)
+  -> target node access/node Manager DB Inspect RPC handler
+  -> target node app-wired pkg/db/inspect reader
+```
+
+`ManagementDBInspectReader` is the narrow remote half of the DB Inspect manager
+page. It only chooses local versus remote execution for the requested
+`node_id`; empty `node_id` normalization, node validation, query validation,
+and response DTO shaping stay in `internalv2/usecase/management` and
+`internalv2/access/manager`. The adapter preserves read-only diagnostics and
+does not merge cluster rows, expose filesystem paths, or mutate storage.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
