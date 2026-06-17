@@ -181,8 +181,8 @@ func TestAppLogReaderParsesOversizedJSONBeforeTruncatingRaw(t *testing.T) {
 	}
 
 	entry := resp.Items[0]
-	if !entry.Truncated || !resp.Truncated {
-		t.Fatalf("truncated flags = entry %v response %v, want both true", entry.Truncated, resp.Truncated)
+	if !entry.Truncated {
+		t.Fatal("Truncated = false, want true")
 	}
 	if len(entry.Raw) != 32 {
 		t.Fatalf("raw length = %d, want 32", len(entry.Raw))

@@ -115,10 +115,10 @@ type AppLogEntriesRequest struct {
 	NodeID uint64
 	// Source selects a fixed source; empty defaults to app.
 	Source string
-	// Cursor is an opaque cursor returned by a previous Entries call.
-	Cursor string
 	// Limit bounds returned entries; empty defaults to 200 and values above 1000 are capped.
 	Limit int
+	// Cursor is an opaque cursor returned by a previous Entries call.
+	Cursor string
 	// Keyword filters returned entries by raw line substring after reading.
 	Keyword string
 	// Levels filters returned entries by parsed level after reading.
@@ -131,8 +131,6 @@ type AppLogEntry struct {
 	Seq uint64
 	// Offset is the byte offset where this line begins in the active file.
 	Offset uint64
-	// Raw is the raw log line without the trailing newline.
-	Raw string
 	// Time is the parsed time field when available.
 	Time time.Time
 	// Level is the parsed level field when available.
@@ -145,6 +143,8 @@ type AppLogEntry struct {
 	Message string
 	// Fields preserves parsed structured fields not promoted to common fields.
 	Fields map[string]any
+	// Raw is the raw log line without the trailing newline.
+	Raw string
 	// Truncated reports whether Raw was shortened to the configured line byte limit.
 	Truncated bool
 }
@@ -161,8 +161,6 @@ type AppLogEntriesResponse struct {
 	Rotated bool
 	// Items are returned in file order after post-read filters.
 	Items []AppLogEntry
-	// Truncated reports whether any returned entry was shortened.
-	Truncated bool
 }
 
 type appLogCursor struct {
@@ -278,7 +276,7 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 	if err != nil {
 		return AppLogEntriesResponse{}, err
 	}
-	entries, endOffset, truncated, err := r.readEntries(ctx, file, startOffset, startSeq+1, limit, req)
+	entries, endOffset, _, err := r.readEntries(ctx, file, startOffset, startSeq+1, limit, req)
 	if err != nil {
 		return AppLogEntriesResponse{}, err
 	}
@@ -287,12 +285,11 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 		return AppLogEntriesResponse{}, err
 	}
 	return AppLogEntriesResponse{
-		NodeID:    req.NodeID,
-		Source:    source,
-		Items:     entries,
-		Cursor:    cursor,
-		Rotated:   rotated,
-		Truncated: truncated,
+		NodeID:  req.NodeID,
+		Source:  source,
+		Items:   entries,
+		Cursor:  cursor,
+		Rotated: rotated,
 	}, nil
 }
 
