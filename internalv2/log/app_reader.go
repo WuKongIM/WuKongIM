@@ -356,11 +356,12 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 
 func (r *AppLogReader) parseEntry(seq uint64, offset int64, line []byte) (AppLogEntry, bool) {
 	line = bytes.TrimSuffix(line, []byte("\r"))
-	truncated := int64(len(line)) > r.maxLineBytes
+	rawLine := line
+	raw := string(rawLine)
+	truncated := int64(len(rawLine)) > r.maxLineBytes
 	if truncated {
-		line = line[:r.maxLineBytes]
+		raw = string(rawLine[:r.maxLineBytes])
 	}
-	raw := string(line)
 	entry := AppLogEntry{
 		Seq:       seq,
 		Offset:    uint64(offset),
@@ -368,7 +369,7 @@ func (r *AppLogReader) parseEntry(seq uint64, offset int64, line []byte) (AppLog
 		Fields:    map[string]any{},
 		Truncated: truncated,
 	}
-	if parseJSONAppLogEntry(&entry, line) {
+	if parseJSONAppLogEntry(&entry, rawLine) {
 		return entry, truncated
 	}
 	parseConsoleAppLogEntry(&entry, raw)

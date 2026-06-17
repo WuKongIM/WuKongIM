@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -160,6 +161,34 @@ func TestAppLogReaderParsesJSONEntry(t *testing.T) {
 	}
 	if entry.Fields["nodeID"] != float64(1) || entry.Fields["ready"] != true {
 		t.Fatalf("remaining fields = %#v, want nodeID and ready", entry.Fields)
+	}
+}
+
+func TestAppLogReaderParsesOversizedJSONBeforeTruncatingRaw(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", `{"time":"2026-06-17 12:00:00.000","level":"ERROR","module":"cluster","caller":"app/server.go:10","msg":"oversized json still parses","payload":"`+strings.Repeat("x", 128)+`"}`+"\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxLineBytes: 32})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Limit:  10,
+		Levels: []string{"ERROR"},
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+
+	entry := resp.Items[0]
+	if !entry.Truncated || !resp.Truncated {
+		t.Fatalf("truncated flags = entry %v response %v, want both true", entry.Truncated, resp.Truncated)
+	}
+	if len(entry.Raw) != 32 {
+		t.Fatalf("raw length = %d, want 32", len(entry.Raw))
+	}
+	if entry.Level != "ERROR" || entry.Message != "oversized json still parses" {
+		t.Fatalf("parsed fields = level %q message %q, want ERROR and message from full line", entry.Level, entry.Message)
 	}
 }
 
