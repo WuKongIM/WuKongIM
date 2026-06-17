@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -399,6 +400,63 @@ func TestNewRegistersManagerLogRPCWhenClusterSupportsLogReads(t *testing.T) {
 
 	if _, ok := cluster.registeredHandlers[accessnode.ManagerLogRPCServiceID]; !ok {
 		t.Fatalf("manager log rpc handler not registered")
+	}
+}
+
+func TestApplicationLogReaderMapsLocalLogDTOs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "app.log"), []byte(`{"level":"warn","ts":1000,"msg":"slow write","uid":"u1"}`+"\n"), 0o600); err != nil {
+		t.Fatalf("write app log: %v", err)
+	}
+	reader := newApplicationLogReader(1, dir)
+
+	sources, err := reader.ApplicationLogSources(context.Background(), managementusecase.ApplicationLogSourcesRequest{NodeID: 1})
+	if err != nil {
+		t.Fatalf("ApplicationLogSources() error = %v", err)
+	}
+	entries, err := reader.ApplicationLogEntries(context.Background(), managementusecase.ApplicationLogEntriesRequest{
+		NodeID: 1,
+		Source: "app",
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("ApplicationLogEntries() error = %v", err)
+	}
+
+	if sources.NodeID != 1 || len(sources.Sources) == 0 || sources.Sources[0].Name != "app" || sources.Sources[0].File != "app.log" {
+		t.Fatalf("sources = %#v, want app source without local path", sources)
+	}
+	if entries.NodeID != 1 || entries.Source != "app" || len(entries.Items) != 1 {
+		t.Fatalf("entries page = %#v, want one app entry", entries)
+	}
+	entry := entries.Items[0]
+	if entry.Level != "warn" || entry.Message != "slow write" || entry.Fields["uid"] != "u1" {
+		t.Fatalf("entry = %#v, want mapped warn slow write with uid field", entry)
+	}
+	entry.Fields["uid"] = "changed"
+	again, err := reader.ApplicationLogEntries(context.Background(), managementusecase.ApplicationLogEntriesRequest{
+		NodeID: 1,
+		Source: "app",
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("ApplicationLogEntries(second) error = %v", err)
+	}
+	if again.Items[0].Fields["uid"] != "u1" {
+		t.Fatalf("second entry fields = %#v, want cloned fields unaffected by caller mutation", again.Items[0].Fields)
+	}
+}
+
+func TestAppRegistersManagerAppLogRPC(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerAppLogRPCServiceID]; !ok {
+		t.Fatalf("manager app log rpc handler not registered")
 	}
 }
 

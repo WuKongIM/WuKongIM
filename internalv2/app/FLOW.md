@@ -84,6 +84,10 @@ New(Config)
   -> register the manager distributed log RPC handler when node RPC and local
      log readers are available, exposing this node's Controller/Slot Raft log
      pages to peer manager readers
+  -> create the app-owned ordinary application log reader from `Log.Dir`;
+     register the manager app-log RPC handler when node RPC is available so
+     peer manager readers can inspect this node's fixed application log sources
+     without exposing local paths
   -> register the manager channel RPC handler when node RPC and channel metadata
      scans are available, exposing this node's channel list pages to peer
      manager readers
@@ -135,7 +139,9 @@ New(Config)
      remote `node_id` connection reads route through the manager connection
      node RPC reader, remote channel list reads route through the manager
      channel RPC reader, Controller/Slot log pages route through the manager
-     log reader, DB Inspect reads use the local app inspect reader for empty or
+     log reader, ordinary application log sources and pages use the app-owned
+     local reader for the local node and route peer `node_id` reads through the
+     manager app-log RPC reader, DB Inspect reads use the local app inspect reader for empty or
      local `node_id` and route non-local `node_id` through the manager DB
      inspect node RPC reader, user writes reuse the internalv2 user usecase and
      optional presence owner-action routing, and message retention requests use
@@ -152,6 +158,15 @@ usecases as a read-only diagnostics port and never accepts filesystem paths
 from HTTP, web, or node RPC callers. The manager page can inspect the local
 manager node by omitting `node_id`; selecting another node uses the manager DB
 inspect RPC path to that node and does not combine rows from multiple nodes.
+
+The ordinary application log reader is also app-owned because only the
+composition root owns `Log.Dir` and the concrete node-local logger layout. It is
+separate from the distributed Controller/Slot Raft log reader: ordinary app log
+requests list fixed local log sources and parse application log entries, while
+Raft log requests read clusterv2 log storage metadata and decoded Raft payloads.
+Remote ordinary app log requests use the manager app-log RPC path for the
+selected node and still return only reader-owned source names and file labels,
+never absolute paths.
 
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
 `wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With

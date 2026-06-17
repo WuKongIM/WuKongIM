@@ -13,7 +13,8 @@ mutations to UID-owned conversation rows plus channel-owned committed message
 logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
-manager DB Inspect reads to node-local inspect readers or peer RPC, and
+ordinary application log reads to the selected node's app-owned local reader or
+peer RPC, routes manager DB Inspect reads to node-local inspect readers or peer RPC, and
 adapts presence/delivery ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
@@ -149,6 +150,23 @@ summaries across the infra boundary. It only chooses local versus remote
 execution for the requested `node_id`; log pagination, Raft payload decoding,
 and storage watermarks live in `pkg/clusterv2`, while HTTP parsing and manager
 response shaping stay above this package.
+
+## Management Application Log Flow
+
+```text
+management.ApplicationLogReader
+  -> local/empty node_id: app-owned node-local ordinary application log reader
+  -> remote node_id: access/node Manager App Log RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerAppLogs)
+  -> target node access/node Manager App Log RPC handler
+  -> target node app-owned node-local ordinary application log reader
+```
+
+`ManagementApplicationLogReader` is distinct from the distributed Raft log
+reader above. It only chooses local versus remote execution for ordinary
+application log sources and entry pages; file discovery, parsing, filtering,
+cursor handling, and path hiding remain owned by `internalv2/app` and
+`internalv2/log`.
 
 ## Management DB Inspect Flow
 

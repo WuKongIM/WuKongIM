@@ -338,6 +338,7 @@ func (a *App) wireManagerConnectionRPC() {
 }
 
 func (a *App) wireManagerLogRPC() {
+	a.wireManagerAppLogRPC()
 	node, hasNode := a.cluster.(clusterinfra.ManagementLogNode)
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasNode || !hasRegistrar {
@@ -346,6 +347,16 @@ func (a *App) wireManagerLogRPC() {
 	logs := clusterinfra.NewManagementLogReader(node)
 	adapter := accessnode.New(accessnode.Options{ManagerLogs: logs, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerLogRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerLogRPC))
+}
+
+func (a *App) wireManagerAppLogRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar {
+		return
+	}
+	reader := a.newManagementApplicationLogReader()
+	adapter := accessnode.New(accessnode.Options{ManagerAppLogs: reader, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerAppLogRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerAppLogRPC))
 }
 
 func (a *App) wireManagerChannelRPC() {
@@ -679,6 +690,11 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
 			Conversations: a.conversations,
 		}
+		localApplicationLogs := a.newManagementApplicationLogReader()
+		opts.ApplicationLogs = localApplicationLogs
+		if rpcNode, ok := a.cluster.(clusterinfra.ManagementApplicationLogRPCNode); ok {
+			opts.ApplicationLogs = clusterinfra.NewManagementApplicationLogReader(rpcNode, localApplicationLogs)
+		}
 		opts.DBInspect = a.newDBInspectReader()
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDBInspectNode); ok {
 			opts.RemoteDBInspect = clusterinfra.NewManagementDBInspectReader(rpcNode)
@@ -720,6 +736,13 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		return managementusecase.New(opts)
 	}
 	return nil
+}
+
+func (a *App) newManagementApplicationLogReader() *applicationLogReader {
+	if a == nil {
+		return nil
+	}
+	return newApplicationLogReader(a.cfg.NodeID, a.cfg.Log.Dir)
 }
 
 func (a *App) newDBInspectReader() *dbInspectReader {
