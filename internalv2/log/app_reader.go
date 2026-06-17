@@ -319,7 +319,7 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 				pending = pending[idx+1:]
 				pendingStart = lineStart + int64(idx) + 1
 				entry, truncated := r.parseEntry(lineStart, line)
-				if appLogEntryMatches(entry, req.Keyword, levels) {
+				if appLogEntryMatches(entry, line, req.Keyword, levels) {
 					truncatedAny = truncatedAny || truncated
 					entries = append(entries, entry)
 					if len(entries) >= limit {
@@ -337,7 +337,7 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 	}
 	if len(pending) > 0 {
 		entry, truncated := r.parseEntry(pendingStart, pending)
-		if appLogEntryMatches(entry, req.Keyword, levels) {
+		if appLogEntryMatches(entry, pending, req.Keyword, levels) {
 			truncatedAny = truncatedAny || truncated
 			entries = append(entries, entry)
 		}
@@ -459,8 +459,8 @@ func parseAppLogTime(value string) time.Time {
 	return time.Time{}
 }
 
-func appLogEntryMatches(entry AppLogEntry, keyword string, levels map[string]struct{}) bool {
-	if keyword != "" && !strings.Contains(entry.Raw, keyword) {
+func appLogEntryMatches(entry AppLogEntry, rawLine []byte, keyword string, levels map[string]struct{}) bool {
+	if keyword != "" && !bytes.Contains(rawLine, []byte(keyword)) {
 		return false
 	}
 	if len(levels) > 0 {

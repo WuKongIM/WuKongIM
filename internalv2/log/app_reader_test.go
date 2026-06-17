@@ -290,6 +290,36 @@ func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
 	}
 }
 
+func TestAppLogReaderKeywordMatchesFullLineBeyondTruncatedRaw(t *testing.T) {
+	dir := t.TempDir()
+	keyword := "needle-beyond-raw"
+	message := "oversized keyword search " + strings.Repeat("x", 96) + keyword
+	writeAppLogTestFile(t, dir, "app.log", "2026-06-17 12:00:00.000\tINFO\tapp/server.go:10\t"+message+"\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxLineBytes: 32})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Limit:   10,
+		Keyword: keyword,
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+
+	entry := resp.Items[0]
+	if !entry.Truncated {
+		t.Fatal("Truncated = false, want true")
+	}
+	if strings.Contains(entry.Raw, keyword) {
+		t.Fatalf("Raw contains keyword %q despite truncation: %q", keyword, entry.Raw)
+	}
+	if entry.Message != message {
+		t.Fatalf("Message = %q, want full message", entry.Message)
+	}
+}
+
 func writeAppLogTestFile(t *testing.T, dir, filename, contents string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, filename), []byte(contents), 0o644); err != nil {
