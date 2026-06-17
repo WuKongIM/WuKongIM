@@ -17,6 +17,7 @@ Current commands:
 | `context` | Manages named WuKongIM server API contexts. |
 | `bench send` | Runs a lightweight WKProto SEND/SENDACK benchmark using `pkg/client`. |
 | `top` | Reads live internalv2 runtime pressure snapshots. |
+| `sim` | Runs a long-lived internalv2 real-traffic simulator. |
 
 ## Top
 
@@ -113,6 +114,41 @@ Useful output flags:
 go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --json
 go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --csv ./bench.csv
 go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --no-progress
+```
+
+## Sim
+
+`sim` drives real traffic against a running `cmd/wukongimv2` single-node
+cluster or multi-node cluster. It prepares group metadata through the v2
+`/bench/v1/*` HTTP API, keeps generated users online through the WKProto
+gateway, sends group `SEND -> SENDACK` traffic, and exposes local simulator
+status.
+
+```bash
+go run ./cmd/wkcli sim --server http://127.0.0.1:5001
+go run ./cmd/wkcli sim --context dev --users 1000 --groups 500 --group-members 10 --rate 0.25/s
+curl http://127.0.0.1:19091/status
+```
+
+The target must expose the v2 benchmark API and a published gateway address:
+
+```text
+WK_BENCH_API_ENABLE=true
+WK_API_LISTEN_ADDR=127.0.0.1:5001
+WK_EXTERNAL_TCPADDR=127.0.0.1:5100
+```
+
+Single-node use is still a single-node cluster. `sim` does not import or run
+server internals; setup uses `/bench/v1/channels` and
+`/bench/v1/channels/subscribers`, while traffic uses real WKProto gateway
+connections.
+
+Useful flags:
+
+```bash
+go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --status-listen 127.0.0.1:19091
+go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --json --status-interval 5s
+go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --max-runtime 30s
 ```
 
 ## Extending
