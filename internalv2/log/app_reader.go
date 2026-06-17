@@ -272,7 +272,7 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 		return AppLogEntriesResponse{}, err
 	}
 
-	entries, endOffset, _, err := r.readEntries(ctx, file, startOffset, limit, req)
+	entries, endOffset, err := r.readEntries(ctx, file, startOffset, info.Size(), limit, req)
 	if err != nil {
 		return AppLogEntriesResponse{}, err
 	}
@@ -289,25 +289,38 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 	}, nil
 }
 
-func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffset int64, limit int, req AppLogEntriesRequest) ([]AppLogEntry, int64, bool, error) {
+func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffset, fileSize int64, limit int, req AppLogEntriesRequest) ([]AppLogEntry, int64, error) {
 	levels := make(map[string]struct{}, len(req.Levels))
 	for _, level := range req.Levels {
-		levels[strings.ToUpper(strings.TrimSpace(level))] = struct{}{}
+		level = strings.ToUpper(strings.TrimSpace(level))
+		if level == "" {
+			continue
+		}
+		levels[level] = struct{}{}
 	}
 	var entries []AppLogEntry
 	var pending []byte
 	offset := startOffset
 	pendingStart := startOffset
-	truncatedAny := false
 	buffer := make([]byte, 32*1024)
+	scanned := int64(0)
+	scanBudget := r.maxTailScanBytes
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, offset, false, err
+			return nil, offset, err
 		}
-		n, readErr := file.Read(buffer)
+		if scanned >= scanBudget {
+			break
+		}
+		readSize := int64(len(buffer))
+		if remaining := scanBudget - scanned; remaining < readSize {
+			readSize = remaining
+		}
+		n, readErr := file.Read(buffer[:readSize])
 		if n > 0 {
 			chunk := buffer[:n]
 			offset += int64(n)
+			scanned += int64(n)
 			pending = append(pending, chunk...)
 			for {
 				idx := bytes.IndexByte(pending, '\n')
@@ -318,12 +331,11 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 				line := pending[:idx]
 				pending = pending[idx+1:]
 				pendingStart = lineStart + int64(idx) + 1
-				entry, truncated := r.parseEntry(lineStart, line)
+				entry := r.parseEntry(lineStart, line, false)
 				if appLogEntryMatches(entry, line, req.Keyword, levels) {
-					truncatedAny = truncatedAny || truncated
 					entries = append(entries, entry)
 					if len(entries) >= limit {
-						return entries, pendingStart, truncatedAny, nil
+						return entries, pendingStart, nil
 					}
 				}
 			}
@@ -332,25 +344,24 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 			break
 		}
 		if readErr != nil {
-			return nil, offset, false, readErr
+			return nil, offset, readErr
 		}
 	}
 	if len(pending) > 0 {
-		entry, truncated := r.parseEntry(pendingStart, pending)
+		entry := r.parseEntry(pendingStart, pending, scanned >= scanBudget && offset < fileSize)
 		if appLogEntryMatches(entry, pending, req.Keyword, levels) {
-			truncatedAny = truncatedAny || truncated
 			entries = append(entries, entry)
 		}
 	}
-	return entries, offset, truncatedAny, nil
+	return entries, offset, nil
 }
 
-func (r *AppLogReader) parseEntry(offset int64, line []byte) (AppLogEntry, bool) {
+func (r *AppLogReader) parseEntry(offset int64, line []byte, forceTruncated bool) AppLogEntry {
 	line = bytes.TrimSuffix(line, []byte("\r"))
 	rawLine := line
 	raw := string(rawLine)
-	truncated := int64(len(rawLine)) > r.maxLineBytes
-	if truncated {
+	truncated := forceTruncated || int64(len(rawLine)) > r.maxLineBytes
+	if int64(len(rawLine)) > r.maxLineBytes {
 		raw = string(rawLine[:r.maxLineBytes])
 	}
 	entry := AppLogEntry{
@@ -361,10 +372,10 @@ func (r *AppLogReader) parseEntry(offset int64, line []byte) (AppLogEntry, bool)
 		Truncated: truncated,
 	}
 	if parseJSONAppLogEntry(&entry, rawLine) {
-		return entry, truncated
+		return entry
 	}
 	parseConsoleAppLogEntry(&entry, string(rawLine))
-	return entry, truncated
+	return entry
 }
 
 func parseJSONAppLogEntry(entry *AppLogEntry, line []byte) bool {
@@ -395,9 +406,12 @@ func parseConsoleAppLogEntry(entry *AppLogEntry, raw string) {
 	if len(parts) > 1 {
 		entry.Level = strings.TrimSpace(parts[1])
 	}
-	if len(parts) == 4 && isConsoleCallerField(parts[2]) {
+	if len(parts) >= 4 && isConsoleCallerField(parts[2]) {
 		entry.Caller = strings.TrimSpace(parts[2])
 		entry.Message = strings.TrimSpace(parts[3])
+		if len(parts) > 4 {
+			entry.Fields["extra"] = strings.Join(parts[4:], "\t")
+		}
 		return
 	}
 	if len(parts) > 2 {

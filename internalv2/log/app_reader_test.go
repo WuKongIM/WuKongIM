@@ -259,6 +259,28 @@ func TestAppLogReaderParsesConsoleEntryWithoutModule(t *testing.T) {
 	}
 }
 
+func TestAppLogReaderParsesConsoleEntryWithoutModuleWithFields(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "2026-06-17 12:00:00.000\tINFO\tapp/server.go:10\tstarted\t{\"node\":1}\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+
+	entry := resp.Items[0]
+	if entry.Level != "INFO" ||
+		entry.Module != "" ||
+		entry.Caller != "app/server.go:10" ||
+		entry.Message != "started" {
+		t.Fatalf("parsed console entry = %+v, want empty module with caller and message", entry)
+	}
+}
+
 func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
 	dir := t.TempDir()
 	message := "oversized console still parses " + strings.Repeat("x", 96)
@@ -287,6 +309,68 @@ func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
 		entry.Caller != "app/server.go:10" ||
 		entry.Message != message {
 		t.Fatalf("parsed console entry = %+v, want fields from full line", entry)
+	}
+}
+
+func TestAppLogReaderBlankLevelFilterIsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "2026-06-17 12:00:00.000\tINFO\tapp/server.go:10\tstarted\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Limit:  10,
+		Levels: []string{" "},
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if got := rawAppLogLines(resp.Items); !reflect.DeepEqual(got, []string{"2026-06-17 12:00:00.000\tINFO\tapp/server.go:10\tstarted"}) {
+		t.Fatalf("entries = %v, want unfiltered INFO line", got)
+	}
+}
+
+func TestAppLogReaderLongUnterminatedLineUsesScanBudget(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", strings.Repeat("x", 64))
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxTailScanBytes: 16, MaxLineBytes: 8})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Cursor: mustAppLogTestCursor(t, dir, 0),
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+	entry := resp.Items[0]
+	if entry.Raw != "xxxxxxxx" || !entry.Truncated {
+		t.Fatalf("entry = %+v, want bounded truncated raw", entry)
+	}
+	if got := mustDecodeAppLogTestCursorOffset(t, resp.Cursor); got != 16 {
+		t.Fatalf("cursor offset = %d, want 16", got)
+	}
+}
+
+func TestAppLogReaderSparseFilterAdvancesByScanBudget(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", strings.Repeat("INFO no match\n", 8))
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxTailScanBytes: 24})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Cursor:  mustAppLogTestCursor(t, dir, 0),
+		Limit:   10,
+		Keyword: "missing",
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 0 {
+		t.Fatalf("entry count = %d, want 0", len(resp.Items))
+	}
+	if got := mustDecodeAppLogTestCursorOffset(t, resp.Cursor); got != 24 {
+		t.Fatalf("cursor offset = %d, want 24", got)
 	}
 }
 
@@ -337,6 +421,43 @@ func appendAppLogTestFile(t *testing.T, dir, filename, contents string) {
 	if _, err := file.WriteString(contents); err != nil {
 		t.Fatalf("WriteString(%s) error = %v", filename, err)
 	}
+}
+
+func mustAppLogTestCursor(t *testing.T, dir string, offset int64) string {
+	t.Helper()
+	file, err := os.Open(filepath.Join(dir, "app.log"))
+	if err != nil {
+		t.Fatalf("Open(app.log) error = %v", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		t.Fatalf("Stat(app.log) error = %v", err)
+	}
+	digestStart, digest, err := digestAppLogWindow(file, offset)
+	if err != nil {
+		t.Fatalf("digestAppLogWindow() error = %v", err)
+	}
+	cursor, err := encodeAppLogCursor(appLogCursor{
+		Source:      AppLogSourceApp,
+		Offset:      offset,
+		Identity:    fileIdentity(info),
+		DigestStart: digestStart,
+		Digest:      digest,
+	})
+	if err != nil {
+		t.Fatalf("encodeAppLogCursor() error = %v", err)
+	}
+	return cursor
+}
+
+func mustDecodeAppLogTestCursorOffset(t *testing.T, cursor string) int64 {
+	t.Helper()
+	decoded, err := decodeAppLogCursor(cursor)
+	if err != nil {
+		t.Fatalf("decodeAppLogCursor() error = %v", err)
+	}
+	return decoded.Offset
 }
 
 func rawAppLogLines(entries []AppLogEntry) []string {
