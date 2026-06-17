@@ -3,6 +3,7 @@ package sim
 import (
 	"bytes"
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -110,5 +111,57 @@ func TestCommandInjectsNormalizedConfig(t *testing.T) {
 	}
 	if captured.RunID != "fixed-run" || captured.UIDPrefix != "u" || captured.DevicePrefix != "d" || captured.ChannelPrefix != "g" || !captured.JSON {
 		t.Fatalf("captured identifiers/output = %#v", captured)
+	}
+}
+
+func TestCommandRejectsInvalidConfig(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", "http://127.0.0.1:5001", "--users", "-1"})
+
+	err := cmd.Execute()
+	var exit command.Exit
+	if !errors.As(err, &exit) {
+		t.Fatalf("expected command.Exit, got %v", err)
+	}
+	if exit.Code != command.ExitConfig {
+		t.Fatalf("exit code = %d, want %d", exit.Code, command.ExitConfig)
+	}
+}
+
+func TestExecuteConfigRunsRuntimeAndRendersFinalStatus(t *testing.T) {
+	orig := runSimulation
+	t.Cleanup(func() { runSimulation = orig })
+	runSimulation = func(ctx context.Context, cfg Config, status *statusModel) error {
+		status.setState(stateRunning)
+		status.setTarget(cfg.Servers, cfg.Gateways)
+		status.setTopology(1, 1, 1)
+		status.addMessagesSent(1)
+		return nil
+	}
+
+	cfg, err := normalizeConfig(Config{
+		Servers:        []string{"http://127.0.0.1:5001"},
+		Gateways:       []string{"127.0.0.1:5100"},
+		Users:          1,
+		Groups:         1,
+		GroupMembers:   1,
+		RatePerGroup:   "1/s",
+		RunID:          "run-1",
+		StatusListen:   "127.0.0.1:0",
+		StatusInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := executeConfig(context.Background(), command.Deps{Stdout: &stdout, Stderr: &stderr}, cfg); err != nil {
+		t.Fatalf("executeConfig() error = %v stderr %q", err, stderr.String())
+	}
+	for _, want := range []string{"wkcli sim", "run-1", "messages=1"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout missing %q: %s", want, stdout.String())
+		}
 	}
 }

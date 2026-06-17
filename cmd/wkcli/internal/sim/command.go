@@ -3,12 +3,17 @@ package sim
 import (
 	"context"
 	"fmt"
+	"io"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
 	"github.com/spf13/cobra"
 )
 
 var execute = executeConfig
+var runSimulation = func(ctx context.Context, cfg Config, status *statusModel) error {
+	return (&Runtime{Config: cfg, Status: status}).Run(ctx)
+}
 
 // NewCommand builds the sim subcommand skeleton.
 func NewCommand(deps command.Deps) *cobra.Command {
@@ -41,7 +46,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
 			if err := execute(cmd.Context(), deps, normalized); err != nil {
-				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
 			}
 			return nil
 		},
@@ -73,8 +78,65 @@ func NewCommand(deps command.Deps) *cobra.Command {
 }
 
 func executeConfig(ctx context.Context, deps command.Deps, cfg Config) error {
-	_ = ctx
-	_ = cfg
-	_, err := fmt.Fprintln(deps.Stdout, "wkcli sim runtime is not implemented yet")
-	return err
+	status := newStatus(cfg.RunID)
+	server := newStatusServer(cfg.StatusListen, status)
+	serverCtx, stopServer := context.WithCancel(ctx)
+	defer stopServer()
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.start(serverCtx)
+	}()
+
+	renderCtx, stopRender := context.WithCancel(ctx)
+	renderDone := make(chan struct{})
+	go func() {
+		defer close(renderDone)
+		renderLoop(renderCtx, deps.Stdout, status, cfg)
+	}()
+
+	runErr := runSimulation(ctx, cfg, status)
+	stopRender()
+	<-renderDone
+	renderErr := renderSnapshot(deps.Stdout, status.snapshot(), cfg)
+	stopServer()
+
+	serverStopErr := waitStatusServer(serverErr)
+	if runErr != nil {
+		return runErr
+	}
+	if renderErr != nil {
+		return renderErr
+	}
+	return serverStopErr
+}
+
+func renderLoop(ctx context.Context, w io.Writer, status *statusModel, cfg Config) {
+	ticker := time.NewTicker(cfg.StatusInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_ = renderSnapshot(w, status.snapshot(), cfg)
+		}
+	}
+}
+
+func renderSnapshot(w io.Writer, snapshot Snapshot, cfg Config) error {
+	if cfg.JSON {
+		return renderJSON(w, snapshot)
+	}
+	return renderHuman(w, snapshot)
+}
+
+func waitStatusServer(errCh <-chan error) error {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-errCh:
+		return err
+	case <-timer.C:
+		return fmt.Errorf("status server did not stop")
+	}
 }
