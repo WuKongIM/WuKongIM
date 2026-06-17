@@ -369,6 +369,107 @@ func TestManagerRuntimeWorkqueuesMapsWarmingUp(t *testing.T) {
 	}
 }
 
+func TestManagerRuntimeWorkqueuesRejectsInvalidWindow(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "invalid duration", url: "/manager/runtime/workqueues?window=soon"},
+		{name: "below minimum", url: "/manager/runtime/workqueues?window=1s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Top: &managerTopStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"window invalid"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRejectsInvalidLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "invalid integer", url: "/manager/runtime/workqueues?limit=many"},
+		{name: "zero", url: "/manager/runtime/workqueues?limit=0"},
+		{name: "negative", url: "/manager/runtime/workqueues?limit=-1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Top: &managerTopStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"limit invalid"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRuntimeWorkqueuesPassesCustomWindow(t *testing.T) {
+	provider := &managerTopStub{}
+	srv := New(Options{Top: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?window=30s", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 30*time.Second {
+		t.Fatalf("provider query window = %s, want 30s", provider.query.Window)
+	}
+	if provider.query.Limit != 100 {
+		t.Fatalf("provider query limit = %d, want 100", provider.query.Limit)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesClampsLargeLimit(t *testing.T) {
+	provider := &managerTopStub{}
+	srv := New(Options{Top: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?limit=250", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 10*time.Second {
+		t.Fatalf("provider query window = %s, want 10s", provider.query.Window)
+	}
+	if provider.query.Limit != 200 {
+		t.Fatalf("provider query limit = %d, want 200", provider.query.Limit)
+	}
+}
+
 func TestManagerRuntimeWorkqueuesRequiresNodeReadPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
