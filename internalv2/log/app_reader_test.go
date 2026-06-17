@@ -279,6 +279,9 @@ func TestAppLogReaderParsesConsoleEntryWithoutModuleWithFields(t *testing.T) {
 		entry.Message != "started" {
 		t.Fatalf("parsed console entry = %+v, want empty module with caller and message", entry)
 	}
+	if entry.Fields["extra"] != `{"node":1}` {
+		t.Fatalf("extra field = %#v, want structured console fields", entry.Fields["extra"])
+	}
 }
 
 func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
