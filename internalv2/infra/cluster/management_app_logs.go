@@ -77,5 +77,5 @@ func (r *ManagementApplicationLogReader) ApplicationLogEntries(ctx context.Conte
 }
 
 func (r *ManagementApplicationLogReader) isLocal(nodeID uint64) bool {
-	return r.node == nil || nodeID == r.node.NodeID()
+	return nodeID == 0 || r.node == nil || nodeID == r.node.NodeID()
 }

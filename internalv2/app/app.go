@@ -164,6 +164,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wirePresence()
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
+	app.wireManagerAppLogRPC()
 	app.wireManagerChannelRPC()
 	app.wireManagerDBInspectRPC()
 	app.wireUsers()

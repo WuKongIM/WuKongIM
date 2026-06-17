@@ -48,6 +48,40 @@ func TestManagementAppLogReaderUsesLocalEntries(t *testing.T) {
 	}
 }
 
+func TestManagementAppLogReaderUsesLocalEntriesForEmptyNodeID(t *testing.T) {
+	local := &fakeManagementAppLogLocal{
+		entriesResp: managementusecase.ApplicationLogEntriesResponse{
+			NodeID: 1,
+			Source: "app",
+			Items: []managementusecase.ApplicationLogEntry{{
+				Seq:     8,
+				Message: "local empty node",
+			}},
+		},
+	}
+	node := &fakeManagementAppLogNode{nodeID: 1}
+	reader := NewManagementApplicationLogReader(node, local)
+
+	got, err := reader.ApplicationLogEntries(context.Background(), managementusecase.ApplicationLogEntriesRequest{
+		NodeID: 0,
+		Source: "app",
+		Limit:  5,
+	})
+	if err != nil {
+		t.Fatalf("ApplicationLogEntries(empty node) error = %v", err)
+	}
+
+	if len(got.Items) != 1 || got.Items[0].Message != "local empty node" {
+		t.Fatalf("entries = %#v, want local empty-node entry", got.Items)
+	}
+	if !reflect.DeepEqual(local.entriesReq, managementusecase.ApplicationLogEntriesRequest{NodeID: 0, Source: "app", Limit: 5}) {
+		t.Fatalf("local entries request = %#v, want empty node app limit 5", local.entriesReq)
+	}
+	if node.calledServiceID != 0 {
+		t.Fatalf("called service id = %d, want no remote rpc", node.calledServiceID)
+	}
+}
+
 func TestManagementAppLogReaderRoutesRemoteEntries(t *testing.T) {
 	remote := &fakeManagementAppLogLocal{
 		entriesResp: managementusecase.ApplicationLogEntriesResponse{

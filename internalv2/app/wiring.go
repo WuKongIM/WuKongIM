@@ -338,7 +338,6 @@ func (a *App) wireManagerConnectionRPC() {
 }
 
 func (a *App) wireManagerLogRPC() {
-	a.wireManagerAppLogRPC()
 	node, hasNode := a.cluster.(clusterinfra.ManagementLogNode)
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasNode || !hasRegistrar {
