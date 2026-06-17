@@ -24,6 +24,9 @@ import {
   getMessages,
   getRecentConversations,
   getRuntimeWorkqueues,
+  getApplicationLogEntries,
+  getApplicationLogSources,
+  streamApplicationLogEntries,
   getMonitorMetrics,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -143,6 +146,17 @@ describe("manager api client", () => {
 
     const requestInit = fetchMock.mock.calls[0]?.[1] as { headers: Headers }
     expect(requestInit.headers.get("Authorization")).toBe("Bearer token-1")
+  })
+
+  it("preserves a caller-provided Accept header for non-JSON responses", async () => {
+    fetchMock.mockResolvedValue(new Response("", { status: 200 }))
+
+    await managerFetch("/manager/app-logs/stream?node_id=1", {
+      headers: { Accept: "application/x-ndjson" },
+    })
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as { headers: Headers }
+    expect(requestInit.headers.get("Accept")).toBe("application/x-ndjson")
   })
 
   it("calls onUnauthorized on 401 responses", async () => {
@@ -1574,6 +1588,62 @@ describe("manager api client", () => {
       "/manager/runtime/workqueues?window=10s&limit=100",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
+  })
+
+  it("fetches application log sources, entries, and stream responses", async () => {
+    const sources = {
+      node_id: 2,
+      sources: [{ name: "app", file: "app.log", available: true, size_bytes: 128, modified_at: "2026-06-17T10:00:00Z" }],
+    }
+    const entries = {
+      node_id: 2,
+      source: "warn",
+      cursor: "next-cursor",
+      rotated: false,
+      items: [{
+        seq: 7,
+        offset: 42,
+        time: "2026-06-17T10:00:01Z",
+        level: "WARN",
+        module: "cluster",
+        caller: "server.go:10",
+        message: "slow append",
+        fields: { channel: "g1" },
+        raw: "raw line",
+        truncated: false,
+      }],
+    }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(sources), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(entries), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 200 }))
+
+    await expect(getApplicationLogSources(2)).resolves.toEqual(sources)
+    await expect(
+      getApplicationLogEntries({
+        nodeId: 2,
+        source: "warn",
+        limit: 100,
+        cursor: "opaque cursor",
+        keyword: "slow",
+        levels: ["WARN", "ERROR"],
+      }),
+    ).resolves.toEqual(entries)
+    await streamApplicationLogEntries({ nodeId: 2, source: "error", cursor: "c1", levels: ["ERROR"] })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/app-logs/sources?node_id=2",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/manager/app-logs?node_id=2&source=warn&limit=100&cursor=opaque+cursor&keyword=slow&levels=WARN%2CERROR",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    const streamInit = fetchMock.mock.calls[2]?.[1] as { headers: Headers }
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/manager/app-logs/stream?node_id=2&source=error&cursor=c1&levels=ERROR")
+    expect(streamInit.headers.get("Accept")).toBe("application/x-ndjson")
   })
 
   it("fetches channel cluster summary from the manager endpoint", async () => {

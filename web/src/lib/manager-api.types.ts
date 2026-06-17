@@ -570,6 +570,58 @@ export type ControllerLogListParams = {
   cursor?: number
 }
 
+export type ApplicationLogListParams = {
+  nodeId: number
+  source?: string
+  limit?: number
+  cursor?: string
+  keyword?: string
+  levels?: string[]
+}
+
+export type ManagerApplicationLogSource = {
+  name: string
+  file: string
+  available: boolean
+  size_bytes: number
+  modified_at?: string
+}
+
+export type ManagerApplicationLogSourcesResponse = {
+  node_id: number
+  sources: ManagerApplicationLogSource[]
+}
+
+export type ManagerApplicationLogEntry = {
+  seq: number
+  offset: number
+  time?: string
+  level: string
+  module: string
+  caller: string
+  message: string
+  fields: Record<string, unknown> | null
+  raw: string
+  truncated: boolean
+}
+
+export type ManagerApplicationLogEntriesResponse = {
+  node_id: number
+  source: string
+  cursor: string
+  rotated: boolean
+  items: ManagerApplicationLogEntry[]
+}
+
+export type ManagerApplicationLogStreamEvent = {
+  type: "line" | "rotation" | "heartbeat" | "error" | string
+  cursor?: string
+  item?: ManagerApplicationLogEntry
+  rotated?: boolean
+  error?: string
+  message?: string
+}
+
 export type ManagerSlotsResponse = {
   total: number
   items: ManagerSlot[]

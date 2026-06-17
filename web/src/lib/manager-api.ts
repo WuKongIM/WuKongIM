@@ -87,10 +87,13 @@ import type {
   AdvanceNodeScaleInInput,
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
+  ApplicationLogListParams,
   BusinessChannelListParams,
   BusinessChannelMemberListKind,
   BusinessChannelMembersParams,
   BusinessChannelMembersResponse,
+  ManagerApplicationLogEntriesResponse,
+  ManagerApplicationLogSourcesResponse,
   ManagerBusinessChannelDetailResponse,
   ManagerBusinessChannelsResponse,
   MutateBusinessChannelMembersInput,
@@ -418,7 +421,9 @@ function applyDiagnosticsCommonParams(search: URLSearchParams, params?: Diagnost
 
 export async function managerFetch(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers)
-  headers.set("Accept", "application/json")
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json")
+  }
 
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json")
@@ -614,6 +619,27 @@ function buildLogListSearch(params: { nodeId: number; limit?: number; cursor?: n
   return search
 }
 
+function buildApplicationLogEntriesPath(path: string, params: ApplicationLogListParams) {
+  const search = new URLSearchParams()
+  search.set("node_id", String(params.nodeId))
+  if (params.source) {
+    search.set("source", params.source)
+  }
+  if (typeof params.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params.cursor) {
+    search.set("cursor", params.cursor)
+  }
+  if (params.keyword) {
+    search.set("keyword", params.keyword)
+  }
+  if (params.levels?.length) {
+    search.set("levels", params.levels.join(","))
+  }
+  return `${path}?${search.toString()}`
+}
+
 export function getSlotLogs(slotId: number, params: SlotLogListParams) {
   const search = buildLogListSearch(params)
   return jsonManagerFetch<ManagerSlotLogsResponse>(`/manager/slots/${slotId}/logs?${search.toString()}`)
@@ -628,6 +654,22 @@ export function compactSlotRaftLogOnNode(nodeId: number, slotId: number) {
 export function getControllerLogs(params: ControllerLogListParams) {
   const search = buildLogListSearch(params)
   return jsonManagerFetch<ManagerControllerLogsResponse>(`/manager/controller/logs?${search.toString()}`)
+}
+
+export function getApplicationLogSources(nodeId: number) {
+  return jsonManagerFetch<ManagerApplicationLogSourcesResponse>(`/manager/app-logs/sources?node_id=${nodeId}`)
+}
+
+export function getApplicationLogEntries(params: ApplicationLogListParams) {
+  return jsonManagerFetch<ManagerApplicationLogEntriesResponse>(
+    buildApplicationLogEntriesPath("/manager/app-logs", params),
+  )
+}
+
+export function streamApplicationLogEntries(params: ApplicationLogListParams) {
+  return managerFetch(buildApplicationLogEntriesPath("/manager/app-logs/stream", params), {
+    headers: { Accept: "application/x-ndjson" },
+  })
 }
 
 export function getControllerRaftStatus(nodeId: number) {
