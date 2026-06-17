@@ -217,11 +217,15 @@ func parseByteSize(value string) (int, error) {
 		}
 	}
 	n, err := strconv.ParseFloat(number, 64)
-	if err != nil || n <= 0 {
+	if err != nil || n <= 0 || math.IsNaN(n) || math.IsInf(n, 0) {
+		return 0, fmt.Errorf("invalid --payload-size %q", value)
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if n > float64(maxInt)/float64(multiplier) {
 		return 0, fmt.Errorf("invalid --payload-size %q", value)
 	}
 	size := int64(n * float64(multiplier))
-	if size <= 0 || size > int64(^uint(0)>>1) {
+	if size <= 0 || size > maxInt {
 		return 0, fmt.Errorf("invalid --payload-size %q", value)
 	}
 	return int(size), nil

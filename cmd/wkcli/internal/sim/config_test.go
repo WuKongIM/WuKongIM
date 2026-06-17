@@ -105,7 +105,7 @@ func TestParseRate(t *testing.T) {
 	}
 }
 
-func TestParseByteSize(t *testing.T) {
+func TestParseRateAndByteSize(t *testing.T) {
 	tests := []struct {
 		value string
 		want  int
@@ -131,7 +131,7 @@ func TestParseByteSize(t *testing.T) {
 		})
 	}
 
-	for _, value := range []string{"0B", "-1B", "bad"} {
+	for _, value := range []string{"0B", "-1B", "bad", "InfB", "+InfB", "NaNB", "1e100B"} {
 		t.Run("invalid "+value, func(t *testing.T) {
 			if _, err := parseByteSize(value); err == nil {
 				t.Fatalf("expected error")
