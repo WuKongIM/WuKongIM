@@ -34,6 +34,8 @@ type Config struct {
 	Cluster clusterv2.Config
 	// API configures the benchmark HTTP API exposed by the standalone v2 entry.
 	API APIConfig
+	// Manager configures the dedicated administration HTTP API entry point.
+	Manager ManagerConfig
 	// Gateway configures the client gateway runtime.
 	Gateway GatewayConfig
 	// Bench configures the benchmark-only HTTP API surface.
@@ -68,6 +70,40 @@ type APIConfig struct {
 	ExternalWSAddr string
 	// ExternalWSSAddr is the published secure WebSocket gateway address returned by bench capacity discovery.
 	ExternalWSSAddr string
+}
+
+// ManagerConfig configures the dedicated manager HTTP service.
+type ManagerConfig struct {
+	// ListenAddr is the manager server listen address. An empty value disables the manager service.
+	ListenAddr string
+	// AuthOn enables JWT login for manager routes.
+	AuthOn bool
+	// JWTSecret is the signing secret used for manager JWT tokens.
+	JWTSecret string
+	// JWTIssuer is the issuer claim embedded in manager JWT tokens.
+	JWTIssuer string
+	// JWTExpire is the manager JWT lifetime.
+	JWTExpire time.Duration
+	// Users defines the static manager users allowed to log in.
+	Users []ManagerUserConfig
+}
+
+// ManagerUserConfig describes one static manager user.
+type ManagerUserConfig struct {
+	// Username is the static login identity.
+	Username string `json:"username"`
+	// Password is the static login secret.
+	Password string `json:"password"`
+	// Permissions lists the resource actions granted to the user.
+	Permissions []ManagerPermissionConfig `json:"permissions"`
+}
+
+// ManagerPermissionConfig binds one manager resource to allowed actions.
+type ManagerPermissionConfig struct {
+	// Resource is the manager resource name, such as "cluster.node"; use "*" to grant all manager resources.
+	Resource string `json:"resource"`
+	// Actions contains the allowed action codes: r, w, or *.
+	Actions []string `json:"actions"`
 }
 
 // GatewayConfig contains client gateway settings.
@@ -289,6 +325,13 @@ type DeliveryConfig struct {
 	PendingAckMaxPerSession int
 	// EventQueueSize bounds committed-message events waiting for asynchronous delivery fanout.
 	EventQueueSize int
+}
+
+func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
+	if cfg.AuthOn && cfg.JWTExpire == 0 {
+		cfg.JWTExpire = 24 * time.Hour
+	}
+	return cfg
 }
 
 func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
@@ -515,6 +558,52 @@ func defaultLogConfig(cfg LogConfig) LogConfig {
 		cfg.Console = true
 	}
 	return cfg
+}
+
+func validateManagerConfig(cfg ManagerConfig) error {
+	if strings.TrimSpace(cfg.ListenAddr) == "" || !cfg.AuthOn {
+		return nil
+	}
+	if strings.TrimSpace(cfg.JWTSecret) == "" {
+		return fmt.Errorf("%w: manager jwt secret must be set when auth is enabled", ErrInvalidConfig)
+	}
+	if cfg.JWTExpire <= 0 {
+		return fmt.Errorf("%w: manager jwt expire must be positive when auth is enabled", ErrInvalidConfig)
+	}
+	if len(cfg.Users) == 0 {
+		return fmt.Errorf("%w: manager users must be set when auth is enabled", ErrInvalidConfig)
+	}
+	for _, user := range cfg.Users {
+		if strings.TrimSpace(user.Username) == "" {
+			return fmt.Errorf("%w: manager username must be set", ErrInvalidConfig)
+		}
+		if user.Password == "" {
+			return fmt.Errorf("%w: manager password must be set", ErrInvalidConfig)
+		}
+		for _, permission := range user.Permissions {
+			if strings.TrimSpace(permission.Resource) == "" {
+				return fmt.Errorf("%w: manager permission resource must be set", ErrInvalidConfig)
+			}
+			if len(permission.Actions) == 0 {
+				return fmt.Errorf("%w: manager permission action must be set", ErrInvalidConfig)
+			}
+			for _, action := range permission.Actions {
+				if !validManagerPermissionAction(action) {
+					return fmt.Errorf("%w: manager permission action %q must be one of r, w or *", ErrInvalidConfig, action)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validManagerPermissionAction(action string) bool {
+	switch action {
+	case "r", "w", "*":
+		return true
+	default:
+		return false
+	}
 }
 
 func validatePresenceConfig(cfg PresenceConfig) error {

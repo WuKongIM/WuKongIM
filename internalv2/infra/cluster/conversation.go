@@ -20,6 +20,16 @@ type ConversationNode interface {
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
+// ConversationStateMutationNode exposes clusterv2 read-state writes needed by conversation mutations.
+type ConversationStateMutationNode interface {
+	UpsertUserConversationStatesBatch(context.Context, []metadb.UserConversationState) error
+}
+
+// ConversationDeleteNode exposes clusterv2 delete-barrier writes needed by conversation mutations.
+type ConversationDeleteNode interface {
+	HideUserConversationsBatch(context.Context, []metadb.UserConversationDelete) error
+}
+
 // ConversationStore adapts clusterv2 reads to the conversation usecase ports.
 type ConversationStore struct {
 	node                      ConversationNode
@@ -28,6 +38,8 @@ type ConversationStore struct {
 
 var _ conversationusecase.Store = (*ConversationStore)(nil)
 var _ conversationusecase.StateStore = (*ConversationStore)(nil)
+var _ conversationusecase.StateMutationStore = (*ConversationStore)(nil)
+var _ conversationusecase.DeleteStore = (*ConversationStore)(nil)
 var _ conversationusecase.MessageStore = (*ConversationStore)(nil)
 var _ conversationusecase.RecentMessageStore = (*ConversationStore)(nil)
 
@@ -73,6 +85,46 @@ func (s *ConversationStore) GetUserConversationState(ctx context.Context, uid, c
 		return metadb.UserConversationState{}, false, metadb.ErrNotFound
 	}
 	return s.node.GetUserConversationState(ctx, uid, channelID, channelType)
+}
+
+// UpsertUserConversationStates writes durable UID-owned conversation read state.
+func (s *ConversationStore) UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error {
+	if len(states) == 0 {
+		return nil
+	}
+	node, ok := s.stateMutationNode()
+	if !ok {
+		return metadb.ErrNotFound
+	}
+	return node.UpsertUserConversationStatesBatch(ctx, cloneUserConversationStates(states))
+}
+
+// HideUserConversations writes durable UID-owned conversation delete barriers.
+func (s *ConversationStore) HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error {
+	if len(reqs) == 0 {
+		return nil
+	}
+	node, ok := s.deleteNode()
+	if !ok {
+		return metadb.ErrNotFound
+	}
+	return node.HideUserConversationsBatch(ctx, cloneUserConversationDeletes(reqs))
+}
+
+func (s *ConversationStore) stateMutationNode() (ConversationStateMutationNode, bool) {
+	if s == nil || s.node == nil {
+		return nil, false
+	}
+	node, ok := s.node.(ConversationStateMutationNode)
+	return node, ok
+}
+
+func (s *ConversationStore) deleteNode() (ConversationDeleteNode, bool) {
+	if s == nil || s.node == nil {
+		return nil, false
+	}
+	node, ok := s.node.(ConversationDeleteNode)
+	return node, ok
 }
 
 // GetLastVisibleMessages reads each returned row's newest visible channel message.
@@ -235,6 +287,14 @@ func syncMessagesFromChannel(messages []channelv2.Message) []conversationusecase
 		})
 	}
 	return out
+}
+
+func cloneUserConversationStates(states []metadb.UserConversationState) []metadb.UserConversationState {
+	return append([]metadb.UserConversationState(nil), states...)
+}
+
+func cloneUserConversationDeletes(reqs []metadb.UserConversationDelete) []metadb.UserConversationDelete {
+	return append([]metadb.UserConversationDelete(nil), reqs...)
 }
 
 func isMissingLastMessage(err error) bool {

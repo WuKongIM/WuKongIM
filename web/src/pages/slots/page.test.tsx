@@ -13,6 +13,8 @@ const getOverviewMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
 const getNodesMock = vi.fn()
+const getSlotLogsMock = vi.fn()
+const compactSlotRaftLogOnNodeMock = vi.fn()
 const addSlotMock = vi.fn()
 const removeSlotMock = vi.fn()
 const transferSlotLeaderMock = vi.fn()
@@ -27,6 +29,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
+    compactSlotRaftLogOnNode: (...args: unknown[]) => compactSlotRaftLogOnNodeMock(...args),
     addSlot: (...args: unknown[]) => addSlotMock(...args),
     removeSlot: (...args: unknown[]) => removeSlotMock(...args),
     transferSlotLeader: (...args: unknown[]) => transferSlotLeaderMock(...args),
@@ -77,6 +81,26 @@ const slotDetail = {
   },
 }
 
+function slotLogsPage() {
+  return {
+    node_id: 1,
+    slot_id: 9,
+    first_index: 1,
+    last_index: 12,
+    commit_index: 12,
+    applied_index: 10,
+    items: [{
+      index: 12,
+      term: 3,
+      type: "normal",
+      data_size: 16,
+      decode_status: "ok",
+      decoded_type: "slot_config",
+      decoded: { command: "slot_config", slot_id: 9 },
+    }],
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
@@ -84,6 +108,8 @@ beforeEach(() => {
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
   getNodesMock.mockReset()
+  getSlotLogsMock.mockReset()
+  compactSlotRaftLogOnNodeMock.mockReset()
   addSlotMock.mockReset()
   removeSlotMock.mockReset()
   transferSlotLeaderMock.mockReset()
@@ -131,20 +157,21 @@ beforeEach(() => {
       },
     },
   })
+  getSlotLogsMock.mockResolvedValue(slotLogsPage())
 })
 
 
-test("renders slot cluster tabs and defaults to overview", async () => {
+test("renders slot cluster tabs and defaults to list", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
 
   renderSlotsPage("/cluster/slots")
 
-  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
-  expect(screen.getByRole("tab", { name: "List" })).toBeInTheDocument()
-  expect(screen.getByRole("tab", { name: "Unhealthy" })).toBeInTheDocument()
-  expect(await screen.findByText("Slot Cluster Overview")).toBeInTheDocument()
-  expect(await screen.findByText("Ready slots")).toBeInTheDocument()
-  expect(screen.queryByText("Slot 9")).not.toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tab", { name: "Logs" })).toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Unhealthy" })).not.toBeInTheDocument()
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.queryByText("Slot Cluster Overview")).not.toBeInTheDocument()
 })
 
 test("renders the slot list tab from the tab search param", async () => {
@@ -156,50 +183,14 @@ test("renders the slot list tab from the tab search param", async () => {
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
 })
 
-test("renders the unhealthy slot tab from the tab search param", async () => {
-  getOverviewMock.mockResolvedValueOnce({
-    generated_at: "2026-04-23T08:00:00Z",
-    cluster: { controller_leader_id: 1 },
-    nodes: { total: 1, alive: 1, suspect: 0, dead: 0, draining: 0 },
-    slots: {
-      total: 2,
-      ready: 1,
-      quorum_lost: 1,
-      leader_missing: 0,
-      unreported: 0,
-      peer_mismatch: 1,
-      epoch_lag: 0,
-    },
-    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
-    anomalies: {
-      slots: {
-        quorum_lost: {
-          count: 1,
-          items: [{
-            slot_id: 9,
-            quorum: "quorum_lost",
-            sync: "peer_mismatch",
-            leader_id: 0,
-            desired_peers: [1, 2, 3],
-            current_peers: [1, 2],
-            last_report_at: "2026-04-23T08:00:00Z",
-          }],
-        },
-        leader_missing: { count: 0, items: [] },
-        sync_mismatch: { count: 0, items: [] },
-      },
-      tasks: {
-        failed: { count: 0, items: [] },
-        retrying: { count: 0, items: [] },
-      },
-    },
-  })
+test("renders slot distributed logs from the logs tab", async () => {
+  getSlotsMock.mockResolvedValue({ total: 1, items: [slotRow] })
 
-  renderSlotsPage("/cluster/slots?tab=unhealthy")
+  renderSlotsPage("/cluster/slots?tab=logs")
 
-  expect(screen.getByRole("tab", { name: "Unhealthy" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Unhealthy Slots")).toBeInTheDocument()
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Slot Logs")).toBeInTheDocument()
+  expect(await screen.findByText("slot_config")).toBeInTheDocument()
 })
 
 test("slot tab clicks update the selected tab", async () => {
@@ -208,10 +199,9 @@ test("slot tab clicks update the selected tab", async () => {
   const user = userEvent.setup()
   renderSlotsPage("/cluster/slots")
 
-  await user.click(screen.getByRole("tab", { name: "List" }))
+  await user.click(screen.getByRole("tab", { name: "Logs" }))
 
-  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true")
 })
 
 test("enables slot write actions for wildcard manager permissions", async () => {

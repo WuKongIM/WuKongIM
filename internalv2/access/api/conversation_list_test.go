@@ -275,12 +275,18 @@ func assertJSONFieldAbsent(t *testing.T, body []byte, field string) {
 }
 
 type recordingConversationUsecase struct {
-	requests    []conversationusecase.ListRequest
-	result      conversationusecase.ListResult
-	err         error
-	syncQueries []conversationusecase.SyncQuery
-	syncResult  conversationusecase.SyncResult
-	syncErr     error
+	requests              []conversationusecase.ListRequest
+	result                conversationusecase.ListResult
+	err                   error
+	syncQueries           []conversationusecase.SyncQuery
+	syncResult            conversationusecase.SyncResult
+	syncErr               error
+	clearUnreadCommands   []conversationusecase.ClearUnreadCommand
+	setUnreadCommands     []conversationusecase.SetUnreadCommand
+	deleteCommands        []conversationusecase.DeleteConversationCommand
+	clearUnreadErr        error
+	setUnreadErr          error
+	deleteConversationErr error
 }
 
 func (r *recordingConversationUsecase) List(_ context.Context, req conversationusecase.ListRequest) (conversationusecase.ListResult, error) {
@@ -291,6 +297,21 @@ func (r *recordingConversationUsecase) List(_ context.Context, req conversationu
 func (r *recordingConversationUsecase) Sync(_ context.Context, req conversationusecase.SyncQuery) (conversationusecase.SyncResult, error) {
 	r.syncQueries = append(r.syncQueries, req)
 	return r.syncResult, r.syncErr
+}
+
+func (r *recordingConversationUsecase) ClearUnread(_ context.Context, cmd conversationusecase.ClearUnreadCommand) error {
+	r.clearUnreadCommands = append(r.clearUnreadCommands, cmd)
+	return r.clearUnreadErr
+}
+
+func (r *recordingConversationUsecase) SetUnread(_ context.Context, cmd conversationusecase.SetUnreadCommand) error {
+	r.setUnreadCommands = append(r.setUnreadCommands, cmd)
+	return r.setUnreadErr
+}
+
+func (r *recordingConversationUsecase) DeleteConversation(_ context.Context, cmd conversationusecase.DeleteConversationCommand) error {
+	r.deleteCommands = append(r.deleteCommands, cmd)
+	return r.deleteConversationErr
 }
 
 type recordingConversationListObserver struct {

@@ -101,6 +101,7 @@ internalv2/
   access/                新架构入口适配层
     api/                 phase-1 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
     gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
+    manager/             新架构后台管理 HTTP API 入口、JWT 登录与权限适配
     node/                新架构节点间 presence authority/owner-action RPC codec、handler、client
   contracts/             新架构跨用例/运行时轻量事件合约
     channelmembers/      legacy 兼容 member-list channel id 命名合约
@@ -114,6 +115,7 @@ internalv2/
     channel/             频道资料、订阅者、黑白名单等 legacy 兼容用例
     conversation/        最近会话列表读模型，基于 UID membership 与 channel_latest 读时 join
     delivery/            投递提交与运行时入队用例
+    management/          后台管理节点列表等只读展示用例
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例

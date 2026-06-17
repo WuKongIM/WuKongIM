@@ -48,4 +48,10 @@ const (
 	RPCConversationAuthority
 	// RPCChannelAuthoritySend serves internalv2 SEND forwarding requests to the channel append authority.
 	RPCChannelAuthoritySend
+	// RPCManagerConnection serves internalv2 owner-node manager connection inventory requests.
+	RPCManagerConnection
+	// RPCManagerLogs serves internalv2 node-local manager distributed log reads.
+	RPCManagerLogs
+	// RPCManagerChannels serves internalv2 node-local manager channel list reads.
+	RPCManagerChannels
 )

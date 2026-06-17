@@ -84,6 +84,12 @@ const (
 type (
 	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
 	RaftObserver = raft.Observer
+	// LogEntriesOptions controls a node-local ControllerV2 Raft log entry page.
+	LogEntriesOptions = raft.LogEntriesOptions
+	// LogEntry is a read-only summary of one ControllerV2 Raft log entry.
+	LogEntry = raft.LogEntry
+	// LogEntries is one node-local page of ControllerV2 Raft log entries.
+	LogEntries = raft.LogEntries
 	// GetStateRequest asks a Controller leader for a full cluster-state snapshot.
 	GetStateRequest = cv2sync.GetStateRequest
 	// GetStateResponse carries a full state file payload or sync status.

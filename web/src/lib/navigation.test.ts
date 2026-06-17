@@ -42,7 +42,7 @@ describe("navigationSections", () => {
   test("maps legacy routes to new routes", () => {
     expect(legacyRouteRedirects["/dashboard"]).toBe("/cluster/dashboard")
     expect(legacyRouteRedirects["/monitor"]).toBe("/business/monitor")
-    expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels?tab=list")
+    expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels")
     expect(legacyRouteRedirects["/connections"]).toBe("/business/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
   })

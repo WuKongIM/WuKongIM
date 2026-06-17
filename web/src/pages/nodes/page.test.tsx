@@ -18,6 +18,10 @@ const startNodeScaleInMock = vi.fn()
 const getNodeScaleInStatusMock = vi.fn()
 const advanceNodeScaleInMock = vi.fn()
 const cancelNodeScaleInMock = vi.fn()
+const getControllerLogsMock = vi.fn()
+const getControllerRaftStatusMock = vi.fn()
+const compactControllerRaftLogOnNodeMock = vi.fn()
+const compactControllerRaftLogsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNodeOnboardingJobMock = vi.fn()
@@ -38,6 +42,10 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeScaleInStatus: (...args: unknown[]) => getNodeScaleInStatusMock(...args),
     advanceNodeScaleIn: (...args: unknown[]) => advanceNodeScaleInMock(...args),
     cancelNodeScaleIn: (...args: unknown[]) => cancelNodeScaleInMock(...args),
+    getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
+    getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
+    compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
+    compactControllerRaftLogs: (...args: unknown[]) => compactControllerRaftLogsMock(...args),
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNodeOnboardingJob: (...args: unknown[]) => getNodeOnboardingJobMock(...args),
@@ -104,6 +112,61 @@ const nodeDetail = {
     quorum_lost_count: 0,
     unreported_count: 0,
   },
+}
+
+function controllerLogPage(nodeId: number) {
+  return {
+    node_id: nodeId,
+    first_index: 1,
+    last_index: 2,
+    commit_index: 2,
+    applied_index: 2,
+    items: [{
+      index: 2,
+      term: 1,
+      type: "normal",
+      data_size: 12,
+      decode_status: "ok",
+      decoded_type: "cluster_config",
+      decoded: { command: "cluster_config" },
+    }],
+  }
+}
+
+function controllerRaftStatus(nodeId: number) {
+  return {
+    node_id: nodeId,
+    role: "leader",
+    leader_id: nodeId,
+    term: 1,
+    health: "healthy",
+    first_index: 1,
+    last_index: 2,
+    commit_index: 2,
+    applied_index: 2,
+    snapshot_index: 0,
+    snapshot_term: 0,
+    compaction: {
+      enabled: true,
+      trigger_entries: 100,
+      check_interval_ms: 2000,
+      last_snapshot_index: 0,
+      last_snapshot_at: "",
+      last_check_at: "",
+      last_error: "",
+      last_error_at: "",
+      degraded: false,
+    },
+    restore: {
+      last_snapshot_index: 0,
+      last_snapshot_term: 0,
+      last_restored_at: "",
+      last_error: "",
+      last_error_at: "",
+      failed: false,
+    },
+    peers: [],
+  }
 }
 
 const drainingNodeDetail = {
@@ -274,6 +337,10 @@ beforeEach(() => {
   getNodeScaleInStatusMock.mockReset()
   advanceNodeScaleInMock.mockReset()
   cancelNodeScaleInMock.mockReset()
+  getControllerLogsMock.mockReset()
+  getControllerRaftStatusMock.mockReset()
+  compactControllerRaftLogOnNodeMock.mockReset()
+  compactControllerRaftLogsMock.mockReset()
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
   getNodeOnboardingJobMock.mockReset()
@@ -327,7 +394,7 @@ function expectMetricValue(container: HTMLElement, label: string, value: string)
 }
 
 
-test("renders node cluster tabs and defaults to overview", async () => {
+test("renders node cluster tabs and defaults to list", async () => {
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-04-23T08:00:01Z",
     controller_leader_id: 1,
@@ -337,12 +404,12 @@ test("renders node cluster tabs and defaults to overview", async () => {
 
   renderNodesPage("/cluster/nodes")
 
-  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
-  expect(screen.getByRole("tab", { name: "List" })).toBeInTheDocument()
-  expect(screen.getByRole("tab", { name: "Unhealthy" })).toBeInTheDocument()
-  expect(await screen.findByText("Node Cluster Overview")).toBeInTheDocument()
-  expect(await screen.findByText("Alive nodes")).toBeInTheDocument()
-  expect(screen.queryByText("127.0.0.1:7000")).not.toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tab", { name: "Logs" })).toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Unhealthy" })).not.toBeInTheDocument()
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.queryByText("Node Cluster Overview")).not.toBeInTheDocument()
 })
 
 test("renders the node list tab from the tab search param", async () => {
@@ -359,34 +426,21 @@ test("renders the node list tab from the tab search param", async () => {
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
 })
 
-test("renders the unhealthy node tab from the tab search param", async () => {
-  getNodesMock.mockResolvedValueOnce({
+test("renders node distributed logs from the logs tab", async () => {
+  getNodesMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:01Z",
     controller_leader_id: 1,
-    total: 2,
-    items: [nodeRow, {
-      ...drainingNodeRow,
-      node_id: 2,
-      name: "node-2",
-      addr: "127.0.0.1:7002",
-      status: "suspect",
-      health: { ...drainingNodeRow.health, status: "suspect" },
-      slots: {
-        replica_count: 3,
-        leader_count: 0,
-        follower_count: 3,
-        quorum_lost_count: 1,
-        unreported_count: 1,
-      },
-      runtime: { ...drainingNodeRow.runtime, unknown: true },
-    }],
+    total: 1,
+    items: [nodeRow],
   })
+  getControllerLogsMock.mockResolvedValue(controllerLogPage(1))
+  getControllerRaftStatusMock.mockResolvedValue(controllerRaftStatus(1))
 
-  renderNodesPage("/cluster/nodes?tab=unhealthy")
+  renderNodesPage("/cluster/nodes?tab=logs")
 
-  expect(screen.getByRole("tab", { name: "Unhealthy" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Unhealthy Nodes")).toBeInTheDocument()
-  expect(await screen.findByText("127.0.0.1:7002")).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Controller Logs")).toBeInTheDocument()
+  expect(await screen.findByText("cluster_config")).toBeInTheDocument()
 })
 
 test("node tab clicks update the selected tab", async () => {
@@ -396,14 +450,15 @@ test("node tab clicks update the selected tab", async () => {
     total: 1,
     items: [nodeRow],
   })
+  getControllerLogsMock.mockResolvedValue(controllerLogPage(1))
+  getControllerRaftStatusMock.mockResolvedValue(controllerRaftStatus(1))
 
   const user = userEvent.setup()
   renderNodesPage("/cluster/nodes")
 
-  await user.click(screen.getByRole("tab", { name: "List" }))
+  await user.click(screen.getByRole("tab", { name: "Logs" }))
 
-  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Logs" })).toHaveAttribute("aria-selected", "true")
 })
 
 test("omits distributed log health from the node list and detail", async () => {

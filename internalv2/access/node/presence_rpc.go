@@ -9,6 +9,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -22,6 +23,7 @@ const (
 	rpcStatusRouteNotReady           = "route_not_ready"
 	rpcStatusContextCanceled         = "context_canceled"
 	rpcStatusContextDeadlineExceeded = "context_deadline_exceeded"
+	rpcStatusNotFound                = "not_found"
 	rpcStatusRejected                = "rejected"
 
 	presenceOpRegisterRoute    = "register_route"
@@ -73,6 +75,23 @@ type ConversationAuthority interface {
 	DrainAuthority(context.Context, conversationusecase.RouteTarget) (string, error)
 }
 
+// ManagerConnectionReader handles owner-local manager connection inventory requests.
+type ManagerConnectionReader interface {
+	ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
+	GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
+}
+
+// ManagerLogReader handles node-local manager distributed log page requests.
+type ManagerLogReader interface {
+	ControllerLogEntries(context.Context, managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
+	SlotLogEntries(context.Context, managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error)
+}
+
+// ManagerChannelReader handles node-local manager channel list requests.
+type ManagerChannelReader interface {
+	ListBusinessChannels(context.Context, managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -85,6 +104,12 @@ type Options struct {
 	DeliveryFanout DeliveryFanoutRunner
 	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
 	ConversationAuthority ConversationAuthority
+	// ManagerConnections handles owner-local manager connection inventory requests.
+	ManagerConnections ManagerConnectionReader
+	// ManagerLogs handles node-local manager distributed log page requests.
+	ManagerLogs ManagerLogReader
+	// ManagerChannels handles node-local manager channel list requests.
+	ManagerChannels ManagerChannelReader
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -101,6 +126,12 @@ type Adapter struct {
 	deliveryFanout DeliveryFanoutRunner
 	// conversation owns UID conversation active cache decisions.
 	conversation ConversationAuthority
+	// managerConnections reads owner-local connection inventory for manager pages.
+	managerConnections ManagerConnectionReader
+	// managerLogs reads node-local distributed logs for manager pages.
+	managerLogs ManagerLogReader
+	// managerChannels reads node-local channel metadata for manager pages.
+	managerChannels ManagerChannelReader
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -110,7 +141,17 @@ func New(opts Options) *Adapter {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
-	return &Adapter{authority: opts.Authority, owner: opts.Owner, delivery: opts.Delivery, deliveryFanout: opts.DeliveryFanout, conversation: opts.ConversationAuthority, logger: opts.Logger}
+	return &Adapter{
+		authority:          opts.Authority,
+		owner:              opts.Owner,
+		delivery:           opts.Delivery,
+		deliveryFanout:     opts.DeliveryFanout,
+		conversation:       opts.ConversationAuthority,
+		managerConnections: opts.ManagerConnections,
+		managerLogs:        opts.ManagerLogs,
+		managerChannels:    opts.ManagerChannels,
+		logger:             opts.Logger,
+	}
 }
 
 // HandlePresenceAuthorityRPC handles one encoded presence authority RPC payload.

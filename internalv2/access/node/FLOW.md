@@ -141,6 +141,60 @@ The client skips canceled or expired items before transport, normalizes
 transport canceled/timeout errors to standard context errors, and preserves
 active item order in returned item-aligned results.
 
+## Manager Connection RPC
+
+```text
+remote manager connection reader
+  -> encode W K V M 1 request
+  -> clusterv2 RPCManagerConnection
+  -> Adapter.HandleManagerConnectionRPC
+  -> Management connection reader port
+  -> encode W K V m 1 response
+```
+
+Manager Connection RPC transports the manager connection list/detail read
+requests for one owner node. The server calls the local management connection
+port, which reads the owner-local online registry; the client maps stable RPC
+statuses back to manager usecase errors. This package only transports the
+request and response DTOs. It does not decide which manager HTTP request should
+target a remote node.
+
+## Manager Log RPC
+
+```text
+remote manager log reader
+  -> encode W K V L 1 request
+  -> clusterv2 RPCManagerLogs
+  -> Adapter.HandleManagerLogRPC
+  -> Management log reader port
+  -> encode W K V l 1 response
+```
+
+Manager Log RPC transports Controller and Slot distributed log page requests to
+the selected node. The server reads only node-local log storage through the
+configured log reader; local/remote targeting is decided by the caller in
+`internalv2/infra/cluster`. Responses preserve the manager usecase DTOs,
+including decoded JSON-friendly payload summaries, newest-first entry order,
+and `next_cursor` pagination state.
+
+## Manager Channel RPC
+
+```text
+remote manager channel reader
+  -> encode W K V H 1 request
+  -> clusterv2 RPCManagerChannels
+  -> Adapter.HandleManagerChannelRPC
+  -> Management channel reader port
+  -> encode W K V h 1 response
+```
+
+Manager Channel RPC transports read-only business channel list page requests to
+the selected node. The server calls the local management channel port, which
+scans this node's Slot metadata; the client maps stable RPC statuses back to
+manager usecase errors. The RPC payload preserves node, filter, cursor,
+`has_more`, and next-cursor state, but it does not implement channel mutations
+or decide which HTTP request targets a remote node.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -174,6 +228,16 @@ Channel Append RPC uses fixed magic headers:
 - Request: `W K V A 1`
 - Response: `W K V a 1`
 
+Manager Connection RPC uses fixed magic headers:
+
+- Request: `W K V M 1`
+- Response: `W K V m 1`
+
+Manager Log RPC uses fixed magic headers:
+
+- Request: `W K V L 1`
+- Response: `W K V l 1`
+
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
 unknown operations, malformed varints, oversized collections, truncated
@@ -190,6 +254,7 @@ Stable response statuses are:
 - `route_not_ready`
 - `context_canceled`
 - `context_deadline_exceeded`
+- `not_found`
 - `rejected`
 
 Conversation authority responses may additionally use:
@@ -224,4 +289,5 @@ Delivery push and fanout responses currently use:
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
-  standalone channel-write `ChannelAppend` adapter interface.
+  standalone channel-write `ChannelAppend`, manager connection reader, and
+  manager log reader adapter interfaces.

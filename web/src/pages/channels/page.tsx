@@ -1,26 +1,38 @@
 import { useCallback, useEffect, useState } from "react"
+import type { FormEvent } from "react"
+import type { IntlShape } from "react-intl"
 import { useIntl } from "react-intl"
 import { useNavigate } from "react-router-dom"
 
-import { DetailSheet } from "@/components/manager/detail-sheet"
-import { KeyValueList } from "@/components/manager/key-value-list"
-import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
+import { NodeFilter, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { Button } from "@/components/ui/button"
-import {
-  ManagerApiError,
-  getChannelRuntimeMeta,
-  getChannelRuntimeMetaDetail,
-  getNodes,
-} from "@/lib/manager-api"
+import { ManagerApiError, getChannelRuntimeMeta, getNodes } from "@/lib/manager-api"
 import type {
-  ManagerChannelRuntimeMetaDetailResponse,
+  ChannelRuntimeMetaListParams,
   ManagerChannelRuntimeMetaListResponse,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
+
+const channelPageLimit = 50
+
+const channelTypeOptions = [
+  { value: 1, labelId: "channelsBiz.type.person" },
+  { value: 2, labelId: "channelsBiz.type.group" },
+  { value: 3, labelId: "channelsBiz.type.customerService" },
+  { value: 4, labelId: "channelsBiz.type.community" },
+  { value: 5, labelId: "channelsBiz.type.communityTopic" },
+  { value: 6, labelId: "channelsBiz.type.info" },
+  { value: 7, labelId: "channelsBiz.type.data" },
+  { value: 8, labelId: "channelsBiz.type.temp" },
+  { value: 9, labelId: "channelsBiz.type.live" },
+  { value: 10, labelId: "channelsBiz.type.visitors" },
+  { value: 11, labelId: "channelsBiz.type.agent" },
+  { value: 12, labelId: "channelsBiz.type.agentGroup" },
+]
 
 type ChannelsState = {
   channels: ManagerChannelRuntimeMetaListResponse | null
@@ -32,6 +44,10 @@ type ChannelsState = {
 
 type ChannelClusterListPanelProps = {
   messagesHref?: string
+}
+
+type ChannelFilters = {
+  keyword: string
 }
 
 function mapErrorKind(error: Error | null) {
@@ -47,8 +63,43 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
-function formatNodeList(nodeIds: number[]) {
-  return nodeIds.length > 0 ? nodeIds.join(", ") : "-"
+function channelTypeLabel(intl: IntlShape, channelType: number) {
+  const option = channelTypeOptions.find((item) => item.value === channelType)
+  if (!option) {
+    return intl.formatMessage({ id: "channelsBiz.type.custom" }, { type: channelType })
+  }
+  return `${intl.formatMessage({ id: option.labelId })} (${channelType})`
+}
+
+function firstNodeId(nodes: ManagerNodesResponse | null) {
+  return nodes?.items[0]?.node_id ?? null
+}
+
+function channelListParams(filters: ChannelFilters, nodeId: number, cursor?: string): ChannelRuntimeMetaListParams {
+  const params: ChannelRuntimeMetaListParams = { limit: channelPageLimit, includeMaxMessageSeq: true }
+  params.nodeId = nodeId
+  const keyword = filters.keyword.trim()
+  if (keyword) {
+    params.channelId = keyword
+  }
+  if (cursor) {
+    params.cursor = cursor
+  }
+  return params
+}
+
+function appendChannelPage(
+  current: ManagerChannelRuntimeMetaListResponse | null,
+  nextPage: ManagerChannelRuntimeMetaListResponse,
+): ManagerChannelRuntimeMetaListResponse {
+  if (!current) {
+    return nextPage
+  }
+  return {
+    items: [...current.items, ...nextPage.items],
+    has_more: nextPage.has_more,
+    next_cursor: nextPage.next_cursor,
+  }
 }
 
 export function ChannelClusterListPanel({
@@ -63,15 +114,10 @@ export function ChannelClusterListPanel({
     loadingMore: false,
     error: null,
   })
+  const [draftFilters, setDraftFilters] = useState<ChannelFilters>({ keyword: "" })
+  const [activeFilters, setActiveFilters] = useState<ChannelFilters>({ keyword: "" })
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
-  const [selectedChannel, setSelectedChannel] = useState<{
-    channelId: string
-    channelType: number
-  } | null>(null)
-  const [detail, setDetail] = useState<ManagerChannelRuntimeMetaDetailResponse | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState<Error | null>(null)
 
   const loadNodes = useCallback(async () => {
     try {
@@ -81,7 +127,7 @@ export function ChannelClusterListPanel({
         if (current !== null && hasNode(nextNodes, current)) {
           return current
         }
-        return defaultNodeId(nextNodes)
+        return firstNodeId(nextNodes)
       })
       if (nextNodes.items.length === 0) {
         setState({ channels: null, loading: false, refreshing: false, loadingMore: false, error: null })
@@ -99,12 +145,7 @@ export function ChannelClusterListPanel({
     }
   }, [])
 
-  const loadChannels = useCallback(async (refreshing: boolean, nodeId: number | null) => {
-    if (!nodeId) {
-      setState({ channels: null, loading: false, refreshing: false, loadingMore: false, error: null })
-      return
-    }
-
+  const loadChannels = useCallback(async (refreshing: boolean, filters: ChannelFilters, nodeId: number) => {
     setState((current) => ({
       ...current,
       loading: refreshing ? current.loading : true,
@@ -114,7 +155,7 @@ export function ChannelClusterListPanel({
     }))
 
     try {
-      const channels = await getChannelRuntimeMeta({ nodeId })
+      const channels = await getChannelRuntimeMeta(channelListParams(filters, nodeId))
       setState({
         channels,
         loading: false,
@@ -128,7 +169,7 @@ export function ChannelClusterListPanel({
         loading: false,
         refreshing: false,
         loadingMore: false,
-        error: error instanceof Error ? error : new Error("channel runtime request failed"),
+        error: error instanceof Error ? error : new Error("channel list request failed"),
       })
     }
   }, [])
@@ -142,18 +183,13 @@ export function ChannelClusterListPanel({
     setState((current) => ({
       ...current,
       loadingMore: true,
+      error: null,
     }))
 
     try {
-      const nextPage = await getChannelRuntimeMeta({ nodeId: selectedNodeId, cursor })
+      const nextPage = await getChannelRuntimeMeta(channelListParams(activeFilters, selectedNodeId, cursor))
       setState((current) => ({
-        channels: current.channels
-          ? {
-              items: [...current.channels.items, ...nextPage.items],
-              has_more: nextPage.has_more,
-              next_cursor: nextPage.next_cursor,
-            }
-          : nextPage,
+        channels: appendChannelPage(current.channels, nextPage),
         loading: false,
         refreshing: false,
         loadingMore: false,
@@ -163,25 +199,10 @@ export function ChannelClusterListPanel({
       setState((current) => ({
         ...current,
         loadingMore: false,
-        error: error instanceof Error ? error : new Error("channel runtime request failed"),
+        error: error instanceof Error ? error : new Error("channel list request failed"),
       }))
     }
-  }, [selectedNodeId, state.channels?.next_cursor])
-
-  const loadChannelDetail = useCallback(async (channelType: number, channelId: string) => {
-    setDetailLoading(true)
-    setDetailError(null)
-
-    try {
-      const nextDetail = await getChannelRuntimeMetaDetail(channelType, channelId)
-      setDetail(nextDetail)
-    } catch (error) {
-      setDetail(null)
-      setDetailError(error instanceof Error ? error : new Error("channel runtime detail failed"))
-    } finally {
-      setDetailLoading(false)
-    }
-  }, [])
+  }, [activeFilters, selectedNodeId, state.channels?.next_cursor])
 
   useEffect(() => {
     void loadNodes()
@@ -189,26 +210,16 @@ export function ChannelClusterListPanel({
 
   useEffect(() => {
     if (selectedNodeId !== null) {
-      void loadChannels(false, selectedNodeId)
+      void loadChannels(false, activeFilters, selectedNodeId)
     }
-  }, [loadChannels, selectedNodeId])
+  }, [activeFilters, loadChannels, selectedNodeId])
 
-  const openDetail = useCallback(
-    async (channelType: number, channelId: string) => {
-      setSelectedChannel({ channelId, channelType })
-      await loadChannelDetail(channelType, channelId)
-    },
-    [loadChannelDetail],
-  )
-
-  const closeDetail = useCallback((open: boolean) => {
-    if (open) {
-      return
-    }
-    setSelectedChannel(null)
-    setDetail(null)
-    setDetailError(null)
-  }, [])
+  function submitFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setActiveFilters({
+      keyword: draftFilters.keyword.trim(),
+    })
+  }
 
   const openMessages = useCallback(
     (channelType: number, channelId: string) => {
@@ -219,7 +230,7 @@ export function ChannelClusterListPanel({
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {intl.formatMessage({ id: "nav.channels.title" })}
@@ -230,20 +241,38 @@ export function ChannelClusterListPanel({
               : intl.formatMessage({ id: "channels.loadedPending" })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <NodeFilter nodes={nodes} onNodeChange={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+        <form className="flex flex-wrap gap-2" onSubmit={submitFilters}>
+          <NodeFilter
+            nodes={nodes}
+            selectedNodeId={selectedNodeId}
+            onNodeChange={(nodeId) => {
+              setSelectedNodeId(nodeId)
+            }}
+          />
+          <input
+            className="h-8 min-w-52 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+            onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
+            placeholder={intl.formatMessage({ id: "channelsBiz.search.placeholder" })}
+            value={draftFilters.keyword}
+          />
+          <Button size="sm" type="submit" variant="outline">
+            {intl.formatMessage({ id: "common.search" })}
+          </Button>
           <Button
             onClick={() => {
-              void loadChannels(true, selectedNodeId)
+              if (selectedNodeId !== null) {
+                void loadChannels(true, activeFilters, selectedNodeId)
+              }
             }}
             size="sm"
+            type="button"
             variant="outline"
           >
             {state.refreshing
               ? intl.formatMessage({ id: "common.refreshing" })
               : intl.formatMessage({ id: "common.refresh" })}
           </Button>
-        </div>
+        </form>
       </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.channels.title" })} /> : null}
@@ -251,7 +280,11 @@ export function ChannelClusterListPanel({
         <ResourceState
           kind={mapErrorKind(state.error)}
           onRetry={() => {
-            void loadChannels(false, selectedNodeId)
+            if (selectedNodeId !== null) {
+              void loadChannels(false, activeFilters, selectedNodeId)
+            } else {
+              void loadNodes()
+            }
           }}
           title={intl.formatMessage({ id: "nav.channels.title" })}
         />
@@ -269,6 +302,7 @@ export function ChannelClusterListPanel({
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.slot" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.leader" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.replicas" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.unhealthy.table.isr" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.status" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.actions" })}</th>
@@ -278,43 +312,35 @@ export function ChannelClusterListPanel({
                     {state.channels.items.map((channel) => (
                       <tr className="border-t border-border" key={`${channel.channel_type}-${channel.channel_id}`}>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">{channel.channel_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.channel_type}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {channelTypeLabel(intl, channel.channel_type)}
+                        </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{channel.slot_id}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.leader}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(channel.replicas)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.max_message_seq}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.leader || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.replicas.join(", ") || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {channel.isr.join(", ") || "-"} / {channel.min_isr}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {channel.max_message_seq ?? "-"}
+                        </td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <StatusBadge value={channel.status} />
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              aria-label={intl.formatMessage(
-                                { id: "channels.inspectChannel" },
-                                { id: channel.channel_id },
-                              )}
-                              onClick={() => {
-                                void openDetail(channel.channel_type, channel.channel_id)
-                              }}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {intl.formatMessage({ id: "common.inspect" })}
-                            </Button>
-                            <Button
-                              aria-label={intl.formatMessage(
-                                { id: "channels.viewMessages" },
-                                { id: channel.channel_id },
-                              )}
-                              onClick={() => {
-                                openMessages(channel.channel_type, channel.channel_id)
-                              }}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {intl.formatMessage({ id: "channels.messagesAction" })}
-                            </Button>
-                          </div>
+                          <Button
+                            aria-label={intl.formatMessage(
+                              { id: "channels.viewMessages" },
+                              { id: channel.channel_id },
+                            )}
+                            onClick={() => {
+                              openMessages(channel.channel_type, channel.channel_id)
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "channels.messagesAction" })}
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -338,78 +364,10 @@ export function ChannelClusterListPanel({
               ) : null}
             </>
           ) : (
-            <ResourceState kind="empty" title={intl.formatMessage({ id: "channels.runtimeTitle" })} />
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.channels.title" })} />
           )}
         </div>
       ) : null}
-
-      <DetailSheet
-        description={
-          detail
-            ? intl.formatMessage({ id: "channels.detailDescriptionValue" }, { id: detail.slot_id })
-            : intl.formatMessage({ id: "channels.detailDescriptionFallback" })
-        }
-        onOpenChange={closeDetail}
-        open={selectedChannel !== null}
-        title={
-          detail
-            ? intl.formatMessage({ id: "channels.detailTitleValue" }, { id: detail.channel_id })
-            : intl.formatMessage({ id: "channels.detailTitleFallback" })
-        }
-      >
-        {detailLoading ? (
-          <ResourceState kind="loading" title={intl.formatMessage({ id: "channels.detailTitleFallback" })} />
-        ) : null}
-        {!detailLoading && detailError ? (
-          <ResourceState
-            kind={mapErrorKind(detailError)}
-            onRetry={() => {
-              if (selectedChannel) {
-                void loadChannelDetail(selectedChannel.channelType, selectedChannel.channelId)
-              }
-            }}
-            title={intl.formatMessage({ id: "channels.detailTitleFallback" })}
-          />
-        ) : null}
-        {!detailLoading && !detailError && detail ? (
-          <KeyValueList
-            items={[
-              { label: intl.formatMessage({ id: "channels.detail.channelId" }), value: detail.channel_id },
-              { label: intl.formatMessage({ id: "channels.detail.channelType" }), value: detail.channel_type },
-              { label: intl.formatMessage({ id: "channels.detail.slotId" }), value: detail.slot_id },
-              { label: intl.formatMessage({ id: "channels.detail.hashSlot" }), value: detail.hash_slot },
-              {
-                label: intl.formatMessage({ id: "channels.detail.status" }),
-                value: <StatusBadge value={detail.status} />,
-              },
-              { label: intl.formatMessage({ id: "channels.detail.leader" }), value: detail.leader },
-              {
-                label: intl.formatMessage({ id: "channels.detail.replicas" }),
-                value: formatNodeList(detail.replicas),
-              },
-              { label: intl.formatMessage({ id: "channels.detail.isr" }), value: formatNodeList(detail.isr) },
-              { label: intl.formatMessage({ id: "channels.detail.minIsr" }), value: detail.min_isr },
-              {
-                label: intl.formatMessage({ id: "channels.detail.maxMessageSeq" }),
-                value: detail.max_message_seq,
-              },
-              {
-                label: intl.formatMessage({ id: "channels.detail.channelEpoch" }),
-                value: detail.channel_epoch,
-              },
-              {
-                label: intl.formatMessage({ id: "channels.detail.leaderEpoch" }),
-                value: detail.leader_epoch,
-              },
-              { label: intl.formatMessage({ id: "channels.detail.features" }), value: detail.features },
-              {
-                label: intl.formatMessage({ id: "channels.detail.leaseUntilMs" }),
-                value: detail.lease_until_ms,
-              },
-            ]}
-          />
-        ) : null}
-      </DetailSheet>
     </>
   )
 }

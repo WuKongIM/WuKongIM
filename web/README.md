@@ -14,6 +14,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 - `/login` authenticates against `POST /manager/login`.
 - Protected routes require a valid persisted JWT session.
 - `VITE_API_BASE_URL` optionally overrides the default same-origin `/manager/*` base.
+- During local Vite development, same-origin `/manager/*` requests proxy to `VITE_MANAGER_API_TARGET`, defaulting to the first `scripts/start-wukongimv2-three-nodes.sh` manager server at `http://127.0.0.1:5311`.
 - Container deployments can set `WK_WEB_API_URL` to change the nginx `/manager/` proxy target, defaulting to `http://wk-node1:5301`.
 - UI copy supports `en` and `zh-CN`.
 - Locale selection order is persisted `localStorage` value -> browser language -> default `en`.

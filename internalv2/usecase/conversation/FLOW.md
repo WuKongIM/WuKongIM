@@ -3,11 +3,12 @@
 ## Responsibility
 
 `internalv2/usecase/conversation` owns entry-agnostic conversation list reads,
-legacy-compatible conversation sync selection, and the lightweight
-UID-authority active patch contract. It does not depend on gateway frames, HTTP
-DTOs, clusterv2, or channel log runtimes. Storage is supplied through small
-ports for UID-owned conversation active pages, durable UID-owned state rows,
-and channel-owned message reads.
+legacy-compatible conversation sync selection, legacy-compatible read/delete
+mutations, and the lightweight UID-authority active patch contract. It does not
+depend on gateway frames, HTTP DTOs, clusterv2, or channel log runtimes.
+Storage is supplied through small ports for UID-owned conversation active
+pages, durable UID-owned state rows, durable UID-owned state/delete writes, and
+channel-owned message reads.
 
 ## List Flow
 
@@ -56,6 +57,31 @@ client-known conversations that are outside the active scan window; overlay
 candidates without durable user state are returned only when the channel latest
 message is newer than the client-supplied sequence. Recent messages are filtered
 by the row delete floor and cloned before returning.
+
+## Mutation Flow
+
+```text
+ClearUnread(uid, channel, optional message_seq)
+  -> read newest channel-owned visible message
+  -> fall back to the legacy message_seq when no newest message is available
+  -> upsert UID-owned ReadSeq to the latest known sequence
+
+SetUnread(uid, channel, unread)
+  -> read newest channel-owned visible message
+  -> derive ReadSeq so at most unread messages remain unread
+  -> upsert UID-owned ReadSeq
+
+DeleteConversation(uid, channel, optional message_seq)
+  -> use message_seq or read the newest channel-owned visible message
+  -> write a UID-owned delete barrier through HideUserConversations
+  -> durable metadata clears active_at while preserving delete visibility floor
+```
+
+Mutation APIs keep personal-channel normalization in access adapters and accept
+only normalized `ChannelID` values here. They do not scan active lists or repair
+rows. Missing latest messages make clear/set unread no-ops, while delete
+requires a concrete delete barrier and returns an error when neither the request
+nor the message store can provide one.
 
 ## Authority Active Patch Contract
 

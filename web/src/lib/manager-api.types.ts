@@ -922,7 +922,7 @@ export type ManagerChannelRuntimeMeta = {
   replicas: number[]
   isr: number[]
   min_isr: number
-  max_message_seq: number
+  max_message_seq?: number
   status: string
 }
 
@@ -939,6 +939,7 @@ export type ManagerChannelRuntimeMetaDetailResponse = ManagerChannelRuntimeMeta 
 }
 
 export type BusinessChannelListParams = {
+  nodeId?: number
   type?: number
   keyword?: string
   limit?: number
@@ -1255,6 +1256,7 @@ export type ChannelRuntimeMetaListParams = {
   channelId?: string
   limit?: number
   cursor?: string
+  includeMaxMessageSeq?: boolean
 }
 
 export type ChannelClusterUnhealthyParams = {

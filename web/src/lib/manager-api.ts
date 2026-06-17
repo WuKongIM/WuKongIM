@@ -188,6 +188,9 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
   if (params?.channelId) {
     search.set("channel_id", params.channelId)
   }
+  if (typeof params?.includeMaxMessageSeq === "boolean") {
+    search.set("include_max_message_seq", String(params.includeMaxMessageSeq))
+  }
 
   const query = search.toString()
   return query ? `/manager/channel-runtime-meta?${query}` : "/manager/channel-runtime-meta"
@@ -263,6 +266,9 @@ function buildUsersPath(params?: UserListParams) {
 
 function buildBusinessChannelsPath(params?: BusinessChannelListParams) {
   const search = new URLSearchParams()
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
   if (typeof params?.type === "number") {
     search.set("type", String(params.type))
   }

@@ -85,7 +85,7 @@ test.each([
   ["/dashboard", "/cluster/dashboard"],
   ["/monitor", "/business/monitor"],
   ["/nodes", "/cluster/nodes"],
-  ["/channel-cluster/unhealthy", "/cluster/channels?tab=unhealthy"],
+  ["/channel-cluster/unhealthy", "/cluster/channels"],
   ["/network", "/cluster/diagnostics?tab=network"],
   ["/connections", "/business/connections"],
   ["/system/connections", "/business/connections"],

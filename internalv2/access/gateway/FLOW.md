@@ -79,7 +79,9 @@ gateway core; the adapter does not write CONNACK directly.
 - This package may import `pkg/gateway` and `pkg/protocol/frame`.
 - This package must not import `pkg/clusterv2` or `pkg/channelv2`.
 - Presence activation only maps gateway Context/session values into usecase
-  commands. Authority, conflict, and route policy stay in the presence usecase.
+  commands. The captured session handle exposes close/write behavior plus
+  local/remote addresses for owner-local manager connection projection.
+  Authority, conflict, and route policy stay in the presence usecase.
 - Delivery feedback only maps gateway Context/session values into delivery
   commands. Fanout, ack tracking, and local push policy stay outside gateway.
 - Single-frame and batched SEND payloads are mapped as immutable send-path

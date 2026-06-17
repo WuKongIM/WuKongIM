@@ -27,7 +27,7 @@ type clusterWriteProbeRuntime interface {
 	ProbeWriteReady(context.Context) error
 }
 
-// Start starts the cluster first, then optional API and gateway runtimes when configured.
+// Start starts the cluster first, then optional entry runtimes when configured.
 func (a *App) Start(ctx context.Context) error {
 	if a == nil {
 		return ErrInvalidConfig
@@ -118,6 +118,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.apiStarted = true
 	}
+	if a.manager != nil {
+		if err := a.manager.Start(); err != nil {
+			a.logLifecycleError("manager", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.managerStarted = true
+	}
 	if a.prometheus != nil {
 		if err := a.prometheus.Start(ctx); err != nil {
 			a.logLifecycleError("prometheus", "start", err)
@@ -137,7 +145,7 @@ func (a *App) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the gateway first, then optional API and cluster runtimes.
+// Stop stops entry runtimes first, then workers and the cluster runtime.
 func (a *App) Stop(ctx context.Context) error {
 	if a == nil {
 		return nil
@@ -165,6 +173,14 @@ func (a *App) Stop(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.prometheusStarted = false
+		}
+	}
+	if a.managerStarted && a.manager != nil {
+		if stopErr := a.manager.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("manager", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.managerStarted = false
 		}
 	}
 	if a.apiStarted && a.api != nil {
@@ -231,7 +247,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -253,6 +269,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.prometheusStarted = false
+		}
+	}
+	if a.managerStarted && a.manager != nil {
+		if stopErr := a.manager.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("manager", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.managerStarted = false
 		}
 	}
 	if a.apiStarted && a.api != nil {

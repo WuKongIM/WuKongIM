@@ -17,6 +17,7 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
+	accessmanager "github.com/WuKongIM/WuKongIM/internalv2/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
@@ -31,6 +32,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -177,6 +179,632 @@ func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
 
 	if got := joinCalls(calls); got != "cluster.start,api.start,gateway.start" {
 		t.Fatalf("calls = %s, want cluster.start,api.start,gateway.start", got)
+	}
+}
+
+func TestStartStopOrderIncludesManagerBetweenAPIAndGateway(t *testing.T) {
+	calls := make([]string, 0, 8)
+	cluster := &fakeCluster{calls: &calls}
+	api := &fakeAPI{calls: &calls}
+	manager := &fakeManager{calls: &calls}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithAPI(api), WithManager(manager), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := app.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	want := "cluster.start,api.start,manager.start,gateway.start,gateway.stop,manager.stop,api.stop,cluster.stop"
+	if got := joinCalls(calls); got != want {
+		t.Fatalf("calls = %s, want %s", got, want)
+	}
+}
+
+func TestNewWiresManagerServerWhenListenAddrConfigured(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "*",
+					Actions:  []string{"*"},
+				}},
+			}},
+		},
+	}, WithCluster(&fakeCluster{}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.manager == nil {
+		t.Fatalf("manager server = nil, want configured manager runtime")
+	}
+}
+
+func TestManagerServerListsNodesFromClusterSnapshot(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 2,
+		snapshot: control.Snapshot{
+			ControllerID: 1,
+			Nodes: []control.Node{
+				{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+				{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			},
+			Slots: []control.SlotAssignment{{
+				SlotID:          1,
+				DesiredPeers:    []uint64{1, 2},
+				PreferredLeader: 1,
+			}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	nodesRec := httptest.NewRecorder()
+	nodesReq := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
+	nodesReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(nodesRec, nodesReq)
+	if nodesRec.Code != http.StatusOK {
+		t.Fatalf("nodes status = %d, want %d; body=%s", nodesRec.Code, http.StatusOK, nodesRec.Body.String())
+	}
+	var nodesBody struct {
+		ControllerLeaderID uint64 `json:"controller_leader_id"`
+		Total              int    `json:"total"`
+		Items              []struct {
+			NodeID  uint64 `json:"node_id"`
+			Addr    string `json:"addr"`
+			IsLocal bool   `json:"is_local"`
+			Actions struct {
+				CanDrain bool `json:"can_drain"`
+			} `json:"actions"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(nodesRec.Body.Bytes(), &nodesBody); err != nil {
+		t.Fatalf("Unmarshal nodes body error = %v", err)
+	}
+	if nodesBody.ControllerLeaderID != 1 || nodesBody.Total != 2 {
+		t.Fatalf("nodes summary = %+v, want leader 1 total 2", nodesBody)
+	}
+	if nodesBody.Items[1].NodeID != 2 || nodesBody.Items[1].Addr != "127.0.0.1:7012" || !nodesBody.Items[1].IsLocal {
+		t.Fatalf("local node row = %+v, want node 2 at 127.0.0.1:7012", nodesBody.Items[1])
+	}
+	if nodesBody.Items[0].Actions.CanDrain {
+		t.Fatalf("can_drain = true, want false while node operations are unmigrated")
+	}
+}
+
+func TestNewRegistersManagerLogRPCWhenClusterSupportsLogReads(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerLogRPCServiceID]; !ok {
+		t.Fatalf("manager log rpc handler not registered")
+	}
+}
+
+func TestNewRegistersManagerChannelRPCWhenClusterSupportsChannelScans(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerChannelRPCServiceID]; !ok {
+		t.Fatalf("manager channel rpc handler not registered")
+	}
+}
+
+func TestManagerServerListsSlotsFromClusterSnapshot(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 2,
+		snapshot: control.Snapshot{
+			Slots: []control.SlotAssignment{
+				{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 3, PreferredLeader: 1},
+				{SlotID: 2, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 4, PreferredLeader: 2},
+			},
+			HashSlots: control.HashSlotTable{
+				Revision: 5,
+				Count:    4,
+				Ranges: []control.HashSlotRange{
+					{From: 0, To: 1, SlotID: 1},
+					{From: 2, To: 3, SlotID: 2},
+				},
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.slot",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	slotsRec := httptest.NewRecorder()
+	slotsReq := httptest.NewRequest(http.MethodGet, "/manager/slots?node_id=2", nil)
+	slotsReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(slotsRec, slotsReq)
+	if slotsRec.Code != http.StatusOK {
+		t.Fatalf("slots status = %d, want %d; body=%s", slotsRec.Code, http.StatusOK, slotsRec.Body.String())
+	}
+	var slotsBody struct {
+		Total int `json:"total"`
+		Items []struct {
+			SlotID    uint32 `json:"slot_id"`
+			HashSlots struct {
+				Count int      `json:"count"`
+				Items []uint16 `json:"items"`
+			} `json:"hash_slots"`
+			State struct {
+				Quorum      string `json:"quorum"`
+				Sync        string `json:"sync"`
+				LeaderMatch bool   `json:"leader_match"`
+			} `json:"state"`
+			Runtime struct {
+				LeaderID uint64 `json:"leader_id"`
+			} `json:"runtime"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(slotsRec.Body.Bytes(), &slotsBody); err != nil {
+		t.Fatalf("Unmarshal slots body error = %v", err)
+	}
+	if slotsBody.Total != 1 || len(slotsBody.Items) != 1 {
+		t.Fatalf("slots summary = %+v, want one node-filtered slot", slotsBody)
+	}
+	row := slotsBody.Items[0]
+	if row.SlotID != 2 || row.HashSlots.Count != 2 || len(row.HashSlots.Items) != 2 || row.HashSlots.Items[0] != 2 || row.HashSlots.Items[1] != 3 {
+		t.Fatalf("slot row hash slots = %+v, want slot 2 owning hash slots 2 and 3", row)
+	}
+	if row.State.Quorum != "ready" || row.State.Sync != "matched" || !row.State.LeaderMatch || row.Runtime.LeaderID != 2 {
+		t.Fatalf("slot row state/runtime = %+v/%+v, want ready matched leader 2", row.State, row.Runtime)
+	}
+}
+
+func TestManagerServerListsBusinessChannelsFromClusterMetadata(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+		channelPages: map[uint32][]metadb.Channel{
+			1: {{ChannelID: "g1", ChannelType: 2, Ban: 1, SubscriberMutationVersion: 8}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.channel",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	channelsRec := httptest.NewRecorder()
+	channelsReq := httptest.NewRequest(http.MethodGet, "/manager/channels?type=2&keyword=g&limit=10", nil)
+	channelsReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(channelsRec, channelsReq)
+	if channelsRec.Code != http.StatusOK {
+		t.Fatalf("channels status = %d, want %d; body=%s", channelsRec.Code, http.StatusOK, channelsRec.Body.String())
+	}
+	var channelsBody struct {
+		Items []struct {
+			ChannelID                 string `json:"channel_id"`
+			ChannelType               int64  `json:"channel_type"`
+			SlotID                    uint32 `json:"slot_id"`
+			Ban                       bool   `json:"ban"`
+			SubscriberMutationVersion uint64 `json:"subscriber_mutation_version"`
+		} `json:"items"`
+		HasMore bool `json:"has_more"`
+	}
+	if err := json.Unmarshal(channelsRec.Body.Bytes(), &channelsBody); err != nil {
+		t.Fatalf("Unmarshal channels body error = %v", err)
+	}
+	if len(channelsBody.Items) != 1 || channelsBody.Items[0].ChannelID != "g1" || channelsBody.Items[0].ChannelType != 2 || channelsBody.Items[0].SlotID != 1 || !channelsBody.Items[0].Ban || channelsBody.Items[0].SubscriberMutationVersion != 8 || channelsBody.HasMore {
+		t.Fatalf("channels body = %+v, want one business channel row", channelsBody)
+	}
+}
+
+func TestManagerServerListsRecentConversationsFromConversationUsecase(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+		conversationPages: map[string][]metadb.UserConversationState{
+			"u1": {{
+				UID: "u1", ChannelID: "g1", ChannelType: 2,
+				ReadSeq: 4, ActiveAt: 200000000000, UpdatedAt: 200000000000,
+			}},
+		},
+		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+			{ChannelID: "g1", ChannelType: 2}: {{
+				MessageID: 99, MessageSeq: 7, ClientMsgNo: "c7",
+				ChannelID: "g1", ChannelType: 2, FromUID: "u2",
+				ServerTimestampMS: 200000, Payload: []byte("hello"),
+			}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.channel",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/conversations?uid=u1&limit=10&msg_count=1", nil)
+	req.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("conversations status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"channel_id":"g1"`) || !strings.Contains(rec.Body.String(), `"unread":3`) || !strings.Contains(rec.Body.String(), `"payload":"aGVsbG8="`) {
+		t.Fatalf("conversations body = %s, want g1 unread recent payload", rec.Body.String())
+	}
+}
+
+func TestManagerServerListsMessagesFromClusterCommittedLog(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+			{ChannelID: "room-1", ChannelType: 2}: {
+				{MessageID: 100, MessageSeq: 9, ClientMsgNo: "c-100", ChannelID: "room-1", ChannelType: 2, FromUID: "u2", ServerTimestampMS: 1713859100000, Payload: []byte("older")},
+				{MessageID: 101, MessageSeq: 10, ClientMsgNo: "c-101", ChannelID: "room-1", ChannelType: 2, FromUID: "u1", ServerTimestampMS: 1713859200123, Payload: []byte("hello")},
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0", AuthOn: true, JWTSecret: "manager-secret", JWTIssuer: "wukongim-manager", JWTExpire: time.Hour,
+			Users: []ManagerUserConfig{{Username: "admin", Password: "secret", Permissions: []ManagerPermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}}}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/messages?channel_id=room-1&channel_type=2&limit=1", nil)
+	req.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("messages status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"message_id":101`) || !strings.Contains(rec.Body.String(), `"payload":"aGVsbG8="`) || !strings.Contains(rec.Body.String(), `"has_more":true`) {
+		t.Fatalf("messages body = %s, want newest message with next page", rec.Body.String())
+	}
+}
+
+func TestManagerServerListsConnectionsFromLocalOnlineRegistry(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0", AuthOn: true, JWTSecret: "manager-secret", JWTIssuer: "wukongim-manager", JWTExpire: time.Hour,
+			Users: []ManagerUserConfig{{Username: "admin", Password: "secret", Permissions: []ManagerPermissionConfig{{Resource: "cluster.connection", Actions: []string{"r"}}}}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := app.online.RegisterPending(online.LocalSession{Route: online.OwnerRoute{
+		UID: "u1", HashSlot: routing.HashSlotForKey("u1", 4), OwnerNodeID: 1, OwnerBootID: 7, OwnerSeq: 11,
+		SessionID: 101, DeviceID: "d1", DeviceFlag: uint8(frame.APP), DeviceLevel: uint8(frame.DeviceLevelMaster),
+		Listener: "tcp", ConnectedUnix: 1713859200,
+	}}); err != nil {
+		t.Fatalf("RegisterPending() error = %v", err)
+	}
+	if err := app.online.MarkActive(101); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections", nil)
+	req.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("connections status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"session_id":101`) || !strings.Contains(rec.Body.String(), `"device_flag":"app"`) || !strings.Contains(rec.Body.String(), `"state":"active"`) {
+		t.Fatalf("connections body = %s, want active local connection", rec.Body.String())
+	}
+}
+
+func TestManagerServerListsUsersAndMutatesSystemUsers(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+		userPages: map[uint32][]metadb.User{
+			1: {{UID: "u1"}},
+		},
+		devices: map[fakeManagerDeviceKey]metadb.Device{
+			{uid: "u1", deviceFlag: int64(frame.APP)}: {UID: "u1", DeviceFlag: int64(frame.APP), Token: "token-1", DeviceLevel: int64(frame.DeviceLevelMaster)},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.user",
+					Actions:  []string{"r", "w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	usersRec := httptest.NewRecorder()
+	usersReq := httptest.NewRequest(http.MethodGet, "/manager/users?limit=10", nil)
+	usersReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(usersRec, usersReq)
+	if usersRec.Code != http.StatusOK {
+		t.Fatalf("users status = %d, want %d; body=%s", usersRec.Code, http.StatusOK, usersRec.Body.String())
+	}
+	var usersBody struct {
+		Items []struct {
+			UID           string `json:"uid"`
+			SlotID        uint32 `json:"slot_id"`
+			DeviceCount   int    `json:"device_count"`
+			TokenSetCount int    `json:"token_set_count"`
+		} `json:"items"`
+		HasMore bool `json:"has_more"`
+	}
+	if err := json.Unmarshal(usersRec.Body.Bytes(), &usersBody); err != nil {
+		t.Fatalf("Unmarshal users body error = %v", err)
+	}
+	if len(usersBody.Items) != 1 || usersBody.Items[0].UID != "u1" || usersBody.Items[0].SlotID != 1 || usersBody.Items[0].DeviceCount != 1 || usersBody.Items[0].TokenSetCount != 1 || usersBody.HasMore {
+		t.Fatalf("users body = %+v, want one user row", usersBody)
+	}
+
+	addRec := httptest.NewRecorder()
+	addReq := httptest.NewRequest(http.MethodPost, "/manager/system-users/add", strings.NewReader(`{"uids":["sys-a"]}`))
+	addReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	addReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(addRec, addReq)
+	if addRec.Code != http.StatusOK {
+		t.Fatalf("system add status = %d, want %d; body=%s", addRec.Code, http.StatusOK, addRec.Body.String())
+	}
+
+	systemRec := httptest.NewRecorder()
+	systemReq := httptest.NewRequest(http.MethodGet, "/manager/system-users", nil)
+	systemReq.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(systemRec, systemReq)
+	if systemRec.Code != http.StatusOK {
+		t.Fatalf("system list status = %d, want %d; body=%s", systemRec.Code, http.StatusOK, systemRec.Body.String())
+	}
+	var systemBody struct {
+		Items []struct {
+			UID string `json:"uid"`
+		} `json:"items"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(systemRec.Body.Bytes(), &systemBody); err != nil {
+		t.Fatalf("Unmarshal system body error = %v", err)
+	}
+	if systemBody.Total != 1 || len(systemBody.Items) != 1 || systemBody.Items[0].UID != "sys-a" {
+		t.Fatalf("system body = %+v, want sys-a", systemBody)
 	}
 }
 
@@ -881,6 +1509,64 @@ func TestNewWiresChannelAppendCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 
 	for _, uid := range []string{"u1", "u2"} {
 		requireConversationEventually(t, app, uid, channelID, frame.ChannelTypePerson)
+	}
+}
+
+func TestNewWiresConversationMutationsWhenAuthorityEnabled(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.messages = map[metadb.ConversationKey][]channelv2.Message{
+		{ChannelID: "g1", ChannelType: 2}: {{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			MessageSeq:  12,
+		}},
+	}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 3},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = app.conversations.SetUnread(context.Background(), conversationusecase.SetUnreadCommand{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Unread:      3,
+	})
+	if err != nil {
+		t.Fatalf("SetUnread() error = %v", err)
+	}
+	err = app.conversations.DeleteConversation(context.Background(), conversationusecase.DeleteConversationCommand{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  12,
+	})
+	if err != nil {
+		t.Fatalf("DeleteConversation() error = %v", err)
+	}
+
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if len(cluster.conversationStateBatches) != 1 || len(cluster.conversationStateBatches[0]) != 1 {
+		t.Fatalf("conversation state batches = %#v, want one read-state write", cluster.conversationStateBatches)
+	}
+	got := cluster.conversationStateBatches[0][0]
+	if got.UID != "u1" || got.ChannelID != "g1" || got.ChannelType != 2 || got.ReadSeq != 9 {
+		t.Fatalf("conversation state = %#v, want read seq 9", got)
+	}
+	if len(cluster.conversationDeleteBatches) != 1 || len(cluster.conversationDeleteBatches[0]) != 1 {
+		t.Fatalf("conversation delete batches = %#v, want one delete-barrier write", cluster.conversationDeleteBatches)
+	}
+	deleted := cluster.conversationDeleteBatches[0][0]
+	if deleted.UID != "u1" || deleted.ChannelID != "g1" || deleted.ChannelType != 2 || deleted.DeletedToSeq != 12 {
+		t.Fatalf("conversation delete = %#v, want delete barrier 12", deleted)
 	}
 }
 
@@ -3164,6 +3850,274 @@ func (f *fakeCluster) Stop(context.Context) error {
 	return f.stopErr
 }
 
+type fakeManagerCluster struct {
+	fakeCluster
+	nodeID       uint64
+	snapshot     control.Snapshot
+	channelPages map[uint32][]metadb.Channel
+	userPages    map[uint32][]metadb.User
+	devices      map[fakeManagerDeviceKey]metadb.Device
+	systemUIDs   []string
+
+	conversationPages    map[string][]metadb.UserConversationState
+	conversationMessages map[metadb.ConversationKey][]channelv2.Message
+	registeredHandlers   map[uint8]clusterv2.NodeRPCHandler
+	controllerLogs       clusterv2.ControllerLogEntries
+	slotLogs             clusterv2.SlotLogEntries
+}
+
+type fakeManagerDeviceKey struct {
+	uid        string
+	deviceFlag int64
+}
+
+func (f *fakeManagerCluster) NodeID() uint64 { return f.nodeID }
+
+func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
+	if f.registeredHandlers == nil {
+		f.registeredHandlers = make(map[uint8]clusterv2.NodeRPCHandler)
+	}
+	f.registeredHandlers[serviceID] = handler
+}
+
+func (f *fakeManagerCluster) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, errors.New("unexpected manager rpc call")
+}
+
+func (f *fakeManagerCluster) LocalControllerLogEntries(context.Context, clusterv2.LogEntriesOptions) (clusterv2.ControllerLogEntries, error) {
+	return f.controllerLogs, nil
+}
+
+func (f *fakeManagerCluster) LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error) {
+	return f.slotLogs, nil
+}
+
+func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot.Clone(), nil
+}
+
+func (f *fakeManagerCluster) ScanChannelsSlotPage(_ context.Context, slotID uint32, after metadb.ChannelCursor, limit int) ([]metadb.Channel, metadb.ChannelCursor, bool, error) {
+	items := f.channelPages[slotID]
+	start := 0
+	if after.ChannelID != "" {
+		for i, item := range items {
+			if item.ChannelID == after.ChannelID && item.ChannelType == after.ChannelType {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := append([]metadb.Channel(nil), items[start:end]...)
+	cursor := after
+	if len(page) > 0 {
+		last := page[len(page)-1]
+		cursor = metadb.ChannelCursor{ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	}
+	return page, cursor, end >= len(items), nil
+}
+
+func (f *fakeManagerCluster) ScanUsersSlotPage(_ context.Context, slotID uint32, after metadb.UserCursor, limit int) ([]metadb.User, metadb.UserCursor, bool, error) {
+	items := f.userPages[slotID]
+	start := 0
+	if after.UID != "" {
+		for i, item := range items {
+			if item.UID == after.UID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := append([]metadb.User(nil), items[start:end]...)
+	cursor := after
+	if len(page) > 0 {
+		cursor = metadb.UserCursor{UID: page[len(page)-1].UID}
+	}
+	return page, cursor, end >= len(items), nil
+}
+
+func (f *fakeManagerCluster) CreateUserMetadata(_ context.Context, user metadb.User) error {
+	f.userPages[1] = append(f.userPages[1], user)
+	return nil
+}
+
+func (f *fakeManagerCluster) GetUserMetadata(_ context.Context, uid string) (metadb.User, error) {
+	for _, page := range f.userPages {
+		for _, user := range page {
+			if user.UID == uid {
+				return user, nil
+			}
+		}
+	}
+	return metadb.User{}, metadb.ErrNotFound
+}
+
+func (f *fakeManagerCluster) UpsertDeviceMetadata(_ context.Context, device metadb.Device) error {
+	if f.devices == nil {
+		f.devices = make(map[fakeManagerDeviceKey]metadb.Device)
+	}
+	f.devices[fakeManagerDeviceKey{uid: device.UID, deviceFlag: device.DeviceFlag}] = device
+	return nil
+}
+
+func (f *fakeManagerCluster) GetDeviceMetadata(_ context.Context, uid string, deviceFlag int64) (metadb.Device, error) {
+	device, ok := f.devices[fakeManagerDeviceKey{uid: uid, deviceFlag: deviceFlag}]
+	if !ok {
+		return metadb.Device{}, metadb.ErrNotFound
+	}
+	return device, nil
+}
+
+func (f *fakeManagerCluster) GetChannelMetadata(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	for _, page := range f.channelPages {
+		for _, channel := range page {
+			if channel.ChannelID == channelID && channel.ChannelType == channelType {
+				return channel, nil
+			}
+		}
+	}
+	return metadb.Channel{}, metadb.ErrNotFound
+}
+
+func (f *fakeManagerCluster) UpsertChannelMetadata(_ context.Context, channel metadb.Channel) error {
+	f.channelPages[1] = append(f.channelPages[1], channel)
+	return nil
+}
+
+func (f *fakeManagerCluster) DeleteChannelMetadata(context.Context, string, int64) error {
+	return nil
+}
+
+func (f *fakeManagerCluster) AddChannelSubscribers(_ context.Context, _ string, _ int64, uids []string, _ uint64) error {
+	for _, uid := range uids {
+		found := false
+		for _, existing := range f.systemUIDs {
+			if existing == uid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			f.systemUIDs = append(f.systemUIDs, uid)
+		}
+	}
+	return nil
+}
+
+func (f *fakeManagerCluster) RemoveChannelSubscribers(_ context.Context, _ string, _ int64, uids []string, _ uint64) error {
+	remove := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		remove[uid] = struct{}{}
+	}
+	kept := f.systemUIDs[:0]
+	for _, uid := range f.systemUIDs {
+		if _, ok := remove[uid]; !ok {
+			kept = append(kept, uid)
+		}
+	}
+	f.systemUIDs = kept
+	return nil
+}
+
+func (f *fakeManagerCluster) ListChannelSubscribersPage(_ context.Context, _ string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
+	start := 0
+	if afterUID != "" {
+		for i, uid := range f.systemUIDs {
+			if uid == afterUID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if limit <= 0 {
+		limit = len(f.systemUIDs)
+	}
+	end := start + limit
+	if end > len(f.systemUIDs) {
+		end = len(f.systemUIDs)
+	}
+	page := append([]string(nil), f.systemUIDs[start:end]...)
+	next := afterUID
+	if len(page) > 0 {
+		next = page[len(page)-1]
+	}
+	return page, next, end >= len(f.systemUIDs), nil
+}
+
+func (f *fakeManagerCluster) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+	items := f.conversationPages[uid]
+	start := 0
+	if after.ChannelID != "" {
+		for i, item := range items {
+			if item.ChannelID == after.ChannelID && item.ChannelType == after.ChannelType && item.ActiveAt == after.ActiveAt {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := append([]metadb.UserConversationState(nil), items[start:end]...)
+	cursor := after
+	if len(page) > 0 {
+		last := page[len(page)-1]
+		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	}
+	return page, cursor, end >= len(items), nil
+}
+
+func (f *fakeManagerCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+	for _, state := range f.conversationPages[uid] {
+		if state.ChannelID == channelID && state.ChannelType == channelType {
+			return state, true, nil
+		}
+	}
+	return metadb.UserConversationState{}, false, nil
+}
+
+func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
+	messages := f.conversationMessages[key]
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].MessageSeq > visibleAfterSeq {
+			return messages[i], true, nil
+		}
+	}
+	return channelv2.Message{}, false, nil
+}
+
+func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
+	messages := append([]channelv2.Message(nil), f.conversationMessages[key]...)
+	if req.Reverse {
+		for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+			messages[left], messages[right] = messages[right], messages[left]
+		}
+	}
+	if req.Limit > 0 && len(messages) > req.Limit {
+		messages = messages[:req.Limit]
+	}
+	return channelstore.ReadCommittedResult{Messages: messages}, nil
+}
+
 var _ clusterinfra.ChannelRuntimeBenchNode = (*fakeRuntimeBenchCluster)(nil)
 
 type fakeRuntimeBenchCluster struct {
@@ -3225,18 +4179,20 @@ func (f *fakeWriteReadyCluster) ProbeWriteReady(context.Context) error {
 
 type fakePresenceCluster struct {
 	fakeCluster
-	nodeID                   uint64
-	events                   <-chan clusterv2.RouteAuthorityEvent
-	snapshot                 clusterv2.Snapshot
-	registeredService        uint8
-	registeredHandler        clusterv2.NodeRPCHandler
-	registeredHandlers       map[uint8]clusterv2.NodeRPCHandler
-	appendSeq                uint64
-	mu                       sync.Mutex
-	conversationStateBatches [][]metadb.UserConversationState
-	conversationPatchBatches [][]metadb.UserConversationActivePatch
-	subscribers              map[string][]string
-	channels                 map[metadb.ConversationKey]metadb.Channel
+	nodeID                    uint64
+	events                    <-chan clusterv2.RouteAuthorityEvent
+	snapshot                  clusterv2.Snapshot
+	registeredService         uint8
+	registeredHandler         clusterv2.NodeRPCHandler
+	registeredHandlers        map[uint8]clusterv2.NodeRPCHandler
+	appendSeq                 uint64
+	mu                        sync.Mutex
+	messages                  map[metadb.ConversationKey][]channelv2.Message
+	conversationStateBatches  [][]metadb.UserConversationState
+	conversationDeleteBatches [][]metadb.UserConversationDelete
+	conversationPatchBatches  [][]metadb.UserConversationActivePatch
+	subscribers               map[string][]string
+	channels                  map[metadb.ConversationKey]metadb.Channel
 }
 
 type fakeConversationFallbackCluster struct {
@@ -3704,6 +4660,14 @@ func (f *fakePresenceCluster) UpsertUserConversationStatesBatch(_ context.Contex
 	return nil
 }
 
+func (f *fakePresenceCluster) HideUserConversationsBatch(_ context.Context, deletes []metadb.UserConversationDelete) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	batch := append([]metadb.UserConversationDelete(nil), deletes...)
+	f.conversationDeleteBatches = append(f.conversationDeleteBatches, batch)
+	return nil
+}
+
 func (f *fakePresenceCluster) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -3759,7 +4723,18 @@ func (f *fakePresenceCluster) GetUserConversationState(_ context.Context, uid, c
 	return metadb.UserConversationState{}, false, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
+func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	messages := f.messages[metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}]
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg.MessageSeq <= visibleAfterSeq {
+			continue
+		}
+		msg.Payload = append([]byte(nil), msg.Payload...)
+		return msg, true, nil
+	}
 	return channelv2.Message{}, false, nil
 }
 
@@ -4301,6 +5276,22 @@ func (f *fakeAPI) Start() error {
 
 func (f *fakeAPI) Stop(context.Context) error {
 	*f.calls = append(*f.calls, "api.stop")
+	return f.stopErr
+}
+
+type fakeManager struct {
+	calls    *[]string
+	startErr error
+	stopErr  error
+}
+
+func (f *fakeManager) Start() error {
+	*f.calls = append(*f.calls, "manager.start")
+	return f.startErr
+}
+
+func (f *fakeManager) Stop(context.Context) error {
+	*f.calls = append(*f.calls, "manager.stop")
 	return f.stopErr
 }
 

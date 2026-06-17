@@ -1,0 +1,125 @@
+package cluster
+
+import (
+	"context"
+
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+)
+
+// ManagementLogNode exposes node-local and node-remote distributed log reads.
+type ManagementLogNode interface {
+	// NodeID returns the local cluster node ID.
+	NodeID() uint64
+	// CallRPC invokes one typed node RPC service on a peer node.
+	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
+	// LocalControllerLogEntries reads this node's local Controller Raft log page.
+	LocalControllerLogEntries(context.Context, clusterv2.LogEntriesOptions) (clusterv2.ControllerLogEntries, error)
+	// LocalSlotLogEntries reads this node's local Slot Raft log page.
+	LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error)
+}
+
+// ManagementLogReader routes manager distributed log reads to selected nodes.
+type ManagementLogReader struct {
+	node   ManagementLogNode
+	remote *accessnode.Client
+}
+
+// NewManagementLogReader creates a cluster-routed manager distributed log reader.
+func NewManagementLogReader(node ManagementLogNode) *ManagementLogReader {
+	return &ManagementLogReader{
+		node:   node,
+		remote: accessnode.NewClient(node),
+	}
+}
+
+// ControllerLogEntries reads one node's local Controller Raft log page.
+func (r *ManagementLogReader) ControllerLogEntries(ctx context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error) {
+	if r == nil || r.node == nil || r.remote == nil {
+		return managementusecase.ControllerLogEntriesResponse{}, managementusecase.ErrLogReaderUnavailable
+	}
+	if req.NodeID == r.node.NodeID() {
+		page, err := r.node.LocalControllerLogEntries(ctx, clusterv2.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
+		if err != nil {
+			return managementusecase.ControllerLogEntriesResponse{}, err
+		}
+		return controllerLogPageFromCluster(page), nil
+	}
+	return r.remote.GetManagerControllerLogEntries(ctx, req)
+}
+
+// SlotLogEntries reads one node's local Slot Raft log page.
+func (r *ManagementLogReader) SlotLogEntries(ctx context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {
+	if r == nil || r.node == nil || r.remote == nil {
+		return managementusecase.SlotLogEntriesResponse{}, managementusecase.ErrLogReaderUnavailable
+	}
+	if req.NodeID == r.node.NodeID() {
+		page, err := r.node.LocalSlotLogEntries(ctx, req.SlotID, clusterv2.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
+		if err != nil {
+			return managementusecase.SlotLogEntriesResponse{}, err
+		}
+		return slotLogPageFromCluster(page), nil
+	}
+	return r.remote.GetManagerSlotLogEntries(ctx, req)
+}
+
+func controllerLogPageFromCluster(page clusterv2.ControllerLogEntries) managementusecase.ControllerLogEntriesResponse {
+	return managementusecase.ControllerLogEntriesResponse{
+		NodeID:       page.NodeID,
+		FirstIndex:   page.FirstIndex,
+		LastIndex:    page.LastIndex,
+		CommitIndex:  page.CommitIndex,
+		AppliedIndex: page.AppliedIndex,
+		NextCursor:   page.NextCursor,
+		Items:        managementLogEntriesFromCluster[managementusecase.ControllerLogEntry](page.Items),
+	}
+}
+
+func slotLogPageFromCluster(page clusterv2.SlotLogEntries) managementusecase.SlotLogEntriesResponse {
+	return managementusecase.SlotLogEntriesResponse{
+		NodeID:       page.NodeID,
+		SlotID:       page.SlotID,
+		FirstIndex:   page.FirstIndex,
+		LastIndex:    page.LastIndex,
+		CommitIndex:  page.CommitIndex,
+		AppliedIndex: page.AppliedIndex,
+		NextCursor:   page.NextCursor,
+		Items:        managementLogEntriesFromCluster[managementusecase.SlotLogEntry](page.Items),
+	}
+}
+
+func managementLogEntriesFromCluster[T ~struct {
+	Index        uint64
+	Term         uint64
+	Type         string
+	DataSize     int
+	DecodeStatus string
+	DecodedType  string
+	Decoded      map[string]any
+}](items []clusterv2.LogEntry) []T {
+	out := make([]T, 0, len(items))
+	for _, item := range items {
+		out = append(out, T(managementusecase.LogEntry{
+			Index:        item.Index,
+			Term:         item.Term,
+			Type:         item.Type,
+			DataSize:     item.DataSize,
+			DecodeStatus: item.DecodeStatus,
+			DecodedType:  item.DecodedType,
+			Decoded:      cloneLogDecoded(item.Decoded),
+		}))
+	}
+	return out
+}
+
+func cloneLogDecoded(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}

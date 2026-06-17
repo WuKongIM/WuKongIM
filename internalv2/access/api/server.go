@@ -87,6 +87,9 @@ type MessageUsecase interface {
 type ConversationUsecase interface {
 	List(context.Context, conversationusecase.ListRequest) (conversationusecase.ListResult, error)
 	Sync(context.Context, conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
+	ClearUnread(context.Context, conversationusecase.ClearUnreadCommand) error
+	SetUnread(context.Context, conversationusecase.SetUnreadCommand) error
+	DeleteConversation(context.Context, conversationusecase.DeleteConversationCommand) error
 }
 
 // ConversationListObservation captures one /conversation/list request result.

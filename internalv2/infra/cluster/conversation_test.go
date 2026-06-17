@@ -57,6 +57,36 @@ func TestConversationStoreWrapsActivePageAsView(t *testing.T) {
 	}
 }
 
+func TestConversationStoreUpsertsConversationStatesThroughMutationNode(t *testing.T) {
+	node := &conversationNodeFake{}
+	store := NewConversationStore(node)
+	states := []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 9}}
+
+	if err := store.UpsertUserConversationStates(context.Background(), states); err != nil {
+		t.Fatalf("UpsertUserConversationStates() error = %v", err)
+	}
+	states[0].ReadSeq = 1
+
+	if got, want := node.upserts, []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 9}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("upserts = %#v, want %#v", got, want)
+	}
+}
+
+func TestConversationStoreHidesConversationsThroughMutationNode(t *testing.T) {
+	node := &conversationNodeFake{}
+	store := NewConversationStore(node)
+	deletes := []metadb.UserConversationDelete{{UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 12}}
+
+	if err := store.HideUserConversations(context.Background(), deletes); err != nil {
+		t.Fatalf("HideUserConversations() error = %v", err)
+	}
+	deletes[0].DeletedToSeq = 1
+
+	if got, want := node.deletes, []metadb.UserConversationDelete{{UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 12}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("deletes = %#v, want %#v", got, want)
+	}
+}
+
 func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
@@ -247,6 +277,8 @@ type conversationNodeFake struct {
 	committed      map[metadb.ConversationKey][]channelv2.Message
 	committedErr   map[metadb.ConversationKey]error
 	committedCalls []committedCallFake
+	upserts        []metadb.UserConversationState
+	deletes        []metadb.UserConversationDelete
 }
 
 func (n *conversationNodeFake) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
@@ -262,6 +294,16 @@ func (n *conversationNodeFake) GetUserConversationState(_ context.Context, _ str
 	n.stateCalls = append(n.stateCalls, key)
 	state, ok := n.states[key]
 	return state, ok, nil
+}
+
+func (n *conversationNodeFake) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+	n.upserts = append(n.upserts, states...)
+	return nil
+}
+
+func (n *conversationNodeFake) HideUserConversationsBatch(_ context.Context, reqs []metadb.UserConversationDelete) error {
+	n.deletes = append(n.deletes, reqs...)
+	return nil
 }
 
 func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {

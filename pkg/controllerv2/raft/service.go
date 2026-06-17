@@ -54,6 +54,7 @@ type Service struct {
 	stepCh   chan raftpb.Message
 	proposal chan proposalRequest
 	err      error
+	store    *raftstore.Store
 
 	statusMu sync.RWMutex
 	status   Status
@@ -110,9 +111,11 @@ func (s *Service) Start(ctx context.Context) error {
 		s.recordDegraded(err)
 		return err
 	}
+	s.store = store
 	startup, err := s.recoverStartup(ctx, store)
 	if err != nil {
 		_ = store.Close()
+		s.store = nil
 		s.recordDegraded(err)
 		return err
 	}
@@ -128,6 +131,7 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := <-initCh; err != nil {
 		close(stopCh)
 		<-doneCh
+		s.store = nil
 		s.recordDegraded(err)
 		return err
 	}
@@ -171,6 +175,7 @@ func (s *Service) Stop() error {
 	s.doneCh = nil
 	s.stepCh = nil
 	s.proposal = nil
+	s.store = nil
 	s.mu.Unlock()
 
 	s.leaderID.Store(0)

@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"errors"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -33,6 +34,16 @@ type StateStore interface {
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
 }
 
+// StateMutationStore persists durable UID-owned conversation read state.
+type StateMutationStore interface {
+	UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error
+}
+
+// DeleteStore persists durable UID-owned conversation delete barriers.
+type DeleteStore interface {
+	HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error
+}
+
 // LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
 type LastVisibleMessageRequest struct {
 	// ChannelID identifies the message log to read.
@@ -59,18 +70,27 @@ type Options struct {
 	Store Store
 	// StateStore reads durable UID-owned rows for client-known overlay conversations.
 	StateStore StateStore
+	// StateMutationStore writes durable UID-owned read cursors.
+	StateMutationStore StateMutationStore
+	// DeleteStore writes durable UID-owned delete barriers.
+	DeleteStore DeleteStore
 	// Messages reads the newest visible message for returned rows.
 	Messages MessageStore
 	// ActiveScanLimit bounds the active rows scanned by legacy-compatible sync.
 	ActiveScanLimit int
+	// Now returns the current time for mutation timestamps.
+	Now func() time.Time
 }
 
 // App coordinates entry-agnostic conversation list reads.
 type App struct {
 	store           Store
 	stateStore      StateStore
+	stateWriter     StateMutationStore
+	deleteStore     DeleteStore
 	messages        MessageStore
 	activeScanLimit int
+	now             func() time.Time
 }
 
 // New creates a conversation usecase.
@@ -83,11 +103,27 @@ func New(opts Options) *App {
 			opts.StateStore = stateStore
 		}
 	}
+	if opts.StateMutationStore == nil {
+		if stateWriter, ok := opts.Store.(StateMutationStore); ok {
+			opts.StateMutationStore = stateWriter
+		}
+	}
+	if opts.DeleteStore == nil {
+		if deleteStore, ok := opts.Store.(DeleteStore); ok {
+			opts.DeleteStore = deleteStore
+		}
+	}
+	if opts.Now == nil {
+		opts.Now = time.Now
+	}
 	return &App{
 		store:           opts.Store,
 		stateStore:      opts.StateStore,
+		stateWriter:     opts.StateMutationStore,
+		deleteStore:     opts.DeleteStore,
 		messages:        opts.Messages,
 		activeScanLimit: opts.ActiveScanLimit,
+		now:             opts.Now,
 	}
 }
 

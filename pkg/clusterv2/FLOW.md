@@ -34,7 +34,13 @@ surface for upper-layer internalv2 adapters. Handlers registered before the
 default transport starts are replayed during transport construction; later
 registrations are installed idempotently. Internalv2 delivery uses this surface
 for owner-node push RPC and partition-leader fanout RPC; clusterv2 only routes
-the payload and does not inspect delivery DTOs. The default transport-backed
+the payload and does not inspect delivery DTOs. Internalv2 manager connection
+pages also use this surface to read owner-node online connection inventory from
+peer nodes without adding manager-specific logic to clusterv2. Internalv2
+manager distributed log pages use the same surface to ask a selected peer to
+read its own local Controller or Slot Raft log page, and manager channel list
+pages use it to ask a selected peer to scan its local Slot metadata pages. The
+default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before
 local enqueue backpressure is returned to the send path. It also opens multiple
@@ -123,7 +129,10 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. `UpsertChannelLatestBatch` first resolves each channel's real hash
 slot, then groups rows by physical Slot and submits bounded batch commands
-carrying per-row hash slots.
+carrying per-row hash slots. `ScanChannelsSlotPage`,
+`ScanChannelRuntimeMetaSlotPage`, and `ScanUsersSlotPage` are read-only manager
+facades that scan metadata rows owned by one physical Slot, merging the Slot's
+hash-slot shards into one legacy-compatible ordered page.
 
 UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
 `DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
@@ -132,12 +141,14 @@ slot and submit one Slot proposal per touched hash slot. Reads such as
 metadata shard for that UID hash slot.
 
 UID-owned conversation rows are the active recent-conversation path.
-`UpsertUserConversationStatesBatch` and `TouchUserConversationActiveAtBatch`
-route each row by `RouteKey(uid)`, group rows by physical Slot, and submit
-bounded Slot FSM commands that carry each row's real UID hash slot. The Slot FSM
-then applies each conversation state or active patch to that UID-owned hash
-slot, preserving `SparseActive`, read/delete visibility floors, and the active
-ordering anchor in one metadata mutation. Reads such as
+`UpsertUserConversationStatesBatch`, `TouchUserConversationActiveAtBatch`, and
+`HideUserConversationsBatch` route each row by `RouteKey(uid)`, group rows by
+physical Slot, and submit bounded Slot FSM commands that carry each row's real
+UID hash slot. The Slot FSM then applies each conversation state, active patch,
+or delete barrier to that UID-owned hash slot, preserving `SparseActive`,
+read/delete visibility floors, and the active ordering anchor in one metadata
+mutation. Hide requests advance `DeletedToSeq` and clear `active_at` through
+the same Slot ownership path. Reads such as
 `ListUserConversationActivePage` route by UID and scan the local conversation
 active index for that UID hash slot with the `(active_at, channel_id,
 channel_type)` cursor. Legacy `channel_latest` remains a channel-owned
@@ -199,6 +210,16 @@ stale-route errors propagate to the caller.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
+
+## Distributed Log Inspection Flow
+
+`Node.LocalControllerLogEntries` reads the local ControllerV2 Raft WAL through
+the control facade and returns newest-first, cursor-paginated entry summaries.
+`Node.LocalSlotLogEntries` reads the local default Slot Raft DB for one physical
+Slot, joins runtime commit/applied watermarks when available, and decodes Slot
+FSM proposal payloads into JSON-friendly inspection fields. These methods are
+read-only diagnostics for manager UI pages; they do not route writes, replay
+entries, or mutate Raft storage.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 

@@ -6,10 +6,44 @@
 `pkg/clusterv2` and `pkg/channelv2`. It maps channelappend append DTOs to
 `pkg/channelv2` DTOs, resolves channel append authority through clusterv2, adapts
 legacy-compatible channel metadata usecase calls to clusterv2 Slot metadata
-facades, adapts legacy-compatible user metadata calls to UID Slot metadata
-facades, adapts conversation list reads to UID-owned active rows plus
-channel-owned committed message logs, and adapts presence/delivery ports to
-clusterv2 routing and node RPC.
+facades, adapts legacy-compatible user metadata calls and manager user scans to
+UID Slot metadata facades, adapts read-only manager business channel and
+channel runtime metadata scans to clusterv2 Slot metadata reads, adapts conversation reads and read/delete
+mutations to UID-owned conversation rows plus channel-owned committed message
+logs, adapts read-only manager message pages to committed ChannelV2 reads, and
+routes manager connection reads over clusterv2 node RPC, routes manager
+distributed log reads to node-local clusterv2 log storage or peer RPC, and
+adapts presence/delivery ports to clusterv2 routing and node RPC.
+
+## Management Snapshot Flow
+
+`ManagementSnapshotReader` adapts `pkg/clusterv2.Node` control snapshots to the
+internalv2 management usecase. It only exposes local control snapshot reads and
+the local node ID for read-only manager node and Slot list rendering;
+lifecycle, scale-in, onboarding, Slot operations, and other manager write
+operations stay unmigrated.
+
+## Management Channel List Flow
+
+`ChannelBusinessReader` adapts the management usecase's business channel list
+port to the clusterv2 channel metadata scan facade. It only exposes physical
+Slot page reads; list filtering, cursor validation, and manager response
+shaping stay in the usecase and access layers. `ManagementChannelReader` is
+the remote half for non-local `node_id` filters: it forwards page requests
+through access/node manager channel RPC and preserves the management DTO page.
+
+`ChannelRuntimeMetaReader` adapts the management usecase's channel cluster list
+port to the clusterv2 runtime metadata scan facade. It only exposes read-only
+physical Slot pages from `channel_runtime_meta`; `node_id`, `node_scope`,
+channel ID filtering, max-message-sequence hydration, cursor validation, and
+HTTP response shaping stay above this layer.
+
+## Management User Flow
+
+`UserMetadataStore` also exposes the management usecase's user list scan port
+when the clusterv2 node supports `ScanUsersSlotPage`. The adapter keeps this as
+a read-only Slot metadata facade; user list filtering, device/presence joins,
+token reset, force-offline, and system UID normalization stay above this layer.
 
 ## Append Flow
 
@@ -54,6 +88,67 @@ contract and returns messages to the usecase in ascending sequence order. It
 maps only the fields currently carried by ChannelV2 committed messages; legacy
 HTTP-only field shaping remains in `internalv2/access/api`.
 
+## Management Message Flow
+
+```text
+management.MessageReader.QueryMessages
+  -> ChannelMessageReadNode.ReadChannelCommitted(reverse, before_seq, limit+1)
+  -> channelv2/store committed messages
+  -> manager message DTO rows
+```
+
+The manager message adapter reads committed ChannelV2 rows in descending order
+for the manager message page. It converts timestamps from milliseconds to Unix
+seconds, clones payloads, applies the manager's optional message id and client
+message number filters within the returned page, and leaves cursor encoding and
+HTTP response shaping to `internalv2/access/manager`.
+
+## Management Channel RPC Flow
+
+```text
+management.RemoteBusinessChannelReader
+  -> access/node Manager Channel RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerChannels)
+  -> target node access/node Manager Channel RPC handler
+  -> target node ChannelBusinessReader.ScanChannelsSlotPage
+```
+
+The channel RPC adapter only chooses local versus remote execution for a
+selected node. HTTP query parsing, cursor validation, channel filtering, and
+response DTO shaping stay in the manager access and management usecase layers.
+
+## Management Connection Flow
+
+```text
+management.RemoteConnectionReader
+  -> access/node Manager Connection RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerConnection)
+  -> target node access/node Manager Connection RPC handler
+  -> target node owner-local online registry
+```
+
+`ManagementConnectionReader` is the narrow remote half of the manager
+connection page. It forwards non-local `node_id` list/detail reads to the owner
+node and preserves management usecase DTOs across the RPC boundary. Local
+connection filtering and DTO shaping stay in the management usecase; this
+adapter only chooses the typed node RPC client.
+
+## Management Log Flow
+
+```text
+management.LogReader
+  -> local node_id: clusterv2.LocalControllerLogEntries/LocalSlotLogEntries
+  -> remote node_id: access/node Manager Log RPC client
+  -> target node access/node Manager Log RPC handler
+  -> target node clusterv2 local log reader
+```
+
+`ManagementLogReader` preserves newest-first pagination and decoded payload
+summaries across the infra boundary. It only chooses local versus remote
+execution for the requested `node_id`; log pagination, Raft payload decoding,
+and storage watermarks live in `pkg/clusterv2`, while HTTP parsing and manager
+response shaping stay above this package.
+
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 ## Channel Metadata Flow
@@ -87,14 +182,15 @@ upserts refresh append fanout metadata and deletes remove cached entries; final
 subscriber mutation versions are still refreshed by the channel usecase
 mutation observer after subscriber changes commit.
 
-## Conversation Read Flow
+## Conversation Flow
 
 `ConversationStore` adapts `internalv2/usecase/conversation` active-row,
-durable state, last-message, and recent-message read ports to clusterv2
-facades. Conversation rows are UID-owned metadata records, while last-message
-display data and sync recents are read from channel-owned message logs. When
-configured, list last-message reads run with a bounded worker count; missing
-tails are skipped per row while routing/readiness errors fail the request.
+durable state, read mutation, delete mutation, last-message, and recent-message
+ports to clusterv2 facades. Conversation rows are UID-owned metadata records,
+while last-message display data and sync recents are read from channel-owned
+message logs. When configured, list last-message reads run with a bounded
+worker count; missing tails are skipped per row while routing/readiness errors
+fail the request.
 
 ```text
 conversation list usecase
@@ -116,12 +212,20 @@ conversation sync usecase
   -> GetRecentMessages(final returned keys)
        -> ReadChannelCommitted(reverse, latest, limit)
        -> channel-owned committed rows used for legacy recents
+
+conversation mutation usecase
+  -> UpsertUserConversationStates(uid-owned read row)
+       -> UpsertUserConversationStatesBatch
+       -> UID-owned Slot metadata propose
+  -> HideUserConversations(uid-owned delete barrier)
+       -> HideUserConversationsBatch
+       -> UID-owned Slot metadata propose that clears active_at
 ```
 
 The adapter clones row slices and message payloads across the boundary. It does
-not own ordering, cursor, sync filtering, unread, or sparse-active rules; those
-stay in the conversation usecase so access adapters can share the same list and
-sync semantics.
+not own ordering, cursor, sync filtering, unread, read-cursor, delete-barrier,
+or sparse-active rules; those stay in the conversation usecase so access
+adapters can share the same list, sync, and mutation semantics.
 `metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.

@@ -5,10 +5,10 @@
 `internalv2/app` is the only composition root for the new skeleton. It wires
 phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
 usecase, the channel management usecase, the user management usecase, the
-conversation list usecase, the optional delivery usecase/runtime, the presence
-usecase, the gateway handler, the optional HTTP API runtime, the optional
-Prometheus metrics registry, the optional app-managed Prometheus child process,
-and the optional gateway runtime. The phase-1
+conversation list usecase, the manager management read usecase, the optional
+delivery usecase/runtime, the presence usecase, the gateway handler, the optional HTTP API runtime, the optional
+dedicated manager HTTP runtime, the optional Prometheus metrics registry, the
+optional app-managed Prometheus child process, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
 management, UID connection-route authority, channel-authority write routing,
@@ -67,7 +67,8 @@ New(Config)
        runtime/conversationactive.Manager plus one routed
        ConversationAuthorityClient, register the conversation authority RPC
        adapter, create the route-authority lifecycle, and use that client as
-       the conversation list Store while keeping the read adapter as Messages
+       the conversation list Store while keeping the read adapter as Messages,
+       durable state reads, read-cursor writes, and delete-barrier writes
   -> when the cluster exposes clusterv2 Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
      channelappend subscriber scans, and optional delivery fanout
@@ -77,6 +78,15 @@ New(Config)
        and access/node presence RPC adapter
        register the presence authority and owner-action RPC handlers on clusterv2
        create the presence touch worker
+  -> register the manager connection RPC handler when node RPC and local control
+     snapshots are available, exposing this node's owner-local online registry
+     to peer manager readers
+  -> register the manager distributed log RPC handler when node RPC and local
+     log readers are available, exposing this node's Controller/Slot Raft log
+     pages to peer manager readers
+  -> register the manager channel RPC handler when node RPC and channel metadata
+     scans are available, exposing this node's channel list pages to peer
+     manager readers
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the
@@ -108,6 +118,22 @@ New(Config)
      static cluster voters, optional debug snapshots, optional bench presence
      snapshot controller, and real benchmark channel/subscriber data writer when
      API.ListenAddr is configured
+  -> create access/manager.Server with static manager JWT login when
+     Manager.ListenAddr is configured; when the cluster exposes local control
+     snapshots, attach internalv2/usecase/management for `/manager/nodes`,
+     `/manager/slots`, `/manager/channels`, `/manager/channel-runtime-meta`,
+     `/manager/conversations`, `/manager/messages`, `/manager/connections*`,
+     `/manager/users*`, and `/manager/system-users*`;
+     channel, conversation, message, and user lists are attached only when the
+     cluster also exposes the corresponding metadata/message page scans, while
+     local connection list/detail reads use the owner-local online registry,
+     remote `node_id` connection reads route through the manager connection
+     node RPC reader, remote channel list reads route through the manager
+     channel RPC reader, Controller/Slot log pages route through the manager
+     log reader, user writes reuse the internalv2 user usecase and optional
+     presence owner-action routing, and message retention requests use an
+     optional management retention port and return unavailable when that port
+     is not configured
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
@@ -230,7 +256,10 @@ authority surface, the list Store is the routed
 hash-slot authority and reads the target-owned active view from the local or
 remote authority cache. The Messages port remains the `ConversationStore`
 adapter so last-message hydration reads committed ChannelV2 tails with
-`Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read limit.
+`Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read limit;
+the same adapter remains the StateStore, StateMutationStore, and DeleteStore so
+legacy conversation read/delete mutations still write through UID-owned Slot
+metadata instead of the authority list client.
 If a test or limited harness exposes conversation reads but not the authority
 surface, the usecase uses `ConversationStore` for both Store and Messages as a
 DB-only compatibility path. Conversation rows do not store the last message.
@@ -344,6 +373,7 @@ Start(ctx)
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
   -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
+  -> manager.Start()
   -> prometheus.Start(ctx): write prometheus.yml and start the child Prometheus process
   -> gateway.Start()
 
@@ -351,6 +381,7 @@ Stop(ctx)
   -> restore diagnostics sendtrace sink
   -> gateway.Stop()
   -> prometheus.Stop(ctx)
+  -> manager.Stop(ctx)
   -> api.Stop(ctx)
   -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
@@ -360,7 +391,7 @@ Stop(ctx)
   -> cluster.Stop(ctx)
 ```
 
-`Start` and `Stop` are serialized by a lifecycle mutex. If API or gateway
+`Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
 The manager drains accepted fanout before the retry scheduler stops, so queued

@@ -408,10 +408,10 @@ describe("manager api client", () => {
   it("fetches business channels with search params", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [], has_more: false }), { status: 200 }))
 
-    await getBusinessChannels({ type: 2, keyword: "g1", limit: 25, cursor: "abc" })
+    await getBusinessChannels({ nodeId: 2, type: 2, keyword: "g1", limit: 25, cursor: "abc" })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/manager/channels?type=2&keyword=g1&limit=25&cursor=abc",
+      "/manager/channels?node_id=2&type=2&keyword=g1&limit=25&cursor=abc",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
@@ -1470,9 +1470,13 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(listResponse), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detailResponse), { status: 200 }))
 
-    await expect(getChannelRuntimeMeta({ nodeId: 2, limit: 100, cursor: "cursor-1" })).resolves.toEqual(listResponse)
+    await expect(
+      getChannelRuntimeMeta({ nodeId: 2, limit: 100, cursor: "cursor-1", includeMaxMessageSeq: true }),
+    ).resolves.toEqual(listResponse)
     await expect(getChannelRuntimeMetaDetail(1, "u1@u2")).resolves.toEqual(detailResponse)
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?node_id=2&limit=100&cursor=cursor-1")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/manager/channel-runtime-meta?node_id=2&limit=100&cursor=cursor-1&include_max_message_seq=true",
+    )
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/channel-runtime-meta/1/u1%40u2")
   })
 

@@ -54,6 +54,9 @@ func (s *Server) registerConversationRoutes() {
 	}
 	s.engine.POST("/conversation/list", s.handleConversationList)
 	s.engine.POST("/conversation/sync", s.handleConversationSync)
+	s.engine.POST("/conversations/clearUnread", s.handleConversationClearUnread)
+	s.engine.POST("/conversations/setUnread", s.handleConversationSetUnread)
+	s.engine.POST("/conversations/delete", s.handleConversationDelete)
 }
 
 func (s *Server) handleConversationList(c *gin.Context) {

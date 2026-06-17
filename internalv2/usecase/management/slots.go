@@ -1,0 +1,200 @@
+package management
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+)
+
+// Slot is the manager-facing slot DTO.
+type Slot struct {
+	// SlotID is the physical slot identifier.
+	SlotID uint32
+	// HashSlots contains the logical hash slots currently owned by this physical slot.
+	HashSlots *SlotHashSlots
+	// State contains lightweight derived health summaries for list rendering.
+	State SlotState
+	// Assignment contains the desired slot placement view.
+	Assignment SlotAssignment
+	// Runtime contains the best available slot runtime view.
+	Runtime SlotRuntime
+	// NodeLog contains the selected node's local Raft log watermark when requested.
+	NodeLog *SlotNodeLogStatus
+}
+
+// SlotHashSlots contains the current logical hash-slot ownership for one physical slot.
+type SlotHashSlots struct {
+	// Count is the number of logical hash slots currently assigned to this slot.
+	Count int
+	// Items contains the sorted logical hash slot identifiers currently assigned to this slot.
+	Items []uint16
+}
+
+// ListSlotsOptions contains optional filters for manager slot inventory reads.
+type ListSlotsOptions struct {
+	// NodeID limits the list to slots assigned to this node.
+	NodeID uint64
+}
+
+// SlotState contains derived manager slot state fields.
+type SlotState struct {
+	// Quorum summarizes whether the slot currently has quorum.
+	Quorum string
+	// Sync summarizes whether runtime peers/config match the desired assignment.
+	Sync string
+	// LeaderMatch reports whether the preferred leader is currently leading.
+	LeaderMatch bool
+	// LeaderTransferPending reports whether a leader transfer task is current.
+	LeaderTransferPending bool
+}
+
+// SlotAssignment contains the manager-facing desired slot placement view.
+type SlotAssignment struct {
+	// DesiredPeers is the desired slot voter set.
+	DesiredPeers []uint64
+	// PreferredLeader is the controller preferred leader; zero means unset.
+	PreferredLeader uint64
+	// ConfigEpoch is the desired slot config epoch.
+	ConfigEpoch uint64
+	// BalanceVersion is reserved for legacy response compatibility.
+	BalanceVersion uint64
+}
+
+// SlotRuntime contains the manager-facing observed slot runtime view.
+type SlotRuntime struct {
+	// CurrentPeers is the currently observed slot peer set.
+	CurrentPeers []uint64
+	// CurrentVoters is the currently observed slot voter set.
+	CurrentVoters []uint64
+	// LeaderID is the currently observed slot leader.
+	LeaderID uint64
+	// HealthyVoters is the observed healthy voter count.
+	HealthyVoters uint32
+	// HasQuorum reports whether the slot currently has quorum.
+	HasQuorum bool
+	// ObservedConfigEpoch is the currently observed runtime config epoch.
+	ObservedConfigEpoch uint64
+	// LastReportAt is the latest runtime observation timestamp.
+	LastReportAt time.Time
+}
+
+// SlotNodeLogStatus is one node's local Raft log watermark for a slot.
+type SlotNodeLogStatus struct {
+	// NodeID is the node that reported the local log watermark.
+	NodeID uint64
+	// LeaderID is the slot Raft leader known by the reporting node.
+	LeaderID uint64
+	// CommitIndex is the highest committed Raft log index known by the reporting node.
+	CommitIndex uint64
+	// AppliedIndex is the highest Raft log index applied by the reporting node.
+	AppliedIndex uint64
+}
+
+// ListSlots returns manager slot DTOs ordered by slot ID.
+func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, error) {
+	if a == nil || a.cluster == nil {
+		return nil, nil
+	}
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	generatedAt := a.now()
+	slots := make([]Slot, 0, len(snapshot.Slots))
+	for _, assignment := range snapshot.Slots {
+		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt)
+		if opts.NodeID != 0 && !containsUint64(slot.Assignment.DesiredPeers, opts.NodeID) {
+			continue
+		}
+		slots = append(slots, slot)
+	}
+	sort.Slice(slots, func(i, j int) bool { return slots[i].SlotID < slots[j].SlotID })
+	return slots, nil
+}
+
+func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots control.HashSlotTable, generatedAt time.Time) Slot {
+	runtime, hasRuntime := runtimeFromControlAssignment(assignment, generatedAt)
+	return Slot{
+		SlotID:    assignment.SlotID,
+		HashSlots: slotHashSlotsFromControlTable(hashSlots, assignment.SlotID),
+		State: SlotState{
+			Quorum:      managerSlotQuorumState(hasRuntime, runtime.HasQuorum),
+			Sync:        managerSlotSyncState(hasRuntime),
+			LeaderMatch: assignment.PreferredLeader != 0 && assignment.PreferredLeader == runtime.LeaderID,
+		},
+		Assignment: SlotAssignment{
+			DesiredPeers:    append([]uint64(nil), assignment.DesiredPeers...),
+			PreferredLeader: assignment.PreferredLeader,
+			ConfigEpoch:     assignment.ConfigEpoch,
+		},
+		Runtime: runtime,
+	}
+}
+
+func runtimeFromControlAssignment(assignment control.SlotAssignment, generatedAt time.Time) (SlotRuntime, bool) {
+	if len(assignment.DesiredPeers) == 0 {
+		return SlotRuntime{}, false
+	}
+	peers := append([]uint64(nil), assignment.DesiredPeers...)
+	return SlotRuntime{
+		CurrentPeers:        peers,
+		CurrentVoters:       append([]uint64(nil), peers...),
+		LeaderID:            assignment.PreferredLeader,
+		HealthyVoters:       uint32(len(peers)),
+		HasQuorum:           uint32(len(peers)) >= quorumSize(len(peers)),
+		ObservedConfigEpoch: assignment.ConfigEpoch,
+		LastReportAt:        generatedAt,
+	}, true
+}
+
+func quorumSize(voters int) uint32 {
+	if voters <= 0 {
+		return 1
+	}
+	return uint32(voters/2 + 1)
+}
+
+func slotHashSlotsFromControlTable(table control.HashSlotTable, slotID uint32) *SlotHashSlots {
+	if table.Count == 0 && len(table.Ranges) == 0 {
+		return nil
+	}
+	items := make([]uint16, 0)
+	for _, item := range table.Ranges {
+		if item.SlotID != slotID {
+			continue
+		}
+		for hashSlot := int(item.From); hashSlot <= int(item.To); hashSlot++ {
+			items = append(items, uint16(hashSlot))
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i] < items[j] })
+	return &SlotHashSlots{Count: len(items), Items: items}
+}
+
+func managerSlotQuorumState(hasRuntime, hasQuorum bool) string {
+	if !hasRuntime {
+		return "unknown"
+	}
+	if hasQuorum {
+		return "ready"
+	}
+	return "lost"
+}
+
+func managerSlotSyncState(hasRuntime bool) string {
+	if !hasRuntime {
+		return "unreported"
+	}
+	return "matched"
+}
+
+func containsUint64(items []uint64, want uint64) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}

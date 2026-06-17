@@ -127,3 +127,19 @@ func (s gatewayPresenceSession) CloseSession(reason string) error {
 	}
 	return s.ctx.CloseSession(coregateway.CloseReasonPolicyViolation, err)
 }
+
+// RemoteAddr returns the client address observed by the concrete gateway session.
+func (s gatewayPresenceSession) RemoteAddr() string {
+	if s.ctx == nil || s.ctx.Session == nil {
+		return ""
+	}
+	return s.ctx.Session.RemoteAddr()
+}
+
+// LocalAddr returns the listener address observed by the concrete gateway session.
+func (s gatewayPresenceSession) LocalAddr() string {
+	if s.ctx == nil || s.ctx.Session == nil {
+		return ""
+	}
+	return s.ctx.Session.LocalAddr()
+}

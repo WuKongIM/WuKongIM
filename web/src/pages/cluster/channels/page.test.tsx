@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -11,6 +10,7 @@ const getChannelClusterSummaryMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const getChannelClusterUnhealthyMock = vi.fn()
 const getNodesMock = vi.fn()
+const getBusinessChannelsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -20,6 +20,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
     getChannelClusterUnhealthy: (...args: unknown[]) => getChannelClusterUnhealthyMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getBusinessChannels: (...args: unknown[]) => getBusinessChannelsMock(...args),
   }
 })
 
@@ -42,6 +43,7 @@ beforeEach(() => {
   getChannelRuntimeMetaMock.mockReset()
   getChannelClusterUnhealthyMock.mockReset()
   getNodesMock.mockReset()
+  getBusinessChannelsMock.mockReset()
   getChannelClusterSummaryMock.mockResolvedValue({
     total: 1,
     healthy: 1,
@@ -67,6 +69,19 @@ beforeEach(() => {
     has_more: false,
   })
   getChannelClusterUnhealthyMock.mockResolvedValue({ items: [], next_cursor: "", has_more: false })
+  getBusinessChannelsMock.mockResolvedValue({
+    items: [{
+      channel_id: "alpha",
+      channel_type: 1,
+      slot_id: 9,
+      hash_slot: 3,
+      ban: false,
+      disband: false,
+      send_ban: true,
+      subscriber_mutation_version: 7,
+    }],
+    has_more: false,
+  })
   getNodesMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -82,34 +97,28 @@ beforeEach(() => {
   })
 })
 
-test("defaults to the channel cluster overview tab", async () => {
+test("defaults to the channel cluster list without overview or unhealthy tabs", async () => {
   renderPage()
 
-  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
-  expect((await screen.findAllByText("Channel Cluster")).length).toBeGreaterThan(0)
+  expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Unhealthy" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "List" })).not.toBeInTheDocument()
+  expect(await screen.findByText("alpha")).toBeInTheDocument()
   expect(await screen.findByText("CLUSTER / CHANNELS")).toBeInTheDocument()
+  expect(getChannelRuntimeMetaMock).toHaveBeenCalledWith({
+    nodeId: 1,
+    limit: 50,
+    includeMaxMessageSeq: true,
+  })
+  expect(getBusinessChannelsMock).not.toHaveBeenCalled()
+  expect(getChannelClusterSummaryMock).not.toHaveBeenCalled()
+  expect(getChannelClusterUnhealthyMock).not.toHaveBeenCalled()
 })
 
-test("renders the runtime list tab from the tab search param", async () => {
+test("keeps legacy list tab URLs on the list page", async () => {
   renderPage("/cluster/channels?tab=list")
 
-  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.queryByRole("tab")).not.toBeInTheDocument()
   expect(await screen.findByText("Channel ID")).toBeInTheDocument()
-})
-
-test("renders the unhealthy tab from the tab search param", async () => {
-  renderPage("/cluster/channels?tab=unhealthy")
-
-  expect(screen.getByRole("tab", { name: "Unhealthy" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Unhealthy Channels")).toBeInTheDocument()
-})
-
-test("tab clicks update the selected tab", async () => {
-  const user = userEvent.setup()
-  renderPage()
-
-  await user.click(screen.getByRole("tab", { name: "List" }))
-
-  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Channel ID")).toBeInTheDocument()
+  expect(await screen.findByText("alpha")).toBeInTheDocument()
 })

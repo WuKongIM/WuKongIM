@@ -86,6 +86,36 @@ func TestClusterV2TouchUserConversationActiveAtBatchRoutesByUID(t *testing.T) {
 	}
 }
 
+func TestClusterV2HideUserConversationsBatchRoutesByUID(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	uid := conversationRouteKeyForHashSlot(t, node, 1)
+	route := waitRouteKeyLeaderReady(t, node, uid)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := node.UpsertUserConversationStatesBatch(ctx, []metadb.UserConversationState{{
+		UID: uid, ChannelID: "g1", ChannelType: 2, ActiveAt: 300, UpdatedAt: 1,
+	}}); err != nil {
+		t.Fatalf("UpsertUserConversationStatesBatch() error = %v", err)
+	}
+	if err := node.HideUserConversationsBatch(ctx, []metadb.UserConversationDelete{{
+		UID: uid, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 12, UpdatedAt: 2,
+	}}); err != nil {
+		t.Fatalf("HideUserConversationsBatch() error = %v", err)
+	}
+
+	got, err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetUserConversationState(ctx, uid, "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState() error = %v", err)
+	}
+	if got.DeletedToSeq != 12 || got.ActiveAt != 0 || got.UpdatedAt != 2 {
+		t.Fatalf("state = %+v, want hidden through seq 12 and inactive", got)
+	}
+}
+
 func TestClusterV2GetUserConversationStateUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)

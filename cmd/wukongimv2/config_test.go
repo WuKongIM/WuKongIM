@@ -60,6 +60,47 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	}
 }
 
+func TestLoadConfigParsesManagerLoginSettings(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	chdir(t, t.TempDir())
+	dir := t.TempDir()
+	path := filepath.Join(t.TempDir(), "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_API_LISTEN_ADDR=127.0.0.1:5011",
+		"WK_MANAGER_LISTEN_ADDR=127.0.0.1:5301",
+		"WK_MANAGER_AUTH_ON=true",
+		"WK_MANAGER_JWT_SECRET=test-secret",
+		"WK_MANAGER_JWT_ISSUER=wukongim-manager",
+		"WK_MANAGER_JWT_EXPIRE=1h",
+		`WK_MANAGER_USERS=[{"username":"admin","password":"secret","permissions":[{"resource":"cluster.node","actions":["r"]}]}]`,
+	)...)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if !cfg.Manager.AuthOn {
+		t.Fatalf("Manager.AuthOn = false, want true")
+	}
+	if cfg.Manager.ListenAddr != "127.0.0.1:5301" {
+		t.Fatalf("Manager.ListenAddr = %q, want 127.0.0.1:5301", cfg.Manager.ListenAddr)
+	}
+	if cfg.Manager.JWTSecret != "test-secret" || cfg.Manager.JWTIssuer != "wukongim-manager" || cfg.Manager.JWTExpire != time.Hour {
+		t.Fatalf("manager jwt config = %#v, want parsed values", cfg.Manager)
+	}
+	if len(cfg.Manager.Users) != 1 {
+		t.Fatalf("Manager.Users len = %d, want 1", len(cfg.Manager.Users))
+	}
+	user := cfg.Manager.Users[0]
+	if user.Username != "admin" || user.Password != "secret" {
+		t.Fatalf("manager user = %#v, want admin credentials", user)
+	}
+	if len(user.Permissions) != 1 || user.Permissions[0].Resource != "cluster.node" || len(user.Permissions[0].Actions) != 1 || user.Permissions[0].Actions[0] != "r" {
+		t.Fatalf("manager permissions = %#v, want cluster.node read", user.Permissions)
+	}
+}
+
 func TestAdaptiveGatewayGnetEventLoops(t *testing.T) {
 	tests := []struct {
 		name       string

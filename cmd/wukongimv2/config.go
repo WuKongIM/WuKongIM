@@ -56,6 +56,12 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
 	"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS",
 	"WK_API_LISTEN_ADDR",
+	"WK_MANAGER_LISTEN_ADDR",
+	"WK_MANAGER_AUTH_ON",
+	"WK_MANAGER_JWT_SECRET",
+	"WK_MANAGER_JWT_ISSUER",
+	"WK_MANAGER_JWT_EXPIRE",
+	"WK_MANAGER_USERS",
 	"WK_BENCH_API_ENABLE",
 	"WK_BENCH_API_MAX_BATCH_SIZE",
 	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
@@ -499,6 +505,30 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")
 	cfg.API.ExternalWSAddr = configValue(values, "WK_EXTERNAL_WSADDR")
 	cfg.API.ExternalWSSAddr = configValue(values, "WK_EXTERNAL_WSSADDR")
+	cfg.Manager.ListenAddr = configValue(values, "WK_MANAGER_LISTEN_ADDR")
+	if raw := configValue(values, "WK_MANAGER_AUTH_ON"); raw != "" {
+		authOn, err := parseBool("WK_MANAGER_AUTH_ON", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.AuthOn = authOn
+	}
+	cfg.Manager.JWTSecret = configValue(values, "WK_MANAGER_JWT_SECRET")
+	cfg.Manager.JWTIssuer = configValue(values, "WK_MANAGER_JWT_ISSUER")
+	if raw := configValue(values, "WK_MANAGER_JWT_EXPIRE"); raw != "" {
+		jwtExpire, err := parseDuration("WK_MANAGER_JWT_EXPIRE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.JWTExpire = jwtExpire
+	}
+	if raw := configValue(values, "WK_MANAGER_USERS"); raw != "" {
+		users, err := parseManagerUsers(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.Users = users
+	}
 	if raw := configValue(values, "WK_BENCH_API_ENABLE"); raw != "" {
 		benchAPIEnable, err := parseBool("WK_BENCH_API_ENABLE", raw)
 		if err != nil {
@@ -1131,6 +1161,14 @@ func parseDiagnosticsDebugMatches(raw string) ([]app.DiagnosticsDebugMatchConfig
 		}
 	}
 	return matches, nil
+}
+
+func parseManagerUsers(raw string) ([]app.ManagerUserConfig, error) {
+	var users []app.ManagerUserConfig
+	if err := json.Unmarshal([]byte(raw), &users); err != nil {
+		return nil, fmt.Errorf("parse WK_MANAGER_USERS as JSON: %w", err)
+	}
+	return users, nil
 }
 
 func clusterVoters(nodes []clusterNodeConfig) []clusterv2.ControlVoter {

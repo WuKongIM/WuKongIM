@@ -8,6 +8,7 @@ import (
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
+	accessmanager "github.com/WuKongIM/WuKongIM/internalv2/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
@@ -18,6 +19,7 @@ import (
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
@@ -28,6 +30,10 @@ import (
 )
 
 func (a *App) applyConfigDefaults() error {
+	a.cfg.Manager = defaultManagerConfig(a.cfg.Manager)
+	if err := validateManagerConfig(a.cfg.Manager); err != nil {
+		return err
+	}
 	a.cfg.Presence = defaultPresenceConfig(a.cfg.Presence)
 	if err := validatePresenceConfig(a.cfg.Presence); err != nil {
 		return err
@@ -257,9 +263,11 @@ func (a *App) wireConversations(conversationReadStore *clusterinfra.Conversation
 				store = a.conversationAuthorityClient
 			}
 			a.conversations = conversationusecase.New(conversationusecase.Options{
-				Store:      store,
-				StateStore: conversationReadStore,
-				Messages:   conversationReadStore,
+				Store:              store,
+				StateStore:         conversationReadStore,
+				StateMutationStore: conversationReadStore,
+				DeleteStore:        conversationReadStore,
+				Messages:           conversationReadStore,
 			})
 		}
 	}
@@ -273,6 +281,7 @@ func (a *App) wirePresence() {
 		ownerActions := presenceOwnerActions{local: a.online}
 		client := clusterinfra.NewPresenceAuthorityClient(presenceNode, authority)
 		client.SetLocalOwner(ownerActions)
+		a.presenceAuthorityClient = client
 		adapter := accessnode.New(accessnode.Options{Authority: authority, Owner: ownerActions, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.PresenceAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceAuthorityRPC))
 		presenceNode.RegisterRPC(accessnode.PresenceOwnerRPCServiceID, nodeRPCHandlerFunc(adapter.HandlePresenceOwnerRPC))
@@ -308,6 +317,46 @@ func (a *App) wirePresence() {
 			})
 		}
 	}
+}
+
+func (a *App) wireManagerConnectionRPC() {
+	node, hasNode := a.cluster.(clusterinfra.ManagementNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar || a.online == nil {
+		return
+	}
+	service := managementusecase.New(managementusecase.Options{
+		Cluster:     clusterinfra.NewManagementSnapshotReader(node),
+		Connections: a.online,
+	})
+	adapter := accessnode.New(accessnode.Options{ManagerConnections: service, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerConnectionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerConnectionRPC))
+}
+
+func (a *App) wireManagerLogRPC() {
+	node, hasNode := a.cluster.(clusterinfra.ManagementLogNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar {
+		return
+	}
+	logs := clusterinfra.NewManagementLogReader(node)
+	adapter := accessnode.New(accessnode.Options{ManagerLogs: logs, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerLogRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerLogRPC))
+}
+
+func (a *App) wireManagerChannelRPC() {
+	node, hasNode := a.cluster.(clusterinfra.ManagementNode)
+	channelNode, hasChannelNode := a.cluster.(clusterinfra.ChannelBusinessScanNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasChannelNode || !hasRegistrar {
+		return
+	}
+	service := managementusecase.New(managementusecase.Options{
+		Cluster:               clusterinfra.NewManagementSnapshotReader(node),
+		ChannelBusinessReader: clusterinfra.NewChannelBusinessReader(channelNode),
+	})
+	adapter := accessnode.New(accessnode.Options{ManagerChannels: service, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerChannelRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerChannelRPC))
 }
 
 func (a *App) wireUsers() {
@@ -581,6 +630,91 @@ func (a *App) wireAPI() {
 			Logger:                   a.logger.Named("access.api"),
 		})
 	}
+}
+
+func (a *App) wireManager() {
+	if a.manager == nil && strings.TrimSpace(a.cfg.Manager.ListenAddr) != "" {
+		a.manager = accessmanager.New(accessmanager.Options{
+			ListenAddr: a.cfg.Manager.ListenAddr,
+			Auth: accessmanager.AuthConfig{
+				On:        a.cfg.Manager.AuthOn,
+				JWTSecret: a.cfg.Manager.JWTSecret,
+				JWTIssuer: a.cfg.Manager.JWTIssuer,
+				JWTExpire: a.cfg.Manager.JWTExpire,
+				Users:     managerUserConfigs(a.cfg.Manager.Users),
+			},
+			Management: a.newManagerManagement(),
+			Logger:     a.logger.Named("access.manager"),
+		})
+	}
+}
+
+func (a *App) newManagerManagement() accessmanager.Management {
+	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
+		opts := managementusecase.Options{
+			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
+			Conversations: a.conversations,
+		}
+		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaScanNode); ok {
+			opts.ChannelRuntimeMeta = clusterinfra.NewChannelRuntimeMetaReader(runtimeNode)
+		}
+		if channelNode, ok := a.cluster.(clusterinfra.ChannelBusinessScanNode); ok {
+			opts.ChannelBusinessReader = clusterinfra.NewChannelBusinessReader(channelNode)
+		}
+		if channelRPCNode, ok := a.cluster.(clusterinfra.ManagementChannelNode); ok {
+			opts.RemoteBusinessChannels = clusterinfra.NewManagementChannelReader(channelRPCNode)
+		}
+		if userNode, ok := a.cluster.(clusterinfra.UserMetadataNode); ok {
+			opts.Users = clusterinfra.NewUserMetadataStore(userNode)
+		}
+		if a.users != nil {
+			opts.UserOperator = a.users
+			opts.SystemUsers = a.users
+		}
+		if a.presence != nil {
+			opts.UserPresence = a.presence
+		}
+		if a.presenceAuthorityClient != nil {
+			opts.UserActions = a.presenceAuthorityClient
+		}
+		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
+			opts.Messages = clusterinfra.NewManagementMessageReader(readNode)
+		}
+		if a.online != nil {
+			opts.Connections = a.online
+		}
+		if connNode, ok := a.cluster.(clusterinfra.ManagementConnectionNode); ok {
+			opts.RemoteConnections = clusterinfra.NewManagementConnectionReader(connNode)
+		}
+		if logNode, ok := a.cluster.(clusterinfra.ManagementLogNode); ok {
+			opts.Logs = clusterinfra.NewManagementLogReader(logNode)
+		}
+		return managementusecase.New(opts)
+	}
+	return nil
+}
+
+func managerUserConfigs(users []ManagerUserConfig) []accessmanager.UserConfig {
+	out := make([]accessmanager.UserConfig, 0, len(users))
+	for _, user := range users {
+		out = append(out, accessmanager.UserConfig{
+			Username:    user.Username,
+			Password:    user.Password,
+			Permissions: managerPermissionConfigs(user.Permissions),
+		})
+	}
+	return out
+}
+
+func managerPermissionConfigs(permissions []ManagerPermissionConfig) []accessmanager.PermissionConfig {
+	out := make([]accessmanager.PermissionConfig, 0, len(permissions))
+	for _, permission := range permissions {
+		out = append(out, accessmanager.PermissionConfig{
+			Resource: permission.Resource,
+			Actions:  append([]string(nil), permission.Actions...),
+		})
+	}
+	return out
 }
 
 func (a *App) wireGateway(nodeID uint64) error {

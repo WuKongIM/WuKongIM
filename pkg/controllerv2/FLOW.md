@@ -26,6 +26,12 @@ Runtime composition may provide a `RaftObserver` to record queue and enqueue
 latency telemetry from the Controller Raft ingress path. The observer is
 read-only and must not affect Raft stepping, WAL persistence, or apply order.
 
+`Runtime.LogEntries` is a read-only diagnostics facade over the Controller Raft
+WAL. It returns newest-first, cursor-paginated entry summaries for manager UI
+inspection, decoding normal command payloads through the Controller command
+codec and reporting empty normal entries as non-mutating noops. It does not
+change Raft apply, compaction, or state-file persistence semantics.
+
 ## Reading Guide
 
 Start at the root facade when reading production behavior:

@@ -16,7 +16,9 @@ server push and `CloseSession(reason)` for conflict actions, but the concrete
 gateway/frame validation remains in the access adapter that created the handle.
 `LocalSessionsByUID` returns copies of concrete local session records for
 owner-local maintenance flows such as compatible user token replacement and
-device quit handling; authority-facing flows still consume only `OwnerRoute`.
+device quit handling. `LocalSessions` returns copies of all locally indexed
+session records for owner-local manager connection inventory. Authority-facing
+flows still consume only `OwnerRoute`.
 
 ## Touch Batching
 

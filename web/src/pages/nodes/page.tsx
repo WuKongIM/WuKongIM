@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { PageTabs } from "@/components/shell/page-tabs"
 import { SectionCard } from "@/components/shell/section-card"
 import { NodeOnboardingPanel } from "@/pages/onboarding/page"
+import { ControllerLogsPanel } from "@/pages/controller/page"
 import {
   ManagerApiError,
   advanceNodeScaleIn,
@@ -45,15 +46,14 @@ type NodesState = {
 }
 
 const tabs = [
-  { id: "overview", labelMessageId: "nodes.tabs.overview" },
   { id: "list", labelMessageId: "nodes.tabs.list" },
-  { id: "unhealthy", labelMessageId: "nodes.tabs.unhealthy" },
+  { id: "logs", labelMessageId: "nodes.tabs.logs" },
 ] as const
 
 type NodeClusterTab = (typeof tabs)[number]["id"]
 
 function normalizeTab(value: string | null): NodeClusterTab {
-  return tabs.some((tab) => tab.id === value) ? (value as NodeClusterTab) : "overview"
+  return tabs.some((tab) => tab.id === value) ? (value as NodeClusterTab) : "list"
 }
 
 function formatTimestamp(intl: IntlShape, value: string) {
@@ -1385,10 +1385,9 @@ export function NodesPage() {
         tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
         onTabChange={setTab}
       />
-      {activeTab === "overview" ? <NodeClusterOverviewPanel /> : null}
       {activeTab === "list" ? <NodeClusterListPanel /> : null}
       {showOnboardingPanel ? <NodeOnboardingPanel /> : null}
-      {activeTab === "unhealthy" ? <NodeClusterUnhealthyPanel /> : null}
+      {activeTab === "logs" ? <ControllerLogsPanel /> : null}
     </PageContainer>
   )
 }

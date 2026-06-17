@@ -1,0 +1,98 @@
+package management
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+)
+
+func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 9, 30, 0, 0, time.UTC)
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 2,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect},
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+				},
+				Slots: []control.SlotAssignment{
+					{SlotID: 2, DesiredPeers: []uint64{2}, PreferredLeader: 2},
+					{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 1},
+				},
+			},
+		},
+		Now: func() time.Time { return generatedAt },
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if !got.GeneratedAt.Equal(generatedAt) {
+		t.Fatalf("GeneratedAt = %s, want %s", got.GeneratedAt, generatedAt)
+	}
+	if got.ControllerLeaderID != 1 {
+		t.Fatalf("ControllerLeaderID = %d, want 1", got.ControllerLeaderID)
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(got.Items), got.Items)
+	}
+
+	first := got.Items[0]
+	if first.NodeID != 1 || first.Name != "node-1" || first.Addr != "127.0.0.1:7011" {
+		t.Fatalf("first node identity = %#v, want node-1 at 127.0.0.1:7011", first)
+	}
+	if first.Status != "alive" || first.Controller.Role != "leader" || !first.Controller.Voter {
+		t.Fatalf("first node status/controller = %#v/%#v, want alive controller leader voter", first.Status, first.Controller)
+	}
+	if first.Membership.Role != "data" || first.Membership.JoinState != "active" || !first.Membership.Schedulable {
+		t.Fatalf("first membership = %#v, want active schedulable data", first.Membership)
+	}
+	if first.Slots.ReplicaCount != 1 || first.Slots.LeaderCount != 1 || first.Slots.FollowerCount != 0 {
+		t.Fatalf("first slots = %#v, want one leader replica", first.Slots)
+	}
+	if first.Runtime.NodeID != 1 || !first.Runtime.Unknown {
+		t.Fatalf("first runtime = %#v, want unknown runtime for node 1", first.Runtime)
+	}
+	if first.Actions.CanDrain || first.Actions.CanResume || first.Actions.CanScaleIn || first.Actions.CanOnboard {
+		t.Fatalf("first actions = %#v, want read-only actions disabled", first.Actions)
+	}
+
+	second := got.Items[1]
+	if second.NodeID != 2 || !second.IsLocal {
+		t.Fatalf("second node = %#v, want local node 2", second)
+	}
+	if second.Status != "suspect" || second.Membership.Schedulable {
+		t.Fatalf("second status/membership = %s/%#v, want suspect not schedulable", second.Status, second.Membership)
+	}
+	if second.Slots.ReplicaCount != 2 || second.Slots.LeaderCount != 1 || second.Slots.FollowerCount != 1 {
+		t.Fatalf("second slots = %#v, want two replicas with one leader", second.Slots)
+	}
+}
+
+func TestListNodesReturnsClusterSnapshotError(t *testing.T) {
+	wantErr := errors.New("control unavailable")
+	app := New(Options{Cluster: fakeNodeSnapshotReader{err: wantErr}})
+
+	_, err := app.ListNodes(context.Background())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ListNodes() error = %v, want %v", err, wantErr)
+	}
+}
+
+type fakeNodeSnapshotReader struct {
+	nodeID   uint64
+	snapshot control.Snapshot
+	err      error
+}
+
+func (f fakeNodeSnapshotReader) NodeID() uint64 { return f.nodeID }
+
+func (f fakeNodeSnapshotReader) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot.Clone(), f.err
+}

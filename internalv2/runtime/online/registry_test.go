@@ -51,6 +51,27 @@ func TestRegistryListsLocalSessionsByUID(t *testing.T) {
 	require.Equal(t, map[uint64]struct{}{1: {}, 3: {}}, mapSessionIDs(sessions))
 }
 
+func TestRegistryListsLocalSessionCopiesAcrossStates(t *testing.T) {
+	reg := NewRegistry(RegistryOptions{ShardCount: 2})
+	pending := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, ConnectedUnix: 100}
+	active := OwnerRoute{UID: "u2", HashSlot: 2, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 2, SessionID: 11, ConnectedUnix: 101}
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: pending}))
+	require.NoError(t, reg.RegisterPending(LocalSession{Route: active}))
+	require.NoError(t, reg.MarkActive(active.SessionID))
+
+	sessions := reg.LocalSessions()
+	require.Len(t, sessions, 2)
+	sessions[0].Route.UID = "mutated"
+
+	again := reg.LocalSessions()
+	require.ElementsMatch(t, []RouteState{RouteStatePending, RouteStateActive}, []RouteState{again[0].State, again[1].State})
+	for _, session := range again {
+		if session.Route.UID == "mutated" {
+			t.Fatalf("LocalSessions returned mutable registry storage: %#v", again)
+		}
+	}
+}
+
 func TestRegistrySnapshotCountsLocalRouteStatesAndDirtyTouches(t *testing.T) {
 	reg := NewRegistry(RegistryOptions{ShardCount: 1})
 	pending := OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 1, ConnectedUnix: 10}

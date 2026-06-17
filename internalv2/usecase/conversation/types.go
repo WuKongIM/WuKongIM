@@ -63,6 +63,42 @@ type SyncQuery struct {
 	Limit int
 }
 
+// ClearUnreadCommand advances a user's read cursor to the channel latest sequence.
+type ClearUnreadCommand struct {
+	// UID identifies the user whose conversation read cursor should advance.
+	UID string
+	// ChannelID identifies the normalized conversation channel.
+	ChannelID string
+	// ChannelType identifies the protocol channel category.
+	ChannelType uint8
+	// MessageSeq is a legacy client-supplied latest sequence fallback.
+	MessageSeq uint64
+}
+
+// SetUnreadCommand advances a user's read cursor so at most Unread messages remain unread.
+type SetUnreadCommand struct {
+	// UID identifies the user whose unread count should be adjusted.
+	UID string
+	// ChannelID identifies the normalized conversation channel.
+	ChannelID string
+	// ChannelType identifies the protocol channel category.
+	ChannelType uint8
+	// Unread is the requested unread tail size.
+	Unread int
+}
+
+// DeleteConversationCommand hides a conversation through MessageSeq for one user.
+type DeleteConversationCommand struct {
+	// UID identifies the user that owns the hidden conversation row.
+	UID string
+	// ChannelID identifies the normalized conversation channel.
+	ChannelID string
+	// ChannelType identifies the protocol channel category.
+	ChannelType uint8
+	// MessageSeq is the delete barrier. When zero, the latest channel sequence is loaded.
+	MessageSeq uint64
+}
+
 // LastMessage is the newest visible durable message for a conversation row.
 type LastMessage struct {
 	// MessageID is the durable message id.

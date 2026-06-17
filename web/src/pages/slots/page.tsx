@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { PageTabs } from "@/components/shell/page-tabs"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
+import { SlotLogsPanel } from "@/pages/slot-logs/page"
 import {
   ManagerApiError,
   addSlot,
@@ -57,9 +58,8 @@ type SlotAnomalyRow = ManagerOverviewSlotAnomalyItem & {
 }
 
 const tabs = [
-  { id: "overview", labelMessageId: "slots.tabs.overview" },
   { id: "list", labelMessageId: "slots.tabs.list" },
-  { id: "unhealthy", labelMessageId: "slots.tabs.unhealthy" },
+  { id: "logs", labelMessageId: "slots.tabs.logs" },
 ] as const
 
 type SlotClusterTab = (typeof tabs)[number]["id"]
@@ -67,7 +67,7 @@ type SlotClusterTab = (typeof tabs)[number]["id"]
 const recoverStrategyValues = ["latest_live_replica"] as const
 
 function normalizeTab(value: string | null): SlotClusterTab {
-  return tabs.some((tab) => tab.id === value) ? (value as SlotClusterTab) : "overview"
+  return tabs.some((tab) => tab.id === value) ? (value as SlotClusterTab) : "list"
 }
 
 function formatTimestamp(intl: IntlShape, value: string) {
@@ -1195,9 +1195,8 @@ export function SlotsPage() {
         tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
         onTabChange={setTab}
       />
-      {activeTab === "overview" ? <SlotClusterOverviewPanel /> : null}
       {activeTab === "list" ? <SlotClusterListPanel /> : null}
-      {activeTab === "unhealthy" ? <SlotClusterUnhealthyPanel /> : null}
+      {activeTab === "logs" ? <SlotLogsPanel /> : null}
     </PageContainer>
   )
 }

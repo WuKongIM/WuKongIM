@@ -27,6 +27,8 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *noopCmd:
+		return simpleInspection("noop", map[string]any{"command": "noop"}), nil
 	case *upsertUserCmd:
 		return userInspection("upsert_user", typed.user), nil
 	case *createUserCmd:

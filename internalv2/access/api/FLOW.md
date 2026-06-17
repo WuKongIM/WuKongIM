@@ -46,6 +46,9 @@ POST /bench/v1/channels/subscribers
 POST /message/send
 POST /conversation/list
 POST /conversation/sync
+POST /conversations/clearUnread
+POST /conversations/setUnread
+POST /conversations/delete
 POST /channel
 POST /channel/messagesync
 POST /channel/info
@@ -128,7 +131,7 @@ and converts canonical person-channel IDs back to the peer UID for the logged-in
 user. If the composition root does not provide a message usecase, these routes
 fail closed using their legacy envelopes.
 
-The conversation list and sync routes are registered regardless of bench mode.
+The conversation list, sync, and mutation routes are registered regardless of bench mode.
 `/conversation/list` accepts `uid`, `limit`, and an optional sorted conversation
 cursor based on `active_at`, `channel_id`, and `channel_type`. It delegates
 ordering, cursor application, active-page reads, and current-page last-message
@@ -151,6 +154,13 @@ array response with `recents` when requested. Canonical person-channel IDs in
 conversation rows and recent messages are converted back to the peer UID for
 the requesting user. If the composition root does not provide a conversation
 usecase, the route fails closed with the compatible JSON error envelope.
+`/conversations/clearUnread`, `/conversations/setUnread`, and
+`/conversations/delete` preserve the legacy mutation envelopes. The adapter
+validates only request shape, normalizes personal peer IDs to canonical
+conversation IDs, and delegates read-cursor or delete-barrier writes to the
+conversation usecase. The usecase and infra adapter keep those writes on the
+UID-owned Slot metadata path; the HTTP layer does not write conversation state
+directly.
 
 ## Phase-1 Semantics
 
@@ -186,8 +196,8 @@ directly. The message adapter decodes legacy HTTP payloads and trace headers
 but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
 The conversation adapter validates only request shape and UID presence; active
-index ordering, active cursor application, sync candidate filtering, and
-message reads stay in `internalv2/usecase/conversation`. The adapter observes
-successful and failed list requests without adding UID or channel labels, so
-performance triage can inspect list cost without increasing metrics
-cardinality.
+index ordering, active cursor application, sync candidate filtering,
+read/delete cursor mutation, and message reads stay in
+`internalv2/usecase/conversation`. The adapter observes successful and failed
+list requests without adding UID or channel labels, so performance triage can
+inspect list cost without increasing metrics cardinality.

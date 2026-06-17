@@ -408,6 +408,53 @@ func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []m
 	return nil
 }
 
+// HideUserConversationsBatch persists UID-owned conversation delete barriers through Slot ownership.
+func (n *Node) HideUserConversationsBatch(ctx context.Context, deletes []metadb.UserConversationDelete) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	if len(deletes) == 0 {
+		return nil
+	}
+	groups, err := n.groupUserConversationDeletesBySlot(deletes)
+	if err != nil {
+		return err
+	}
+	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+		group := groups[slotID]
+		for start := 0; start < len(group.deleteItems); start += maxUserConversationBatchItems {
+			end := start + maxUserConversationBatchItems
+			if end > len(group.deleteItems) {
+				end = len(group.deleteItems)
+			}
+			items := group.deleteItems[start:end]
+			command, err := metafsm.EncodeHideUserConversationBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
+			if err != nil {
+				return err
+			}
+			routeHashSlot := group.routeHashSlot
+			if len(items) > 0 {
+				routeHashSlot = items[0].HashSlot
+			}
+			if err := n.Propose(ctx, ProposeRequest{
+				Command: command,
+				Target: ProposeTarget{
+					SlotID:      slotID,
+					HasSlotID:   true,
+					HashSlot:    routeHashSlot,
+					HasHashSlot: true,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // TouchUserConversationActiveAtBatch persists UID-owned active-at patches through Slot ownership.
 func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
 	if err := ctxErr(ctx); err != nil {
@@ -507,6 +554,7 @@ type userConversationSlotBatch struct {
 	routeHashSlot uint16
 	stateItems    []metafsm.UserConversationStateBatchItem
 	patchItems    []metafsm.UserConversationActivePatchBatchItem
+	deleteItems   []metafsm.UserConversationDeleteBatchItem
 }
 
 func (n *Node) groupChannelLatestBySlot(latestRows []metadb.ChannelLatest) (map[uint32]channelLatestSlotBatch, error) {
@@ -552,7 +600,7 @@ func (n *Node) groupUserConversationStatesBySlot(states []metadb.UserConversatio
 			return nil, err
 		}
 		group := groups[route.SlotID]
-		if len(group.stateItems) == 0 && len(group.patchItems) == 0 {
+		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
 		}
 		group.stateItems = append(group.stateItems, metafsm.UserConversationStateBatchItem{
@@ -575,12 +623,35 @@ func (n *Node) groupUserConversationPatchesBySlot(patches []metadb.UserConversat
 			return nil, err
 		}
 		group := groups[route.SlotID]
-		if len(group.stateItems) == 0 && len(group.patchItems) == 0 {
+		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
 		}
 		group.patchItems = append(group.patchItems, metafsm.UserConversationActivePatchBatchItem{
 			HashSlot: route.HashSlot,
 			Patch:    patch,
+		})
+		groups[route.SlotID] = group
+	}
+	return groups, nil
+}
+
+func (n *Node) groupUserConversationDeletesBySlot(deletes []metadb.UserConversationDelete) (map[uint32]userConversationSlotBatch, error) {
+	groups := make(map[uint32]userConversationSlotBatch)
+	for _, req := range deletes {
+		if req.UID == "" || req.ChannelID == "" || req.ChannelType == 0 {
+			return nil, metadb.ErrInvalidArgument
+		}
+		route, err := n.RouteKey(req.UID)
+		if err != nil {
+			return nil, err
+		}
+		group := groups[route.SlotID]
+		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
+			group.routeHashSlot = route.HashSlot
+		}
+		group.deleteItems = append(group.deleteItems, metafsm.UserConversationDeleteBatchItem{
+			HashSlot: route.HashSlot,
+			Delete:   req,
 		})
 		groups[route.SlotID] = group
 	}

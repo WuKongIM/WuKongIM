@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -10,7 +10,6 @@ import { ManagerApiError } from "@/lib/manager-api"
 import { ChannelsPage } from "@/pages/channels/page"
 
 const getChannelRuntimeMetaMock = vi.fn()
-const getChannelRuntimeMetaDetailMock = vi.fn()
 const getNodesMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
@@ -18,7 +17,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   return {
     ...actual,
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
-    getChannelRuntimeMetaDetail: (...args: unknown[]) => getChannelRuntimeMetaDetailMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
   }
 })
@@ -33,7 +31,7 @@ const channelRow = {
   replicas: [1, 2, 3],
   isr: [1, 2],
   min_isr: 2,
-  max_message_seq: 42,
+  max_message_seq: 7,
   status: "active",
 }
 
@@ -43,38 +41,36 @@ const secondChannelRow = {
   slot_id: 11,
 }
 
-const channelDetail = {
-  ...channelRow,
-  hash_slot: 3,
-  features: 7,
-  lease_until_ms: 1713859200000,
-}
-
-const nodeRow = {
-  node_id: 1,
-  name: "node-1",
-  addr: "127.0.0.1:7001",
-  status: "alive",
-  last_heartbeat_at: "2026-04-23T08:00:00Z",
-  is_local: false,
-  capacity_weight: 1,
-  controller: { role: "follower", voter: true, leader_id: 2 },
-  slot_stats: { count: 1, leader_count: 0 },
-}
-
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getChannelRuntimeMetaMock.mockReset()
-  getChannelRuntimeMetaDetailMock.mockReset()
   getNodesMock.mockReset()
   getNodesMock.mockResolvedValue({
-    generated_at: "2026-04-23T08:00:00Z",
-    controller_leader_id: 2,
     total: 2,
     items: [
-      nodeRow,
-      { ...nodeRow, node_id: 2, name: "node-2", is_local: true, controller: { role: "leader", voter: true, leader_id: 2 } },
+      {
+        node_id: 2,
+        name: "node-2",
+        addr: "127.0.0.1:7002",
+        status: "alive",
+        last_heartbeat_at: "2026-04-23T08:00:00Z",
+        is_local: false,
+        capacity_weight: 1,
+        controller: { role: "follower" },
+        slot_stats: { count: 1, leader_count: 0 },
+      },
+      {
+        node_id: 1,
+        name: "node-1",
+        addr: "127.0.0.1:7001",
+        status: "alive",
+        last_heartbeat_at: "2026-04-23T08:00:00Z",
+        is_local: true,
+        capacity_weight: 1,
+        controller: { role: "leader" },
+        slot_stats: { count: 1, leader_count: 1 },
+      },
     ],
   })
   useAuthStore.setState({
@@ -118,6 +114,12 @@ test("uses compact channel page chrome without summary cards", async () => {
   expect(await screen.findByText("alpha")).toBeInTheDocument()
   expect(screen.getByText("Loaded: 1")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  expect(screen.getByLabelText("Node filter")).toHaveValue("2")
+  expect(getChannelRuntimeMetaMock).toHaveBeenCalledWith({
+    nodeId: 2,
+    limit: 50,
+    includeMaxMessageSeq: true,
+  })
   expect(screen.queryByText("Scope: all channels")).not.toBeInTheDocument()
   expect(screen.queryByText("Channel lists and runtime drill-in status.")).not.toBeInTheDocument()
   expect(screen.queryByText("Loaded channels")).not.toBeInTheDocument()
@@ -126,25 +128,7 @@ test("uses compact channel page chrome without summary cards", async () => {
   expect(screen.queryByText("Inspect one channel to view slot ownership and runtime lease metadata.")).not.toBeInTheDocument()
 })
 
-test("renders channel runtime rows and opens messages query", async () => {
-  getChannelRuntimeMetaMock.mockResolvedValueOnce({
-    items: [channelRow],
-    has_more: false,
-  })
-  getChannelRuntimeMetaDetailMock.mockResolvedValueOnce(channelDetail)
-
-  const user = userEvent.setup()
-  renderChannelsPage()
-
-  expect(await screen.findByText("alpha")).toBeInTheDocument()
-  expect(screen.getByText("1, 2, 3")).toBeInTheDocument()
-  expect(screen.getByText("42")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "View channel alpha messages" }))
-
-  expect(await screen.findByText("/messages?channel_id=alpha&channel_type=1")).toBeInTheDocument()
-})
-
-test("defaults channel node filter to the local node and reloads when it changes", async () => {
+test("reloads the selected node channel list when the node filter changes", async () => {
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [channelRow],
     has_more: false,
@@ -159,33 +143,45 @@ test("defaults channel node filter to the local node and reloads when it changes
 
   const filter = await screen.findByLabelText("Node filter")
   expect(filter).toHaveValue("2")
-  expect(await screen.findByText("alpha")).toBeInTheDocument()
-  expect(getChannelRuntimeMetaMock).toHaveBeenCalledWith({ nodeId: 2 })
+  await waitFor(() =>
+    expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({
+      nodeId: 2,
+      limit: 50,
+      includeMaxMessageSeq: true,
+    }),
+  )
 
   await user.selectOptions(filter, "1")
 
   expect(await screen.findByText("beta")).toBeInTheDocument()
-  expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({ nodeId: 1 })
+  expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({
+    nodeId: 1,
+    limit: 50,
+    includeMaxMessageSeq: true,
+  })
 })
 
-test("opens channel detail from manager APIs", async () => {
+test("renders channel rows from the runtime metadata list and opens messages query", async () => {
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [channelRow],
     has_more: false,
   })
-  getChannelRuntimeMetaDetailMock.mockResolvedValueOnce(channelDetail)
 
   const user = userEvent.setup()
   renderChannelsPage()
 
   expect(await screen.findByText("alpha")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Inspect channel alpha" }))
+  expect(screen.getByText("2")).toBeInTheDocument()
+  expect(screen.getByText("1, 2, 3")).toBeInTheDocument()
+  expect(screen.getByText("7")).toBeInTheDocument()
+  expect(screen.getByText("active")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "View channel alpha messages" }))
 
-  expect(await screen.findByText("Hash slot")).toBeInTheDocument()
-  expect(getChannelRuntimeMetaDetailMock).toHaveBeenCalledWith(1, "alpha")
+  expect(await screen.findByText("/messages?channel_id=alpha&channel_type=1")).toBeInTheDocument()
 })
 
-test("loads the next channel runtime page when more data is available", async () => {
+test("searches by channel ID and loads more", async () => {
+  getChannelRuntimeMetaMock.mockResolvedValueOnce({ items: [], has_more: false })
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [channelRow],
     has_more: true,
@@ -199,14 +195,31 @@ test("loads the next channel runtime page when more data is available", async ()
   const user = userEvent.setup()
   renderChannelsPage()
 
+  await screen.findByText("No manager data is available for this view yet.")
+  await user.type(screen.getByPlaceholderText("Search channel ID"), "alpha")
+  await user.click(screen.getByRole("button", { name: "Search" }))
+
   expect(await screen.findByText("alpha")).toBeInTheDocument()
+  expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({
+    nodeId: 2,
+    channelId: "alpha",
+    limit: 50,
+    includeMaxMessageSeq: true,
+  })
+
   await user.click(screen.getByRole("button", { name: "Load more" }))
 
   expect(await screen.findByText("beta")).toBeInTheDocument()
-  expect(getChannelRuntimeMetaMock).toHaveBeenNthCalledWith(2, { nodeId: 2, cursor: "cursor-2" })
+  expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({
+    nodeId: 2,
+    channelId: "alpha",
+    limit: 50,
+    includeMaxMessageSeq: true,
+    cursor: "cursor-2",
+  })
 })
 
-test("renders unavailable state when channel runtime data cannot be loaded", async () => {
+test("renders unavailable state when channel list data cannot be loaded", async () => {
   getChannelRuntimeMetaMock.mockRejectedValueOnce(
     new ManagerApiError(503, "service_unavailable", "slot leader authoritative read unavailable"),
   )

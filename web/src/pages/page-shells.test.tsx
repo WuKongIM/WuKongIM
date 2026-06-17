@@ -169,21 +169,7 @@ beforeEach(() => {
       slot_stats: { count: 1, leader_count: 1 },
     }],
   })
-  getChannelRuntimeMetaMock.mockResolvedValue({
-    items: [{
-      channel_id: "alpha",
-      channel_type: 1,
-      slot_id: 9,
-      channel_epoch: 11,
-      leader_epoch: 5,
-      leader: 2,
-      replicas: [1, 2, 3],
-      isr: [1, 2],
-      min_isr: 2,
-      status: "active",
-    }],
-    has_more: false,
-  })
+  getChannelRuntimeMetaMock.mockResolvedValue({ items: [], has_more: false })
   getMessagesMock.mockResolvedValue({ items: [], has_more: false })
   getRecentConversationsMock.mockResolvedValue({ uid: "", limit: 50, msg_count: 1, only_unread: false, truncated: false, items: [] })
   getControllerLogsMock.mockResolvedValue({
@@ -385,9 +371,9 @@ it.each([
   ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
   ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
   ["/business/monitor", "Live Monitor", "Message Flow"],
-  ["/cluster/nodes", "Nodes", "Node Cluster Overview"],
-  ["/cluster/slots", "Slots", "Slot Cluster Overview"],
-  ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
+  ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
+  ["/cluster/slots", "Slots", "Slot 9"],
+  ["/cluster/channels", "Channel Cluster", "No manager data is available for this view yet."],
   ["/cluster/plugins", "Plugins", "Node plugin inventory"],
   ["/cluster/tasks", "Distributed Tasks", "Task queue"],
   ["/cluster/topology", "Topology", "Topology Summary"],
@@ -410,7 +396,7 @@ it.each([
   )
 
   await screen.findAllByText(section)
-  expect(screen.getByRole("heading", { name: title })).toBeInTheDocument()
+  expect(screen.getAllByRole("heading", { name: title }).length).toBeGreaterThan(0)
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 
@@ -449,9 +435,9 @@ it.each([
   ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
   ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
   ["/business/monitor", "实时监控", "消息流量"],
-  ["/cluster/nodes", "节点", "节点集群总览"],
-  ["/cluster/slots", "槽位", "槽位集群总览"],
-  ["/cluster/channels", "频道集群", "频道集群总览"],
+  ["/cluster/nodes", "节点", "127.0.0.1:7000"],
+  ["/cluster/slots", "槽位", "槽位 9"],
+  ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],
   ["/cluster/plugins", "插件管理", "节点插件清单"],
   ["/cluster/tasks", "分布式任务", "任务队列"],
   ["/cluster/topology", "拓扑", "拓扑摘要"],
@@ -475,5 +461,5 @@ it.each([
   )
 
   await screen.findAllByText(section)
-  expect(screen.getByRole("heading", { name: title })).toBeInTheDocument()
+  expect(screen.getAllByRole("heading", { name: title }).length).toBeGreaterThan(0)
 })

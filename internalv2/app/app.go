@@ -51,6 +51,12 @@ type APIRuntime interface {
 	Stop(context.Context) error
 }
 
+// ManagerRuntime is the manager HTTP lifecycle surface used by the app root.
+type ManagerRuntime interface {
+	Start() error
+	Stop(context.Context) error
+}
+
 // WorkerRuntime is a background app worker managed inside the lifecycle.
 type WorkerRuntime interface {
 	Start(context.Context) error
@@ -65,6 +71,7 @@ type App struct {
 	cfg                         Config
 	cluster                     ClusterRuntime
 	api                         APIRuntime
+	manager                     ManagerRuntime
 	gateway                     GatewayRuntime
 	handler                     *accessgateway.Handler
 	messages                    *message.App
@@ -86,13 +93,14 @@ type App struct {
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
-	deliverySubscribers runtimedelivery.ChannelSubscriberSource
-	deliveryMeta        *deliveryMetaStore
-	presence            *presence.App
-	online              *online.Registry
-	presenceDirectory   *authoritypresence.Directory
-	presenceWorker      WorkerRuntime
-	metrics             *obsmetrics.Registry
+	deliverySubscribers     runtimedelivery.ChannelSubscriberSource
+	deliveryMeta            *deliveryMetaStore
+	presence                *presence.App
+	presenceAuthorityClient *clusterinfra.PresenceAuthorityClient
+	online                  *online.Registry
+	presenceDirectory       *authoritypresence.Directory
+	presenceWorker          WorkerRuntime
+	metrics                 *obsmetrics.Registry
 	// top is the optional node-local collector used by /top/v1/snapshot.
 	top         WorkerRuntime
 	topProvider accessapi.TopSnapshotProvider
@@ -117,6 +125,7 @@ type App struct {
 	channelAppendStarted      bool
 	deliveryStarted           bool
 	apiStarted                bool
+	managerStarted            bool
 	prometheusStarted         bool
 	gatewayStarted            bool
 	deliveryErrors            atomic.Uint64
@@ -153,6 +162,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireConversationAuthority()
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()
+	app.wireManagerConnectionRPC()
+	app.wireManagerLogRPC()
+	app.wireManagerChannelRPC()
 	app.wireUsers()
 	app.wireDelivery()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
@@ -162,6 +174,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
 	app.wireAPI()
+	app.wireManager()
 	app.wirePrometheus()
 	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
@@ -186,6 +199,11 @@ func WithCluster(cluster ClusterRuntime) Option {
 // WithAPI overrides the HTTP API runtime.
 func WithAPI(api APIRuntime) Option {
 	return func(a *App) { a.api = api }
+}
+
+// WithManager overrides the manager HTTP runtime.
+func WithManager(manager ManagerRuntime) Option {
+	return func(a *App) { a.manager = manager }
 }
 
 // WithGateway overrides the gateway runtime.
