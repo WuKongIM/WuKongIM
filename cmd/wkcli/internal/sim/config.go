@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -185,7 +186,7 @@ func parseRate(value string) (Rate, error) {
 		trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, "/s"))
 	}
 	n, err := strconv.ParseFloat(trimmed, 64)
-	if err != nil || n <= 0 {
+	if err != nil || n <= 0 || math.IsNaN(n) || math.IsInf(n, 0) {
 		return Rate{}, fmt.Errorf("invalid --rate %q", value)
 	}
 	return Rate{PerSecond: n}, nil

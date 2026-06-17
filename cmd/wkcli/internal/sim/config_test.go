@@ -96,7 +96,7 @@ func TestParseRate(t *testing.T) {
 		})
 	}
 
-	for _, value := range []string{"0/s", "-1", "bad"} {
+	for _, value := range []string{"0/s", "-1", "bad", "NaN/s", "Inf/s", "+Inf/s"} {
 		t.Run("invalid "+value, func(t *testing.T) {
 			if _, err := parseRate(value); err == nil {
 				t.Fatalf("expected error")
