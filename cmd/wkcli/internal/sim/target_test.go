@@ -98,12 +98,21 @@ func TestTargetSetupPostsChannelsAndSubscribers(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&capturedChannels); err != nil {
 				t.Fatalf("decode channels request: %v", err)
 			}
-			writeJSON(t, w, mutationResponse{OK: true})
+			writeJSON(t, w, mutationResponse{
+				RunID:    capturedChannels.RunID,
+				BatchID:  capturedChannels.BatchID,
+				Accepted: len(capturedChannels.Channels),
+			})
 		case "/bench/v1/channels/subscribers":
 			if err := json.NewDecoder(r.Body).Decode(&capturedSubscribers); err != nil {
 				t.Fatalf("decode subscribers request: %v", err)
 			}
-			writeJSON(t, w, subscribersResponse{OK: true})
+			writeJSON(t, w, subscribersResponse{
+				RunID:               capturedSubscribers.RunID,
+				BatchID:             capturedSubscribers.BatchID,
+				Accepted:            len(capturedSubscribers.Items),
+				AcceptedSubscribers: len(capturedSubscribers.Items[0].Subscribers),
+			})
 		default:
 			http.NotFound(w, r)
 		}

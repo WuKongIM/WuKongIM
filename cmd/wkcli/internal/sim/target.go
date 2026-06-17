@@ -95,14 +95,17 @@ type subscriberItem struct {
 
 // mutationResponse mirrors the v2 bench mutation JSON response.
 type mutationResponse struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	RunID    string `json:"run_id"`
+	BatchID  string `json:"batch_id"`
+	Accepted int    `json:"accepted"`
 }
 
 // subscribersResponse mirrors the v2 bench subscribers mutation JSON response.
 type subscribersResponse struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	RunID               string `json:"run_id"`
+	BatchID             string `json:"batch_id"`
+	Accepted            int    `json:"accepted"`
+	AcceptedSubscribers int    `json:"accepted_subscribers"`
 }
 
 func newTargetClient(servers []string, token string) *targetClient {
