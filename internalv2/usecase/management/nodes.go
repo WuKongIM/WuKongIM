@@ -51,6 +51,8 @@ type Options struct {
 	RemoteConnections RemoteConnectionReader
 	// Logs reads node-local distributed Raft log pages.
 	Logs LogReader
+	// ApplicationLogs reads selected-node ordinary application log pages.
+	ApplicationLogs ApplicationLogReader
 	// DBInspect runs read-only node-local DB inspect queries.
 	DBInspect DBInspectReader
 	// RemoteDBInspect runs read-only DB inspect queries on peer nodes.
@@ -76,6 +78,7 @@ type App struct {
 	connections            ConnectionReader
 	remoteConnections      RemoteConnectionReader
 	logs                   LogReader
+	applicationLogs        ApplicationLogReader
 	dbInspect              DBInspectReader
 	remoteDBInspect        RemoteDBInspectReader
 	now                    func() time.Time
@@ -103,6 +106,7 @@ func New(opts Options) *App {
 		connections:            opts.Connections,
 		remoteConnections:      opts.RemoteConnections,
 		logs:                   opts.Logs,
+		applicationLogs:        opts.ApplicationLogs,
 		dbInspect:              opts.DBInspect,
 		remoteDBInspect:        opts.RemoteDBInspect,
 		now:                    now,

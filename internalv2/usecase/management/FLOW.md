@@ -65,6 +65,24 @@ Controller and Slot log entries are read-only inspection summaries: the usecase
 does not decode Raft payloads itself and does not expose any replay, truncation,
 or mutation operation.
 
+## Application Log Flow
+
+```text
+manager HTTP handler
+  -> management.App.ApplicationLogSources/ApplicationLogEntries
+  -> ApplicationLogReader.ApplicationLogSources/ApplicationLogEntries
+  -> selected-node ordinary WK_LOG_DIR application log source
+  -> manager application log sources or entry page
+```
+
+Application logs are ordinary process logs written under the configured
+`WK_LOG_DIR` by the selected node. They are distinct from Controller, Slot, and
+Raft distributed logs: the management usecase does not treat them as replicated
+state, does not decode consensus payloads, and does not resolve file names or
+filesystem paths itself. It validates `node_id` and `limit` bounds, then
+delegates source discovery, cursor handling, rotation detection, filtering, and
+entry parsing to the narrow `ApplicationLogReader` port.
+
 ## Business Channel List Flow
 
 ```text
