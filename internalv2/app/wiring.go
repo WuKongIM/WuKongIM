@@ -657,6 +657,7 @@ func (a *App) wireManager() {
 				Users:     managerUserConfigs(a.cfg.Manager.Users),
 			},
 			Management: a.newManagerManagement(),
+			Top:        a.topProvider,
 			Logger:     a.logger.Named("access.manager"),
 		})
 	}

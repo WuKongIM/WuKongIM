@@ -69,6 +69,27 @@ func startTestApp(t *testing.T, app *App) {
 	})
 }
 
+func mustIssueManagerTokenForAppTest(t *testing.T, srv *accessmanager.Server, username string) string {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"`+username+`","password":"secret"}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+	if body.AccessToken == "" {
+		t.Fatalf("login access_token is empty; body=%s", rec.Body.String())
+	}
+	return body.AccessToken
+}
+
 func TestLegacyRouteAddressesPreferExplicitExternalConfig(t *testing.T) {
 	cfg := APIConfig{
 		ExternalTCPAddr: "im.example.com:15100",
@@ -229,6 +250,51 @@ func TestNewWiresManagerServerWhenListenAddrConfigured(t *testing.T) {
 	}
 	if app.manager == nil {
 		t.Fatalf("manager server = nil, want configured manager runtime")
+	}
+}
+
+func TestManagerServerReceivesTopProviderWhenConfigured(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+		Top: TopConfig{APIEnabled: true},
+	}, WithCluster(&fakeManagerCluster{nodeID: 1}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if app.topProvider == nil {
+		t.Fatal("top provider was not wired")
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("runtime workqueues status = %d, want %d; body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "top collector warming up") {
+		t.Fatalf("runtime workqueues body = %s, want top collector warming up", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "provider is not configured") {
+		t.Fatalf("runtime workqueues body = %s, want configured top provider", rec.Body.String())
 	}
 }
 

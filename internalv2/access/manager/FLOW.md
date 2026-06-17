@@ -13,6 +13,7 @@ user, or conversation business state.
 ```text
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
+GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
 GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.slot:r when Auth.On=true)
@@ -43,6 +44,11 @@ invalid credentials return
 view. It reads a control snapshot through `internalv2/usecase/management` and
 sets node operation action hints to false because node lifecycle/scale-in
 operation routes are intentionally not migrated in this phase.
+
+`/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
+It is a forced runtime view of the local node only: it does not fan out to peer
+nodes and does not depend on Prometheus. When the collector is not configured or
+has not sampled enough data yet, the route returns `service_unavailable`.
 
 `/manager/slots` preserves the legacy list response shape for the web Slot list
 view, including `node_id` filtering. It reads the same control snapshot through
