@@ -93,6 +93,7 @@ export const routes: RouteObject[] = [
       { path: "network", element: <Navigate replace to="/cluster/diagnostics?tab=network" /> },
       { path: "controller", element: <RedirectWithSearch tab="controller-logs" to="/cluster/diagnostics" /> },
       { path: "slot-logs", element: <RedirectWithSearch tab="slot-logs" to="/cluster/diagnostics" /> },
+      { path: "app-logs", element: <RedirectWithSearch tab="app-logs" to="/cluster/diagnostics" /> },
       { path: "users", element: <Navigate replace to="/business/users" /> },
       { path: "channels-biz", element: <Navigate replace to="/business/channels" /> },
       { path: "messages", element: <Navigate replace to="/business/messages" /> },

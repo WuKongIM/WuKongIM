@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { PageTabs } from "@/components/shell/page-tabs"
+import { AppLogsPanel } from "@/pages/app-logs/page"
 import { ControllerLogsPanel } from "@/pages/controller/page"
 import { DiagnosticsTracePanel } from "@/pages/diagnostics/page"
 import { DiagnosticsNetworkPanel } from "@/pages/network/page"
@@ -14,6 +15,7 @@ const tabs = [
   { id: "network", labelMessageId: "diagnostics.tabs.network" },
   { id: "controller-logs", labelMessageId: "diagnostics.tabs.controllerLogs" },
   { id: "slot-logs", labelMessageId: "diagnostics.tabs.slotLogs" },
+  { id: "app-logs", labelMessageId: "diagnostics.tabs.appLogs" },
 ] as const
 
 type DiagnosticsTab = (typeof tabs)[number]["id"]
@@ -50,6 +52,7 @@ export function ClusterDiagnosticsPage() {
       {activeTab === "network" ? <DiagnosticsNetworkPanel /> : null}
       {activeTab === "controller-logs" ? <ControllerLogsPanel /> : null}
       {activeTab === "slot-logs" ? <SlotLogsPanel /> : null}
+      {activeTab === "app-logs" ? <AppLogsPanel /> : null}
     </PageContainer>
   )
 }

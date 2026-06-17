@@ -11,6 +11,8 @@ const getNetworkSummaryMock = vi.fn()
 const getNodesMock = vi.fn()
 const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
+const getApplicationLogSourcesMock = vi.fn()
+const getApplicationLogEntriesMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -20,6 +22,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
+    getApplicationLogSources: (...args: unknown[]) => getApplicationLogSourcesMock(...args),
+    getApplicationLogEntries: (...args: unknown[]) => getApplicationLogEntriesMock(...args),
   }
 })
 
@@ -42,6 +46,8 @@ beforeEach(() => {
   getNodesMock.mockReset()
   getControllerLogsMock.mockReset()
   getControllerRaftStatusMock.mockReset()
+  getApplicationLogSourcesMock.mockReset()
+  getApplicationLogEntriesMock.mockReset()
   getNetworkSummaryMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
     scope: { view: "local_node", local_node_id: 1, controller_leader_id: 1 },
@@ -76,6 +82,8 @@ beforeEach(() => {
   getNodesMock.mockResolvedValue({ total: 1, items: [{ node_id: 1, addr: "127.0.0.1:7000", status: "alive", last_heartbeat_at: "2026-04-23T08:00:00Z", is_local: true, capacity_weight: 1, controller: { role: "leader" }, slot_stats: { count: 1, leader_count: 1 } }] })
   getControllerLogsMock.mockResolvedValue({ node_id: 1, first_index: 1, last_index: 1, commit_index: 1, applied_index: 1, items: [] })
   getControllerRaftStatusMock.mockResolvedValue({ node_id: 1, role: "leader", leader_id: 1, term: 1, health: "healthy", first_index: 1, last_index: 1, commit_index: 1, applied_index: 1, snapshot_index: 0, snapshot_term: 0, compaction: { enabled: false, trigger_entries: 0, check_interval_ms: 0, last_snapshot_index: 0, last_snapshot_at: "", last_check_at: "", last_error: "", last_error_at: "", degraded: false }, restore: { last_snapshot_index: 0, last_snapshot_term: 0, last_restored_at: "", last_error: "", last_error_at: "", failed: false }, peers: [] })
+  getApplicationLogSourcesMock.mockResolvedValue({ node_id: 1, sources: [{ name: "app", file: "app.log", available: true, size_bytes: 0 }] })
+  getApplicationLogEntriesMock.mockResolvedValue({ node_id: 1, source: "app", cursor: "", rotated: false, items: [] })
 })
 
 test("defaults to the diagnostics trace tab", async () => {
@@ -101,4 +109,11 @@ test("preserves existing search params when switching tabs", async () => {
   await user.click(screen.getByRole("tab", { name: "Slot Logs" }))
 
   expect(screen.getByRole("tab", { name: "Slot Logs" })).toHaveAttribute("aria-selected", "true")
+})
+
+test("renders the application log tab from the tab search param", async () => {
+  renderPage("/cluster/diagnostics?tab=app-logs")
+
+  expect(screen.getByRole("tab", { name: "App Logs" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByRole("heading", { name: "Application Logs" })).toBeInTheDocument()
 })

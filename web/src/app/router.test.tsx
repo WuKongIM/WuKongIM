@@ -88,6 +88,7 @@ test.each([
   ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],
   ["/network", "/cluster/diagnostics?tab=network"],
+  ["/app-logs", "/cluster/diagnostics?tab=app-logs"],
   ["/connections", "/business/connections"],
   ["/system/connections", "/business/connections"],
   ["/db-inspect", "/system/db"],
