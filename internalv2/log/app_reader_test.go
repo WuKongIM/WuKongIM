@@ -88,8 +88,8 @@ func TestAppLogReaderTailAndForwardCursor(t *testing.T) {
 	if got := rawAppLogLines(first.Items); !reflect.DeepEqual(got, []string{"three", "four"}) {
 		t.Fatalf("tail entries = %v, want [three four]", got)
 	}
-	if got := entrySeqsAndOffsets(first.Items); !reflect.DeepEqual(got, [][2]uint64{{3, 8}, {4, 14}}) {
-		t.Fatalf("tail seq/offset = %v, want [[3 8] [4 14]]", got)
+	if got := entrySeqsAndOffsets(first.Items); !reflect.DeepEqual(got, [][2]uint64{{8, 8}, {14, 14}}) {
+		t.Fatalf("tail seq/offset = %v, want [[8 8] [14 14]]", got)
 	}
 	if first.Cursor == "" {
 		t.Fatal("tail cursor is empty")
@@ -103,8 +103,8 @@ func TestAppLogReaderTailAndForwardCursor(t *testing.T) {
 	if got := rawAppLogLines(next.Items); !reflect.DeepEqual(got, []string{"five", "six"}) {
 		t.Fatalf("forward entries = %v, want [five six]", got)
 	}
-	if got := entrySeqsAndOffsets(next.Items); !reflect.DeepEqual(got, [][2]uint64{{5, 19}, {6, 24}}) {
-		t.Fatalf("forward seq/offset = %v, want [[5 19] [6 24]]", got)
+	if got := entrySeqsAndOffsets(next.Items); !reflect.DeepEqual(got, [][2]uint64{{19, 19}, {24, 24}}) {
+		t.Fatalf("forward seq/offset = %v, want [[19 19] [24 24]]", got)
 	}
 	if next.Rotated {
 		t.Fatal("forward read reported rotation")
@@ -132,8 +132,25 @@ func TestAppLogReaderDetectsRotation(t *testing.T) {
 	if got := rawAppLogLines(next.Items); !reflect.DeepEqual(got, []string{"new-one"}) {
 		t.Fatalf("rotation entries = %v, want [new-one]", got)
 	}
-	if got := entrySeqsAndOffsets(next.Items); !reflect.DeepEqual(got, [][2]uint64{{1, 0}}) {
-		t.Fatalf("rotation seq/offset = %v, want [[1 0]]", got)
+	if got := entrySeqsAndOffsets(next.Items); !reflect.DeepEqual(got, [][2]uint64{{0, 0}}) {
+		t.Fatalf("rotation seq/offset = %v, want [[0 0]]", got)
+	}
+}
+
+func TestAppLogReaderTailSeqUsesOffsetWithoutEarlierContent(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "prefix-one\nprefix-two\nvisible-one\nvisible-two\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxTailScanBytes: int64(len("visible-one\nvisible-two\n"))})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 2})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if got := rawAppLogLines(resp.Items); !reflect.DeepEqual(got, []string{"visible-one", "visible-two"}) {
+		t.Fatalf("tail entries = %v, want visible tail only", got)
+	}
+	if got := entrySeqsAndOffsets(resp.Items); !reflect.DeepEqual(got, [][2]uint64{{22, 22}, {34, 34}}) {
+		t.Fatalf("tail seq/offset = %v, want offsets without line-count scan", got)
 	}
 }
 

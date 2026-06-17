@@ -127,7 +127,7 @@ type AppLogEntriesRequest struct {
 
 // AppLogEntry is one parsed application log line.
 type AppLogEntry struct {
-	// Seq is the 1-based line number in the active file at read time.
+	// Seq is the byte offset where this line starts in the active file.
 	Seq uint64
 	// Offset is the byte offset where this line begins in the active file.
 	Offset uint64
@@ -272,11 +272,7 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 		return AppLogEntriesResponse{}, err
 	}
 
-	startSeq, err := countAppLogLinesBeforeOffset(ctx, file, startOffset)
-	if err != nil {
-		return AppLogEntriesResponse{}, err
-	}
-	entries, endOffset, _, err := r.readEntries(ctx, file, startOffset, startSeq+1, limit, req)
+	entries, endOffset, _, err := r.readEntries(ctx, file, startOffset, limit, req)
 	if err != nil {
 		return AppLogEntriesResponse{}, err
 	}
@@ -293,7 +289,7 @@ func (r *AppLogReader) Entries(ctx context.Context, req AppLogEntriesRequest) (A
 	}, nil
 }
 
-func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffset int64, startSeq uint64, limit int, req AppLogEntriesRequest) ([]AppLogEntry, int64, bool, error) {
+func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffset int64, limit int, req AppLogEntriesRequest) ([]AppLogEntry, int64, bool, error) {
 	levels := make(map[string]struct{}, len(req.Levels))
 	for _, level := range req.Levels {
 		levels[strings.ToUpper(strings.TrimSpace(level))] = struct{}{}
@@ -302,7 +298,6 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 	var pending []byte
 	offset := startOffset
 	pendingStart := startOffset
-	seq := startSeq
 	truncatedAny := false
 	buffer := make([]byte, 32*1024)
 	for {
@@ -323,7 +318,7 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 				line := pending[:idx]
 				pending = pending[idx+1:]
 				pendingStart = lineStart + int64(idx) + 1
-				entry, truncated := r.parseEntry(seq, lineStart, line)
+				entry, truncated := r.parseEntry(lineStart, line)
 				if appLogEntryMatches(entry, req.Keyword, levels) {
 					truncatedAny = truncatedAny || truncated
 					entries = append(entries, entry)
@@ -331,7 +326,6 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 						return entries, pendingStart, truncatedAny, nil
 					}
 				}
-				seq++
 			}
 		}
 		if readErr == io.EOF {
@@ -342,7 +336,7 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 		}
 	}
 	if len(pending) > 0 {
-		entry, truncated := r.parseEntry(seq, pendingStart, pending)
+		entry, truncated := r.parseEntry(pendingStart, pending)
 		if appLogEntryMatches(entry, req.Keyword, levels) {
 			truncatedAny = truncatedAny || truncated
 			entries = append(entries, entry)
@@ -351,7 +345,7 @@ func (r *AppLogReader) readEntries(ctx context.Context, file *os.File, startOffs
 	return entries, offset, truncatedAny, nil
 }
 
-func (r *AppLogReader) parseEntry(seq uint64, offset int64, line []byte) (AppLogEntry, bool) {
+func (r *AppLogReader) parseEntry(offset int64, line []byte) (AppLogEntry, bool) {
 	line = bytes.TrimSuffix(line, []byte("\r"))
 	rawLine := line
 	raw := string(rawLine)
@@ -360,7 +354,7 @@ func (r *AppLogReader) parseEntry(seq uint64, offset int64, line []byte) (AppLog
 		raw = string(rawLine[:r.maxLineBytes])
 	}
 	entry := AppLogEntry{
-		Seq:       seq,
+		Seq:       uint64(offset),
 		Offset:    uint64(offset),
 		Raw:       raw,
 		Fields:    map[string]any{},
@@ -566,36 +560,6 @@ func (r *AppLogReader) sourcePath(source appLogSource) string {
 	return filepath.Join(r.dir, source.Filename)
 }
 
-func countAppLogLinesBeforeOffset(ctx context.Context, file *os.File, offset int64) (uint64, error) {
-	if offset <= 0 {
-		return 0, nil
-	}
-	var count uint64
-	var pos int64
-	buf := make([]byte, 32*1024)
-	for pos < offset {
-		if err := ctx.Err(); err != nil {
-			return 0, err
-		}
-		want := int64(len(buf))
-		if remaining := offset - pos; remaining < want {
-			want = remaining
-		}
-		n, err := file.ReadAt(buf[:want], pos)
-		if n > 0 {
-			count += uint64(bytes.Count(buf[:n], []byte{'\n'}))
-			pos += int64(n)
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return 0, err
-		}
-	}
-	return count, nil
-}
-
 func tailStartOffset(file *os.File, size, maxScanBytes int64, limit int) (int64, error) {
 	start := size - maxScanBytes
 	if start <= 0 {
@@ -611,12 +575,18 @@ func tailStartOffset(file *os.File, size, maxScanBytes int64, limit int) (int64,
 	}
 	data = data[:n]
 	if start > 0 {
-		idx := bytes.IndexByte(data, '\n')
-		if idx < 0 {
-			return size, nil
+		previous := make([]byte, 1)
+		if _, err := file.ReadAt(previous, start-1); err != nil && err != io.EOF {
+			return 0, err
 		}
-		start += int64(idx) + 1
-		data = data[idx+1:]
+		if previous[0] != '\n' {
+			idx := bytes.IndexByte(data, '\n')
+			if idx < 0 {
+				return size, nil
+			}
+			start += int64(idx) + 1
+			data = data[idx+1:]
+		}
 	}
 	lineStarts := []int64{start}
 	for idx, b := range data {
