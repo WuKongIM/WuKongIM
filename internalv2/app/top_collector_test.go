@@ -631,6 +631,93 @@ func TestTopCollectorPressureSortsPriorityDeterministically(t *testing.T) {
 	}
 }
 
+func TestTopCollectorPressureIncludesWaitTaskAndAdmissionErrors(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		NodeID:          1,
+		CollectInterval: time.Second,
+		HistoryWindow:   time.Minute,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+
+	collector.SetQueue("gateway", "async_send", "send", "none", 6, 10)
+	collector.observeDurationMS("pressure.gateway.async_send.send.none.wait", 3*time.Millisecond)
+	collector.observeDurationMS("pressure.gateway.async_send.send.none.wait", 9*time.Millisecond)
+	collector.observeDurationMS("pressure.gateway.async_send.dispatch.ok.task", 5*time.Millisecond)
+	collector.observeDurationMS("pressure.gateway.async_send.dispatch.ok.task", 15*time.Millisecond)
+	collector.addCounter("pressure.gateway.async_send.send.none.admission_error", 0)
+	collector.recordSampleAt(time.Unix(100, 0))
+
+	collector.SetQueue("gateway", "async_send", "send", "none", 8, 10)
+	collector.observeDurationMS("pressure.gateway.async_send.send.none.wait", 10*time.Millisecond)
+	collector.observeDurationMS("pressure.gateway.async_send.dispatch.ok.task", 20*time.Millisecond)
+	collector.addCounter("pressure.gateway.async_send.send.none.admission_error", 4)
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewRuntime,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) != 1 {
+		t.Fatalf("Pressure.Top = %#v, want one item", snapshot.Pressure)
+	}
+	item := snapshot.Pressure.Top[0]
+	if item.Component != "gateway" || item.Pool != "async_send" || item.Queue != "send" || item.Priority != "none" {
+		t.Fatalf("pressure item identity = %#v, want gateway async_send send none", item)
+	}
+	if math.Abs(item.Score-0.8) > 0.000001 || item.Level != "degraded" {
+		t.Fatalf("score/level = %.3f/%s, want 0.8/degraded", item.Score, item.Level)
+	}
+	if item.WaitP99MS <= 0 {
+		t.Fatalf("WaitP99MS = %v, want populated", item.WaitP99MS)
+	}
+	if item.TaskP99MS <= 0 {
+		t.Fatalf("TaskP99MS = %v, want populated", item.TaskP99MS)
+	}
+	if math.Abs(item.AdmissionErrorPerSec-0.4) > 0.000001 {
+		t.Fatalf("AdmissionErrorPerSec = %v, want 0.4", item.AdmissionErrorPerSec)
+	}
+}
+
+func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		NodeID:          1,
+		CollectInterval: time.Second,
+		HistoryWindow:   time.Minute,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+
+	collector.SetQueue("channelv2", "store_append", "worker", "none", 1, 10)
+	collector.SetInflight("channelv2", "store_append", 9, 10)
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.SetQueue("channelv2", "store_append", "worker", "none", 1, 10)
+	collector.SetInflight("channelv2", "store_append", 9, 10)
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewRuntime,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	item := snapshot.Pressure.Top[0]
+	if math.Abs(item.Score-0.9) > 0.000001 || item.Level != "degraded" {
+		t.Fatalf("score/level = %.3f/%s, want inflight score 0.9 degraded", item.Score, item.Level)
+	}
+	if item.Inflight != 9 || item.Workers != 10 {
+		t.Fatalf("inflight/workers = %d/%d, want 9/10", item.Inflight, item.Workers)
+	}
+}
+
 func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		ClusterSnapshot: func() clusterv2.Snapshot {

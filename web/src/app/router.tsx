@@ -21,6 +21,7 @@ import { TasksPage } from "@/pages/tasks/page"
 import { TopologyPage } from "@/pages/topology/page"
 import { UsersPage } from "@/pages/users/page"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
+import { WorkqueuesPage } from "@/pages/workqueues/page"
 
 function RedirectWithSearch({ tab, to }: { tab?: string; to: string }) {
   const location = useLocation()
@@ -57,6 +58,7 @@ export const routes: RouteObject[] = [
       { path: "cluster/channels", element: <ClusterChannelsPage /> },
       { path: "cluster/plugins", element: <PluginsPage /> },
       { path: "cluster/tasks", element: <TasksPage /> },
+      { path: "cluster/workqueues", element: <WorkqueuesPage /> },
       { path: "cluster/topology", element: <TopologyPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       // Business management
@@ -79,6 +81,7 @@ export const routes: RouteObject[] = [
       { path: "onboarding", element: <Navigate replace to="/cluster/nodes?panel=onboarding" /> },
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },
       { path: "tasks", element: <Navigate replace to="/cluster/tasks" /> },
+      { path: "workqueues", element: <Navigate replace to="/cluster/workqueues" /> },
       { path: "topology", element: <Navigate replace to="/cluster/topology" /> },
       { path: "channel-cluster", element: <Navigate replace to="/cluster/channels" /> },
       { path: "channel-cluster/list", element: <Navigate replace to="/cluster/channels" /> },

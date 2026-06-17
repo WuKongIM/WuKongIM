@@ -938,6 +938,60 @@ export type ManagerChannelRuntimeMetaDetailResponse = ManagerChannelRuntimeMeta 
   lease_until_ms: number
 }
 
+export type ManagerRuntimeWorkqueueLevel = "ok" | "busy" | "degraded" | "critical" | string
+
+export type ManagerRuntimeWorkqueueHotItem = {
+  component: string
+  pool: string
+  queue: string
+  priority: string
+  level: ManagerRuntimeWorkqueueLevel
+  score: number
+}
+
+export type ManagerRuntimeWorkqueueItem = {
+  component: string
+  pool: string
+  queue: string
+  priority: string
+  level: ManagerRuntimeWorkqueueLevel
+  score: number
+  depth: number
+  capacity: number
+  inflight: number
+  workers: number
+  wait_p99_ms: number
+  task_p99_ms: number
+  admission_error_per_sec: number
+  hint: string
+}
+
+export type ManagerRuntimeWorkqueuesResponse = {
+  generated_at: string
+  window_seconds: number
+  scope: {
+    view: "local_node" | string
+    node_id: number
+    node_name: string
+    ready: boolean
+  }
+  summary: {
+    overall_level: ManagerRuntimeWorkqueueLevel
+    total: number
+    ok: number
+    busy: number
+    degraded: number
+    critical: number
+    hottest?: ManagerRuntimeWorkqueueHotItem
+  }
+  items: ManagerRuntimeWorkqueueItem[]
+  sources: {
+    collector: { available: boolean; sample_count: number }
+    metrics: { enabled: boolean; required: boolean }
+    notes: string[]
+  }
+}
+
 export type BusinessChannelListParams = {
   nodeId?: number
   type?: number
@@ -1257,6 +1311,11 @@ export type ChannelRuntimeMetaListParams = {
   limit?: number
   cursor?: string
   includeMaxMessageSeq?: boolean
+}
+
+export type RuntimeWorkqueueParams = {
+  window?: string
+  limit?: number
 }
 
 export type ChannelClusterUnhealthyParams = {

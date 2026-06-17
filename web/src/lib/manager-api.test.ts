@@ -21,6 +21,7 @@ import {
   getDiagnosticsTrace,
   getMessages,
   getRecentConversations,
+  getRuntimeWorkqueues,
   getMonitorMetrics,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -1490,6 +1491,60 @@ describe("manager api client", () => {
 
     await expect(getChannelRuntimeMeta({ channelId: "room", limit: 15 })).resolves.toEqual(listResponse)
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?limit=15&channel_id=room")
+  })
+
+  it("fetches local runtime workqueue pressure", async () => {
+    const response = {
+      generated_at: "2026-06-17T10:00:00Z",
+      window_seconds: 10,
+      scope: { view: "local_node", node_id: 1, node_name: "node-1", ready: true },
+      summary: {
+        overall_level: "degraded",
+        total: 1,
+        ok: 0,
+        busy: 0,
+        degraded: 1,
+        critical: 0,
+        hottest: {
+          component: "gateway",
+          pool: "async_send",
+          queue: "send",
+          priority: "none",
+          level: "degraded",
+          score: 0.82,
+        },
+      },
+      items: [
+        {
+          component: "gateway",
+          pool: "async_send",
+          queue: "send",
+          priority: "none",
+          level: "degraded",
+          score: 0.82,
+          depth: 82,
+          capacity: 100,
+          inflight: 0,
+          workers: 0,
+          wait_p99_ms: 12.4,
+          task_p99_ms: 20.5,
+          admission_error_per_sec: 0.3,
+          hint: "queue depth is approaching capacity",
+        },
+      ],
+      sources: {
+        collector: { available: true, sample_count: 10 },
+        metrics: { enabled: false, required: false },
+        notes: [],
+      },
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(getRuntimeWorkqueues({ window: "10s", limit: 100 })).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/runtime/workqueues?window=10s&limit=100",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
   })
 
   it("fetches channel cluster summary from the manager endpoint", async () => {

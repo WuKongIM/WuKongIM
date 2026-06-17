@@ -35,6 +35,7 @@ import type {
   ManagerLoginResponse,
   ManagerMessagesResponse,
   ManagerRecentConversationsResponse,
+  ManagerRuntimeWorkqueuesResponse,
   ManagerMonitorMetricsResponse,
   ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingCandidatesResponse,
@@ -65,6 +66,7 @@ import type {
   ManagerTasksResponse,
   MessageListParams,
   RecentConversationsParams,
+  RuntimeWorkqueueParams,
   MutateSystemUsersInput,
   MutateSystemUsersResponse,
   MutatePluginBindingInput,
@@ -194,6 +196,19 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
 
   const query = search.toString()
   return query ? `/manager/channel-runtime-meta?${query}` : "/manager/channel-runtime-meta"
+}
+
+function buildRuntimeWorkqueuesPath(params?: RuntimeWorkqueueParams) {
+  const search = new URLSearchParams()
+  if (params?.window) {
+    search.set("window", params.window)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+
+  const query = search.toString()
+  return query ? `/manager/runtime/workqueues?${query}` : "/manager/runtime/workqueues"
 }
 
 function buildChannelClusterUnhealthyPath(params?: ChannelClusterUnhealthyParams) {
@@ -896,6 +911,10 @@ export function getChannelRuntimeMetaDetail(channelType: number, channelId: stri
   return jsonManagerFetch<ManagerChannelRuntimeMetaDetailResponse>(
     `/manager/channel-runtime-meta/${channelType}/${encodeURIComponent(channelId)}`,
   )
+}
+
+export function getRuntimeWorkqueues(params?: RuntimeWorkqueueParams) {
+  return jsonManagerFetch<ManagerRuntimeWorkqueuesResponse>(buildRuntimeWorkqueuesPath(params))
 }
 
 export function getChannelClusterSummary() {

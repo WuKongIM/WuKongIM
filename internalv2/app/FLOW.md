@@ -134,7 +134,9 @@ New(Config)
      log reader, user writes reuse the internalv2 user usecase and optional
      presence owner-action routing, and message retention requests use an
      optional management retention port and return unavailable when that port
-     is not configured
+     is not configured; when `Top.APIEnabled` creates a top collector, attach
+     the local top provider so `/manager/runtime/workqueues` can expose local
+     runtime pressure
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 

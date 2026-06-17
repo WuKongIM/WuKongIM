@@ -560,7 +560,7 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	traffic := buildTraffic(window, seconds)
 	clients := buildClients(window, seconds)
 	resources := buildResources(window)
-	pressure := c.buildPressureLocked(last, query.Limit)
+	pressure := c.buildPressureLocked(window, query.Limit)
 	verdict := buildTopVerdict(last.cluster, traffic, pressure)
 	alerts := c.snapshotAlertsLocked(query.Limit)
 
@@ -983,11 +983,20 @@ func (c *topCollector) topNodeSnapshot(snapshot clusterv2.Snapshot) accessapi.To
 	}
 }
 
-func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessapi.TopPressure {
+func (c *topCollector) buildPressureLocked(window []topSample, limit int) *accessapi.TopPressure {
 	if limit <= 0 {
 		limit = 20
 	}
+	if len(window) == 0 {
+		return &accessapi.TopPressure{OverallLevel: "ok"}
+	}
+	sample := window[len(window)-1]
+	seconds := sampleWindowSeconds(window)
 	byKey := make(map[string]*accessapi.TopPressureItem)
+	inflightByPool := make(map[string]struct {
+		inflight int64
+		workers  int64
+	})
 	for key, value := range sample.gauges {
 		parts := strings.Split(key, ".")
 		if len(parts) != 6 || parts[0] != "pressure" {
@@ -1014,12 +1023,44 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 		case "workers":
 			item.Workers = value
 		}
+		if parts[3] == "inflight" && parts[4] == "none" && (parts[5] == "inflight" || parts[5] == "workers") {
+			poolKey := parts[1] + "." + parts[2]
+			inflight := inflightByPool[poolKey]
+			switch parts[5] {
+			case "inflight":
+				inflight.inflight = value
+			case "workers":
+				inflight.workers = value
+			}
+			inflightByPool[poolKey] = inflight
+		}
 	}
 
+	queueByPool := make(map[string]struct{})
+	for _, item := range byKey {
+		if item.Queue != "inflight" {
+			queueByPool[item.Component+"."+item.Pool] = struct{}{}
+		}
+	}
 	items := make([]accessapi.TopPressureItem, 0, len(byKey))
 	componentScores := make(map[string]float64)
 	overall := "ok"
 	for _, item := range byKey {
+		poolKey := item.Component + "." + item.Pool
+		if item.Queue == "inflight" {
+			if _, hasQueue := queueByPool[poolKey]; hasQueue {
+				continue
+			}
+		} else {
+			if inflight, ok := inflightByPool[poolKey]; ok {
+				item.Inflight = inflight.inflight
+				item.Workers = inflight.workers
+			}
+		}
+		base := topPressureKey(item.Component, item.Pool, item.Queue, item.Priority)
+		item.WaitP99MS = percentile(histogramValues(window, base+".wait"), 0.99)
+		item.TaskP99MS = pressureTaskP99MS(window, item.Component, item.Pool)
+		item.AdmissionErrorPerSec = pressureAdmissionErrorRate(window, base, seconds)
 		item.Score = pressureScore(item.Depth, item.Capacity)
 		if inflightScore := inflightPressureScore(item.Inflight, item.Workers); inflightScore > item.Score {
 			item.Score = inflightScore
@@ -1057,6 +1098,31 @@ func (c *topCollector) buildPressureLocked(sample topSample, limit int) *accessa
 		ComponentScores: componentScores,
 		Top:             items,
 	}
+}
+
+func sampleWindowSeconds(window []topSample) float64 {
+	if len(window) < 2 {
+		return 0
+	}
+	return window[len(window)-1].at.Sub(window[0].at).Seconds()
+}
+
+func pressureTaskP99MS(window []topSample, component, pool string) float64 {
+	prefix := "pressure." + safeTopLabel(component) + "." + safeTopLabel(pool) + "."
+	var values []float64
+	for _, key := range histogramKeys(window, prefix) {
+		if strings.HasSuffix(key, ".task") {
+			values = append(values, histogramValues(window, key)...)
+		}
+	}
+	return percentile(values, 0.99)
+}
+
+func pressureAdmissionErrorRate(window []topSample, base string, seconds float64) float64 {
+	if len(window) < 2 || seconds <= 0 {
+		return 0
+	}
+	return float64(counterDelta(window[0].counters, window[len(window)-1].counters, base+".admission_error")) / seconds
 }
 
 func pressureScore(depth, capacity int64) float64 {
@@ -1156,7 +1222,7 @@ func (c *topCollector) alertSignalsLocked() []topAlertSignal {
 	window := c.windowLocked(topAlertSignalWindow)
 	if len(window) >= 2 {
 		first := window[0]
-		seconds := last.at.Sub(first.at).Seconds()
+		seconds := sampleWindowSeconds(window)
 		traffic := buildTraffic(window, seconds)
 		if traffic.SendackErrorRate >= 0.05 && traffic.SendackErrorPerSec > 0 {
 			signals = append(signals, topAlertSignal{
@@ -1178,7 +1244,7 @@ func (c *topCollector) alertSignalsLocked() []topAlertSignal {
 		}
 	}
 
-	pressure := c.buildPressureLocked(last, topMaxRetainedAlerts)
+	pressure := c.buildPressureLocked(window, topMaxRetainedAlerts)
 	if pressure != nil {
 		for _, item := range pressure.Top {
 			if item.Level == "ok" {

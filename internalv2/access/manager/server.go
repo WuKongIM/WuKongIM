@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -97,6 +98,8 @@ type Options struct {
 	Auth AuthConfig
 	// Management provides manager read usecases.
 	Management Management
+	// Top provides local runtime pressure snapshots for read-only runtime views.
+	Top accessapi.TopSnapshotProvider
 	// Logger is the logger used by the manager server.
 	Logger wklog.Logger
 }
@@ -110,6 +113,7 @@ type Server struct {
 	listenAddr string
 	addr       string
 	management Management
+	top        accessapi.TopSnapshotProvider
 	auth       authState
 	logger     wklog.Logger
 	started    bool
@@ -129,6 +133,7 @@ func New(opts Options) *Server {
 		engine:     engine,
 		listenAddr: strings.TrimSpace(opts.ListenAddr),
 		management: opts.Management,
+		top:        opts.Top,
 		auth:       newAuthState(opts.Auth),
 		logger:     opts.Logger,
 	}
@@ -222,6 +227,7 @@ func (s *Server) registerRoutes() {
 		nodes.Use(s.requirePermission("cluster.node", "r"))
 	}
 	nodes.GET("/nodes", s.handleNodes)
+	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {
