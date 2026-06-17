@@ -97,6 +97,12 @@ type ManagerDBInspectReader interface {
 	QueryDBInspect(context.Context, managementusecase.DBInspectQueryRequest) (managementusecase.DBInspectQueryResponse, error)
 }
 
+// ManagerAppLogReader handles selected-node ordinary application log requests.
+type ManagerAppLogReader interface {
+	ApplicationLogSources(context.Context, managementusecase.ApplicationLogSourcesRequest) (managementusecase.ApplicationLogSourcesResponse, error)
+	ApplicationLogEntries(context.Context, managementusecase.ApplicationLogEntriesRequest) (managementusecase.ApplicationLogEntriesResponse, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -117,6 +123,8 @@ type Options struct {
 	ManagerChannels ManagerChannelReader
 	// ManagerDBInspect handles node-local manager DB inspect requests.
 	ManagerDBInspect ManagerDBInspectReader
+	// ManagerAppLogs handles selected-node ordinary application log requests.
+	ManagerAppLogs ManagerAppLogReader
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -141,6 +149,8 @@ type Adapter struct {
 	managerChannels ManagerChannelReader
 	// managerDBInspect reads node-local DB inspect results for manager pages.
 	managerDBInspect ManagerDBInspectReader
+	// managerAppLogs reads selected-node ordinary application logs for manager pages.
+	managerAppLogs ManagerAppLogReader
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -160,6 +170,7 @@ func New(opts Options) *Adapter {
 		managerLogs:        opts.ManagerLogs,
 		managerChannels:    opts.ManagerChannels,
 		managerDBInspect:   opts.ManagerDBInspect,
+		managerAppLogs:     opts.ManagerAppLogs,
 		logger:             opts.Logger,
 	}
 }

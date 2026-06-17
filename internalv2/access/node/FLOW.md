@@ -214,6 +214,24 @@ usecase and infra/cluster adapter. The payload preserves JSON-friendly dynamic
 rows and stats, but it does not merge rows across nodes, expose filesystem
 paths, or mutate storage.
 
+## Manager Application Log RPC
+
+```text
+remote manager application log reader
+  -> encode W K V G 1 request
+  -> clusterv2 RPCManagerAppLogs
+  -> Adapter.HandleManagerAppLogRPC
+  -> Management application log reader port
+  -> encode W K V g 1 response
+```
+
+Manager Application Log RPC transports ordinary application log source and
+entry page requests to the selected node. It is separate from Manager Log RPC,
+which reads distributed Controller and Slot Raft logs. The server calls only the
+configured management application log reader port; it does not inspect
+filesystem paths, discover files, merge logs across nodes, or decide which
+manager HTTP request should target a remote node.
+
 ## Codec Rules
 
 Presence authority RPC uses fixed magic headers:
@@ -261,6 +279,11 @@ Manager DB Inspect RPC uses fixed magic headers:
 
 - Request: `W K V B 1`
 - Response: `W K V b 1`
+
+Manager Application Log RPC uses fixed magic headers:
+
+- Request: `W K V G 1`
+- Response: `W K V g 1`
 
 Strings and collections are length-delimited with varints. Unsigned numeric
 fields use uvarints and signed time/delay fields use varints. Decoders reject
@@ -314,4 +337,5 @@ Delivery push and fanout responses currently use:
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
   standalone channel-write `ChannelAppend`, manager connection reader, and
-  manager log reader adapter interfaces.
+  manager log reader, manager DB inspect reader, and manager application log
+  reader adapter interfaces.

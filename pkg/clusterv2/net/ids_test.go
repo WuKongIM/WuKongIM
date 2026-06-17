@@ -28,6 +28,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"manager_logs":            RPCManagerLogs,
 		"manager_channels":        RPCManagerChannels,
 		"manager_db_inspect":      RPCManagerDBInspect,
+		"manager_app_logs":        RPCManagerAppLogs,
 	}
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {
