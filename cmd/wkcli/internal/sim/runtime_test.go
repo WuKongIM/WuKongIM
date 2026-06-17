@@ -151,6 +151,48 @@ func TestRuntimeDoesNotCountInFlightDeadlineSendsAsErrors(t *testing.T) {
 	}
 }
 
+func TestRuntimeStaggersGroupTrafficWithoutLocalQueueFull(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Servers:      []string{"http://127.0.0.1:5001"},
+		Gateways:     []string{"127.0.0.1:5100"},
+		Users:        100,
+		Groups:       100,
+		GroupMembers: 1,
+		RatePerGroup: "20/s",
+		RunID:        "run-1",
+		MaxRuntime:   80 * time.Millisecond,
+		Concurrency:  1,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	status := newStatus(cfg.RunID)
+	pool := &fakePool{}
+	runtime := &Runtime{
+		Config: cfg,
+		Status: status,
+		Target: &fakeTarget{resolved: targetPreflight{
+			GatewayTCPAddrs: cfg.Gateways,
+			MaxBatchSize:    100,
+		}},
+		NewPool: func(Config, []string, wkclient.Observer) (simPool, error) {
+			return pool, nil
+		},
+	}
+
+	if err := runtime.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if pool.sent == 0 {
+		t.Fatalf("expected sends")
+	}
+	snapshot := status.snapshot()
+	if snapshot.SendErrors != 0 {
+		t.Fatalf("SendErrors = %d, want 0 for paced group scheduling; last error %q", snapshot.SendErrors, snapshot.LastError)
+	}
+}
+
 func TestClientObserverIgnoresShutdownErrorsAfterRuntimeStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

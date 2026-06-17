@@ -139,7 +139,11 @@ func (r *Runtime) Run(ctx context.Context) error {
 }
 
 func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, sequence *atomic.Uint64) error {
-	interval := time.Duration(float64(time.Second) / r.Config.Rate.PerSecond)
+	if len(plan.Groups) == 0 {
+		return nil
+	}
+	totalRate := r.Config.Rate.PerSecond * float64(len(plan.Groups))
+	interval := time.Duration(float64(time.Second) / totalRate)
 	if interval <= 0 {
 		interval = time.Nanosecond
 	}
@@ -202,17 +206,21 @@ func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, seque
 		close(work)
 		wg.Wait()
 	}()
+	nextGroup := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			for i := range plan.Groups {
-				select {
-				case work <- &plan.Groups[i]:
-				default:
-					r.Status.addSendErrors(1, "sim send work queue full")
-				}
+			group := &plan.Groups[nextGroup]
+			nextGroup++
+			if nextGroup >= len(plan.Groups) {
+				nextGroup = 0
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case work <- group:
 			}
 			if err := loadErr(); err != nil {
 				return err
