@@ -17,6 +17,9 @@ GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
 GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.slot:r when Auth.On=true)
+GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
+GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
+GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
 GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/channels (read-only business channel list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
@@ -64,6 +67,14 @@ newest-first distributed Raft log pages for the selected node. They parse
 selection to `internalv2/usecase/management`, and return decoded payload
 summaries only for inspection; the routes do not mutate Controller or Slot
 state.
+
+`/manager/app-logs*` exposes ordinary WuKongIM process logs under `WK_LOG_DIR`,
+not Controller, Slot, Channel, or Raft logs. The routes use the fixed ordinary
+application log sources owned by the application log reader (`app`, `warn`,
+`error`, and `debug`), require an explicit positive `node_id`, and delegate
+local-vs-remote node selection to `internalv2/usecase/management`. The stream
+route emits lightweight NDJSON events for lines, rotations, heartbeats, and
+reader errors without owning a long-running log runtime.
 
 `/manager/channels` preserves the legacy business channel list response shape
 for the web channel list view, including `node_id`, `type`, `keyword`, `limit`,

@@ -94,6 +94,10 @@ type Management interface {
 	DescribeDBInspectTable(ctx context.Context, nodeID uint64, domain, table string) (managementusecase.DBInspectQueryResponse, error)
 	// QueryDBInspect runs one bounded read-only DB inspect query.
 	QueryDBInspect(ctx context.Context, req managementusecase.DBInspectQueryRequest) (managementusecase.DBInspectQueryResponse, error)
+	// ApplicationLogSources returns ordinary application log sources for one selected node.
+	ApplicationLogSources(ctx context.Context, req managementusecase.ApplicationLogSourcesRequest) (managementusecase.ApplicationLogSourcesResponse, error)
+	// ApplicationLogEntries returns one page from one selected ordinary application log source.
+	ApplicationLogEntries(ctx context.Context, req managementusecase.ApplicationLogEntriesRequest) (managementusecase.ApplicationLogEntriesResponse, error)
 }
 
 // Options configures the manager HTTP server.
@@ -247,6 +251,14 @@ func (s *Server) registerRoutes() {
 		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
 	}
 	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
+
+	appLogs := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		appLogs.Use(s.requirePermission("cluster.log", "r"))
+	}
+	appLogs.GET("/app-logs/sources", s.handleApplicationLogSources)
+	appLogs.GET("/app-logs", s.handleApplicationLogEntries)
+	appLogs.GET("/app-logs/stream", s.handleApplicationLogStream)
 
 	dbInspect := s.engine.Group("/manager")
 	if s.auth.enabled() {
