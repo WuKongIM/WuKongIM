@@ -104,9 +104,11 @@ func encodeManagerAppLogResponse(resp managerAppLogRPCResponse) ([]byte, error) 
 	dst := make([]byte, 0, 256)
 	dst = append(dst, managerAppLogResponseMagic[:]...)
 	dst = appendString(dst, resp.Status)
-	dst = appendApplicationLogSourcesPage(dst, resp.Sources)
-	dst = appendApplicationLogEntriesPage(dst, resp.Entries)
-	return dst, nil
+	var err error
+	if dst, err = appendApplicationLogSourcesPage(dst, resp.Sources); err != nil {
+		return nil, err
+	}
+	return appendApplicationLogEntriesPage(dst, resp.Entries)
 }
 
 func decodeManagerAppLogResponse(body []byte) (managerAppLogRPCResponse, error) {
@@ -131,7 +133,7 @@ func decodeManagerAppLogResponse(body []byte) (managerAppLogRPCResponse, error) 
 	return resp, nil
 }
 
-func appendApplicationLogSourcesPage(dst []byte, page managementusecase.ApplicationLogSourcesResponse) []byte {
+func appendApplicationLogSourcesPage(dst []byte, page managementusecase.ApplicationLogSourcesResponse) ([]byte, error) {
 	dst = appendUvarint(dst, page.NodeID)
 	dst = appendUvarint(dst, uint64(len(page.Sources)))
 	for _, source := range page.Sources {
@@ -139,9 +141,9 @@ func appendApplicationLogSourcesPage(dst []byte, page managementusecase.Applicat
 		dst = appendString(dst, source.File)
 		dst = appendBoolByte(dst, source.Available)
 		dst = appendVarint(dst, source.SizeBytes)
-		dst = appendVarint(dst, source.ModifiedAt.UnixNano())
+		dst = appendTime(dst, source.ModifiedAt)
 	}
-	return dst
+	return dst, nil
 }
 
 func readApplicationLogSourcesPage(body []byte, offset int) (managementusecase.ApplicationLogSourcesResponse, int, error) {
@@ -160,7 +162,6 @@ func readApplicationLogSourcesPage(body []byte, offset int) (managementusecase.A
 	page.Sources = make([]managementusecase.ApplicationLogSource, 0, n)
 	for i := uint64(0); i < n; i++ {
 		var source managementusecase.ApplicationLogSource
-		var modifiedAt int64
 		if source.Name, offset, err = readString(body, offset); err != nil {
 			return page, offset, err
 		}
@@ -173,25 +174,28 @@ func readApplicationLogSourcesPage(body []byte, offset int) (managementusecase.A
 		if source.SizeBytes, offset, err = readVarint(body, offset); err != nil {
 			return page, offset, err
 		}
-		if modifiedAt, offset, err = readVarint(body, offset); err != nil {
+		if source.ModifiedAt, offset, err = readTime(body, offset, "manager app log source modified_at"); err != nil {
 			return page, offset, err
 		}
-		source.ModifiedAt = time.Unix(0, modifiedAt).UTC()
 		page.Sources = append(page.Sources, source)
 	}
 	return page, offset, nil
 }
 
-func appendApplicationLogEntriesPage(dst []byte, page managementusecase.ApplicationLogEntriesResponse) []byte {
+func appendApplicationLogEntriesPage(dst []byte, page managementusecase.ApplicationLogEntriesResponse) ([]byte, error) {
 	dst = appendUvarint(dst, page.NodeID)
 	dst = appendString(dst, page.Source)
 	dst = appendString(dst, page.Cursor)
 	dst = appendBoolByte(dst, page.Rotated)
 	dst = appendUvarint(dst, uint64(len(page.Items)))
 	for _, item := range page.Items {
-		dst = appendApplicationLogEntry(dst, item)
+		var err error
+		dst, err = appendApplicationLogEntry(dst, item)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return dst
+	return dst, nil
 }
 
 func readApplicationLogEntriesPage(body []byte, offset int) (managementusecase.ApplicationLogEntriesResponse, int, error) {
@@ -227,23 +231,26 @@ func readApplicationLogEntriesPage(body []byte, offset int) (managementusecase.A
 	return page, offset, nil
 }
 
-func appendApplicationLogEntry(dst []byte, item managementusecase.ApplicationLogEntry) []byte {
+func appendApplicationLogEntry(dst []byte, item managementusecase.ApplicationLogEntry) ([]byte, error) {
 	dst = appendUvarint(dst, item.Seq)
 	dst = appendUvarint(dst, item.Offset)
-	dst = appendVarint(dst, item.Time.UnixNano())
+	dst = appendTime(dst, item.Time)
 	dst = appendString(dst, item.Level)
 	dst = appendString(dst, item.Module)
 	dst = appendString(dst, item.Caller)
 	dst = appendString(dst, item.Message)
-	fields, _ := json.Marshal(item.Fields)
+	fields, err := json.Marshal(item.Fields)
+	if err != nil {
+		return nil, fmt.Errorf("internalv2/access/node: marshal manager app log fields: %w", err)
+	}
 	dst = appendBytes(dst, fields)
 	dst = appendString(dst, item.Raw)
-	return appendBoolByte(dst, item.Truncated)
+	dst = appendBoolByte(dst, item.Truncated)
+	return dst, nil
 }
 
 func readApplicationLogEntry(body []byte, offset int) (managementusecase.ApplicationLogEntry, int, error) {
 	var item managementusecase.ApplicationLogEntry
-	var timestamp int64
 	var fields []byte
 	var err error
 	if item.Seq, offset, err = readUvarint(body, offset); err != nil {
@@ -252,10 +259,9 @@ func readApplicationLogEntry(body []byte, offset int) (managementusecase.Applica
 	if item.Offset, offset, err = readUvarint(body, offset); err != nil {
 		return item, offset, err
 	}
-	if timestamp, offset, err = readVarint(body, offset); err != nil {
+	if item.Time, offset, err = readTime(body, offset, "manager app log entry time"); err != nil {
 		return item, offset, err
 	}
-	item.Time = time.Unix(0, timestamp).UTC()
 	if item.Level, offset, err = readString(body, offset); err != nil {
 		return item, offset, err
 	}
@@ -283,6 +289,30 @@ func readApplicationLogEntry(body []byte, offset int) (managementusecase.Applica
 		return item, offset, err
 	}
 	return item, offset, nil
+}
+
+func appendTime(dst []byte, value time.Time) []byte {
+	if value.IsZero() {
+		dst = appendBoolByte(dst, false)
+		return appendVarint(dst, 0)
+	}
+	dst = appendBoolByte(dst, true)
+	return appendVarint(dst, value.UnixNano())
+}
+
+func readTime(body []byte, offset int, label string) (time.Time, int, error) {
+	present, offset, err := readBoolByte(body, offset, label+" present")
+	if err != nil {
+		return time.Time{}, offset, err
+	}
+	nano, offset, err := readVarint(body, offset)
+	if err != nil {
+		return time.Time{}, offset, err
+	}
+	if !present {
+		return time.Time{}, offset, nil
+	}
+	return time.Unix(0, nano).UTC(), offset, nil
 }
 
 func managerAppLogOpID(op string) (byte, error) {

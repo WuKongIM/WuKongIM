@@ -115,6 +115,61 @@ func TestManagerAppLogRPCSourcesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestManagerAppLogRPCZeroTimesRoundTrip(t *testing.T) {
+	resp := managerAppLogRPCResponse{
+		Status: rpcStatusOK,
+		Sources: managementusecase.ApplicationLogSourcesResponse{
+			NodeID: 2,
+			Sources: []managementusecase.ApplicationLogSource{{
+				Name:      "app",
+				Available: true,
+			}},
+		},
+		Entries: managementusecase.ApplicationLogEntriesResponse{
+			NodeID: 2,
+			Source: "app",
+			Items: []managementusecase.ApplicationLogEntry{{
+				Seq:     1,
+				Message: "no timestamp",
+			}},
+		},
+	}
+
+	body, err := encodeManagerAppLogResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeManagerAppLogResponse() error = %v", err)
+	}
+	got, err := decodeManagerAppLogResponse(body)
+	if err != nil {
+		t.Fatalf("decodeManagerAppLogResponse() error = %v", err)
+	}
+
+	if !got.Sources.Sources[0].ModifiedAt.IsZero() {
+		t.Fatalf("source ModifiedAt = %v, want zero time", got.Sources.Sources[0].ModifiedAt)
+	}
+	if !got.Entries.Items[0].Time.IsZero() {
+		t.Fatalf("entry Time = %v, want zero time", got.Entries.Items[0].Time)
+	}
+}
+
+func TestManagerAppLogRPCEncodeRejectsUnsupportedFields(t *testing.T) {
+	_, err := encodeManagerAppLogResponse(managerAppLogRPCResponse{
+		Status: rpcStatusOK,
+		Entries: managementusecase.ApplicationLogEntriesResponse{
+			NodeID: 2,
+			Source: "app",
+			Items: []managementusecase.ApplicationLogEntry{{
+				Seq:     1,
+				Message: "unsupported field",
+				Fields:  map[string]any{"bad": func() {}},
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatal("encodeManagerAppLogResponse() error = nil, want unsupported fields error")
+	}
+}
+
 func TestManagerAppLogRPCClientUsesServiceAndTargetNode(t *testing.T) {
 	resp := managerAppLogRPCResponse{
 		Status: rpcStatusOK,
