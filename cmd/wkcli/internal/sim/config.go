@@ -24,7 +24,6 @@ const (
 	defaultUIDPrefix      = "wkcli-sim-u"
 	defaultDevicePrefix   = "wkcli-sim-d"
 	defaultChannelPrefix  = "wkcli-sim-g"
-	defaultRetryBackoff   = 2 * time.Second
 )
 
 // Rate describes a per-second simulation operation rate.
@@ -81,8 +80,6 @@ type Config struct {
 	StatusInterval time.Duration
 	// MaxRuntime optionally caps total simulation runtime.
 	MaxRuntime time.Duration
-	// RetryBackoff is the fixed delay between retryable operations.
-	RetryBackoff time.Duration
 	// JSON enables JSON command output.
 	JSON bool
 }
@@ -178,12 +175,6 @@ func normalizeConfig(cfg Config) (Config, error) {
 	}
 	if cfg.MaxRuntime < 0 {
 		return Config{}, fmt.Errorf("--max-runtime must be non-negative")
-	}
-	if cfg.RetryBackoff < 0 {
-		return Config{}, fmt.Errorf("--retry-backoff must be greater than zero")
-	}
-	if cfg.RetryBackoff == 0 {
-		cfg.RetryBackoff = defaultRetryBackoff
 	}
 	return cfg, nil
 }

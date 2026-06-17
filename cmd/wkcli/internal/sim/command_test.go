@@ -19,7 +19,29 @@ func TestCommandHelpListsSimulationFlags(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v stderr %q", err, stderr.String())
 	}
-	for _, want := range []string{"--server", "--context", "--gateway", "--users", "--groups", "--group-members", "--rate", "--payload-size", "--json"} {
+	for _, want := range []string{
+		"--server",
+		"--context",
+		"--gateway",
+		"--bench-token",
+		"--users",
+		"--groups",
+		"--group-members",
+		"--rate",
+		"--payload-size",
+		"--connect-rate",
+		"--concurrency",
+		"--ack-timeout",
+		"--operation-timeout",
+		"--run-id",
+		"--uid-prefix",
+		"--device-prefix",
+		"--channel-prefix",
+		"--status-listen",
+		"--status-interval",
+		"--max-runtime",
+		"--json",
+	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected help to contain %q, got %q", want, stdout.String())
 		}
@@ -71,8 +93,14 @@ func TestCommandInjectsNormalizedConfig(t *testing.T) {
 	if !reflect.DeepEqual(captured.Servers, []string{"http://127.0.0.1:5001", "http://127.0.0.1:5002"}) {
 		t.Fatalf("Servers = %#v", captured.Servers)
 	}
+	if !reflect.DeepEqual(captured.Gateways, []string{"127.0.0.1:5100"}) {
+		t.Fatalf("Gateways = %#v", captured.Gateways)
+	}
 	if captured.BenchToken != "bench-secret" || captured.Users != 10 || captured.Groups != 4 || captured.GroupMembers != 3 {
 		t.Fatalf("captured topology = %#v", captured)
+	}
+	if captured.ConnectRate != 5 || captured.Concurrency != 8 || captured.StatusListen != "127.0.0.1:19092" {
+		t.Fatalf("captured runtime config = %#v", captured)
 	}
 	if captured.Rate.PerSecond != 2.5 || captured.RatePerGroup != "2.5/s" || captured.PayloadBytes != 1024 {
 		t.Fatalf("captured rate/payload = %#v", captured)

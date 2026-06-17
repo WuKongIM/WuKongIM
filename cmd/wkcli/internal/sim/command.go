@@ -27,7 +27,6 @@ func NewCommand(deps command.Deps) *cobra.Command {
 		ChannelPrefix:    defaultChannelPrefix,
 		StatusListen:     defaultStatusListen,
 		StatusInterval:   defaultStatusInterval,
-		RetryBackoff:     defaultRetryBackoff,
 	}
 	cmd := &cobra.Command{
 		Use:   "sim",

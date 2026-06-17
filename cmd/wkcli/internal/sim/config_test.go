@@ -31,7 +31,7 @@ func TestNormalizeConfigAppliesDefaultsAndDedupeTargets(t *testing.T) {
 	if cfg.ConnectRate != defaultConnectRate || cfg.Concurrency != defaultConcurrency {
 		t.Fatalf("runtime defaults = connect-rate %d concurrency %d", cfg.ConnectRate, cfg.Concurrency)
 	}
-	if cfg.AckTimeout != defaultAckTimeout || cfg.OperationTimeout != defaultOpTimeout || cfg.StatusInterval != defaultStatusInterval || cfg.RetryBackoff != defaultRetryBackoff {
+	if cfg.AckTimeout != defaultAckTimeout || cfg.OperationTimeout != defaultOpTimeout || cfg.StatusInterval != defaultStatusInterval {
 		t.Fatalf("duration defaults = %#v", cfg)
 	}
 	if cfg.StatusListen != defaultStatusListen || cfg.UIDPrefix != defaultUIDPrefix || cfg.DevicePrefix != defaultDevicePrefix || cfg.ChannelPrefix != defaultChannelPrefix {
@@ -39,6 +39,12 @@ func TestNormalizeConfigAppliesDefaultsAndDedupeTargets(t *testing.T) {
 	}
 	if strings.TrimSpace(cfg.RunID) == "" {
 		t.Fatalf("RunID was not generated")
+	}
+}
+
+func TestConfigDoesNotExposeRetryBackoff(t *testing.T) {
+	if _, ok := reflect.TypeOf(Config{}).FieldByName("RetryBackoff"); ok {
+		t.Fatalf("Config must not expose RetryBackoff in Task 1")
 	}
 }
 
