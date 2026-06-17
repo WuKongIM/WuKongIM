@@ -39,7 +39,7 @@ type Group struct {
 func buildPlan(cfg Config) Plan {
 	plan := Plan{
 		Users:  make([]User, 0, cfg.Users),
-		Groups: make([]Group, 0, cfg.Groups),
+		Groups: make([]Group, cfg.Groups),
 	}
 	for i := 1; i <= cfg.Users; i++ {
 		plan.Users = append(plan.Users, User{
@@ -48,15 +48,13 @@ func buildPlan(cfg Config) Plan {
 		})
 	}
 	for i := 0; i < cfg.Groups; i++ {
-		group := Group{
-			ChannelID:   fmt.Sprintf("%s-%06d", cfg.ChannelPrefix, i+1),
-			Subscribers: make([]string, 0, cfg.GroupMembers),
-		}
+		group := &plan.Groups[i]
+		group.ChannelID = fmt.Sprintf("%s-%06d", cfg.ChannelPrefix, i+1)
+		group.Subscribers = make([]string, 0, cfg.GroupMembers)
 		for j := 0; j < cfg.GroupMembers; j++ {
 			userIndex := (i*cfg.GroupMembers + j) % len(plan.Users)
 			group.Subscribers = append(group.Subscribers, plan.Users[userIndex].UID)
 		}
-		plan.Groups = append(plan.Groups, group)
 	}
 	return plan
 }
