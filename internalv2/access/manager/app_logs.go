@@ -135,17 +135,20 @@ func (s *Server) handleApplicationLogStream(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
+	resp, err := s.management.ApplicationLogEntries(c.Request.Context(), req)
+	if err != nil {
+		writeApplicationLogError(c, err)
+		return
+	}
 	c.Header("Content-Type", "application/x-ndjson")
 	c.Header("Cache-Control", "no-cache")
 
-	resp, err := s.management.ApplicationLogEntries(c.Request.Context(), req)
-	if err != nil {
+	if resp.Rotated {
 		writeApplicationLogStreamEvent(c, ApplicationLogStreamEvent{
-			Type:    "error",
-			Error:   applicationLogErrorCode(err),
-			Message: applicationLogErrorMessage(err),
+			Type:    "rotation",
+			Cursor:  resp.Cursor,
+			Rotated: true,
 		})
-		return
 	}
 	if len(resp.Items) > 0 {
 		for _, item := range applicationLogEntryDTOs(resp.Items) {
@@ -159,11 +162,6 @@ func (s *Server) handleApplicationLogStream(c *gin.Context) {
 		return
 	}
 	if resp.Rotated {
-		writeApplicationLogStreamEvent(c, ApplicationLogStreamEvent{
-			Type:    "rotation",
-			Cursor:  resp.Cursor,
-			Rotated: true,
-		})
 		return
 	}
 	writeApplicationLogStreamEvent(c, ApplicationLogStreamEvent{

@@ -186,6 +186,80 @@ func TestManagerApplicationLogStreamWritesLineEvent(t *testing.T) {
 	}
 }
 
+func TestManagerApplicationLogStreamWritesRotationBeforeLineEvents(t *testing.T) {
+	srv := New(Options{Management: managerApplicationLogsStub{
+		entriesPage: managementusecase.ApplicationLogEntriesResponse{
+			NodeID:  2,
+			Source:  "app",
+			Cursor:  "cursor-rotated",
+			Rotated: true,
+			Items: []managementusecase.ApplicationLogEntry{{
+				Seq:     2,
+				Offset:  12,
+				Level:   "WARN",
+				Message: "rotated line",
+				Raw:     "rotated line",
+			}},
+		},
+	}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/app-logs/stream?node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("stream lines = %d, want 2; body=%s", len(lines), rec.Body.String())
+	}
+	if !jsonEqual(lines[0], `{
+		"type": "rotation",
+		"cursor": "cursor-rotated",
+		"rotated": true
+	}`) {
+		t.Fatalf("rotation event = %s", lines[0])
+	}
+	if !jsonEqual(lines[1], `{
+		"type": "line",
+		"cursor": "cursor-rotated",
+		"item": {
+			"seq": 2,
+			"offset": 12,
+			"level": "WARN",
+			"module": "",
+			"caller": "",
+			"message": "rotated line",
+			"fields": null,
+			"raw": "rotated line",
+			"truncated": false
+		}
+	}`) {
+		t.Fatalf("line event = %s", lines[1])
+	}
+}
+
+func TestManagerApplicationLogStreamMapsReadErrorsToHTTPStatus(t *testing.T) {
+	srv := New(Options{Management: managerApplicationLogsStub{entriesErr: metadb.ErrNotFound}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/app-logs/stream?node_id=1", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+	if !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("content-type = %q, want application/json", rec.Header().Get("Content-Type"))
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"not_found","message":"application log not found"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
 func TestManagerApplicationLogRoutesRequireLogPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
