@@ -85,6 +85,7 @@ test.each([
   ["/dashboard", "/cluster/dashboard"],
   ["/monitor", "/business/monitor"],
   ["/nodes", "/cluster/nodes"],
+  ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],
   ["/network", "/cluster/diagnostics?tab=network"],
   ["/connections", "/business/connections"],
@@ -101,6 +102,19 @@ test.each([
 
   await screen.findByRole("main")
   expect(router.state.location.pathname + router.state.location.search).toBe(to)
+})
+
+test("renders the workqueue monitor route", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/workqueues"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Workqueue Monitor" })).toBeInTheDocument()
 })
 
 test("preserves controller log search params when redirecting to diagnostics", async () => {
