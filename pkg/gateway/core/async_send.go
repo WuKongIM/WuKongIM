@@ -1,55 +1,41 @@
 package core
 
 import (
+	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/panjf2000/ants/v2"
+	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
 const asyncSendPanicValueMaxLen = 256
 
-// sendExecutor admits SEND frames into bounded shard mailboxes and drains them on ants workers.
+// sendExecutor admits SEND frames into a bounded workqueue-backed shard mailbox.
 type sendExecutor struct {
 	// server owns session and gateway state needed by send tasks.
 	server *Server
-	// workers is the normalized send worker count.
+	// workers is the normalized send worker count and shard count.
 	workers int
 	// capacity is the normalized maximum admitted send backlog.
 	capacity int
-	// queued tracks admitted send tasks awaiting execution.
+	// shardCapacity is the per-shard mailbox admission bound.
+	shardCapacity int
+	// queued tracks SEND tasks accepted by gateway but not yet entering dispatch.
 	queued atomic.Int64
+	// shardQueued tracks per-shard accepted tasks before dispatch begins.
+	shardQueued []atomic.Int64
 	// closed prevents new send admission after shutdown.
 	closed atomic.Bool
-	// pool runs shard drain tasks on bounded ants workers.
-	pool *ants.PoolWithFuncGeneric[*asyncSendShard]
-	// shards split SEND mailboxes by gateway session.
-	shards []*asyncSendShard
-	// releaseTimeout bounds graceful ants pool release.
+	// mailbox owns shard-local scheduling and worker execution.
+	mailbox *workqueue.ShardedMailbox[asyncDispatchTask]
+	// releaseTimeout bounds graceful mailbox pool release.
 	releaseTimeout time.Duration
-	// stopOnce makes executor shutdown idempotent.
-	stopOnce sync.Once
-	// wg tracks scheduled shard drains that must complete before pool release.
-	wg sync.WaitGroup
 	// panicC records worker panics for package tests and diagnostics.
 	panicC chan any
-}
-
-// asyncSendShard owns one bounded SEND mailbox and its scheduled state.
-type asyncSendShard struct {
-	executor *sendExecutor
-	tasks    chan asyncDispatchTask
-
-	mu         sync.Mutex
-	scheduled  bool
-	drainOwned bool
-	draining   bool
-	closed     bool
 }
 
 func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor, error) {
@@ -58,37 +44,34 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		server:         s,
 		workers:        opts.AsyncSendWorkers,
 		capacity:       opts.AsyncSendQueueCapacity,
+		shardCapacity:  asyncSendShardCapacity(opts.AsyncSendQueueCapacity, opts.AsyncSendWorkers),
+		shardQueued:    make([]atomic.Int64, opts.AsyncSendWorkers),
 		releaseTimeout: opts.AsyncPoolReleaseTimeout,
 		panicC:         make(chan any, 1),
 	}
 
-	shardCapacity := asyncSendShardCapacity(e.capacity, e.workers)
-	e.shards = make([]*asyncSendShard, e.workers)
-	for i := range e.shards {
-		e.shards[i] = &asyncSendShard{
-			executor: e,
-			tasks:    make(chan asyncDispatchTask, shardCapacity),
-		}
-	}
-
-	pool, err := ants.NewPoolWithFuncGeneric[*asyncSendShard](
-		e.workers,
-		e.drainScheduledShard,
-		ants.WithNonblocking(true),
-		ants.WithDisablePurge(true),
-		ants.WithPanicHandler(func(v any) {
-			e.recordPanic(v, asyncDispatchTask{})
-		}),
-	)
+	limits := gatewaySendBatchLimits(s)
+	mailbox, err := workqueue.NewShardedMailbox[asyncDispatchTask](workqueue.ShardedMailboxConfig{
+		Name:              "gateway-send",
+		Shards:            e.workers,
+		Workers:           e.workers,
+		QueueSizePerShard: e.shardCapacity,
+		BatchMaxItems:     limits.maxRecords,
+		BatchMaxWait:      limits.maxWait,
+		ReleaseTimeout:    opts.AsyncPoolReleaseTimeout,
+	}, e.handleMailboxBatch)
 	if err != nil {
-		for _, shard := range e.shards {
-			close(shard.tasks)
-			shard.closed = true
-		}
 		return nil, err
 	}
-	e.pool = pool
+	e.mailbox = mailbox
 	return e, nil
+}
+
+func gatewaySendBatchLimits(s *Server) asyncSendBatchLimits {
+	if s == nil {
+		return asyncSendBatchLimitsFromOptions(gatewaytypes.SessionOptions{})
+	}
+	return asyncSendBatchLimitsFromOptions(s.options.DefaultSession)
 }
 
 func asyncSendShardCapacity(totalCapacity, shards int) int {
@@ -106,81 +89,42 @@ func asyncSendShardCapacity(totalCapacity, shards int) int {
 }
 
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if e == nil || send == nil || e.closed.Load() || len(e.shards) == 0 {
+	if e == nil || e.mailbox == nil || send == nil || e.closed.Load() || e.workers <= 0 {
 		return false
 	}
+	shard := asyncSendShardIndex(state, send, e.workers)
 	if !e.reserve() {
 		return false
 	}
-
-	shard := e.shardForSend(state, send)
-	if shard == nil {
+	if !e.reserveShard(shard) {
 		e.consume(1)
 		return false
 	}
 
-	var shouldSchedule bool
-	shard.mu.Lock()
-	if shard.closed || len(shard.tasks) >= cap(shard.tasks) {
-		shard.mu.Unlock()
-		e.consume(1)
-		return false
-	}
 	task := asyncDispatchTask{
 		state:      state,
 		replyToken: replyToken,
 		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
 		enqueuedAt: time.Now(),
 	}
-	shard.tasks <- task
-	if !shard.scheduled && e.server != nil {
-		e.wg.Add(1)
-		shard.scheduled = true
-		shard.drainOwned = true
-		shouldSchedule = true
-	}
-	shard.mu.Unlock()
-
-	if shouldSchedule {
-		e.schedule(shard)
+	if err := e.mailbox.SubmitHash(context.Background(), uint64(shard), task); err != nil {
+		e.consumeShard(shard, 1)
+		e.consume(1)
+		return false
 	}
 	return true
 }
 
 func (e *sendExecutor) stop() {
-	if e == nil {
+	if e == nil || e.mailbox == nil {
 		return
 	}
-	e.stopOnce.Do(func() {
-		e.closed.Store(true)
-		for _, shard := range e.shards {
-			if shard == nil {
-				continue
-			}
-			shard.mu.Lock()
-			if !shard.closed {
-				shard.closed = true
-				close(shard.tasks)
-			}
-			shard.mu.Unlock()
-		}
-		if e.server != nil {
-			for _, shard := range e.shards {
-				if e.claimShardDrainForStop(shard) {
-					e.drainShard(shard)
-					continue
-				}
-			}
-			e.waitForDrainOrTimeout()
-		} else {
-			for _, shard := range e.shards {
-				e.drainClosedShard(shard)
-			}
-			if e.pool != nil {
-				_ = e.pool.ReleaseTimeout(e.releaseTimeout)
-			}
-		}
-	})
+	e.closed.Store(true)
+	ctx, cancel := context.WithTimeout(context.Background(), e.releaseTimeout)
+	defer cancel()
+	if err := e.mailbox.Close(ctx); err != nil {
+		e.resetDepths()
+	}
 }
 
 func (e *sendExecutor) depth() int {
@@ -212,116 +156,66 @@ func (e *sendExecutor) reserve() bool {
 	}
 }
 
-func (e *sendExecutor) schedule(shard *asyncSendShard) {
-	if e == nil || shard == nil {
-		return
+func (e *sendExecutor) reserveShard(shard int) bool {
+	if e == nil || shard < 0 || shard >= len(e.shardQueued) {
+		return false
 	}
-	e.invokeScheduledShard(shard)
-}
-
-func (e *sendExecutor) invokeScheduledShard(shard *asyncSendShard) {
-	err := e.pool.Invoke(shard)
-	switch {
-	case err == nil:
-		return
-	case isAntsBusy(err):
-		time.AfterFunc(time.Millisecond, func() {
-			e.invokeScheduledShard(shard)
-		})
-	case isAntsStopped(err):
-		if e.releaseDrainOwnership(shard) {
-			e.drainOrDiscardShard(shard)
-			e.wg.Done()
-		}
-	default:
-		e.recordPanic(err, asyncDispatchTask{})
-		if e.releaseDrainOwnership(shard) {
-			e.wg.Done()
-		}
-	}
-}
-
-func (e *sendExecutor) drainScheduledShard(shard *asyncSendShard) {
-	if !e.beginShardDrain(shard) {
-		return
-	}
-	defer e.finishShardDrain(shard)
-	e.drainShard(shard)
-}
-
-func (e *sendExecutor) drainShard(shard *asyncSendShard) {
-	if e == nil || shard == nil {
-		return
-	}
-	defer func() {
-		if v := recover(); v != nil {
-			e.recordPanic(v, asyncDispatchTask{})
-			e.markShardUnscheduled(shard)
-		}
-	}()
-
-	collector := newAsyncSendBatchCollector(shard.tasks, asyncSendBatchLimitsFromOptions(e.server.options.DefaultSession))
 	for {
-		batch, ok := e.nextShardBatch(collector, shard)
-		if !ok {
-			return
+		queued := e.shardQueued[shard].Load()
+		if queued < 0 || queued >= int64(e.shardCapacity) {
+			return false
 		}
-		e.dispatchBatchSafely(batch)
+		if e.shardQueued[shard].CompareAndSwap(queued, queued+1) {
+			return true
+		}
 	}
 }
 
-func (e *sendExecutor) nextShardBatch(collector *asyncSendBatchCollector, shard *asyncSendShard) ([]asyncDispatchTask, bool) {
-	if collector == nil || shard == nil {
-		return nil, false
+func (e *sendExecutor) handleMailboxBatch(_ context.Context, batch workqueue.MailboxBatch[asyncDispatchTask]) error {
+	if e == nil || len(batch.Items) == 0 {
+		return nil
 	}
-	if collector.hasPending {
-		task, ok := collector.nextTask()
-		if !ok {
-			return nil, false
-		}
-		return collector.collect(task), true
-	}
+	e.consumeShard(batch.Shard, len(batch.Items))
+	e.consume(len(batch.Items))
+	e.dispatchMailboxBatch(batch.Items)
+	return nil
+}
 
-	select {
-	case task, ok := <-shard.tasks:
-		if !ok {
-			return nil, false
+func (e *sendExecutor) dispatchMailboxBatch(items []asyncDispatchTask) {
+	limits := gatewaySendBatchLimits(e.server)
+	if limits.maxRecords <= 0 {
+		limits.maxRecords = 1
+	}
+	start := 0
+	byteCount := 0
+	for i, task := range items {
+		taskBytes := asyncDispatchTaskByteCount(task)
+		if i > start && limits.maxBytes > 0 && byteCount+taskBytes > limits.maxBytes {
+			e.dispatchBatchSafely(items[start:i])
+			start = i
+			byteCount = 0
 		}
-		return collector.collect(task), true
-	default:
+		byteCount += taskBytes
+		if i-start+1 >= limits.maxRecords {
+			e.dispatchBatchSafely(items[start : i+1])
+			start = i + 1
+			byteCount = 0
+		}
 	}
-
-	shard.mu.Lock()
-	if shard.closed {
-		shard.mu.Unlock()
-		return nil, false
+	if start < len(items) {
+		e.dispatchBatchSafely(items[start:])
 	}
-	if len(shard.tasks) == 0 {
-		shard.mu.Unlock()
-		return nil, false
-	}
-	shard.mu.Unlock()
-	return nil, true
 }
 
 func (e *sendExecutor) dispatchBatchSafely(batch []asyncDispatchTask) {
 	if e == nil || len(batch) == 0 {
 		return
 	}
-	consumed := false
 	defer func() {
 		if v := recover(); v != nil {
-			if !consumed {
-				e.consume(len(batch))
-				if e.server != nil {
-					e.server.observeAsyncSendQueue(e)
-				}
-			}
 			e.recordPanic(v, firstAsyncDispatchTask(batch))
 		}
 	}()
-	e.consume(len(batch))
-	consumed = true
 	e.dispatchBatch(batch)
 }
 
@@ -363,150 +257,24 @@ func (e *sendExecutor) consume(count int) {
 	e.queued.Add(-remaining)
 }
 
-func (e *sendExecutor) shardForSend(state *sessionState, send *frame.SendPacket) *asyncSendShard {
-	if e == nil || len(e.shards) == 0 {
-		return nil
-	}
-	return e.shards[asyncSendShardIndex(state, send, len(e.shards))]
-}
-
-func (e *sendExecutor) beginShardDrain(shard *asyncSendShard) bool {
-	if shard == nil {
-		return false
-	}
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-	if !shard.drainOwned {
-		return false
-	}
-	shard.draining = true
-	return true
-}
-
-func (e *sendExecutor) finishShardDrain(shard *asyncSendShard) {
-	if shard == nil {
+func (e *sendExecutor) consumeShard(shard int, count int) {
+	if e == nil || count <= 0 || shard < 0 || shard >= len(e.shardQueued) {
 		return
 	}
-	var shouldSchedule bool
-	shard.mu.Lock()
-	shard.draining = false
-	if !shard.closed && len(shard.tasks) > 0 {
-		shouldSchedule = true
-		shard.scheduled = true
-		shard.drainOwned = true
-	} else {
-		shard.scheduled = false
-		shard.drainOwned = false
-	}
-	shard.mu.Unlock()
-	if shouldSchedule {
-		e.schedule(shard)
+	remaining := e.shardQueued[shard].Add(-int64(count))
+	if remaining >= 0 {
 		return
 	}
-	e.wg.Done()
+	e.shardQueued[shard].Add(-remaining)
 }
 
-func (e *sendExecutor) markShardUnscheduled(shard *asyncSendShard) {
-	if shard == nil {
-		return
-	}
-	shard.mu.Lock()
-	shard.scheduled = false
-	shard.drainOwned = false
-	shard.draining = false
-	shard.mu.Unlock()
-}
-
-func (e *sendExecutor) claimShardDrainForStop(shard *asyncSendShard) bool {
-	if shard == nil {
-		return false
-	}
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-	if shard.drainOwned {
-		if shard.draining {
-			return false
-		}
-		shard.scheduled = false
-		shard.drainOwned = false
-		e.wg.Done()
-		return true
-	}
-	return true
-}
-
-func (e *sendExecutor) releaseDrainOwnership(shard *asyncSendShard) bool {
-	if shard == nil {
-		return false
-	}
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-	if !shard.drainOwned {
-		return false
-	}
-	shard.scheduled = false
-	shard.drainOwned = false
-	shard.draining = false
-	return true
-}
-
-func (e *sendExecutor) drainOrDiscardShard(shard *asyncSendShard) {
-	if e == nil || shard == nil {
-		return
-	}
-	if e.server != nil {
-		e.drainShard(shard)
-		return
-	}
-	e.drainClosedShard(shard)
-}
-
-func (e *sendExecutor) waitForDrainOrTimeout() {
+func (e *sendExecutor) resetDepths() {
 	if e == nil {
 		return
 	}
-	drainDone := make(chan struct{})
-	go func() {
-		e.wg.Wait()
-		close(drainDone)
-	}()
-	releaseDone := make(chan struct{})
-	if e.pool != nil {
-		go func() {
-			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
-			close(releaseDone)
-		}()
-	} else {
-		close(releaseDone)
-	}
-	timer := time.NewTimer(e.releaseTimeout)
-	defer timer.Stop()
-	for drainDone != nil || releaseDone != nil {
-		select {
-		case <-drainDone:
-			drainDone = nil
-		case <-releaseDone:
-			releaseDone = nil
-		case <-timer.C:
-			return
-		}
-	}
-}
-
-func (e *sendExecutor) drainClosedShard(shard *asyncSendShard) {
-	if e == nil || shard == nil {
-		return
-	}
-	for {
-		select {
-		case _, ok := <-shard.tasks:
-			if !ok {
-				return
-			}
-			e.consume(1)
-		default:
-			return
-		}
+	e.queued.Store(0)
+	for i := range e.shardQueued {
+		e.shardQueued[i].Store(0)
 	}
 }
 

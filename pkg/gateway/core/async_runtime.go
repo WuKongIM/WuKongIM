@@ -1,13 +1,11 @@
 package core
 
 import (
-	"errors"
 	"sync"
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/panjf2000/ants/v2"
 )
 
 // asyncRuntime groups gateway async executors behind one package-local runtime.
@@ -71,12 +69,4 @@ func (r *asyncRuntime) submitSend(state *sessionState, replyToken string, sendFr
 		return false
 	}
 	return r.send.submit(state, replyToken, sendFrame)
-}
-
-func isAntsStopped(err error) bool {
-	return errors.Is(err, ants.ErrPoolClosed)
-}
-
-func isAntsBusy(err error) bool {
-	return errors.Is(err, ants.ErrPoolOverload)
 }

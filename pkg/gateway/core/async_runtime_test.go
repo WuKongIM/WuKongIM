@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,4 +95,30 @@ func TestAsyncRuntimeStopIsIdempotent(t *testing.T) {
 	}
 	runtime.stop()
 	runtime.stop()
+}
+
+func TestAsyncExecutorsUseWorkqueuePrimitives(t *testing.T) {
+	tests := []struct {
+		file string
+		want string
+	}{
+		{file: "async_auth.go", want: "workqueue.NewBoundedPool"},
+		{file: "async_send.go", want: "workqueue.NewShardedMailbox"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			data, err := os.ReadFile(tt.file)
+			if err != nil {
+				t.Fatalf("read %s: %v", tt.file, err)
+			}
+			source := string(data)
+			if strings.Contains(source, "github.com/panjf2000/ants/v2") {
+				t.Fatalf("%s still imports ants directly", tt.file)
+			}
+			if !strings.Contains(source, tt.want) {
+				t.Fatalf("%s does not use %s", tt.file, tt.want)
+			}
+		})
+	}
 }

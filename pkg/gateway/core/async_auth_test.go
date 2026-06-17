@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,33 +24,22 @@ func (asyncAuthNoopHandler) OnSessionClose(gatewaytypes.Context) error       { r
 func (asyncAuthNoopHandler) OnSessionError(gatewaytypes.Context, error)      {}
 
 func TestAuthExecutorSubmitRejectsWhenFull(t *testing.T) {
-	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncAuthWorkers:        1,
-		AsyncAuthQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new auth executor: %v", err)
-	}
-	defer executor.stop()
+	fixture := newBlockingAuthFixture(t, 1, 1)
+	defer fixture.stop()
 
-	state := &sessionState{}
-	if !executor.submit(asyncAuthTask{
-		state:   state,
-		connect: &frame.ConnectPacket{UID: "u1"},
+	fixture.submit(t, "running")
+	fixture.waitStarted(t)
+	fixture.submit(t, "queued")
+	if fixture.executor.submit(asyncAuthTask{
+		state:   fixture.state(),
+		connect: &frame.ConnectPacket{UID: "full"},
 	}) {
-		t.Fatal("first auth submit rejected")
+		t.Fatal("third auth submit accepted when executor queue is full")
 	}
-	if executor.submit(asyncAuthTask{
-		state:   state,
-		connect: &frame.ConnectPacket{UID: "u2"},
-	}) {
-		t.Fatal("second auth submit accepted when executor queue is full")
-	}
-	if got := executor.depth(); got != 1 {
+	if got := fixture.executor.depth(); got != 1 {
 		t.Fatalf("executor depth = %d, want 1", got)
 	}
-	if got := executor.totalCapacity(); got != 1 {
+	if got := fixture.executor.totalCapacity(); got != 1 {
 		t.Fatalf("executor capacity = %d, want 1", got)
 	}
 }
@@ -140,30 +131,20 @@ func TestAuthExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
 }
 
 func TestAuthExecutorStopDrainsBufferedDepth(t *testing.T) {
-	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncAuthWorkers:        1,
-		AsyncAuthQueueCapacity:  2,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new auth executor: %v", err)
+	fixture := newBlockingAuthFixture(t, 1, 1)
+
+	fixture.submit(t, "running")
+	fixture.waitStarted(t)
+	fixture.submit(t, "queued")
+	if got := fixture.executor.depth(); got != 1 {
+		t.Fatalf("executor depth before stop = %d, want 1", got)
 	}
 
-	state := &sessionState{}
-	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
-		t.Fatal("first auth submit rejected")
-	}
-	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u2"}}) {
-		t.Fatal("second auth submit rejected")
-	}
-	if got := executor.depth(); got != 2 {
-		t.Fatalf("executor depth before stop = %d, want 2", got)
-	}
+	fixture.releaseAll()
+	fixture.executor.stop()
+	fixture.executor.stop()
 
-	executor.stop()
-	executor.stop()
-
-	if got := executor.depth(); got != 0 {
+	if got := fixture.executor.depth(); got != 0 {
 		t.Fatalf("executor depth after stop = %d, want 0", got)
 	}
 }
@@ -291,19 +272,13 @@ func TestServerAsyncAuthRejectsWhenQueueFull(t *testing.T) {
 		},
 		dispatcher: newDispatcher(handler),
 	}
-	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncAuthWorkers:        1,
-		AsyncAuthQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new auth executor: %v", err)
-	}
-	defer executor.stop()
+	blocking := newBlockingAuthFixture(t, 1, 1)
+	defer blocking.stop()
+	executor := blocking.executor
 	srv.async.Store(&asyncRuntime{auth: executor})
-	if !executor.submit(asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}) {
-		t.Fatal("prefill auth executor failed")
-	}
+	blocking.submit(t, "running")
+	blocking.waitStarted(t)
+	blocking.submit(t, "queued")
 
 	state := &sessionState{
 		server:   srv,
@@ -336,19 +311,13 @@ func TestServerAsyncAuthQueueFullKeepsCloseReasonWhenConnackWriteFails(t *testin
 		},
 		dispatcher: newDispatcher(handler),
 	}
-	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncAuthWorkers:        1,
-		AsyncAuthQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new auth executor: %v", err)
-	}
-	defer executor.stop()
+	blocking := newBlockingAuthFixture(t, 1, 1)
+	defer blocking.stop()
+	executor := blocking.executor
 	srv.async.Store(&asyncRuntime{auth: executor})
-	if !executor.submit(asyncAuthTask{state: &sessionState{}, connect: &frame.ConnectPacket{UID: "queued"}}) {
-		t.Fatal("prefill auth executor failed")
-	}
+	blocking.submit(t, "running")
+	blocking.waitStarted(t)
+	blocking.submit(t, "queued")
 
 	state := &sessionState{
 		server:   srv,
@@ -406,24 +375,17 @@ func TestServerAsyncAuthRollsBackWhenConnackWriteSucceedsButSessionClosesBeforeO
 func TestAsyncAuthReportsQueueAndAdmission(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
 	srv := &Server{options: gatewaytypes.Options{Observer: observer}}
-	executor, err := newAuthExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncAuthWorkers:        1,
-		AsyncAuthQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new auth executor: %v", err)
-	}
-	defer executor.stop()
-	state := &sessionState{}
+	fixture := newBlockingAuthFixture(t, 1, 1)
+	defer fixture.stop()
+	executor := fixture.executor
 
-	if !executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u1"}}) {
-		t.Fatal("first async auth submit failed")
-	}
+	fixture.submit(t, "running")
+	fixture.waitStarted(t)
+	fixture.submit(t, "queued")
 	srv.observeAsyncAuthQueue(executor)
 	srv.observeAsyncAuthAdmission(executor, true)
-	if executor.submit(asyncAuthTask{state: state, connect: &frame.ConnectPacket{UID: "u2"}}) {
-		t.Fatal("second async auth submit unexpectedly succeeded")
+	if executor.submit(asyncAuthTask{state: fixture.state(), connect: &frame.ConnectPacket{UID: "full"}}) {
+		t.Fatal("third async auth submit unexpectedly succeeded")
 	}
 	srv.observeAsyncAuthAdmission(executor, false)
 
@@ -547,6 +509,98 @@ func eventually(t *testing.T, timeout time.Duration, condition func() bool, msg 
 	if !condition() {
 		t.Fatal(msg)
 	}
+}
+
+type blockingAuthFixture struct {
+	srv      *Server
+	executor *authExecutor
+	started  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+	nextID   atomic.Uint64
+}
+
+func newBlockingAuthFixture(t *testing.T, workers, capacity int) *blockingAuthFixture {
+	t.Helper()
+
+	fixture := &blockingAuthFixture{
+		started: make(chan struct{}, workers+capacity+2),
+		release: make(chan struct{}),
+	}
+	handler := asyncAuthNoopHandler{}
+	fixture.srv = &Server{
+		options: gatewaytypes.Options{
+			Authenticator: gatewaytypes.AuthenticatorFunc(func(*gatewaytypes.Context, *frame.ConnectPacket) (*gatewaytypes.AuthResult, error) {
+				select {
+				case fixture.started <- struct{}{}:
+				default:
+				}
+				<-fixture.release
+				return &gatewaytypes.AuthResult{Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}}, nil
+			}),
+			Handler: handler,
+		},
+		dispatcher: newDispatcher(handler),
+	}
+	executor, err := newAuthExecutor(fixture.srv, gatewaytypes.RuntimeOptions{
+		AsyncAuthWorkers:        workers,
+		AsyncAuthQueueCapacity:  capacity,
+		AsyncPoolReleaseTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new auth executor: %v", err)
+	}
+	fixture.executor = executor
+	return fixture
+}
+
+func (f *blockingAuthFixture) submit(t *testing.T, uid string) {
+	t.Helper()
+
+	if !f.executor.submit(asyncAuthTask{
+		state:   f.state(),
+		connect: &frame.ConnectPacket{UID: uid, DeviceID: uid + "-device", DeviceFlag: frame.APP},
+	}) {
+		t.Fatalf("submit %q rejected", uid)
+	}
+}
+
+func (f *blockingAuthFixture) state() *sessionState {
+	id := f.nextID.Add(1)
+	state := &sessionState{
+		server: f.srv,
+		listener: &listenerRuntime{
+			options: gatewaytypes.ListenerOptions{Name: "auth-" + strconv.FormatUint(id, 10), Network: "tcp"},
+			adapter: asyncAuthEncodeOnlyProtocol{},
+		},
+		session:  session.New(session.Config{ID: id}),
+		conn:     &asyncAuthRecordingConn{},
+		closedCh: make(chan struct{}),
+	}
+	state.requestContext, state.cancelRequestContext = context.WithCancel(context.Background())
+	state.setAuthPending(true)
+	return state
+}
+
+func (f *blockingAuthFixture) waitStarted(t *testing.T) {
+	t.Helper()
+
+	select {
+	case <-f.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking auth worker did not start")
+	}
+}
+
+func (f *blockingAuthFixture) releaseAll() {
+	f.once.Do(func() {
+		close(f.release)
+	})
+}
+
+func (f *blockingAuthFixture) stop() {
+	f.releaseAll()
+	f.executor.stop()
 }
 
 type asyncAuthPanicObserver struct{}

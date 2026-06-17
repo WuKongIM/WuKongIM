@@ -16,9 +16,17 @@ import (
 )
 
 func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
-	handler := &countingAsyncFrameHandler{}
-	srv := &Server{dispatcher: newDispatcher(handler)}
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	handler := newBlockingAsyncSendFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  1,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -26,16 +34,25 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		close(handler.release)
+		executor.stop()
+	}()
 	srv.async.Store(&asyncRuntime{send: executor})
-	if !executor.submit(&sessionState{}, "", &frame.SendPacket{}) {
-		t.Fatal("prefill send executor failed")
+
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{ClientMsgNo: "running"}) {
+		t.Fatal("running submit rejected")
 	}
-	state := &sessionState{
-		server:         srv,
-		closedCh:       make(chan struct{}),
-		requestContext: context.Background(),
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking handler did not start")
 	}
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{ClientMsgNo: "queued"}) {
+		t.Fatal("queued submit rejected")
+	}
+
+	state := asyncSendTestState(srv, 1)
 	state.markOpenDispatched()
 	state.markOpenComplete()
 
@@ -52,25 +69,34 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 		t.Fatal("dispatchSendFrameAsync blocked when async queue was full")
 	}
 
-	if got := handler.frames.Load(); got != 0 {
+	if got := handler.frames(); got != 1 {
 		t.Fatalf("handler frames = %d, want async queue full rejection without synchronous fallback", got)
 	}
 	if !state.isClosed() {
 		t.Fatal("state was not closed after async queue overflow")
 	}
-	errs := handler.sessionErrors()
+	errs := handler.counting.sessionErrors()
 	if len(errs) != 1 || !errors.Is(errs[0], gatewaytypes.ErrAsyncDispatchQueueFull) {
 		t.Fatalf("session errors = %v, want ErrAsyncDispatchQueueFull", errs)
 	}
-	reasons := handler.closeReasons()
+	reasons := handler.counting.closeReasons()
 	if len(reasons) == 0 || reasons[0] != gatewaytypes.CloseReasonAsyncDispatchQueueFull {
 		t.Fatalf("close reasons = %v, want %q", reasons, gatewaytypes.CloseReasonAsyncDispatchQueueFull)
 	}
 }
 
 func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T) {
-	srv := &Server{dispatcher: newDispatcher(&countingAsyncFrameHandler{})}
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	handler := newBlockingAsyncSendFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  1,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -78,20 +104,27 @@ func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T)
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		close(handler.release)
+		executor.stop()
+	}()
 	srv.async.Store(&asyncRuntime{send: executor})
-	if !executor.submit(&sessionState{}, "", &frame.SendPacket{}) {
-		t.Fatal("prefill send executor failed")
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{ClientMsgNo: "running"}) {
+		t.Fatal("running submit rejected")
+	}
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking handler did not start")
+	}
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{ClientMsgNo: "queued"}) {
+		t.Fatal("queued submit rejected")
 	}
 
 	payload := make([]byte, 64*1024)
 	packet := &frame.SendPacket{Payload: payload}
 	newState := func() *sessionState {
-		return &sessionState{
-			server:         srv,
-			closedCh:       make(chan struct{}),
-			requestContext: context.Background(),
-		}
+		return asyncSendTestState(srv, 1)
 	}
 
 	baseline := testing.AllocsPerRun(1000, func() {
@@ -106,7 +139,17 @@ func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T)
 }
 
 func TestSendExecutorCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.T) {
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	handler := newBlockingRecordingAsyncSendBatchHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  1,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -114,7 +157,10 @@ func TestSendExecutorCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		handler.releaseAll()
+		executor.stop()
+	}()
 
 	payload := []byte("payload")
 	send := &frame.SendPacket{
@@ -122,14 +168,16 @@ func TestSendExecutorCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.
 		ChannelType: 2,
 		Payload:     payload,
 	}
-	state := &sessionState{listener: &listenerRuntime{}}
+	state := asyncSendTestState(srv, 1)
+	state.listener.ownsDecodedFrames = false
 
 	if !executor.submit(state, "", send) {
 		t.Fatal("submit returned false")
 	}
 	payload[0] = 'P'
+	handler.releaseAll()
 
-	queued := queuedSendExecutorPacket(t, executor)
+	queued := handler.onlySend(t)
 	if got, want := string(queued.Payload), "payload"; got != want {
 		t.Fatalf("queued payload = %q, want %q", got, want)
 	}
@@ -139,7 +187,17 @@ func TestSendExecutorCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.
 }
 
 func TestSendExecutorAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	handler := newBlockingRecordingAsyncSendBatchHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  1,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -147,7 +205,10 @@ func TestSendExecutorAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		handler.releaseAll()
+		executor.stop()
+	}()
 
 	payload := []byte("owned")
 	send := &frame.SendPacket{
@@ -156,14 +217,16 @@ func TestSendExecutorAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
 		ChannelType: 2,
 		Payload:     payload,
 	}
-	state := &sessionState{listener: &listenerRuntime{ownsDecodedFrames: true}}
+	state := asyncSendTestState(srv, 1)
+	state.listener.ownsDecodedFrames = true
 
 	if !executor.submit(state, "", send) {
 		t.Fatal("submit returned false")
 	}
 	send.ClientMsgNo = "after"
+	handler.releaseAll()
 
-	queued := queuedSendExecutorPacket(t, executor)
+	queued := handler.onlySend(t)
 	if !sameBackingArray(queued.Payload, send.Payload) {
 		t.Fatal("queued payload did not adopt owned decoded payload")
 	}
@@ -189,7 +252,7 @@ func TestSendExecutorUsesRuntimeWorkerCountAndCapacity(t *testing.T) {
 	if got, want := executor.workers, 4; got != want {
 		t.Fatalf("send executor workers = %d, want %d", got, want)
 	}
-	if got, want := sendExecutorShardCount(t, executor), 4; got != want {
+	if got, want := executor.workers, 4; got != want {
 		t.Fatalf("send executor shards = %d, want %d", got, want)
 	}
 	if got, want := executor.totalCapacity(), 16; got != want {
@@ -208,17 +271,11 @@ func TestSendExecutorBoundsMailboxCapacityAcrossShards(t *testing.T) {
 	}
 	defer executor.stop()
 
-	shardCaps := sendExecutorShardCapacities(t, executor)
-	if got, want := len(shardCaps), 4; got != want {
+	if got, want := executor.workers, 4; got != want {
 		t.Fatalf("send executor shards = %d, want %d", got, want)
 	}
-	for i, capacity := range shardCaps {
-		if capacity <= 0 {
-			t.Fatalf("send executor shard %d capacity = %d, want > 0", i, capacity)
-		}
-		if capacity != 3 {
-			t.Fatalf("send executor shard %d capacity = %d, want ceil(10/4)=3", i, capacity)
-		}
+	if got, want := executor.shardCapacity, 3; got != want {
+		t.Fatalf("send executor shard capacity = %d, want ceil(10/4)=3", got)
 	}
 	if got, want := executor.totalCapacity(), 10; got != want {
 		t.Fatalf("send executor total capacity = %d, want %d", got, want)
@@ -226,7 +283,17 @@ func TestSendExecutorBoundsMailboxCapacityAcrossShards(t *testing.T) {
 }
 
 func TestSendExecutorRejectsWhenShardMailboxFullBeforePayloadClone(t *testing.T) {
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	handler := newBlockingAsyncSendFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  1,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -234,11 +301,22 @@ func TestSendExecutorRejectsWhenShardMailboxFullBeforePayloadClone(t *testing.T)
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		close(handler.release)
+		executor.stop()
+	}()
 
-	state := &sessionState{listener: &listenerRuntime{}}
-	if !executor.submit(state, "", &frame.SendPacket{Payload: []byte("first")}) {
-		t.Fatal("first submit rejected")
+	state := asyncSendTestState(srv, 1)
+	if !executor.submit(state, "", &frame.SendPacket{Payload: []byte("running")}) {
+		t.Fatal("running submit rejected")
+	}
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking handler did not start")
+	}
+	if !executor.submit(state, "", &frame.SendPacket{Payload: []byte("queued")}) {
+		t.Fatal("queued submit rejected")
 	}
 
 	payload := make([]byte, 64*1024)
@@ -256,28 +334,44 @@ func TestSendExecutorRejectsWhenShardMailboxFullBeforePayloadClone(t *testing.T)
 }
 
 func TestSendExecutorRejectsWhenGlobalCapacityFullAcrossShards(t *testing.T) {
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncSendWorkers:        2,
+	handler := newBlockingAsyncSendFrameHandler()
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
+		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  3,
 		AsyncPoolReleaseTimeout: time.Second,
 	})
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		close(handler.release)
+		executor.stop()
+	}()
 
-	states := []*sessionState{
-		{key: connKey{connID: 1}},
-		{key: connKey{connID: 2}},
-		{key: connKey{connID: 3}},
+	if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{Payload: []byte("running")}) {
+		t.Fatal("running submit rejected")
 	}
-	for i, state := range states {
-		if !executor.submit(state, "", &frame.SendPacket{Payload: []byte{byte(i)}}) {
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking handler did not start")
+	}
+	for i := 0; i < 3; i++ {
+		if !executor.submit(asyncSendTestState(srv, 1), "", &frame.SendPacket{Payload: []byte{byte(i)}}) {
 			t.Fatalf("submit %d rejected before global capacity was full", i+1)
 		}
 	}
 
-	targetWithShardSpace := &sessionState{key: connKey{connID: 4}}
+	targetWithShardSpace := asyncSendTestState(srv, 1)
 	payload := make([]byte, 64*1024)
 	baseline := testing.AllocsPerRun(1000, func() {})
 	actual := testing.AllocsPerRun(1000, func() {
@@ -457,7 +551,7 @@ func TestSendExecutorObserverTracksQueueWaitAndBatch(t *testing.T) {
 
 func TestAsyncSendReportsAdmissionResults(t *testing.T) {
 	observer := &recordingAsyncSendObserver{}
-	handler := &countingAsyncFrameHandler{}
+	handler := newBlockingAsyncSendFrameHandler()
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
 		options: gatewaytypes.Options{
@@ -467,22 +561,37 @@ func TestAsyncSendReportsAdmissionResults(t *testing.T) {
 				AsyncSendQueueCapacity:  1,
 				AsyncPoolReleaseTimeout: time.Second,
 			},
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 1,
+				AsyncSendBatchMaxBytes:   1024,
+			},
 		},
 	}
-	executor, err := newSendExecutor(nil, srv.options.Runtime)
+	executor, err := newSendExecutor(srv, srv.options.Runtime)
 	if err != nil {
 		t.Fatalf("new send executor: %v", err)
 	}
-	defer executor.stop()
+	defer func() {
+		close(handler.release)
+		executor.stop()
+	}()
 
-	state := &sessionState{server: srv, key: connKey{connID: 1}}
+	state := asyncSendTestState(srv, 1)
 	send := &frame.SendPacket{ChannelID: "c1", ChannelType: 1}
 	if !executor.submit(state, "r1", send) {
 		t.Fatal("first submit failed")
 	}
+	select {
+	case <-handler.started:
+	case <-time.After(time.Second):
+		t.Fatal("blocking handler did not start")
+	}
+	if !executor.submit(state, "r2", send) {
+		t.Fatal("queued submit failed")
+	}
 	srv.observeAsyncSendAdmission(nil, true)
-	if executor.submit(state, "r2", send) {
-		t.Fatal("second submit unexpectedly succeeded")
+	if executor.submit(state, "r3", send) {
+		t.Fatal("third submit unexpectedly succeeded")
 	}
 	srv.observeAsyncSendAdmission(nil, false)
 
@@ -497,102 +606,69 @@ func TestAsyncSendReportsAdmissionResults(t *testing.T) {
 	}
 }
 
-func TestAsyncSendBatchCollectHonorsMaxRecordsAndOrder(t *testing.T) {
-	tasks := make(chan asyncDispatchTask, 3)
-	tasks <- asyncSendBatchTestTask("m1", 1)
-	tasks <- asyncSendBatchTestTask("m2", 1)
-	tasks <- asyncSendBatchTestTask("m3", 1)
+func TestAsyncSendDispatchMailboxBatchHonorsMaxRecordsAndOrder(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 2,
+				AsyncSendBatchMaxBytes:   1024,
+			},
+		},
+	}
+	executor := &sendExecutor{server: srv}
 
-	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
-		maxRecords: 2,
-		maxBytes:   1024,
+	executor.dispatchMailboxBatch([]asyncDispatchTask{
+		asyncSendBatchTestTask("m1", 1),
+		asyncSendBatchTestTask("m2", 1),
+		asyncSendBatchTestTask("m3", 1),
 	})
-	batch, ok := collector.nextBatch()
-	if !ok {
-		t.Fatal("nextBatch returned ok=false")
+
+	batches := handler.snapshotBatches()
+	if len(batches) != 2 {
+		t.Fatalf("batch count = %d, want 2", len(batches))
 	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m1", "m2"}; !equalStrings(got, want) {
-		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	if got, want := sendBatchClientMsgNos(batches[0]), []string{"m1", "m2"}; !equalStrings(got, want) {
+		t.Fatalf("first batch client msg nos = %v, want %v", got, want)
 	}
-	batch, ok = collector.nextBatch()
-	if !ok {
-		t.Fatal("second nextBatch returned ok=false")
-	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m3"}; !equalStrings(got, want) {
+	if got, want := sendBatchClientMsgNos(batches[1]), []string{"m3"}; !equalStrings(got, want) {
 		t.Fatalf("second batch client msg nos = %v, want %v", got, want)
 	}
 }
 
-func TestAsyncSendBatchCollectStopsBeforeMaxBytesAndPreservesPending(t *testing.T) {
-	tasks := make(chan asyncDispatchTask, 3)
-	tasks <- asyncSendBatchTestTask("m1", 4)
-	tasks <- asyncSendBatchTestTask("m2", 6)
-	tasks <- asyncSendBatchTestTask("m3", 2)
+func TestAsyncSendDispatchMailboxBatchSplitsBeforeMaxBytes(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{
+			DefaultSession: gatewaytypes.SessionOptions{
+				AsyncSendBatchMaxRecords: 8,
+				AsyncSendBatchMaxBytes:   8,
+			},
+		},
+	}
+	executor := &sendExecutor{server: srv}
 
-	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
-		maxRecords: 8,
-		maxBytes:   8,
+	executor.dispatchMailboxBatch([]asyncDispatchTask{
+		asyncSendBatchTestTask("m1", 4),
+		asyncSendBatchTestTask("m2", 6),
+		asyncSendBatchTestTask("m3", 2),
 	})
-	batch, ok := collector.nextBatch()
-	if !ok {
-		t.Fatal("nextBatch returned ok=false")
+
+	batches := handler.snapshotBatches()
+	if len(batches) != 2 {
+		t.Fatalf("batch count = %d, want 2", len(batches))
 	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m1"}; !equalStrings(got, want) {
-		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	if got, want := sendBatchClientMsgNos(batches[0]), []string{"m1"}; !equalStrings(got, want) {
+		t.Fatalf("first batch client msg nos = %v, want %v", got, want)
 	}
-	batch, ok = collector.nextBatch()
-	if !ok {
-		t.Fatal("second nextBatch returned ok=false")
-	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m2", "m3"}; !equalStrings(got, want) {
+	if got, want := sendBatchClientMsgNos(batches[1]), []string{"m2", "m3"}; !equalStrings(got, want) {
 		t.Fatalf("second batch client msg nos = %v, want %v", got, want)
 	}
 }
 
-func TestAsyncSendBatchCollectWithZeroWaitDrainsOnlyReadyTasks(t *testing.T) {
-	tasks := make(chan asyncDispatchTask, 2)
-	tasks <- asyncSendBatchTestTask("ready", 1)
-	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
-		maxRecords: 8,
-		maxBytes:   1024,
-	})
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		tasks <- asyncSendBatchTestTask("late", 1)
-	}()
-
-	batch, ok := collector.nextBatch()
-	if !ok {
-		t.Fatal("nextBatch returned ok=false")
-	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"ready"}; !equalStrings(got, want) {
-		t.Fatalf("batch client msg nos = %v, want %v", got, want)
-	}
-}
-
-func TestAsyncSendBatchCollectWaitsForNearFutureTask(t *testing.T) {
-	tasks := make(chan asyncDispatchTask, 2)
-	tasks <- asyncSendBatchTestTask("first", 1)
-	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
-		maxWait:    50 * time.Millisecond,
-		maxRecords: 8,
-		maxBytes:   1024,
-	})
-	go func() {
-		time.Sleep(time.Millisecond)
-		tasks <- asyncSendBatchTestTask("second", 1)
-	}()
-
-	batch, ok := collector.nextBatch()
-	if !ok {
-		t.Fatal("nextBatch returned ok=false")
-	}
-	if got, want := asyncSendBatchClientMsgNos(batch), []string{"first", "second"}; !equalStrings(got, want) {
-		t.Fatalf("batch client msg nos = %v, want %v", got, want)
-	}
-}
-
-func TestSendExecutorDispatchesBatchOnAnts(t *testing.T) {
+func TestSendExecutorDispatchesBatchOnWorkqueue(t *testing.T) {
 	handler := &recordingAsyncSendBatchHandler{}
 	srv := &Server{
 		dispatcher: newDispatcher(handler),
@@ -764,9 +840,6 @@ func TestSendExecutorStopIsIdempotentAndRejectsSubmit(t *testing.T) {
 	if got := executor.depth(); got != 0 {
 		t.Fatalf("send executor depth = %d, want 0 after stop drains mailbox", got)
 	}
-	if sendExecutorShardIsOpen(t, executor, 0) {
-		t.Fatal("send executor shard remained open after stop")
-	}
 }
 
 func TestSendExecutorStopDispatchesBufferedTasks(t *testing.T) {
@@ -780,7 +853,7 @@ func TestSendExecutorStopDispatchesBufferedTasks(t *testing.T) {
 			},
 		},
 	}
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
+	executor, err := newSendExecutor(srv, gatewaytypes.RuntimeOptions{
 		AsyncSendWorkers:        1,
 		AsyncSendQueueCapacity:  2,
 		AsyncPoolReleaseTimeout: time.Second,
@@ -796,7 +869,6 @@ func TestSendExecutorStopDispatchesBufferedTasks(t *testing.T) {
 	if !executor.submit(state, "r2", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2", Payload: []byte("two")}) {
 		t.Fatal("second submit rejected")
 	}
-	executor.server = srv
 
 	executor.stop()
 	executor.stop()
@@ -862,88 +934,6 @@ func TestSendExecutorStopHonorsReleaseTimeoutWhenHandlerBlocks(t *testing.T) {
 	}
 }
 
-func TestSendExecutorStopDuringSubmitDoesNotLeakDepth(t *testing.T) {
-	handler := &recordingAsyncSendBatchHandler{}
-	srv := &Server{
-		dispatcher: newDispatcher(handler),
-		options: gatewaytypes.Options{
-			DefaultSession: gatewaytypes.SessionOptions{
-				AsyncSendBatchMaxRecords: 8,
-				AsyncSendBatchMaxBytes:   1024,
-			},
-		},
-	}
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncSendWorkers:        1,
-		AsyncSendQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new send executor: %v", err)
-	}
-
-	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
-	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "queued"}) {
-		t.Fatal("submit rejected")
-	}
-	executor.server = srv
-	executor.shards[0].mu.Lock()
-	executor.shards[0].scheduled = true
-	executor.shards[0].mu.Unlock()
-
-	executor.stop()
-
-	if got := executor.depth(); got != 0 {
-		t.Fatalf("send executor depth = %d, want 0 when stop races with schedule ownership", got)
-	}
-	batches := handler.snapshotBatches()
-	if len(batches) != 1 || len(batches[0]) != 1 || batches[0][0].Frame.ClientMsgNo != "queued" {
-		t.Fatalf("batches = %#v, want queued task dispatched despite schedule ownership race", batches)
-	}
-}
-
-func TestSendExecutorStopDrainsRetryOwnedShard(t *testing.T) {
-	handler := &recordingAsyncSendBatchHandler{}
-	srv := &Server{
-		dispatcher: newDispatcher(handler),
-		options: gatewaytypes.Options{
-			DefaultSession: gatewaytypes.SessionOptions{
-				AsyncSendBatchMaxRecords: 8,
-				AsyncSendBatchMaxBytes:   1024,
-			},
-		},
-	}
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncSendWorkers:        1,
-		AsyncSendQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: 20 * time.Millisecond,
-	})
-	if err != nil {
-		t.Fatalf("new send executor: %v", err)
-	}
-
-	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
-	if !executor.submit(state, "", &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "retry-owned"}) {
-		t.Fatal("submit rejected")
-	}
-	executor.server = srv
-	executor.wg.Add(1)
-	executor.shards[0].mu.Lock()
-	executor.shards[0].scheduled = true
-	executor.shards[0].drainOwned = true
-	executor.shards[0].mu.Unlock()
-
-	executor.stop()
-
-	if got := executor.depth(); got != 0 {
-		t.Fatalf("send executor depth = %d, want 0 after stop drains retry-owned shard", got)
-	}
-	batches := handler.snapshotBatches()
-	if len(batches) != 1 || len(batches[0]) != 1 || batches[0][0].Frame.ClientMsgNo != "retry-owned" {
-		t.Fatalf("batches = %#v, want retry-owned task dispatched during stop", batches)
-	}
-}
-
 func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
 	handler := newPanicThenRecordingFrameHandler()
 	srv := &Server{
@@ -996,94 +986,6 @@ func TestSendExecutorPanicRearmsShardBacklog(t *testing.T) {
 	}
 }
 
-func TestSendExecutorNextShardBatchKeepsDrainOwnershipForFinish(t *testing.T) {
-	executor, err := newSendExecutor(nil, gatewaytypes.RuntimeOptions{
-		AsyncSendWorkers:        1,
-		AsyncSendQueueCapacity:  1,
-		AsyncPoolReleaseTimeout: time.Second,
-	})
-	if err != nil {
-		t.Fatalf("new send executor: %v", err)
-	}
-	defer executor.stop()
-
-	shard := executor.shards[0]
-	shard.mu.Lock()
-	shard.scheduled = true
-	shard.drainOwned = true
-	shard.draining = true
-	shard.mu.Unlock()
-
-	collector := newAsyncSendBatchCollector(shard.tasks, asyncSendBatchLimits{maxRecords: 1})
-	batch, ok := executor.nextShardBatch(collector, shard)
-
-	shard.mu.Lock()
-	scheduled := shard.scheduled
-	drainOwned := shard.drainOwned
-	draining := shard.draining
-	shard.scheduled = false
-	shard.drainOwned = false
-	shard.draining = false
-	shard.mu.Unlock()
-
-	if ok || batch != nil {
-		t.Fatalf("next shard batch = (%#v, %v), want no batch", batch, ok)
-	}
-	if !scheduled || !drainOwned || !draining {
-		t.Fatalf("shard state after empty batch: scheduled=%v drainOwned=%v draining=%v, want ownership kept for finish", scheduled, drainOwned, draining)
-	}
-}
-
-func TestSendExecutorFinishShardDrainReschedulesQueuedTask(t *testing.T) {
-	handler := &recordingAsyncSendBatchHandler{}
-	srv := &Server{
-		dispatcher: newDispatcher(handler),
-		options: gatewaytypes.Options{
-			Runtime: gatewaytypes.RuntimeOptions{
-				AsyncSendWorkers:        1,
-				AsyncSendQueueCapacity:  1,
-				AsyncPoolReleaseTimeout: time.Second,
-			},
-			DefaultSession: gatewaytypes.SessionOptions{
-				AsyncSendBatchMaxRecords: 1,
-				AsyncSendBatchMaxBytes:   1024,
-			},
-		},
-	}
-	executor, err := newSendExecutor(srv, srv.options.Runtime)
-	if err != nil {
-		t.Fatalf("new send executor: %v", err)
-	}
-	defer executor.stop()
-
-	shard := executor.shards[0]
-	state := &sessionState{server: srv, closedCh: make(chan struct{}), requestContext: context.Background()}
-	if !executor.reserve() {
-		t.Fatal("reserve rejected queued task")
-	}
-	executor.wg.Add(1)
-	shard.mu.Lock()
-	shard.scheduled = true
-	shard.drainOwned = true
-	shard.draining = true
-	shard.tasks <- asyncDispatchTask{
-		state:      state,
-		frame:      &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "queued-during-finish"},
-		enqueuedAt: time.Now(),
-	}
-	shard.mu.Unlock()
-
-	executor.finishShardDrain(shard)
-
-	eventually(t, time.Second, func() bool {
-		batches := handler.snapshotBatches()
-		return len(batches) == 1 && len(batches[0]) == 1 && batches[0][0].Frame.ClientMsgNo == "queued-during-finish"
-	}, "send executor did not reschedule task queued while shard drain finished")
-	if got := executor.depth(); got != 0 {
-		t.Fatalf("send executor depth = %d, want 0 after rescheduled task drains", got)
-	}
-}
-
 func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchTask {
 	return asyncDispatchTask{
 		frame: &frame.SendPacket{
@@ -1093,88 +995,18 @@ func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchT
 	}
 }
 
-func queuedSendExecutorPacket(t *testing.T, executor *sendExecutor) *frame.SendPacket {
-	t.Helper()
-	task := receiveSendExecutorTask(t, executor, 0)
-	send, ok := task.frame.(*frame.SendPacket)
-	if !ok {
-		t.Fatalf("queued frame = %T, want *frame.SendPacket", task.frame)
-	}
-	return send
-}
-
-func receiveSendExecutorTask(t *testing.T, executor *sendExecutor, shardIndex int) asyncDispatchTask {
-	t.Helper()
-	if executor == nil {
-		t.Fatal("send executor is nil")
-	}
-	if shardIndex < 0 || shardIndex >= len(executor.shards) {
-		t.Fatalf("send executor shard index %d out of range", shardIndex)
-	}
-	select {
-	case task, ok := <-executor.shards[shardIndex].tasks:
-		if !ok {
-			t.Fatal("send executor tasks channel closed before queued send was read")
-		}
-		return task
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for queued send")
-		return asyncDispatchTask{}
-	}
-}
-
-func sendExecutorShardCount(t *testing.T, executor *sendExecutor) int {
-	t.Helper()
-	if executor == nil {
-		t.Fatal("send executor is nil")
-	}
-	return len(executor.shards)
-}
-
-func sendExecutorShardCapacities(t *testing.T, executor *sendExecutor) []int {
-	t.Helper()
-	if executor == nil {
-		t.Fatal("send executor is nil")
-	}
-	capacities := make([]int, 0, len(executor.shards))
-	for i, shard := range executor.shards {
-		if shard == nil {
-			t.Fatalf("send executor shard %d is nil", i)
-		}
-		capacities = append(capacities, cap(shard.tasks))
-	}
-	return capacities
-}
-
-func sendExecutorShardIsOpen(t *testing.T, executor *sendExecutor, shardIndex int) bool {
-	t.Helper()
-	if executor == nil {
-		t.Fatal("send executor is nil")
-	}
-	if shardIndex < 0 || shardIndex >= len(executor.shards) {
-		t.Fatalf("send executor shard index %d out of range", shardIndex)
-	}
-	select {
-	case _, ok := <-executor.shards[shardIndex].tasks:
-		return ok
-	default:
-		return true
-	}
-}
-
 func sameBackingArray(a, b []byte) bool {
 	return len(a) > 0 && len(b) > 0 && &a[0] == &b[0]
 }
 
-func asyncSendBatchClientMsgNos(batch []asyncDispatchTask) []string {
+func sendBatchClientMsgNos(batch []gatewaytypes.SendBatchItem) []string {
 	out := make([]string, 0, len(batch))
-	for _, task := range batch {
-		send, _ := task.frame.(*frame.SendPacket)
-		if send == nil {
+	for _, item := range batch {
+		if item.Frame == nil {
 			out = append(out, "")
 			continue
 		}
-		out = append(out, send.ClientMsgNo)
+		out = append(out, item.Frame.ClientMsgNo)
 	}
 	return out
 }
@@ -1189,6 +1021,20 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func asyncSendTestState(srv *Server, id uint64) *sessionState {
+	return &sessionState{
+		server: srv,
+		key:    connKey{connID: id},
+		listener: &listenerRuntime{
+			options: gatewaytypes.ListenerOptions{Name: "send-test", Network: "tcp"},
+			adapter: asyncAuthEncodeOnlyProtocol{},
+		},
+		session:        session.New(session.Config{ID: id}),
+		closedCh:       make(chan struct{}),
+		requestContext: context.Background(),
+	}
 }
 
 type recordingAsyncSendBatchHandler struct {
@@ -1252,6 +1098,7 @@ func newPanicThenRecordingFrameHandler() *panicThenRecordingFrameHandler {
 }
 
 type blockingAsyncSendFrameHandler struct {
+	counting  countingAsyncFrameHandler
 	startOnce sync.Once
 	started   chan struct{}
 	release   chan struct{}
@@ -1423,17 +1270,66 @@ func (h *blockingAsyncSendFrameHandler) OnListenerError(string, error) {}
 func (h *blockingAsyncSendFrameHandler) OnSessionOpen(gatewaytypes.Context) error {
 	return nil
 }
-func (h *blockingAsyncSendFrameHandler) OnFrame(gatewaytypes.Context, frame.Frame) error {
+func (h *blockingAsyncSendFrameHandler) OnFrame(ctx gatewaytypes.Context, f frame.Frame) error {
+	if err := h.counting.OnFrame(ctx, f); err != nil {
+		return err
+	}
 	h.startOnce.Do(func() {
 		close(h.started)
 	})
 	<-h.release
 	return nil
 }
-func (h *blockingAsyncSendFrameHandler) OnSessionClose(gatewaytypes.Context) error {
-	return nil
+func (h *blockingAsyncSendFrameHandler) OnSessionClose(ctx gatewaytypes.Context) error {
+	return h.counting.OnSessionClose(ctx)
 }
-func (h *blockingAsyncSendFrameHandler) OnSessionError(gatewaytypes.Context, error) {}
+func (h *blockingAsyncSendFrameHandler) OnSessionError(ctx gatewaytypes.Context, err error) {
+	h.counting.OnSessionError(ctx, err)
+}
+
+func (h *blockingAsyncSendFrameHandler) frames() uint64 {
+	return h.counting.frames.Load()
+}
+
+type blockingRecordingAsyncSendBatchHandler struct {
+	recordingAsyncSendBatchHandler
+	once    sync.Once
+	started chan struct{}
+	release chan struct{}
+}
+
+func newBlockingRecordingAsyncSendBatchHandler() *blockingRecordingAsyncSendBatchHandler {
+	return &blockingRecordingAsyncSendBatchHandler{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (h *blockingRecordingAsyncSendBatchHandler) OnSendBatch(items []gatewaytypes.SendBatchItem) error {
+	h.once.Do(func() {
+		close(h.started)
+	})
+	<-h.release
+	return h.recordingAsyncSendBatchHandler.OnSendBatch(items)
+}
+
+func (h *blockingRecordingAsyncSendBatchHandler) releaseAll() {
+	select {
+	case <-h.release:
+	default:
+		close(h.release)
+	}
+}
+
+func (h *blockingRecordingAsyncSendBatchHandler) onlySend(t *testing.T) *frame.SendPacket {
+	t.Helper()
+	eventually(t, time.Second, func() bool {
+		batches := h.snapshotBatches()
+		return len(batches) == 1 && len(batches[0]) == 1
+	}, "blocking batch handler did not record one send")
+	batches := h.snapshotBatches()
+	return batches[0][0].Frame
+}
 
 func (h *countingAsyncFrameHandler) sessionErrors() []error {
 	h.mu.Lock()

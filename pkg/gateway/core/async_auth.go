@@ -1,14 +1,14 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/panjf2000/ants/v2"
+	"github.com/WuKongIM/WuKongIM/pkg/workqueue"
 )
 
 const asyncAuthPanicValueMaxLen = 256
@@ -21,24 +21,10 @@ type authExecutor struct {
 	workers int
 	// capacity is the normalized maximum admitted auth backlog.
 	capacity int
-	// queued tracks admitted auth tasks awaiting execution.
-	queued atomic.Int64
-	// closed prevents new auth admission after shutdown.
-	closed atomic.Bool
-	// tasks holds admitted auth tasks before they are submitted to ants.
-	tasks chan asyncAuthTask
-	// wake nudges the dispatcher after admission, worker drain, or shutdown.
-	wake chan struct{}
-	// done is closed when the dispatcher exits.
-	done chan struct{}
-	// pool runs auth tasks on bounded ants workers.
-	pool *ants.PoolWithFuncGeneric[asyncAuthTask]
-	// releaseTimeout bounds graceful ants pool release.
+	// queue admits and runs CONNECT auth tasks on the shared workqueue primitive.
+	queue *workqueue.BoundedPool[asyncAuthTask]
+	// releaseTimeout bounds graceful queue shutdown.
 	releaseTimeout time.Duration
-	// stopOnce makes executor shutdown idempotent.
-	stopOnce sync.Once
-	// mu protects closing tasks against concurrent submit sends.
-	mu sync.RWMutex
 	// panicC records worker panics for package tests and diagnostics.
 	panicC chan any
 }
@@ -49,86 +35,56 @@ func newAuthExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*authExecutor
 		server:         s,
 		workers:        opts.AsyncAuthWorkers,
 		capacity:       opts.AsyncAuthQueueCapacity,
-		tasks:          make(chan asyncAuthTask, opts.AsyncAuthQueueCapacity),
-		wake:           make(chan struct{}, 1),
-		done:           make(chan struct{}),
 		releaseTimeout: opts.AsyncPoolReleaseTimeout,
 		panicC:         make(chan any, 1),
 	}
 
-	pool, err := ants.NewPoolWithFuncGeneric[asyncAuthTask](
-		opts.AsyncAuthWorkers,
-		e.handle,
-		ants.WithNonblocking(true),
-		ants.WithDisablePurge(true),
-		ants.WithPanicHandler(func(v any) {
-			e.recordPanic(v, asyncAuthTask{})
-		}),
-	)
+	queue, err := workqueue.NewBoundedPool[asyncAuthTask](workqueue.BoundedPoolConfig{
+		Name:           "gateway-auth",
+		Workers:        opts.AsyncAuthWorkers,
+		QueueSize:      opts.AsyncAuthQueueCapacity,
+		ReleaseTimeout: opts.AsyncPoolReleaseTimeout,
+	}, e.handle)
 	if err != nil {
-		close(e.done)
 		return nil, err
 	}
-	e.pool = pool
-	if s == nil {
-		close(e.done)
-		return e, nil
-	}
-	go e.run()
+	e.queue = queue
 	return e, nil
 }
 
 func (e *authExecutor) submit(task asyncAuthTask) bool {
-	if e == nil || task.state == nil || task.connect == nil || e.closed.Load() {
-		return false
-	}
-	if !e.reserve() {
+	if e == nil || e.queue == nil || task.state == nil || task.connect == nil {
 		return false
 	}
 
 	task.connect = cloneAuthConnectPacket(task.connect)
 	task.enqueuedAt = time.Now()
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closed.Load() {
-		e.consume(1)
-		return false
-	}
-	select {
-	case e.tasks <- task:
-		e.notify()
+	err := e.queue.Submit(context.Background(), task)
+	switch {
+	case err == nil:
 		return true
+	case errors.Is(err, workqueue.ErrFull), errors.Is(err, workqueue.ErrClosed):
+		return false
 	default:
-		e.consume(1)
 		return false
 	}
 }
 
 func (e *authExecutor) stop() {
-	if e == nil {
+	if e == nil || e.queue == nil {
 		return
 	}
-	e.stopOnce.Do(func() {
-		e.mu.Lock()
-		e.closed.Store(true)
-		close(e.tasks)
-		e.notify()
-		e.mu.Unlock()
-
-		e.drain()
-		<-e.done
-		if e.pool != nil {
-			_ = e.pool.ReleaseTimeout(e.releaseTimeout)
-		}
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), e.releaseTimeout)
+	defer cancel()
+	_ = e.queue.Close(ctx)
 }
 
 func (e *authExecutor) depth() int {
-	if e == nil {
+	if e == nil || e.queue == nil {
 		return 0
 	}
-	return int(e.queued.Load())
+	return e.queue.QueueDepth()
 }
 
 func (e *authExecutor) totalCapacity() int {
@@ -145,87 +101,9 @@ func (e *authExecutor) workerCount() int {
 	return e.workers
 }
 
-func (e *authExecutor) reserve() bool {
-	for {
-		queued := e.queued.Load()
-		if queued < 0 || queued >= int64(e.capacity) {
-			return false
-		}
-		if e.queued.CompareAndSwap(queued, queued+1) {
-			return true
-		}
-	}
-}
-
-func (e *authExecutor) consume(count int) {
-	if e == nil || count <= 0 {
-		return
-	}
-	remaining := e.queued.Add(-int64(count))
-	if remaining >= 0 {
-		return
-	}
-	e.queued.Add(-remaining)
-}
-
-func (e *authExecutor) run() {
-	defer close(e.done)
-	for {
-		select {
-		case task, ok := <-e.tasks:
-			if !ok {
-				e.drain()
-				return
-			}
-			if !e.invoke(task) {
-				e.drain()
-				return
-			}
-		case <-e.wake:
-		}
-	}
-}
-
-func (e *authExecutor) invoke(task asyncAuthTask) bool {
-	for {
-		if e.closed.Load() {
-			e.consume(1)
-			return false
-		}
-		err := e.pool.Invoke(task)
-		switch {
-		case err == nil:
-			return true
-		case isAntsStopped(err):
-			e.consume(1)
-			return false
-		case isAntsBusy(err):
-			e.waitForWorker()
-		default:
-			e.consume(1)
-			return true
-		}
-	}
-}
-
-func (e *authExecutor) waitForWorker() {
-	timer := time.NewTimer(time.Millisecond)
-	defer timer.Stop()
-
-	select {
-	case <-e.wake:
-	case <-timer.C:
-	}
-}
-
-func (e *authExecutor) handle(task asyncAuthTask) {
-	consumed := false
-	defer e.notify()
+func (e *authExecutor) handle(_ context.Context, task asyncAuthTask) error {
 	defer func() {
 		if v := recover(); v != nil {
-			if !consumed {
-				e.consume(1)
-			}
 			if task.state != nil {
 				task.state.setAuthPending(false)
 			}
@@ -233,31 +111,13 @@ func (e *authExecutor) handle(task asyncAuthTask) {
 		}
 	}()
 
-	e.consume(1)
-	consumed = true
 	if e.server == nil {
-		return
+		return nil
 	}
 	e.server.observeAsyncAuthQueue(e)
 	e.server.observeAsyncAuthWait(task)
 	e.server.runAuthTask(task)
-}
-
-func (e *authExecutor) drain() {
-	if e == nil {
-		return
-	}
-	for {
-		select {
-		case _, ok := <-e.tasks:
-			if !ok {
-				return
-			}
-			e.consume(1)
-		default:
-			return
-		}
-	}
+	return nil
 }
 
 func (e *authExecutor) recordPanic(v any, task asyncAuthTask) {
@@ -296,14 +156,4 @@ func boundedAsyncAuthPanicValue(v any) string {
 		return text
 	}
 	return text[:asyncAuthPanicValueMaxLen]
-}
-
-func (e *authExecutor) notify() {
-	if e == nil {
-		return
-	}
-	select {
-	case e.wake <- struct{}{}:
-	default:
-	}
 }
