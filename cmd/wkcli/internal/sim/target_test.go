@@ -30,8 +30,9 @@ func TestTargetPreflightDiscoversGateway(t *testing.T) {
 			})
 		case "/bench/v1/capacity-target":
 			writeJSON(t, w, map[string]any{
-				"gateway_addresses": map[string]any{
-					"tcp": []string{"127.0.0.1:5100"},
+				"version": "bench/v1",
+				"gateway": map[string]any{
+					"tcp_addr": "127.0.0.1:5100",
 				},
 			})
 		default:
@@ -125,6 +126,9 @@ func TestTargetSetupPostsChannelsAndSubscribers(t *testing.T) {
 	if capturedChannels.RunID != "run-1" {
 		t.Fatalf("channels run id = %q, want run-1", capturedChannels.RunID)
 	}
+	if capturedChannels.BatchID != "channels-000000" {
+		t.Fatalf("channels batch id = %q, want channels-000000", capturedChannels.BatchID)
+	}
 	if len(capturedChannels.Channels) != 1 {
 		t.Fatalf("channels count = %d, want 1", len(capturedChannels.Channels))
 	}
@@ -136,10 +140,13 @@ func TestTargetSetupPostsChannelsAndSubscribers(t *testing.T) {
 	if capturedSubscribers.RunID != "run-1" {
 		t.Fatalf("subscribers run id = %q, want run-1", capturedSubscribers.RunID)
 	}
-	if len(capturedSubscribers.Subscribers) != 1 {
-		t.Fatalf("subscriber items = %d, want 1", len(capturedSubscribers.Subscribers))
+	if capturedSubscribers.BatchID != "subscribers-000000" {
+		t.Fatalf("subscribers batch id = %q, want subscribers-000000", capturedSubscribers.BatchID)
 	}
-	item := capturedSubscribers.Subscribers[0]
+	if len(capturedSubscribers.Items) != 1 {
+		t.Fatalf("subscriber items = %d, want 1", len(capturedSubscribers.Items))
+	}
+	item := capturedSubscribers.Items[0]
 	if item.ChannelID != "group-1" || item.ChannelType != 2 || !equalStrings(item.Subscribers, []string{"u1", "u2"}) {
 		t.Fatalf("subscriber item = %#v", item)
 	}

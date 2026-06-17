@@ -56,17 +56,19 @@ type capabilitiesLimits struct {
 
 // capacityTargetResponse mirrors the v2 bench capacity target JSON response.
 type capacityTargetResponse struct {
-	GatewayAddresses gatewayAddresses `json:"gateway_addresses"`
+	Version string        `json:"version"`
+	Gateway targetGateway `json:"gateway"`
 }
 
-// gatewayAddresses contains externally reachable gateway addresses.
-type gatewayAddresses struct {
-	TCP []string `json:"tcp"`
+// targetGateway contains externally reachable gateway addresses.
+type targetGateway struct {
+	TCPAddr string `json:"tcp_addr"`
 }
 
 // channelsRequest mirrors the v2 bench channel mutation JSON request.
 type channelsRequest struct {
 	RunID    string        `json:"run_id"`
+	BatchID  string        `json:"batch_id"`
 	Channels []channelItem `json:"channels"`
 }
 
@@ -79,8 +81,9 @@ type channelItem struct {
 
 // subscribersRequest mirrors the v2 bench channel subscriber mutation JSON request.
 type subscribersRequest struct {
-	RunID       string           `json:"run_id"`
-	Subscribers []subscriberItem `json:"subscribers"`
+	RunID   string           `json:"run_id"`
+	BatchID string           `json:"batch_id"`
+	Items   []subscriberItem `json:"items"`
 }
 
 // subscriberItem describes one generated subscriber-list mutation item.
@@ -133,7 +136,9 @@ func (c *targetClient) preflight(ctx context.Context) (targetPreflight, error) {
 		if err != nil {
 			return targetPreflight{}, err
 		}
-		result.GatewayTCPAddrs = append(result.GatewayTCPAddrs, capacity.GatewayAddresses.TCP...)
+		if capacity.Gateway.TCPAddr != "" {
+			result.GatewayTCPAddrs = append(result.GatewayTCPAddrs, capacity.Gateway.TCPAddr)
+		}
 	}
 	result.GatewayTCPAddrs = dedupeValues(splitValues(result.GatewayTCPAddrs))
 	if len(result.GatewayTCPAddrs) == 0 {
@@ -150,7 +155,7 @@ func (c *targetClient) setup(ctx context.Context, cfg Config, target targetPrefl
 	if batchSize <= 0 {
 		return nil
 	}
-	for start := 0; start < len(plan.Groups); start += batchSize {
+	for start, batchIndex := 0, 0; start < len(plan.Groups); start, batchIndex = start+batchSize, batchIndex+1 {
 		end := start + batchSize
 		if end > len(plan.Groups) {
 			end = len(plan.Groups)
@@ -170,10 +175,18 @@ func (c *targetClient) setup(ctx context.Context, cfg Config, target targetPrefl
 				Subscribers: append([]string(nil), group.Subscribers...),
 			})
 		}
-		if err := c.postMutation(ctx, "/bench/v1/channels", channelsRequest{RunID: cfg.RunID, Channels: channels}); err != nil {
+		if err := c.postMutation(ctx, "/bench/v1/channels", channelsRequest{
+			RunID:    cfg.RunID,
+			BatchID:  fmt.Sprintf("channels-%06d", batchIndex),
+			Channels: channels,
+		}); err != nil {
 			return err
 		}
-		if err := c.postMutation(ctx, "/bench/v1/channels/subscribers", subscribersRequest{RunID: cfg.RunID, Subscribers: subscribers}); err != nil {
+		if err := c.postMutation(ctx, "/bench/v1/channels/subscribers", subscribersRequest{
+			RunID:   cfg.RunID,
+			BatchID: fmt.Sprintf("subscribers-%06d", batchIndex),
+			Items:   subscribers,
+		}); err != nil {
 			return err
 		}
 	}
