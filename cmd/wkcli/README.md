@@ -130,6 +130,9 @@ go run ./cmd/wkcli sim --context dev --users 1000 --groups 500 --group-members 1
 curl http://127.0.0.1:19091/status
 ```
 
+Without `--server` or `--gateway`, `sim` reads HTTP API servers from
+`--context` or the selected current context.
+
 The target must expose the v2 benchmark API and a published gateway address:
 
 ```text

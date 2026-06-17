@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
+	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +43,11 @@ func NewCommand(deps command.Deps) *cobra.Command {
 			if deps.ContextDir != nil {
 				cfg.ContextDir = *deps.ContextDir
 			}
-			normalized, err := normalizeConfig(cfg)
+			resolved, err := resolveContextConfig(cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			normalized, err := normalizeConfig(resolved)
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
@@ -75,6 +81,35 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.Flags().DurationVar(&cfg.MaxRuntime, "max-runtime", 0, "Optional maximum simulation runtime")
 	cmd.Flags().BoolVar(&cfg.JSON, "json", false, "Print output as JSON")
 	return cmd
+}
+
+func resolveContextConfig(cfg Config) (Config, error) {
+	if len(splitValues(cfg.Servers)) > 0 || len(splitValues(cfg.Gateways)) > 0 {
+		return cfg, nil
+	}
+	storeDir := strings.TrimSpace(cfg.ContextDir)
+	if storeDir == "" {
+		storeDir = contextcmd.DefaultStoreDir()
+	}
+	store := contextcmd.NewStore(storeDir)
+	name := strings.TrimSpace(cfg.ContextName)
+	if name == "" {
+		current, err := store.Current()
+		if err != nil {
+			return Config{}, err
+		}
+		name = current
+	}
+	if name == "" {
+		return cfg, nil
+	}
+	saved, err := store.Load(name)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.ContextName = name
+	cfg.Servers = append([]string(nil), saved.Servers...)
+	return cfg, nil
 }
 
 func executeConfig(ctx context.Context, deps command.Deps, cfg Config) error {
