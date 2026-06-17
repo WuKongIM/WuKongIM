@@ -367,7 +367,7 @@ start_cluster() {
   log "starting three-node cluster: $START_SCRIPT"
   (
     cd "$ROOT_DIR"
-    "${args[@]}"
+    exec "${args[@]}"
   ) >"$(cluster_log)" 2>&1 &
   CLUSTER_PID="$!"
   log "cluster pid=${CLUSTER_PID} log=$(cluster_log)"
@@ -446,10 +446,14 @@ run_sim() {
   cmd+=(--status-interval "$STATUS_INTERVAL")
   cmd+=(--json)
   log "running wkcli sim: users=${USERS} groups=${GROUP_COUNT} members=${GROUP_MEMBERS} gateways=${#GATEWAY_VALUES[@]}"
+  local status=0
   (
     cd "$ROOT_DIR"
     "${cmd[@]}"
-  ) | tee "$(sim_output)"
+  ) | tee "$(sim_output)" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    die "wkcli sim failed with status ${status}"
+  fi
 }
 
 json_int() {

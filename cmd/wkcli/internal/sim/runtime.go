@@ -2,7 +2,9 @@ package sim
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -98,7 +100,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	var sequence atomic.Uint64
 	for {
 		status.setState(stateConnecting)
-		observer := &clientObserver{status: status}
+		observer := &clientObserver{status: status, ctx: ctx}
 		pool, err := r.NewPool(cfg, resolved.GatewayTCPAddrs, observer)
 		if err != nil {
 			status.addSendErrors(0, err.Error())
@@ -174,6 +176,9 @@ func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, seque
 				msg := group.nextMessage(r.Config, sequence.Add(1))
 				results, err := pool.SendBatch(ctx, []wkclient.RoutedMessage{msg})
 				if err != nil {
+					if isRuntimeStopError(ctx, err) {
+						continue
+					}
 					r.Status.addSendErrors(1, err.Error())
 					recordErr(err)
 					continue
@@ -234,10 +239,14 @@ func newClientPool(cfg Config, gateways []string, observer wkclient.Observer) (s
 
 type clientObserver struct {
 	status *statusModel
+	ctx    context.Context
 }
 
 func (o *clientObserver) OnConnect(event wkclient.ConnectEvent) {
 	if event.Err != nil {
+		if isRuntimeStopError(o.ctx, event.Err) {
+			return
+		}
 		o.status.addSendErrors(0, event.Err.Error())
 	}
 }
@@ -246,12 +255,18 @@ func (o *clientObserver) OnSendQueue(event wkclient.SendQueueEvent) {}
 
 func (o *clientObserver) OnSendBatch(event wkclient.SendBatchEvent) {
 	if event.Err != nil {
+		if isRuntimeStopError(o.ctx, event.Err) {
+			return
+		}
 		o.status.addSendErrors(1, event.Err.Error())
 	}
 }
 
 func (o *clientObserver) OnSendAck(event wkclient.SendAckEvent) {
 	if event.Err != nil {
+		if isRuntimeStopError(o.ctx, event.Err) {
+			return
+		}
 		o.status.addSendErrors(1, event.Err.Error())
 	}
 }
@@ -266,8 +281,21 @@ func (o *clientObserver) OnRecv(event wkclient.RecvEvent) {
 
 func (o *clientObserver) OnError(event wkclient.ErrorEvent) {
 	if event.Err != nil {
+		if isRuntimeStopError(o.ctx, event.Err) {
+			return
+		}
 		o.status.addSendErrors(1, fmt.Sprintf("%s: %v", event.Op, event.Err))
 	}
+}
+
+func isRuntimeStopError(ctx context.Context, err error) bool {
+	if err == nil || ctx == nil || ctx.Err() == nil {
+		return false
+	}
+	return errors.Is(err, ctx.Err()) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, net.ErrClosed)
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) error {

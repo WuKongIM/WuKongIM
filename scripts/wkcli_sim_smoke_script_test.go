@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWkcliSimSmokeScriptDryRunPrintsNodeAndSimulatorCommands(t *testing.T) {
@@ -136,6 +137,55 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 	}
 }
 
+func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	startScript := filepath.Join(binDir, "start-three.sh")
+	writeFakeThreeNodeSimFailingGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
+	t.Cleanup(func() {
+		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
+	})
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when wkcli sim fails:\n%s", output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"wkcli sim failed with status 3",
+		"--- cluster log:",
+		"fake cluster running",
+		"--- node log:",
+		"fake node1 log",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("failure output missing %q:\n%s", want, text)
+		}
+	}
+	if !waitForFile(filepath.Join(callsDir, "start.term")) {
+		t.Fatalf("start script did not receive TERM; calls dir: %s", callsDir)
+	}
+}
+
 func writeFakeThreeNodeSimGo(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -155,6 +205,84 @@ exit 2
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeFakeThreeNodeSimFailingGo(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$*" >> "` + callsDir + `/go.calls"
+if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/wkcli" && "${3:-}" == "sim" ]]; then
+  cat <<'JSON'
+{"state":"running","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":3,"send_errors":0,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"","last_transition_at":"2026-06-17T00:00:00Z"}
+{"state":"stopped","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":3,"send_errors":1,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"fake failure","last_transition_at":"2026-06-17T00:00:04Z"}
+JSON
+  exit 3
+fi
+echo "unexpected go args: $*" >&2
+exit 2
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeThreeNodeSimStartScript(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "` + callsDir + `"
+printf '%s\n' "$$" > "` + callsDir + `/start.pid"
+printf '%s\n' "$*" >> "` + callsDir + `/start.calls"
+log_dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --log-dir)
+      log_dir="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+mkdir -p "$log_dir"
+printf 'fake node1 log\n' > "$log_dir/node1.log"
+printf 'fake node2 log\n' > "$log_dir/node2.log"
+printf 'fake node3 log\n' > "$log_dir/node3.log"
+trap 'printf term > "` + callsDir + `/start.term"; exit 0' TERM INT
+echo fake cluster running
+while true; do
+  sleep 1
+done
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func waitForFile(path string) bool {
+	for i := 0; i < 20; i++ {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
+}
+
+func terminateRecordedProcess(t *testing.T, pidPath string) {
+	t.Helper()
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return
+	}
+	pid := strings.TrimSpace(string(data))
+	if pid == "" {
+		return
+	}
+	_ = exec.Command("kill", "-TERM", pid).Run()
 }
 
 func writeFakeThreeNodeSimCurl(t *testing.T, path string, callsDir string) {

@@ -2,6 +2,7 @@ package sim
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -105,6 +106,68 @@ func TestRuntimeInitializesMissingStatus(t *testing.T) {
 	}
 }
 
+func TestRuntimeDoesNotCountInFlightDeadlineSendsAsErrors(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Servers:      []string{"http://127.0.0.1:5001"},
+		Gateways:     []string{"127.0.0.1:5100"},
+		Users:        1,
+		Groups:       1,
+		GroupMembers: 1,
+		RatePerGroup: "20/s",
+		RunID:        "run-1",
+		MaxRuntime:   60 * time.Millisecond,
+		Concurrency:  1,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	status := newStatus(cfg.RunID)
+	pool := &deadlinePool{}
+	runtime := &Runtime{
+		Config: cfg,
+		Status: status,
+		Target: &fakeTarget{resolved: targetPreflight{
+			GatewayTCPAddrs: cfg.Gateways,
+			MaxBatchSize:    10,
+		}},
+		NewPool: func(Config, []string, wkclient.Observer) (simPool, error) {
+			return pool, nil
+		},
+	}
+
+	if err := runtime.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	snapshot := status.snapshot()
+	if snapshot.State != stateStopped {
+		t.Fatalf("state = %q, want %q", snapshot.State, stateStopped)
+	}
+	if pool.sendCalls == 0 {
+		t.Fatalf("expected at least one in-flight send")
+	}
+	if snapshot.SendErrors != 0 {
+		t.Fatalf("SendErrors = %d, want 0 for graceful max-runtime stop; last error %q", snapshot.SendErrors, snapshot.LastError)
+	}
+}
+
+func TestClientObserverIgnoresShutdownErrorsAfterRuntimeStops(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	status := newStatus("run-1")
+	observer := &clientObserver{status: status, ctx: ctx}
+
+	observer.OnConnect(wkclient.ConnectEvent{Err: context.Canceled})
+	observer.OnSendBatch(wkclient.SendBatchEvent{Err: net.ErrClosed})
+	observer.OnSendAck(wkclient.SendAckEvent{Err: context.DeadlineExceeded})
+	observer.OnError(wkclient.ErrorEvent{Op: "write", Err: net.ErrClosed})
+
+	snapshot := status.snapshot()
+	if snapshot.SendErrors != 0 {
+		t.Fatalf("SendErrors = %d, want 0 for shutdown observer errors; last error %q", snapshot.SendErrors, snapshot.LastError)
+	}
+}
+
 type fakeTarget struct {
 	resolved targetPreflight
 	setupN   int
@@ -144,6 +207,28 @@ func (f *fakePool) SendBatch(ctx context.Context, messages []wkclient.RoutedMess
 }
 
 func (f *fakePool) Close() error {
+	f.closed = true
+	return nil
+}
+
+type deadlinePool struct {
+	connected []wkclient.Identity
+	sendCalls int
+	closed    bool
+}
+
+func (f *deadlinePool) Connect(ctx context.Context, identities []wkclient.Identity) error {
+	f.connected = append([]wkclient.Identity(nil), identities...)
+	return nil
+}
+
+func (f *deadlinePool) SendBatch(ctx context.Context, messages []wkclient.RoutedMessage) ([]wkclient.SendResult, error) {
+	f.sendCalls++
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (f *deadlinePool) Close() error {
 	f.closed = true
 	return nil
 }
