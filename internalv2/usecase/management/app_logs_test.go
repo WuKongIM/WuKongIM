@@ -32,6 +32,24 @@ func TestApplicationLogEntriesRequiresReader(t *testing.T) {
 	}
 }
 
+func TestApplicationLogSourcesValidatesNode(t *testing.T) {
+	app := New(Options{ApplicationLogs: &fakeApplicationLogReader{}})
+
+	_, err := app.ApplicationLogSources(context.Background(), ApplicationLogSourcesRequest{NodeID: 0})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("ApplicationLogSources() error = %v, want %v", err, metadb.ErrInvalidArgument)
+	}
+}
+
+func TestApplicationLogSourcesRequiresReader(t *testing.T) {
+	app := New(Options{})
+
+	_, err := app.ApplicationLogSources(context.Background(), ApplicationLogSourcesRequest{NodeID: 1})
+	if !errors.Is(err, ErrApplicationLogReaderUnavailable) {
+		t.Fatalf("ApplicationLogSources() error = %v, want %v", err, ErrApplicationLogReaderUnavailable)
+	}
+}
+
 func TestApplicationLogSourcesDelegates(t *testing.T) {
 	modifiedAt := time.Unix(1700000000, 0).UTC()
 	reader := &fakeApplicationLogReader{
@@ -107,6 +125,18 @@ func TestApplicationLogEntriesDelegatesRequestFields(t *testing.T) {
 	}
 	if got.NodeID != 3 || got.Source != "error" || got.Cursor != "next" || !got.Rotated || len(got.Items) != 1 {
 		t.Fatalf("entries response = %#v, want delegated response", got)
+	}
+}
+
+func TestApplicationLogReaderErrorsPropagate(t *testing.T) {
+	wantErr := errors.New("reader failed")
+	app := New(Options{ApplicationLogs: &fakeApplicationLogReader{err: wantErr}})
+
+	if _, err := app.ApplicationLogSources(context.Background(), ApplicationLogSourcesRequest{NodeID: 1}); !errors.Is(err, wantErr) {
+		t.Fatalf("ApplicationLogSources() error = %v, want %v", err, wantErr)
+	}
+	if _, err := app.ApplicationLogEntries(context.Background(), ApplicationLogEntriesRequest{NodeID: 1}); !errors.Is(err, wantErr) {
+		t.Fatalf("ApplicationLogEntries() error = %v, want %v", err, wantErr)
 	}
 }
 
