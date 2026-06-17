@@ -1660,3 +1660,30 @@ export type ManagerDiagnosticsTrackingDeleteResponse = {
 export type CreateDiagnosticsTrackingRuleInput =
   | { target: "sender_uid"; uid: string; ttlSeconds: number; sampleRate?: number }
   | { target: "channel"; channelId: string; channelType: number; ttlSeconds: number; sampleRate?: number }
+
+export type ManagerDBInspectRow = Record<string, unknown>
+
+export type ManagerDBInspectStats = {
+  scan_mode: string
+  scanned_hash_slots: number[]
+  scanned_rows: number
+  returned_rows: number
+  has_more: boolean
+  next_cursor: string
+}
+
+export type ManagerDBInspectQueryResponse = {
+  node_id: number
+  generated_at: string
+  rows: ManagerDBInspectRow[]
+  stats: ManagerDBInspectStats
+}
+
+export type ManagerDBInspectTablesResponse = ManagerDBInspectQueryResponse
+
+export type ManagerDBInspectDescribeResponse = ManagerDBInspectQueryResponse
+
+export type ManagerDBInspectQueryInput = {
+  node_id?: number
+  query: string
+}

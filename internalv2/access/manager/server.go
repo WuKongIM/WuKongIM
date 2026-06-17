@@ -88,6 +88,12 @@ type Management interface {
 	AddSystemUsers(ctx context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error)
 	// RemoveSystemUsers removes persisted system UID rows.
 	RemoveSystemUsers(ctx context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error)
+	// ListDBInspectTables returns inspectable DB table metadata.
+	ListDBInspectTables(ctx context.Context, nodeID uint64) (managementusecase.DBInspectQueryResponse, error)
+	// DescribeDBInspectTable returns inspectable column metadata for one table.
+	DescribeDBInspectTable(ctx context.Context, nodeID uint64, domain, table string) (managementusecase.DBInspectQueryResponse, error)
+	// QueryDBInspect runs one bounded read-only DB inspect query.
+	QueryDBInspect(ctx context.Context, req managementusecase.DBInspectQueryRequest) (managementusecase.DBInspectQueryResponse, error)
 }
 
 // Options configures the manager HTTP server.
@@ -241,6 +247,14 @@ func (s *Server) registerRoutes() {
 		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
 	}
 	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
+
+	dbInspect := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		dbInspect.Use(s.requirePermission("cluster.db", "r"))
+	}
+	dbInspect.GET("/db/inspect/tables", s.handleDBInspectTables)
+	dbInspect.GET("/db/inspect/tables/:domain/:table", s.handleDBInspectTable)
+	dbInspect.POST("/db/inspect/query", s.handleDBInspectQuery)
 
 	channels := s.engine.Group("/manager")
 	if s.auth.enabled() {

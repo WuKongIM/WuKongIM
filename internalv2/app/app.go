@@ -165,6 +165,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
 	app.wireManagerChannelRPC()
+	app.wireManagerDBInspectRPC()
 	app.wireUsers()
 	app.wireDelivery()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {

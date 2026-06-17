@@ -54,4 +54,6 @@ const (
 	RPCManagerLogs
 	// RPCManagerChannels serves internalv2 node-local manager channel list reads.
 	RPCManagerChannels
+	// RPCManagerDBInspect serves internalv2 node-local manager DB inspect reads.
+	RPCManagerDBInspect
 )

@@ -50,4 +50,10 @@ describe("navigationSections", () => {
     expect(legacyRouteRedirects["/connections"]).toBe("/business/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
   })
+
+  test("includes DB inspect in system navigation", () => {
+    const item = pageMetadata.get("/system/db")
+    expect(item?.titleMessageId).toBe("nav.dbInspect.title")
+    expect(legacyRouteRedirects["/db-inspect"]).toBe("/system/db")
+  })
 })

@@ -24,6 +24,9 @@ GET  /manager/messages (channel message list; requires cluster.channel:r when Au
 POST /manager/messages/retention (message retention request; requires cluster.channel:w when Auth.On=true)
 GET  /manager/connections (connection list; requires cluster.connection:r when Auth.On=true)
 GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
+GET  /manager/db/inspect/tables (DB Inspect table list; requires cluster.db:r when Auth.On=true)
+GET  /manager/db/inspect/tables/:domain/:table (DB Inspect table schema; requires cluster.db:r when Auth.On=true)
+POST /manager/db/inspect/query (DB Inspect query; requires cluster.db:r when Auth.On=true)
 GET  /manager/users   (user list; requires cluster.user:r when Auth.On=true)
 GET  /manager/users/:uid (user detail; requires cluster.user:r when Auth.On=true)
 POST /manager/users/:uid/kick (force offline; requires cluster.user:w when Auth.On=true)
@@ -97,6 +100,14 @@ through internalv2 node RPC, and maps session details such as UID, device,
 listener, state, timestamps, and addresses when the gateway session handle
 exposes them. If a remote connection reader is not wired, non-local filters
 return `service_unavailable`.
+
+`/manager/db/inspect*` backs the web `/system/db` DB Inspect page. It parses
+HTTP query/body parameters, enforces `cluster.db:r` when manager auth is
+enabled, and delegates all local-vs-remote targeting to
+`internalv2/usecase/management`. Empty `node_id` means the local manager node;
+non-local `node_id` requests are routed below this package through manager DB
+inspect node RPC. The routes are read-only diagnostics: they do not merge
+cluster rows, expose filesystem paths, or provide storage mutation operations.
 
 `/manager/users*` and `/manager/system-users*` preserve the legacy manager user
 management response shapes for the web user and system-user pages. HTTP parsing,

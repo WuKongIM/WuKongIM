@@ -6,13 +6,14 @@
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
 recent conversation list, channel message list, message retention adapter
-contract, local-or-remote connection list/detail projection, user management,
-and system UID projections/actions used by `GET /manager/nodes`,
+contract, local-or-remote connection list/detail projection, DB Inspect
+node-local diagnostics orchestration, user management, and system UID
+projections/actions used by `GET /manager/nodes`,
 `GET /manager/slots`, `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
 `GET /manager/slots/:slot_id/logs`, `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
-`/manager/users*`, and `/manager/system-users*`.
+`/manager/db/inspect*`, `/manager/users*`, and `/manager/system-users*`.
 
 ## Node List Flow
 
@@ -156,6 +157,24 @@ list results by newest connection first. Remote `node_id` filters delegate to a
 narrow `RemoteConnectionReader` port so the app layer can route manager
 connection inventory reads over node RPC. When that port is not wired, the
 usecase returns `ErrConnectionReaderUnavailable`.
+
+## DB Inspect Flow
+
+```text
+manager HTTP handler
+  -> management.App.ListDBInspectTables/DescribeDBInspectTable/QueryDBInspect
+  -> empty node_id or local node_id: DBInspectReader node-local read
+  -> non-local node_id: RemoteDBInspectReader manager DB inspect node RPC
+  -> read-only DB Inspect DTO rows
+```
+
+DB Inspect is a read-only, node-local diagnostics surface for manager
+inspection. The management usecase normalizes an empty `node_id` to the local
+manager node, validates requested target nodes against the cluster snapshot,
+and routes non-local `node_id` requests through the narrow remote DB inspect
+reader port. It does not merge rows across cluster nodes, accept or expose
+filesystem paths, or mutate storage; storage selection is owned by the app
+composition root and the underlying inspect reader.
 
 ## User Management Flow
 
