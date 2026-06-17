@@ -17,6 +17,11 @@ type ChannelMetadataNode interface {
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
 }
 
+type channelSubscriberLookupNode interface {
+	ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error)
+	HasChannelSubscribers(context.Context, string, int64) (bool, error)
+}
+
 // ChannelMembershipNode exposes UID-owned reverse membership projection operations.
 type ChannelMembershipNode interface {
 	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, int64) error
@@ -42,6 +47,11 @@ func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string,
 		return metadb.Channel{}, metadb.ErrNotFound
 	}
 	return s.node.GetChannelMetadata(ctx, channelID, channelType)
+}
+
+// GetChannelForPermission reads channel metadata for send authorization.
+func (s *ChannelMetadataStore) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return s.GetChannel(ctx, channelID, channelType)
 }
 
 // UpsertChannel persists channel metadata through Slot ownership.
@@ -90,6 +100,47 @@ func (s *ChannelMetadataStore) ListChannelSubscribers(ctx context.Context, chann
 		return nil, "", true, nil
 	}
 	return s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+}
+
+// ContainsChannelSubscriber performs a subscriber point lookup for send authorization.
+func (s *ChannelMetadataStore) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	if s == nil || s.node == nil || uid == "" {
+		return false, nil
+	}
+	if lookup, ok := s.node.(channelSubscriberLookupNode); ok {
+		return lookup.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+	}
+	afterUID := ""
+	for {
+		uids, cursor, done, err := s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, 512)
+		if err != nil {
+			return false, err
+		}
+		for _, next := range uids {
+			if next == uid {
+				return true, nil
+			}
+		}
+		if done || cursor == "" || cursor == afterUID {
+			return false, nil
+		}
+		afterUID = cursor
+	}
+}
+
+// HasChannelSubscribers reports whether the channel has at least one subscriber row.
+func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	if s == nil || s.node == nil {
+		return false, nil
+	}
+	if lookup, ok := s.node.(channelSubscriberLookupNode); ok {
+		return lookup.HasChannelSubscribers(ctx, channelID, channelType)
+	}
+	uids, _, _, err := s.node.ListChannelSubscribersPage(ctx, channelID, channelType, "", 1)
+	if err != nil {
+		return false, err
+	}
+	return len(uids) > 0, nil
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.

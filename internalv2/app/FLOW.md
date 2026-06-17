@@ -110,8 +110,9 @@ New(Config)
        channel-authority forwarding
        register Channel Append RPC so remote nodes can submit to the local
        authority writer group
-  -> create message.App as a thin facade over channelappend.Router, with the
-     clusterv2 committed message reader when exposed for channel message sync
+  -> create message.App with channelappend.Router, clusterv2 channel metadata
+     permission reads, system UID cache, configured message permission switches,
+     and the clusterv2 committed message reader when exposed for channel message sync
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the channel, user, message, and conversation
      usecases, legacy route address lookup derived from gateway listeners and

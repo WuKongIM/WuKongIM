@@ -198,6 +198,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=64",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=262144",
 		"WK_GATEWAY_SEND_TIMEOUT=5s",
+		"WK_MESSAGE_PERSON_WHITELIST_ENABLED=true",
+		"WK_MESSAGE_SYSTEM_DEVICE_ID=custom-device",
+		"WK_MESSAGE_PERMISSION_CACHE_TTL=5s",
 		"WK_PRESENCE_ACTIVATION_TIMEOUT=2s",
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL=2s",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
@@ -308,6 +311,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Gateway.SendTimeout != 5*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if !cfg.Message.PersonWhitelistEnabled || cfg.Message.SystemDeviceID != "custom-device" || cfg.Message.PermissionCacheTTL != 5*time.Second {
+		t.Fatalf("Message config = %#v, want whitelist true custom device 5s cache", cfg.Message)
 	}
 	if cfg.Presence.ActivationTimeout != 2*time.Second {
 		t.Fatalf("Presence.ActivationTimeout = %s, want 2s", cfg.Presence.ActivationTimeout)
@@ -704,6 +710,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", "96")
 	t.Setenv("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", "131072")
 	t.Setenv("WK_GATEWAY_SEND_TIMEOUT", "2s")
+	t.Setenv("WK_MESSAGE_PERSON_WHITELIST_ENABLED", "false")
+	t.Setenv("WK_MESSAGE_SYSTEM_DEVICE_ID", "env-device")
+	t.Setenv("WK_MESSAGE_PERMISSION_CACHE_TTL", "250ms")
 	t.Setenv("WK_PRESENCE_ACTIVATION_TIMEOUT", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
@@ -785,6 +794,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Gateway.SendTimeout != 2*time.Second {
 		t.Fatalf("SendTimeout = %s", cfg.Gateway.SendTimeout)
+	}
+	if cfg.Message.PersonWhitelistEnabled || cfg.Message.SystemDeviceID != "env-device" || cfg.Message.PermissionCacheTTL != 250*time.Millisecond {
+		t.Fatalf("Message env override = %#v", cfg.Message)
 	}
 	if cfg.Presence.ActivationTimeout != 1500*time.Millisecond {
 		t.Fatalf("Presence.ActivationTimeout = %s, want 1500ms", cfg.Presence.ActivationTimeout)

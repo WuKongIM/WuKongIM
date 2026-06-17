@@ -172,6 +172,42 @@ func (n *Node) ListChannelSubscribersPage(ctx context.Context, channelID string,
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListSubscribersPage(ctx, channelID, channelType, afterUID, limit)
 }
 
+// ContainsChannelSubscriber reads one durable subscriber membership from Slot metadata storage.
+func (n *Node) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return false, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return false, ErrNotStarted
+	}
+	route, err := n.RouteKey(channelID)
+	if err != nil {
+		return false, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ContainsSubscriber(ctx, channelID, channelType, uid)
+}
+
+// HasChannelSubscribers reports whether durable subscriber metadata has any row for the channel.
+func (n *Node) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return false, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return false, ErrNotStarted
+	}
+	route, err := n.RouteKey(channelID)
+	if err != nil {
+		return false, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).HasSubscribers(ctx, channelID, channelType)
+}
+
 // UpsertChannelLatest persists a channel-owned latest message projection.
 func (n *Node) UpsertChannelLatest(ctx context.Context, latest metadb.ChannelLatest) error {
 	if err := ctxErr(ctx); err != nil {

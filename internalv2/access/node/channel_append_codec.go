@@ -203,6 +203,7 @@ func readChannelAppendItem(body []byte, offset int) (channelAppendItem, int, err
 
 func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) []byte {
 	dst = appendString(dst, cmd.FromUID)
+	dst = appendString(dst, cmd.DeviceID)
 	dst = appendUvarint(dst, cmd.SenderNodeID)
 	dst = appendUvarint(dst, cmd.SenderSessionID)
 	dst = appendUvarint(dst, cmd.ClientSeq)
@@ -226,6 +227,9 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 	var cmd channelappend.SendCommand
 	var err error
 	if cmd.FromUID, offset, err = readString(body, offset); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	if cmd.DeviceID, offset, err = readString(body, offset); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
 	if cmd.SenderNodeID, offset, err = readUvarint(body, offset); err != nil {

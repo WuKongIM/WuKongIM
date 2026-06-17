@@ -13,6 +13,7 @@ import (
 type sendMessageRequest struct {
 	FromUID       string                   `json:"from_uid"`
 	LegacyFromUID string                   `json:"sender_uid"`
+	DeviceID      string                   `json:"device_id"`
 	ChannelID     string                   `json:"channel_id"`
 	ChannelType   uint8                    `json:"channel_type"`
 	ClientMsgNo   string                   `json:"client_msg_no"`
@@ -88,6 +89,7 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	cmd := messageusecase.SendCommand{
 		TraceID:                traceCtx.TraceID,
 		FromUID:                req.FromUID,
+		DeviceID:               req.DeviceID,
 		ChannelID:              req.ChannelID,
 		ChannelType:            req.ChannelType,
 		ClientMsgNo:            req.ClientMsgNo,

@@ -346,6 +346,20 @@ func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
 		return "channel_not_exist"
 	case messageusecase.ReasonNodeNotMatch:
 		return "node_not_match"
+	case messageusecase.ReasonSubscriberNotExist:
+		return "subscriber_not_exist"
+	case messageusecase.ReasonInBlacklist:
+		return "in_blacklist"
+	case messageusecase.ReasonNotAllowSend:
+		return "not_allow_send"
+	case messageusecase.ReasonNotInWhitelist:
+		return "not_in_whitelist"
+	case messageusecase.ReasonBan:
+		return "ban"
+	case messageusecase.ReasonDisband:
+		return "disband"
+	case messageusecase.ReasonSendBan:
+		return "send_ban"
 	case messageusecase.ReasonSystemError:
 		return "system_error"
 	case messageusecase.ReasonUnsupported:

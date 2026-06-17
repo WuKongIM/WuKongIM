@@ -11,6 +11,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -38,6 +39,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	}
 
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+	seedGroupSendPermission(t, node, channelID, "u1")
 
 	writes := &sendackSmokeSessionWrites{}
 	sess := newSendackSmokeSession(writes)
@@ -71,7 +73,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	}
 }
 
-func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
+func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	channelID := channelv2.ChannelID{ID: "room-default-meta", Type: frame.ChannelTypeGroup}
 	app, err := New(cfg)
@@ -95,6 +97,7 @@ func TestSingleNodeClusterFirstSendCreatesChannelMetaAndSendack(t *testing.T) {
 		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+	seedGroupSendPermission(t, node, channelID, "u1")
 
 	first := sendDefaultMetaSmokePacket(t, app, channelID, 1, "client-default-meta-1")
 	if first.ReasonCode != frame.ReasonSuccess {
@@ -142,6 +145,32 @@ func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelv2.Chan
 		t.Fatalf("sendack client mapping = seq:%d msgNo:%q, want seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo, send.ClientSeq, send.ClientMsgNo)
 	}
 	return ack
+}
+
+func seedGroupSendPermission(t *testing.T, node *clusterv2.Node, channelID channelv2.ChannelID, uids ...string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := node.UpsertChannelMetadata(ctx, metadb.Channel{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}); err != nil {
+		t.Fatalf("UpsertChannelMetadata() error = %v", err)
+	}
+	if len(uids) > 0 {
+		if err := node.AddChannelSubscribers(ctx, channelID.ID, int64(channelID.Type), uids, 1); err != nil {
+			t.Fatalf("AddChannelSubscribers() error = %v", err)
+		}
+	}
+	waitUntil(t, 3*time.Second, func() bool {
+		if _, err := node.GetChannelMetadata(context.Background(), channelID.ID, int64(channelID.Type)); err != nil {
+			return false
+		}
+		for _, uid := range uids {
+			ok, err := node.ContainsChannelSubscriber(context.Background(), channelID.ID, int64(channelID.Type), uid)
+			if err != nil || !ok {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func singleNodeClusterAppConfig(t *testing.T) Config {

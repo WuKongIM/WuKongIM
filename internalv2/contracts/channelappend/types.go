@@ -23,6 +23,20 @@ const (
 	ReasonSystemError
 	// ReasonUnsupported means the phase-1 stack does not implement this send mode.
 	ReasonUnsupported
+	// ReasonSubscriberNotExist means the sender is not a channel subscriber.
+	ReasonSubscriberNotExist
+	// ReasonInBlacklist means the sender is blocked by a channel denylist.
+	ReasonInBlacklist
+	// ReasonNotAllowSend means the sender is not allowed to send to the channel.
+	ReasonNotAllowSend
+	// ReasonNotInWhitelist means the sender is missing from a required allowlist.
+	ReasonNotInWhitelist
+	// ReasonBan means the channel is banned.
+	ReasonBan
+	// ReasonDisband means the channel has been disbanded.
+	ReasonDisband
+	// ReasonSendBan means the sender is send-banned.
+	ReasonSendBan
 )
 
 // CommitMode controls when durable append completes.
@@ -65,6 +79,8 @@ type AuthorityTarget struct {
 type SendCommand struct {
 	// FromUID is the authenticated sender uid.
 	FromUID string
+	// DeviceID is the authenticated gateway device id, used by trusted system-device sends.
+	DeviceID string
 	// SenderNodeID is the owner node id that accepted the sender gateway session.
 	SenderNodeID uint64
 	// SenderSessionID is the node-local gateway session id.

@@ -58,6 +58,13 @@ func TestMessagePackageAliasesSendFacadeTypes(t *testing.T) {
 		{name: "node not match", message: message.ReasonNodeNotMatch, contract: channelappend.ReasonNodeNotMatch},
 		{name: "system error", message: message.ReasonSystemError, contract: channelappend.ReasonSystemError},
 		{name: "unsupported", message: message.ReasonUnsupported, contract: channelappend.ReasonUnsupported},
+		{name: "subscriber not exist", message: message.ReasonSubscriberNotExist, contract: channelappend.ReasonSubscriberNotExist},
+		{name: "in blacklist", message: message.ReasonInBlacklist, contract: channelappend.ReasonInBlacklist},
+		{name: "not allow send", message: message.ReasonNotAllowSend, contract: channelappend.ReasonNotAllowSend},
+		{name: "not in whitelist", message: message.ReasonNotInWhitelist, contract: channelappend.ReasonNotInWhitelist},
+		{name: "ban", message: message.ReasonBan, contract: channelappend.ReasonBan},
+		{name: "disband", message: message.ReasonDisband, contract: channelappend.ReasonDisband},
+		{name: "send ban", message: message.ReasonSendBan, contract: channelappend.ReasonSendBan},
 	}
 	for _, reason := range reasons {
 		if reason.message != reason.contract {

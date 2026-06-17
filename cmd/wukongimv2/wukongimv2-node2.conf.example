@@ -144,6 +144,14 @@ WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=524288
 # Per-SEND timeout used by the gateway adapter.
 WK_GATEWAY_SEND_TIMEOUT=5s
 
+# Message permission checks.
+# Enables receiver-side personal allowlist enforcement; disabled by default for legacy compatibility.
+WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
+# Trusted device id that bypasses channel-specific send permissions after sender SendBan passes.
+WK_MESSAGE_SYSTEM_DEVICE_ID=____device
+# TTL for the bounded send-permission read cache. Zero disables caching.
+WK_MESSAGE_PERMISSION_CACHE_TTL=0
+
 # Presence route activation, owner touch batching, and authority TTL.
 WK_PRESENCE_ACTIVATION_TIMEOUT=3s
 WK_PRESENCE_TOUCH_FLUSH_INTERVAL=1s

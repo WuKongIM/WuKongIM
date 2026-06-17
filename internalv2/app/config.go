@@ -257,7 +257,17 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 }
 
 // MessageConfig contains message usecase settings.
-type MessageConfig struct{}
+type MessageConfig struct {
+	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
+	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
+	PersonWhitelistEnabled bool
+	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
+	// send permissions after sender SendBan has passed.
+	SystemDeviceID string
+	// PermissionCacheTTL enables a bounded read-through cache for permission channel,
+	// membership, and missing-channel reads. Zero keeps permission reads uncached.
+	PermissionCacheTTL time.Duration
+}
 
 // ChannelConfig contains channel management settings.
 type ChannelConfig struct {
@@ -330,6 +340,13 @@ type DeliveryConfig struct {
 func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 	if cfg.AuthOn && cfg.JWTExpire == 0 {
 		cfg.JWTExpire = 24 * time.Hour
+	}
+	return cfg
+}
+
+func defaultMessageConfig(cfg MessageConfig) MessageConfig {
+	if cfg.SystemDeviceID == "" {
+		cfg.SystemDeviceID = "____device"
 	}
 	return cfg
 }
@@ -625,6 +642,13 @@ func validatePresenceConfig(cfg PresenceConfig) error {
 func validateChannelConfig(cfg ChannelConfig) error {
 	if cfg.LargeGroupSubscriberThreshold <= 0 {
 		return fmt.Errorf("%w: channel large group subscriber threshold must be positive", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateMessageConfig(cfg MessageConfig) error {
+	if cfg.PermissionCacheTTL < 0 {
+		return fmt.Errorf("%w: message permission cache ttl must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

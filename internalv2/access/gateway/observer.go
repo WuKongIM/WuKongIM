@@ -146,6 +146,20 @@ func sendtraceErrorCodeForReason(reason message.Reason) string {
 		return "reason_channel_not_exist"
 	case message.ReasonNodeNotMatch:
 		return "reason_node_not_match"
+	case message.ReasonSubscriberNotExist:
+		return "reason_subscriber_not_exist"
+	case message.ReasonInBlacklist:
+		return "reason_in_blacklist"
+	case message.ReasonNotAllowSend:
+		return "reason_not_allow_send"
+	case message.ReasonNotInWhitelist:
+		return "reason_not_in_whitelist"
+	case message.ReasonBan:
+		return "reason_ban"
+	case message.ReasonDisband:
+		return "reason_disband"
+	case message.ReasonSendBan:
+		return "reason_send_ban"
 	case message.ReasonSystemError:
 		return "reason_system_error"
 	case message.ReasonUnsupported:

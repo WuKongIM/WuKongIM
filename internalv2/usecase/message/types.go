@@ -20,6 +20,20 @@ const (
 	ReasonSystemError = channelappend.ReasonSystemError
 	// ReasonUnsupported means the phase-1 stack does not implement this send mode.
 	ReasonUnsupported = channelappend.ReasonUnsupported
+	// ReasonSubscriberNotExist means the sender is not a channel subscriber.
+	ReasonSubscriberNotExist = channelappend.ReasonSubscriberNotExist
+	// ReasonInBlacklist means the sender is blocked by a channel denylist.
+	ReasonInBlacklist = channelappend.ReasonInBlacklist
+	// ReasonNotAllowSend means the sender is not allowed to send to the channel.
+	ReasonNotAllowSend = channelappend.ReasonNotAllowSend
+	// ReasonNotInWhitelist means the sender is missing from a required allowlist.
+	ReasonNotInWhitelist = channelappend.ReasonNotInWhitelist
+	// ReasonBan means the channel is banned.
+	ReasonBan = channelappend.ReasonBan
+	// ReasonDisband means the channel has been disbanded.
+	ReasonDisband = channelappend.ReasonDisband
+	// ReasonSendBan means the sender is send-banned.
+	ReasonSendBan = channelappend.ReasonSendBan
 )
 
 // ChannelID identifies a message channel.

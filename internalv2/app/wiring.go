@@ -34,6 +34,10 @@ func (a *App) applyConfigDefaults() error {
 	if err := validateManagerConfig(a.cfg.Manager); err != nil {
 		return err
 	}
+	a.cfg.Message = defaultMessageConfig(a.cfg.Message)
+	if err := validateMessageConfig(a.cfg.Message); err != nil {
+		return err
+	}
 	a.cfg.Presence = defaultPresenceConfig(a.cfg.Presence)
 	if err := validatePresenceConfig(a.cfg.Presence); err != nil {
 		return err
@@ -570,7 +574,16 @@ func (a *App) channelAppendOwnerPusher(nodeID uint64) channelappend.OwnerPusher 
 
 func (a *App) wireMessages() {
 	if a.messages == nil {
-		messageOpts := message.Options{Submitter: a.channelAppendRouter}
+		messageOpts := message.Options{
+			Submitter:              a.channelAppendRouter,
+			SystemUIDs:             a.users,
+			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,
+			SystemDeviceID:         a.cfg.Message.SystemDeviceID,
+			PermissionCacheTTL:     a.cfg.Message.PermissionCacheTTL,
+		}
+		if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
+			messageOpts.PermissionStore = clusterinfra.NewChannelMetadataStore(channelNode, nil)
+		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
 		}

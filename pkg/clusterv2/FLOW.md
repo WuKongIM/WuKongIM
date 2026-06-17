@@ -127,9 +127,11 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 
 `node_meta.go` exposes small metadata facades used by `internalv2` adapters.
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
-channel ID. `UpsertChannelLatestBatch` first resolves each channel's real hash
-slot, then groups rows by physical Slot and submits bounded batch commands
-carrying per-row hash slots. `ScanChannelsSlotPage`,
+channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
+the same channel-owned Slot metadata route for message permission checks.
+`UpsertChannelLatestBatch` first resolves each channel's real hash slot, then
+groups rows by physical Slot and submits bounded batch commands carrying
+per-row hash slots. `ScanChannelsSlotPage`,
 `ScanChannelRuntimeMetaSlotPage`, and `ScanUsersSlotPage` are read-only manager
 facades that scan metadata rows owned by one physical Slot, merging the Slot's
 hash-slot shards into one legacy-compatible ordered page.

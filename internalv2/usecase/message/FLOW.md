@@ -2,29 +2,48 @@
 
 ## Responsibility
 
-`internalv2/usecase/message` owns the entry-agnostic message facade and
-compatible channel message sync. SEND work is delegated to a configured
-`channelappend.Submitter`; this package does not own channel authority routing,
-durable append, message ID allocation, or post-commit delivery effects. It knows
-about the channel message read port for sync, but not gateway frames, wire
+`internalv2/usecase/message` owns the entry-agnostic message facade,
+legacy-compatible send permission checks, and compatible channel message sync.
+Allowed SEND work is delegated to a configured `channelappend.Submitter`; this
+package does not own channel authority routing, durable append, message ID
+allocation, or post-commit delivery effects. It knows about permission metadata
+ports and the channel message read port for sync, but not gateway frames, wire
 protocols, HTTP JSON, or concrete cluster runtimes.
 
 ## SendBatch Flow
 
 ```text
 SendBatch(items)
-  -> if Submitter is nil, return item-aligned ErrRouteNotReady
-  -> delegate the item-aligned batch to Submitter.SendBatch
-  -> return item-aligned SendBatchItemResult values
+  -> for each item:
+       normalize command-channel IDs to their source channel for permission checks
+       normalize person-channel IDs when requested by the entry adapter
+       if PermissionStore is nil, allow
+       if sender is a system UID, allow
+       check sender SendBan through the sender's person metadata row
+       if DeviceID matches SystemDeviceID, allow channel-specific checks
+       enforce group metadata, ban/disband, subscriber, denylist, and allowlist checks
+       enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
+       enforce agent participant and visitors/customer-service membership checks
+       reject denied items with item-aligned Reason values
+  -> if Submitter is nil, return ErrRouteNotReady for remaining allowed items
+  -> delegate allowed items to Submitter.SendBatch
+  -> copy delegated results back to original item indexes
 ```
 
-`Send(ctx, cmd)` delegates directly to `Submitter.Send`. The configured
-submitter is normally the app-level channel append router, which resolves channel
-append authority and admits work into the authority node's channel append
-reactor. Validation, person-channel normalization, request-scoped command
-channel derivation, message ID allocation, append retries, committed cursors,
-subscriber scan, conversation projection, and online delivery are all owned by
-`internalv2/runtime/channelappend`.
+`Send(ctx, cmd)` runs the same permission check and delegates allowed commands
+directly to `Submitter.Send`. The configured submitter is normally the app-level
+channel append router, which resolves channel append authority and admits work
+into the authority node's channel append reactor. Validation, request-scoped
+command-channel derivation, message ID allocation, append retries, committed
+cursors, subscriber scan, conversation projection, and online delivery are all
+owned by `internalv2/runtime/channelappend`.
+
+Permission checks preserve legacy reason semantics while staying
+entry-agnostic: `internalv2/access/gateway` and `internalv2/access/api` map the
+usecase `Reason` values back to protocol reason codes at their boundaries.
+`PermissionCacheTTL` optionally wraps the permission metadata port with a
+bounded read-through cache for channel rows, subscriber point lookups,
+subscriber-set non-emptiness, and missing channel rows.
 
 ## SyncChannelMessages Flow
 

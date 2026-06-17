@@ -183,6 +183,7 @@ func channelAppendTestTarget() channelappend.AuthorityTarget {
 func channelAppendTestCommand() channelappend.SendCommand {
 	return channelappend.SendCommand{
 		FromUID:                "u1",
+		DeviceID:               "d1",
 		SenderNodeID:           11,
 		SenderSessionID:        12,
 		ClientSeq:              13,

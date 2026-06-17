@@ -208,6 +208,8 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	}
 	waitSingleNodeClusterRouteLeader(t, node, firstChannel.ID, cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, secondChannel.ID, cfg.NodeID)
+	seedGroupSendPermission(t, node, firstChannel, "sender")
+	seedGroupSendPermission(t, node, secondChannel, "sender")
 	apiSrv, ok := app.api.(*accessapi.Server)
 	if !ok {
 		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)

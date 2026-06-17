@@ -102,6 +102,9 @@ var supportedConfigKeys = []string{
 	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
 	"WK_GATEWAY_LISTENERS",
 	"WK_GATEWAY_SEND_TIMEOUT",
+	"WK_MESSAGE_PERSON_WHITELIST_ENABLED",
+	"WK_MESSAGE_SYSTEM_DEVICE_ID",
+	"WK_MESSAGE_PERMISSION_CACHE_TTL",
 	"WK_PRESENCE_ACTIVATION_TIMEOUT",
 	"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
 	"WK_PRESENCE_TOUCH_BATCH_SIZE",
@@ -255,6 +258,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		},
 		Channel: app.ChannelConfig{
 			LargeGroupSubscriberThreshold: 500,
+		},
+		Message: app.MessageConfig{
+			SystemDeviceID: "____device",
 		},
 		Delivery: app.DeliveryConfig{
 			Enabled: true,
@@ -809,6 +815,26 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Gateway.SendTimeout = sendTimeout
+	}
+	if raw := configValue(values, "WK_MESSAGE_PERSON_WHITELIST_ENABLED"); raw != "" {
+		enabled, err := parseBool("WK_MESSAGE_PERSON_WHITELIST_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Message.PersonWhitelistEnabled = enabled
+	}
+	if raw := configValue(values, "WK_MESSAGE_SYSTEM_DEVICE_ID"); raw != "" {
+		cfg.Message.SystemDeviceID = raw
+	}
+	if raw := configValue(values, "WK_MESSAGE_PERMISSION_CACHE_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_MESSAGE_PERMISSION_CACHE_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_MESSAGE_PERMISSION_CACHE_TTL: value must be >= 0")
+		}
+		cfg.Message.PermissionCacheTTL = ttl
 	}
 	cfg.Log.Level = configValue(values, "WK_LOG_LEVEL")
 	cfg.Log.Dir = configValue(values, "WK_LOG_DIR")

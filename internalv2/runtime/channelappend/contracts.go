@@ -29,6 +29,20 @@ const (
 	ReasonSystemError = contract.ReasonSystemError
 	// ReasonUnsupported means the phase-1 stack does not implement this send mode.
 	ReasonUnsupported = contract.ReasonUnsupported
+	// ReasonSubscriberNotExist means the sender is not a channel subscriber.
+	ReasonSubscriberNotExist = contract.ReasonSubscriberNotExist
+	// ReasonInBlacklist means the sender is blocked by a channel denylist.
+	ReasonInBlacklist = contract.ReasonInBlacklist
+	// ReasonNotAllowSend means the sender is not allowed to send to the channel.
+	ReasonNotAllowSend = contract.ReasonNotAllowSend
+	// ReasonNotInWhitelist means the sender is missing from a required allowlist.
+	ReasonNotInWhitelist = contract.ReasonNotInWhitelist
+	// ReasonBan means the channel is banned.
+	ReasonBan = contract.ReasonBan
+	// ReasonDisband means the channel has been disbanded.
+	ReasonDisband = contract.ReasonDisband
+	// ReasonSendBan means the sender is send-banned.
+	ReasonSendBan = contract.ReasonSendBan
 )
 
 // SendResult is the client-facing SEND outcome.

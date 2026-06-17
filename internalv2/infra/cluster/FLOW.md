@@ -153,10 +153,11 @@ Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/clust
 
 ## Channel Metadata Flow
 
-`ChannelMetadataStore` adapts `internalv2/usecase/channel.Store` to the
-clusterv2 Slot metadata facade. When the cluster node also exposes
-`ChannelMembershipNode`, the same adapter implements the channel usecase
-`MembershipIndex` port for UID-owned reverse membership projection.
+`ChannelMetadataStore` adapts `internalv2/usecase/channel.Store` and
+`internalv2/usecase/message.PermissionStore` to the clusterv2 Slot metadata
+facade. When the cluster node also exposes `ChannelMembershipNode`, the same
+adapter implements the channel usecase `MembershipIndex` port for UID-owned
+reverse membership projection.
 
 ```text
 channel usecase Store method
@@ -177,6 +178,10 @@ subscriber mutation version into the required clusterv2 facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
+For message permission checks, the adapter exposes channel metadata reads,
+subscriber point lookups, and subscriber-set non-emptiness. It uses direct
+clusterv2 lookup facades when available and falls back to bounded subscriber
+page scans only for test or alternate nodes that do not expose point lookups.
 When configured with `ChannelAppendMetadataCache`, successful channel metadata
 upserts refresh append fanout metadata and deletes remove cached entries; final
 subscriber mutation versions are still refreshed by the channel usecase

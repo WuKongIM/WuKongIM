@@ -43,6 +43,20 @@ func mapMessageReason(reason messageusecase.Reason) frame.ReasonCode {
 		return frame.ReasonChannelNotExist
 	case messageusecase.ReasonNodeNotMatch:
 		return frame.ReasonNodeNotMatch
+	case messageusecase.ReasonSubscriberNotExist:
+		return frame.ReasonSubscriberNotExist
+	case messageusecase.ReasonInBlacklist:
+		return frame.ReasonInBlacklist
+	case messageusecase.ReasonNotAllowSend:
+		return frame.ReasonNotAllowSend
+	case messageusecase.ReasonNotInWhitelist:
+		return frame.ReasonNotInWhitelist
+	case messageusecase.ReasonBan:
+		return frame.ReasonBan
+	case messageusecase.ReasonDisband:
+		return frame.ReasonDisband
+	case messageusecase.ReasonSendBan:
+		return frame.ReasonSendBan
 	case messageusecase.ReasonInvalidRequest, messageusecase.ReasonUnsupported:
 		return frame.ReasonPayloadDecodeError
 	default:
