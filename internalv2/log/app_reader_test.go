@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -70,6 +71,33 @@ func TestAppLogReaderMissingFile(t *testing.T) {
 	_, err := reader.Entries(context.Background(), AppLogEntriesRequest{Source: AppLogSourceWarn})
 	if !errors.Is(err, ErrAppLogNotFound) {
 		t.Fatalf("Entries() error = %v, want ErrAppLogNotFound", err)
+	}
+}
+
+func TestAppLogReaderRejectsIncompleteCursor(t *testing.T) {
+	dir := t.TempDir()
+	writeAppLogTestFile(t, dir, "app.log", "")
+	sourceOnlyCursor := base64.RawURLEncoding.EncodeToString([]byte(`{"source":"app"}`))
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir})
+	_, err := reader.Entries(context.Background(), AppLogEntriesRequest{Cursor: sourceOnlyCursor})
+	if !errors.Is(err, ErrAppLogInvalidCursor) {
+		t.Fatalf("Entries() error = %v, want ErrAppLogInvalidCursor", err)
+	}
+
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() empty file error = %v", err)
+	}
+	if resp.Cursor == "" {
+		t.Fatal("empty file cursor is empty")
+	}
+	next, err := reader.Entries(context.Background(), AppLogEntriesRequest{Cursor: resp.Cursor, Limit: 10})
+	if err != nil {
+		t.Fatalf("Entries() generated empty file cursor error = %v", err)
+	}
+	if next.Rotated || len(next.Items) != 0 {
+		t.Fatalf("generated empty file cursor response = %+v, want no rotation and no items", next)
 	}
 }
 
@@ -228,6 +256,37 @@ func TestAppLogReaderParsesConsoleEntryWithoutModule(t *testing.T) {
 		entry.Caller != "app/server.go:10" ||
 		entry.Message != "started" {
 		t.Fatalf("parsed console entry = %+v, want empty module with caller and message", entry)
+	}
+}
+
+func TestAppLogReaderParsesOversizedConsoleBeforeTruncatingRaw(t *testing.T) {
+	dir := t.TempDir()
+	message := "oversized console still parses " + strings.Repeat("x", 96)
+	writeAppLogTestFile(t, dir, "app.log", "2026-06-17 12:00:00.000\tWARN\tapp/server.go:10\t"+message+"\n")
+
+	reader := NewAppLogReader(AppLogReaderOptions{Dir: dir, MaxLineBytes: 32})
+	resp, err := reader.Entries(context.Background(), AppLogEntriesRequest{
+		Limit:  10,
+		Levels: []string{"WARN"},
+	})
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(resp.Items))
+	}
+
+	entry := resp.Items[0]
+	if !entry.Truncated {
+		t.Fatal("Truncated = false, want true")
+	}
+	if len(entry.Raw) != 32 {
+		t.Fatalf("raw length = %d, want 32", len(entry.Raw))
+	}
+	if entry.Level != "WARN" ||
+		entry.Caller != "app/server.go:10" ||
+		entry.Message != message {
+		t.Fatalf("parsed console entry = %+v, want fields from full line", entry)
 	}
 }
 

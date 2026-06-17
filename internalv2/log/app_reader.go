@@ -363,7 +363,7 @@ func (r *AppLogReader) parseEntry(offset int64, line []byte) (AppLogEntry, bool)
 	if parseJSONAppLogEntry(&entry, rawLine) {
 		return entry, truncated
 	}
-	parseConsoleAppLogEntry(&entry, raw)
+	parseConsoleAppLogEntry(&entry, string(rawLine))
 	return entry, truncated
 }
 
@@ -539,7 +539,13 @@ func decodeAppLogCursor(encoded string) (appLogCursor, error) {
 	if err := json.Unmarshal(data, &cursor); err != nil {
 		return appLogCursor{}, ErrAppLogInvalidCursor
 	}
-	if cursor.Source == "" || cursor.Offset < 0 {
+	if cursor.Source == "" || cursor.Offset < 0 || cursor.DigestStart < 0 {
+		return appLogCursor{}, ErrAppLogInvalidCursor
+	}
+	if cursor.Identity == "" || cursor.DigestStart > cursor.Offset {
+		return appLogCursor{}, ErrAppLogInvalidCursor
+	}
+	if cursor.Offset > 0 && cursor.Digest == "" {
 		return appLogCursor{}, ErrAppLogInvalidCursor
 	}
 	return cursor, nil
