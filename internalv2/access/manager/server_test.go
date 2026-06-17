@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
@@ -241,6 +242,148 @@ func TestManagerNodesRequiresNodeReadPermission(t *testing.T) {
 
 	denied := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesReturnsLocalTopPressure(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	provider := &managerTopStub{snapshot: accessapi.TopSnapshot{
+		GeneratedAt:   generatedAt,
+		WindowSeconds: 10,
+		Scope:         "local_node",
+		Node: accessapi.TopNodeSnapshot{
+			ID:    1,
+			Name:  "node-1",
+			Ready: true,
+		},
+		Pressure: &accessapi.TopPressure{
+			OverallLevel: "degraded",
+			Top: []accessapi.TopPressureItem{{
+				Component:            "gateway",
+				Pool:                 "async_send",
+				Queue:                "send",
+				Priority:             "none",
+				Level:                "degraded",
+				Score:                0.82,
+				Depth:                82,
+				Capacity:             100,
+				WaitP99MS:            12.4,
+				TaskP99MS:            20.5,
+				AdmissionErrorPerSec: 0.3,
+				Hint:                 "queue depth is approaching capacity",
+			}},
+		},
+		Sources: accessapi.TopSources{
+			Collector: accessapi.TopSourceStatus{Available: true, SampleCount: 10},
+			Metrics:   accessapi.TopMetricsSource{Enabled: false, Required: false},
+		},
+	}}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Top: provider,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 10*time.Second {
+		t.Fatalf("provider query window = %s, want 10s", provider.query.Window)
+	}
+	if provider.query.Limit != 100 {
+		t.Fatalf("provider query limit = %d, want 100", provider.query.Limit)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"generated_at": "2026-06-16T10:00:00Z",
+		"window_seconds": 10,
+		"scope": {"view":"local_node","node_id":1,"node_name":"node-1","ready":true},
+		"summary": {
+			"overall_level":"degraded",
+			"total":1,
+			"ok":0,
+			"busy":0,
+			"degraded":1,
+			"critical":0,
+			"hottest":{"component":"gateway","pool":"async_send","queue":"send","priority":"none","level":"degraded","score":0.82}
+		},
+		"items":[{
+			"component":"gateway","pool":"async_send","queue":"send","priority":"none","level":"degraded","score":0.82,
+			"depth":82,"capacity":100,"inflight":0,"workers":0,
+			"wait_p99_ms":12.4,"task_p99_ms":20.5,"admission_error_per_sec":0.3,
+			"hint":"queue depth is approaching capacity"
+		}],
+		"sources":{"collector":{"available":true,"sample_count":10},"metrics":{"enabled":false,"required":false},"notes":[]}
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRuntimeWorkqueuesMapsUnavailableSources(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"top snapshot provider is not configured"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRuntimeWorkqueuesMapsWarmingUp(t *testing.T) {
+	srv := New(Options{Top: &managerTopStub{err: accessapi.ErrTopWarmingUp}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"top collector warming up"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRequiresNodeReadPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Top: &managerTopStub{},
+	})
+
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
 	srv.Engine().ServeHTTP(denied, req)
 	if denied.Code != http.StatusForbidden {
@@ -705,6 +848,20 @@ type managerNodesStub struct {
 	resetUserTokenErr             error
 	systemUsersErr                error
 	systemUsersMutationErr        error
+}
+
+type managerTopStub struct {
+	snapshot accessapi.TopSnapshot
+	err      error
+	query    accessapi.TopSnapshotQuery
+}
+
+func (s *managerTopStub) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
+	s.query = query
+	if s.err != nil {
+		return accessapi.TopSnapshot{}, s.err
+	}
+	return s.snapshot, nil
 }
 
 func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
