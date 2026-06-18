@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { getClusterRealtimeMonitor } from "@/lib/manager-api"
+import type { ClusterRealtimeMonitorResponse } from "@/lib/manager-api.types"
 import { ClusterMonitorPage } from "@/pages/cluster-monitor/page"
 
 vi.mock("@/lib/manager-api", async () => {
@@ -29,12 +30,13 @@ beforeEach(() => {
   vi.mocked(getClusterRealtimeMonitor).mockReset()
 })
 
-function readyClusterMonitorResponse() {
+function readyClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   return {
     status: "ready" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
+    scope: { view: "cluster" },
     sources: {
       prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 12, error: "" },
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
@@ -86,7 +88,7 @@ function readyClusterMonitorResponse() {
   }
 }
 
-function partialClusterMonitorResponse() {
+function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     status: "partial" as const,
@@ -123,12 +125,13 @@ function partialClusterMonitorResponse() {
   }
 }
 
-function disabledClusterMonitorResponse() {
+function disabledClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   return {
     status: "prometheus_disabled" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
+    scope: { view: "cluster" },
     sources: {
       prometheus: {
         enabled: false,
@@ -143,12 +146,13 @@ function disabledClusterMonitorResponse() {
   }
 }
 
-function unavailableClusterMonitorResponse() {
+function unavailableClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   return {
     status: "prometheus_unavailable" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
+    scope: { view: "cluster" },
     sources: {
       prometheus: {
         enabled: true,

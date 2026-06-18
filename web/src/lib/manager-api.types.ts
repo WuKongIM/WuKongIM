@@ -399,6 +399,9 @@ export type ClusterRealtimeMonitorResponse = {
   generated_at: string
   window_seconds: number
   step_seconds: number
+  scope: {
+    view: "cluster"
+  }
   sources: {
     prometheus: ClusterRealtimeMonitorSourceStatus
     control_snapshot: ClusterRealtimeMonitorSourceStatus
