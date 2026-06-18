@@ -1,9 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
-import { ManagerApiError } from "@/lib/manager-api"
 import { MonitorPage } from "@/pages/monitor/page"
 
 const getMonitorMetricsMock = vi.fn()
@@ -12,42 +11,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
   return { ...actual, getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args) }
 })
-
-const monitorResponse = {
-  generated_at: "2026-05-15T08:30:00Z",
-  window_seconds: 10,
-  step_seconds: 5,
-  points: 2,
-  scope: { view: "local_node", local_node_id: 1 },
-  capabilities: { node_filter: false },
-  nodes: [{ node_id: 1, name: "node-1", is_local: true, available: true }],
-  metrics: {
-    send_rate: {
-      key: "send_rate",
-      unit: "msg/s",
-      latest: 8,
-      peak: 8,
-      avg: 6,
-      points: [{ at: "2026-05-15T08:29:55Z", value: 8 }],
-    },
-    deliver_rate: {
-      key: "deliver_rate",
-      unit: "msg/s",
-      latest: 7,
-      peak: 7,
-      avg: 5,
-      points: [{ at: "2026-05-15T08:29:55Z", value: 7 }],
-    },
-    online_connections: {
-      key: "online_connections",
-      unit: "connections",
-      latest: 12,
-      peak: 12,
-      avg: 11,
-      points: [{ at: "2026-05-15T08:29:55Z", value: 12 }],
-    },
-  },
-}
 
 function renderMonitorPage() {
   return render(
@@ -63,35 +26,27 @@ beforeEach(() => {
   getMonitorMetricsMock.mockReset()
 })
 
-test("renders real monitor metrics and hides unsupported mock-only sections", async () => {
-  getMonitorMetricsMock.mockResolvedValue(monitorResponse)
-
-  renderMonitorPage()
-
-  expect(await screen.findByText("Send Rate")).toBeInTheDocument()
-  expect(screen.getByText("Deliver Rate")).toBeInTheDocument()
-  expect(screen.getByText("Online Connections")).toBeInTheDocument()
-  expect(screen.queryByText("CPU Usage")).not.toBeInTheDocument()
-  expect(screen.queryByText("Storage I/O")).not.toBeInTheDocument()
-  expect(screen.getByLabelText("Node filter")).toBeDisabled()
-})
-
-test("shows the local node instead of all nodes when the API cannot aggregate nodes", async () => {
-  getMonitorMetricsMock.mockResolvedValue(monitorResponse)
-
-  renderMonitorPage()
-
-  const nodeFilter = await screen.findByLabelText("Node filter")
-  expect(nodeFilter).toBeDisabled()
-  expect(nodeFilter).toHaveValue("1")
-  expect(screen.queryByRole("option", { name: "All Nodes" })).not.toBeInTheDocument()
-})
-
-test("shows warming state when the monitor collector is unavailable", async () => {
-  getMonitorMetricsMock.mockRejectedValue(new ManagerApiError(503, "service_unavailable", "monitor metrics collector warming up"))
-
+test("renders the local preview business monitor card wall without fetching metrics", () => {
   renderMonitorPage()
 
   expect(screen.getByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
-  expect(await screen.findByRole("status")).toHaveAttribute("data-kind", "unavailable")
+  expect(screen.getByText("UI Preview")).toBeInTheDocument()
+  expect(screen.getByText("Global business message path health trends.")).toBeInTheDocument()
+  expect(getMonitorMetricsMock).not.toHaveBeenCalled()
+
+  const cards = screen.getAllByTestId("monitor-metric-card")
+  expect(cards).toHaveLength(12)
+  expect(within(cards[0]).getByText("Send Rate")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Commit Rate")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Delivery Rate")).toBeInTheDocument()
+  expect(within(cards[10]).getByText("Retry Queue Depth")).toBeInTheDocument()
+  expect(within(cards[11]).getByText("Path Error Rate")).toBeInTheDocument()
+
+  for (const label of ["Send", "Delivery", "Entry P99", "Delivery P99", "Errors", "Retry Depth", "Online"]) {
+    expect(screen.getByText(label)).toBeInTheDocument()
+  }
+
+  for (const label of ["5m time range", "15m time range", "30m time range", "1h time range", "Pause live preview"]) {
+    expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
+  }
 })

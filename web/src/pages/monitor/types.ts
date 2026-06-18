@@ -1,11 +1,67 @@
 export type TimeRange = "5m" | "15m" | "30m" | "1h"
 
-export type NodeId = "all" | string
+export type MonitorTone = "normal" | "warning" | "critical" | "preview"
 
-export type MetricDataPoint = {
+export type MonitorStage = "sendEntry" | "appendCommit" | "onlineDelivery" | "offlineRetry" | "errorClosure"
+
+export type MonitorMetricKey =
+  | "sendRate"
+  | "sendSuccessRate"
+  | "entryLatencyP99"
+  | "commitRate"
+  | "commitLatencyP99"
+  | "pendingCommitBacklog"
+  | "deliveryRate"
+  | "deliveryLatencyP99"
+  | "fanOutRatio"
+  | "offlineEnqueueRate"
+  | "retryQueueDepth"
+  | "pathErrorRate"
+
+export type MonitorPoint = {
   timestamp: number
   value: number
 }
+
+export type MonitorStat = {
+  labelId: string
+  value: string
+}
+
+export type MonitorMetricCard = {
+  key: MonitorMetricKey
+  titleId: string
+  stage: MonitorStage
+  stageLabelId: string
+  statusId: string
+  tone: MonitorTone
+  unit: string
+  value: string
+  series: MonitorPoint[]
+  stats: MonitorStat[]
+  chartColor: string
+}
+
+export type MonitorSnapshotEntry = {
+  key: string
+  labelId: string
+  value: string
+  unit?: string
+  tone: MonitorTone
+}
+
+export type PreviewMonitorModel = {
+  generatedAt: string
+  scopeLabelId: string
+  timeRange: TimeRange
+  isPaused: boolean
+  snapshot: MonitorSnapshotEntry[]
+  cards: MonitorMetricCard[]
+}
+
+export type NodeId = "all" | string
+
+export type MetricDataPoint = MonitorPoint
 
 export type MetricKey =
   | "sendRate"
@@ -20,21 +76,6 @@ export type MetricKey =
   | "fanOutRate"
 
 export type MonitorData = Record<MetricKey, MetricDataPoint[]>
-
-export type MetricConfig = {
-  key: MetricKey
-  apiKey: string
-  labelKey: string
-  unit: string
-  color: string
-  format?: (value: number) => string
-}
-
-export type MonitorState = {
-  selectedNode: NodeId
-  timeRange: TimeRange
-  isPaused: boolean
-}
 
 export type MonitorNodeOption = {
   id: NodeId

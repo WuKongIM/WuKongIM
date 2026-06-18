@@ -1,133 +1,39 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useIntl } from "react-intl"
 
-import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { ManagerApiError } from "@/lib/manager-api"
 
-import { ChartGrid } from "./components/chart-grid"
-import { MetricChart } from "./components/metric-chart"
-import { MonitorControls } from "./components/monitor-controls"
-import type { MetricConfig, MonitorState, NodeId, TimeRange } from "./types"
-import { useMonitorData } from "./use-monitor-data"
-
-const MESSAGE_METRICS: MetricConfig[] = [
-  { key: "sendRate", apiKey: "send_rate", labelKey: "monitor.metrics.sendRate", unit: "msg/s", color: "--chart-1", format: (v) => v.toFixed(0) },
-  { key: "deliverRate", apiKey: "deliver_rate", labelKey: "monitor.metrics.deliverRate", unit: "msg/s", color: "--chart-2", format: (v) => v.toFixed(0) },
-  { key: "sendLatencyP99", apiKey: "send_latency_p99", labelKey: "monitor.metrics.sendLatencyP99", unit: "ms", color: "--chart-3", format: (v) => v.toFixed(1) },
-  { key: "deliveryLatencyP99", apiKey: "delivery_latency_p99", labelKey: "monitor.metrics.deliveryLatencyP99", unit: "ms", color: "--chart-4", format: (v) => v.toFixed(1) },
-  { key: "sendFailRate", apiKey: "send_fail_rate", labelKey: "monitor.metrics.sendFailRate", unit: "%", color: "--chart-5", format: (v) => v.toFixed(2) },
-  { key: "deliveryFailRate", apiKey: "delivery_fail_rate", labelKey: "monitor.metrics.deliveryFailRate", unit: "%", color: "--chart-5", format: (v) => v.toFixed(2) },
-  { key: "retryQueueDepth", apiKey: "retry_queue_depth", labelKey: "monitor.metrics.retryQueueDepth", unit: "", color: "--chart-1", format: (v) => v.toFixed(0) },
-  { key: "fanOutRate", apiKey: "fan_out_rate", labelKey: "monitor.metrics.fanOutRate", unit: "x", color: "--chart-2", format: (v) => v.toFixed(1) },
-]
-
-const CONNECTION_METRICS: MetricConfig[] = [
-  { key: "onlineConnections", apiKey: "online_connections", labelKey: "monitor.metrics.onlineConnections", unit: "", color: "--chart-2", format: (v) => v.toFixed(0) },
-  { key: "activeChannels", apiKey: "active_channels", labelKey: "monitor.metrics.activeChannels", unit: "", color: "--chart-3", format: (v) => v.toFixed(0) },
-]
-
-function formatErrorKind(error: Error | null) {
-  if (!(error instanceof ManagerApiError)) return "error" as const
-  if (error.status === 403) return "forbidden" as const
-  if (error.status === 503) return "unavailable" as const
-  return "error" as const
-}
-
-function availableMetrics(configs: MetricConfig[], data: ReturnType<typeof useMonitorData>["data"]) {
-  return configs.filter((config) => data[config.key]?.length > 0)
-}
+import { MonitorCardGrid } from "./components/monitor-card-grid"
+import { MonitorSnapshotStrip } from "./components/monitor-snapshot-strip"
+import { MonitorToolbar } from "./components/monitor-toolbar"
+import { buildPreviewMonitorModel } from "./preview-data"
+import type { TimeRange } from "./types"
 
 export function MonitorPage() {
   const intl = useIntl()
-  const [state, setState] = useState<MonitorState>({
-    selectedNode: "all",
-    timeRange: "5m",
-    isPaused: false,
-  })
-
-  const monitor = useMonitorData(state.timeRange, state.isPaused, state.selectedNode)
-  const messageMetrics = availableMetrics(MESSAGE_METRICS, monitor.data)
-  const connectionMetrics = availableMetrics(CONNECTION_METRICS, monitor.data)
-  const hasMetrics = messageMetrics.length > 0 || connectionMetrics.length > 0
-  const title = intl.formatMessage({ id: "monitor.title" })
-
-  const handleNodeChange = (node: NodeId) => {
-    setState((prev) => ({ ...prev, selectedNode: node }))
-  }
-
-  const handleTimeRangeChange = (range: TimeRange) => {
-    setState((prev) => ({ ...prev, timeRange: range }))
-  }
-
-  const handlePauseToggle = () => {
-    setState((prev) => ({ ...prev, isPaused: !prev.isPaused }))
-  }
+  const [timeRange, setTimeRange] = useState<TimeRange>("15m")
+  const [isPaused, setIsPaused] = useState(false)
+  const model = useMemo(() => buildPreviewMonitorModel(timeRange, isPaused), [isPaused, timeRange])
 
   return (
-    <PageContainer>
+    <PageContainer className="max-w-[1600px] gap-4">
       <PageHeader
-        title={title}
-        description={intl.formatMessage({ id: "monitor.description" })}
+        description={intl.formatMessage({ id: "monitor.cardWallDescription" })}
+        eyebrow={intl.formatMessage({ id: "monitor.previewBadge" })}
+        title={intl.formatMessage({ id: "monitor.title" })}
       />
 
-      <div className="space-y-6">
-        <MonitorControls
-          nodes={monitor.nodes}
-          selectedNode={state.selectedNode}
-          onNodeChange={handleNodeChange}
-          timeRange={state.timeRange}
-          onTimeRangeChange={handleTimeRangeChange}
-          isPaused={state.isPaused}
-          onPauseToggle={handlePauseToggle}
-          nodeFilterEnabled={monitor.nodeFilterEnabled}
-        />
-
-        {monitor.loading ? (
-          <ResourceState kind="loading" title={title} />
-        ) : monitor.error ? (
-          <ResourceState
-            kind={formatErrorKind(monitor.error)}
-            onRetry={() => { void monitor.refresh() }}
-            title={title}
-          />
-        ) : hasMetrics ? (
-          <>
-            {messageMetrics.length > 0 ? (
-              <ChartGrid title={intl.formatMessage({ id: "monitor.section.messageFlow" })}>
-                {messageMetrics.map((metric) => (
-                  <MetricChart
-                    key={metric.key}
-                    label={intl.formatMessage({ id: metric.labelKey })}
-                    data={monitor.data[metric.key]}
-                    unit={metric.unit}
-                    color={metric.color}
-                    formatValue={metric.format}
-                  />
-                ))}
-              </ChartGrid>
-            ) : null}
-
-            {connectionMetrics.length > 0 ? (
-              <ChartGrid title={intl.formatMessage({ id: "monitor.section.connections" })}>
-                {connectionMetrics.map((metric) => (
-                  <MetricChart
-                    key={metric.key}
-                    label={intl.formatMessage({ id: metric.labelKey })}
-                    data={monitor.data[metric.key]}
-                    unit={metric.unit}
-                    color={metric.color}
-                    formatValue={metric.format}
-                  />
-                ))}
-              </ChartGrid>
-            ) : null}
-          </>
-        ) : (
-          <ResourceState kind="empty" title={title} />
-        )}
-      </div>
+      <MonitorToolbar
+        generatedAt={model.generatedAt}
+        isPaused={model.isPaused}
+        onPauseToggle={() => setIsPaused((current) => !current)}
+        onTimeRangeChange={setTimeRange}
+        scopeLabelId={model.scopeLabelId}
+        timeRange={model.timeRange}
+      />
+      <MonitorSnapshotStrip entries={model.snapshot} />
+      <MonitorCardGrid cards={model.cards} />
     </PageContainer>
   )
 }
