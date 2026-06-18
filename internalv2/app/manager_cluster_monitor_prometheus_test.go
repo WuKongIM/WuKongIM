@@ -55,6 +55,10 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 			t.Fatalf("query = %q, want wukongim metric", query)
 		}
 		queries = append(queries, query)
+		if strings.Contains(query, "wukongim_channelv2_isr_anomaly_channels") {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"90"],[1781767220,"92"]]}]}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 	}))
 	defer server.Close()
@@ -111,13 +115,17 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	if resp.Cards[0].Stage != accessmanager.ClusterRealtimeMonitorStageControlPlane || resp.Cards[0].Value != 15 {
 		t.Fatalf("first card = %#v, want control-plane latest value 15", resp.Cards[0])
 	}
+	isrCard := resp.Cards[4]
+	if isrCard.Key != "channelISRHealth" || isrCard.Value != 92 || isrCard.Unit != "%" {
+		t.Fatalf("channelISRHealth card = %#v, want health value 92 with percent unit", isrCard)
+	}
 	if !resp.Sources.ControlSnapshot.Enabled {
 		t.Fatalf("ControlSnapshot.Enabled = false, want true")
 	}
 	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValue(t, resp.Snapshot, "slotsReady", 1, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "channelISRAnomalies", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "channelISRAnomalies", 8, "", accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
@@ -260,6 +268,19 @@ func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.ClusterR
 		if item.Key == key {
 			if item.Value != want || item.Source != source {
 				t.Fatalf("snapshot[%s] = %#v, want value %v source %s", key, item, want, source)
+			}
+			return
+		}
+	}
+	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
+}
+
+func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.ClusterRealtimeMonitorSnapshotEntry, key string, want float64, unit string, source string) {
+	t.Helper()
+	for _, item := range snapshot {
+		if item.Key == key {
+			if item.Value != want || item.Unit != unit || item.Source != source {
+				t.Fatalf("snapshot[%s] = %#v, want value %v unit %q source %s", key, item, want, unit, source)
 			}
 			return
 		}

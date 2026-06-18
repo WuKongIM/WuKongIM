@@ -310,7 +310,12 @@ func clusterMonitorSnapshot(cards []accessmanager.ClusterRealtimeMonitorCard, co
 		)
 	}
 	out = appendClusterCardSnapshot(out, byKey, "controllerApplyGap", "controllerApplyGap", accessmanager.RealtimeMonitorToneWarning, func(value float64) float64 { return value })
-	out = appendClusterCardSnapshot(out, byKey, "channelISRAnomalies", "channelISRHealth", accessmanager.RealtimeMonitorToneWarning, func(value float64) float64 { return value })
+	out = appendClusterCardSnapshotWithUnit(out, byKey, "channelISRAnomalies", "channelISRHealth", accessmanager.RealtimeMonitorToneWarning, "", func(value float64) float64 {
+		if value > 100 {
+			return 0
+		}
+		return 100 - value
+	})
 	out = appendClusterCardSnapshot(out, byKey, "rpcErrorRate", "rpcSuccessRate", accessmanager.RealtimeMonitorToneWarning, func(value float64) float64 {
 		if value > 100 {
 			return 0
@@ -327,11 +332,23 @@ func appendClusterCardSnapshot(out []accessmanager.ClusterRealtimeMonitorSnapsho
 	if !ok {
 		return out
 	}
+	return appendClusterCardSnapshotEntry(out, card, key, metricKey, tone, card.Unit, value)
+}
+
+func appendClusterCardSnapshotWithUnit(out []accessmanager.ClusterRealtimeMonitorSnapshotEntry, byKey map[string]accessmanager.ClusterRealtimeMonitorCard, key, metricKey, tone, unit string, value func(float64) float64) []accessmanager.ClusterRealtimeMonitorSnapshotEntry {
+	card, ok := byKey[metricKey]
+	if !ok {
+		return out
+	}
+	return appendClusterCardSnapshotEntry(out, card, key, metricKey, tone, unit, value)
+}
+
+func appendClusterCardSnapshotEntry(out []accessmanager.ClusterRealtimeMonitorSnapshotEntry, card accessmanager.ClusterRealtimeMonitorCard, key, metricKey, tone, unit string, value func(float64) float64) []accessmanager.ClusterRealtimeMonitorSnapshotEntry {
 	return append(out, accessmanager.ClusterRealtimeMonitorSnapshotEntry{
 		Key:       key,
 		MetricKey: metricKey,
 		Value:     value(card.Value),
-		Unit:      card.Unit,
+		Unit:      unit,
 		Tone:      tone,
 		Source:    accessmanager.ClusterRealtimeMonitorSourcePrometheus,
 	})
