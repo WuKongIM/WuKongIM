@@ -58,28 +58,3 @@ export type PreviewMonitorModel = {
   snapshot: MonitorSnapshotEntry[]
   cards: MonitorMetricCard[]
 }
-
-export type NodeId = "all" | string
-
-export type MetricDataPoint = MonitorPoint
-
-export type MetricKey =
-  | "sendRate"
-  | "deliverRate"
-  | "sendLatencyP99"
-  | "deliveryLatencyP99"
-  | "sendFailRate"
-  | "deliveryFailRate"
-  | "retryQueueDepth"
-  | "onlineConnections"
-  | "activeChannels"
-  | "fanOutRate"
-
-export type MonitorData = Record<MetricKey, MetricDataPoint[]>
-
-export type MonitorNodeOption = {
-  id: NodeId
-  label: string
-  isLocal: boolean
-  available: boolean
-}

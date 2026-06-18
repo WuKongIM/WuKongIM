@@ -1159,7 +1159,7 @@ export const zhCNMessages: AppMessages = {
   "monitor.title": "实时监控",
   "monitor.description": "消息吞吐量、连接数趋势与延迟分位数实时面板。",
   "monitor.cardWallDescription": "全局业务消息路径健康趋势。",
-  "monitor.previewBadge": "界面预览",
+  "monitor.previewBadge": "UI 预览",
   "monitor.generatedAt": "更新于 {time}",
   "monitor.scope.global": "全局聚合",
   "monitor.controls.node": "节点",
