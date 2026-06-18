@@ -174,7 +174,11 @@ func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessm
 }
 
 func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
-	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(p.options.BaseURL), "/") + "/api/v1/query_range")
+	return managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+}
+
+func managerMonitorQueryRange(ctx context.Context, client *http.Client, baseURL, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
+	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/api/v1/query_range")
 	if err != nil {
 		return nil, fmt.Errorf("prometheus base url invalid: %w", err)
 	}
@@ -189,7 +193,7 @@ func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQ
 	if err != nil {
 		return nil, fmt.Errorf("create prometheus query request: %w", err)
 	}
-	resp, err := p.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("query prometheus: %w", err)
 	}
