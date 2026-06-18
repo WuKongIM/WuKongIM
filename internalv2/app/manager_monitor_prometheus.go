@@ -40,11 +40,13 @@ type managerPrometheusMonitorProvider struct {
 }
 
 type monitorMetricDefinition struct {
-	key   string
-	stage string
-	tone  string
-	unit  string
-	query func(rateWindow string) string
+	key               string
+	stage             string
+	tone              string
+	unit              string
+	unavailableReason string
+	noDataMessage     string
+	query             func(rateWindow string) string
 }
 
 type prometheusQueryRangeResponse struct {
@@ -99,11 +101,13 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		}
 		if err != nil {
 			card.Error = err.Error()
+			card.UnavailableReason = monitorUnavailableReason(def.unavailableReason, "prometheus_query_error")
 			if firstErr == nil {
 				firstErr = err
 			}
 		} else if len(series) == 0 {
-			card.Error = "prometheus returned no data"
+			card.Error = monitorNoDataMessage(def.noDataMessage)
+			card.UnavailableReason = monitorUnavailableReason(def.unavailableReason, "prometheus_no_data")
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s: %s", def.key, card.Error)
 			}
@@ -272,6 +276,98 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			},
 		},
 		{
+			key:   "conversationSyncRate",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneNormal,
+			unit:  "req/s",
+			query: func(rateWindow string) string {
+				return "sum(rate(wukongim_conversation_sync_total[" + rateWindow + "]))"
+			},
+		},
+		{
+			key:   "conversationSyncLatencyP99",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "ms",
+			query: func(rateWindow string) string {
+				return "histogram_quantile(0.99, sum(rate(wukongim_conversation_sync_duration_seconds_bucket[" + rateWindow + "])) by (le)) * 1000"
+			},
+		},
+		{
+			key:   "conversationSyncErrorRate",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneCritical,
+			unit:  "%",
+			query: func(rateWindow string) string {
+				return "(sum(rate(wukongim_conversation_sync_total{result!=\"ok\"}[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_conversation_sync_total[" + rateWindow + "])), 1)) * 100"
+			},
+		},
+		{
+			key:   "conversationReturnedItems",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneNormal,
+			unit:  "items",
+			query: func(rateWindow string) string {
+				return "sum(rate(wukongim_conversation_sync_returned_items_sum{result=\"ok\"}[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_conversation_sync_returned_items_count{result=\"ok\"}[" + rateWindow + "])), 1)"
+			},
+		},
+		{
+			key:               "conversationRecentLoadLatencyP99",
+			stage:             accessmanager.RealtimeMonitorStageConversationSync,
+			tone:              accessmanager.RealtimeMonitorToneWarning,
+			unit:              "ms",
+			unavailableReason: "no_conversation_recent_load_samples",
+			noDataMessage:     "no conversation recent-load samples in the selected window",
+			query: func(rateWindow string) string {
+				return "histogram_quantile(0.99, sum(rate(wukongim_conversation_sync_recent_load_duration_seconds_bucket[" + rateWindow + "])) by (le)) * 1000"
+			},
+		},
+		{
+			key:   "conversationActiveDirtyRows",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "rows",
+			query: func(string) string {
+				return "sum(wukongim_conversation_active_cache_dirty_rows)"
+			},
+		},
+		{
+			key:   "conversationActiveOldestDirtyAge",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "s",
+			query: func(string) string {
+				return "max(wukongim_conversation_active_cache_oldest_dirty_age_seconds)"
+			},
+		},
+		{
+			key:   "conversationActiveFlushLatencyP99",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "ms",
+			query: func(rateWindow string) string {
+				return "histogram_quantile(0.99, sum(rate(wukongim_conversation_active_flush_duration_seconds_bucket[" + rateWindow + "])) by (le)) * 1000"
+			},
+		},
+		{
+			key:   "conversationActiveFlushErrorRate",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneCritical,
+			unit:  "%",
+			query: func(rateWindow string) string {
+				return prometheusZeroFallback("(sum(rate(wukongim_conversation_active_flush_total{result!~\"ok|no_dirty\"}[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_conversation_active_flush_total[" + rateWindow + "])), 1)) * 100")
+			},
+		},
+		{
+			key:   "conversationAuthorityPressureRate",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "events/s",
+			query: func(rateWindow string) string {
+				return "sum(rate(wukongim_conversation_authority_cache_pressure_total{result!=\"ok\"}[" + rateWindow + "])) + sum(rate(wukongim_conversation_authority_admit_total{result=~\"cache_pressure|route_not_ready|stale_route|not_leader|timeout\"}[" + rateWindow + "]))"
+			},
+		},
+		{
 			key:   "deliveryRate",
 			stage: accessmanager.RealtimeMonitorStageOnlineDelivery,
 			tone:  accessmanager.RealtimeMonitorToneNormal,
@@ -337,6 +433,24 @@ func managerMonitorRateWindow(window, step time.Duration) string {
 		rateWindow = window
 	}
 	return prometheusDuration(rateWindow)
+}
+
+func monitorUnavailableReason(configured, fallback string) string {
+	if reason := strings.TrimSpace(configured); reason != "" {
+		return reason
+	}
+	return fallback
+}
+
+func monitorNoDataMessage(configured string) string {
+	if message := strings.TrimSpace(configured); message != "" {
+		return message
+	}
+	return "prometheus returned no data"
+}
+
+func prometheusZeroFallback(query string) string {
+	return "(" + query + ") or vector(0)"
 }
 
 func parsePrometheusMatrix(results []prometheusMatrixElement) ([]accessmanager.RealtimeMonitorPoint, error) {
@@ -434,6 +548,10 @@ func monitorSnapshotFromCards(cards []accessmanager.RealtimeMonitorCard) []acces
 		{key: "send", metricKey: "sendRate", unit: "msg/s", tone: accessmanager.RealtimeMonitorToneNormal},
 		{key: "delivery", metricKey: "deliveryRate", unit: "msg/s", tone: accessmanager.RealtimeMonitorToneNormal},
 		{key: "entryP99", metricKey: "entryLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
+		{key: "conversationSyncP99", metricKey: "conversationSyncLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
+		{key: "conversationSyncErrors", metricKey: "conversationSyncErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
+		{key: "conversationDirtyAge", metricKey: "conversationActiveOldestDirtyAge", unit: "s", tone: accessmanager.RealtimeMonitorToneWarning},
+		{key: "conversationFlushErrors", metricKey: "conversationActiveFlushErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
 		{key: "deliveryP99", metricKey: "deliveryLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
 		{key: "errors", metricKey: "pathErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
 		{key: "retryDepth", metricKey: "retryQueueDepth", tone: accessmanager.RealtimeMonitorToneWarning},

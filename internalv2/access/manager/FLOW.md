@@ -59,6 +59,9 @@ Prometheus monitor provider. When Prometheus is disabled or unavailable the
 route still returns HTTP 200 with an explicit monitor status so the web UI can
 show setup guidance instead of rendering empty charts. This route does not read
 from the top collector or any in-process dashboard ring buffer.
+The Prometheus-backed card wall includes a `conversationSync` stage covering
+the `/conversation/sync` client experience, active-cache dirty age, active
+flush health, and conversation authority pressure.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

@@ -39,6 +39,8 @@ const (
 	RealtimeMonitorStageSendEntry = "sendEntry"
 	// RealtimeMonitorStageAppendCommit identifies append and commit cards.
 	RealtimeMonitorStageAppendCommit = "appendCommit"
+	// RealtimeMonitorStageConversationSync identifies conversation sync and active-cache cards.
+	RealtimeMonitorStageConversationSync = "conversationSync"
 	// RealtimeMonitorStageOnlineDelivery identifies online delivery cards.
 	RealtimeMonitorStageOnlineDelivery = "onlineDelivery"
 	// RealtimeMonitorStageOfflineRetry identifies offline retry cards.
@@ -142,6 +144,8 @@ type RealtimeMonitorCard struct {
 	Available bool `json:"available"`
 	// Error contains a card-local source error.
 	Error string `json:"error"`
+	// UnavailableReason is a card-local structured no-data or source reason.
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
 // RealtimeMonitorPoint is one chart point.
