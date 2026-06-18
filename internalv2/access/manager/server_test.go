@@ -614,6 +614,141 @@ func TestManagerRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 	}
 }
 
+func TestManagerClusterRealtimeMonitorReturnsPayload(t *testing.T) {
+	provider := &managerClusterMonitorStub{response: ClusterRealtimeMonitorResponse{
+		Status:        ClusterRealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster},
+		Sources: ClusterRealtimeMonitorSources{
+			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: true, BaseURL: "http://127.0.0.1:9090", QueryMS: 12},
+			ControlSnapshot: ClusterRealtimeMonitorSource{Enabled: true, QueryMS: 1},
+		},
+		Snapshot: []ClusterRealtimeMonitorSnapshotEntry{{
+			Key:       "nodesAlive",
+			MetricKey: "nodesAlive",
+			Value:     3,
+			Tone:      RealtimeMonitorToneNormal,
+			Source:    ClusterRealtimeMonitorSourceControlSnapshot,
+		}},
+		Cards: []ClusterRealtimeMonitorCard{{
+			Key:       "rpcSuccessRate",
+			Stage:     ClusterRealtimeMonitorStageInternalNetwork,
+			Tone:      RealtimeMonitorToneNormal,
+			Unit:      "%",
+			Value:     99.96,
+			Source:    ClusterRealtimeMonitorSourcePrometheus,
+			Available: true,
+			Series: []RealtimeMonitorPoint{{
+				Timestamp: 1781767200000,
+				Value:     99.96,
+			}},
+			Stats: []ClusterRealtimeMonitorStat{{
+				Key:   "callsPerSecond",
+				Value: testFloat64Ptr(1280),
+				Unit:  "calls/s",
+			}, {
+				Key:  "topReason",
+				Text: "timeout",
+			}},
+		}},
+	}}
+	srv := New(Options{ClusterMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime?window=15m&step=20s", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
+		t.Fatalf("query = %#v, want 15m window and 20s step", provider.query)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"status": "ready",
+		"generated_at": "2026-06-18T10:00:00Z",
+		"window_seconds": 900,
+		"step_seconds": 20,
+		"scope": {"view": "cluster"},
+		"sources": {
+			"prometheus": {"enabled": true, "base_url": "http://127.0.0.1:9090", "query_ms": 12, "error": ""},
+			"control_snapshot": {"enabled": true, "query_ms": 1, "error": ""}
+		},
+		"snapshot": [{
+			"key": "nodesAlive",
+			"metric_key": "nodesAlive",
+			"value": 3,
+			"tone": "normal",
+			"source": "control_snapshot"
+		}],
+		"cards": [{
+			"key": "rpcSuccessRate",
+			"stage": "internalNetwork",
+			"tone": "normal",
+			"unit": "%",
+			"value": 99.96,
+			"source": "prometheus",
+			"available": true,
+			"error": "",
+			"series": [{"timestamp": 1781767200000, "value": 99.96}],
+			"stats": [
+				{"key": "callsPerSecond", "value": 1280, "unit": "calls/s"},
+				{"key": "topReason", "text": "timeout"}
+			]
+		}]
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerClusterRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
+	srv := New(Options{ClusterMonitor: &managerClusterMonitorStub{}})
+
+	for _, path := range []string{
+		"/manager/cluster-monitor/realtime?window=2m",
+		"/manager/cluster-monitor/realtime?step=1s",
+		"/manager/cluster-monitor/realtime?step=10m",
+		"/manager/cluster-monitor/realtime?step=bad",
+	} {
+		rec := httptest.NewRecorder()
+		srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestManagerClusterRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		ClusterMonitor: &managerClusterMonitorStub{},
+	})
+
+	missing := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil))
+	if missing.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
+	}
+
+	forbidden := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(forbidden, req)
+	if forbidden.Code != http.StatusForbidden {
+		t.Fatalf("forbidden status = %d, want %d", forbidden.Code, http.StatusForbidden)
+	}
+}
+
 func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 	reportedAt := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
 	var gotOpts managementusecase.ListSlotsOptions
@@ -1085,6 +1220,12 @@ type managerMonitorStub struct {
 	query    RealtimeMonitorQuery
 }
 
+type managerClusterMonitorStub struct {
+	response ClusterRealtimeMonitorResponse
+	err      error
+	query    ClusterRealtimeMonitorQuery
+}
+
 func (s *managerTopStub) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
 	s.query = query
 	if s.err != nil {
@@ -1099,6 +1240,18 @@ func (s *managerMonitorStub) RealtimeMonitor(_ context.Context, query RealtimeMo
 		return RealtimeMonitorResponse{}, s.err
 	}
 	return s.response, nil
+}
+
+func (s *managerClusterMonitorStub) ClusterRealtimeMonitor(_ context.Context, query ClusterRealtimeMonitorQuery) (ClusterRealtimeMonitorResponse, error) {
+	s.query = query
+	if s.err != nil {
+		return ClusterRealtimeMonitorResponse{}, s.err
+	}
+	return s.response, nil
+}
+
+func testFloat64Ptr(v float64) *float64 {
+	return &v
 }
 
 func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
