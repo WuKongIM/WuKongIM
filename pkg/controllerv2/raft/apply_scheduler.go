@@ -8,12 +8,17 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 type batchApplier interface {
 	ApplyBatch(context.Context, []fsm.AppliedCommand) (fsm.BatchApplyResult, error)
+}
+
+type snapshotRestorer interface {
+	Restore(context.Context, state.ClusterState) error
 }
 
 type appliedMarker interface {
@@ -122,6 +127,22 @@ func (s *applyScheduler) run() {
 
 func (s *applyScheduler) applyJob(ctx context.Context, job toApply) error {
 	if len(job.snapshot.Data) > 0 || job.snapshot.Metadata.Index > 0 {
+		if len(job.snapshot.Data) > 0 {
+			st, err := state.Decode(job.snapshot.Data)
+			if err != nil {
+				return err
+			}
+			if st.AppliedRaftIndex < job.snapshot.Metadata.Index {
+				st.AppliedRaftIndex = job.snapshot.Metadata.Index
+			}
+			restorer, ok := s.applier.(snapshotRestorer)
+			if !ok || restorer == nil {
+				return fmt.Errorf("controllerv2/raft: snapshot restore not supported by state machine")
+			}
+			if err := restorer.Restore(ctx, st); err != nil {
+				return err
+			}
+		}
 		if err := s.marker.MarkAppliedBatch(ctx, job.snapshot.Metadata.Index); err != nil {
 			return err
 		}

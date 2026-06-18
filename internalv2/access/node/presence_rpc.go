@@ -87,6 +87,12 @@ type ManagerLogReader interface {
 	SlotLogEntries(context.Context, managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error)
 }
 
+// ManagerControllerRaftOperator handles node-local manager Controller Raft operations.
+type ManagerControllerRaftOperator interface {
+	ControllerRaftStatus(context.Context, uint64) (managementusecase.ControllerRaftStatus, error)
+	CompactControllerRaftLog(context.Context, uint64) (managementusecase.ControllerRaftCompactionResult, error)
+}
+
 // ManagerChannelReader handles node-local manager channel list requests.
 type ManagerChannelReader interface {
 	ListBusinessChannels(context.Context, managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
@@ -119,6 +125,8 @@ type Options struct {
 	ManagerConnections ManagerConnectionReader
 	// ManagerLogs handles node-local manager distributed log page requests.
 	ManagerLogs ManagerLogReader
+	// ManagerControllerRaft handles node-local manager Controller Raft operations.
+	ManagerControllerRaft ManagerControllerRaftOperator
 	// ManagerChannels handles node-local manager channel list requests.
 	ManagerChannels ManagerChannelReader
 	// ManagerDBInspect handles node-local manager DB inspect requests.
@@ -145,6 +153,8 @@ type Adapter struct {
 	managerConnections ManagerConnectionReader
 	// managerLogs reads node-local distributed logs for manager pages.
 	managerLogs ManagerLogReader
+	// managerControllerRaft runs node-local Controller Raft status and compaction operations.
+	managerControllerRaft ManagerControllerRaftOperator
 	// managerChannels reads node-local channel metadata for manager pages.
 	managerChannels ManagerChannelReader
 	// managerDBInspect reads node-local DB inspect results for manager pages.
@@ -161,17 +171,18 @@ func New(opts Options) *Adapter {
 		opts.Logger = wklog.NewNop()
 	}
 	return &Adapter{
-		authority:          opts.Authority,
-		owner:              opts.Owner,
-		delivery:           opts.Delivery,
-		deliveryFanout:     opts.DeliveryFanout,
-		conversation:       opts.ConversationAuthority,
-		managerConnections: opts.ManagerConnections,
-		managerLogs:        opts.ManagerLogs,
-		managerChannels:    opts.ManagerChannels,
-		managerDBInspect:   opts.ManagerDBInspect,
-		managerAppLogs:     opts.ManagerAppLogs,
-		logger:             opts.Logger,
+		authority:             opts.Authority,
+		owner:                 opts.Owner,
+		delivery:              opts.Delivery,
+		deliveryFanout:        opts.DeliveryFanout,
+		conversation:          opts.ConversationAuthority,
+		managerConnections:    opts.ManagerConnections,
+		managerLogs:           opts.ManagerLogs,
+		managerControllerRaft: opts.ManagerControllerRaft,
+		managerChannels:       opts.ManagerChannels,
+		managerDBInspect:      opts.ManagerDBInspect,
+		managerAppLogs:        opts.ManagerAppLogs,
+		logger:                opts.Logger,
 	}
 }
 

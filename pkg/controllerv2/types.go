@@ -84,6 +84,12 @@ const (
 type (
 	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
 	RaftObserver = raft.Observer
+	// RaftStatus is a goroutine-safe local ControllerV2 Raft status snapshot.
+	RaftStatus = raft.Status
+	// LogCompactionResult describes one local ControllerV2 Raft compaction attempt.
+	LogCompactionResult = raft.LogCompactionResult
+	// LogCompactionStatus describes the latest local ControllerV2 Raft compaction attempt.
+	LogCompactionStatus = raft.LogCompactionStatus
 	// LogEntriesOptions controls a node-local ControllerV2 Raft log entry page.
 	LogEntriesOptions = raft.LogEntriesOptions
 	// LogEntry is a read-only summary of one ControllerV2 Raft log entry.

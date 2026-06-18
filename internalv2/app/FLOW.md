@@ -94,6 +94,9 @@ New(Config)
   -> register the manager distributed log RPC handler when node RPC and local
      log readers are available, exposing this node's Controller/Slot Raft log
      pages to peer manager readers
+  -> register the manager Controller Raft RPC handler when node RPC and local
+     Controller Raft operations are available, exposing this node's Controller
+     Raft status and local compaction attempt to peer manager operators
   -> create the app-owned ordinary application log reader from `Log.Dir`;
      register the manager app-log RPC handler when node RPC is available so
      peer manager readers can inspect this node's fixed application log sources
@@ -183,6 +186,13 @@ Raft log requests read clusterv2 log storage metadata and decoded Raft payloads.
 Remote ordinary app log requests use the manager app-log RPC path for the
 selected node and still return only reader-owned source names and file labels,
 never absolute paths.
+
+Controller Raft status and manual compaction use a cluster-routed management
+operator created in the app composition root. Local reads and compaction call
+the local clusterv2 node facade directly; non-local node-scoped operations use
+the manager Controller Raft node RPC path. The cluster-wide manager compact
+action fans out above the RPC layer by targeting every Controller voter in the
+current control snapshot.
 
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
 `wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With

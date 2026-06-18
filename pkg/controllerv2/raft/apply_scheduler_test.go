@@ -2,12 +2,15 @@ package raft
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -74,6 +77,35 @@ func TestApplySchedulerCompletesSemanticRejectForMatchingIndex(t *testing.T) {
 	require.NoError(t, sched.applyEntries(context.Background(), entries, nil))
 	require.NoError(t, completions[1])
 	require.ErrorIs(t, completions[2], ErrProposalRejected)
+}
+
+func TestApplySchedulerRestoresReadySnapshot(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	sm := newTestStateMachine(t, filepath.Join(dir, "cluster-state.json"))
+	store, err := raftstore.Open(ctx, raftstore.Config{Dir: filepath.Join(dir, "controller-raft"), NodeID: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+
+	source := newTestStateMachine(t, filepath.Join(t.TempDir(), "source-state.json"))
+	_, err = source.Apply(ctx, 10, testInitCommand("wk-ready-snapshot", []Peer{{NodeID: 2, Addr: "n2"}}))
+	require.NoError(t, err)
+	restored := source.Snapshot(ctx)
+	data, err := state.Encode(restored)
+	require.NoError(t, err)
+
+	sched := newApplyScheduler(applySchedulerConfig{}, sm, store, nil)
+
+	err = sched.applyJob(ctx, toApply{
+		snapshot: raftpb.Snapshot{Data: data, Metadata: raftpb.SnapshotMetadata{Index: 10, Term: 2}},
+	})
+
+	require.NoError(t, err)
+	actual := sm.Snapshot(ctx)
+	require.Equal(t, uint64(1), actual.Revision)
+	require.Equal(t, uint64(10), actual.AppliedRaftIndex)
+	require.Equal(t, "wk-ready-snapshot", actual.ClusterID)
+	require.Equal(t, uint64(10), store.AppliedIndex())
 }
 
 func mustEncodeSchedulerCommand(t *testing.T) []byte {

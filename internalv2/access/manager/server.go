@@ -60,6 +60,12 @@ type Management interface {
 	ListSlotLogEntries(ctx context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error)
 	// ListControllerLogEntries returns one node-local Controller Raft log page.
 	ListControllerLogEntries(ctx context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
+	// ControllerRaftStatus returns one node-local Controller Raft status snapshot.
+	ControllerRaftStatus(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error)
+	// CompactControllerRaftLog forces one node-local Controller Raft log compaction attempt.
+	CompactControllerRaftLog(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error)
+	// CompactControllerRaftLogs fans out Controller Raft log compaction to Controller voter nodes.
+	CompactControllerRaftLogs(ctx context.Context) (managementusecase.ControllerRaftCompactionSummary, error)
 	// ListBusinessChannels returns manager-facing channel metadata rows.
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
@@ -261,6 +267,19 @@ func (s *Server) registerRoutes() {
 		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
 	}
 	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
+
+	controllerRaftReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		controllerRaftReads.Use(s.requirePermission("cluster.controller", "r"))
+	}
+	controllerRaftReads.GET("/nodes/:node_id/controller-raft", s.handleControllerRaftStatus)
+
+	controllerRaftWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		controllerRaftWrites.Use(s.requirePermission("cluster.controller", "w"))
+	}
+	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleCompactControllerRaftLog)
+	controllerRaftWrites.POST("/controller-raft/compact", s.handleCompactControllerRaftLogs)
 
 	appLogs := s.engine.Group("/manager")
 	if s.auth.enabled() {

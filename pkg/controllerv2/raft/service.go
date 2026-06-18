@@ -53,6 +53,7 @@ type Service struct {
 	doneCh   chan struct{}
 	stepCh   chan raftpb.Message
 	proposal chan proposalRequest
+	compact  chan compactRequest
 	err      error
 	store    *raftstore.Store
 
@@ -69,6 +70,16 @@ type proposalRequest struct {
 	cmd   command.Command
 	probe bool
 	resp  chan error
+}
+
+type compactRequest struct {
+	ctx  context.Context
+	resp chan compactResponse
+}
+
+type compactResponse struct {
+	result LogCompactionResult
+	err    error
 }
 
 type trackedProposal struct {
@@ -124,9 +135,10 @@ func (s *Service) Start(ctx context.Context) error {
 	doneCh := make(chan struct{})
 	stepCh := make(chan raftpb.Message, 1024)
 	proposalCh := make(chan proposalRequest)
+	compactCh := make(chan compactRequest)
 	initCh := make(chan error, 1)
 	goroutine.SafeGo(s.cfg.Goroutines, "controller", "raft_run", func() {
-		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, initCh)
+		s.run(store, startup, stopCh, doneCh, stepCh, proposalCh, compactCh, initCh)
 	})
 	if err := <-initCh; err != nil {
 		close(stopCh)
@@ -140,6 +152,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.doneCh = doneCh
 	s.stepCh = stepCh
 	s.proposal = proposalCh
+	s.compact = compactCh
 	s.started = true
 	return nil
 }
@@ -175,6 +188,7 @@ func (s *Service) Stop() error {
 	s.doneCh = nil
 	s.stepCh = nil
 	s.proposal = nil
+	s.compact = nil
 	s.store = nil
 	s.mu.Unlock()
 
@@ -197,6 +211,69 @@ func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
 // It verifies the Controller proposal write path without mutating ControllerV2 cluster state.
 func (s *Service) ProbePropose(ctx context.Context) error {
 	return s.submitProposal(ctx, proposalRequest{probe: true})
+}
+
+// CompactLog forces a local ControllerV2 Raft log compaction attempt.
+func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := LogCompactionResult{NodeID: s.cfg.NodeID}
+	s.mu.Lock()
+	if !s.started {
+		stopped := s.stopped
+		s.mu.Unlock()
+		result.SkippedReason = LogCompactionSkipNotStarted
+		err := ErrNotStarted
+		if stopped {
+			err = ErrStopped
+		}
+		if err != nil {
+			result.Error = err.Error()
+		}
+		s.recordCompactionStatus(LogCompactionTriggerManual, result, err)
+		return result, err
+	}
+	if s.stopping {
+		s.mu.Unlock()
+		result.SkippedReason = LogCompactionSkipNotStarted
+		result.Error = ErrStopped.Error()
+		s.recordCompactionStatus(LogCompactionTriggerManual, result, ErrStopped)
+		return result, ErrStopped
+	}
+	compactCh := s.compact
+	stopCh := s.stopCh
+	doneCh := s.doneCh
+	s.mu.Unlock()
+	if compactCh == nil {
+		err := fmt.Errorf("%w: compaction loop unavailable", ErrNotStarted)
+		result.SkippedReason = LogCompactionSkipNotStarted
+		result.Error = err.Error()
+		s.recordCompactionStatus(LogCompactionTriggerManual, result, err)
+		return result, err
+	}
+
+	req := compactRequest{ctx: ctx, resp: make(chan compactResponse, 1)}
+	select {
+	case compactCh <- req:
+	case <-ctx.Done():
+		return result, ctx.Err()
+	case <-doneCh:
+		return result, s.currentError()
+	case <-stopCh:
+		return result, ErrStopped
+	}
+
+	select {
+	case resp := <-req.resp:
+		return resp.result, resp.err
+	case <-ctx.Done():
+		return result, ctx.Err()
+	case <-doneCh:
+		return result, s.currentError()
+	case <-stopCh:
+		return result, ErrStopped
+	}
 }
 
 func (s *Service) submitProposal(ctx context.Context, req proposalRequest) error {
@@ -324,6 +401,21 @@ func (s *Service) Status() Status {
 	if s.cfg.StateMachine != nil && s.cfg.StateMachine.IsDegraded() {
 		st.Degraded = true
 	}
+	s.mu.Lock()
+	store := s.store
+	s.mu.Unlock()
+	if store != nil {
+		if first, err := store.FirstIndex(); err == nil {
+			st.FirstIndex = first
+		}
+		if last, err := store.LastIndex(); err == nil {
+			st.LastIndex = last
+		}
+		if snap, err := store.Snapshot(); err == nil {
+			st.SnapshotIndex = snap.Metadata.Index
+			st.SnapshotTerm = snap.Metadata.Term
+		}
+	}
 	if st.NodeID == 0 {
 		st.NodeID = s.cfg.NodeID
 	}
@@ -331,4 +423,41 @@ func (s *Service) Status() Status {
 		st.Role = RoleUnknown
 	}
 	return st
+}
+
+func (s *Service) recordCompactionStatus(trigger string, result LogCompactionResult, err error) {
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	s.statusMu.Lock()
+	st := s.status
+	status := st.Compaction
+	status.Enabled = s.cfg.SnapshotCount > 0
+	status.TriggerEntries = s.cfg.SnapshotCount
+	status.CheckInterval = s.cfg.SnapshotMinInterval
+	status.LastTrigger = trigger
+	status.LastAttemptAt = now
+	status.LastAppliedIndex = result.AppliedIndex
+	status.BeforeSnapshotIndex = result.BeforeSnapshotIndex
+	status.AfterSnapshotIndex = result.AfterSnapshotIndex
+	status.Compacted = result.Compacted
+	status.SkippedReason = result.SkippedReason
+	if err != nil {
+		status.LastError = err.Error()
+		status.LastErrorAt = now
+	} else if result.Error != "" {
+		status.LastError = result.Error
+		status.LastErrorAt = now
+	} else if result.Compacted {
+		status.LastSuccessAt = now
+		status.LastError = ""
+		status.LastErrorAt = time.Time{}
+	} else {
+		status.LastError = ""
+		status.LastErrorAt = time.Time{}
+	}
+	st.Compaction = status
+	s.status = st
+	s.statusMu.Unlock()
 }

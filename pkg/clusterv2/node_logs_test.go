@@ -52,6 +52,38 @@ func TestLocalControllerLogEntriesUsesControlFacade(t *testing.T) {
 	}
 }
 
+func TestLocalControllerRaftOperationsUseControlFacade(t *testing.T) {
+	controller := &controllerRaftOpsStub{
+		StaticController: control.NewStaticController(nodeControlSnapshot()),
+		status:           control.ControllerRaftStatus{NodeID: 1, Role: "leader", LeaderID: 1, Term: 3, CommitIndex: 8, AppliedIndex: 7},
+		result:           control.ControllerRaftCompactionResult{NodeID: 1, AppliedIndex: 7, Compacted: true, AfterSnapshotIndex: 7},
+	}
+	node, err := New(validNodeConfig(t), withController(controller))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	node.started.Store(true)
+
+	status, err := node.LocalControllerRaftStatus(context.Background())
+	if err != nil {
+		t.Fatalf("LocalControllerRaftStatus() error = %v", err)
+	}
+	result, err := node.LocalCompactControllerRaftLog(context.Background())
+	if err != nil {
+		t.Fatalf("LocalCompactControllerRaftLog() error = %v", err)
+	}
+
+	if !controller.statusCalled || !controller.compactCalled {
+		t.Fatalf("controller calls status=%v compact=%v, want both", controller.statusCalled, controller.compactCalled)
+	}
+	if status.NodeID != 1 || status.Role != "leader" || status.AppliedIndex != 7 {
+		t.Fatalf("controller raft status = %#v, want local status", status)
+	}
+	if !result.Compacted || result.AfterSnapshotIndex != 7 {
+		t.Fatalf("controller raft compaction = %#v, want local result", result)
+	}
+}
+
 func TestLocalSlotLogEntriesReadsDefaultSlotRaftDB(t *testing.T) {
 	ctx := context.Background()
 	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
@@ -129,6 +161,24 @@ type controllerLogReaderStub struct {
 func (c *controllerLogReaderStub) ControllerLogEntries(_ context.Context, opts control.ControllerLogEntriesOptions) (control.ControllerLogEntries, error) {
 	c.opts = opts
 	return c.page, nil
+}
+
+type controllerRaftOpsStub struct {
+	*control.StaticController
+	status        control.ControllerRaftStatus
+	result        control.ControllerRaftCompactionResult
+	statusCalled  bool
+	compactCalled bool
+}
+
+func (c *controllerRaftOpsStub) ControllerRaftStatus(context.Context) (control.ControllerRaftStatus, error) {
+	c.statusCalled = true
+	return c.status, nil
+}
+
+func (c *controllerRaftOpsStub) CompactControllerRaftLog(context.Context) (control.ControllerRaftCompactionResult, error) {
+	c.compactCalled = true
+	return c.result, nil
 }
 
 type noopSlotStateMachine struct{}

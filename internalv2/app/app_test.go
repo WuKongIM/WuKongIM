@@ -470,6 +470,96 @@ func TestNewRegistersManagerLogRPCWhenClusterSupportsLogReads(t *testing.T) {
 	}
 }
 
+func TestNewRegistersManagerControllerRaftRPCWhenClusterSupportsOperations(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerControllerRaftRPCServiceID]; !ok {
+		t.Fatalf("manager controller raft rpc handler not registered")
+	}
+}
+
+func TestManagerServerReadsControllerRaftStatusFromClusterOperator(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		controllerRaftStatus: clusterv2.ControllerRaftStatus{
+			NodeID:        1,
+			Role:          "leader",
+			LeaderID:      1,
+			Term:          4,
+			FirstIndex:    2,
+			LastIndex:     12,
+			CommitIndex:   11,
+			AppliedIndex:  10,
+			SnapshotIndex: 6,
+			SnapshotTerm:  3,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.controller",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	loginRec := httptest.NewRecorder()
+	loginReq := httptest.NewRequest(http.MethodPost, "/manager/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d; body=%s", loginRec.Code, http.StatusOK, loginRec.Body.String())
+	}
+	var loginBody struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("Unmarshal login body error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/1/controller-raft", nil)
+	req.Header.Set("Authorization", "Bearer "+loginBody.AccessToken)
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("controller raft status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body struct {
+		NodeID        uint64 `json:"node_id"`
+		AppliedIndex  uint64 `json:"applied_index"`
+		FirstIndex    uint64 `json:"first_index"`
+		SnapshotIndex uint64 `json:"snapshot_index"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.NodeID != 1 || body.AppliedIndex != 10 || body.FirstIndex != 2 || body.SnapshotIndex != 6 {
+		t.Fatalf("body = %+v, want node 1 applied 10 first 2 snapshot 6", body)
+	}
+}
+
 func TestApplicationLogReaderMapsLocalLogDTOs(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "app.log"), []byte(`{"level":"warn","ts":1000,"msg":"slow write","uid":"u1"}`+"\n"), 0o600); err != nil {
@@ -4223,11 +4313,13 @@ type fakeManagerCluster struct {
 	devices      map[fakeManagerDeviceKey]metadb.Device
 	systemUIDs   []string
 
-	conversationPages    map[string][]metadb.UserConversationState
-	conversationMessages map[metadb.ConversationKey][]channelv2.Message
-	registeredHandlers   map[uint8]clusterv2.NodeRPCHandler
-	controllerLogs       clusterv2.ControllerLogEntries
-	slotLogs             clusterv2.SlotLogEntries
+	conversationPages     map[string][]metadb.UserConversationState
+	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
+	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
+	controllerLogs        clusterv2.ControllerLogEntries
+	slotLogs              clusterv2.SlotLogEntries
+	controllerRaftStatus  clusterv2.ControllerRaftStatus
+	controllerRaftCompact clusterv2.ControllerRaftCompactionResult
 }
 
 type fakeManagerDeviceKey struct {
@@ -4254,6 +4346,14 @@ func (f *fakeManagerCluster) LocalControllerLogEntries(context.Context, clusterv
 
 func (f *fakeManagerCluster) LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error) {
 	return f.slotLogs, nil
+}
+
+func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+	return f.controllerRaftStatus, nil
+}
+
+func (f *fakeManagerCluster) LocalCompactControllerRaftLog(context.Context) (clusterv2.ControllerRaftCompactionResult, error) {
+	return f.controllerRaftCompact, nil
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {

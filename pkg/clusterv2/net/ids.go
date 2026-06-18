@@ -52,6 +52,8 @@ const (
 	RPCManagerConnection
 	// RPCManagerLogs serves internalv2 node-local manager distributed log reads.
 	RPCManagerLogs
+	// RPCManagerControllerRaft serves internalv2 node-local manager Controller Raft operations.
+	RPCManagerControllerRaft
 	// RPCManagerChannels serves internalv2 node-local manager channel list reads.
 	RPCManagerChannels
 	// RPCManagerDBInspect serves internalv2 node-local manager DB inspect reads.
@@ -106,6 +108,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager connections"
 	case RPCManagerLogs:
 		return "manager logs"
+	case RPCManagerControllerRaft:
+		return "manager controller raft"
 	case RPCManagerChannels:
 		return "manager channels"
 	case RPCManagerDBInspect:

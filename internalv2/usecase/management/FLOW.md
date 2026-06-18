@@ -5,13 +5,17 @@
 `internalv2/usecase/management` builds entry-independent read models for the
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
-recent conversation list, channel message list, message retention adapter
+Controller Raft status and explicit compaction orchestration, recent
+conversation list, channel message list, message retention adapter
 contract, local-or-remote connection list/detail projection, DB Inspect
 node-local diagnostics orchestration, user management, and system UID
 projections/actions used by `GET /manager/nodes`,
 `GET /manager/slots`, `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
-`GET /manager/slots/:slot_id/logs`, `GET /manager/conversations`, `GET /manager/messages`,
+`GET /manager/slots/:slot_id/logs`,
+`GET /manager/nodes/:node_id/controller-raft`,
+`POST /manager/nodes/:node_id/controller-raft/compact`,
+`POST /manager/controller-raft/compact`, `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
 `/manager/db/inspect*`, `/manager/users*`, and `/manager/system-users*`.
 
@@ -64,6 +68,24 @@ bounds, then delegates log storage selection to the `LogReader` port.
 Controller and Slot log entries are read-only inspection summaries: the usecase
 does not decode Raft payloads itself and does not expose any replay, truncation,
 or mutation operation.
+
+## Controller Raft Management Flow
+
+```text
+manager HTTP handler
+  -> management.App.ControllerRaftStatus/CompactControllerRaftLog/CompactControllerRaftLogs
+  -> ControllerRaftOperator
+  -> local clusterv2 node operation or node RPC routed peer operation
+  -> node-local Controller Raft status or compaction result
+```
+
+The node-scoped methods validate positive `node_id` values and delegate
+local-or-remote selection to the `ControllerRaftOperator` port. The cluster-wide
+manual compaction method reads the local control snapshot, selects nodes with
+the Controller role, sorts them by node id, and fans out one explicit
+node-local compaction attempt per Controller voter. Partial failures are
+preserved in per-node results; the usecase does not retry, mask errors, or
+turn compaction into a replicated Raft command.
 
 ## Application Log Flow
 

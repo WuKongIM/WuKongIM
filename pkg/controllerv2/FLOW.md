@@ -32,6 +32,15 @@ inspection, decoding normal command payloads through the Controller command
 codec and reporting empty normal entries as non-mutating noops. It does not
 change Raft apply, compaction, or state-file persistence semantics.
 
+`Runtime.ControllerRaftStatus` and `Runtime.CompactControllerRaftLog` are
+node-local Controller Raft management facades. Status reports volatile
+leader/term/apply watermarks plus durable log and snapshot watermarks.
+`CompactControllerRaftLog` forces the same materialized-state snapshot path
+used by automatic compaction, then trims only entries already covered by the
+snapshot catch-up window. It is not a replicated Raft command; callers that want
+cluster-wide compaction must explicitly fan out the local operation to
+Controller voters.
+
 ## Reading Guide
 
 Start at the root facade when reading production behavior:
@@ -68,6 +77,14 @@ RawNode Ready
 Empty normal Raft entries are also used by `raft.Service.ProbePropose` as non-mutating readiness probes. A probe entry advances Controller Raft applied metadata after it is committed and scheduled, but it is not decoded as a Controller command, does not call the FSM, does not increment logical `Revision`, and does not rewrite `cluster-state.json` business state.
 
 Startup first loads `cluster-state.json`, restores it from the latest Raft snapshot when the state file is empty, then replays any committed WAL suffix after the materialized `AppliedRaftIndex`. The Raft run loop stays responsive because durable WAL append happens before `Advance`, while state-machine IO runs in the scheduler goroutine.
+
+Manual Controller Raft compaction enters the Raft run loop through
+`Service.CompactLog`, reads the applied boundary already persisted by the apply
+scheduler, snapshots only the materialized Controller state, saves the snapshot
+to the raftstore, and compacts WAL entries older than
+`SnapshotCatchUpEntries`. A request can be safely skipped when the service is
+not started, no applied index exists, no materialized state has been written, or
+the latest snapshot already covers the applied boundary.
 
 ## Server Facade Flow
 

@@ -200,6 +200,88 @@ func TestProbeProposeLifecycleErrors(t *testing.T) {
 	require.ErrorIs(t, service.ProbePropose(context.Background()), ErrStopped)
 }
 
+func TestServiceCompactLogReturnsSkippedWhenNotStarted(t *testing.T) {
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          peers,
+		AllowBootstrap: true,
+		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   testRaftTickInterval,
+	})
+	require.NoError(t, err)
+
+	result, err := service.CompactLog(context.Background())
+
+	require.ErrorIs(t, err, ErrNotStarted)
+	require.False(t, result.Compacted)
+	require.Equal(t, LogCompactionSkipNotStarted, result.SkippedReason)
+	st := service.Status()
+	require.Equal(t, uint64(1), st.NodeID)
+	require.Equal(t, RoleUnknown, st.Role)
+	require.Equal(t, LogCompactionSkipNotStarted, st.Compaction.SkippedReason)
+}
+
+func TestServiceCompactLogForcesSnapshotBelowAutomaticThreshold(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.SnapshotCount = 1000
+	node.service.cfg.SnapshotCatchUpEntries = 1
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-manual-compact", cluster.peers))
+	states := cluster.waitForRevision(t, 1)
+	applied := states[0].AppliedRaftIndex
+	before, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+
+	result, err := node.service.CompactLog(context.Background())
+
+	require.NoError(t, err)
+	require.True(t, result.Compacted)
+	require.Empty(t, result.SkippedReason)
+	require.Equal(t, applied, result.AppliedIndex)
+	require.Equal(t, before.Metadata.Index, result.BeforeSnapshotIndex)
+	require.GreaterOrEqual(t, result.AfterSnapshotIndex, result.AppliedIndex)
+	after, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+	require.Equal(t, result.AfterSnapshotIndex, after.Metadata.Index)
+	status := node.service.Status()
+	require.True(t, status.Compaction.Compacted)
+	require.Equal(t, result.AfterSnapshotIndex, status.Compaction.AfterSnapshotIndex)
+}
+
+func TestServiceStatusReportsCompactionPolicyAndLogWatermarks(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.SnapshotCount = 1000
+	node.service.cfg.SnapshotCatchUpEntries = 1
+	node.service.cfg.SnapshotMinInterval = 25 * time.Millisecond
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-status-watermarks", cluster.peers))
+	cluster.waitForRevision(t, 1)
+	_, err := node.service.CompactLog(context.Background())
+	require.NoError(t, err)
+	first, err := node.service.store.FirstIndex()
+	require.NoError(t, err)
+	last, err := node.service.store.LastIndex()
+	require.NoError(t, err)
+	snap, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+
+	status := node.service.Status()
+
+	require.Equal(t, first, status.FirstIndex)
+	require.Equal(t, last, status.LastIndex)
+	require.Equal(t, snap.Metadata.Index, status.SnapshotIndex)
+	require.Equal(t, snap.Metadata.Term, status.SnapshotTerm)
+	require.True(t, status.Compaction.Enabled)
+	require.Equal(t, uint64(1000), status.Compaction.TriggerEntries)
+	require.Equal(t, 25*time.Millisecond, status.Compaction.CheckInterval)
+	require.Equal(t, snap.Metadata.Index, status.Compaction.AfterSnapshotIndex)
+}
+
 func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1})
 	cluster.start(t)

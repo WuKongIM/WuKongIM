@@ -63,6 +63,12 @@ type ControllerLogEntries struct {
 	Items []LogEntry
 }
 
+// ControllerRaftStatus is a node-local ControllerV2 Raft status snapshot.
+type ControllerRaftStatus = control.ControllerRaftStatus
+
+// ControllerRaftCompactionResult describes one node-local ControllerV2 Raft compaction attempt.
+type ControllerRaftCompactionResult = control.ControllerRaftCompactionResult
+
 // SlotLogEntries is one local page of Slot Raft log entries.
 type SlotLogEntries struct {
 	// NodeID is the node whose local Slot log was read.
@@ -85,6 +91,11 @@ type SlotLogEntries struct {
 
 type controllerLogReader interface {
 	ControllerLogEntries(context.Context, control.ControllerLogEntriesOptions) (control.ControllerLogEntries, error)
+}
+
+type controllerRaftOperator interface {
+	ControllerRaftStatus(context.Context) (control.ControllerRaftStatus, error)
+	CompactControllerRaftLog(context.Context) (control.ControllerRaftCompactionResult, error)
 }
 
 // LocalControllerLogEntries returns one page from this node's local ControllerV2 Raft log.
@@ -112,6 +123,36 @@ func (n *Node) LocalControllerLogEntries(ctx context.Context, opts LogEntriesOpt
 		NextCursor:   page.NextCursor,
 		Items:        logEntriesFromController(page.Items),
 	}, nil
+}
+
+// LocalControllerRaftStatus returns this node's local ControllerV2 Raft status snapshot.
+func (n *Node) LocalControllerRaftStatus(ctx context.Context) (ControllerRaftStatus, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	operator, ok := n.control.(controllerRaftOperator)
+	if !ok || operator == nil {
+		return ControllerRaftStatus{}, ErrNotStarted
+	}
+	return operator.ControllerRaftStatus(ctx)
+}
+
+// LocalCompactControllerRaftLog forces this node's local ControllerV2 Raft log compaction.
+func (n *Node) LocalCompactControllerRaftLog(ctx context.Context) (ControllerRaftCompactionResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	operator, ok := n.control.(controllerRaftOperator)
+	if !ok || operator == nil {
+		return ControllerRaftCompactionResult{}, ErrNotStarted
+	}
+	return operator.CompactControllerRaftLog(ctx)
 }
 
 // LocalSlotLogEntries returns one page from this node's local Slot Raft log.

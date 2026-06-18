@@ -124,6 +124,28 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 	return r.raft.ProbePropose(ctx)
 }
 
+// ControllerRaftStatus returns the local ControllerV2 Raft status snapshot.
+func (r *Runtime) ControllerRaftStatus(ctx context.Context) (RaftStatus, error) {
+	if err := ctxErr(ctx); err != nil {
+		return RaftStatus{}, err
+	}
+	if r == nil || r.raft == nil {
+		return RaftStatus{}, ErrNotStarted
+	}
+	return r.raft.Status(), nil
+}
+
+// CompactControllerRaftLog forces local ControllerV2 Raft log compaction.
+func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return LogCompactionResult{}, err
+	}
+	if r == nil || r.raft == nil {
+		return LogCompactionResult{}, ErrNotStarted
+	}
+	return r.raft.CompactLog(ctx)
+}
+
 // Step applies an inbound ControllerV2 Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	if r == nil || r.raft == nil {

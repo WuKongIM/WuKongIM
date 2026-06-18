@@ -18,6 +18,9 @@ GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster oper
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
+GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
+POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
+POST /manager/controller-raft/compact (manual Controller voter compaction fan-out; requires cluster.controller:w when Auth.On=true)
 GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.slot:r when Auth.On=true)
 GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
@@ -94,6 +97,14 @@ newest-first distributed Raft log pages for the selected node. They parse
 selection to `internalv2/usecase/management`, and return decoded payload
 summaries only for inspection; the routes do not mutate Controller or Slot
 state.
+
+`/manager/nodes/:node_id/controller-raft` exposes the selected node's
+Controller Raft role, commit/apply watermarks, durable log/snapshot watermarks,
+and latest compaction/restore status. The `compact` routes are explicit
+operator actions separate from log paging: the node-scoped route forces one
+node-local compaction attempt, while `/manager/controller-raft/compact` fans out
+to Controller voter nodes through the management usecase and returns per-node
+success, skip, or error results.
 
 `/manager/app-logs*` exposes ordinary WuKongIM process logs under `WK_LOG_DIR`,
 not Controller, Slot, Channel, or Raft logs. The routes use the fixed ordinary

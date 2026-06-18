@@ -39,7 +39,10 @@ pages also use this surface to read owner-node online connection inventory from
 peer nodes without adding manager-specific logic to clusterv2. Internalv2
 manager distributed log pages use the same surface to ask a selected peer to
 read its own local Controller or Slot Raft log page, and manager channel list
-pages use it to ask a selected peer to scan its local Slot metadata pages. The
+pages use it to ask a selected peer to scan its local Slot metadata pages.
+Internalv2 manager Controller Raft status and manual compaction use the same
+surface for node-scoped operations; clusterv2 exposes only the selected node's
+local operation and does not fan out or interpret manager policy. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before
@@ -223,6 +226,13 @@ FSM proposal payloads into JSON-friendly inspection fields. Slot log inspection
 also reads the Multi-Raft proposal envelope's `created_at_ms` timestamp when
 present. These methods are read-only diagnostics for manager UI pages; they do
 not route writes, replay entries, or mutate Raft storage.
+
+`Node.LocalControllerRaftStatus` and `Node.LocalCompactControllerRaftLog` are
+separate node-local ControllerV2 Raft management facades. Status reports local
+role, term, commit/apply, and durable log/snapshot watermarks. Manual
+compaction calls the local ControllerV2 runtime's materialized-state snapshot
+path and returns whether a snapshot was created, skipped, or failed. Cluster
+fan-out is owned by `internalv2/usecase/management`, not clusterv2.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 

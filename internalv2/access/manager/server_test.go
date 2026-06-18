@@ -1280,6 +1280,9 @@ type managerNodesStub struct {
 	userDetail                    managementusecase.UserDetail
 	slotLogEntriesPage            managementusecase.SlotLogEntriesResponse
 	controllerLogEntriesPage      managementusecase.ControllerLogEntriesResponse
+	controllerRaftStatus          managementusecase.ControllerRaftStatus
+	controllerRaftCompactResult   managementusecase.ControllerRaftCompactionResult
+	controllerRaftCompactSummary  managementusecase.ControllerRaftCompactionSummary
 	kickUserResponse              managementusecase.KickUserResponse
 	resetUserTokenResponse        managementusecase.ResetUserTokenResponse
 	retentionResult               managementusecase.AdvanceMessageRetentionResponse
@@ -1294,6 +1297,8 @@ type managerNodesStub struct {
 	connectionDetailReqSink       *managementusecase.GetConnectionRequest
 	slotLogEntriesReqSink         *managementusecase.ListSlotLogEntriesRequest
 	controllerLogEntriesReqSink   *managementusecase.ListControllerLogEntriesRequest
+	controllerRaftStatusNodeSink  *uint64
+	controllerRaftCompactNodeSink *uint64
 	retentionReqSink              *managementusecase.AdvanceMessageRetentionRequest
 	usersReqSink                  *managementusecase.ListUsersRequest
 	kickUserReqSink               *managementusecase.KickUserRequest
@@ -1310,6 +1315,9 @@ type managerNodesStub struct {
 	connectionDetailErr           error
 	slotLogEntriesErr             error
 	controllerLogEntriesErr       error
+	controllerRaftStatusErr       error
+	controllerRaftCompactErr      error
+	controllerRaftCompactAllErr   error
 	retentionErr                  error
 	usersErr                      error
 	userDetailErr                 error
@@ -1395,6 +1403,24 @@ func (s managerNodesStub) ListControllerLogEntries(_ context.Context, req manage
 		*s.controllerLogEntriesReqSink = req
 	}
 	return s.controllerLogEntriesPage, s.controllerLogEntriesErr
+}
+
+func (s managerNodesStub) ControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error) {
+	if s.controllerRaftStatusNodeSink != nil {
+		*s.controllerRaftStatusNodeSink = nodeID
+	}
+	return s.controllerRaftStatus, s.controllerRaftStatusErr
+}
+
+func (s managerNodesStub) CompactControllerRaftLog(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error) {
+	if s.controllerRaftCompactNodeSink != nil {
+		*s.controllerRaftCompactNodeSink = nodeID
+	}
+	return s.controllerRaftCompactResult, s.controllerRaftCompactErr
+}
+
+func (s managerNodesStub) CompactControllerRaftLogs(context.Context) (managementusecase.ControllerRaftCompactionSummary, error) {
+	return s.controllerRaftCompactSummary, s.controllerRaftCompactAllErr
 }
 
 func (s managerNodesStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {

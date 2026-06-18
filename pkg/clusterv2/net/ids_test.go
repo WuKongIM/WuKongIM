@@ -40,6 +40,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"channel_authority_send":  RPCChannelAuthoritySend,
 		"manager_connection":      RPCManagerConnection,
 		"manager_logs":            RPCManagerLogs,
+		"manager_controller_raft": RPCManagerControllerRaft,
 		"manager_channels":        RPCManagerChannels,
 		"manager_db_inspect":      RPCManagerDBInspect,
 		"manager_app_logs":        RPCManagerAppLogs,

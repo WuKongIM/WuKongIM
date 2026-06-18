@@ -12,7 +12,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, initCh chan<- error) {
+func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposalCh <-chan proposalRequest, compactCh <-chan compactRequest, initCh chan<- error) {
 	defer close(doneCh)
 	defer store.Close()
 	rawNode, err := s.newRawNode(store, startup)
@@ -146,6 +146,9 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 			trackerMu.Lock()
 			tracker.enqueue(trackedProposal{resp: req.resp, probe: req.probe})
 			trackerMu.Unlock()
+		case req := <-compactCh:
+			result, err := s.compactLogNow(req.ctx, store, LogCompactionTriggerManual)
+			req.resp <- compactResponse{result: result, err: err}
 		}
 	}
 }

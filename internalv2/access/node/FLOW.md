@@ -177,6 +177,24 @@ configured log reader; local/remote targeting is decided by the caller in
 including decoded JSON-friendly payload summaries, newest-first entry order,
 and `next_cursor` pagination state.
 
+## Manager Controller Raft RPC
+
+```text
+remote manager controller-raft operator
+  -> encode W K V R 1 request
+  -> clusterv2 RPCManagerControllerRaft
+  -> Adapter.HandleManagerControllerRaftRPC
+  -> Management Controller Raft operator port
+  -> encode W K V r 1 response
+```
+
+Manager Controller Raft RPC transports node-local Controller Raft status reads
+and explicit compaction attempts to the selected node. The server calls only
+the configured management Controller Raft operator; it does not fan out across
+Controller voters and does not decide which HTTP request should target a remote
+node. Cluster-wide manual compaction is assembled above this package by the
+management usecase.
+
 ## Manager Channel RPC
 
 ```text
@@ -253,6 +271,11 @@ Conversation authority RPC uses fixed magic headers:
 
 - Request: `W K V C 1`
 - Response: `W K V c 1`
+
+Manager Controller Raft RPC uses fixed magic headers:
+
+- Request: `W K V R 1`
+- Response: `W K V r 1`
 
 Conversation active-batch requests append the batch payload only for the
 `admit_conversation_active_batch` op, after the shared request fields and legacy
