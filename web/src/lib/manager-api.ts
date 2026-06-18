@@ -2,6 +2,7 @@ import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
   ChannelClusterUnhealthyParams,
+  ClusterRealtimeMonitorResponse,
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
@@ -502,6 +503,14 @@ export function getRealtimeMonitor(params?: { window?: string; step?: string }) 
   if (params?.step) search.set("step", params.step)
   const query = search.toString()
   return jsonManagerFetch<RealtimeMonitorResponse>(`/manager/monitor/realtime${query ? `?${query}` : ""}`)
+}
+
+export function getClusterRealtimeMonitor(params?: { window?: string; step?: string }) {
+  const search = new URLSearchParams()
+  if (params?.window) search.set("window", params.window)
+  if (params?.step) search.set("step", params.step)
+  const query = search.toString()
+  return jsonManagerFetch<ClusterRealtimeMonitorResponse>(`/manager/cluster-monitor/realtime${query ? `?${query}` : ""}`)
 }
 
 export function getNodes() {

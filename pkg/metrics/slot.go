@@ -11,6 +11,7 @@ type SlotMetrics struct {
 	proposalsTotal  *prometheus.CounterVec
 	applyDuration   *prometheus.HistogramVec
 	leaderElections prometheus.Counter
+	replicaLag      *prometheus.GaugeVec
 }
 
 func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *SlotMetrics {
@@ -31,12 +32,18 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			Help:        "Total number of observed slot leader changes.",
 			ConstLabels: labels,
 		}),
+		replicaLag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_slot_replica_lag_seconds",
+			Help:        "Current Slot replica lag in seconds grouped by physical slot and replica node.",
+			ConstLabels: labels,
+		}, []string{"slot_id", "replica_node"}),
 	}
 
 	registry.MustRegister(
 		m.proposalsTotal,
 		m.applyDuration,
 		m.leaderElections,
+		m.replicaLag,
 	)
 
 	return m
@@ -56,4 +63,15 @@ func (m *SlotMetrics) ObserveLeaderChange(_ uint32) {
 		return
 	}
 	m.leaderElections.Inc()
+}
+
+// SetReplicaLag records the current lag for one bounded Slot replica.
+func (m *SlotMetrics) SetReplicaLag(slotID uint32, replicaNode uint64, lag time.Duration) {
+	if m == nil {
+		return
+	}
+	m.replicaLag.WithLabelValues(
+		strconv.FormatUint(uint64(slotID), 10),
+		strconv.FormatUint(replicaNode, 10),
+	).Set(lag.Seconds())
 }

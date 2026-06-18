@@ -10,6 +10,7 @@ import (
 var channelV2AppendBatchRecordBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 var channelV2AppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 524288, 1048576, 4194304}
 var channelV2DurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+var channelV2ISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
 
 type ChannelV2Metrics struct {
 	reactorMailboxDepth      *prometheus.GaugeVec
@@ -27,6 +28,7 @@ type ChannelV2Metrics struct {
 	pendingMetaTotal         *prometheus.CounterVec
 	needMetaPullTotal        *prometheus.CounterVec
 	metaCacheTotal           *prometheus.CounterVec
+	isrAnomalyChannels       *prometheus.GaugeVec
 	appendBatchRecords       prometheus.Histogram
 	appendBatchBytes         prometheus.Histogram
 	appendBatchWait          prometheus.Histogram
@@ -117,6 +119,11 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total ChannelV2 metadata cache events by result.",
 			ConstLabels: labels,
 		}, []string{"result"}),
+		isrAnomalyChannels: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_isr_anomaly_channels",
+			Help:        "Current count of ChannelV2 runtime metadata ISR anomalies by low-cardinality reason.",
+			ConstLabels: labels,
+		}, []string{"reason"}),
 		appendBatchRecords: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_append_batch_records",
 			Help:        "Number of records collected into each ChannelV2 append batch.",
@@ -199,6 +206,7 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.pendingMetaTotal,
 		m.needMetaPullTotal,
 		m.metaCacheTotal,
+		m.isrAnomalyChannels,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
 		m.appendBatchWait,
@@ -318,6 +326,16 @@ func (m *ChannelV2Metrics) ObserveMetaCache(result string) {
 		return
 	}
 	m.metaCacheTotal.WithLabelValues(result).Inc()
+}
+
+// SetISRAnomalyChannels records bounded ChannelV2 ISR anomaly counts by reason.
+func (m *ChannelV2Metrics) SetISRAnomalyChannels(counts map[string]int) {
+	if m == nil {
+		return
+	}
+	for _, reason := range channelV2ISRAnomalyReasons {
+		m.isrAnomalyChannels.WithLabelValues(reason).Set(float64(counts[reason]))
+	}
 }
 
 func (m *ChannelV2Metrics) ObserveAppendBatch(records int, bytes int, wait time.Duration) {

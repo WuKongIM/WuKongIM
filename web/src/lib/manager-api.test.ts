@@ -27,6 +27,7 @@ import {
   getApplicationLogEntries,
   getApplicationLogSources,
   streamApplicationLogEntries,
+  getClusterRealtimeMonitor,
   getRealtimeMonitor,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -89,6 +90,7 @@ import {
   updateNodePluginConfig,
   upsertBusinessChannel,
 } from "@/lib/manager-api"
+import type { ClusterRealtimeMonitorResponse } from "@/lib/manager-api.types"
 
 describe("manager api client", () => {
   const fetchMock = vi.fn()
@@ -668,6 +670,32 @@ describe("manager api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/monitor/realtime?window=15m&step=20s",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches cluster realtime monitor data with window and step params", async () => {
+    const response: ClusterRealtimeMonitorResponse = {
+      status: "ready",
+      generated_at: "2026-06-18T10:00:00Z",
+      window_seconds: 900,
+      step_seconds: 20,
+      scope: { view: "cluster" },
+      sources: {
+        prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 12, error: "" },
+        control_snapshot: { enabled: true, query_ms: 2, error: "" },
+      },
+      snapshot: [],
+      cards: [],
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    const payload = await getClusterRealtimeMonitor({ window: "15m", step: "20s" })
+    expect(payload).toEqual(response)
+    expect(payload.scope).toEqual({ view: "cluster" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/cluster-monitor/realtime?window=15m&step=20s",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })

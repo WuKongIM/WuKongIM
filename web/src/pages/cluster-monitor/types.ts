@@ -43,6 +43,8 @@ export type ClusterMonitorMetricCard = {
   tone: ClusterMonitorTone
   unit: string
   value: string
+  available?: boolean
+  error?: string
   series: ClusterMonitorPoint[]
   stats: ClusterMonitorStat[]
   chartColor: string

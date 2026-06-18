@@ -110,6 +110,8 @@ type Options struct {
 	Management Management
 	// Monitor provides Prometheus-backed realtime monitor snapshots.
 	Monitor RealtimeMonitorProvider
+	// ClusterMonitor provides cluster operations realtime monitor snapshots.
+	ClusterMonitor ClusterRealtimeMonitorProvider
 	// Top provides local runtime pressure snapshots for read-only runtime views.
 	Top accessapi.TopSnapshotProvider
 	// Logger is the logger used by the manager server.
@@ -118,18 +120,19 @@ type Options struct {
 
 // Server serves the internalv2 manager HTTP API.
 type Server struct {
-	mu         sync.RWMutex
-	engine     *gin.Engine
-	httpServer *http.Server
-	listener   net.Listener
-	listenAddr string
-	addr       string
-	management Management
-	monitor    RealtimeMonitorProvider
-	top        accessapi.TopSnapshotProvider
-	auth       authState
-	logger     wklog.Logger
-	started    bool
+	mu             sync.RWMutex
+	engine         *gin.Engine
+	httpServer     *http.Server
+	listener       net.Listener
+	listenAddr     string
+	addr           string
+	management     Management
+	monitor        RealtimeMonitorProvider
+	clusterMonitor ClusterRealtimeMonitorProvider
+	top            accessapi.TopSnapshotProvider
+	auth           authState
+	logger         wklog.Logger
+	started        bool
 }
 
 // New constructs a manager HTTP server.
@@ -143,13 +146,14 @@ func New(opts Options) *Server {
 	engine := gin.New()
 	engine.Use(openCORSMiddleware())
 	srv := &Server{
-		engine:     engine,
-		listenAddr: strings.TrimSpace(opts.ListenAddr),
-		management: opts.Management,
-		monitor:    opts.Monitor,
-		top:        opts.Top,
-		auth:       newAuthState(opts.Auth),
-		logger:     opts.Logger,
+		engine:         engine,
+		listenAddr:     strings.TrimSpace(opts.ListenAddr),
+		management:     opts.Management,
+		monitor:        opts.Monitor,
+		clusterMonitor: opts.ClusterMonitor,
+		top:            opts.Top,
+		auth:           newAuthState(opts.Auth),
+		logger:         opts.Logger,
 	}
 	srv.registerRoutes()
 	return srv
@@ -243,6 +247,7 @@ func (s *Server) registerRoutes() {
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 	nodes.GET("/monitor/realtime", s.handleRealtimeMonitor)
+	nodes.GET("/cluster-monitor/realtime", s.handleClusterRealtimeMonitor)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {

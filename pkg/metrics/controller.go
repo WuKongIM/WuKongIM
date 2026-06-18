@@ -23,6 +23,7 @@ type ControllerMetrics struct {
 	nodesSuspect     prometheus.Gauge
 	nodesDead        prometheus.Gauge
 	slotLeaderSkew   prometheus.Gauge
+	applyGap         *prometheus.GaugeVec
 	raftStepDepth    prometheus.Gauge
 	raftStepCapacity prometheus.Gauge
 	raftStepEnqueue  *prometheus.HistogramVec
@@ -81,6 +82,11 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Max-minus-min Slot leader count skew across active data nodes.",
 			ConstLabels: labels,
 		}),
+		applyGap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_apply_gap",
+			Help:        "ControllerV2 committed-to-applied Raft log gap.",
+			ConstLabels: labels,
+		}, []string{"state"}),
 		raftStepDepth: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_raft_step_queue_depth",
 			Help:        "Number of pending inbound ControllerV2 Raft Step messages.",
@@ -110,6 +116,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.nodesSuspect,
 		m.nodesDead,
 		m.slotLeaderSkew,
+		m.applyGap,
 		m.raftStepDepth,
 		m.raftStepCapacity,
 		m.raftStepEnqueue,
@@ -183,6 +190,14 @@ func (m *ControllerMetrics) SetSlotLeaderSkew(skew int) {
 		return
 	}
 	m.slotLeaderSkew.Set(float64(skew))
+}
+
+// SetApplyGap records the current ControllerV2 committed-to-applied Raft log gap.
+func (m *ControllerMetrics) SetApplyGap(gap uint64) {
+	if m == nil {
+		return
+	}
+	m.applyGap.WithLabelValues("current").Set(float64(gap))
 }
 
 func (m *ControllerMetrics) SetControllerRaftStepQueue(depth int, capacity int) {

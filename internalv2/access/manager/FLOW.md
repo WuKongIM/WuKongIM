@@ -14,6 +14,7 @@ user, or conversation business state.
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
 GET  /manager/monitor/realtime (Prometheus-backed business realtime monitor cards; requires cluster.node:r when Auth.On=true)
+GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster operations monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
@@ -59,6 +60,13 @@ Prometheus monitor provider. When Prometheus is disabled or unavailable the
 route still returns HTTP 200 with an explicit monitor status so the web UI can
 show setup guidance instead of rendering empty charts. This route does not read
 from the top collector or any in-process dashboard ring buffer.
+
+`/manager/cluster-monitor/realtime` backs the web cluster operations realtime
+monitor card wall. It uses the same chart `window` and optional `step` parsing
+and bounds as the business realtime monitor, requires `cluster.node:r` when
+manager auth is enabled, and delegates Prometheus plus bounded
+`control_snapshot` reads to the app-wired cluster monitor provider. This route
+does not read from the top collector or any in-process dashboard ring buffer.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

@@ -152,7 +152,11 @@ New(Config)
      attach the local top provider so `/manager/runtime/workqueues` can expose
      local runtime pressure; attach a Prometheus monitor provider so
      `/manager/monitor/realtime` can expose business monitor card series and
-     explicit disabled/unavailable source states
+     explicit disabled/unavailable source states; attach a Prometheus-backed
+     cluster monitor provider so `/manager/cluster-monitor/realtime` can expose
+     cluster operations card series while using the management usecase only for
+     bounded `ListNodes`/`ListSlots` control snapshots; the cluster monitor does
+     not read from `topCollector`
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 
