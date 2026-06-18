@@ -106,10 +106,14 @@ func (a *App) ensureLogger() error {
 func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 	var top *topCollector
 	if a.cfg.Top.APIEnabled {
-		top = a.ensureTopCollector(clusterCfg.NodeID)
+		top = a.ensureTopCollector(clusterCfg.NodeID, true)
 	}
 	if a.cfg.Observability.MetricsEnabled {
 		a.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
+		if top == nil {
+			top = a.ensureTopCollector(clusterCfg.NodeID, false)
+		}
+		top.setResourceMetrics(a.metrics.NodeResource)
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: a.metrics})
@@ -119,7 +123,7 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 		})
 		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: a.metrics})
 	}
-	if top != nil {
+	if top != nil && a.cfg.Top.APIEnabled {
 		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, topChannelV2Observer{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, topControllerRaftObserver{top: top})
@@ -139,8 +143,17 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 	}
 }
 
-func (a *App) ensureTopCollector(nodeID uint64) *topCollector {
+func (a *App) ensureTopCollector(nodeID uint64, exposeProvider bool) *topCollector {
+	if collector, ok := a.top.(*topCollector); ok {
+		if exposeProvider {
+			a.topProvider = collector
+		}
+		return collector
+	}
 	if collector, ok := a.topProvider.(*topCollector); ok {
+		if a.top == nil {
+			a.top = collector
+		}
 		return collector
 	}
 	collector := newTopCollector(topCollectorOptions{
@@ -157,7 +170,9 @@ func (a *App) ensureTopCollector(nodeID uint64) *topCollector {
 		MetricsEnabled: a.cfg.Observability.MetricsEnabled,
 	})
 	a.top = collector
-	a.topProvider = collector
+	if exposeProvider {
+		a.topProvider = collector
+	}
 	return collector
 }
 

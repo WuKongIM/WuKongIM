@@ -1,6 +1,13 @@
+import { useState } from "react"
+import { CircleHelp } from "lucide-react"
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useIntl } from "react-intl"
 
+import {
+  Tooltip as HelpTooltip,
+  TooltipContent as HelpTooltipContent,
+  TooltipTrigger as HelpTooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 import type { MonitorMetricCard as MonitorMetricCardModel, MonitorTone } from "../types"
@@ -30,6 +37,7 @@ const toneStyles: Record<MonitorTone, { dot: string; badge: string }> = {
 
 export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
   const intl = useIntl()
+  const title = intl.formatMessage({ id: card.titleId })
   const isAvailable = card.available
   const chartData = isAvailable
     ? card.series.map((point) => ({
@@ -51,7 +59,10 @@ export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">{intl.formatMessage({ id: card.titleId })}</h2>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <MetricHelpButton description={intl.formatMessage({ id: card.helpId })} label={title} />
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">{intl.formatMessage({ id: card.stageLabelId })}</p>
         </div>
         <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium", styles.badge)}>
@@ -83,15 +94,20 @@ export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
                 tickLine={false}
                 tickMargin={8}
               />
-              <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
+              <YAxis
+                axisLine={false}
+                domain={["dataMin", "dataMax"]}
+                fontSize={10}
+                tickFormatter={formatMonitorChartAxisValue}
+                tickLine={false}
+                width={44}
+              />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null
                   return (
                     <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
-                      <p className="font-medium text-foreground">
-                        {payload[0].value as number} {card.unit}
-                      </p>
+                      <p className="font-medium text-foreground">{formatMonitorChartValue(payload[0].value, card.unit)}</p>
                       <p className="text-muted-foreground">{payload[0].payload.time}</p>
                     </div>
                   )
@@ -129,4 +145,70 @@ export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
       )}
     </article>
   )
+}
+
+function MetricHelpButton({ description, label }: { description: string; label: string }) {
+  const intl = useIntl()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <HelpTooltip onOpenChange={setOpen} open={open}>
+      <HelpTooltipTrigger asChild>
+        <button
+          aria-expanded={open}
+          aria-label={intl.formatMessage({ id: "monitor.help.aria" }, { label })}
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={(event) => {
+            event.preventDefault()
+            setOpen(true)
+          }}
+          type="button"
+        >
+          <CircleHelp aria-hidden="true" className="size-3.5" />
+        </button>
+      </HelpTooltipTrigger>
+      <HelpTooltipContent className="max-w-72 text-left leading-5" side="top" sideOffset={6}>
+        {description}
+      </HelpTooltipContent>
+    </HelpTooltip>
+  )
+}
+
+export function formatMonitorChartValue(value: unknown, unit: string) {
+  const numeric = normalizeChartNumber(value)
+  if (numeric === null) return "-"
+  return appendMonitorChartUnit(formatMonitorChartNumber(numeric, unit), unit)
+}
+
+function formatMonitorChartAxisValue(value: unknown) {
+  const numeric = normalizeChartNumber(value)
+  if (numeric === null) return "-"
+  return formatMonitorChartNumber(numeric, "")
+}
+
+function normalizeChartNumber(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function formatMonitorChartNumber(value: number, unit: string) {
+  const maximumFractionDigits = monitorChartFractionDigits(value, unit)
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  })
+}
+
+function monitorChartFractionDigits(value: number, unit: string) {
+  if (Number.isInteger(value)) return 0
+  const abs = Math.abs(value)
+  if (unit === "%") return 2
+  if (abs > 0 && abs < 1) return 2
+  return 1
+}
+
+function appendMonitorChartUnit(value: string, unit: string) {
+  if (!unit) return value
+  if (unit === "%" || unit === "x" || unit.startsWith("/")) return `${value}${unit}`
+  return `${value} ${unit}`
 }

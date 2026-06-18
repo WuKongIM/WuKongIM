@@ -23,15 +23,21 @@ export type ClusterMonitorMetricKey =
   | "rpcSuccessRate"
   | "rpcLatencyP95"
   | "workqueuePressure"
+  | "nodeCpuPercent"
+  | "nodeMemoryRSS"
+  | "nodeGoroutines"
   | "storageWriteP99"
 
 export type ClusterMonitorPoint = {
   timestamp: number
   value: number
+  label?: string
+  seriesKey?: string
 }
 
 export type ClusterMonitorStat = {
-  labelId: string
+  labelId?: string
+  label?: string
   value: string
 }
 

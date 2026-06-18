@@ -81,14 +81,28 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	if calls.Load() != int64(len(managerClusterMonitorMetricDefinitions())) {
 		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), len(managerClusterMonitorMetricDefinitions()))
 	}
-	if len(queries) < 10 || !strings.Contains(queries[8], "wukongim_transport_sent_bytes_total[1m]") || !strings.Contains(queries[8], "wukongim_transport_received_bytes_total[1m]") {
+	if len(queries) < 10 ||
+		!strings.Contains(queries[8], `wukongim_transport_sent_bytes_total{job="wukongimv2"}[1m]`) ||
+		!strings.Contains(queries[8], `wukongim_transport_received_bytes_total{job="wukongimv2"}[1m]`) {
 		t.Fatalf("internalTraffic query = %q, want two rate windows filled", queries[8])
 	}
 	if len(queries) < 8 || !strings.Contains(queries[7], "wukongim_channelv2_active_runtimes") || !strings.Contains(queries[7], "vector(0)") {
 		t.Fatalf("activeChannels query = %q, want active runtime zero fallback", queries[7])
 	}
-	if len(queries) < 6 || !strings.Contains(queries[3], "wukongim_slot_proposals_total[1m]") || !strings.Contains(queries[4], "wukongim_slot_apply_gap") || !strings.Contains(queries[5], "wukongim_slot_apply_duration_seconds_bucket[1m]") {
+	if len(queries) < 6 ||
+		!strings.Contains(queries[3], `wukongim_slot_proposals_total{job="wukongimv2"}[1m]`) ||
+		!strings.Contains(queries[4], `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
+		!strings.Contains(queries[5], `wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`) {
 		t.Fatalf("slot metric queries = %#v, want propose rate, apply gap, and latency p99", queries[3:6])
+	}
+	if len(queries) < 15 ||
+		!strings.Contains(queries[12], `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
+		!strings.Contains(queries[13], `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) ||
+		!strings.Contains(queries[14], `wukongim_node_goroutines{job="wukongimv2"}`) ||
+		!strings.Contains(queries[12], "vector(0)") ||
+		!strings.Contains(queries[13], "vector(0)") ||
+		!strings.Contains(queries[14], "vector(0)") {
+		t.Fatalf("node resource queries = %#v, want cpu, rss, and goroutine zero-fallback metrics", queries[12:15])
 	}
 	wantKeys := []string{
 		"controllerProposeRate",
@@ -103,6 +117,9 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		"rpcSuccessRate",
 		"rpcLatencyP95",
 		"workqueuePressure",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+		"nodeGoroutines",
 		"storageWriteP99",
 	}
 	if len(resp.Cards) != len(wantKeys) {
@@ -132,6 +149,122 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
+}
+
+func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T) {
+	var nodeCPUQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		if strings.Contains(query, "wukongim_node_cpu_percent") {
+			nodeCPUQuery = query
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"node_id":"1","node_name":"node-1"},"values":[[1781767200,"12.5"],[1781767220,"15"]]},{"metric":{"node_id":"2","node_name":"node-2"},"values":[[1781767200,"32.5"],[1781767220,"40"]]}]}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+	}
+	if nodeCPUQuery == "" {
+		t.Fatal("node cpu query was not issued")
+	}
+	if strings.Contains(nodeCPUQuery, "max(") {
+		t.Fatalf("node cpu query = %q, want raw per-node series", nodeCPUQuery)
+	}
+	var cpuCard accessmanager.ClusterRealtimeMonitorCard
+	for _, card := range resp.Cards {
+		if card.Key == "nodeCpuPercent" {
+			cpuCard = card
+			break
+		}
+	}
+	if cpuCard.Key == "" {
+		t.Fatalf("nodeCpuPercent card missing: %#v", resp.Cards)
+	}
+	if cpuCard.Value != 40 {
+		t.Fatalf("node cpu value = %v, want highest current node value 40", cpuCard.Value)
+	}
+	if len(cpuCard.Series) != 4 {
+		t.Fatalf("node cpu series = %#v, want two points per node", cpuCard.Series)
+	}
+	requireClusterCardPoint(t, cpuCard, 1781767200000, "node-1", 12.5)
+	requireClusterCardPoint(t, cpuCard, 1781767220000, "node-1", 15)
+	requireClusterCardPoint(t, cpuCard, 1781767200000, "node-2", 32.5)
+	requireClusterCardPoint(t, cpuCard, 1781767220000, "node-2", 40)
+	requireClusterCardStat(t, cpuCard, "node-1", 15, "%")
+	requireClusterCardStat(t, cpuCard, "node-2", 40, "%")
+}
+
+func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	control := &managerClusterControlReaderSpy{}
+	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: control,
+	})
+
+	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+		NodeID: 2,
+	})
+
+	if err != nil {
+		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+	}
+	if resp.Scope.NodeID != 2 {
+		t.Fatalf("Scope.NodeID = %d, want 2", resp.Scope.NodeID)
+	}
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_controller_decisions_total{job="wukongimv2",node_id="2"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2",result="ok"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("promql queries missing %q: %s", want, joinedQueries)
+		}
+	}
+	for _, forbidden := range []string{
+		`wukongim_controller_decisions_total[1m]`,
+		`wukongim_controller_decisions_total{node_id="2"}[1m]`,
+		`wukongim_transport_rpc_total{node_id="2",result="ok"}[1m]`,
+		`wukongim_transport_rpc_total{result="ok"}[1m]`,
+	} {
+		if strings.Contains(joinedQueries, forbidden) {
+			t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+		}
+	}
+	if len(control.listSlotsOptions) != 1 {
+		t.Fatalf("ListSlots calls = %d, want 1", len(control.listSlotsOptions))
+	}
+	if control.listSlotsOptions[0].NodeID != 2 {
+		t.Fatalf("ListSlots NodeID = %d, want 2", control.listSlotsOptions[0].NodeID)
+	}
+	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 1, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 }
 
 func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.T) {
@@ -252,6 +385,35 @@ func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.
 	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
 }
 
+func requireClusterCardStat(t *testing.T, card accessmanager.ClusterRealtimeMonitorCard, label string, want float64, unit string) {
+	t.Helper()
+	for _, stat := range card.Stats {
+		if stat.Label == label {
+			if stat.Value == nil {
+				t.Fatalf("stat %q value = nil, want %v", label, want)
+			}
+			if math.Abs(*stat.Value-want) > 1e-9 || stat.Unit != unit {
+				t.Fatalf("stat %q = %#v, want value %v unit %q", label, stat, want, unit)
+			}
+			return
+		}
+	}
+	t.Fatalf("card %s missing stat label %q: %#v", card.Key, label, card.Stats)
+}
+
+func requireClusterCardPoint(t *testing.T, card accessmanager.ClusterRealtimeMonitorCard, timestamp int64, label string, want float64) {
+	t.Helper()
+	for _, point := range card.Series {
+		if point.Timestamp == timestamp && point.Label == label {
+			if math.Abs(point.Value-want) > 1e-9 {
+				t.Fatalf("point %s/%d = %#v, want %v", label, timestamp, point, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("card %s missing point label %q timestamp %d: %#v", card.Key, label, timestamp, card.Series)
+}
+
 type managerClusterControlReaderFake struct {
 	err error
 }
@@ -289,5 +451,34 @@ func (f managerClusterControlReaderFake) ListSlots(context.Context, managementus
 	}, {
 		State:   managementusecase.SlotState{Quorum: "lost"},
 		Runtime: managementusecase.SlotRuntime{LeaderID: 3},
+	}}, nil
+}
+
+type managerClusterControlReaderSpy struct {
+	listSlotsOptions []managementusecase.ListSlotsOptions
+}
+
+func (f *managerClusterControlReaderSpy) ListNodes(context.Context) (managementusecase.NodeList, error) {
+	return managementusecase.NodeList{
+		GeneratedAt:        time.Unix(1781767240, 0).UTC(),
+		ControllerLeaderID: 1,
+		Items: []managementusecase.Node{{
+			NodeID: 1,
+			Status: "alive",
+		}, {
+			NodeID: 2,
+			Status: "alive",
+		}, {
+			NodeID: 3,
+			Status: "dead",
+		}},
+	}, nil
+}
+
+func (f *managerClusterControlReaderSpy) ListSlots(_ context.Context, options managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
+	f.listSlotsOptions = append(f.listSlotsOptions, options)
+	return []managementusecase.Slot{{
+		State:   managementusecase.SlotState{Quorum: "ready", LeaderMatch: true},
+		Runtime: managementusecase.SlotRuntime{LeaderID: 2, HasQuorum: true},
 	}}, nil
 }

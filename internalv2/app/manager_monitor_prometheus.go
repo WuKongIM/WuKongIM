@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,7 +17,12 @@ import (
 	accessmanager "github.com/WuKongIM/WuKongIM/internalv2/access/manager"
 )
 
-const managerMonitorPrometheusQueryTimeout = 5 * time.Second
+const (
+	managerMonitorPrometheusQueryTimeout = 5 * time.Second
+	managerMonitorPrometheusJobName      = "wukongimv2"
+)
+
+var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b(wukongim_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)
 
 type managerPrometheusMonitorOptions struct {
 	// Enabled reports whether Prometheus-backed manager monitor queries may run.
@@ -59,6 +65,7 @@ type prometheusQueryRangeResponse struct {
 }
 
 type prometheusMatrixElement struct {
+	Metric map[string]string   `json:"metric"`
 	Values [][]json.RawMessage `json:"values"`
 }
 
@@ -90,7 +97,8 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 	var available int
 
 	for _, def := range defs {
-		series, err := p.queryRange(ctx, def.query(rateWindow), start, end, query.Step)
+		promQL := prometheusFilterNodeID(def.query(rateWindow), query.NodeID)
+		series, err := p.queryRange(ctx, promQL, start, end, query.Step)
 		card := accessmanager.RealtimeMonitorCard{
 			Key:       def.key,
 			Stage:     def.stage,
@@ -140,11 +148,7 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		GeneratedAt:   now,
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope: accessmanager.RealtimeMonitorScope{
-			View:     accessmanager.RealtimeMonitorScopePrometheus,
-			NodeID:   p.options.NodeID,
-			NodeName: strings.TrimSpace(p.options.NodeName),
-		},
+		Scope:         p.monitorScope(query.NodeID),
 		Sources: accessmanager.RealtimeMonitorSources{
 			Prometheus: accessmanager.RealtimeMonitorPrometheusSource{
 				Enabled: true,
@@ -164,7 +168,7 @@ func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessm
 		GeneratedAt:   now,
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         accessmanager.RealtimeMonitorScope{View: accessmanager.RealtimeMonitorScopePrometheus},
+		Scope:         p.monitorScope(query.NodeID),
 		Sources: accessmanager.RealtimeMonitorSources{
 			Prometheus: accessmanager.RealtimeMonitorPrometheusSource{
 				Enabled: false,
@@ -177,11 +181,35 @@ func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessm
 	}
 }
 
+func (p *managerPrometheusMonitorProvider) monitorScope(queryNodeID uint64) accessmanager.RealtimeMonitorScope {
+	scope := accessmanager.RealtimeMonitorScope{View: accessmanager.RealtimeMonitorScopePrometheus}
+	if queryNodeID != 0 {
+		scope.NodeID = queryNodeID
+		if p != nil && p.options.NodeID == queryNodeID {
+			scope.NodeName = strings.TrimSpace(p.options.NodeName)
+		}
+		return scope
+	}
+	if p != nil {
+		scope.NodeID = p.options.NodeID
+		scope.NodeName = strings.TrimSpace(p.options.NodeName)
+	}
+	return scope
+}
+
 func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
 	return managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
 }
 
 func managerMonitorQueryRange(ctx context.Context, client *http.Client, baseURL, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
+	results, err := managerMonitorQueryRangeResults(ctx, client, baseURL, promQL, start, end, step)
+	if err != nil {
+		return nil, err
+	}
+	return parsePrometheusMatrix(results)
+}
+
+func managerMonitorQueryRangeResults(ctx context.Context, client *http.Client, baseURL, promQL string, start, end time.Time, step time.Duration) ([]prometheusMatrixElement, error) {
 	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/api/v1/query_range")
 	if err != nil {
 		return nil, fmt.Errorf("prometheus base url invalid: %w", err)
@@ -220,7 +248,37 @@ func managerMonitorQueryRange(ctx context.Context, client *http.Client, baseURL,
 		}
 		return nil, fmt.Errorf("prometheus query_range failed: %s", decoded.Status)
 	}
-	return parsePrometheusMatrix(decoded.Data.Result)
+	return decoded.Data.Result, nil
+}
+
+func prometheusFilterNodeID(promQL string, nodeID uint64) string {
+	return managerMonitorPrometheusMetricSelectorRE.ReplaceAllStringFunc(promQL, func(selector string) string {
+		matches := managerMonitorPrometheusMetricSelectorRE.FindStringSubmatch(selector)
+		if len(matches) < 3 {
+			return selector
+		}
+		metric := matches[1]
+		labels := matches[2]
+		injected := make([]string, 0, 2)
+		if !prometheusSelectorHasLabel(labels, "job") {
+			injected = append(injected, fmt.Sprintf(`job="%s"`, managerMonitorPrometheusJobName))
+		}
+		if nodeID != 0 && !prometheusSelectorHasLabel(labels, "node_id") {
+			injected = append(injected, fmt.Sprintf(`node_id="%d"`, nodeID))
+		}
+		if len(injected) == 0 {
+			return selector
+		}
+		prefix := strings.Join(injected, ",")
+		if labels == "" {
+			return metric + "{" + prefix + "}"
+		}
+		return metric + "{" + prefix + "," + strings.TrimPrefix(labels, "{")
+	})
+}
+
+func prometheusSelectorHasLabel(labels string, name string) bool {
+	return strings.Contains(labels, name+"=")
 }
 
 func managerMonitorMetricDefinitions() []monitorMetricDefinition {
@@ -532,22 +590,12 @@ func prometheusAnySeries(queries ...string) string {
 func parsePrometheusMatrix(results []prometheusMatrixElement) ([]accessmanager.RealtimeMonitorPoint, error) {
 	byTimestamp := make(map[int64]float64)
 	for _, result := range results {
-		for _, raw := range result.Values {
-			if len(raw) != 2 {
-				return nil, fmt.Errorf("prometheus matrix value must contain timestamp and value")
-			}
-			timestamp, err := parsePrometheusTimestamp(raw[0])
-			if err != nil {
-				return nil, err
-			}
-			value, err := parsePrometheusSample(raw[1])
-			if err != nil {
-				return nil, err
-			}
-			if math.IsNaN(value) || math.IsInf(value, 0) {
-				continue
-			}
-			byTimestamp[timestamp] += value
+		points, err := parsePrometheusMatrixValues(result.Values)
+		if err != nil {
+			return nil, err
+		}
+		for _, point := range points {
+			byTimestamp[point.Timestamp] += point.Value
 		}
 	}
 	timestamps := make([]int64, 0, len(byTimestamp))
@@ -560,6 +608,31 @@ func parsePrometheusMatrix(results []prometheusMatrixElement) ([]accessmanager.R
 		points = append(points, accessmanager.RealtimeMonitorPoint{
 			Timestamp: timestamp,
 			Value:     byTimestamp[timestamp],
+		})
+	}
+	return points, nil
+}
+
+func parsePrometheusMatrixValues(values [][]json.RawMessage) ([]accessmanager.RealtimeMonitorPoint, error) {
+	points := make([]accessmanager.RealtimeMonitorPoint, 0, len(values))
+	for _, raw := range values {
+		if len(raw) != 2 {
+			return nil, fmt.Errorf("prometheus matrix value must contain timestamp and value")
+		}
+		timestamp, err := parsePrometheusTimestamp(raw[0])
+		if err != nil {
+			return nil, err
+		}
+		value, err := parsePrometheusSample(raw[1])
+		if err != nil {
+			return nil, err
+		}
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			continue
+		}
+		points = append(points, accessmanager.RealtimeMonitorPoint{
+			Timestamp: timestamp,
+			Value:     value,
 		})
 	}
 	return points, nil

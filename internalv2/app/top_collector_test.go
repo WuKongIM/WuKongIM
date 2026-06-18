@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/shirou/gopsutil/v4/process"
@@ -116,6 +117,41 @@ func TestTopCollectorSnapshotIncludesProcessResources(t *testing.T) {
 	}
 	if snapshot.Resources.Goroutines != 12 || snapshot.Resources.Threads != 8 {
 		t.Fatalf("scheduler resources = %#v, want goroutines 12 threads 8", snapshot.Resources)
+	}
+}
+
+func TestTopCollectorRecordsResourceMetrics(t *testing.T) {
+	reg := obsmetrics.New(9, "node-9")
+	collector := newTopCollector(topCollectorOptions{
+		ResourceMetrics: reg.NodeResource,
+		ResourceSampler: func() topResourceSample {
+			return topResourceSample{
+				CPUPercent:     41.25,
+				MemoryRSSBytes: 256 << 20,
+				MemoryVMSBytes: 512 << 20,
+				Goroutines:     64,
+				Threads:        11,
+			}
+		},
+	})
+
+	collector.recordSampleAt(time.Unix(100, 0))
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	cpu := requireAppMetricFamily(t, families, "wukongim_node_cpu_percent")
+	if got := cpu.GetMetric()[0].GetGauge().GetValue(); got != 41.25 {
+		t.Fatalf("cpu metric = %v, want 41.25", got)
+	}
+	rss := requireAppMetricFamily(t, families, "wukongim_node_memory_rss_bytes")
+	if got := rss.GetMetric()[0].GetGauge().GetValue(); got != 256<<20 {
+		t.Fatalf("rss metric = %v, want %d", got, 256<<20)
+	}
+	goroutines := requireAppMetricFamily(t, families, "wukongim_node_goroutines")
+	if got := goroutines.GetMetric()[0].GetGauge().GetValue(); got != 64 {
+		t.Fatalf("goroutine metric = %v, want 64", got)
 	}
 }
 

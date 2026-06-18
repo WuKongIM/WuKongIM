@@ -18,6 +18,9 @@ test("builds the cluster runtime monitor cards in troubleshooting order", () => 
     "rpcSuccessRate",
     "rpcLatencyP95",
     "workqueuePressure",
+    "nodeCpuPercent",
+    "nodeMemoryRSS",
+    "nodeGoroutines",
     "storageWriteP99",
   ])
   expect(model.scopeLabelId).toBe("clusterMonitor.scope.global")
@@ -36,7 +39,7 @@ test("builds deterministic preview data with chart series and stats", () => {
   const second = buildPreviewClusterMonitorModel("30m", false)
 
   expect(second).toEqual(first)
-  expect(first.cards).toHaveLength(13)
+  expect(first.cards).toHaveLength(16)
   expect(first.cards[0].series.length).toBeGreaterThan(20)
   expect(first.cards[0].stats).toHaveLength(3)
 })

@@ -509,6 +509,7 @@ function makeCard(spec: CardSpec, range: TimeRange): MonitorMetricCard {
   return {
     key: spec.key,
     titleId: spec.titleId,
+    helpId: `monitor.help.${spec.key}`,
     stage: spec.stage,
     stageLabelId: stageLabelIds[spec.stage],
     statusId: statusByTone[spec.tone],

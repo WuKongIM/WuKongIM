@@ -53,6 +53,8 @@ type ClusterRealtimeMonitorQuery struct {
 	Window time.Duration
 	// Step is the chart point interval.
 	Step time.Duration
+	// NodeID restricts cluster monitor metrics and snapshots to one node when non-zero.
+	NodeID uint64
 }
 
 // ClusterRealtimeMonitorResponse is the manager cluster realtime monitor payload.
@@ -79,6 +81,8 @@ type ClusterRealtimeMonitorResponse struct {
 type ClusterRealtimeMonitorScope struct {
 	// View is cluster for this monitor endpoint.
 	View string `json:"view"`
+	// NodeID is the selected cluster node when the request is node-scoped.
+	NodeID uint64 `json:"node_id,omitempty"`
 }
 
 // ClusterRealtimeMonitorSources reports cluster monitor data source state.
@@ -143,6 +147,8 @@ type ClusterRealtimeMonitorCard struct {
 type ClusterRealtimeMonitorStat struct {
 	// Key is the stable statistic key.
 	Key string `json:"key"`
+	// Label is an optional display label for dynamic statistics such as per-node values.
+	Label string `json:"label,omitempty"`
 	// Value is the numeric statistic value when the stat is numeric.
 	Value *float64 `json:"value,omitempty"`
 	// Text is the textual statistic value when the stat is a label or reason.
@@ -188,6 +194,11 @@ func parseClusterRealtimeMonitorQuery(c *gin.Context) (ClusterRealtimeMonitorQue
 	if query.Step < minRealtimeMonitorStep || query.Step > maxRealtimeMonitorStep {
 		return query, fmt.Errorf("step invalid")
 	}
+	nodeID, err := parseOptionalConnectionNodeID(strings.TrimSpace(c.Query("node_id")))
+	if err != nil {
+		return query, fmt.Errorf("invalid node_id")
+	}
+	query.NodeID = nodeID
 	return query, nil
 }
 
@@ -197,7 +208,7 @@ func clusterRealtimeMonitorDisabledResponse(query ClusterRealtimeMonitorQuery, m
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster},
+		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster, NodeID: query.NodeID},
 		Sources: ClusterRealtimeMonitorSources{
 			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: false, Error: message},
 			ControlSnapshot: ClusterRealtimeMonitorSource{Enabled: false},
@@ -213,7 +224,7 @@ func clusterRealtimeMonitorUnavailableResponse(query ClusterRealtimeMonitorQuery
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster},
+		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster, NodeID: query.NodeID},
 		Sources: ClusterRealtimeMonitorSources{
 			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: true, Error: message},
 			ControlSnapshot: ClusterRealtimeMonitorSource{Enabled: false},

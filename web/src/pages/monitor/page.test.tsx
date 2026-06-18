@@ -1,16 +1,19 @@
-import { render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, expect, test, vi } from "vitest"
 
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
-import { getRealtimeMonitor } from "@/lib/manager-api"
+import { getNodes, getRealtimeMonitor } from "@/lib/manager-api"
+import type { ManagerNodesResponse } from "@/lib/manager-api.types"
 import { MonitorPage } from "@/pages/monitor/page"
 
 vi.mock("@/lib/manager-api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/manager-api")>("@/lib/manager-api")
   return {
     ...actual,
+    getNodes: vi.fn(),
     getRealtimeMonitor: vi.fn(),
   }
 })
@@ -18,7 +21,9 @@ vi.mock("@/lib/manager-api", async () => {
 function renderMonitorPage() {
   return render(
     <I18nProvider>
-      <MonitorPage />
+      <TooltipProvider>
+        <MonitorPage />
+      </TooltipProvider>
     </I18nProvider>,
   )
 }
@@ -26,8 +31,46 @@ function renderMonitorPage() {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  vi.mocked(getNodes).mockReset()
   vi.mocked(getRealtimeMonitor).mockReset()
+  vi.mocked(getNodes).mockResolvedValue(managerNodesResponse())
 })
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+function managerNodesResponse(): ManagerNodesResponse {
+  return {
+    generated_at: "2026-06-18T10:00:00Z",
+    controller_leader_id: 1,
+    total: 2,
+    items: [
+      {
+        node_id: 1,
+        name: "node-1",
+        addr: "127.0.0.1:11110",
+        status: "alive",
+        last_heartbeat_at: "2026-06-18T10:00:00Z",
+        is_local: true,
+        capacity_weight: 1,
+        controller: { role: "leader", voter: true, leader_id: 1, raft_health: "healthy" },
+        slot_stats: { count: 8, leader_count: 4 },
+      },
+      {
+        node_id: 2,
+        name: "node-2",
+        addr: "127.0.0.1:11111",
+        status: "alive",
+        last_heartbeat_at: "2026-06-18T10:00:00Z",
+        is_local: false,
+        capacity_weight: 1,
+        controller: { role: "follower", voter: true, leader_id: 1, raft_health: "healthy" },
+        slot_stats: { count: 8, leader_count: 4 },
+      },
+    ],
+  }
+}
 
 function readyMonitorResponse() {
   return {
@@ -175,6 +218,29 @@ function partialMonitorResponseWithNoDataCard() {
   }
 }
 
+function longPrecisionMonitorResponse() {
+  const response = readyMonitorResponse()
+
+  return {
+    ...response,
+    cards: [
+      {
+        ...response.cards[0],
+        value: 12.345678901,
+        series: [
+          { timestamp: 1781767200000, value: 10.123456789 },
+          { timestamp: 1781767220000, value: 12.345678901 },
+        ],
+        stats: [
+          { key: "avg", value: 11.23456789 },
+          { key: "peak", value: 12.345678901 },
+          { key: "total", value: 404.444444 },
+        ],
+      },
+    ],
+  }
+}
+
 test("renders realtime business monitor cards from prometheus data", async () => {
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyMonitorResponse())
   renderMonitorPage()
@@ -195,10 +261,37 @@ test("renders realtime business monitor cards from prometheus data", async () =>
     expect(screen.getByText(label)).toBeInTheDocument()
   }
 
-  for (const label of ["5m time range", "15m time range", "30m time range", "1h time range", "Pause live monitor"]) {
+  for (const label of ["5m time range", "15m time range", "30m time range", "1h time range", "Refresh now"]) {
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
   }
+  expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("30s")
   expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+})
+
+test("shows metric explanations from business monitor card help buttons", async () => {
+  const user = userEvent.setup()
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyMonitorResponse())
+  renderMonitorPage()
+
+  expect(await screen.findByRole("button", { name: "Explain Send Rate" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Explain Conversation Sync Rate" })).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Explain Send Rate" }))
+
+  expect(await screen.findAllByText("Rate of client messages accepted by gateway connections.")).not.toHaveLength(0)
+})
+
+test("formats realtime business monitor values without leaking raw floats", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(longPrecisionMonitorResponse())
+  renderMonitorPage()
+
+  const card = await screen.findByTestId("monitor-metric-card")
+  expect(within(card).getByText("Send Rate")).toBeInTheDocument()
+  expect(within(card).getByText("12.3")).toBeInTheDocument()
+  expect(within(card).getByText("11.2 msg/s")).toBeInTheDocument()
+  expect(within(card).getByText("12.3 msg/s")).toBeInTheDocument()
+  expect(within(card).queryByText("12.345678901")).not.toBeInTheDocument()
+  expect(within(card).queryByText("11.23456789 msg/s")).not.toBeInTheDocument()
 })
 
 test("renders monitor cards that have no prometheus data", async () => {
@@ -215,7 +308,7 @@ test("renders monitor cards that have no prometheus data", async () => {
   expect(within(cards[1]).queryByText("no delivery latency samples in selected window")).not.toBeInTheDocument()
 })
 
-test("updates selected time range and pause state from the toolbar", async () => {
+test("updates selected time range and auto refresh interval from the toolbar", async () => {
   const user = userEvent.setup()
   vi.mocked(getRealtimeMonitor).mockResolvedValue(readyMonitorResponse())
   renderMonitorPage()
@@ -224,11 +317,52 @@ test("updates selected time range and pause state from the toolbar", async () =>
   expect(screen.getByRole("button", { name: "30m time range" })).toHaveAttribute("aria-pressed", "true")
   expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m" })
 
-  await user.click(screen.getByRole("button", { name: "Pause live monitor" }))
-  expect(screen.getByRole("button", { name: "Resume live monitor" })).toBeInTheDocument()
+  await user.selectOptions(screen.getByRole("combobox", { name: "Auto refresh" }), "off")
+  expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("off")
+})
 
-  await user.click(screen.getByRole("button", { name: "Resume live monitor" }))
-  expect(screen.getByRole("button", { name: "Pause live monitor" })).toBeInTheDocument()
+test("manually and automatically refreshes realtime business monitor data", async () => {
+  vi.useFakeTimers()
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyMonitorResponse())
+  renderMonitorPage()
+
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(screen.getAllByTestId("monitor-metric-card")).toHaveLength(3)
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(1)
+
+  fireEvent.click(screen.getByRole("button", { name: "Refresh now" }))
+  await act(async () => {})
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(2)
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000)
+  })
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Auto refresh" }), { target: { value: "off" } })
+  await act(async () => {})
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000)
+  })
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
+})
+
+test("filters realtime business monitor by selected node", async () => {
+  const user = userEvent.setup()
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyMonitorResponse())
+  renderMonitorPage()
+
+  const nodeSelect = await screen.findByRole("combobox", { name: "Node" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+
+  await user.selectOptions(nodeSelect, "2")
+
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", nodeId: 2 })
 })
 
 test("renders localized no-data copy for unavailable realtime conversation cards", async () => {

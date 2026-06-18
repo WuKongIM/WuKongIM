@@ -48,6 +48,7 @@ export type MonitorStat = {
 export type MonitorMetricCard = {
   key: MonitorMetricKey
   titleId: string
+  helpId: string
   stage: MonitorStage
   stageLabelId: string
   statusId: string

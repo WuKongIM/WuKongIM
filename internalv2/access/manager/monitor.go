@@ -60,6 +60,8 @@ type RealtimeMonitorQuery struct {
 	Window time.Duration
 	// Step is the chart point interval.
 	Step time.Duration
+	// NodeID restricts Prometheus metrics to one cluster node when non-zero.
+	NodeID uint64
 }
 
 // RealtimeMonitorResponse is the manager business realtime monitor payload.
@@ -154,6 +156,10 @@ type RealtimeMonitorPoint struct {
 	Timestamp int64 `json:"timestamp"`
 	// Value is the numeric point value.
 	Value float64 `json:"value"`
+	// Label optionally names the series for multi-line charts.
+	Label string `json:"label,omitempty"`
+	// SeriesKey optionally provides a stable key for the labeled series.
+	SeriesKey string `json:"series_key,omitempty"`
 }
 
 // RealtimeMonitorStat is one compact card statistic.
@@ -201,6 +207,11 @@ func parseRealtimeMonitorQuery(c *gin.Context) (RealtimeMonitorQuery, error) {
 	if query.Step < minRealtimeMonitorStep || query.Step > maxRealtimeMonitorStep {
 		return query, fmt.Errorf("step invalid")
 	}
+	nodeID, err := parseOptionalConnectionNodeID(strings.TrimSpace(c.Query("node_id")))
+	if err != nil {
+		return query, fmt.Errorf("invalid node_id")
+	}
+	query.NodeID = nodeID
 	return query, nil
 }
 
@@ -234,7 +245,7 @@ func realtimeMonitorDisabledResponse(query RealtimeMonitorQuery, message string)
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus},
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: query.NodeID},
 		Sources: RealtimeMonitorSources{
 			Prometheus: RealtimeMonitorPrometheusSource{Enabled: false, Error: message},
 		},
@@ -249,7 +260,7 @@ func realtimeMonitorUnavailableResponse(query RealtimeMonitorQuery, message stri
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus},
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: query.NodeID},
 		Sources: RealtimeMonitorSources{
 			Prometheus: RealtimeMonitorPrometheusSource{Enabled: true, Error: message},
 		},

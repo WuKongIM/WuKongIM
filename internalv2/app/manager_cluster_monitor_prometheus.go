@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +46,7 @@ type clusterMonitorMetricDefinition struct {
 	unit      string
 	query     func(rateWindow string) string
 	transform func(float64) float64
+	nodeStats bool
 }
 
 type managerClusterControlSnapshot struct {
@@ -85,8 +88,8 @@ func (p *managerClusterPrometheusMonitorProvider) ClusterRealtimeMonitor(ctx con
 	rateWindow := managerMonitorRateWindow(query.Window, query.Step)
 	end := now
 	start := end.Add(-query.Window)
-	cards, available, firstErr := p.clusterCards(ctx, defs, rateWindow, start, end, query.Step)
-	controlSnapshot, controlSource := p.controlSnapshot(ctx)
+	cards, available, firstErr := p.clusterCards(ctx, defs, rateWindow, start, end, query.Step, query.NodeID)
+	controlSnapshot, controlSource := p.controlSnapshot(ctx, query.NodeID)
 	status, sourceErr := clusterMonitorStatus(len(defs), available, firstErr, controlSource)
 
 	return accessmanager.ClusterRealtimeMonitorResponse{
@@ -94,7 +97,7 @@ func (p *managerClusterPrometheusMonitorProvider) ClusterRealtimeMonitor(ctx con
 		GeneratedAt:   now,
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         accessmanager.ClusterRealtimeMonitorScope{View: accessmanager.ClusterRealtimeMonitorScopeCluster},
+		Scope:         accessmanager.ClusterRealtimeMonitorScope{View: accessmanager.ClusterRealtimeMonitorScopeCluster, NodeID: query.NodeID},
 		Sources: accessmanager.ClusterRealtimeMonitorSources{
 			Prometheus: accessmanager.RealtimeMonitorPrometheusSource{
 				Enabled: true,
@@ -115,7 +118,7 @@ func managerClusterMonitorDisabledResponse(query accessmanager.ClusterRealtimeMo
 		GeneratedAt:   now,
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         accessmanager.ClusterRealtimeMonitorScope{View: accessmanager.ClusterRealtimeMonitorScopeCluster},
+		Scope:         accessmanager.ClusterRealtimeMonitorScope{View: accessmanager.ClusterRealtimeMonitorScopeCluster, NodeID: query.NodeID},
 		Sources: accessmanager.ClusterRealtimeMonitorSources{
 			Prometheus: accessmanager.RealtimeMonitorPrometheusSource{
 				Enabled: false,
@@ -129,13 +132,13 @@ func managerClusterMonitorDisabledResponse(query accessmanager.ClusterRealtimeMo
 	}
 }
 
-func (p *managerClusterPrometheusMonitorProvider) clusterCards(ctx context.Context, defs []clusterMonitorMetricDefinition, rateWindow string, start, end time.Time, step time.Duration) ([]accessmanager.ClusterRealtimeMonitorCard, int, error) {
+func (p *managerClusterPrometheusMonitorProvider) clusterCards(ctx context.Context, defs []clusterMonitorMetricDefinition, rateWindow string, start, end time.Time, step time.Duration, nodeID uint64) ([]accessmanager.ClusterRealtimeMonitorCard, int, error) {
 	cards := make([]accessmanager.ClusterRealtimeMonitorCard, 0, len(defs))
 	var firstErr error
 	var available int
 	for _, def := range defs {
-		rawSeries, err := managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, def.query(rateWindow), start, end, step)
-		series := clusterMonitorTransformSeries(rawSeries, def.transform)
+		promQL := prometheusFilterNodeID(def.query(rateWindow), nodeID)
+		series, stats, err := p.clusterCardSeries(ctx, def, promQL, start, end, step)
 		card := accessmanager.ClusterRealtimeMonitorCard{
 			Key:       def.key,
 			Stage:     def.stage,
@@ -157,15 +160,38 @@ func (p *managerClusterPrometheusMonitorProvider) clusterCards(ctx context.Conte
 			}
 		} else {
 			available++
-			card.Value = series[len(series)-1].Value
-			card.Stats = clusterMonitorStats(series, def.unit, step)
+			card.Value = clusterMonitorLatestValue(series)
+			card.Stats = stats
 		}
 		cards = append(cards, card)
 	}
 	return cards, available, firstErr
 }
 
-func (p *managerClusterPrometheusMonitorProvider) controlSnapshot(ctx context.Context) (managerClusterControlSnapshot, accessmanager.ClusterRealtimeMonitorSource) {
+func (p *managerClusterPrometheusMonitorProvider) clusterCardSeries(ctx context.Context, def clusterMonitorMetricDefinition, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, []accessmanager.ClusterRealtimeMonitorStat, error) {
+	if def.nodeStats {
+		results, err := managerMonitorQueryRangeResults(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+		if err != nil {
+			return nil, nil, err
+		}
+		series, stats, err := clusterMonitorNodeSeries(results, def.unit, def.transform)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(stats) == 0 {
+			stats = clusterMonitorStats(series, def.unit, step)
+		}
+		return series, stats, nil
+	}
+	rawSeries, err := managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+	if err != nil {
+		return nil, nil, err
+	}
+	series := clusterMonitorTransformSeries(rawSeries, def.transform)
+	return series, clusterMonitorStats(series, def.unit, step), nil
+}
+
+func (p *managerClusterPrometheusMonitorProvider) controlSnapshot(ctx context.Context, nodeID uint64) (managerClusterControlSnapshot, accessmanager.ClusterRealtimeMonitorSource) {
 	if p.options.Control == nil {
 		return managerClusterControlSnapshot{}, accessmanager.ClusterRealtimeMonitorSource{
 			Enabled: false,
@@ -181,7 +207,7 @@ func (p *managerClusterPrometheusMonitorProvider) controlSnapshot(ctx context.Co
 			Error:   fmt.Sprintf("read control snapshot nodes: %v", err),
 		}
 	}
-	slots, err := p.options.Control.ListSlots(ctx, managementusecase.ListSlotsOptions{})
+	slots, err := p.options.Control.ListSlots(ctx, managementusecase.ListSlotsOptions{NodeID: nodeID})
 	if err != nil {
 		return managerClusterControlSnapshot{}, accessmanager.ClusterRealtimeMonitorSource{
 			Enabled: false,
@@ -191,6 +217,9 @@ func (p *managerClusterPrometheusMonitorProvider) controlSnapshot(ctx context.Co
 	}
 	snapshot := managerClusterControlSnapshot{totalSlots: len(slots), ok: true}
 	for _, node := range nodes.Items {
+		if nodeID != 0 && node.NodeID != nodeID {
+			continue
+		}
 		if strings.EqualFold(node.Status, "alive") {
 			snapshot.nodesAlive++
 		}
@@ -250,6 +279,9 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 		clusterMetric("rpcSuccessRate", accessmanager.ClusterRealtimeMonitorStageInternalNetwork, accessmanager.RealtimeMonitorToneNormal, "%", "(sum(rate(wukongim_transport_rpc_total{result=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_transport_rpc_total[%s])), 1)) * 100"),
 		clusterMetric("rpcLatencyP95", accessmanager.ClusterRealtimeMonitorStageInternalNetwork, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.95, sum(rate(wukongim_transport_rpc_duration_seconds_bucket[%s])) by (le)) * 1000"),
 		clusterMetric("workqueuePressure", accessmanager.ClusterRealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", "max(wukongim_runtime_pool_queue_depth / clamp_min(wukongim_runtime_pool_queue_capacity, 1)) * 100"),
+		clusterNodeMetric("nodeCpuPercent", accessmanager.ClusterRealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("wukongim_node_cpu_percent")),
+		clusterNodeMetric("nodeMemoryRSS", accessmanager.ClusterRealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", prometheusZeroFallback("wukongim_node_memory_rss_bytes")),
+		clusterNodeMetric("nodeGoroutines", accessmanager.ClusterRealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("wukongim_node_goroutines")),
 		clusterMetric("storageWriteP99", accessmanager.ClusterRealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_storage_commit_request_duration_seconds_bucket[%s])) by (le)) * 1000"),
 	}
 }
@@ -257,6 +289,12 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 func clusterMetricWithTransform(key, stage, tone, unit, pattern string, transform func(float64) float64) clusterMonitorMetricDefinition {
 	def := clusterMetric(key, stage, tone, unit, pattern)
 	def.transform = transform
+	return def
+}
+
+func clusterNodeMetric(key, stage, tone, unit, pattern string) clusterMonitorMetricDefinition {
+	def := clusterMetric(key, stage, tone, unit, pattern)
+	def.nodeStats = true
 	return def
 }
 
@@ -279,6 +317,125 @@ func clusterMetric(key, stage, tone, unit, pattern string) clusterMonitorMetricD
 	}
 }
 
+func clusterMonitorNodeSeries(results []prometheusMatrixElement, unit string, transform func(float64) float64) ([]accessmanager.RealtimeMonitorPoint, []accessmanager.ClusterRealtimeMonitorStat, error) {
+	series := make([]accessmanager.RealtimeMonitorPoint, 0)
+	sortKeys := make(map[string]string)
+	stats := make([]clusterMonitorNodeStat, 0, len(results))
+	for index, result := range results {
+		points, err := parsePrometheusMatrixValues(result.Values)
+		if err != nil {
+			return nil, nil, err
+		}
+		points = clusterMonitorTransformSeries(points, transform)
+		if len(points) == 0 {
+			continue
+		}
+		label, seriesKey, sortKey, ok := clusterMonitorNodeIdentity(result.Metric, index)
+		for _, point := range points {
+			if ok {
+				point.Label = label
+				point.SeriesKey = seriesKey
+				sortKeys[seriesKey] = sortKey
+			}
+			series = append(series, point)
+		}
+		if ok {
+			value := points[len(points)-1].Value
+			stats = append(stats, clusterMonitorNodeStat{
+				sortKey: sortKey,
+				stat: accessmanager.ClusterRealtimeMonitorStat{
+					Key:   "node",
+					Label: label,
+					Value: &value,
+					Unit:  unit,
+				},
+			})
+		}
+	}
+	sort.Slice(series, func(i, j int) bool {
+		if series[i].Timestamp != series[j].Timestamp {
+			return series[i].Timestamp < series[j].Timestamp
+		}
+		left := sortKeys[series[i].SeriesKey]
+		right := sortKeys[series[j].SeriesKey]
+		if left == right {
+			return series[i].Label < series[j].Label
+		}
+		return left < right
+	})
+	sort.Slice(stats, func(i, j int) bool { return stats[i].sortKey < stats[j].sortKey })
+	outStats := make([]accessmanager.ClusterRealtimeMonitorStat, 0, len(stats))
+	for _, stat := range stats {
+		outStats = append(outStats, stat.stat)
+	}
+	return series, outStats, nil
+}
+
+func clusterMonitorLatestValue(series []accessmanager.RealtimeMonitorPoint) float64 {
+	if len(series) == 0 {
+		return 0
+	}
+	latestTimestamp := series[0].Timestamp
+	for _, point := range series[1:] {
+		if point.Timestamp > latestTimestamp {
+			latestTimestamp = point.Timestamp
+		}
+	}
+	var value float64
+	var found bool
+	for _, point := range series {
+		if point.Timestamp != latestTimestamp {
+			continue
+		}
+		if !found || point.Value > value {
+			value = point.Value
+			found = true
+		}
+	}
+	return value
+}
+
+type clusterMonitorNodeStat struct {
+	sortKey string
+	stat    accessmanager.ClusterRealtimeMonitorStat
+}
+
+func clusterMonitorNodeIdentity(metric map[string]string, index int) (string, string, string, bool) {
+	if len(metric) == 0 {
+		return "", "", "", false
+	}
+	nodeName := strings.TrimSpace(metric["node_name"])
+	nodeID := strings.TrimSpace(metric["node_id"])
+	if nodeName != "" {
+		seriesKey := clusterMonitorNodeSeriesKey(nodeID, nodeName, index)
+		return nodeName, seriesKey, clusterMonitorNodeSortKey(nodeID, nodeName, index), true
+	}
+	if nodeID != "" {
+		label := "node-" + nodeID
+		seriesKey := clusterMonitorNodeSeriesKey(nodeID, label, index)
+		return label, seriesKey, clusterMonitorNodeSortKey(nodeID, label, index), true
+	}
+	return "", "", "", false
+}
+
+func clusterMonitorNodeSeriesKey(nodeID, fallback string, index int) string {
+	if strings.TrimSpace(nodeID) != "" {
+		return "node-" + strings.TrimSpace(nodeID)
+	}
+	key := strings.TrimSpace(fallback)
+	if key == "" {
+		key = fmt.Sprintf("node-%d", index+1)
+	}
+	return key
+}
+
+func clusterMonitorNodeSortKey(nodeID, fallback string, index int) string {
+	if parsed, err := strconv.ParseUint(strings.TrimSpace(nodeID), 10, 64); err == nil {
+		return fmt.Sprintf("%020d", parsed)
+	}
+	return fmt.Sprintf("z-%020d-%s", index, fallback)
+}
+
 func clusterMonitorTransformSeries(series []accessmanager.RealtimeMonitorPoint, transform func(float64) float64) []accessmanager.RealtimeMonitorPoint {
 	if transform == nil || len(series) == 0 {
 		return series
@@ -288,6 +445,8 @@ func clusterMonitorTransformSeries(series []accessmanager.RealtimeMonitorPoint, 
 		out = append(out, accessmanager.RealtimeMonitorPoint{
 			Timestamp: point.Timestamp,
 			Value:     transform(point.Value),
+			Label:     point.Label,
+			SeriesKey: point.SeriesKey,
 		})
 	}
 	return out

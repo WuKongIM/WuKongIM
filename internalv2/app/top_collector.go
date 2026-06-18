@@ -12,6 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -59,6 +60,8 @@ type topCollectorOptions struct {
 	ClusterSnapshot func() clusterv2.Snapshot
 	// MetricsEnabled reports whether the optional Prometheus endpoint is enabled.
 	MetricsEnabled bool
+	// ResourceMetrics receives local resource samples for Prometheus-backed monitor cards.
+	ResourceMetrics *obsmetrics.NodeResourceMetrics
 	// ResourceSampler returns local process CPU and memory usage for top snapshots.
 	ResourceSampler func() topResourceSample
 }
@@ -484,6 +487,7 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 
 	cluster := c.clusterSnapshot()
 	resource := c.resourceSample()
+	c.observeResourceMetrics(resource)
 
 	c.mu.Lock()
 	c.ring[c.head] = topSample{
@@ -541,6 +545,34 @@ func (c *topCollector) resourceSample() topResourceSample {
 		return c.options.ResourceSampler()
 	}
 	return collectTopResourceSample()
+}
+
+func (c *topCollector) setResourceMetrics(metrics *obsmetrics.NodeResourceMetrics) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.options.ResourceMetrics = metrics
+}
+
+func (c *topCollector) observeResourceMetrics(sample topResourceSample) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	metrics := c.options.ResourceMetrics
+	c.mu.Unlock()
+	if metrics == nil {
+		return
+	}
+	metrics.Set(obsmetrics.NodeResourceObservation{
+		CPUPercent:     sample.CPUPercent,
+		MemoryRSSBytes: sample.MemoryRSSBytes,
+		MemoryVMSBytes: sample.MemoryVMSBytes,
+		Goroutines:     sample.Goroutines,
+		Threads:        sample.Threads,
+	})
 }
 
 func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {

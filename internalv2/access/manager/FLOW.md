@@ -54,22 +54,26 @@ sets node operation action hints to false because node lifecycle/scale-in
 operation routes are intentionally not migrated in this phase.
 
 `/manager/monitor/realtime` backs the web business realtime monitor card wall.
-It parses the chart `window` and optional `step`, requires `cluster.node:r` when
+It parses the chart `window`, optional `step`, and optional positive `node_id`
+Prometheus metric filter, requires `cluster.node:r` when
 manager auth is enabled, and delegates all metric reads to the app-wired
 Prometheus monitor provider. When Prometheus is disabled or unavailable the
 route still returns HTTP 200 with an explicit monitor status so the web UI can
 show setup guidance instead of rendering empty charts. This route does not read
-from the top collector or any in-process dashboard ring buffer.
+from the top collector or any in-process dashboard ring buffer. PromQL is
+scoped to the app-managed `wukongimv2` Prometheus job so obsolete
+`cmd/wukongim` metrics cannot be mixed into the realtime cards.
 The Prometheus-backed card wall includes a `conversationSync` stage covering
 the `/conversation/sync` client experience, active-cache dirty age, active
 flush health, and conversation authority pressure.
 
 `/manager/cluster-monitor/realtime` backs the web cluster operations realtime
-monitor card wall. It uses the same chart `window` and optional `step` parsing
-and bounds as the business realtime monitor, requires `cluster.node:r` when
-manager auth is enabled, and delegates Prometheus plus bounded
-`control_snapshot` reads to the app-wired cluster monitor provider. This route
-does not read from the top collector or any in-process dashboard ring buffer.
+monitor card wall. It uses the same chart `window`, optional `step`, optional
+positive `node_id`, and bounds as the business realtime monitor, requires
+`cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
+bounded `control_snapshot` reads to the app-wired cluster monitor provider.
+This route does not read from the top collector or any in-process dashboard
+ring buffer. PromQL is scoped to the app-managed `wukongimv2` Prometheus job.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

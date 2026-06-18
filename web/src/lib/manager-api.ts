@@ -497,18 +497,20 @@ export function getNetworkSummary() {
   return jsonManagerFetch<ManagerNetworkSummaryResponse>("/manager/network/summary")
 }
 
-export function getRealtimeMonitor(params?: { window?: string; step?: string }) {
+export function getRealtimeMonitor(params?: { window?: string; step?: string; nodeId?: number }) {
   const search = new URLSearchParams()
   if (params?.window) search.set("window", params.window)
   if (params?.step) search.set("step", params.step)
+  if (typeof params?.nodeId === "number") search.set("node_id", String(params.nodeId))
   const query = search.toString()
   return jsonManagerFetch<RealtimeMonitorResponse>(`/manager/monitor/realtime${query ? `?${query}` : ""}`)
 }
 
-export function getClusterRealtimeMonitor(params?: { window?: string; step?: string }) {
+export function getClusterRealtimeMonitor(params?: { window?: string; step?: string; nodeId?: number }) {
   const search = new URLSearchParams()
   if (params?.window) search.set("window", params.window)
   if (params?.step) search.set("step", params.step)
+  if (typeof params?.nodeId === "number") search.set("node_id", String(params.nodeId))
   const query = search.toString()
   return jsonManagerFetch<ClusterRealtimeMonitorResponse>(`/manager/cluster-monitor/realtime${query ? `?${query}` : ""}`)
 }

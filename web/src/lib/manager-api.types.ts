@@ -355,10 +355,13 @@ export type ClusterRealtimeMonitorSource = "prometheus" | "control_snapshot"
 export type ClusterRealtimeMonitorPoint = {
   timestamp: number
   value: number
+  label?: string
+  series_key?: string
 }
 
 export type ClusterRealtimeMonitorStat = {
   key: string
+  label?: string
   value?: number
   text?: string
   unit?: string
@@ -402,6 +405,7 @@ export type ClusterRealtimeMonitorResponse = {
   step_seconds: number
   scope: {
     view: "cluster"
+    node_id?: number
   }
   sources: {
     prometheus: ClusterRealtimeMonitorSourceStatus

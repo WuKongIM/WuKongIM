@@ -1556,6 +1556,29 @@ func TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled(t *testing.T
 	}
 }
 
+func TestConfigureObservabilitySamplesResourcesForMetricsWithoutTopProvider(t *testing.T) {
+	app := &App{cfg: Config{
+		Observability: ObservabilityConfig{MetricsEnabled: true},
+	}}
+	clusterCfg := clusterv2.Config{NodeID: 5}
+
+	app.configureObservability(&clusterCfg)
+
+	if app.metrics == nil {
+		t.Fatal("metrics were not wired")
+	}
+	collector, ok := app.top.(*topCollector)
+	if !ok {
+		t.Fatalf("top runtime = %T, want hidden resource collector", app.top)
+	}
+	if app.topProvider != nil {
+		t.Fatalf("top provider = %T, want nil when Top.APIEnabled=false", app.topProvider)
+	}
+	if collector.options.ResourceMetrics == nil {
+		t.Fatal("resource metrics were not attached to hidden collector")
+	}
+}
+
 func TestStopSyncsLogger(t *testing.T) {
 	calls := make([]string, 0, 4)
 	logger := &recordingAppLogger{}

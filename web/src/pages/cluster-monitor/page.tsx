@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 
+import { selectedMonitorNodeLabel } from "@/components/manager/monitor-node-selector"
+import { monitorRefreshIntervalMs, type MonitorRefreshInterval } from "@/components/manager/monitor-refresh-controls"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { getClusterRealtimeMonitor } from "@/lib/manager-api"
+import { getClusterRealtimeMonitor, getNodes } from "@/lib/manager-api"
 import type {
   ClusterRealtimeMonitorCard,
   ClusterRealtimeMonitorResponse,
   ClusterRealtimeMonitorSnapshotEntry as ApiSnapshotEntry,
   ClusterRealtimeMonitorStat as ApiStat,
   ClusterRealtimeMonitorTone,
+  ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
 import { ClusterMonitorCardGrid } from "./components/cluster-monitor-card-grid"
@@ -40,14 +43,43 @@ type ClusterMonitorPageState =
 export function ClusterMonitorPage() {
   const intl = useIntl()
   const [timeRange, setTimeRange] = useState<ClusterMonitorTimeRange>("15m")
-  const [isPaused, setIsPaused] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState<MonitorRefreshInterval>("30s")
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [state, setState] = useState<ClusterMonitorPageState>({ kind: "loading" })
+  const lastQueryKeyRef = useRef<string | null>(null)
+  const requestRefresh = useCallback(() => {
+    setRefreshNonce((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    setState({ kind: "loading" })
+    getNodes()
+      .then((response) => {
+        if (!cancelled) {
+          setNodes(response)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNodes(null)
+        }
+      })
 
-    getClusterRealtimeMonitor({ window: timeRange })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const queryKey = `${timeRange}:${selectedNodeId ?? "all"}`
+    const isSameQuery = lastQueryKeyRef.current === queryKey
+    lastQueryKeyRef.current = queryKey
+    setState((current) => (isSameQuery && current.kind === "ready" ? current : { kind: "loading" }))
+
+    getClusterRealtimeMonitor({ window: timeRange, ...(selectedNodeId ? { nodeId: selectedNodeId } : {}) })
       .then((response) => {
         if (!cancelled) {
           setState({ kind: "ready", response })
@@ -62,14 +94,28 @@ export function ClusterMonitorPage() {
     return () => {
       cancelled = true
     }
-  }, [timeRange])
+  }, [refreshNonce, selectedNodeId, timeRange])
+
+  useEffect(() => {
+    const intervalMs = monitorRefreshIntervalMs(refreshInterval)
+    if (intervalMs === null) return undefined
+
+    const intervalId = window.setInterval(requestRefresh, intervalMs)
+    return () => window.clearInterval(intervalId)
+  }, [refreshInterval, requestRefresh])
 
   const model = useMemo(() => {
     if (state.kind !== "ready" || !isRenderableClusterMonitor(state.response)) return null
-    return buildClusterRealtimeMonitorModel(state.response, timeRange, isPaused)
-  }, [isPaused, state, timeRange])
+    return buildClusterRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off")
+  }, [refreshInterval, state, timeRange])
   const generatedAt = state.kind === "ready" ? state.response.generated_at : new Date().toISOString()
   const sourceError = state.kind === "ready" ? getSourceError(state.response) : undefined
+  const scopeLabel = selectedNodeId
+    ? intl.formatMessage(
+        { id: "clusterMonitor.scope.node" },
+        { node: selectedMonitorNodeLabel(intl, nodes, selectedNodeId) },
+      )
+    : undefined
 
   return (
     <PageContainer className="max-w-[1600px] gap-4">
@@ -81,10 +127,15 @@ export function ClusterMonitorPage() {
 
       <ClusterMonitorToolbar
         generatedAt={model?.generatedAt ?? generatedAt}
-        isPaused={model?.isPaused ?? isPaused}
-        onPauseToggle={() => setIsPaused((current) => !current)}
+        nodes={nodes}
+        onNodeChange={setSelectedNodeId}
+        onRefresh={requestRefresh}
+        onRefreshIntervalChange={setRefreshInterval}
         onTimeRangeChange={setTimeRange}
+        refreshInterval={refreshInterval}
+        scopeLabel={scopeLabel}
         scopeLabelId={model?.scopeLabelId ?? "clusterMonitor.scope.global"}
+        selectedNodeId={selectedNodeId}
         timeRange={model?.timeRange ?? timeRange}
       />
 
@@ -188,14 +239,15 @@ function mapClusterRealtimeSnapshot(entry: ApiSnapshotEntry): ClusterMonitorSnap
 function mapClusterStats(stats: ApiStat[], rawCardUnit: string, displayCardUnit: string, precision: number, displayFactor: number) {
   return stats.flatMap((stat) => {
     const labelId = clusterMonitorStatLabelIds[stat.key]
-    if (!labelId) return []
+    if (!labelId && !stat.label) return []
     const rawUnit = stat.unit ?? rawCardUnit
-    const displayUnit = isByteRateUnit(rawUnit) ? displayCardUnit : rawUnit
-    const value = isByteRateUnit(rawUnit) ? scaleClusterStat(stat, displayFactor) : stat
+    const displayUnit = isScalableByteUnit(rawUnit) ? displayCardUnit : rawUnit
+    const value = isScalableByteUnit(rawUnit) ? scaleClusterStat(stat, displayFactor) : stat
 
     return [
       {
         labelId,
+        label: stat.label,
         value: formatApiStatValue(value, displayUnit, precision),
       },
     ]
@@ -261,25 +313,26 @@ type ClusterDisplayScale = {
 
 function clusterDisplayScale(card: ClusterRealtimeMonitorCard): ClusterDisplayScale {
   const unit = card.unit ?? ""
-  if (!isByteRateUnit(unit)) return { factor: 1, unit }
+  if (!isScalableByteUnit(unit)) return { factor: 1, unit }
 
   const currentValue = Math.abs(card.value ?? 0)
-  if (currentValue > 0) return byteRateScale(currentValue)
+  if (currentValue > 0) return byteDisplayScale(currentValue, unit)
 
   let maxValue = currentValue
   for (const point of clusterCardSeries(card)) {
     maxValue = Math.max(maxValue, Math.abs(point.value))
   }
   for (const stat of clusterCardStats(card)) {
-    if (typeof stat.value === "number" && isByteRateUnit(stat.unit ?? unit)) {
+    if (typeof stat.value === "number" && isScalableByteUnit(stat.unit ?? unit)) {
       maxValue = Math.max(maxValue, Math.abs(stat.value))
     }
   }
-  return byteRateScale(maxValue)
+  return byteDisplayScale(maxValue, unit)
 }
 
-function byteRateScale(value: number): ClusterDisplayScale {
-  const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"]
+function byteDisplayScale(value: number, unit: string): ClusterDisplayScale {
+  const suffix = isByteRateUnit(unit) ? "/s" : ""
+  const units = ["B", "KB", "MB", "GB", "TB"].map((item) => `${item}${suffix}`)
   let factor = 1
   let unitIndex = 0
   while (value >= 1024 && unitIndex < units.length - 1) {
@@ -288,6 +341,10 @@ function byteRateScale(value: number): ClusterDisplayScale {
     unitIndex += 1
   }
   return { factor, unit: units[unitIndex] }
+}
+
+function isScalableByteUnit(unit: string) {
+  return unit === "B" || isByteRateUnit(unit)
 }
 
 function isByteRateUnit(unit: string) {
@@ -313,8 +370,12 @@ function scaleClusterStat(stat: ApiStat, factor: number): ApiStat {
 }
 
 function scaleClusterSeries(series: ClusterRealtimeMonitorCard["series"], factor: number) {
-  if (factor === 1) return series
-  return series.map((point) => ({ ...point, value: point.value / factor }))
+  return series.map((point) => ({
+    timestamp: point.timestamp,
+    value: factor === 1 ? point.value : point.value / factor,
+    label: point.label,
+    seriesKey: point.series_key,
+  }))
 }
 
 function getSourceError(response: ClusterRealtimeMonitorResponse) {

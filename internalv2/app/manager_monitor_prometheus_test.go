@@ -103,6 +103,56 @@ func TestManagerMonitorPrometheusProviderMapsQueryRange(t *testing.T) {
 	}
 }
 
+func TestManagerMonitorPrometheusProviderFiltersPromQLByNodeID(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "1")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+		NodeID: 2,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Scope.NodeID != 2 {
+		t.Fatalf("scope node_id = %d, want 2", resp.Scope.NodeID)
+	}
+	if len(queries) == 0 {
+		t.Fatal("Prometheus server was not queried")
+	}
+	var sawBareMetric, sawExistingSelector bool
+	for _, query := range queries {
+		if strings.Contains(query, `wukongim_gateway_messages_received_total{job="wukongimv2",node_id="2"}[`) {
+			sawBareMetric = true
+		}
+		if strings.Contains(query, `wukongim_gateway_sendacks_total{job="wukongimv2",node_id="2",reason="success"}[`) {
+			sawExistingSelector = true
+		}
+		if strings.Contains(query, `wukongim_gateway_messages_received_total[`) ||
+			strings.Contains(query, `wukongim_gateway_messages_received_total{node_id="2"}[`) ||
+			strings.Contains(query, `wukongim_gateway_sendacks_total{node_id="2",reason="success"}[`) ||
+			strings.Contains(query, `wukongim_gateway_sendacks_total{reason="success"}[`) {
+			t.Fatalf("query %q was not node-filtered", query)
+		}
+	}
+	if !sawBareMetric || !sawExistingSelector {
+		t.Fatalf("queries = %#v, want node_id filter on bare and existing metric selectors", queries)
+	}
+}
+
 func TestManagerMonitorPrometheusProviderReturnsUnavailableWhenPrometheusFails(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -408,15 +458,15 @@ func TestManagerMonitorPrometheusProviderConversationHealthyZeroRatesStayAvailab
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		promQL := r.URL.Query().Get("query")
 		switch {
-		case strings.Contains(promQL, `wukongim_conversation_sync_total{result!="ok"}`):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, "wukongim_conversation_sync_total[") {
+		case strings.Contains(promQL, "wukongim_conversation_sync_total") && strings.Contains(promQL, `result!="ok"`):
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_sync_total{job="wukongimv2"}[`) {
 				writePrometheusRangeForTest(w, "0")
 				return
 			}
 			writePrometheusNoDataForTest(w)
 		case strings.Contains(promQL, "wukongim_conversation_authority_cache_pressure_total") ||
-			strings.Contains(promQL, "wukongim_conversation_authority_admit_total{result=~"):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, "wukongim_conversation_authority_admit_total[") {
+			(strings.Contains(promQL, "wukongim_conversation_authority_admit_total") && strings.Contains(promQL, `result=~`)):
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_authority_admit_total{job="wukongimv2"}[`) {
 				writePrometheusRangeForTest(w, "0")
 				return
 			}
@@ -509,8 +559,8 @@ func sparseZeroMonitorQueryForTest(query string) bool {
 		strings.Contains(query, "wukongim_delivery_recipient_worker_process_recipients_sum") ||
 		strings.Contains(query, "wukongim_delivery_resolve_routes_total") ||
 		strings.Contains(query, "wukongim_delivery_retry_queue_depth") ||
-		strings.Contains(query, "wukongim_gateway_sendacks_total{reason!=\"success\"}") ||
-		strings.Contains(query, "wukongim_delivery_push_rpc_total{result!=\"ok\"}")
+		(strings.Contains(query, "wukongim_gateway_sendacks_total") && strings.Contains(query, `reason!="success"`)) ||
+		(strings.Contains(query, "wukongim_delivery_push_rpc_total") && strings.Contains(query, `result!="ok"`))
 }
 
 func requireMonitorCardForTest(t *testing.T, cards []accessmanager.RealtimeMonitorCard, key string) accessmanager.RealtimeMonitorCard {

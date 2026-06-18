@@ -33,6 +33,9 @@ New(Config)
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
      counters, and recipient delivery worker queue/admission/process metrics
+     plus node resource pressure gauges backed by the local resource sampler;
+     when Top.APIEnabled=false this sampler runs only for Prometheus metrics and
+     does not expose the Top snapshot provider
   -> create the top collector when Top.APIEnabled=true and attach node-local
      runtime observers for ChannelV2, storage commit, delivery, Slot scheduler,
      ControllerV2 Raft, and transport pressure independently of Prometheus
@@ -50,6 +53,9 @@ New(Config)
        Prometheus data dir, extracts the embedded Prometheus binary when no
        external binary path is configured, and scrapes the node API /metrics endpoint
      Manager realtime monitor queries use this configured Prometheus HTTP API.
+     They scope PromQL to the generated `wukongimv2` job and can optionally add
+     a node-scoped filter; cluster monitor snapshots also pass the selected node
+     into bounded control snapshot reads.
      They do not use the top collector or in-process dashboard ring buffers.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,

@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 
+import { selectedMonitorNodeLabel } from "@/components/manager/monitor-node-selector"
+import { monitorRefreshIntervalMs, type MonitorRefreshInterval } from "@/components/manager/monitor-refresh-controls"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { getRealtimeMonitor } from "@/lib/manager-api"
+import { getNodes, getRealtimeMonitor } from "@/lib/manager-api"
 import type {
+  ManagerNodesResponse,
   RealtimeMonitorCard,
   RealtimeMonitorResponse,
   RealtimeMonitorSnapshotEntry as ApiSnapshotEntry,
@@ -40,14 +43,43 @@ type MonitorPageState =
 export function MonitorPage() {
   const intl = useIntl()
   const [timeRange, setTimeRange] = useState<TimeRange>("15m")
-  const [isPaused, setIsPaused] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState<MonitorRefreshInterval>("30s")
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [state, setState] = useState<MonitorPageState>({ kind: "loading" })
+  const lastQueryKeyRef = useRef<string | null>(null)
+  const requestRefresh = useCallback(() => {
+    setRefreshNonce((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-    setState({ kind: "loading" })
+    getNodes()
+      .then((response) => {
+        if (!cancelled) {
+          setNodes(response)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNodes(null)
+        }
+      })
 
-    getRealtimeMonitor({ window: timeRange })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const queryKey = `${timeRange}:${selectedNodeId ?? "all"}`
+    const isSameQuery = lastQueryKeyRef.current === queryKey
+    lastQueryKeyRef.current = queryKey
+    setState((current) => (isSameQuery && current.kind === "ready" ? current : { kind: "loading" }))
+
+    getRealtimeMonitor({ window: timeRange, ...(selectedNodeId ? { nodeId: selectedNodeId } : {}) })
       .then((response) => {
         if (!cancelled) {
           setState({ kind: "ready", response })
@@ -62,14 +94,28 @@ export function MonitorPage() {
     return () => {
       cancelled = true
     }
-  }, [timeRange])
+  }, [refreshNonce, selectedNodeId, timeRange])
+
+  useEffect(() => {
+    const intervalMs = monitorRefreshIntervalMs(refreshInterval)
+    if (intervalMs === null) return undefined
+
+    const intervalId = window.setInterval(requestRefresh, intervalMs)
+    return () => window.clearInterval(intervalId)
+  }, [refreshInterval, requestRefresh])
 
   const model = useMemo(() => {
     if (state.kind !== "ready" || !isRenderableMonitor(state.response)) return null
-    return buildRealtimeMonitorModel(state.response, timeRange, isPaused)
-  }, [isPaused, state, timeRange])
+    return buildRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off")
+  }, [refreshInterval, state, timeRange])
   const generatedAt = state.kind === "ready" ? state.response.generated_at : new Date().toISOString()
   const sourceError = state.kind === "ready" ? state.response.sources.prometheus.error : undefined
+  const scopeLabel = selectedNodeId
+    ? intl.formatMessage(
+        { id: "monitor.scope.node" },
+        { node: selectedMonitorNodeLabel(intl, nodes, selectedNodeId) },
+      )
+    : undefined
 
   return (
     <PageContainer className="max-w-[1600px] gap-4">
@@ -81,10 +127,15 @@ export function MonitorPage() {
 
       <MonitorToolbar
         generatedAt={model?.generatedAt ?? generatedAt}
-        isPaused={isPaused}
-        onPauseToggle={() => setIsPaused((current) => !current)}
+        nodes={nodes}
+        onNodeChange={setSelectedNodeId}
+        onRefresh={requestRefresh}
+        onRefreshIntervalChange={setRefreshInterval}
         onTimeRangeChange={setTimeRange}
+        refreshInterval={refreshInterval}
+        scopeLabel={scopeLabel}
         scopeLabelId={model?.scopeLabelId ?? "monitor.scope.global"}
+        selectedNodeId={selectedNodeId}
         timeRange={model?.timeRange ?? timeRange}
       />
 
@@ -151,6 +202,7 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
   return {
     key: card.key,
     titleId: config.titleId,
+    helpId: config.helpId,
     stage,
     stageLabelId: monitorStageLabelIds[stage],
     statusId: available ? monitorStatusByTone[tone] : "monitor.status.noData",

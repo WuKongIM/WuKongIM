@@ -597,6 +597,31 @@ func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
 	}
 }
 
+func TestManagerRealtimeMonitorParsesNodeID(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: 2},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{Monitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime?window=15m&node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.NodeID != 2 {
+		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
+	}
+}
+
 func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 	tests := []struct {
 		name string
@@ -607,6 +632,8 @@ func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 		{name: "unsupported window", url: "/manager/monitor/realtime?window=2h", want: "window invalid"},
 		{name: "invalid step", url: "/manager/monitor/realtime?step=soon", want: "step invalid"},
 		{name: "too small step", url: "/manager/monitor/realtime?step=1s", want: "step invalid"},
+		{name: "invalid node id", url: "/manager/monitor/realtime?node_id=bad", want: "invalid node_id"},
+		{name: "zero node id", url: "/manager/monitor/realtime?node_id=0", want: "invalid node_id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -739,6 +766,31 @@ func TestManagerClusterRealtimeMonitorReturnsPayload(t *testing.T) {
 	}
 }
 
+func TestManagerClusterRealtimeMonitorParsesNodeID(t *testing.T) {
+	provider := &managerClusterMonitorStub{response: ClusterRealtimeMonitorResponse{
+		Status:        ClusterRealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster, NodeID: 2},
+		Snapshot:      []ClusterRealtimeMonitorSnapshotEntry{},
+		Cards:         []ClusterRealtimeMonitorCard{},
+	}}
+	srv := New(Options{ClusterMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime?window=15m&node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.NodeID != 2 {
+		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
+	}
+}
+
 func TestManagerClusterRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 	srv := New(Options{ClusterMonitor: &managerClusterMonitorStub{}})
 
@@ -747,6 +799,8 @@ func TestManagerClusterRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 		"/manager/cluster-monitor/realtime?step=1s",
 		"/manager/cluster-monitor/realtime?step=10m",
 		"/manager/cluster-monitor/realtime?step=bad",
+		"/manager/cluster-monitor/realtime?node_id=bad",
+		"/manager/cluster-monitor/realtime?node_id=0",
 	} {
 		rec := httptest.NewRecorder()
 		srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))

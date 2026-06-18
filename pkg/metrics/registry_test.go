@@ -168,6 +168,40 @@ func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
 }
 
+func TestNodeResourceMetricsTrackProcessPressure(t *testing.T) {
+	reg := New(3, "node-3")
+
+	reg.NodeResource.Set(NodeResourceObservation{
+		CPUPercent:     37.5,
+		MemoryRSSBytes: 512 << 20,
+		MemoryVMSBytes: 1024 << 20,
+		Goroutines:     128,
+		Threads:        17,
+	})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name  string
+		value float64
+	}{
+		{name: "wukongim_node_cpu_percent", value: 37.5},
+		{name: "wukongim_node_memory_rss_bytes", value: 512 << 20},
+		{name: "wukongim_node_memory_vms_bytes", value: 1024 << 20},
+		{name: "wukongim_node_goroutines", value: 128},
+		{name: "wukongim_node_threads", value: 17},
+	} {
+		family := requireMetricFamily(t, families, tc.name)
+		require.Len(t, family.GetMetric(), 1)
+		requireMetricLabels(t, family.GetMetric()[0], map[string]string{
+			"node_id":   "3",
+			"node_name": "node-3",
+		})
+		require.Equal(t, tc.value, family.GetMetric()[0].GetGauge().GetValue())
+	}
+}
+
 func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 	reg := New(7, "node-7")
 

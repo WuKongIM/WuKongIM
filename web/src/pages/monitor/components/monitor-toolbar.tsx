@@ -1,7 +1,8 @@
-import { Pause, Play } from "lucide-react"
 import { useIntl } from "react-intl"
 
-import { Button } from "@/components/ui/button"
+import { MonitorNodeSelector } from "@/components/manager/monitor-node-selector"
+import { MonitorRefreshControls, type MonitorRefreshInterval } from "@/components/manager/monitor-refresh-controls"
+import type { ManagerNodesResponse } from "@/lib/manager-api.types"
 import { cn } from "@/lib/utils"
 
 import type { TimeRange } from "../types"
@@ -9,10 +10,15 @@ import type { TimeRange } from "../types"
 type MonitorToolbarProps = {
   generatedAt: string
   scopeLabelId: string
+  scopeLabel?: string
+  nodes: ManagerNodesResponse | null
+  selectedNodeId: number | null
   timeRange: TimeRange
-  isPaused: boolean
+  refreshInterval: MonitorRefreshInterval
+  onNodeChange: (nodeId: number | null) => void
   onTimeRangeChange: (range: TimeRange) => void
-  onPauseToggle: () => void
+  onRefresh: () => void
+  onRefreshIntervalChange: (interval: MonitorRefreshInterval) => void
 }
 
 const ranges: TimeRange[] = ["5m", "15m", "30m", "1h"]
@@ -20,10 +26,15 @@ const ranges: TimeRange[] = ["5m", "15m", "30m", "1h"]
 export function MonitorToolbar({
   generatedAt,
   scopeLabelId,
+  scopeLabel,
+  nodes,
+  selectedNodeId,
   timeRange,
-  isPaused,
+  refreshInterval,
+  onNodeChange,
   onTimeRangeChange,
-  onPauseToggle,
+  onRefresh,
+  onRefreshIntervalChange,
 }: MonitorToolbarProps) {
   const intl = useIntl()
   const formattedTime = new Intl.DateTimeFormat(intl.locale, {
@@ -31,13 +42,12 @@ export function MonitorToolbar({
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(generatedAt))
-  const pauseLabel = intl.formatMessage({ id: isPaused ? "monitor.controls.resumeLiveMonitor" : "monitor.controls.pauseLiveMonitor" })
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-          {intl.formatMessage({ id: scopeLabelId })}
+          {scopeLabel ?? intl.formatMessage({ id: scopeLabelId })}
         </span>
         <span className="text-xs text-muted-foreground">
           {intl.formatMessage({ id: "monitor.generatedAt" }, { time: formattedTime })}
@@ -45,6 +55,14 @@ export function MonitorToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <MonitorNodeSelector
+          allNodesLabelId="monitor.controls.allNodes"
+          labelId="monitor.controls.node"
+          nodes={nodes}
+          onNodeChange={onNodeChange}
+          selectedNodeId={selectedNodeId}
+        />
+
         <div className="inline-flex h-8 items-center rounded-lg border border-border bg-background p-1">
           {ranges.map((range) => (
             <button
@@ -63,10 +81,20 @@ export function MonitorToolbar({
           ))}
         </div>
 
-        <Button aria-label={pauseLabel} onClick={onPauseToggle} size="sm" type="button" variant="outline">
-          {isPaused ? <Play aria-hidden className="size-3.5" /> : <Pause aria-hidden className="size-3.5" />}
-          {intl.formatMessage({ id: isPaused ? "monitor.controls.resume" : "monitor.controls.pause" })}
-        </Button>
+        <MonitorRefreshControls
+          interval={refreshInterval}
+          labels={{
+            refresh: intl.formatMessage({ id: "monitor.controls.refreshNow" }),
+            autoRefresh: intl.formatMessage({ id: "monitor.controls.autoRefresh" }),
+            off: intl.formatMessage({ id: "monitor.controls.autoRefreshOff" }),
+            thirtySeconds: intl.formatMessage({ id: "monitor.controls.autoRefresh30s" }),
+            fiveMinutes: intl.formatMessage({ id: "monitor.controls.autoRefresh5m" }),
+            thirtyMinutes: intl.formatMessage({ id: "monitor.controls.autoRefresh30m" }),
+            oneHour: intl.formatMessage({ id: "monitor.controls.autoRefresh1h" }),
+          }}
+          onIntervalChange={onRefreshIntervalChange}
+          onRefresh={onRefresh}
+        />
       </div>
     </section>
   )
