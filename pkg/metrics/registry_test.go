@@ -260,6 +260,10 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveNeedMetaPull("retry", "other")
 	reg.ChannelV2.ObserveMetaCache("hit")
 	reg.ChannelV2.ObserveMetaCache("invalidate")
+	reg.ChannelV2.SetISRAnomalyChannels(map[string]int{
+		"isr_insufficient": 3,
+		"no_leader":        1,
+	})
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -508,6 +512,24 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"node_name": "node-8",
 		"result":    "invalidate",
 	})
+
+	isrAnomalies := requireMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
+	require.NotEmpty(t, isrAnomalies.GetHelp())
+	require.Equal(t, float64(3), findMetricByLabels(t, isrAnomalies, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "isr_insufficient",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, isrAnomalies, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "no_leader",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, isrAnomalies, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "replica_gap",
+	}).GetGauge().GetValue())
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {
@@ -515,6 +537,7 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 
 	reg.Slot.ObserveProposal(3, 12*time.Millisecond)
 	reg.Slot.ObserveLeaderChange(3)
+	reg.Slot.SetReplicaLag(1, 2, 150*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "ok", 7*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "err", 9*time.Millisecond)
 	reg.Transport.ObserveSentBytes("rpc_request", 64)
@@ -543,6 +566,17 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 		"node_name": "node-9",
 	})
 	require.Equal(t, float64(1), leaderChanges.GetMetric()[0].GetCounter().GetValue())
+
+	replicaLag := requireMetricFamily(t, families, "wukongim_slot_replica_lag_seconds")
+	require.NotEmpty(t, replicaLag.GetHelp())
+	require.Len(t, replicaLag.GetMetric(), 1)
+	requireMetricLabels(t, replicaLag.GetMetric()[0], map[string]string{
+		"node_id":      "9",
+		"node_name":    "node-9",
+		"slot_id":      "1",
+		"replica_node": "2",
+	})
+	require.Equal(t, 0.15, replicaLag.GetMetric()[0].GetGauge().GetValue())
 
 	rpcTotal := requireMetricFamily(t, families, "wukongim_transport_rpc_total")
 	require.Len(t, rpcTotal.GetMetric(), 2)
@@ -681,6 +715,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	reg.Controller.ObserveMigrationCompleted("ok")
 	reg.Controller.SetControllerRaftStepQueue(7, 1024)
 	reg.Controller.ObserveControllerRaftStepEnqueue("ok", 3*time.Millisecond)
+	reg.Controller.SetApplyGap(7)
 	reg.Controller.SetNodeCounts(2, 1, 1)
 	reg.Controller.SetTaskActive(map[string]int{
 		"repair":    2,
@@ -745,6 +780,15 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	stepEnqueue := requireMetricFamily(t, families, "wukongim_controller_raft_step_enqueue_duration_seconds")
 	require.Len(t, stepEnqueue.GetMetric(), 1)
 	requireMetricLabels(t, stepEnqueue.GetMetric()[0], map[string]string{"result": "ok"})
+
+	applyGap := requireMetricFamily(t, families, "wukongim_controller_apply_gap")
+	require.NotEmpty(t, applyGap.GetHelp())
+	require.Len(t, applyGap.GetMetric(), 1)
+	requireMetricLabels(t, applyGap.GetMetric()[0], map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	})
+	require.Equal(t, float64(7), applyGap.GetMetric()[0].GetGauge().GetValue())
 }
 
 func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {
