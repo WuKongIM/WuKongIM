@@ -6,6 +6,7 @@ import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
 import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
 import { ClusterDiagnosticsPage } from "@/pages/cluster/diagnostics/page"
+import { ClusterMonitorPage } from "@/pages/cluster-monitor/page"
 import { ConnectionsPage } from "@/pages/connections/page"
 import { ConversationsPage } from "@/pages/conversations/page"
 import { ClusterDashboardPage } from "@/pages/cluster-dashboard/page"
@@ -54,6 +55,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <Navigate replace to="/cluster/dashboard" /> },
       // Cluster operations
       { path: "cluster/dashboard", element: <ClusterDashboardPage /> },
+      { path: "cluster/monitor", element: <ClusterMonitorPage /> },
       { path: "cluster/nodes", element: <NodesPage /> },
       { path: "cluster/slots", element: <SlotsPage /> },
       { path: "cluster/channels", element: <ClusterChannelsPage /> },

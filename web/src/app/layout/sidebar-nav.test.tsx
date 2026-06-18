@@ -109,7 +109,7 @@ test("shows cluster dashboard first in the cluster section", async () => {
 
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
-  expect(links.slice(0, 3)).toEqual(["Dashboard", "Nodes", "Slots"])
+  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Nodes"])
 })
 
 test("shows business dashboard and live monitor first in the business section", async () => {

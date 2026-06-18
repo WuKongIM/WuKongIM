@@ -19,6 +19,7 @@ describe("navigationSections", () => {
 
   test("selects the active section from new nested routes", () => {
     expect(getActiveNavigationSection("/cluster/dashboard")?.id).toBe("cluster")
+    expect(getActiveNavigationSection("/cluster/monitor")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/nodes")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/plugins")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/workqueues")?.id).toBe("cluster")
@@ -32,6 +33,8 @@ describe("navigationSections", () => {
   test("exposes metadata and path label message ids for page headers", () => {
     expect(pageMetadata.get("/cluster/dashboard")?.titleMessageId).toBe("nav.clusterDashboard.title")
     expect(pageMetadata.get("/cluster/dashboard")?.pathLabelMessageId).toBe("nav.path.cluster.dashboard")
+    expect(pageMetadata.get("/cluster/monitor")?.titleMessageId).toBe("nav.clusterMonitor.title")
+    expect(pageMetadata.get("/cluster/monitor")?.pathLabelMessageId).toBe("nav.path.cluster.monitor")
     expect(pageMetadata.get("/business/dashboard")?.titleMessageId).toBe("nav.businessDashboard.title")
     expect(pageMetadata.get("/business/monitor")?.titleMessageId).toBe("nav.monitor.title")
     expect(pageMetadata.get("/business/connections")?.pathLabelMessageId).toBe("nav.path.business.connections")

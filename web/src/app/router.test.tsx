@@ -119,6 +119,20 @@ test("renders the workqueue monitor route", async () => {
   expect(await screen.findByRole("heading", { name: "Workqueue Monitor" })).toBeInTheDocument()
 })
 
+test("renders the cluster live monitor route", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/monitor"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
+  expect(screen.getByText("UI Preview")).toBeInTheDocument()
+})
+
 test("preserves controller log search params when redirecting to diagnostics", async () => {
   useAuthStore.setState(authenticatedState())
   const router = createMemoryRouter(routes, { initialEntries: ["/controller?node_id=1"] })

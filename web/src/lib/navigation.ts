@@ -51,6 +51,13 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/dashboard"],
       },
       {
+        href: "/cluster/monitor",
+        titleMessageId: "nav.clusterMonitor.title",
+        descriptionMessageId: "nav.clusterMonitor.description",
+        pathLabelMessageId: "nav.path.cluster.monitor",
+        icon: Activity,
+      },
+      {
         href: "/cluster/nodes",
         titleMessageId: "nav.nodes.title",
         descriptionMessageId: "nav.nodes.description",

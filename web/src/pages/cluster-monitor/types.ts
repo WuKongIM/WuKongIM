@@ -1,0 +1,66 @@
+export type ClusterMonitorTimeRange = "5m" | "15m" | "30m" | "1h"
+
+export type ClusterMonitorTone = "normal" | "warning" | "critical" | "preview"
+
+export type ClusterMonitorStage =
+  | "controlPlane"
+  | "slotReplication"
+  | "channelReplication"
+  | "internalNetwork"
+  | "runtimePressure"
+  | "incidentClosure"
+
+export type ClusterMonitorMetricKey =
+  | "controllerProposeRate"
+  | "controllerApplyGap"
+  | "slotLeaderStability"
+  | "slotReplicaLagP99"
+  | "channelISRHealth"
+  | "channelAppendLatencyP99"
+  | "internalTraffic"
+  | "rpcSuccessRate"
+  | "rpcLatencyP95"
+  | "workqueuePressure"
+  | "storageWriteP99"
+  | "incidentRate"
+
+export type ClusterMonitorPoint = {
+  timestamp: number
+  value: number
+}
+
+export type ClusterMonitorStat = {
+  labelId: string
+  value: string
+}
+
+export type ClusterMonitorMetricCard = {
+  key: ClusterMonitorMetricKey
+  titleId: string
+  stage: ClusterMonitorStage
+  stageLabelId: string
+  statusId: string
+  tone: ClusterMonitorTone
+  unit: string
+  value: string
+  series: ClusterMonitorPoint[]
+  stats: ClusterMonitorStat[]
+  chartColor: string
+}
+
+export type ClusterMonitorSnapshotEntry = {
+  key: string
+  labelId: string
+  value: string
+  unit?: string
+  tone: ClusterMonitorTone
+}
+
+export type PreviewClusterMonitorModel = {
+  generatedAt: string
+  scopeLabelId: string
+  timeRange: ClusterMonitorTimeRange
+  isPaused: boolean
+  snapshot: ClusterMonitorSnapshotEntry[]
+  cards: ClusterMonitorMetricCard[]
+}
