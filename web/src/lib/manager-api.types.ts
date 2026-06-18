@@ -345,6 +345,68 @@ export type RealtimeMonitorResponse = {
   cards: RealtimeMonitorCard[]
 }
 
+export type ClusterRealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" | "prometheus_unavailable"
+
+export type ClusterRealtimeMonitorTone = "normal" | "warning" | "critical"
+
+export type ClusterRealtimeMonitorSource = "prometheus" | "control_snapshot"
+
+export type ClusterRealtimeMonitorPoint = {
+  timestamp: number
+  value: number
+}
+
+export type ClusterRealtimeMonitorStat = {
+  key: string
+  value?: number
+  text?: string
+  unit?: string
+}
+
+export type ClusterRealtimeMonitorCard = {
+  key: string
+  source: ClusterRealtimeMonitorSource
+  stage: string
+  tone: ClusterRealtimeMonitorTone
+  unit?: string
+  value?: number
+  text?: string
+  available: boolean
+  error: string
+  series: ClusterRealtimeMonitorPoint[]
+  stats: ClusterRealtimeMonitorStat[]
+}
+
+export type ClusterRealtimeMonitorSnapshotEntry = {
+  key: string
+  metric_key: string
+  source: ClusterRealtimeMonitorSource
+  value?: number
+  text?: string
+  unit?: string
+  tone: ClusterRealtimeMonitorTone
+}
+
+export type ClusterRealtimeMonitorSourceStatus = {
+  enabled: boolean
+  base_url?: string
+  query_ms: number
+  error: string
+}
+
+export type ClusterRealtimeMonitorResponse = {
+  status: ClusterRealtimeMonitorStatus
+  generated_at: string
+  window_seconds: number
+  step_seconds: number
+  sources: {
+    prometheus: ClusterRealtimeMonitorSourceStatus
+    control_snapshot: ClusterRealtimeMonitorSourceStatus
+  }
+  snapshot: ClusterRealtimeMonitorSnapshotEntry[]
+  cards: ClusterRealtimeMonitorCard[]
+}
+
 export type ManagerNode = {
   node_id: number
   name?: string
