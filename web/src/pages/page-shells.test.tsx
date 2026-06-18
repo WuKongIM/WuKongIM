@@ -388,7 +388,7 @@ it.each([
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
   ["/business/dashboard", "BUSINESS / DASHBOARD"],
-  ["/business/monitor", "UI Preview"],
+  ["/business/monitor", "Live Data"],
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
