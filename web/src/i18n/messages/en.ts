@@ -1262,6 +1262,7 @@ export const enMessages: AppMessages = {
   "monitor.noData.no_conversation_sync_latency_samples": "No conversation sync latency samples in the selected time range.",
   "monitor.noData.no_conversation_recent_load_samples": "No recent-message load samples in the selected time range.",
   "monitor.noData.no_conversation_active_flush_samples": "No conversation active flush samples in the selected time range.",
+  "monitor.noData.unavailable": "Metric data is unavailable.",
   "clusterMonitor.title": "Live Monitor",
   "clusterMonitor.description": "Cluster control plane, replication, internal network, queue, and storage watermarks.",
   "clusterMonitor.previewBadge": "UI Preview",

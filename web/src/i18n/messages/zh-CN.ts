@@ -1260,6 +1260,7 @@ export const zhCNMessages: AppMessages = {
   "monitor.noData.no_conversation_sync_latency_samples": "当前时间范围内尚未产生会话同步延迟样本。",
   "monitor.noData.no_conversation_recent_load_samples": "当前时间范围内尚未产生最近消息加载样本。",
   "monitor.noData.no_conversation_active_flush_samples": "当前时间范围内尚未产生会话活跃刷盘样本。",
+  "monitor.noData.unavailable": "指标数据暂不可用。",
   "clusterMonitor.title": "实时监控",
   "clusterMonitor.description": "集群控制面、复制、内部网络、队列与存储水位。",
   "clusterMonitor.previewBadge": "UI 预览",

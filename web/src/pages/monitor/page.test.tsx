@@ -101,7 +101,7 @@ function readyMonitorResponse() {
   }
 }
 
-function partialMonitorResponseWithUnavailableConversationCard() {
+function partialMonitorResponseWithUnavailableConversationCard(unavailableReason: string | null = "no_conversation_recent_load_samples") {
   const response = readyMonitorResponse()
 
   return {
@@ -117,7 +117,7 @@ function partialMonitorResponseWithUnavailableConversationCard() {
         value: 0,
         available: false,
         error: "",
-        unavailable_reason: "no_conversation_recent_load_samples",
+        ...(unavailableReason === null ? {} : { unavailable_reason: unavailableReason }),
         series: [],
         stats: [],
       },
@@ -196,6 +196,19 @@ test("renders localized no-data copy for unavailable realtime conversation cards
   expect(within(cards[1]).getByText("Conversation Recent Load Latency P99")).toBeInTheDocument()
   expect(within(cards[1]).getByText("-")).toBeInTheDocument()
   expect(within(cards[1]).getByText("No recent-message load samples in the selected time range.")).toBeInTheDocument()
+})
+
+test.each([
+  ["unknown unavailable reason", "prometheus_query_error"],
+  ["missing unavailable reason", null],
+])("renders generic no-data copy for %s", async (_, unavailableReason) => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(partialMonitorResponseWithUnavailableConversationCard(unavailableReason))
+  renderMonitorPage()
+
+  const cards = await screen.findAllByTestId("monitor-metric-card")
+  expect(cards).toHaveLength(2)
+  expect(within(cards[1]).getByText("Conversation Recent Load Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Metric data is unavailable.")).toBeInTheDocument()
 })
 
 test("shows prometheus setup guidance when realtime monitor is disabled", async () => {

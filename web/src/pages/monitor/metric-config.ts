@@ -74,3 +74,5 @@ export const monitorNoDataLabelIds: Record<string, string> = {
   no_conversation_recent_load_samples: "monitor.noData.no_conversation_recent_load_samples",
   no_conversation_active_flush_samples: "monitor.noData.no_conversation_active_flush_samples",
 }
+
+export const monitorUnavailableNoDataLabelId = "monitor.noData.unavailable"

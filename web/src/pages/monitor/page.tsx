@@ -21,6 +21,7 @@ import {
   monitorStageLabelIds,
   monitorStatLabelIds,
   monitorStatusByTone,
+  monitorUnavailableNoDataLabelId,
 } from "./metric-config"
 import type {
   MonitorMetricCard,
@@ -140,6 +141,9 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
   const stage = normalizeStage(card.stage)
   const tone = normalizeTone(card.tone)
   const isAvailable = card.available !== false
+  const noDataLabelId = isAvailable
+    ? undefined
+    : (card.unavailable_reason ? monitorNoDataLabelIds[card.unavailable_reason] : undefined) ?? monitorUnavailableNoDataLabelId
 
   return {
     key: card.key,
@@ -162,7 +166,7 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
       : [],
     chartColor: config.chartColor,
     available: isAvailable,
-    noDataLabelId: card.unavailable_reason ? monitorNoDataLabelIds[card.unavailable_reason] : undefined,
+    noDataLabelId,
   }
 }
 
