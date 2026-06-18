@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { ManagerApiError } from "@/lib/manager-api"
@@ -43,8 +45,8 @@ const workqueueResponse = {
       score: 0.82,
       depth: 82,
       capacity: 100,
-      inflight: 0,
-      workers: 0,
+      inflight: 96,
+      workers: 128,
       wait_p99_ms: 12.4,
       task_p99_ms: 20.5,
       admission_error_per_sec: 0.3,
@@ -77,7 +79,9 @@ const workqueueResponse = {
 function renderPage() {
   return render(
     <I18nProvider>
-      <WorkqueuesPage />
+      <TooltipProvider>
+        <WorkqueuesPage />
+      </TooltipProvider>
     </I18nProvider>,
   )
 }
@@ -96,8 +100,51 @@ test("renders summary and pressure rows", async () => {
   expect(screen.getAllByText("gateway").length).toBeGreaterThan(0)
   expect(screen.getByText("async_send")).toBeInTheDocument()
   expect(screen.getByText("82 / 100")).toBeInTheDocument()
+  expect(screen.getByText("96 / 128")).toBeInTheDocument()
+  expect(screen.queryByText("Score")).not.toBeInTheDocument()
   expect(screen.getByText("12.4 ms")).toBeInTheDocument()
   expect(screen.getByText("0.30/s")).toBeInTheDocument()
+})
+
+test("shows column explanations from header help buttons", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText("async_send")
+
+  expect(screen.getByRole("button", { name: "Explain Level" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Explain Score" })).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Explain Inflight" }))
+
+  expect(await screen.findAllByText("Current running tasks divided by configured worker capacity.")).not.toHaveLength(0)
+})
+
+test("renders API-provided operator-facing service labels", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue({
+    ...workqueueResponse,
+    items: [
+      {
+        ...workqueueResponse.items[0],
+        component: "transportv2",
+        pool: "slot propose",
+        queue: "inflight",
+        priority: "none",
+      },
+      {
+        ...workqueueResponse.items[1],
+        component: "transportv2",
+        pool: "service",
+        queue: "controller raft",
+        priority: "rpc",
+      },
+    ],
+  })
+  renderPage()
+
+  expect(await screen.findByText("slot propose")).toBeInTheDocument()
+  expect(screen.getByText("inflight")).toBeInTheDocument()
+  expect(screen.getByText("service")).toBeInTheDocument()
+  expect(await screen.findByText("controller raft")).toBeInTheDocument()
 })
 
 test("keeps the page heading visible while workqueues are loading", () => {

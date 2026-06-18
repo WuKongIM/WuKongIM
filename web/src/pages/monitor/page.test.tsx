@@ -102,6 +102,36 @@ function disabledMonitorResponse() {
   }
 }
 
+function partialMonitorResponseWithNoDataCard() {
+  return {
+    ...readyMonitorResponse(),
+    status: "partial" as const,
+    sources: {
+      prometheus: {
+        enabled: true,
+        base_url: "http://127.0.0.1:9090",
+        query_ms: 22,
+        error: "deliveryLatencyP99: no delivery latency samples in selected window",
+      },
+    },
+    cards: [
+      readyMonitorResponse().cards[0],
+      {
+        key: "deliveryLatencyP99",
+        stage: "onlineDelivery",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 0,
+        available: false,
+        unavailable_reason: "no_delivery_latency_samples",
+        error: "no delivery latency samples in selected window",
+        series: [],
+        stats: [],
+      },
+    ],
+  }
+}
+
 test("renders realtime business monitor cards from prometheus data", async () => {
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyMonitorResponse())
   renderMonitorPage()
@@ -124,6 +154,20 @@ test("renders realtime business monitor cards from prometheus data", async () =>
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
   }
   expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+})
+
+test("renders monitor cards that have no prometheus data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(partialMonitorResponseWithNoDataCard())
+  renderMonitorPage()
+
+  const cards = await screen.findAllByTestId("monitor-metric-card")
+  expect(cards).toHaveLength(2)
+  expect(screen.queryByText("Some monitor metrics are unavailable.")).not.toBeInTheDocument()
+  expect(screen.queryByText("deliveryLatencyP99: no delivery latency samples in selected window")).not.toBeInTheDocument()
+  expect(within(cards[1]).getByText("Delivery Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getAllByText("No data").length).toBeGreaterThan(0)
+  expect(within(cards[1]).getByText("No delivery latency samples in the selected time range.")).toBeInTheDocument()
+  expect(within(cards[1]).queryByText("no delivery latency samples in selected window")).not.toBeInTheDocument()
 })
 
 test("updates selected time range and pause state from the toolbar", async () => {

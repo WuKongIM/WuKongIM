@@ -36,6 +36,10 @@ export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
   }))
   const gradientId = `monitor-gradient-${card.key}`
   const styles = toneStyles[card.tone]
+  const hasSeries = card.available && chartData.length > 0
+  const noDataMessage = card.unavailableReasonLabelId
+    ? intl.formatMessage({ id: card.unavailableReasonLabelId })
+    : card.error
 
   return (
     <article
@@ -59,56 +63,67 @@ export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
       </div>
 
       <div className="mt-4 h-[120px]">
-        <ResponsiveContainer height="100%" width="100%">
-          <AreaChart data={chartData} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="5%" stopColor={card.chartColor} stopOpacity={0.32} />
-                <stop offset="95%" stopColor={card.chartColor} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              axisLine={false}
-              dataKey="time"
-              fontSize={10}
-              interval="preserveStartEnd"
-              tickLine={false}
-              tickMargin={8}
-            />
-            <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                return (
-                  <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
-                    <p className="font-medium text-foreground">
-                      {payload[0].value as number} {card.unit}
-                    </p>
-                    <p className="text-muted-foreground">{payload[0].payload.time}</p>
-                  </div>
-                )
-              }}
-            />
-            <Area
-              dataKey="value"
-              fill={`url(#${gradientId})`}
-              isAnimationActive={false}
-              stroke={card.chartColor}
-              strokeWidth={2}
-              type="monotone"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {hasSeries ? (
+          <ResponsiveContainer height="100%" width="100%">
+            <AreaChart data={chartData} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="5%" stopColor={card.chartColor} stopOpacity={0.32} />
+                  <stop offset="95%" stopColor={card.chartColor} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                axisLine={false}
+                dataKey="time"
+                fontSize={10}
+                interval="preserveStartEnd"
+                tickLine={false}
+                tickMargin={8}
+              />
+              <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
+                      <p className="font-medium text-foreground">
+                        {payload[0].value as number} {card.unit}
+                      </p>
+                      <p className="text-muted-foreground">{payload[0].payload.time}</p>
+                    </div>
+                  )
+                }}
+              />
+              <Area
+                dataKey="value"
+                fill={`url(#${gradientId})`}
+                isAnimationActive={false}
+                stroke={card.chartColor}
+                strokeWidth={2}
+                type="monotone"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center rounded-md border border-dashed border-border/80 bg-background/45 px-4 text-center">
+            <p className="text-sm font-medium text-foreground">{intl.formatMessage({ id: "monitor.card.noData" })}</p>
+            {noDataMessage ? <p className="mt-1 max-w-full break-words text-xs text-muted-foreground">{noDataMessage}</p> : null}
+          </div>
+        )}
       </div>
 
-      <dl className="mt-auto grid grid-cols-3 gap-2 pt-4">
-        {card.stats.map((stat) => (
-          <div className="min-w-0 rounded-md border border-border/70 bg-background/55 px-2 py-2" key={stat.labelId}>
-            <dt className="truncate text-[11px] text-muted-foreground">{intl.formatMessage({ id: stat.labelId })}</dt>
-            <dd className="mt-1 truncate text-xs font-semibold text-foreground">{stat.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {card.stats.length > 0 ? (
+        <dl className="mt-auto grid grid-cols-3 gap-2 pt-4">
+          {card.stats.map((stat) => (
+            <div className="min-w-0 rounded-md border border-border/70 bg-background/55 px-2 py-2" key={stat.labelId}>
+              <dt className="truncate text-[11px] text-muted-foreground">{intl.formatMessage({ id: stat.labelId })}</dt>
+              <dd className="mt-1 truncate text-xs font-semibold text-foreground">{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="mt-auto pt-4" />
+      )}
     </article>
   )
 }

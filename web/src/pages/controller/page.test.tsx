@@ -237,6 +237,59 @@ test("preselects the controller node from the URL query", async () => {
   expect(getControllerRaftStatusMock).toHaveBeenCalledWith(2)
 })
 
+test("renders controller log entry creation time", async () => {
+  const createdAtMS = Date.UTC(2026, 5, 18, 1, 10, 11, 123)
+  const formattedCreatedAt = new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(createdAtMS))
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 1,
+    items: [{
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:7002",
+      status: "alive",
+      last_heartbeat_at: "2026-05-06T07:59:58Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader", voter: true, leader_id: 2 },
+      slot_stats: { count: 0, leader_count: 0 },
+    }],
+  })
+  getControllerLogsMock.mockResolvedValueOnce({
+    node_id: 2,
+    first_index: 1,
+    last_index: 4,
+    commit_index: 4,
+    applied_index: 3,
+    items: [
+      {
+        index: 4,
+        term: 2,
+        type: "normal",
+        created_at_ms: createdAtMS,
+        data_size: 12,
+        decode_status: "ok",
+        decoded_type: "init_cluster_state",
+        decoded: { command: "init_cluster_state" },
+      },
+    ],
+  })
+  getControllerRaftStatusMock.mockResolvedValueOnce(controllerRaftStatus(2))
+
+  renderControllerPage("/controller?node_id=2")
+
+  expect(await screen.findByText("Created at")).toBeInTheDocument()
+  expect(screen.getByText(formattedCreatedAt)).toBeInTheDocument()
+})
+
 test("keeps the latest selected node status when an older request resolves later", async () => {
   const user = userEvent.setup()
   const nodeOneStatus = deferred<ReturnType<typeof controllerRaftStatus>>()

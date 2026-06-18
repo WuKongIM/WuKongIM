@@ -33,6 +33,8 @@ type LogEntry struct {
 	Term uint64
 	// Type is the normalized Raft entry type.
 	Type string
+	// CreatedAtMS is the proposer-issued command timestamp in Unix milliseconds when known.
+	CreatedAtMS int64
 	// DataSize is the payload size in bytes.
 	DataSize int
 	// DecodeStatus reports whether the entry payload was decoded for inspection.
@@ -224,6 +226,7 @@ func logEntriesFromController(entries []control.ControllerLogEntry) []LogEntry {
 			Index:        entry.Index,
 			Term:         entry.Term,
 			Type:         entry.Type,
+			CreatedAtMS:  entry.CreatedAtMS,
 			DataSize:     entry.DataSize,
 			DecodeStatus: entry.DecodeStatus,
 			DecodedType:  entry.DecodedType,
@@ -259,14 +262,15 @@ func inspectSlotLogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 		item.Decoded = map[string]any{"command": "noop"}
 		return
 	}
-	if len(entry.Data) < 2 {
+	if len(entry.Data) < slotProposalEnvelopeSize {
 		item.DecodeStatus = "corrupt"
 		item.DecodedType = "unknown"
 		item.Decoded = map[string]any{"error": fmt.Sprintf("proposal payload too short: %d", len(entry.Data))}
 		return
 	}
 	hashSlot := binary.BigEndian.Uint16(entry.Data[:2])
-	inspection, err := metafsm.DecodeCommandInspection(entry.Data[2:])
+	item.CreatedAtMS = int64(binary.BigEndian.Uint64(entry.Data[2:slotProposalEnvelopeSize]))
+	inspection, err := metafsm.DecodeCommandInspection(entry.Data[slotProposalEnvelopeSize:])
 	if err != nil {
 		item.DecodeStatus = "corrupt"
 		item.DecodedType = "unknown"

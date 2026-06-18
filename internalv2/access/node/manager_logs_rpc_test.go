@@ -20,6 +20,7 @@ func TestManagerLogRPCReadsControllerLogs(t *testing.T) {
 				Index:        4,
 				Term:         2,
 				Type:         "normal",
+				CreatedAtMS:  1781754611123,
 				DecodeStatus: "ok",
 				DecodedType:  "init_cluster_state",
 				Decoded:      map[string]any{"command": "init_cluster_state"},
@@ -41,7 +42,7 @@ func TestManagerLogRPCReadsControllerLogs(t *testing.T) {
 		t.Fatalf("decodeManagerLogResponse() error = %v", err)
 	}
 
-	if resp.Status != rpcStatusOK || len(resp.Controller.Items) != 1 || resp.Controller.Items[0].DecodedType != "init_cluster_state" {
+	if resp.Status != rpcStatusOK || len(resp.Controller.Items) != 1 || resp.Controller.Items[0].DecodedType != "init_cluster_state" || resp.Controller.Items[0].CreatedAtMS != 1781754611123 {
 		t.Fatalf("response = %#v, want ok controller log page", resp)
 	}
 	if service.controllerReq != (managementusecase.ListControllerLogEntriesRequest{NodeID: 2, Limit: 2, Cursor: 5}) {

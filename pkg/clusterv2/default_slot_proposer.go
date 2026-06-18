@@ -13,6 +13,8 @@ import (
 const (
 	defaultSlotStageMetaCreateSubmit = "meta_create_slot_propose_submit"
 	defaultSlotStageMetaCreateWait   = "meta_create_slot_propose_wait"
+	// slotProposalEnvelopeSize is [hashSlot:2][createdAtMS:8] before the Slot FSM command.
+	slotProposalEnvelopeSize = 10
 )
 
 type defaultSlotRuntime interface {
@@ -64,9 +66,14 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 
 // multiraftPayload converts clusterv2's propose envelope into Multi-Raft's hash-slot envelope.
 func multiraftPayload(hashSlot uint16, command []byte) []byte {
-	out := make([]byte, 2+len(command))
+	return multiraftPayloadWithCreatedAt(hashSlot, time.Now().UTC().UnixMilli(), command)
+}
+
+func multiraftPayloadWithCreatedAt(hashSlot uint16, createdAtMS int64, command []byte) []byte {
+	out := make([]byte, slotProposalEnvelopeSize+len(command))
 	binary.BigEndian.PutUint16(out[:2], hashSlot)
-	copy(out[2:], command)
+	binary.BigEndian.PutUint64(out[2:slotProposalEnvelopeSize], uint64(createdAtMS))
+	copy(out[slotProposalEnvelopeSize:], command)
 	return out
 }
 

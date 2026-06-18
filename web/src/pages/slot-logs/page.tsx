@@ -69,6 +69,20 @@ function formatDataSize(value: number) {
   return `${value} B`
 }
 
+function formatLogEntryCreatedAt(intl: IntlShape, value?: number) {
+  if (!value || value <= 0) {
+    return "-"
+  }
+  return new Intl.DateTimeFormat(intl.locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value))
+}
+
 function isRaftNoopEntry(entry: ManagerSlotLogEntry) {
   return entry.data_size === 0 && entry.decoded_type === "noop"
 }
@@ -471,6 +485,7 @@ export function SlotLogsPanel() {
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.logs.table.index" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.logs.table.createdAt" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.logs.table.term" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.logs.table.type" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.logs.table.command" })}</th>
@@ -486,6 +501,7 @@ export function SlotLogsPanel() {
                     <Fragment key={entry.index}>
                       <tr className="align-top">
                         <td className="px-3 py-3 font-medium text-foreground">{entry.index}</td>
+                        <td className="px-3 py-3 text-muted-foreground">{formatLogEntryCreatedAt(intl, entry.created_at_ms)}</td>
                         <td className="px-3 py-3 text-muted-foreground">{entry.term}</td>
                         <td className="px-3 py-3 text-muted-foreground">{entry.type}</td>
                         <td className="px-3 py-3 text-foreground">

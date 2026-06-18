@@ -219,9 +219,10 @@ stale-route errors propagate to the caller.
 the control facade and returns newest-first, cursor-paginated entry summaries.
 `Node.LocalSlotLogEntries` reads the local default Slot Raft DB for one physical
 Slot, joins runtime commit/applied watermarks when available, and decodes Slot
-FSM proposal payloads into JSON-friendly inspection fields. These methods are
-read-only diagnostics for manager UI pages; they do not route writes, replay
-entries, or mutate Raft storage.
+FSM proposal payloads into JSON-friendly inspection fields. Slot log inspection
+also reads the Multi-Raft proposal envelope's `created_at_ms` timestamp when
+present. These methods are read-only diagnostics for manager UI pages; they do
+not route writes, replay entries, or mutate Raft storage.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 

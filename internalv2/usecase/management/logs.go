@@ -26,6 +26,8 @@ type LogEntry struct {
 	Term uint64
 	// Type is the normalized Raft entry type.
 	Type string
+	// CreatedAtMS is the proposer-issued command timestamp in Unix milliseconds when known.
+	CreatedAtMS int64
 	// DataSize is the payload size in bytes.
 	DataSize int
 	// DecodeStatus reports whether the entry payload was decoded for inspection.

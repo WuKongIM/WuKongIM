@@ -140,6 +140,8 @@ type RealtimeMonitorCard struct {
 	Stats []RealtimeMonitorStat `json:"stats"`
 	// Available reports whether this card has usable data.
 	Available bool `json:"available"`
+	// UnavailableReason is a stable low-cardinality reason when Available is false.
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
 	// Error contains a card-local source error.
 	Error string `json:"error"`
 }

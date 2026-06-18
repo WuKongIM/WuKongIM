@@ -312,6 +312,7 @@ export type RealtimeMonitorCard = {
   series: RealtimeMonitorPoint[]
   stats: RealtimeMonitorStat[]
   available: boolean
+  unavailable_reason?: string
   error: string
 }
 
@@ -714,6 +715,7 @@ export type ManagerSlotLogEntry = {
   index: number
   term: number
   type: string
+  created_at_ms?: number
   data_size: number
   decode_status?: string
   decoded_type?: string

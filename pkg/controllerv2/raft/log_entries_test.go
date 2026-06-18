@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft/raftstore"
@@ -16,9 +17,11 @@ func TestServiceLogEntriesReadsLatestEntriesDescending(t *testing.T) {
 	ctx := context.Background()
 	store, err := raftstore.Open(ctx, raftstore.Config{Dir: filepath.Join(t.TempDir(), "controller-raft"), NodeID: 1})
 	require.NoError(t, err)
+	issuedAt := time.Date(2026, 6, 18, 9, 10, 11, 123000000, time.FixedZone("plus-eight", 8*60*60))
 	cmd, err := command.Encode(command.Command{
-		Kind: command.KindUpsertNode,
-		Node: &state.Node{NodeID: 2, Name: "node-2"},
+		Kind:     command.KindUpsertNode,
+		IssuedAt: issuedAt,
+		Node:     &state.Node{NodeID: 2, Name: "node-2"},
 	})
 	require.NoError(t, err)
 	entries := []raftpb.Entry{
@@ -46,6 +49,7 @@ func TestServiceLogEntriesReadsLatestEntriesDescending(t *testing.T) {
 	require.Equal(t, uint64(2), got.Items[1].Index)
 	require.Equal(t, "ok", got.Items[1].DecodeStatus)
 	require.Equal(t, "upsert_node", got.Items[1].DecodedType)
+	require.Equal(t, issuedAt.UTC().UnixMilli(), got.Items[1].CreatedAtMS)
 	require.Equal(t, "upsert_node", got.Items[1].Decoded["command"])
 }
 

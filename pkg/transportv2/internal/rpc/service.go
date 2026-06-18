@@ -354,6 +354,7 @@ func (s *Service) observeAdmissionAndQueue(result string, payloadBytes int, snap
 	s.observer.ObserveTransport(core.Event{
 		Name:          "service_admission",
 		ServiceID:     s.ID,
+		ServiceAlias:  s.opts.Alias,
 		Result:        result,
 		Items:         snapshot.items,
 		Capacity:      snapshot.capacity,
@@ -367,6 +368,7 @@ func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
 	return core.Event{
 		Name:          "service_queue",
 		ServiceID:     s.ID,
+		ServiceAlias:  s.opts.Alias,
 		Result:        result,
 		Items:         snapshot.items,
 		Capacity:      snapshot.capacity,
@@ -377,11 +379,12 @@ func (s *Service) queueEvent(result string, snapshot queueSnapshot) core.Event {
 
 func (s *Service) observeInflight(inflight int) {
 	event := core.Event{
-		Name:      "service_inflight",
-		ServiceID: s.ID,
-		Result:    "ok",
-		Capacity:  s.opts.Concurrency,
-		Inflight:  inflight,
+		Name:         "service_inflight",
+		ServiceID:    s.ID,
+		ServiceAlias: s.opts.Alias,
+		Result:       "ok",
+		Capacity:     s.opts.Concurrency,
+		Inflight:     inflight,
 	}
 	if s.executor != nil {
 		stats := s.executor.Stats()
@@ -394,11 +397,12 @@ func (s *Service) observeInflight(inflight int) {
 
 func (s *Service) observeTask(result string, payloadBytes int, duration time.Duration) {
 	s.observe(core.Event{
-		Name:      "service_task",
-		ServiceID: s.ID,
-		Result:    result,
-		Bytes:     payloadBytes,
-		Duration:  duration,
+		Name:         "service_task",
+		ServiceID:    s.ID,
+		ServiceAlias: s.opts.Alias,
+		Result:       result,
+		Bytes:        payloadBytes,
+		Duration:     duration,
 	})
 }
 

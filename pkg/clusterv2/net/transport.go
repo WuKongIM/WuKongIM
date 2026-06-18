@@ -239,7 +239,9 @@ func (s *TransportServer) serviceOptions(serviceID uint8) transportv2.ServiceOpt
 	if isForegroundChannelMutationService(serviceID) && cfg.Concurrency <= 0 {
 		cfg.Concurrency = defaultTransportForegroundWriteServiceConcurrency
 	}
-	return normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
+	opts := normalizeTransportServiceOptions(cfg, s.cfg.MaxPayload)
+	opts.Alias = transportServiceAlias(serviceID)
+	return opts
 }
 
 func isForegroundChannelMutationService(serviceID uint8) bool {

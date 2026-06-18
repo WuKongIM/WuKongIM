@@ -14,6 +14,11 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	callsDir := t.TempDir()
 	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
 	logDir := filepath.Join(t.TempDir(), "logs")
+	prometheusEmbedDir := t.TempDir()
+	prometheusAsset := filepath.Join(prometheusEmbedDir, "prometheus-testos-testarch")
+	if err := os.WriteFile(prometheusAsset, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	writeFakeGoWukongIMV2Starter(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeWukongIMV2ReadyCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
@@ -25,7 +30,19 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"--log-dir", logDir,
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(envWithout(
+		"WK_PROMETHEUS_ENABLE",
+		"WK_PROMETHEUS_BINARY_PATH",
+		"WK_PROMETHEUS_EMBED_DIR",
+		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+	),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_PROMETHEUS_EMBED_DIR="+prometheusEmbedDir,
+	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, output)
@@ -50,11 +67,28 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		}
 	}
 
+	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongimv2.env"))
+	for _, want := range []string{
+		"wukongimv2-node1.conf WK_METRICS_ENABLE=true",
+		"wukongimv2-node1.conf WK_PROMETHEUS_ENABLE=true",
+		"wukongimv2-node1.conf WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
+		"wukongimv2-node1.conf WK_PROMETHEUS_SCRAPE_TARGETS=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
+		"wukongimv2-node2.conf WK_METRICS_ENABLE=true",
+		"wukongimv2-node2.conf WK_PROMETHEUS_ENABLE=false",
+		"wukongimv2-node3.conf WK_METRICS_ENABLE=true",
+		"wukongimv2-node3.conf WK_PROMETHEUS_ENABLE=false",
+	} {
+		if !strings.Contains(nodeEnv, want) {
+			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
+		}
+	}
+
 	curlCalls := readFile(t, filepath.Join(callsDir, "curl.calls"))
 	for _, want := range []string{
 		"http://127.0.0.1:5011/readyz",
 		"http://127.0.0.1:5012/readyz",
 		"http://127.0.0.1:5013/readyz",
+		"http://127.0.0.1:9091/-/ready",
 	} {
 		if !strings.Contains(curlCalls, want) {
 			t.Fatalf("expected ready probe %q, got:\n%s", want, curlCalls)
@@ -78,6 +112,14 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 		"--log-dir", logDir,
 	)
 	cmd.Dir = root
+	cmd.Env = envWithout(
+		"WK_PROMETHEUS_ENABLE",
+		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
@@ -85,6 +127,9 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	text := string(output)
 	for _, want := range []string{
 		"build_cmd=go build -o " + outputBin + " ./cmd/wukongimv2",
+		"prometheus_enable=true",
+		"prometheus_listen_addr=127.0.0.1:9091",
+		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
 		"node1_config=" + filepath.Join(root, "scripts/wukongimv2/wukongimv2-node1.conf"),
 		"node2_ready=http://127.0.0.1:5012/readyz",
 		"node3_log=" + filepath.Join(logDir, "node3.log"),
@@ -119,12 +164,30 @@ case "$1" in
 #!/usr/bin/env bash
 set -euo pipefail
 echo "$*" >> "` + callsDir + `/wukongimv2.calls"
-printf 'WK_PROMETHEUS_ENABLE=%s\n' "${WK_PROMETHEUS_ENABLE-}" >> "` + callsDir + `/wukongimv2.env"
-if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
-  printf 'WK_PROMETHEUS_BINARY_PATH=%s\n' "$WK_PROMETHEUS_BINARY_PATH" >> "` + callsDir + `/wukongimv2.env"
-else
-  printf 'WK_PROMETHEUS_BINARY_PATH=<unset>\n' >> "` + callsDir + `/wukongimv2.env"
-fi
+config="<none>"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -config)
+      config="$(basename "$2")"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+{
+  printf '%s WK_METRICS_ENABLE=%s\n' "$config" "${WK_METRICS_ENABLE-}"
+  printf '%s WK_PROMETHEUS_ENABLE=%s\n' "$config" "${WK_PROMETHEUS_ENABLE-}"
+  printf '%s WK_PROMETHEUS_LISTEN_ADDR=%s\n' "$config" "${WK_PROMETHEUS_LISTEN_ADDR-}"
+  printf '%s WK_PROMETHEUS_DATA_DIR=%s\n' "$config" "${WK_PROMETHEUS_DATA_DIR-}"
+  printf '%s WK_PROMETHEUS_SCRAPE_TARGETS=%s\n' "$config" "${WK_PROMETHEUS_SCRAPE_TARGETS-}"
+  if [[ ${WK_PROMETHEUS_BINARY_PATH+x} ]]; then
+    printf '%s WK_PROMETHEUS_BINARY_PATH=%s\n' "$config" "$WK_PROMETHEUS_BINARY_PATH"
+  else
+    printf '%s WK_PROMETHEUS_BINARY_PATH=<unset>\n' "$config"
+  fi
+} >> "` + callsDir + `/wukongimv2.env"
 trap 'exit 0' TERM INT
 while true; do
   sleep 1

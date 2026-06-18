@@ -25,6 +25,7 @@ func TestLocalControllerLogEntriesUsesControlFacade(t *testing.T) {
 				Index:        4,
 				Term:         2,
 				Type:         "normal",
+				CreatedAtMS:  1781754611123,
 				DataSize:     12,
 				DecodeStatus: "ok",
 				DecodedType:  "init_cluster_state",
@@ -46,7 +47,7 @@ func TestLocalControllerLogEntriesUsesControlFacade(t *testing.T) {
 	if controller.opts.Limit != 2 || controller.opts.Cursor != 5 {
 		t.Fatalf("controller opts = %#v, want limit 2 cursor 5", controller.opts)
 	}
-	if got.NodeID != 1 || got.NextCursor != 3 || len(got.Items) != 1 || got.Items[0].DecodedType != "init_cluster_state" {
+	if got.NodeID != 1 || got.NextCursor != 3 || len(got.Items) != 1 || got.Items[0].DecodedType != "init_cluster_state" || got.Items[0].CreatedAtMS != 1781754611123 {
 		t.Fatalf("controller logs = %#v, want mapped page", got)
 	}
 }
@@ -60,9 +61,10 @@ func TestLocalSlotLogEntriesReadsDefaultSlotRaftDB(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	storage := db.ForSlot(9)
 	hs := raftpb.HardState{Term: 2, Vote: 2, Commit: 3}
+	createdAtMS := int64(1781754611123)
 	entries := []raftpb.Entry{
 		{Index: 1, Term: 1, Type: raftpb.EntryNormal},
-		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayload(7, metafsm.EncodeNoopCommand())},
+		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, createdAtMS, metafsm.EncodeNoopCommand())},
 		{Index: 3, Term: 2, Type: raftpb.EntryConfChange, Data: mustSlotLogConfChangeData(t, 2)},
 	}
 	if err := storage.Save(ctx, multiraft.PersistentState{HardState: &hs, Entries: entries}); err != nil {
@@ -112,6 +114,9 @@ func TestLocalSlotLogEntriesReadsDefaultSlotRaftDB(t *testing.T) {
 	}
 	if got.Items[1].Decoded["hash_slot"] != uint64(7) {
 		t.Fatalf("decoded hash_slot = %#v, want 7", got.Items[1].Decoded)
+	}
+	if got.Items[1].CreatedAtMS != createdAtMS {
+		t.Fatalf("slot entry created_at_ms = %d, want %d", got.Items[1].CreatedAtMS, createdAtMS)
 	}
 }
 

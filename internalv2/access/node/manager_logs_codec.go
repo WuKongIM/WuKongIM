@@ -202,6 +202,7 @@ func appendLogEntries[T ~struct {
 	Index        uint64
 	Term         uint64
 	Type         string
+	CreatedAtMS  int64
 	DataSize     int
 	DecodeStatus string
 	DecodedType  string
@@ -218,6 +219,7 @@ func readLogEntries[T ~struct {
 	Index        uint64
 	Term         uint64
 	Type         string
+	CreatedAtMS  int64
 	DataSize     int
 	DecodeStatus string
 	DecodedType  string
@@ -246,6 +248,7 @@ func appendLogEntry(dst []byte, item managementusecase.LogEntry) []byte {
 	dst = appendUvarint(dst, item.Index)
 	dst = appendUvarint(dst, item.Term)
 	dst = appendString(dst, item.Type)
+	dst = appendVarint(dst, item.CreatedAtMS)
 	dst = appendVarint(dst, int64(item.DataSize))
 	dst = appendString(dst, item.DecodeStatus)
 	dst = appendString(dst, item.DecodedType)
@@ -265,6 +268,9 @@ func readLogEntry(body []byte, offset int) (managementusecase.LogEntry, int, err
 		return item, offset, err
 	}
 	if item.Type, offset, err = readString(body, offset); err != nil {
+		return item, offset, err
+	}
+	if item.CreatedAtMS, offset, err = readVarint(body, offset); err != nil {
 		return item, offset, err
 	}
 	if size, offset, err = readVarint(body, offset); err != nil {

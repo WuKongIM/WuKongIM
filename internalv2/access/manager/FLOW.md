@@ -72,6 +72,9 @@ does not read from the top collector or any in-process dashboard ring buffer.
 It is a forced runtime view of the local node only: it does not fan out to peer
 nodes and does not depend on Prometheus. When the collector is not configured or
 has not sampled enough data yet, the route returns `service_unavailable`.
+The manager route preserves provider labels from the top collector; TransportV2
+service aliases are registered with the service worker pools and resolved before
+the HTTP response layer.
 
 `/manager/slots` preserves the legacy list response shape for the web Slot list
 view, including `node_id` filtering. It reads the same control snapshot through

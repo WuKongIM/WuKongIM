@@ -52,3 +52,9 @@ export const monitorStatLabelIds: Record<string, string> = {
   peak: "monitor.stat.peak",
   total: "monitor.stat.total",
 }
+
+export const monitorUnavailableReasonLabelIds: Record<string, string> = {
+  no_entry_latency_samples: "monitor.noData.entryLatencySamples",
+  no_commit_latency_samples: "monitor.noData.commitLatencySamples",
+  no_delivery_latency_samples: "monitor.noData.deliveryLatencySamples",
+}

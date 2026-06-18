@@ -157,6 +157,35 @@ test("submits a message query and renders rows", async () => {
   expect(screen.getByText("hello")).toBeInTheDocument()
 })
 
+test("keeps long payload text constrained to the payload column", async () => {
+  const longPayload = "s".repeat(160)
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: btoa(longPayload),
+    }],
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderMessagesPage()
+
+  await user.type(screen.getByLabelText("Channel ID"), "room-1")
+  await user.clear(screen.getByLabelText("Channel type"))
+  await user.type(screen.getByLabelText("Channel type"), "2")
+  await user.click(screen.getByRole("button", { name: "Search" }))
+
+  const payloadCell = (await screen.findByText(longPayload)).closest("td")
+  expect(payloadCell).toHaveClass("break-all")
+  expect(payloadCell?.closest("table")).toHaveClass("table-fixed")
+})
+
 test("loads fuzzy channel suggestions from the channel ID input and applies the selection", async () => {
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [

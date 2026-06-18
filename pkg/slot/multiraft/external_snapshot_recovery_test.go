@@ -237,9 +237,11 @@ func closeExternalSnapshotRuntime(t *testing.T, rt *multiraft.Runtime) {
 }
 
 func externalProposalPayload(hashSlot uint16, data []byte) []byte {
-	payload := make([]byte, 2+len(data))
+	const proposalEnvelopeSize = 10
+	payload := make([]byte, proposalEnvelopeSize+len(data))
 	binary.BigEndian.PutUint16(payload[:2], hashSlot)
-	copy(payload[2:], data)
+	binary.BigEndian.PutUint64(payload[2:proposalEnvelopeSize], 1781754611123)
+	copy(payload[proposalEnvelopeSize:], data)
 	return payload
 }
 

@@ -565,7 +565,16 @@ export function MessagesPage() {
           state.messages.items.length > 0 ? (
             <>
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
+                <table className="w-full min-w-[1080px] table-fixed border-collapse">
+                  <colgroup>
+                    <col className="w-[4.5rem]" />
+                    <col className="w-[12rem]" />
+                    <col className="w-[22rem]" />
+                    <col className="w-[9rem]" />
+                    <col className="w-[10rem]" />
+                    <col />
+                    <col className="w-[9rem]" />
+                  </colgroup>
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.seq" })}</th>
@@ -585,7 +594,7 @@ export function MessagesPage() {
                         <td className="px-3 py-3 text-sm font-medium text-foreground">{message.client_msg_no || "-"}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{message.from_uid || "-"}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(message.timestamp)}</td>
-                        <td className="max-w-[24rem] px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
+                        <td className="max-w-[24rem] break-all px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex flex-wrap gap-2">
                             <Button

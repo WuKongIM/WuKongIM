@@ -13,7 +13,7 @@ export type BusinessMetricValue = {
   labelId: string
   value: number
   formatted: string
-  detail: string
+  detailId: string
   tone: "default" | "warning" | "danger"
   source: MetricSource
 }
@@ -22,7 +22,8 @@ export type BusinessRisk = {
   key: string
   severity: "warning" | "critical"
   titleId: string
-  detail: string
+  detailId: string
+  detailValues: Record<string, string | number>
   href: string
 }
 
@@ -39,6 +40,72 @@ export type BusinessTrendSeries = {
   throughput: Array<{ index: number; send: number; deliver: number }>
   latency: Array<{ index: number; send: number; delivery: number }>
   failures: Array<{ index: number; send: number; delivery: number }>
+}
+
+export type BusinessMetricGroup = {
+  key: "flow" | "quality" | "audience"
+  titleId: string
+  metrics: BusinessMetricValue[]
+}
+
+export type BusinessDashboardModel = {
+  metrics: DashboardMetricsResponse
+  verdict: BusinessVerdict
+  strip: BusinessMetricValue[]
+  groups: BusinessMetricGroup[]
+  trends: BusinessTrendSeries
+  risks: BusinessRisk[]
+  entryCards: BusinessEntryCard[]
+}
+
+const sampleSeries = (latest: number, peak = latest, avg = latest) => ({
+  latest,
+  peak,
+  avg,
+  series: [
+    Math.round(avg * 0.82 * 100) / 100,
+    Math.round(avg * 0.92 * 100) / 100,
+    avg,
+    Math.round(latest * 0.94 * 100) / 100,
+    latest,
+  ],
+})
+
+export const sampleBusinessDashboardMetrics: DashboardMetricsResponse = {
+  generated_at: "2026-06-18T09:30:00Z",
+  window_seconds: 1800,
+  step_seconds: 300,
+  points: 5,
+  metrics: {
+    send_per_sec: sampleSeries(12480, 13620, 10940),
+    deliver_per_sec: sampleSeries(12040, 13080, 10690),
+    connections: sampleSeries(84200, 86120, 81840),
+    send_latency_p99_ms: sampleSeries(38, 54, 32),
+    delivery_latency_p99_ms: sampleSeries(146, 210, 128),
+    send_fail_rate_percent: sampleSeries(0.08, 0.16, 0.05),
+    delivery_fail_rate_percent: sampleSeries(0.14, 0.28, 0.09),
+    active_channels: sampleSeries(6120, 6580, 5900),
+    retry_queue_depth: sampleSeries(128, 164, 91),
+    fan_out_rate: sampleSeries(3.7, 4.1, 3.3),
+  },
+}
+
+export function buildSampleBusinessDashboardModel(): BusinessDashboardModel {
+  return buildBusinessDashboardModel(sampleBusinessDashboardMetrics)
+}
+
+export function buildBusinessDashboardModel(metrics: DashboardMetricsResponse): BusinessDashboardModel {
+  const strip = buildBusinessMetricStrip(metrics)
+
+  return {
+    metrics,
+    verdict: computeBusinessVerdict(metrics),
+    strip,
+    groups: buildBusinessMetricGroups(strip),
+    trends: buildBusinessTrendSeries(metrics),
+    risks: buildBusinessRisks(metrics),
+    entryCards: buildBusinessEntryCards(),
+  }
 }
 
 export function computeBusinessVerdict(metrics: DashboardMetricsResponse): BusinessVerdict {
@@ -77,6 +144,29 @@ export function buildBusinessMetricStrip(metrics: DashboardMetricsResponse): Bus
   ]
 }
 
+export function buildBusinessMetricGroups(metrics: BusinessMetricValue[]): BusinessMetricGroup[] {
+  const byKey = new Map(metrics.map((metric) => [metric.key, metric]))
+  const pick = (keys: string[]) => keys.map((key) => byKey.get(key)).filter((metric): metric is BusinessMetricValue => Boolean(metric))
+
+  return [
+    {
+      key: "flow",
+      titleId: "businessDashboard.sections.flow",
+      metrics: pick(["sendRate", "deliverRate", "fanOut"]),
+    },
+    {
+      key: "quality",
+      titleId: "businessDashboard.sections.quality",
+      metrics: pick(["sendLatency", "deliveryLatency", "sendFailRate", "deliveryFailRate"]),
+    },
+    {
+      key: "audience",
+      titleId: "businessDashboard.sections.audience",
+      metrics: pick(["connections", "activeChannels", "retryQueue"]),
+    },
+  ]
+}
+
 export function buildBusinessTrendSeries(metrics: DashboardMetricsResponse): BusinessTrendSeries {
   return {
     throughput: metrics.metrics.send_per_sec.series.map((value, index) => ({
@@ -106,7 +196,8 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       key: "retryQueue",
       severity: "warning",
       titleId: "businessDashboard.risks.retryQueue",
-      detail: `${m.retry_queue_depth.latest.toLocaleString()} queued retries`,
+      detailId: "businessDashboard.risks.retryQueueDetail",
+      detailValues: { count: m.retry_queue_depth.latest.toLocaleString() },
       href: "/business/monitor",
     })
   }
@@ -117,7 +208,8 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       key: "failureRate",
       severity: maxFailure >= 5 ? "critical" : "warning",
       titleId: "businessDashboard.risks.failureRate",
-      detail: `${maxFailure.toFixed(2)}% failure rate`,
+      detailId: "businessDashboard.risks.failureRateDetail",
+      detailValues: { value: maxFailure.toFixed(2) },
       href: "/business/messages",
     })
   }
@@ -127,7 +219,8 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       key: "deliveryLatency",
       severity: m.delivery_latency_p99_ms.latest >= 3000 ? "critical" : "warning",
       titleId: "businessDashboard.risks.deliveryLatency",
-      detail: `${Math.round(m.delivery_latency_p99_ms.latest).toLocaleString()} ms delivery p99`,
+      detailId: "businessDashboard.risks.deliveryLatencyDetail",
+      detailValues: { value: Math.round(m.delivery_latency_p99_ms.latest).toLocaleString() },
       href: "/business/monitor",
     })
   }
@@ -137,7 +230,11 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       key: "deliveryGap",
       severity: "warning",
       titleId: "businessDashboard.risks.deliveryGap",
-      detail: `${m.deliver_per_sec.latest.toLocaleString()} deliver/s below ${m.send_per_sec.latest.toLocaleString()} send/s`,
+      detailId: "businessDashboard.risks.deliveryGapDetail",
+      detailValues: {
+        deliver: m.deliver_per_sec.latest.toLocaleString(),
+        send: m.send_per_sec.latest.toLocaleString(),
+      },
       href: "/business/monitor",
     })
   }
@@ -204,7 +301,7 @@ function countMetric(key: string, labelId: string, value: number, suffix = ""): 
     labelId,
     value,
     formatted: `${formatNumber(value)}${suffix}`,
-    detail: "latest",
+    detailId: "businessDashboard.metric.detail.latest",
     tone: "default",
     source: "real",
   }
@@ -216,7 +313,7 @@ function latencyMetric(key: string, labelId: string, value: number): BusinessMet
     labelId,
     value,
     formatted: `${Math.round(value).toLocaleString()} ms`,
-    detail: "p99",
+    detailId: "businessDashboard.metric.detail.p99",
     tone: value >= 3000 ? "danger" : value >= 1000 ? "warning" : "default",
     source: "real",
   }
@@ -228,7 +325,7 @@ function percentMetric(key: string, labelId: string, value: number): BusinessMet
     labelId,
     value,
     formatted: `${value.toFixed(2)}%`,
-    detail: "latest",
+    detailId: "businessDashboard.metric.detail.latest",
     tone: value >= 5 ? "danger" : value >= 1 ? "warning" : "default",
     source: "real",
   }

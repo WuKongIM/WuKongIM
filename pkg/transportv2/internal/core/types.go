@@ -75,6 +75,8 @@ type Event struct {
 	Priority Priority
 	// ServiceID is the service associated with the event, when applicable.
 	ServiceID uint16
+	// ServiceAlias is the operator-facing service name registered with the service.
+	ServiceAlias string
 	// Kind is the wire frame kind associated with byte traffic events.
 	Kind FrameKind
 	// Result classifies the event outcome.
@@ -158,6 +160,8 @@ func (l Limits) Validate() error {
 
 // ServiceOptions configures a registered service worker pool and queue.
 type ServiceOptions struct {
+	// Alias is the operator-facing name for this service in observations.
+	Alias string
 	// Concurrency is the number of workers for this service; it must be positive.
 	Concurrency int
 	// QueueSize is the maximum queued item count for this service; it must be positive.

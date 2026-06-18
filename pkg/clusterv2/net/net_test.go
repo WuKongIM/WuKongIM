@@ -260,6 +260,9 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 			event.ServiceID == uint16(RPCChannelPull) &&
 			event.Inflight == 1
 	})
+	if pullEvent.ServiceAlias != "channel pull" {
+		t.Fatalf("pull service alias = %q, want channel pull", pullEvent.ServiceAlias)
+	}
 	if pullEvent.Capacity != defaultTransportServiceConcurrency {
 		t.Fatalf("pull service capacity = %d, want default %d", pullEvent.Capacity, defaultTransportServiceConcurrency)
 	}
@@ -280,6 +283,15 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 	})
 	if writeEvent.Capacity != wantWriteConcurrency {
 		t.Fatalf("channel authority send service capacity = %d, want %d", writeEvent.Capacity, wantWriteConcurrency)
+	}
+}
+
+func TestTransportServiceAliasesCoverKnownServiceIDs(t *testing.T) {
+	for name, serviceID := range rpcServiceIDsForTest() {
+		alias := transportServiceAlias(serviceID)
+		if alias == "" || alias == "unknown service" {
+			t.Fatalf("%s alias = %q, want descriptive alias", name, alias)
+		}
 	}
 }
 

@@ -30,6 +30,8 @@ type LogEntry struct {
 	Term uint64
 	// Type is the normalized Raft entry type.
 	Type string
+	// CreatedAtMS is the proposer-issued command timestamp in Unix milliseconds when known.
+	CreatedAtMS int64
 	// DataSize is the payload size in bytes.
 	DataSize int
 	// DecodeStatus reports whether the entry payload was decoded for inspection.
@@ -227,6 +229,9 @@ func inspectControllerV2LogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 		item.DecodedType = "unknown"
 		item.Decoded = map[string]any{"error": err.Error()}
 		return
+	}
+	if !cmd.IssuedAt.IsZero() {
+		item.CreatedAtMS = cmd.IssuedAt.UTC().UnixMilli()
 	}
 	payload, err := controllerV2CommandPayload(cmd)
 	if err != nil {

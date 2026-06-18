@@ -443,8 +443,17 @@ func (o topSlotObserver) SetSchedulerState(event multiraft.SchedulerStateEvent) 
 }
 
 func (o topSlotObserver) ObserveSchedulerAdmission(result string) {
-	if o.top != nil && !strings.EqualFold(strings.TrimSpace(result), "ok") {
+	if o.top != nil && isSlotSchedulerAdmissionError(result) {
 		o.top.addCounter("pressure.slot.scheduler.scheduler.none.admission_error", 1)
+	}
+}
+
+func isSlotSchedulerAdmissionError(result string) bool {
+	switch strings.ToLower(strings.TrimSpace(result)) {
+	case "", "ok", "coalesced", "dirty", "requeued":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -497,21 +506,21 @@ func (o *topTransportV2Observer) ObserveTransport(event transportv2.Event) {
 	case "scheduler_queue":
 		o.top.SetQueue("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "service_queue":
-		o.top.SetQueue("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
+		o.top.SetQueue("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "scheduler_admission":
 		if event.Result != "" && event.Result != "ok" {
 			o.top.addCounter("pressure.transportv2.scheduler.scheduler."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".admission_error", 1)
 		}
 	case "service_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure.transportv2.service."+safeTopLabel(transportV2ServiceQueueLabel(event.ServiceID))+"."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure.transportv2.service."+safeTopLabel(transportV2ServiceEventLabel(event))+"."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".admission_error", 1)
 		}
 	case "scheduler_wait":
 		o.top.observeDurationMS("pressure.transportv2.scheduler.scheduler."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".wait", event.Duration)
 	case "service_task":
-		o.top.observeDurationMS("pressure.transportv2.service."+safeTopLabel(transportV2ServiceQueueLabel(event.ServiceID))+"."+safeTopLabel(event.Result)+".task", event.Duration)
+		o.top.observeDurationMS("pressure.transportv2.service."+safeTopLabel(transportV2ServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", event.Duration)
 	case "service_inflight":
-		o.top.SetInflight("transportv2", transportV2ServiceQueueLabel(event.ServiceID), int64(event.Inflight), int64(event.Capacity))
+		o.top.SetInflight("transportv2", transportV2ServiceEventLabel(event), int64(event.Inflight), int64(event.Capacity))
 	}
 }
 

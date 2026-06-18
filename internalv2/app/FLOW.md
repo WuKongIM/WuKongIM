@@ -40,7 +40,9 @@ New(Config)
      goroutine count, and thread count via gopsutil; it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
      gateway session-error signals with compact evidence facts so `wkcli top`
-     can show why active or recently resolved warnings fired; top remains an
+     can show why active or recently resolved warnings fired; TransportV2
+     service pressure uses aliases registered with service worker pools so
+     operator views do not expose raw `service_<id>` labels; top remains an
      in-memory collector and still runs when Observability.MetricsEnabled=false
   -> when Observability.Prometheus.Enabled=true:
        validate that the API metrics endpoint is enabled and create a child

@@ -763,18 +763,18 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		priority := transportV2PriorityLabel(event.Priority)
 		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
 	case "service_queue":
-		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
 	case "scheduler_admission":
 		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
 	case "service_admission":
-		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "service", transportV2ServiceQueueLabel(event.ServiceID), transportV2PriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), event.Result)
 	case "scheduler_wait":
 		o.metrics.RuntimePressure.ObserveQueueWait("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
 	case "service_task":
-		queue := transportV2ServiceQueueLabel(event.ServiceID)
+		queue := transportV2ServiceEventLabel(event)
 		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
 	case "service_inflight":
-		pool := transportV2ServiceQueueLabel(event.ServiceID)
+		pool := transportV2ServiceEventLabel(event)
 		if event.Capacity > 0 {
 			o.metrics.RuntimePressure.SetPoolWorkers("transportv2", pool, event.Capacity)
 		}
@@ -1143,6 +1143,13 @@ func transportV2QueueObservation(event transportv2.Event) obsmetrics.RuntimePres
 		Bytes:         int64(event.Bytes),
 		BytesCapacity: event.BytesCapacity,
 	}
+}
+
+func transportV2ServiceEventLabel(event transportv2.Event) string {
+	if alias := strings.TrimSpace(event.ServiceAlias); alias != "" {
+		return alias
+	}
+	return transportV2ServiceQueueLabel(event.ServiceID)
 }
 
 func transportV2ServiceQueueLabel(serviceID uint16) string {

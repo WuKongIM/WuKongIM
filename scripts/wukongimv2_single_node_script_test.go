@@ -126,7 +126,7 @@ set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/curl.calls"
 for _ in $(seq 1 50); do
-  if [[ -f "$calls_dir/wukongimv2.calls" ]]; then
+  if [[ -f "$calls_dir/wukongimv2.calls" ]] && grep -q 'WK_PROMETHEUS_BINARY_PATH=' "$calls_dir/wukongimv2.env" 2>/dev/null; then
     echo "ok"
     exit 0
   fi

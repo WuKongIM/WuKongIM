@@ -1,33 +1,69 @@
+import { Activity, ArrowRight, Bot, Hash, MessageSquareText, Users } from "lucide-react"
 import { useIntl } from "react-intl"
 import { Link } from "react-router-dom"
 
-import { SectionCard } from "@/components/shell/section-card"
 import type { BusinessEntryCard } from "../view-model"
 
 type BusinessEntryCardsProps = {
   cards: BusinessEntryCard[]
 }
 
+const entryIcons = {
+  users: Users,
+  channels: Hash,
+  messages: MessageSquareText,
+  systemUsers: Bot,
+  monitor: Activity,
+} satisfies Record<BusinessEntryCard["key"], typeof Users>
+
 export function BusinessEntryCards({ cards }: BusinessEntryCardsProps) {
   const intl = useIntl()
+
   return (
-    <SectionCard title={intl.formatMessage({ id: "businessDashboard.entries.title" })}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <section className="rounded-lg border border-border/80 bg-card p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">{intl.formatMessage({ id: "businessDashboard.entries.title" })}</h2>
+          <p className="text-xs leading-5 text-muted-foreground">{intl.formatMessage({ id: "businessDashboard.entries.description" })}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {cards.map((card) => (
-          <Link className="rounded-2xl border border-border/80 bg-muted/20 px-4 py-4 transition-colors hover:border-primary/40" key={card.key} to={card.href}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-foreground">{intl.formatMessage({ id: card.titleId })}</span>
+          <EntryLink card={card} key={card.key} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function EntryLink({ card }: { card: BusinessEntryCard }) {
+  const intl = useIntl()
+  const Icon = entryIcons[card.key]
+  const title = intl.formatMessage({ id: card.titleId })
+
+  return (
+    <Link className="group rounded-lg border border-border/80 bg-background/55 p-3 transition-colors hover:border-primary/45 hover:bg-accent/35" to={card.href}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="rounded-md border border-border bg-card p-2 text-muted-foreground transition-colors group-hover:text-primary">
+          <Icon aria-hidden className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-semibold text-foreground">{title}</span>
               {card.source === "sample" ? (
-                <span className="rounded-full border border-border bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground">
+              <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   {intl.formatMessage({ id: "businessDashboard.source.sample" })}
                 </span>
               ) : null}
-            </div>
-            <div className="mt-2 font-mono text-2xl font-semibold text-foreground">{card.value}</div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{intl.formatMessage({ id: card.descriptionId })}</p>
-          </Link>
-        ))}
+          </div>
+          <div className="mt-2 font-mono text-xl font-semibold text-foreground">{card.value}</div>
+          <p className="mt-2 min-h-10 text-xs leading-5 text-muted-foreground">{intl.formatMessage({ id: card.descriptionId })}</p>
+        </div>
       </div>
-    </SectionCard>
+      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">
+        {intl.formatMessage({ id: "businessDashboard.entries.open" }, { title })}
+        <ArrowRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Link>
   )
 }

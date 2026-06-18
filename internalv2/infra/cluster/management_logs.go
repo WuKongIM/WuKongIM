@@ -93,6 +93,7 @@ func managementLogEntriesFromCluster[T ~struct {
 	Index        uint64
 	Term         uint64
 	Type         string
+	CreatedAtMS  int64
 	DataSize     int
 	DecodeStatus string
 	DecodedType  string
@@ -104,6 +105,7 @@ func managementLogEntriesFromCluster[T ~struct {
 			Index:        item.Index,
 			Term:         item.Term,
 			Type:         item.Type,
+			CreatedAtMS:  item.CreatedAtMS,
 			DataSize:     item.DataSize,
 			DecodeStatus: item.DecodeStatus,
 			DecodedType:  item.DecodedType,

@@ -337,6 +337,41 @@ func TestManagerRuntimeWorkqueuesReturnsLocalTopPressure(t *testing.T) {
 	}
 }
 
+func TestManagerRuntimeWorkqueuesPreservesProviderLabels(t *testing.T) {
+	response := mapRuntimeWorkqueuesSnapshot(accessapi.TopSnapshot{
+		Pressure: &accessapi.TopPressure{
+			OverallLevel: "busy",
+			Top: []accessapi.TopPressureItem{
+				{
+					Component: "transportv2",
+					Pool:      "slot propose",
+					Queue:     "inflight",
+					Priority:  "none",
+					Level:     "busy",
+					Score:     0.7,
+				},
+				{
+					Component: "slot",
+					Pool:      "scheduler",
+					Queue:     "scheduler",
+					Priority:  "none",
+					Level:     "ok",
+				},
+			},
+		},
+	}, 10*time.Second)
+
+	if got, want := response.Items[0].Pool, "slot propose"; got != want {
+		t.Fatalf("pool = %q, want %q", got, want)
+	}
+	if got, want := response.Items[0].Queue, "inflight"; got != want {
+		t.Fatalf("queue = %q, want %q", got, want)
+	}
+	if response.Summary.Hottest == nil || response.Summary.Hottest.Pool != "slot propose" || response.Summary.Hottest.Queue != "inflight" {
+		t.Fatalf("hottest = %#v, want provider pool and queue labels", response.Summary.Hottest)
+	}
+}
+
 func TestManagerRuntimeWorkqueuesMapsUnavailableSources(t *testing.T) {
 	srv := New(Options{})
 

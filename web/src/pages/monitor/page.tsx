@@ -20,6 +20,7 @@ import {
   monitorStageLabelIds,
   monitorStatLabelIds,
   monitorStatusByTone,
+  monitorUnavailableReasonLabelIds,
 } from "./metric-config"
 import type {
   MonitorMetricCard,
@@ -95,7 +96,6 @@ export function MonitorPage() {
       {state.kind === "ready" && state.response.status === "prometheus_unavailable" ? (
         <MonitorSourceState kind="unavailable" message={sourceError} />
       ) : null}
-      {state.kind === "ready" && state.response.status === "partial" ? <MonitorPartialWarning message={sourceError} /> : null}
       {model ? (
         <>
           {model.snapshot.length > 0 ? <MonitorSnapshotStrip entries={model.snapshot} /> : null}
@@ -107,7 +107,11 @@ export function MonitorPage() {
 }
 
 function isRenderableMonitor(response: RealtimeMonitorResponse) {
-  return (response.status === "ready" || response.status === "partial") && response.cards.some((card) => card.available)
+  return (
+    response.status === "ready" ||
+    response.status === "partial" ||
+    response.status === "prometheus_unavailable"
+  ) && response.cards.some((card) => isMonitorMetricKey(card.key))
 }
 
 function buildRealtimeMonitorModel(
@@ -134,28 +138,36 @@ function buildRealtimeMonitorModel(
 }
 
 function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
-  if (!card.available || !isMonitorMetricKey(card.key)) return null
+  if (!isMonitorMetricKey(card.key)) return null
   const config = monitorMetricConfig[card.key]
   const stage = normalizeStage(card.stage)
   const tone = normalizeTone(card.tone)
+  const available = card.available && card.series.length > 0
 
   return {
     key: card.key,
     titleId: config.titleId,
     stage,
     stageLabelId: monitorStageLabelIds[stage],
-    statusId: monitorStatusByTone[tone],
+    statusId: available ? monitorStatusByTone[tone] : "monitor.status.noData",
     tone,
     unit: card.unit,
-    value: formatMonitorNumber(card.value, config.precision),
+    value: available ? formatMonitorNumber(card.value, config.precision) : "-",
+    available,
+    unavailableReasonLabelId: card.unavailable_reason
+      ? monitorUnavailableReasonLabelIds[card.unavailable_reason]
+      : undefined,
+    error: card.error,
     series: card.series,
-    stats: card.stats.map((stat) => ({
-      labelId: monitorStatLabelIds[stat.key] ?? "monitor.stat.avg",
-      value:
-        stat.key === "total"
-          ? formatMonitorNumber(stat.value, 0)
-          : appendMonitorUnit(formatMonitorNumber(stat.value, config.precision), card.unit),
-    })),
+    stats: available
+      ? card.stats.map((stat) => ({
+          labelId: monitorStatLabelIds[stat.key] ?? "monitor.stat.avg",
+          value:
+            stat.key === "total"
+              ? formatMonitorNumber(stat.value, 0)
+              : appendMonitorUnit(formatMonitorNumber(stat.value, config.precision), card.unit),
+        }))
+      : [],
     chartColor: config.chartColor,
   }
 }
@@ -206,17 +218,6 @@ function MonitorLoadingState() {
   return (
     <section className="rounded-lg border border-border/80 bg-card/82 px-4 py-4 text-sm text-muted-foreground" role="status">
       {intl.formatMessage({ id: "monitor.prometheus.loading" })}
-    </section>
-  )
-}
-
-function MonitorPartialWarning({ message }: { message?: string }) {
-  const intl = useIntl()
-
-  return (
-    <section className="rounded-lg border border-warning/30 bg-warning/8 px-4 py-3 text-sm text-warning" role="status">
-      <p className="font-medium">{intl.formatMessage({ id: "monitor.prometheus.partialTitle" })}</p>
-      {message ? <p className="mt-1 text-xs opacity-90">{message}</p> : null}
     </section>
   )
 }

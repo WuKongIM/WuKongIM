@@ -15,6 +15,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -684,6 +686,46 @@ func TestTopCollectorPressureIncludesWaitTaskAndAdmissionErrors(t *testing.T) {
 	}
 }
 
+func TestTopSlotObserverDoesNotCountSchedulerCoalescingAsAdmissionErrors(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		NodeID:          1,
+		CollectInterval: time.Second,
+		HistoryWindow:   time.Minute,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	observer := topSlotObserver{top: collector}
+
+	observer.SetSchedulerState(multiraft.SchedulerStateEvent{Depth: 0, Capacity: 1024})
+	collector.recordSampleAt(time.Unix(100, 0))
+
+	observer.ObserveSchedulerAdmission("coalesced")
+	observer.ObserveSchedulerAdmission("dirty")
+	observer.ObserveSchedulerAdmission("requeued")
+	observer.SetSchedulerState(multiraft.SchedulerStateEvent{Depth: 0, Capacity: 1024})
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewRuntime,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) != 1 {
+		t.Fatalf("Pressure.Top = %#v, want slot scheduler item", snapshot.Pressure)
+	}
+	item := snapshot.Pressure.Top[0]
+	if item.Component != "slot" || item.Pool != "scheduler" || item.Queue != "scheduler" {
+		t.Fatalf("pressure item identity = %#v, want slot scheduler scheduler", item)
+	}
+	if item.AdmissionErrorPerSec != 0 {
+		t.Fatalf("AdmissionErrorPerSec = %v, want 0 for scheduler coalescing results", item.AdmissionErrorPerSec)
+	}
+}
+
 func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		NodeID:          1,
@@ -715,6 +757,44 @@ func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) 
 	}
 	if item.Inflight != 9 || item.Workers != 10 {
 		t.Fatalf("inflight/workers = %d/%d, want 9/10", item.Inflight, item.Workers)
+	}
+}
+
+func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		NodeID:          1,
+		CollectInterval: time.Second,
+		HistoryWindow:   time.Minute,
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	observer := topTransportV2Observer{top: collector}
+
+	observer.ObserveTransport(transportv2.Event{
+		Name:         "service_inflight",
+		ServiceID:    1,
+		ServiceAlias: "slot propose",
+		Inflight:     128,
+		Capacity:     128,
+	})
+	collector.recordSampleAt(time.Unix(100, 0))
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewRuntime,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) != 1 {
+		t.Fatalf("Pressure.Top = %#v, want transport service item", snapshot.Pressure)
+	}
+	item := snapshot.Pressure.Top[0]
+	if item.Component != "transportv2" || item.Pool != "slot propose" || item.Queue != "inflight" {
+		t.Fatalf("pressure item identity = %#v, want transportv2 slot propose inflight", item)
 	}
 }
 

@@ -23,6 +23,7 @@ func TestManagementLogReaderUsesLocalControllerLogs(t *testing.T) {
 				Index:        4,
 				Term:         2,
 				Type:         "normal",
+				CreatedAtMS:  1781754611123,
 				DecodeStatus: "ok",
 				DecodedType:  "init_cluster_state",
 				Decoded:      map[string]any{"command": "init_cluster_state"},
@@ -40,7 +41,7 @@ func TestManagementLogReaderUsesLocalControllerLogs(t *testing.T) {
 		t.Fatalf("ControllerLogEntries() error = %v", err)
 	}
 
-	if got.NodeID != 1 || got.NextCursor != 3 || len(got.Items) != 1 || got.Items[0].DecodedType != "init_cluster_state" {
+	if got.NodeID != 1 || got.NextCursor != 3 || len(got.Items) != 1 || got.Items[0].DecodedType != "init_cluster_state" || got.Items[0].CreatedAtMS != 1781754611123 {
 		t.Fatalf("controller page = %#v, want local decoded page", got)
 	}
 	if node.localControllerOpts != (clusterv2.LogEntriesOptions{Limit: 2, Cursor: 5}) {

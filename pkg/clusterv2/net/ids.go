@@ -59,3 +59,60 @@ const (
 	// RPCManagerAppLogs serves internalv2 selected-node ordinary application log reads.
 	RPCManagerAppLogs
 )
+
+func transportServiceAlias(serviceID uint8) string {
+	switch serviceID {
+	case RPCSlotForwardPropose:
+		return "slot propose"
+	case RPCChannelPull:
+		return "channel pull"
+	case RPCChannelAck:
+		return "channel ack"
+	case RPCChannelPullHint:
+		return "channel pull hint"
+	case RPCChannelNotify:
+		return "channel notify"
+	case RPCControlStateSync:
+		return "controller state sync"
+	case RPCControlReportNode:
+		return "controller node report"
+	case RPCControlReportSlots:
+		return "slot runtime report"
+	case RPCChannelAppend:
+		return "channel append"
+	case RPCChannelAppendBatch:
+		return "channel append batch"
+	case RPCControlRaft:
+		return "controller raft"
+	case RPCPresenceAuthority:
+		return "presence authority"
+	case RPCPresenceOwner:
+		return "presence owner action"
+	case RPCDeliveryPush:
+		return "delivery push"
+	case RPCDeliveryFanout:
+		return "delivery fanout"
+	case RPCChannelPullBatch:
+		return "channel pull batch"
+	case RPCChannelPullHintBatch:
+		return "channel pull hint batch"
+	case RPCChannelLastVisible:
+		return "channel last visible"
+	case RPCConversationAuthority:
+		return "conversation authority"
+	case RPCChannelAuthoritySend:
+		return "send authority"
+	case RPCManagerConnection:
+		return "manager connections"
+	case RPCManagerLogs:
+		return "manager logs"
+	case RPCManagerChannels:
+		return "manager channels"
+	case RPCManagerDBInspect:
+		return "manager DB inspect"
+	case RPCManagerAppLogs:
+		return "manager app logs"
+	default:
+		return "unknown service"
+	}
+}

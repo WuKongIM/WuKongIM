@@ -577,11 +577,14 @@ func (g *slot) applyCommittedEntries(
 	return resolutions, configChanged
 }
 
+// proposalEnvelopeSize is [hashSlot:2][createdAtMS:8] before the Slot FSM command.
+const proposalEnvelopeSize = 10
+
 func decodeProposalPayload(data []byte) (uint16, []byte, error) {
-	if len(data) < 2 {
+	if len(data) < proposalEnvelopeSize {
 		return 0, nil, fmt.Errorf("proposal payload too short: %d", len(data))
 	}
-	return binary.BigEndian.Uint16(data[:2]), data[2:], nil
+	return binary.BigEndian.Uint16(data[:2]), data[proposalEnvelopeSize:], nil
 }
 
 func (g *slot) completeResolutions(resolutions []futureResolution) {

@@ -38,6 +38,9 @@ export type MonitorMetricCard = {
   tone: MonitorTone
   unit: string
   value: string
+  available: boolean
+  unavailableReasonLabelId?: string
+  error?: string
   series: MonitorPoint[]
   stats: MonitorStat[]
   chartColor: string

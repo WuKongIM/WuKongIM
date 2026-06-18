@@ -36,7 +36,7 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 		close(started)
 		<-release
 		return []byte("ok"), nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 16}, observer)
+	}, core.ServiceOptions{Alias: "answer service", Concurrency: 1, QueueSize: 2, MaxQueueBytes: 16}, observer)
 	defer svc.Stop()
 
 	reply := make(chan Response, 1)
@@ -64,7 +64,7 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	if okAdmission == nil {
 		t.Fatalf("missing service_admission ok event: %#v", events)
 	}
-	if okAdmission.ServiceID != 42 || okAdmission.Bytes != 4 || okAdmission.Items != 1 ||
+	if okAdmission.ServiceID != 42 || okAdmission.ServiceAlias != "answer service" || okAdmission.Bytes != 4 || okAdmission.Items != 1 ||
 		okAdmission.Capacity != 2 || okAdmission.BytesCapacity != 16 {
 		t.Fatalf("service_admission ok = %+v, want service queue snapshot", *okAdmission)
 	}
@@ -73,7 +73,7 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	if queueEvent == nil {
 		t.Fatalf("missing service_queue ok event: %#v", events)
 	}
-	if queueEvent.ServiceID != 42 || queueEvent.Capacity != 2 || queueEvent.BytesCapacity != 16 {
+	if queueEvent.ServiceID != 42 || queueEvent.ServiceAlias != "answer service" || queueEvent.Capacity != 2 || queueEvent.BytesCapacity != 16 {
 		t.Fatalf("service_queue ok = %+v, want bounded queue dimensions", *queueEvent)
 	}
 
@@ -103,7 +103,7 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 	if taskEvent == nil {
 		t.Fatalf("missing service_task ok event: %#v", events)
 	}
-	if taskEvent.ServiceID != 42 || taskEvent.Bytes != 4 || taskEvent.Duration < 0 {
+	if taskEvent.ServiceID != 42 || taskEvent.ServiceAlias != "answer service" || taskEvent.Bytes != 4 || taskEvent.Duration < 0 {
 		t.Fatalf("service_task ok = %+v, want service id, bytes, and non-negative duration", *taskEvent)
 	}
 }

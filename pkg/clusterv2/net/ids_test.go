@@ -3,7 +3,21 @@ package clusternet
 import "testing"
 
 func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
-	ids := map[string]uint8{
+	ids := rpcServiceIDsForTest()
+	seen := make(map[uint8]string, len(ids))
+	for name, id := range ids {
+		if id == 0 {
+			t.Fatalf("%s service id is zero", name)
+		}
+		if prev, ok := seen[id]; ok {
+			t.Fatalf("%s and %s share service id %d", prev, name, id)
+		}
+		seen[id] = name
+	}
+}
+
+func rpcServiceIDsForTest() map[string]uint8 {
+	return map[string]uint8{
 		"slot_forward_propose":    RPCSlotForwardPropose,
 		"channel_pull":            RPCChannelPull,
 		"channel_ack":             RPCChannelAck,
@@ -29,15 +43,5 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"manager_channels":        RPCManagerChannels,
 		"manager_db_inspect":      RPCManagerDBInspect,
 		"manager_app_logs":        RPCManagerAppLogs,
-	}
-	seen := make(map[uint8]string, len(ids))
-	for name, id := range ids {
-		if id == 0 {
-			t.Fatalf("%s service id is zero", name)
-		}
-		if prev, ok := seen[id]; ok {
-			t.Fatalf("%s and %s share service id %d", prev, name, id)
-		}
-		seen[id] = name
 	}
 }

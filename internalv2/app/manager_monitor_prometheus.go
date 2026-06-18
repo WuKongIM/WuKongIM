@@ -40,11 +40,13 @@ type managerPrometheusMonitorProvider struct {
 }
 
 type monitorMetricDefinition struct {
-	key   string
-	stage string
-	tone  string
-	unit  string
-	query func(rateWindow string) string
+	key               string
+	stage             string
+	tone              string
+	unit              string
+	unavailableReason string
+	noDataMessage     string
+	query             func(rateWindow string) string
 }
 
 type prometheusQueryRangeResponse struct {
@@ -103,7 +105,11 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 				firstErr = err
 			}
 		} else if len(series) == 0 {
-			card.Error = "prometheus returned no data"
+			card.UnavailableReason = def.unavailableReason
+			card.Error = def.noDataMessage
+			if card.Error == "" {
+				card.Error = "prometheus returned no data"
+			}
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s: %s", def.key, card.Error)
 			}
@@ -227,7 +233,7 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "msg/s",
 			query: func(rateWindow string) string {
-				return "sum(rate(wukongim_gateway_messages_received_total[" + rateWindow + "]))"
+				return prometheusZeroFallback("sum(rate(wukongim_gateway_messages_received_total[" + rateWindow + "]))")
 			},
 		},
 		{
@@ -236,14 +242,18 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "%",
 			query: func(rateWindow string) string {
-				return "(sum(rate(wukongim_gateway_sendacks_total{reason=\"success\"}[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_gateway_sendacks_total[" + rateWindow + "])), 1)) * 100"
+				success := prometheusZeroFallback("sum(rate(wukongim_gateway_sendacks_total{reason=\"success\"}[" + rateWindow + "]))")
+				total := prometheusZeroFallback("sum(rate(wukongim_gateway_sendacks_total[" + rateWindow + "]))")
+				return "(" + success + " / clamp_min(" + total + ", 1)) * 100"
 			},
 		},
 		{
-			key:   "entryLatencyP99",
-			stage: accessmanager.RealtimeMonitorStageSendEntry,
-			tone:  accessmanager.RealtimeMonitorToneWarning,
-			unit:  "ms",
+			key:               "entryLatencyP99",
+			stage:             accessmanager.RealtimeMonitorStageSendEntry,
+			tone:              accessmanager.RealtimeMonitorToneWarning,
+			unit:              "ms",
+			unavailableReason: "no_entry_latency_samples",
+			noDataMessage:     "no entry latency samples in selected window",
 			query: func(rateWindow string) string {
 				return "histogram_quantile(0.99, sum(rate(wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket[" + rateWindow + "])) by (le)) * 1000"
 			},
@@ -254,14 +264,16 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "msg/s",
 			query: func(rateWindow string) string {
-				return "sum(rate(wukongim_message_append_total{result=\"ok\"}[" + rateWindow + "]))"
+				return prometheusZeroFallback("sum(rate(wukongim_message_append_total{result=\"ok\"}[" + rateWindow + "]))")
 			},
 		},
 		{
-			key:   "commitLatencyP99",
-			stage: accessmanager.RealtimeMonitorStageAppendCommit,
-			tone:  accessmanager.RealtimeMonitorToneNormal,
-			unit:  "ms",
+			key:               "commitLatencyP99",
+			stage:             accessmanager.RealtimeMonitorStageAppendCommit,
+			tone:              accessmanager.RealtimeMonitorToneNormal,
+			unit:              "ms",
+			unavailableReason: "no_commit_latency_samples",
+			noDataMessage:     "no commit latency samples in selected window",
 			query: func(rateWindow string) string {
 				return "histogram_quantile(0.99, sum(rate(wukongim_message_append_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
 			},
@@ -272,7 +284,9 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneWarning,
 			unit:  "",
 			query: func(string) string {
-				return "sum(wukongim_message_committed_dispatch_queue_depth)"
+				v2Backlog := "sum(wukongim_channelappend_writer_state_items{kind=~\"pending_append|append_inflight\"})"
+				legacyBacklog := "sum(wukongim_message_committed_dispatch_queue_depth)"
+				return prometheusFirstAvailable(v2Backlog, legacyBacklog, "vector(0)")
 			},
 		},
 		{
@@ -281,16 +295,22 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "msg/s",
 			query: func(rateWindow string) string {
-				return "sum(rate(wukongim_delivery_push_rpc_routes_total{result=\"ok\"}[" + rateWindow + "]))"
+				recipientWorkerRate := "sum(rate(wukongim_delivery_recipient_worker_process_recipients_sum{result=\"ok\"}[" + rateWindow + "]))"
+				pushRPCRate := "sum(rate(wukongim_delivery_push_rpc_routes_total{result=\"ok\"}[" + rateWindow + "]))"
+				return prometheusFirstAvailable(recipientWorkerRate, pushRPCRate, "vector(0)")
 			},
 		},
 		{
-			key:   "deliveryLatencyP99",
-			stage: accessmanager.RealtimeMonitorStageOnlineDelivery,
-			tone:  accessmanager.RealtimeMonitorToneWarning,
-			unit:  "ms",
+			key:               "deliveryLatencyP99",
+			stage:             accessmanager.RealtimeMonitorStageOnlineDelivery,
+			tone:              accessmanager.RealtimeMonitorToneWarning,
+			unit:              "ms",
+			unavailableReason: "no_delivery_latency_samples",
+			noDataMessage:     "no delivery latency samples in selected window",
 			query: func(rateWindow string) string {
-				return "histogram_quantile(0.99, sum(rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
+				recipientWorkerP99 := "histogram_quantile(0.99, sum(rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
+				pushRPCP99 := "histogram_quantile(0.99, sum(rate(wukongim_delivery_push_rpc_duration_seconds_bucket{result=\"ok\"}[" + rateWindow + "])) by (le)) * 1000"
+				return prometheusFirstAvailable(recipientWorkerP99, pushRPCP99)
 			},
 		},
 		{
@@ -299,7 +319,13 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "x",
 			query: func(rateWindow string) string {
-				return "sum(rate(wukongim_delivery_resolve_routes_total[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_gateway_messages_received_total[" + rateWindow + "])), 1)"
+				delivered := prometheusFirstAvailable(
+					"sum(rate(wukongim_delivery_recipient_worker_process_recipients_sum{result=\"ok\"}["+rateWindow+"]))",
+					"sum(rate(wukongim_delivery_resolve_routes_total{result=\"ok\"}["+rateWindow+"]))",
+					"vector(0)",
+				)
+				sent := prometheusZeroFallback("sum(rate(wukongim_gateway_messages_received_total[" + rateWindow + "]))")
+				return delivered + " / clamp_min(" + sent + ", 1)"
 			},
 		},
 		{
@@ -308,7 +334,7 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneWarning,
 			unit:  "",
 			query: func(string) string {
-				return "sum(wukongim_delivery_retry_queue_depth)"
+				return prometheusZeroFallback("sum(wukongim_delivery_retry_queue_depth)")
 			},
 		},
 		{
@@ -317,7 +343,15 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneCritical,
 			unit:  "%",
 			query: func(rateWindow string) string {
-				return "((sum(rate(wukongim_gateway_sendacks_total{reason!=\"success\"}[" + rateWindow + "])) + sum(rate(wukongim_delivery_push_rpc_total{result!=\"ok\"}[" + rateWindow + "]))) / clamp_min(sum(rate(wukongim_gateway_sendacks_total[" + rateWindow + "])) + sum(rate(wukongim_delivery_push_rpc_total[" + rateWindow + "])), 1)) * 100"
+				gatewayErrors := prometheusZeroFallback("sum(rate(wukongim_gateway_sendacks_total{reason!=\"success\"}[" + rateWindow + "]))")
+				pushRPCErrors := prometheusZeroFallback("sum(rate(wukongim_delivery_push_rpc_total{result!=\"ok\"}[" + rateWindow + "]))")
+				recipientWorkerErrors := prometheusZeroFallback("sum(rate(wukongim_delivery_recipient_worker_process_total{result!=\"ok\"}[" + rateWindow + "]))")
+				gatewayTotal := prometheusZeroFallback("sum(rate(wukongim_gateway_sendacks_total[" + rateWindow + "]))")
+				pushRPCTotal := prometheusZeroFallback("sum(rate(wukongim_delivery_push_rpc_total[" + rateWindow + "]))")
+				recipientWorkerTotal := prometheusZeroFallback("sum(rate(wukongim_delivery_recipient_worker_process_total[" + rateWindow + "]))")
+				errors := "(" + gatewayErrors + " + " + pushRPCErrors + " + " + recipientWorkerErrors + ")"
+				total := "(" + gatewayTotal + " + " + pushRPCTotal + " + " + recipientWorkerTotal + ")"
+				return "(" + errors + " / clamp_min(" + total + ", 1)) * 100"
 			},
 		},
 		{
@@ -326,10 +360,25 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneNormal,
 			unit:  "",
 			query: func(string) string {
-				return "sum(wukongim_gateway_connections_active)"
+				return prometheusZeroFallback("sum(wukongim_gateway_connections_active)")
 			},
 		},
 	}
+}
+
+func prometheusZeroFallback(expr string) string {
+	return "((" + expr + ") or vector(0))"
+}
+
+func prometheusFirstAvailable(exprs ...string) string {
+	if len(exprs) == 0 {
+		return "vector(0)"
+	}
+	out := "(" + exprs[0] + ")"
+	for _, expr := range exprs[1:] {
+		out += " or (" + expr + ")"
+	}
+	return "(" + out + ")"
 }
 
 func managerMonitorRateWindow(window, step time.Duration) string {

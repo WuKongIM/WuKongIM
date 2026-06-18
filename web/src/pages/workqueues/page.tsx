@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { CircleHelp } from "lucide-react"
 import { useIntl } from "react-intl"
 
 import { ResourceState } from "@/components/manager/resource-state"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { ManagerApiError, getRuntimeWorkqueues } from "@/lib/manager-api"
@@ -20,8 +22,26 @@ type WorkqueuesState = {
   error: Error | null
 }
 
+type WorkqueueColumn = {
+  key: string
+  labelId: string
+  helpId: string
+}
+
 const windowOptions: WindowValue[] = ["10s", "30s", "1m"]
 const abnormalLevels = new Set(["busy", "degraded", "critical"])
+const workqueueColumns: WorkqueueColumn[] = [
+  { key: "level", labelId: "workqueues.table.level", helpId: "workqueues.tableHelp.level" },
+  { key: "component", labelId: "workqueues.table.component", helpId: "workqueues.tableHelp.component" },
+  { key: "pool", labelId: "workqueues.table.pool", helpId: "workqueues.tableHelp.pool" },
+  { key: "queue", labelId: "workqueues.table.queue", helpId: "workqueues.tableHelp.queue" },
+  { key: "depth", labelId: "workqueues.table.depth", helpId: "workqueues.tableHelp.depth" },
+  { key: "inflight", labelId: "workqueues.table.inflight", helpId: "workqueues.tableHelp.inflight" },
+  { key: "wait", labelId: "workqueues.table.wait", helpId: "workqueues.tableHelp.wait" },
+  { key: "task", labelId: "workqueues.table.task", helpId: "workqueues.tableHelp.task" },
+  { key: "admission", labelId: "workqueues.table.admission", helpId: "workqueues.tableHelp.admission" },
+  { key: "hint", labelId: "workqueues.table.hint", helpId: "workqueues.tableHelp.hint" },
+]
 
 function emptyState(): WorkqueuesState {
   return {
@@ -53,16 +73,16 @@ function formatDepth(item: ManagerRuntimeWorkqueueItem) {
   return `${item.depth} / ${item.capacity}`
 }
 
+function formatInflight(item: ManagerRuntimeWorkqueueItem) {
+  return `${item.inflight} / ${item.workers > 0 ? item.workers : "-"}`
+}
+
 function formatMs(value: number) {
   return value > 0 ? `${value.toFixed(1)} ms` : "-"
 }
 
 function formatRate(value: number) {
   return value > 0 ? `${value.toFixed(2)}/s` : "-"
-}
-
-function formatScore(value: number) {
-  return value.toFixed(2)
 }
 
 function formatHottest(response: ManagerRuntimeWorkqueuesResponse | null) {
@@ -90,6 +110,36 @@ function LevelPill({ level }: { level: string }) {
   return (
     <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${levelClassName(level)}`}>
       {level}
+    </span>
+  )
+}
+
+function ColumnHeader({ description, label }: { description: string; label: string }) {
+  const intl = useIntl()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span>{label}</span>
+      <Tooltip onOpenChange={setOpen} open={open}>
+        <TooltipTrigger asChild>
+          <button
+            aria-expanded={open}
+            aria-label={intl.formatMessage({ id: "workqueues.tableHelp.aria" }, { label })}
+            className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={(event) => {
+              event.preventDefault()
+              setOpen(true)
+            }}
+            type="button"
+          >
+            <CircleHelp aria-hidden="true" className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-72 text-left normal-case leading-5" side="top" sideOffset={6}>
+          {description}
+        </TooltipContent>
+      </Tooltip>
     </span>
   )
 }
@@ -270,39 +320,25 @@ export function WorkqueuesPage() {
         ) : (
           <section className="rounded-lg border border-border bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] border-collapse text-left">
+              <table className="w-full min-w-[1080px] border-collapse text-left">
                 <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.level" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.component" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.pool" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.queue" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.depth" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.inflight" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.score" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.wait" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.task" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.admission" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "workqueues.table.hint" })}</th>
+                    {workqueueColumns.map((column) => {
+                      const label = intl.formatMessage({ id: column.labelId })
+                      return (
+                        <th className="px-3 py-3" key={column.key}>
+                          <ColumnHeader
+                            description={intl.formatMessage({ id: column.helpId })}
+                            label={label}
+                          />
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredItems.map((item) => (
-                    <tr className="border-t border-border" key={`${item.component}-${item.pool}-${item.queue}-${item.priority}`}>
-                      <td className="px-3 py-3"><LevelPill level={item.level} /></td>
-                      <td className="px-3 py-3 text-sm font-medium text-foreground">{item.component}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">{item.pool}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{item.queue}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatDepth(item)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{item.inflight}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatScore(item.score)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatMs(item.wait_p99_ms)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatMs(item.task_p99_ms)}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatRate(item.admission_error_per_sec)}</td>
-                      <td className="max-w-[260px] px-3 py-3 text-sm text-muted-foreground">
-                        <span className="block truncate">{item.hint || "-"}</span>
-                      </td>
-                    </tr>
+                    <WorkqueueRow item={item} key={`${item.component}-${item.pool}-${item.queue}-${item.priority}`} />
                   ))}
                 </tbody>
               </table>
@@ -312,5 +348,24 @@ export function WorkqueuesPage() {
       </div>
       )}
     </PageContainer>
+  )
+}
+
+function WorkqueueRow({ item }: { item: ManagerRuntimeWorkqueueItem }) {
+  return (
+    <tr className="border-t border-border">
+      <td className="px-3 py-3"><LevelPill level={item.level} /></td>
+      <td className="px-3 py-3 text-sm font-medium text-foreground">{item.component}</td>
+      <td className="px-3 py-3 text-sm text-foreground">{item.pool}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{item.queue}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{formatDepth(item)}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{formatInflight(item)}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{formatMs(item.wait_p99_ms)}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{formatMs(item.task_p99_ms)}</td>
+      <td className="px-3 py-3 text-sm text-muted-foreground">{formatRate(item.admission_error_per_sec)}</td>
+      <td className="max-w-[260px] px-3 py-3 text-sm text-muted-foreground">
+        <span className="block truncate">{item.hint || "-"}</span>
+      </td>
+    </tr>
   )
 }

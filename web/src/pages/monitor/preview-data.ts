@@ -344,6 +344,7 @@ function makeCard(spec: CardSpec, range: TimeRange): MonitorMetricCard {
     tone: spec.tone,
     unit: spec.unit,
     value: formatValue(latest(series), precision),
+    available: true,
     series,
     stats: buildStats(spec, series),
     chartColor: spec.chartColor,

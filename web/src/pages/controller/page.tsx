@@ -58,6 +58,20 @@ function formatDataSize(value: number) {
   return `${value} B`
 }
 
+function formatLogEntryCreatedAt(intl: IntlShape, value?: number) {
+  if (!value || value <= 0) {
+    return "-"
+  }
+  return new Intl.DateTimeFormat(intl.locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value))
+}
+
 function requestedNodeId(searchParams: URLSearchParams) {
   const value = Number(searchParams.get("node_id"))
   return Number.isInteger(value) && value > 0 ? value : null
@@ -584,6 +598,7 @@ export function ControllerLogsPanel() {
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.index" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.createdAt" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.term" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.type" })}</th>
                   <th className="px-3 py-2">{intl.formatMessage({ id: "controller.logs.table.command" })}</th>
@@ -597,6 +612,7 @@ export function ControllerLogsPanel() {
                   return (
                     <tr key={entry.index} className="align-top">
                       <td className="px-3 py-3 font-medium text-foreground">{entry.index}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{formatLogEntryCreatedAt(intl, entry.created_at_ms)}</td>
                       <td className="px-3 py-3 text-muted-foreground">{entry.term}</td>
                       <td className="px-3 py-3 text-muted-foreground">{entry.type}</td>
                       <td className="px-3 py-3 text-foreground">

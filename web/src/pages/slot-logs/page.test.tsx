@@ -143,6 +143,36 @@ test("disables slot log compaction without both node and slot write permissions"
   expect(screen.getByText("Requires cluster.node and cluster.slot write permissions.")).toBeInTheDocument()
 })
 
+test("renders slot log entry creation time", async () => {
+  const createdAtMS = Date.UTC(2026, 5, 18, 1, 10, 11, 123)
+  const formattedCreatedAt = new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(createdAtMS))
+  getSlotLogsMock.mockResolvedValueOnce({
+    ...slotLogsPage(1),
+    items: [{
+      index: 12,
+      term: 3,
+      type: "normal",
+      created_at_ms: createdAtMS,
+      data_size: 16,
+      decode_status: "ok",
+      decoded_type: "slot_config",
+      decoded: { command: "slot_config", slot_id: 9 },
+    }],
+  })
+
+  renderSlotLogsPage()
+
+  expect(await screen.findByText("Created at")).toBeInTheDocument()
+  expect(screen.getByText(formattedCreatedAt)).toBeInTheDocument()
+})
+
 function renderSlotLogsPage() {
   return render(
     <I18nProvider>

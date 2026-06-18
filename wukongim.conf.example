@@ -44,7 +44,7 @@ WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
 # Caps blocking ChannelV2 replication RPC workers. 0 keeps the runtime default
 # derived from the reactor count.
-WK_CLUSTER_CHANNEL_RPC_WORKERS=0
+WK_CLUSTER_CHANNEL_RPC_WORKERS=50
 # Limits active local legacy channel runtimes and ChannelV2 runtimes on this node.
 # 0 preserves unlimited behavior; set a positive per-node budget to fail closed
 # before channel runtime goroutines grow unbounded.

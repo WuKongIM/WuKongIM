@@ -63,6 +63,8 @@ type LogEntryDTO struct {
 	Term uint64 `json:"term"`
 	// Type is the normalized Raft entry type.
 	Type string `json:"type"`
+	// CreatedAtMS is the proposer-issued command timestamp in Unix milliseconds when known.
+	CreatedAtMS int64 `json:"created_at_ms,omitempty"`
 	// DataSize is the payload size in bytes.
 	DataSize int `json:"data_size"`
 	// DecodeStatus reports whether the entry payload was decoded for inspection.
@@ -235,6 +237,7 @@ func logEntryDTO(item managementusecase.LogEntry) LogEntryDTO {
 		Index:        item.Index,
 		Term:         item.Term,
 		Type:         item.Type,
+		CreatedAtMS:  item.CreatedAtMS,
 		DataSize:     item.DataSize,
 		DecodeStatus: item.DecodeStatus,
 		DecodedType:  item.DecodedType,
