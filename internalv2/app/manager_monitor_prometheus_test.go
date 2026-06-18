@@ -321,6 +321,68 @@ func TestManagerMonitorPrometheusProviderConversationNoDataAndNoDirtyHandling(t 
 	}
 }
 
+func TestManagerMonitorPrometheusProviderConversationHealthyZeroRatesStayAvailable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		promQL := r.URL.Query().Get("query")
+		switch {
+		case strings.Contains(promQL, `wukongim_conversation_sync_total{result!="ok"}`):
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, "wukongim_conversation_sync_total[") {
+				writePrometheusRangeForTest(w, "0")
+				return
+			}
+			writePrometheusNoDataForTest(w)
+		case strings.Contains(promQL, "wukongim_conversation_authority_cache_pressure_total") ||
+			strings.Contains(promQL, "wukongim_conversation_authority_admit_total{result=~"):
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, "wukongim_conversation_authority_admit_total[") {
+				writePrometheusRangeForTest(w, "0")
+				return
+			}
+			writePrometheusNoDataForTest(w)
+		default:
+			writePrometheusRangeForTest(w, "3")
+		}
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
+		t.Fatalf("Status = %q, want ready; source=%#v", resp.Status, resp.Sources.Prometheus)
+	}
+	syncErrors := requireMonitorCardForTest(t, resp, "conversationSyncErrorRate")
+	if !syncErrors.Available || syncErrors.Value != 0 {
+		t.Fatalf("sync error card = %#v, want available zero value", syncErrors)
+	}
+	authorityPressure := requireMonitorCardForTest(t, resp, "conversationAuthorityPressureRate")
+	if !authorityPressure.Available || authorityPressure.Value != 0 {
+		t.Fatalf("authority pressure card = %#v, want available zero value", authorityPressure)
+	}
+}
+
+func TestManagerMonitorPrometheusConversationZeroFallbackQueriesAreGrouped(t *testing.T) {
+	syncErrors := requireMonitorDefinitionForTest(t, "conversationSyncErrorRate").query("1m")
+	if !strings.Contains(syncErrors, `) * 0)) / clamp_min(sum(rate(wukongim_conversation_sync_total[1m])), 1)) * 100`) {
+		t.Fatalf("sync error query = %q, want zero fallback grouped before division", syncErrors)
+	}
+
+	authorityPressure := requireMonitorDefinitionForTest(t, "conversationAuthorityPressureRate").query("1m")
+	if !strings.Contains(authorityPressure, `)) + ((sum(rate(wukongim_conversation_authority_admit_total{result=~"cache_pressure|route_not_ready|stale_route|not_leader|timeout"}[1m]))`) {
+		t.Fatalf("authority pressure query = %q, want cache and admit pressure fallbacks grouped before addition", authorityPressure)
+	}
+}
+
 func TestManagerMonitorPrometheusProviderConversationQueryErrorUsesGenericUnavailableReason(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		promQL := r.URL.Query().Get("query")
@@ -368,6 +430,17 @@ func requireMonitorCardForTest(t *testing.T, resp accessmanager.RealtimeMonitorR
 	}
 	t.Fatalf("card %q not found; cards=%#v", key, resp.Cards)
 	return accessmanager.RealtimeMonitorCard{}
+}
+
+func requireMonitorDefinitionForTest(t *testing.T, key string) monitorMetricDefinition {
+	t.Helper()
+	for _, def := range managerMonitorMetricDefinitions() {
+		if def.key == key {
+			return def
+		}
+	}
+	t.Fatalf("monitor definition %q not found", key)
+	return monitorMetricDefinition{}
 }
 
 func requireMonitorSnapshotForTest(t *testing.T, resp accessmanager.RealtimeMonitorResponse, key string) accessmanager.RealtimeMonitorSnapshotEntry {

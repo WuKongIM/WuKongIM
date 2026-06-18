@@ -299,7 +299,9 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneCritical,
 			unit:  "%",
 			query: func(rateWindow string) string {
-				return "(sum(rate(wukongim_conversation_sync_total{result!=\"ok\"}[" + rateWindow + "])) / clamp_min(sum(rate(wukongim_conversation_sync_total[" + rateWindow + "])), 1)) * 100"
+				errors := "sum(rate(wukongim_conversation_sync_total{result!=\"ok\"}[" + rateWindow + "]))"
+				total := "sum(rate(wukongim_conversation_sync_total[" + rateWindow + "]))"
+				return "(" + prometheusZeroWhenPresent(errors, total) + " / clamp_min(" + total + ", 1)) * 100"
 			},
 		},
 		{
@@ -364,7 +366,15 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			tone:  accessmanager.RealtimeMonitorToneWarning,
 			unit:  "events/s",
 			query: func(rateWindow string) string {
-				return "sum(rate(wukongim_conversation_authority_cache_pressure_total{result!=\"ok\"}[" + rateWindow + "])) + sum(rate(wukongim_conversation_authority_admit_total{result=~\"cache_pressure|route_not_ready|stale_route|not_leader|timeout\"}[" + rateWindow + "]))"
+				cachePressure := "sum(rate(wukongim_conversation_authority_cache_pressure_total{result!=\"ok\"}[" + rateWindow + "]))"
+				admitPressure := "sum(rate(wukongim_conversation_authority_admit_total{result=~\"cache_pressure|route_not_ready|stale_route|not_leader|timeout\"}[" + rateWindow + "]))"
+				activity := prometheusAnySeries(
+					"sum(rate(wukongim_conversation_authority_cache_pressure_total["+rateWindow+"]))",
+					"sum(rate(wukongim_conversation_authority_admit_total["+rateWindow+"]))",
+					"sum(rate(wukongim_conversation_authority_list_total["+rateWindow+"]))",
+					"sum(rate(wukongim_conversation_authority_handoff_total["+rateWindow+"]))",
+				)
+				return prometheusZeroWhenPresent(cachePressure, activity) + " + " + prometheusZeroWhenPresent(admitPressure, activity)
 			},
 		},
 		{
@@ -451,6 +461,23 @@ func monitorNoDataMessage(configured string) string {
 
 func prometheusZeroFallback(query string) string {
 	return "(" + query + ") or vector(0)"
+}
+
+func prometheusZeroWhenPresent(query, presence string) string {
+	return "((" + query + ") or on() ((" + presence + ") * 0))"
+}
+
+func prometheusAnySeries(queries ...string) string {
+	clean := make([]string, 0, len(queries))
+	for _, query := range queries {
+		if query = strings.TrimSpace(query); query != "" {
+			clean = append(clean, query)
+		}
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(clean, ") or (") + ")"
 }
 
 func parsePrometheusMatrix(results []prometheusMatrixElement) ([]accessmanager.RealtimeMonitorPoint, error) {
