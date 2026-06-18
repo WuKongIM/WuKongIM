@@ -30,6 +30,7 @@ const toneStyles: Record<ClusterMonitorTone, { dot: string; badge: string }> = {
 
 export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps) {
   const intl = useIntl()
+  const hasSeries = card.available !== false && card.series.length > 0
   const chartData = card.series.map((point) => ({
     time: new Intl.DateTimeFormat(intl.locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
     value: point.value,
@@ -59,46 +60,52 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
       </div>
 
       <div className="mt-4 h-[120px]">
-        <ResponsiveContainer height="100%" width="100%">
-          <AreaChart data={chartData} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="5%" stopColor={card.chartColor} stopOpacity={0.32} />
-                <stop offset="95%" stopColor={card.chartColor} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              axisLine={false}
-              dataKey="time"
-              fontSize={10}
-              interval="preserveStartEnd"
-              tickLine={false}
-              tickMargin={8}
-            />
-            <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                return (
-                  <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
-                    <p className="font-medium text-foreground">
-                      {payload[0].value as number} {card.unit}
-                    </p>
-                    <p className="text-muted-foreground">{payload[0].payload.time}</p>
-                  </div>
-                )
-              }}
-            />
-            <Area
-              dataKey="value"
-              fill={`url(#${gradientId})`}
-              isAnimationActive={false}
-              stroke={card.chartColor}
-              strokeWidth={2}
-              type="monotone"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {hasSeries ? (
+          <ResponsiveContainer data-testid="cluster-monitor-chart" height="100%" width="100%">
+            <AreaChart data={chartData} margin={{ bottom: 0, left: 0, right: 4, top: 8 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="5%" stopColor={card.chartColor} stopOpacity={0.32} />
+                  <stop offset="95%" stopColor={card.chartColor} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                axisLine={false}
+                dataKey="time"
+                fontSize={10}
+                interval="preserveStartEnd"
+                tickLine={false}
+                tickMargin={8}
+              />
+              <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
+                      <p className="font-medium text-foreground">
+                        {payload[0].value as number} {card.unit}
+                      </p>
+                      <p className="text-muted-foreground">{payload[0].payload.time}</p>
+                    </div>
+                  )
+                }}
+              />
+              <Area
+                dataKey="value"
+                fill={`url(#${gradientId})`}
+                isAnimationActive={false}
+                stroke={card.chartColor}
+                strokeWidth={2}
+                type="monotone"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border/80 bg-background/35 text-xs text-muted-foreground">
+            {intl.formatMessage({ id: "clusterMonitor.chart.noSeriesData" })}
+          </div>
+        )}
       </div>
 
       <dl className="mt-auto grid grid-cols-3 gap-2 pt-4">

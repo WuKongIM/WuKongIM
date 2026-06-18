@@ -1261,6 +1261,7 @@ export const enMessages: AppMessages = {
   "clusterMonitor.prometheus.disabledDescription": "Enable metrics and Prometheus export to collect realtime cluster monitor data.",
   "clusterMonitor.prometheus.unavailableTitle": "Prometheus is unavailable",
   "clusterMonitor.prometheus.unavailableDescription": "The manager could not query Prometheus. Check the configured base URL and service health.",
+  "clusterMonitor.chart.noSeriesData": "No series data",
   "clusterMonitor.stage.controlPlane": "Control Plane",
   "clusterMonitor.stage.slotReplication": "Slot Replication",
   "clusterMonitor.stage.channelReplication": "Channel Replication",

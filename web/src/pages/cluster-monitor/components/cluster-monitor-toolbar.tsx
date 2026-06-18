@@ -32,7 +32,7 @@ export function ClusterMonitorToolbar({
     second: "2-digit",
   }).format(new Date(generatedAt))
   const pauseLabel = intl.formatMessage({
-    id: isPaused ? "clusterMonitor.controls.resumeLivePreview" : "clusterMonitor.controls.pauseLivePreview",
+    id: isPaused ? "clusterMonitor.controls.resumeLiveMonitor" : "clusterMonitor.controls.pauseLiveMonitor",
   })
 
   return (

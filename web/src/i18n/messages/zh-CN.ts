@@ -1259,6 +1259,7 @@ export const zhCNMessages: AppMessages = {
   "clusterMonitor.prometheus.disabledDescription": "启用指标采集与 Prometheus 导出后，才能采集实时集群监控数据。",
   "clusterMonitor.prometheus.unavailableTitle": "Prometheus 不可用",
   "clusterMonitor.prometheus.unavailableDescription": "管理端无法查询 Prometheus，请检查配置的 base URL 与服务健康状态。",
+  "clusterMonitor.chart.noSeriesData": "暂无序列数据",
   "clusterMonitor.stage.controlPlane": "控制面",
   "clusterMonitor.stage.slotReplication": "Slot 复制",
   "clusterMonitor.stage.channelReplication": "频道复制",
