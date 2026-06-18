@@ -340,9 +340,6 @@ func (m *ChannelV2Metrics) SetISRAnomalyChannels(counts map[string]int) {
 	for _, reason := range channelV2ISRAnomalyReasons {
 		m.isrAnomalyChannels.WithLabelValues(reason).Set(float64(counts[reason]))
 	}
-	for reason, count := range counts {
-		m.isrAnomalyChannels.WithLabelValues(reason).Set(float64(count))
-	}
 }
 
 func (m *ChannelV2Metrics) ObserveAppendBatch(records int, bytes int, wait time.Duration) {

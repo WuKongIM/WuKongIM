@@ -261,8 +261,9 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg.ChannelV2.ObserveMetaCache("hit")
 	reg.ChannelV2.ObserveMetaCache("invalidate")
 	reg.ChannelV2.SetISRAnomalyChannels(map[string]int{
-		"isr_insufficient": 3,
-		"no_leader":        1,
+		"isr_insufficient":        3,
+		"no_leader":               1,
+		"channel-123/raw timeout": 4,
 	})
 
 	families, err := reg.Gather()
@@ -530,6 +531,11 @@ func TestChannelV2MetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"node_name": "node-8",
 		"reason":    "replica_gap",
 	}).GetGauge().GetValue())
+	require.False(t, hasMetricByLabels(isrAnomalies, map[string]string{
+		"node_id":   "8",
+		"node_name": "node-8",
+		"reason":    "channel-123/raw timeout",
+	}))
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {
@@ -1543,4 +1549,24 @@ func findMetricByLabels(t *testing.T, family *dto.MetricFamily, want map[string]
 	}
 	t.Fatalf("metric family %q with labels %v not found", family.GetName(), want)
 	return nil
+}
+
+func hasMetricByLabels(family *dto.MetricFamily, want map[string]string) bool {
+	for _, metric := range family.GetMetric() {
+		got := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			got[label.GetName()] = label.GetValue()
+		}
+		matched := true
+		for key, value := range want {
+			if got[key] != value {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
