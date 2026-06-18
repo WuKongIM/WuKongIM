@@ -143,6 +143,10 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
   const stage = normalizeStage(card.stage)
   const tone = normalizeTone(card.tone)
   const available = card.available && card.series.length > 0
+  const unavailableReasonLabelId = available
+    ? undefined
+    : ((card.unavailable_reason ? monitorUnavailableReasonLabelIds[card.unavailable_reason] : undefined) ??
+      "monitor.noData.unavailable")
 
   return {
     key: card.key,
@@ -154,9 +158,7 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
     unit: card.unit,
     value: available ? formatMonitorNumber(card.value, config.precision) : "-",
     available,
-    unavailableReasonLabelId: card.unavailable_reason
-      ? monitorUnavailableReasonLabelIds[card.unavailable_reason]
-      : undefined,
+    unavailableReasonLabelId,
     error: card.error,
     series: card.series,
     stats: available

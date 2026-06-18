@@ -39,6 +39,8 @@ const (
 	RealtimeMonitorStageSendEntry = "sendEntry"
 	// RealtimeMonitorStageAppendCommit identifies append and commit cards.
 	RealtimeMonitorStageAppendCommit = "appendCommit"
+	// RealtimeMonitorStageConversationSync identifies conversation sync and active-cache cards.
+	RealtimeMonitorStageConversationSync = "conversationSync"
 	// RealtimeMonitorStageOnlineDelivery identifies online delivery cards.
 	RealtimeMonitorStageOnlineDelivery = "onlineDelivery"
 	// RealtimeMonitorStageOfflineRetry identifies offline retry cards.

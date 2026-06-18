@@ -30,10 +30,13 @@ const toneStyles: Record<MonitorTone, { dot: string; badge: string }> = {
 
 export function MonitorMetricCard({ card }: MonitorMetricCardProps) {
   const intl = useIntl()
-  const chartData = card.series.map((point) => ({
-    time: new Intl.DateTimeFormat(intl.locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
-    value: point.value,
-  }))
+  const isAvailable = card.available
+  const chartData = isAvailable
+    ? card.series.map((point) => ({
+        time: new Intl.DateTimeFormat(intl.locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
+        value: point.value,
+      }))
+    : []
   const gradientId = `monitor-gradient-${card.key}`
   const styles = toneStyles[card.tone]
   const hasSeries = card.available && chartData.length > 0

@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"errors"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -161,6 +162,10 @@ type SyncConversation struct {
 type SyncResult struct {
 	// Conversations contains legacy-compatible synchronized conversations.
 	Conversations []SyncConversation
+	// OverlayItems is the number of client-known overlay candidates before sync filtering.
+	OverlayItems int
+	// RecentLoadDuration records how long recent-message loading took when requested.
+	RecentLoadDuration time.Duration
 }
 
 // Conversation is one channel row in a user's conversation list.

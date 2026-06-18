@@ -2,7 +2,13 @@ export type TimeRange = "5m" | "15m" | "30m" | "1h"
 
 export type MonitorTone = "normal" | "warning" | "critical" | "preview"
 
-export type MonitorStage = "sendEntry" | "appendCommit" | "onlineDelivery" | "offlineRetry" | "errorClosure"
+export type MonitorStage =
+  | "sendEntry"
+  | "appendCommit"
+  | "conversationSync"
+  | "onlineDelivery"
+  | "offlineRetry"
+  | "errorClosure"
 
 export type MonitorMetricKey =
   | "sendRate"
@@ -11,6 +17,16 @@ export type MonitorMetricKey =
   | "commitRate"
   | "commitLatencyP99"
   | "pendingCommitBacklog"
+  | "conversationSyncRate"
+  | "conversationSyncLatencyP99"
+  | "conversationSyncErrorRate"
+  | "conversationReturnedItems"
+  | "conversationRecentLoadLatencyP99"
+  | "conversationActiveDirtyRows"
+  | "conversationActiveOldestDirtyAge"
+  | "conversationActiveFlushLatencyP99"
+  | "conversationActiveFlushErrorRate"
+  | "conversationAuthorityPressureRate"
   | "deliveryRate"
   | "deliveryLatencyP99"
   | "fanOutRatio"

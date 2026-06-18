@@ -9,7 +9,7 @@ import (
 
 var conversationListSizeBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1000, 2000, 5000}
 
-// ConversationMetrics exposes conversation list read latency and page-shape metrics.
+// ConversationMetrics exposes conversation read latency and page-shape metrics.
 type ConversationMetrics struct {
 	listTotal                 *prometheus.CounterVec
 	listDuration              *prometheus.HistogramVec
@@ -18,6 +18,11 @@ type ConversationMetrics struct {
 	listLastMessageLoads      *prometheus.HistogramVec
 	listLastMessageErrors     *prometheus.HistogramVec
 	listActiveIndexStaleSkips *prometheus.HistogramVec
+	syncTotal                 *prometheus.CounterVec
+	syncDuration              *prometheus.HistogramVec
+	syncReturnedItems         *prometheus.HistogramVec
+	syncOverlayItems          *prometheus.HistogramVec
+	syncRecentLoadDuration    *prometheus.HistogramVec
 	authorityAdmitTotal       *prometheus.CounterVec
 	authorityCachePressure    *prometheus.CounterVec
 	authorityListTotal        *prometheus.CounterVec
@@ -73,6 +78,35 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			ConstLabels: labels,
 			Buckets:     conversationListSizeBuckets,
 		}, []string{"result", "more"}),
+		syncTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_conversation_sync_total",
+			Help:        "Total number of conversation sync requests.",
+			ConstLabels: labels,
+		}, []string{"result", "only_unread", "with_recents"}),
+		syncDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_sync_duration_seconds",
+			Help:        "Conversation sync request latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result", "only_unread", "with_recents"}),
+		syncReturnedItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_sync_returned_items",
+			Help:        "Conversation rows returned by conversation sync requests.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "only_unread", "with_recents"}),
+		syncOverlayItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_sync_overlay_items",
+			Help:        "Overlay rows merged by conversation sync requests.",
+			ConstLabels: labels,
+			Buckets:     conversationListSizeBuckets,
+		}, []string{"result", "only_unread", "with_recents"}),
+		syncRecentLoadDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_conversation_sync_recent_load_duration_seconds",
+			Help:        "Recent conversation load latency within sync requests in seconds.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result", "only_unread"}),
 		authorityAdmitTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_conversation_authority_admit_total",
 			Help:        "Conversation authority cache admissions by normalized result.",
@@ -135,6 +169,11 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.listLastMessageLoads,
 		m.listLastMessageErrors,
 		m.listActiveIndexStaleSkips,
+		m.syncTotal,
+		m.syncDuration,
+		m.syncReturnedItems,
+		m.syncOverlayItems,
+		m.syncRecentLoadDuration,
 		m.authorityAdmitTotal,
 		m.authorityCachePressure,
 		m.authorityListTotal,
@@ -166,6 +205,26 @@ func (m *ConversationMetrics) ObserveList(result string, more bool, dur time.Dur
 	m.listLastMessageLoads.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(lastMessageLoads)))
 	m.listLastMessageErrors.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(lastMessageErrors)))
 	m.listActiveIndexStaleSkips.WithLabelValues(result, moreLabel).Observe(float64(nonNegative(activeIndexStaleSkips)))
+}
+
+// ObserveSync records one conversation sync request result and returned row shape.
+func (m *ConversationMetrics) ObserveSync(result string, onlyUnread, withRecents bool, dur time.Duration, returnedItems, overlayItems int, recentLoadDuration time.Duration) {
+	if m == nil {
+		return
+	}
+	result = conversationSyncResult(result)
+	onlyUnreadLabel := strconv.FormatBool(onlyUnread)
+	withRecentsLabel := strconv.FormatBool(withRecents)
+	if dur < 0 {
+		dur = 0
+	}
+	m.syncTotal.WithLabelValues(result, onlyUnreadLabel, withRecentsLabel).Inc()
+	m.syncDuration.WithLabelValues(result, onlyUnreadLabel, withRecentsLabel).Observe(dur.Seconds())
+	m.syncReturnedItems.WithLabelValues(result, onlyUnreadLabel, withRecentsLabel).Observe(float64(nonNegative(returnedItems)))
+	m.syncOverlayItems.WithLabelValues(result, onlyUnreadLabel, withRecentsLabel).Observe(float64(nonNegative(overlayItems)))
+	if withRecents && recentLoadDuration > 0 {
+		m.syncRecentLoadDuration.WithLabelValues(result, onlyUnreadLabel).Observe(recentLoadDuration.Seconds())
+	}
 }
 
 // ObserveAuthorityAdmit records one conversation authority cache admission outcome.
@@ -226,6 +285,15 @@ func (m *ConversationMetrics) ObserveActiveFlush(result string, selected, flushe
 		dur = 0
 	}
 	m.activeFlushDuration.WithLabelValues(result).Observe(dur.Seconds())
+}
+
+func conversationSyncResult(result string) string {
+	switch result {
+	case "ok", "invalid_request", "parse_last_msg_seqs_error", "not_configured", "store_error", "recent_message_error", "error":
+		return result
+	default:
+		return "error"
+	}
 }
 
 func conversationAuthorityPhase(phase string) string {

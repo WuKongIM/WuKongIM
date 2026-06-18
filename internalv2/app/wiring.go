@@ -651,6 +651,7 @@ func (a *App) wireAPI() {
 			Messages:                 a.apiMessages,
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
+			ConversationSyncObserver: a.conversationSyncObserver(),
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,

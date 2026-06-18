@@ -294,6 +294,13 @@ func (a *App) conversationListObserver() accessapi.ConversationListObserver {
 	return conversationListMetricsObserver{metrics: a.metrics}
 }
 
+func (a *App) conversationSyncObserver() accessapi.ConversationSyncObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationSyncMetricsObserver{metrics: a.metrics}
+}
+
 func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
 	if a == nil || a.metrics == nil {
 		return nil

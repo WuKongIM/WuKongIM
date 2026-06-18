@@ -102,6 +102,49 @@ func TestSyncFiltersUnreadDeletedExcludedAndCommandConversations(t *testing.T) {
 	}
 }
 
+func TestSyncReportsOverlayAndRecentLoadShape(t *testing.T) {
+	store := newConversationSyncStore()
+	store.active = []metadb.UserConversationState{{
+		UID:         "u1",
+		ChannelID:   "active",
+		ChannelType: 2,
+		ActiveAt:    20,
+	}}
+	store.latest[ConversationKey{ChannelID: "active", ChannelType: 2}] = LastMessage{MessageSeq: 4, ServerTimestampMS: 4000}
+	store.latest[ConversationKey{ChannelID: "overlay", ChannelType: 2}] = LastMessage{MessageSeq: 9, ServerTimestampMS: 9000}
+	store.states[metadb.ConversationKey{ChannelID: "durable-overlay", ChannelType: 2}] = metadb.UserConversationState{
+		UID:         "u1",
+		ChannelID:   "durable-overlay",
+		ChannelType: 2,
+	}
+	store.latest[ConversationKey{ChannelID: "durable-overlay", ChannelType: 2}] = LastMessage{MessageSeq: 8, ServerTimestampMS: 8000}
+	store.recents[ConversationKey{ChannelID: "overlay", ChannelType: 2}] = []SyncMessage{{
+		MessageSeq:        9,
+		ChannelID:         "overlay",
+		ChannelType:       2,
+		ServerTimestampMS: 9000,
+	}}
+	app := New(Options{Store: store, StateStore: store, Messages: store})
+
+	got, err := app.Sync(context.Background(), SyncQuery{
+		UID:      "u1",
+		MsgCount: 1,
+		LastMsgSeqs: map[ConversationKey]uint64{
+			{ChannelID: "overlay", ChannelType: 2}:         7,
+			{ChannelID: "durable-overlay", ChannelType: 2}: 7,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if got.OverlayItems != 2 {
+		t.Fatalf("OverlayItems = %d, want 2", got.OverlayItems)
+	}
+	if got.RecentLoadDuration <= 0 {
+		t.Fatalf("RecentLoadDuration = %v, want positive duration", got.RecentLoadDuration)
+	}
+}
+
 type conversationSyncStore struct {
 	active           []metadb.UserConversationState
 	states           map[metadb.ConversationKey]metadb.UserConversationState

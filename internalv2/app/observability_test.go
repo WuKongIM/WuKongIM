@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
@@ -652,6 +653,65 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	handoff := requireAppMetricFamily(t, families, "wukongim_conversation_authority_handoff_total")
 	if got := findAppMetricByLabels(t, handoff, map[string]string{"result": "drained"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("authority handoff metric = %v, want 1", got)
+	}
+}
+
+func TestObservabilityConversationSyncMetricsObserverMapsCounters(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := conversationSyncMetricsObserver{metrics: reg}
+
+	observer.ObserveConversationSync(accessapi.ConversationSyncObservation{
+		Result:             "ok",
+		Duration:           15 * time.Millisecond,
+		OnlyUnread:         true,
+		WithRecents:        true,
+		ReturnedItems:      4,
+		OverlayItems:       2,
+		RecentLoadDuration: 3 * time.Millisecond,
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	total := requireAppMetricFamily(t, families, "wukongim_conversation_sync_total")
+	if got := findAppMetricByLabels(t, total, map[string]string{
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("conversation sync total metric = %v, want 1", got)
+	}
+	duration := requireAppMetricFamily(t, families, "wukongim_conversation_sync_duration_seconds")
+	if got := findAppMetricByLabels(t, duration, map[string]string{
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleSum(); math.Abs(got-0.015) > 0.000001 {
+		t.Fatalf("conversation sync duration metric = %v, want 0.015", got)
+	}
+	returned := requireAppMetricFamily(t, families, "wukongim_conversation_sync_returned_items")
+	if got := findAppMetricByLabels(t, returned, map[string]string{
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleSum(); got != 4 {
+		t.Fatalf("conversation sync returned items metric = %v, want 4", got)
+	}
+	overlay := requireAppMetricFamily(t, families, "wukongim_conversation_sync_overlay_items")
+	if got := findAppMetricByLabels(t, overlay, map[string]string{
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleSum(); got != 2 {
+		t.Fatalf("conversation sync overlay items metric = %v, want 2", got)
+	}
+	recentLoad := requireAppMetricFamily(t, families, "wukongim_conversation_sync_recent_load_duration_seconds")
+	if got := findAppMetricByLabels(t, recentLoad, map[string]string{
+		"result":      "ok",
+		"only_unread": "true",
+	}).GetHistogram().GetSampleSum(); math.Abs(got-0.003) > 0.000001 {
+		t.Fatalf("conversation sync recent load duration metric = %v, want 0.003", got)
 	}
 }
 

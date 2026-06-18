@@ -39,6 +39,7 @@ function readyMonitorResponse() {
     sources: { prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 18, error: "" } },
     snapshot: [
       { key: "send", metric_key: "sendRate", value: 12.5, unit: "msg/s", tone: "normal" as const },
+      { key: "conversationSyncP99", metric_key: "conversationSyncLatencyP99", value: 18.4, unit: "ms", tone: "normal" as const },
       { key: "online", metric_key: "activeConnections", value: 88, tone: "normal" as const },
     ],
     cards: [
@@ -61,6 +62,24 @@ function readyMonitorResponse() {
         ],
       },
       {
+        key: "conversationSyncRate",
+        stage: "conversationSync",
+        tone: "normal" as const,
+        unit: "sync/s",
+        value: 9.5,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 8 },
+          { timestamp: 1781767220000, value: 9.5 },
+        ],
+        stats: [
+          { key: "avg", value: 8.75 },
+          { key: "peak", value: 9.5 },
+          { key: "total", value: 315 },
+        ],
+      },
+      {
         key: "activeConnections",
         stage: "sendEntry",
         tone: "normal" as const,
@@ -77,6 +96,30 @@ function readyMonitorResponse() {
           { key: "peak", value: 88 },
           { key: "total", value: 3400 },
         ],
+      },
+    ],
+  }
+}
+
+function partialMonitorResponseWithUnavailableConversationCard(unavailableReason: string | null = "no_conversation_recent_load_samples") {
+  const response = readyMonitorResponse()
+
+  return {
+    ...response,
+    status: "partial" as const,
+    cards: [
+      response.cards[0],
+      {
+        key: "conversationRecentLoadLatencyP99",
+        stage: "conversationSync",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 0,
+        available: false,
+        error: "",
+        ...(unavailableReason === null ? {} : { unavailable_reason: unavailableReason }),
+        series: [],
+        stats: [],
       },
     ],
   }
@@ -141,12 +184,14 @@ test("renders realtime business monitor cards from prometheus data", async () =>
   expect(screen.getByText("Global business message path health trends.")).toBeInTheDocument()
 
   const cards = await screen.findAllByTestId("monitor-metric-card")
-  expect(cards).toHaveLength(2)
+  expect(cards).toHaveLength(3)
   expect(within(cards[0]).getByText("Send Rate")).toBeInTheDocument()
   expect(within(cards[0]).getByText("12.5")).toBeInTheDocument()
-  expect(within(cards[1]).getByText("Online Connections")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Conversation Sync Rate")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("9.5")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Online Connections")).toBeInTheDocument()
 
-  for (const label of ["Send", "Online"]) {
+  for (const label of ["Send", "Conversation Sync P99", "Online"]) {
     expect(screen.getByText(label)).toBeInTheDocument()
   }
 
@@ -184,6 +229,30 @@ test("updates selected time range and pause state from the toolbar", async () =>
 
   await user.click(screen.getByRole("button", { name: "Resume live monitor" }))
   expect(screen.getByRole("button", { name: "Pause live monitor" })).toBeInTheDocument()
+})
+
+test("renders localized no-data copy for unavailable realtime conversation cards", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(partialMonitorResponseWithUnavailableConversationCard())
+  renderMonitorPage()
+
+  const cards = await screen.findAllByTestId("monitor-metric-card")
+  expect(cards).toHaveLength(2)
+  expect(within(cards[1]).getByText("Conversation Recent Load Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("-")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("No recent-message load samples in the selected time range.")).toBeInTheDocument()
+})
+
+test.each([
+  ["unknown unavailable reason", "prometheus_query_error"],
+  ["missing unavailable reason", null],
+])("renders generic no-data copy for %s", async (_, unavailableReason) => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(partialMonitorResponseWithUnavailableConversationCard(unavailableReason))
+  renderMonitorPage()
+
+  const cards = await screen.findAllByTestId("monitor-metric-card")
+  expect(cards).toHaveLength(2)
+  expect(within(cards[1]).getByText("Conversation Recent Load Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Metric data is unavailable.")).toBeInTheDocument()
 })
 
 test("shows prometheus setup guidance when realtime monitor is disabled", async () => {

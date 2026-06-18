@@ -112,9 +112,32 @@ type ConversationListObservation struct {
 	More bool
 }
 
+// ConversationSyncObservation captures one /conversation/sync request result.
+type ConversationSyncObservation struct {
+	// Result is a low-cardinality request result label.
+	Result string
+	// Duration is the end-to-end handler latency.
+	Duration time.Duration
+	// OnlyUnread reports whether the request asked for unread conversations only.
+	OnlyUnread bool
+	// WithRecents reports whether the request asked for recent messages.
+	WithRecents bool
+	// ReturnedItems is the number of conversation rows returned to the client.
+	ReturnedItems int
+	// OverlayItems is the number of client-known overlay candidates before sync filtering.
+	OverlayItems int
+	// RecentLoadDuration records how long recent-message loading took when requested.
+	RecentLoadDuration time.Duration
+}
+
 // ConversationListObserver receives performance observations for conversation list reads.
 type ConversationListObserver interface {
 	ObserveConversationList(ConversationListObservation)
+}
+
+// ConversationSyncObserver receives performance observations for conversation sync reads.
+type ConversationSyncObserver interface {
+	ObserveConversationSync(ConversationSyncObservation)
 }
 
 // ChannelUsecase coordinates compatible channel metadata and member mutations.
@@ -209,6 +232,8 @@ type Options struct {
 	Conversations ConversationUsecase
 	// ConversationListObserver records conversation list read performance.
 	ConversationListObserver ConversationListObserver
+	// ConversationSyncObserver records conversation sync read performance.
+	ConversationSyncObserver ConversationSyncObserver
 	// LegacyRouteExternal is the default public gateway address set returned by /route APIs.
 	LegacyRouteExternal LegacyRouteAddresses
 	// LegacyRouteIntranet is the default intranet gateway address set returned by /route APIs.
@@ -233,38 +258,39 @@ type Options struct {
 
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
 type Server struct {
-	mu                   sync.RWMutex
-	engine               *gin.Engine
-	httpServer           *http.Server
-	listener             net.Listener
-	listenAddr           string
-	addr                 string
-	readyz               func(context.Context) (bool, any)
-	benchEnabled         bool
-	benchMaxBatchSize    int
-	benchMaxPayloadBytes int64
-	gateway              GatewayAddresses
-	benchRuntime         ChannelRuntimeBenchController
-	benchPresence        PresenceBenchController
-	benchData            BenchData
-	top                  TopSnapshotProvider
-	channels             ChannelUsecase
-	users                UserUsecase
-	messages             MessageUsecase
-	conversations        ConversationUsecase
-	conversationObserver ConversationListObserver
-	legacyRouteExternal  LegacyRouteAddresses
-	legacyRouteIntranet  LegacyRouteAddresses
-	legacyRouteNodes     map[uint64]LegacyRouteNodeAddresses
-	metricsHandler       http.Handler
-	debugAPIEnabled      bool
-	debugConfig          func() any
-	debugCluster         func() any
-	goroutineSnapshot    func() any
-	diagnostics          DiagnosticsReader
-	logger               wklog.Logger
-	counts               map[string]int
-	started              bool
+	mu                       sync.RWMutex
+	engine                   *gin.Engine
+	httpServer               *http.Server
+	listener                 net.Listener
+	listenAddr               string
+	addr                     string
+	readyz                   func(context.Context) (bool, any)
+	benchEnabled             bool
+	benchMaxBatchSize        int
+	benchMaxPayloadBytes     int64
+	gateway                  GatewayAddresses
+	benchRuntime             ChannelRuntimeBenchController
+	benchPresence            PresenceBenchController
+	benchData                BenchData
+	top                      TopSnapshotProvider
+	channels                 ChannelUsecase
+	users                    UserUsecase
+	messages                 MessageUsecase
+	conversations            ConversationUsecase
+	conversationObserver     ConversationListObserver
+	conversationSyncObserver ConversationSyncObserver
+	legacyRouteExternal      LegacyRouteAddresses
+	legacyRouteIntranet      LegacyRouteAddresses
+	legacyRouteNodes         map[uint64]LegacyRouteNodeAddresses
+	metricsHandler           http.Handler
+	debugAPIEnabled          bool
+	debugConfig              func() any
+	debugCluster             func() any
+	goroutineSnapshot        func() any
+	diagnostics              DiagnosticsReader
+	logger                   wklog.Logger
+	counts                   map[string]int
+	started                  bool
 }
 
 // New creates a minimal internalv2 API server.
@@ -276,33 +302,34 @@ func New(opts Options) *Server {
 	engine.Use(openCORSMiddleware())
 	engine.HandleMethodNotAllowed = true
 	s := &Server{
-		engine:               engine,
-		listenAddr:           strings.TrimSpace(opts.ListenAddr),
-		readyz:               opts.Readyz,
-		benchEnabled:         opts.BenchEnabled,
-		benchMaxBatchSize:    opts.BenchMaxBatchSize,
-		benchMaxPayloadBytes: opts.BenchMaxPayloadBytes,
-		gateway:              opts.Gateway,
-		benchRuntime:         opts.BenchRuntime,
-		benchPresence:        opts.BenchPresence,
-		benchData:            opts.BenchData,
-		top:                  opts.Top,
-		channels:             opts.Channels,
-		users:                opts.Users,
-		messages:             opts.Messages,
-		conversations:        opts.Conversations,
-		conversationObserver: opts.ConversationListObserver,
-		legacyRouteExternal:  opts.LegacyRouteExternal,
-		legacyRouteIntranet:  opts.LegacyRouteIntranet,
-		legacyRouteNodes:     cloneLegacyRouteNodes(opts.LegacyRouteNodes),
-		metricsHandler:       opts.MetricsHandler,
-		debugAPIEnabled:      opts.DebugAPIEnabled,
-		debugConfig:          opts.DebugConfig,
-		debugCluster:         opts.DebugCluster,
-		goroutineSnapshot:    opts.GoroutineSnapshot,
-		diagnostics:          opts.Diagnostics,
-		logger:               opts.Logger,
-		counts:               map[string]int{},
+		engine:                   engine,
+		listenAddr:               strings.TrimSpace(opts.ListenAddr),
+		readyz:                   opts.Readyz,
+		benchEnabled:             opts.BenchEnabled,
+		benchMaxBatchSize:        opts.BenchMaxBatchSize,
+		benchMaxPayloadBytes:     opts.BenchMaxPayloadBytes,
+		gateway:                  opts.Gateway,
+		benchRuntime:             opts.BenchRuntime,
+		benchPresence:            opts.BenchPresence,
+		benchData:                opts.BenchData,
+		top:                      opts.Top,
+		channels:                 opts.Channels,
+		users:                    opts.Users,
+		messages:                 opts.Messages,
+		conversations:            opts.Conversations,
+		conversationObserver:     opts.ConversationListObserver,
+		conversationSyncObserver: opts.ConversationSyncObserver,
+		legacyRouteExternal:      opts.LegacyRouteExternal,
+		legacyRouteIntranet:      opts.LegacyRouteIntranet,
+		legacyRouteNodes:         cloneLegacyRouteNodes(opts.LegacyRouteNodes),
+		metricsHandler:           opts.MetricsHandler,
+		debugAPIEnabled:          opts.DebugAPIEnabled,
+		debugConfig:              opts.DebugConfig,
+		debugCluster:             opts.DebugCluster,
+		goroutineSnapshot:        opts.GoroutineSnapshot,
+		diagnostics:              opts.Diagnostics,
+		logger:                   opts.Logger,
+		counts:                   map[string]int{},
 	}
 	if s.logger == nil {
 		s.logger = wklog.NewNop()

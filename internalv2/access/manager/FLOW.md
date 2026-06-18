@@ -60,6 +60,9 @@ Prometheus monitor provider. When Prometheus is disabled or unavailable the
 route still returns HTTP 200 with an explicit monitor status so the web UI can
 show setup guidance instead of rendering empty charts. This route does not read
 from the top collector or any in-process dashboard ring buffer.
+The Prometheus-backed card wall includes a `conversationSync` stage covering
+the `/conversation/sync` client experience, active-cache dirty age, active
+flush health, and conversation authority pressure.
 
 `/manager/cluster-monitor/realtime` backs the web cluster operations realtime
 monitor card wall. It uses the same chart `window` and optional `step` parsing

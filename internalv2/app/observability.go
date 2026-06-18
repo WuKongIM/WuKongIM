@@ -74,6 +74,10 @@ type conversationListMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type conversationSyncMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type conversationAuthorityMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
@@ -374,6 +378,13 @@ func (o conversationListMetricsObserver) ObserveConversationList(event accessapi
 		return
 	}
 	o.metrics.Conversation.ObserveList(event.Result, event.More, event.Duration, event.ReturnedItems, event.SparseItems, event.LastMessageLoads, event.LastMessageErrors, event.ActiveIndexStaleSkips)
+}
+
+func (o conversationSyncMetricsObserver) ObserveConversationSync(event accessapi.ConversationSyncObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveSync(event.Result, event.OnlyUnread, event.WithRecents, event.Duration, event.ReturnedItems, event.OverlayItems, event.RecentLoadDuration)
 }
 
 func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityAdmit(event conversationAuthorityAdmitEvent) {
@@ -1799,6 +1810,7 @@ var _ accessgateway.AsyncAuthObserver = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
 var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
+var _ accessapi.ConversationSyncObserver = conversationSyncMetricsObserver{}
 var _ conversationAuthorityObserver = conversationAuthorityMetricsObserver{}
 var _ reactor.Observer = channelV2MetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelV2MetricsObserver{}
