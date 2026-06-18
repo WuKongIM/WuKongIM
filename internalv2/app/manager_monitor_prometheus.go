@@ -101,7 +101,7 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		}
 		if err != nil {
 			card.Error = err.Error()
-			card.UnavailableReason = monitorUnavailableReason(def.unavailableReason, "prometheus_query_error")
+			card.UnavailableReason = "prometheus_query_error"
 			if firstErr == nil {
 				firstErr = err
 			}

@@ -321,6 +321,44 @@ func TestManagerMonitorPrometheusProviderConversationNoDataAndNoDirtyHandling(t 
 	}
 }
 
+func TestManagerMonitorPrometheusProviderConversationQueryErrorUsesGenericUnavailableReason(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		promQL := r.URL.Query().Get("query")
+		if strings.Contains(promQL, "wukongim_conversation_sync_recent_load_duration_seconds_bucket") {
+			http.Error(w, "recent load prometheus failed", http.StatusInternalServerError)
+			return
+		}
+		writePrometheusRangeForTest(w, "3")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
+		t.Fatalf("Status = %q, want partial", resp.Status)
+	}
+	recentLoad := requireMonitorCardForTest(t, resp, "conversationRecentLoadLatencyP99")
+	if recentLoad.Available {
+		t.Fatalf("recent-load card = %#v, want unavailable when query fails", recentLoad)
+	}
+	if !strings.Contains(recentLoad.Error, "prometheus query_range returned 500") {
+		t.Fatalf("recent-load error = %q, want HTTP 500 query error", recentLoad.Error)
+	}
+	requireCardUnavailableReasonForTest(t, recentLoad, "prometheus_query_error")
+}
+
 func requireMonitorCardForTest(t *testing.T, resp accessmanager.RealtimeMonitorResponse, key string) accessmanager.RealtimeMonitorCard {
 	t.Helper()
 	for _, card := range resp.Cards {
