@@ -16,6 +16,7 @@ import { MonitorSnapshotStrip } from "./components/monitor-snapshot-strip"
 import { MonitorToolbar } from "./components/monitor-toolbar"
 import {
   monitorMetricConfig,
+  monitorNoDataLabelIds,
   monitorSnapshotLabelIds,
   monitorStageLabelIds,
   monitorStatLabelIds,
@@ -107,7 +108,7 @@ export function MonitorPage() {
 }
 
 function isRenderableMonitor(response: RealtimeMonitorResponse) {
-  return (response.status === "ready" || response.status === "partial") && response.cards.some((card) => card.available)
+  return (response.status === "ready" || response.status === "partial") && response.cards.some((card) => isMonitorMetricKey(card.key))
 }
 
 function buildRealtimeMonitorModel(
@@ -134,10 +135,11 @@ function buildRealtimeMonitorModel(
 }
 
 function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
-  if (!card.available || !isMonitorMetricKey(card.key)) return null
+  if (!isMonitorMetricKey(card.key)) return null
   const config = monitorMetricConfig[card.key]
   const stage = normalizeStage(card.stage)
   const tone = normalizeTone(card.tone)
+  const isAvailable = card.available !== false
 
   return {
     key: card.key,
@@ -146,17 +148,21 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
     stageLabelId: monitorStageLabelIds[stage],
     statusId: monitorStatusByTone[tone],
     tone,
-    unit: card.unit,
-    value: formatMonitorNumber(card.value, config.precision),
-    series: card.series,
-    stats: card.stats.map((stat) => ({
-      labelId: monitorStatLabelIds[stat.key] ?? "monitor.stat.avg",
-      value:
-        stat.key === "total"
-          ? formatMonitorNumber(stat.value, 0)
-          : appendMonitorUnit(formatMonitorNumber(stat.value, config.precision), card.unit),
-    })),
+    unit: isAvailable ? card.unit : "",
+    value: isAvailable ? formatMonitorNumber(card.value, config.precision) : "-",
+    series: isAvailable ? card.series : [],
+    stats: isAvailable
+      ? card.stats.map((stat) => ({
+          labelId: monitorStatLabelIds[stat.key] ?? "monitor.stat.avg",
+          value:
+            stat.key === "total"
+              ? formatMonitorNumber(stat.value, 0)
+              : appendMonitorUnit(formatMonitorNumber(stat.value, config.precision), card.unit),
+        }))
+      : [],
     chartColor: config.chartColor,
+    available: isAvailable,
+    noDataLabelId: card.unavailable_reason ? monitorNoDataLabelIds[card.unavailable_reason] : undefined,
   }
 }
 

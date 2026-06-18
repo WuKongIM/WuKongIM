@@ -313,6 +313,7 @@ export type RealtimeMonitorCard = {
   stats: RealtimeMonitorStat[]
   available: boolean
   error: string
+  unavailable_reason?: string
 }
 
 export type RealtimeMonitorSnapshotEntry = {
